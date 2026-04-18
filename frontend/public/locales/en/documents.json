@@ -134,6 +134,8 @@
     "liveCollaboration": "Live collaboration",
     "collaborationDescription": "Changes sync automatically with collaborators",
     "readOnly": "You only have read access to this document.",
+    "enterFullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen",
     "attachedProjects": "Attached projects",
     "noAttachedProjects": "This document is not attached to any projects yet.",
     "attached": "Attached {{date}}",

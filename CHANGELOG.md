@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Fullscreen toggle in the document and whiteboard editors. The editor, its toolbars, action bar, and collaboration status take over the window for distraction-free writing or large-canvas diagramming. The Fullscreen button sits inline with the collaboration status badge above the editor.
+
+### Fixed
+
+- "Not tagged" filter in the Documents page tag tree view now actually filters to untagged documents. The page was computing the selection state but never sending the `untagged` query parameter to the backend, so selecting "Not tagged" returned every document instead of only the untagged ones.
+
 ## [0.39.0] - 2026-04-14
 
 ### Added
