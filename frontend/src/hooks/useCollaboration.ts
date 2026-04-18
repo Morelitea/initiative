@@ -74,9 +74,12 @@ export function useCollaboration({
   // Sync timeout to detect stuck connections
   const syncTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Create stable callback refs
-  const onSyncedRef = useRef(onSynced);
-  const onErrorRef = useRef(onError);
+  // Create stable callback refs. Allow undefined so we can clear them in the
+  // unmount cleanup — otherwise an in-flight reconnect that resolves after
+  // unmount could still call them, and a toast would fire on a page the user
+  // has already left.
+  const onSyncedRef = useRef<UseCollaborationOptions["onSynced"]>(onSynced);
+  const onErrorRef = useRef<UseCollaborationOptions["onError"]>(onError);
   useEffect(() => {
     onSyncedRef.current = onSynced;
     onErrorRef.current = onError;
@@ -278,18 +281,25 @@ export function useCollaboration({
     }
   }, [isReady]);
 
-  // Cleanup on unmount - use disconnect (debounced) instead of destroy
-  // This allows the provider to be reused if the component remounts quickly (React Strict Mode)
-  // The provider will only be destroyed when the document ID changes (via the wsUrl change effect)
+  // Cleanup on unmount — destroy the provider so it leaves the global
+  // activeProviders map, closes the socket immediately, and stops any
+  // reconnect loop. Using a soft disconnect() here was a Strict-Mode
+  // optimization but caused two real bugs on real navigation: other users
+  // saw the avatar flicker (provider stayed alive briefly and re-stabilized),
+  // and the error callback fired toasts on pages the user had already left.
+  // The Strict-Mode cost is just one extra WS setup in dev — acceptable.
   useEffect(() => {
     return () => {
-      providerRef.current?.disconnect();
-      // Clear sync timeout
+      providerRef.current?.destroy();
+      providerRef.current = null;
+      currentWsUrlRef.current = null;
       if (syncTimeoutRef.current) {
         clearTimeout(syncTimeoutRef.current);
         syncTimeoutRef.current = null;
       }
-      // Don't null refs - provider may be reused on quick remount
+      // Null callback refs so any stray async invocation after destroy is a no-op.
+      onSyncedRef.current = undefined;
+      onErrorRef.current = undefined;
     };
   }, []);
 
