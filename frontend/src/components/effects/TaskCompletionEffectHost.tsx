@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   TASK_COMPLETION_EVENT,
@@ -20,14 +20,16 @@ interface ActiveEffect {
   y: number;
 }
 
-let nextId = 0;
-
 // Mounted once at the top of the app (next to <Toaster /> in main.tsx).
 // Listens for our custom event channel and renders the chosen effect. Confetti
 // variants render directly to a canvas via canvas-confetti so they don't need
 // any DOM child here. Heart and d20 mount as small overlays.
 export const TaskCompletionEffectHost = () => {
   const [active, setActive] = useState<ActiveEffect | null>(null);
+  // Counter used as a React key for back-to-back fires. Scoped to the
+  // component's lifetime via useRef so it doesn't accumulate across HMR
+  // sessions or Strict Mode double-invocations like a module-level let would.
+  const nextIdRef = useRef(0);
 
   // Track the latest pointer position globally. Used by HeartFloater to spawn
   // at the click site, and by runConfetti to choose its origin.
@@ -56,12 +58,12 @@ export const TaskCompletionEffectHost = () => {
           return;
         case "heart": {
           const pointer = getLastPointer();
-          setActive({ id: ++nextId, kind: "heart", x: pointer.x, y: pointer.y });
+          setActive({ id: ++nextIdRef.current, kind: "heart", x: pointer.x, y: pointer.y });
           return;
         }
         case "d20": {
           const pointer = getLastPointer();
-          setActive({ id: ++nextId, kind: "d20", x: pointer.x, y: pointer.y });
+          setActive({ id: ++nextIdRef.current, kind: "d20", x: pointer.x, y: pointer.y });
           return;
         }
       }
