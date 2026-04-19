@@ -13,6 +13,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
 import { ServerProvider, useServer } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
+import { TaskCompletionEffectHost } from "@/components/effects/TaskCompletionEffectHost";
 import { setApiBaseUrl } from "@/api/client";
 import { queryClient } from "@/lib/queryClient";
 import { getStoredServerUrl } from "@/lib/serverStorage";
@@ -41,6 +42,7 @@ const InnerApp = () => {
         }}
       />
       <Toaster position="bottom-center" />
+      <TaskCompletionEffectHost />
     </>
   );
 };

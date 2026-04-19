@@ -2404,6 +2404,7 @@ export interface UserRead {
   last_overdue_notification_at: string | null;
   last_task_assignment_digest_at: string | null;
   color_theme: string;
+  task_completion_visual_feedback: string;
   locale: string;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
@@ -2428,6 +2429,7 @@ export interface UserSelfUpdate {
   push_overdue_tasks?: boolean | null;
   push_mentions?: boolean | null;
   color_theme?: string | null;
+  task_completion_visual_feedback?: string | null;
   locale?: string | null;
 }
 
@@ -2503,6 +2505,7 @@ export interface UserUpdate {
   push_overdue_tasks?: boolean | null;
   push_mentions?: boolean | null;
   color_theme?: string | null;
+  task_completion_visual_feedback?: string | null;
   locale?: string | null;
 }
 
