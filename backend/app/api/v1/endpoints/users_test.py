@@ -351,6 +351,7 @@ async def test_task_completion_visual_feedback_rejects_unknown(
     )
 
     assert response.status_code == 422
+    assert response.json()["detail"] == "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK"
 
 
 @pytest.mark.integration

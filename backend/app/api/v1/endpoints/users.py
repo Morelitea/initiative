@@ -286,7 +286,7 @@ async def update_users_me(
         if candidate not in TASK_COMPLETION_VISUAL_FEEDBACK_VALUES:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="INVALID_TASK_COMPLETION_VISUAL_FEEDBACK",
+                detail=UserMessages.INVALID_TASK_COMPLETION_VISUAL_FEEDBACK,
             )
         current_user.task_completion_visual_feedback = candidate
     if "locale" in update_data:
