@@ -190,7 +190,20 @@
     "updateError": "No se pudieron actualizar las preferencias de interfaz",
     "themePreview": "Vista previa del tema",
     "lightMode": "Claro",
-    "darkMode": "Oscuro"
+    "darkMode": "Oscuro",
+    "taskCompletionVisualFeedback": {
+      "label": "Comentarios al completar tarea",
+      "description": "Un toque de diversión cuando terminas una tarea asignada a ti.",
+      "preview": "Vista previa",
+      "options": {
+        "none": "Ninguno",
+        "confetti": "Confeti",
+        "heart": "+1 Corazón",
+        "d20": "Veinte natural",
+        "gold_coin": "Monedas de oro",
+        "random": "Aleatorio (sorpréndeme)"
+      }
+    }
   },
   "notifications": {
     "title": "Configuración de notificaciones",

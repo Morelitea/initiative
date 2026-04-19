@@ -190,7 +190,20 @@
     "updateError": "Impossible de mettre à jour les préférences d'interface",
     "themePreview": "Aperçu du thème",
     "lightMode": "Clair",
-    "darkMode": "Sombre"
+    "darkMode": "Sombre",
+    "taskCompletionVisualFeedback": {
+      "label": "Effet à la fin d'une tâche",
+      "description": "Un peu de fun quand vous terminez une tâche qui vous était assignée.",
+      "preview": "Aperçu",
+      "options": {
+        "none": "Aucun",
+        "confetti": "Confettis",
+        "heart": "+1 Cœur",
+        "d20": "Vingt naturel",
+        "gold_coin": "Pièces d'or",
+        "random": "Aléatoire (surprenez-moi)"
+      }
+    }
   },
   "notifications": {
     "title": "Paramètres de notifications",

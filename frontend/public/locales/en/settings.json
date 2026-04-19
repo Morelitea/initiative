@@ -190,7 +190,20 @@
     "updateError": "Unable to update interface preferences",
     "themePreview": "Theme preview",
     "lightMode": "Light",
-    "darkMode": "Dark"
+    "darkMode": "Dark",
+    "taskCompletionVisualFeedback": {
+      "label": "Task completion feedback",
+      "description": "A bit of fun when you finish a task you were assigned to.",
+      "preview": "Preview",
+      "options": {
+        "none": "None",
+        "confetti": "Confetti",
+        "heart": "+1 Heart",
+        "d20": "Natural 20",
+        "gold_coin": "Gold coins",
+        "random": "Random (surprise me)"
+      }
+    }
   },
   "notifications": {
     "title": "Notification settings",

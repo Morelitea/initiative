@@ -25,8 +25,14 @@ import {
   updateSubtaskApiV1SubtasksSubtaskIdPatch,
   deleteSubtaskApiV1SubtasksSubtaskIdDelete,
 } from "@/api/generated/subtasks/subtasks";
+import { getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey } from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllTasks, invalidateTask, invalidateTaskSubtasks } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
+import {
+  dispatchTaskCompletionVisualFeedback,
+  parseTaskCompletionVisualFeedback,
+} from "@/lib/taskCompletionVisualFeedback";
+import { useAuth } from "@/hooks/useAuth";
 import type {
   ArchiveDoneResponse,
   GenerateDescriptionResponse,
@@ -37,6 +43,7 @@ import type {
   TaskListRead,
   TaskListResponse,
   TaskReorderRequest,
+  TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { castQueryFn } from "@/lib/query-utils";
 import type { MutationOpts } from "@/types/mutation";
@@ -108,6 +115,35 @@ export const useCreateTask = (
   });
 };
 
+// Search the React Query cache for the latest known copy of a task. Checks
+// the per-task cache first (populated when the edit page is open) and falls
+// back to scanning every cached list response. Used to snapshot the previous
+// task_status.category before a status-changing PATCH so the success path can
+// detect "transitioned into done" and fire the visual-feedback effect.
+const findCachedTask = (
+  queryClient: ReturnType<typeof useQueryClient>,
+  taskId: number
+): TaskListRead | null => {
+  const direct = queryClient.getQueryData<TaskListRead>(
+    getReadTaskApiV1TasksTaskIdGetQueryKey(taskId)
+  );
+  if (direct?.task_status) return direct;
+
+  const entries = queryClient.getQueriesData<TaskListResponse>({
+    predicate: (query) => {
+      const first = query.queryKey[0];
+      return typeof first === "string" && first.startsWith("/api/v1/tasks/");
+    },
+  });
+  for (const [, value] of entries) {
+    const items = value?.items;
+    if (!Array.isArray(items)) continue;
+    const found = items.find((item) => item?.id === taskId);
+    if (found?.task_status) return found;
+  }
+  return null;
+};
+
 export const useUpdateTask = (
   options?: MutationOpts<
     TaskListRead,
@@ -119,6 +155,8 @@ export const useUpdateTask = (
   >
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     ...rest,
@@ -137,9 +175,32 @@ export const useUpdateTask = (
         requestOptions
       ) as unknown as Promise<TaskListRead>;
     },
+    onMutate: ({ taskId }) => {
+      // Snapshot the task's previous status category so onSuccess can detect
+      // the non-done -> done transition that fires the celebratory effect.
+      const cached = findCachedTask(queryClient, taskId);
+      return { previousCategory: cached?.task_status?.category ?? null };
+    },
     onSuccess: (...args) => {
+      const [updated, vars, context] = args;
       void invalidateAllTasks();
-      void invalidateTask(args[1].taskId);
+      void invalidateTask(vars.taskId);
+
+      // Visual feedback: only when (a) the current user is signed in, (b) the
+      // status actually transitioned non-done -> done, (c) the user is one of
+      // the assignees, and (d) they've opted in via their profile preference.
+      const previousCategory = (context as { previousCategory?: string | null } | undefined)
+        ?.previousCategory;
+      const newCategory = updated?.task_status?.category;
+      const movedIntoDone = newCategory === "done" && previousCategory !== "done";
+      if (movedIntoDone && user) {
+        const isAssigned = updated.assignees?.some((assignee) => assignee.id === user.id) ?? false;
+        const preference = parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback);
+        if (isAssigned && preference !== "none") {
+          dispatchTaskCompletionVisualFeedback(preference);
+        }
+      }
+
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -309,6 +370,8 @@ export const useDuplicateTask = (options?: MutationOpts<TaskListRead, number>) =
 
 export const useReorderTasks = (options?: MutationOpts<TaskListRead[], TaskReorderRequest>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     ...rest,
@@ -317,8 +380,47 @@ export const useReorderTasks = (options?: MutationOpts<TaskListRead[], TaskReord
         payload as Parameters<typeof reorderTasksApiV1TasksReorderPost>[0]
       ) as unknown as Promise<TaskListRead[]>;
     },
+    onMutate: (payload) => {
+      // Decide whether THIS reorder is a non-done -> done transition for an
+      // assigned task by inspecting only the payload items whose
+      // task_status_id actually changed. The reorder response contains every
+      // reordered task in the project, so checking each response item leads
+      // to false positives whenever a task's cache state is missing or stale
+      // (e.g. an already-Done task filtered out of the kanban view).
+      let shouldCelebrate = false;
+      if (user) {
+        for (const item of payload.items) {
+          const cached = findCachedTask(queryClient, item.id);
+          if (!cached) continue;
+          if (cached.task_status_id === item.task_status_id) continue; // unchanged
+          if (cached.task_status?.category === "done") continue; // already done
+          const newStatus = queryClient
+            .getQueryData<
+              TaskStatusRead[]
+            >(getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(cached.project_id))
+            ?.find((s) => s.id === item.task_status_id);
+          if (newStatus?.category !== "done") continue; // not moving into done
+          const isAssigned = cached.assignees?.some((assignee) => assignee.id === user.id) ?? false;
+          if (isAssigned) {
+            shouldCelebrate = true;
+            break;
+          }
+        }
+      }
+      return { shouldCelebrate };
+    },
     onSuccess: (...args) => {
+      const [, , context] = args;
       void invalidateAllTasks();
+
+      const ctx = context as { shouldCelebrate?: boolean } | undefined;
+      if (ctx?.shouldCelebrate && user) {
+        const preference = parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback);
+        if (preference !== "none") {
+          dispatchTaskCompletionVisualFeedback(preference);
+        }
+      }
+
       onSuccess?.(...args);
     },
     onError: onError,

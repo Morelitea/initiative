@@ -149,6 +149,15 @@ class User(SQLModel, table=True):
         default="kobold",
         sa_column=Column(String(50), nullable=False, server_default="kobold"),
     )
+    # Stored as a free-form short string; the frontend interprets the value
+    # against a fixed enum (none | confetti | heart | d20 | gold_coin | random)
+    # and falls back to "none" if it doesn't recognise the value. Scoped to
+    # "visual" so audio / haptic siblings can be added later as their own
+    # columns without renaming this one.
+    task_completion_visual_feedback: str = Field(
+        default="none",
+        sa_column=Column(String(32), nullable=False, server_default="none"),
+    )
 
     @property
     def email(self) -> str:

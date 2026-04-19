@@ -49,6 +49,13 @@ from app.services import users as users_service
 from app.services import api_keys as api_keys_service
 from app.services import stats_service
 
+# Allowed values for the optional "task completion visual feedback" effect.
+# Mirrored on the frontend in src/lib/taskCompletionVisualFeedback.ts; keep
+# the two lists in sync if you add a new effect.
+TASK_COMPLETION_VISUAL_FEEDBACK_VALUES: frozenset[str] = frozenset(
+    {"none", "confetti", "heart", "d20", "gold_coin", "random"}
+)
+
 router = APIRouter()
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -274,6 +281,14 @@ async def update_users_me(
                 await notifications_service.clear_task_assignment_queue_for_user(session, current_user.id)
     if "color_theme" in update_data:
         current_user.color_theme = update_data["color_theme"]
+    if "task_completion_visual_feedback" in update_data:
+        candidate = update_data["task_completion_visual_feedback"]
+        if candidate not in TASK_COMPLETION_VISUAL_FEEDBACK_VALUES:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="INVALID_TASK_COMPLETION_VISUAL_FEEDBACK",
+            )
+        current_user.task_completion_visual_feedback = candidate
     if "locale" in update_data:
         current_user.locale = update_data["locale"]
 

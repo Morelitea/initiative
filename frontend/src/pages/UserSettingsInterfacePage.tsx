@@ -10,9 +10,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { getTheme, getThemeList } from "@/lib/themes";
 import type { ThemeColors } from "@/lib/themes";
+import {
+  TASK_COMPLETION_VISUAL_FEEDBACK_VALUES,
+  type TaskCompletionVisualFeedback,
+  dispatchTaskCompletionVisualFeedback,
+  parseTaskCompletionVisualFeedback,
+} from "@/lib/taskCompletionVisualFeedback";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 const WEEK_START_OPTIONS = [
@@ -159,11 +166,15 @@ export const UserSettingsInterfacePage = ({
   const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
   const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
   const [locale, setLocale] = useState(user.locale ?? "en");
+  const [visualFeedback, setVisualFeedback] = useState<TaskCompletionVisualFeedback>(() =>
+    parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback)
+  );
 
   useEffect(() => {
     setWeekStartsOn(user.week_starts_on ?? 0);
     setColorTheme(user.color_theme ?? "kobold");
     setLocale(user.locale ?? "en");
+    setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
   }, [user]);
 
   const updateInterfacePrefs = useUpdateCurrentUser({
@@ -179,6 +190,11 @@ export const UserSettingsInterfacePage = ({
         setLocale(newLocale);
         void i18n.changeLanguage(newLocale);
       }
+      if (variables.task_completion_visual_feedback !== undefined) {
+        setVisualFeedback(
+          parseTaskCompletionVisualFeedback(String(variables.task_completion_visual_feedback))
+        );
+      }
       await refreshUser();
       toast.success(t("interface.updateSuccess"));
     },
@@ -187,6 +203,7 @@ export const UserSettingsInterfacePage = ({
       setWeekStartsOn(user.week_starts_on ?? 0);
       setColorTheme(user.color_theme ?? "kobold");
       setLocale(user.locale ?? "en");
+      setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
     },
   });
 
@@ -286,6 +303,47 @@ export const UserSettingsInterfacePage = ({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">{t("interface.taskCompletionVisualFeedback.label")}</p>
+              <p className="text-muted-foreground text-sm">
+                {t("interface.taskCompletionVisualFeedback.description")}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select
+                value={visualFeedback}
+                onValueChange={(next) => {
+                  const value = next as TaskCompletionVisualFeedback;
+                  setVisualFeedback(value);
+                  updateInterfacePrefs.mutate({ task_completion_visual_feedback: value });
+                }}
+                disabled={updateInterfacePrefs.isPending}
+              >
+                <SelectTrigger className="sm:w-52">
+                  <SelectValue>
+                    {t(`interface.taskCompletionVisualFeedback.options.${visualFeedback}` as never)}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {TASK_COMPLETION_VISUAL_FEEDBACK_VALUES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {t(`interface.taskCompletionVisualFeedback.options.${value}` as never)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => dispatchTaskCompletionVisualFeedback(visualFeedback)}
+                disabled={visualFeedback === "none"}
+              >
+                {t("interface.taskCompletionVisualFeedback.preview")}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
