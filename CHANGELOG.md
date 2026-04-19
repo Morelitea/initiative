@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-04-18
+
+### Added
+
+- Fullscreen toggle in the document and whiteboard editors. The editor, its toolbars, action bar, and collaboration status take over the window for distraction-free writing or large-canvas diagramming. The Fullscreen button sits inline with the collaboration status badge above the editor.
+
+### Fixed
+
+- "Not tagged" filter in the Documents page tag tree view now actually filters to untagged documents. The page was computing the selection state but never sending the `untagged` query parameter to the backend, so selecting "Not tagged" returned every document instead of only the untagged ones.
+- Leaving a collaborative document now tears the connection down cleanly. Other collaborators no longer see the leaver's avatar flicker (disappear briefly then reappear), and the "Collaboration connection failed — Maximum reconnection attempts reached" toast no longer fires after the user has navigated away from the document. The unmount cleanup in `useCollaboration` was using a soft, debounced `disconnect()` (a React Strict Mode optimization) instead of `destroy()`, leaving the provider alive in the global pool, the reconnect loop running, and the error callback still wired to the unmounted page's toast.
+
 ## [0.39.0] - 2026-04-14
 
 ### Added
