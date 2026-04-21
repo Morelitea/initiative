@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-04-20
+
 ### Added
 
 - Optional Task Completion Visual Feedback effect when you mark a task you're assigned to as Done. Choose from None (default), Confetti, +1 Heart, Natural 20 d20 roll, Gold Coins, or Random (surprise me) under user settings → Interface. All effects use a unified 8-bit pixel-art aesthetic.
