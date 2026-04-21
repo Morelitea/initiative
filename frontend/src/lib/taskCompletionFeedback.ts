@@ -76,7 +76,7 @@ export const playTaskCompletionSound = (): void => {
   if (typeof window === "undefined") return;
   if (!popAudio) {
     popAudio = new Audio(popSoundUrl);
-    popAudio.volume = 0.4;
+    popAudio.volume = 0.8;
   }
   popAudio.currentTime = 0;
   void popAudio.play().catch(() => {
