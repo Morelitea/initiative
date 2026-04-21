@@ -57,6 +57,7 @@ const WhiteboardDocumentEditor = lazy(() =>
 );
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
 import type * as Y from "yjs";
+import type { ProviderAwareness } from "@lexical/yjs";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useCollaboration } from "@/hooks/useCollaboration";
@@ -127,6 +128,7 @@ export const DocumentDetailPage = () => {
   // with the Yjs state (which would clobber the unsaved local work).
   const [whiteboardSceneFromCache, setWhiteboardSceneFromCache] = useState(false);
   const [whiteboardYDoc, setWhiteboardYDoc] = useState<Y.Doc | null>(null);
+  const [whiteboardAwareness, setWhiteboardAwareness] = useState<ProviderAwareness | null>(null);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -461,15 +463,18 @@ export const DocumentDetailPage = () => {
   useEffect(() => {
     if (document?.document_type !== "whiteboard") {
       setWhiteboardYDoc(null);
+      setWhiteboardAwareness(null);
       return;
     }
     if (!collaborationEnabled || !collaboration.providerFactory || !collaboration.isReady) {
       setWhiteboardYDoc(null);
+      setWhiteboardAwareness(null);
       return;
     }
     const yjsDocMap = new Map<string, import("yjs").Doc>();
     const provider = collaboration.providerFactory("main", yjsDocMap);
     setWhiteboardYDoc(provider.doc);
+    setWhiteboardAwareness(provider.awareness);
     // No cleanup — useCollaboration owns the provider lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -1108,6 +1113,14 @@ export const DocumentDetailPage = () => {
                     yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
                     isSynced={collaboration.isSynced}
                     hasOtherCollaborators={collaboration.collaborators.length > 0}
+                    awareness={
+                      collaborationEnabled && collaboration.isReady ? whiteboardAwareness : null
+                    }
+                    currentUser={
+                      user
+                        ? { id: user.id, name: user.full_name || user.email || "Anonymous" }
+                        : null
+                    }
                     className={cn(isFullscreen && "h-full min-h-0 flex-1")}
                   />
                 ) : (
