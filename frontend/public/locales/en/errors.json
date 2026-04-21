@@ -169,6 +169,7 @@
   "USER_INVALID_TIMEZONE": "Invalid timezone",
   "USER_INVALID_TIME_FORMAT": "Invalid time format",
   "USER_INVALID_WEEK_START": "Week start must be between 0 (Sunday) and 6 (Saturday)",
+  "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Unknown task completion feedback effect",
   "USER_EMAIL_ALREADY_REGISTERED": "Email already registered",
   "USER_PLATFORM_ROLE_WRONG_ENDPOINT": "Platform role changes must use the admin endpoint",
   "USER_CANNOT_REMOVE_LAST_ADMIN": "Cannot remove the last platform admin",

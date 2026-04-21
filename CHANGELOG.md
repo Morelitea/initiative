@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-04-20
+
+### Added
+
+- Optional Task Completion Visual Feedback effect when you mark a task you're assigned to as Done. Choose from None (default), Confetti, +1 Heart, Natural 20 d20 roll, Gold Coins, or Random (surprise me) under user settings → Interface. All effects use a unified 8-bit pixel-art aesthetic.
+- Sound and haptic siblings to the task completion feedback. The new "Sound on task completion" and "Vibration on task completion" toggles in user settings → Interface play a short pop and trigger a two-pulse vibration (where supported) when you mark **any** task done — not just one assigned to you, since these are subtle enough to fire on every closeout. Both default to on; existing users get them enabled automatically. Haptics use the Capacitor Haptics plugin on native iOS/Android and fall back to the Web Vibration API in browsers that support it.
+
 ## [0.39.1] - 2026-04-18
 
 ### Added

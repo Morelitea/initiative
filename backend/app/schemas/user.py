@@ -39,6 +39,9 @@ class UserUpdate(BaseModel):
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
     color_theme: Optional[str] = None
+    task_completion_visual_feedback: Optional[str] = None
+    task_completion_audio_feedback: Optional[bool] = None
+    task_completion_haptic_feedback: Optional[bool] = None
     locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
 
 
@@ -91,6 +94,9 @@ class UserRead(UserBase):
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
     color_theme: str = "kobold"
+    task_completion_visual_feedback: str = "none"
+    task_completion_audio_feedback: bool = True
+    task_completion_haptic_feedback: bool = True
     locale: str = "en"
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
 
@@ -132,6 +138,9 @@ class UserSelfUpdate(BaseModel):
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
     color_theme: Optional[str] = None
+    task_completion_visual_feedback: Optional[str] = None
+    task_completion_audio_feedback: Optional[bool] = None
+    task_completion_haptic_feedback: Optional[bool] = None
     locale: Optional[str] = Field(default=None, pattern=r"^[a-z]{2}(-[A-Z]{2})?$")
 
 

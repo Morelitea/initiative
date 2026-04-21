@@ -169,6 +169,7 @@
   "USER_INVALID_TIMEZONE": "Fuseau horaire invalide",
   "USER_INVALID_TIME_FORMAT": "Format d'heure invalide",
   "USER_INVALID_WEEK_START": "Le début de semaine doit être entre 0 (dimanche) et 6 (samedi)",
+  "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Effet de fin de tâche inconnu",
   "USER_EMAIL_ALREADY_REGISTERED": "Adresse e-mail déjà enregistrée",
   "USER_PLATFORM_ROLE_WRONG_ENDPOINT": "Les modifications de rôle de plateforme doivent utiliser l'endpoint administrateur",
   "USER_CANNOT_REMOVE_LAST_ADMIN": "Impossible de retirer le dernier administrateur de plateforme",

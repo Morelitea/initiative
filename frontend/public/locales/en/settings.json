@@ -190,7 +190,30 @@
     "updateError": "Unable to update interface preferences",
     "themePreview": "Theme preview",
     "lightMode": "Light",
-    "darkMode": "Dark"
+    "darkMode": "Dark",
+    "taskCompletionVisualFeedback": {
+      "label": "Task completion feedback",
+      "description": "A bit of fun when you finish a task you were assigned to.",
+      "preview": "Preview",
+      "options": {
+        "none": "None",
+        "confetti": "Confetti",
+        "heart": "+1 Heart",
+        "d20": "Natural 20",
+        "gold_coin": "Gold coins",
+        "random": "Random (surprise me)"
+      }
+    },
+    "taskCompletionAudioFeedback": {
+      "label": "Sound on task completion",
+      "description": "Play a short pop sound when you finish any task.",
+      "preview": "Preview"
+    },
+    "taskCompletionHapticFeedback": {
+      "label": "Vibration on task completion",
+      "description": "Briefly vibrate your device when you finish any task. Mobile / supported browsers only.",
+      "preview": "Preview"
+    }
   },
   "notifications": {
     "title": "Notification settings",

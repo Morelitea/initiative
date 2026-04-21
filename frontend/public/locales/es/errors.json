@@ -169,6 +169,7 @@
   "USER_INVALID_TIMEZONE": "Zona horaria no válida",
   "USER_INVALID_TIME_FORMAT": "Formato de hora no válido",
   "USER_INVALID_WEEK_START": "El inicio de semana debe estar entre 0 (domingo) y 6 (sábado)",
+  "USER_INVALID_TASK_COMPLETION_VISUAL_FEEDBACK": "Efecto de comentarios al completar tarea desconocido",
   "USER_EMAIL_ALREADY_REGISTERED": "Email ya registrado",
   "USER_PLATFORM_ROLE_WRONG_ENDPOINT": "Los cambios de rol de plataforma deben usar el panel de administración",
   "USER_CANNOT_REMOVE_LAST_ADMIN": "No se puede eliminar al último administrador de la plataforma",
