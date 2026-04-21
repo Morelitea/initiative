@@ -158,6 +158,17 @@ class User(SQLModel, table=True):
         default="none",
         sa_column=Column(String(32), nullable=False, server_default="none"),
     )
+    # Subtler siblings to the visual effect — these fire on any task the
+    # current user marks done (assignee check is dropped because they're
+    # less obtrusive). Default on so existing users discover them.
+    task_completion_audio_feedback: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    task_completion_haptic_feedback: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
 
     @property
     def email(self) -> str:

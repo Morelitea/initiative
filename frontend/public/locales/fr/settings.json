@@ -203,6 +203,16 @@
         "gold_coin": "Pièces d'or",
         "random": "Aléatoire (surprenez-moi)"
       }
+    },
+    "taskCompletionAudioFeedback": {
+      "label": "Son à la fin d'une tâche",
+      "description": "Joue un court son lorsque vous terminez n'importe quelle tâche.",
+      "preview": "Aperçu"
+    },
+    "taskCompletionHapticFeedback": {
+      "label": "Vibration à la fin d'une tâche",
+      "description": "Fait brièvement vibrer votre appareil quand vous terminez une tâche. Mobile / navigateurs pris en charge uniquement.",
+      "preview": "Aperçu"
     }
   },
   "notifications": {

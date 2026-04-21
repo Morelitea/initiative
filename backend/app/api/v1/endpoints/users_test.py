@@ -355,6 +355,37 @@ async def test_task_completion_visual_feedback_rejects_unknown(
 
 
 @pytest.mark.integration
+async def test_task_completion_audio_and_haptic_round_trip(
+    client: AsyncClient, session: AsyncSession
+):
+    """Audio + haptic boolean prefs round-trip and default to True."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    # Both default to True for new users.
+    me = await client.get("/api/v1/users/me", headers=headers)
+    assert me.status_code == 200
+    body = me.json()
+    assert body["task_completion_audio_feedback"] is True
+    assert body["task_completion_haptic_feedback"] is True
+
+    # Toggle both off, then both on.
+    for value in (False, True):
+        response = await client.patch(
+            "/api/v1/users/me",
+            headers=headers,
+            json={
+                "task_completion_audio_feedback": value,
+                "task_completion_haptic_feedback": value,
+            },
+        )
+        assert response.status_code == 200, value
+        result = response.json()
+        assert result["task_completion_audio_feedback"] is value
+        assert result["task_completion_haptic_feedback"] is value
+
+
+@pytest.mark.integration
 async def test_list_users_only_shows_guild_members(client: AsyncClient, session: AsyncSession):
     """Test that listing users only shows members of the current guild."""
     guild1 = await create_guild(session, name="Guild 1")

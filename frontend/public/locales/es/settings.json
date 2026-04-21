@@ -203,6 +203,16 @@
         "gold_coin": "Monedas de oro",
         "random": "Aleatorio (sorpréndeme)"
       }
+    },
+    "taskCompletionAudioFeedback": {
+      "label": "Sonido al completar tarea",
+      "description": "Reproduce un breve sonido cuando terminas cualquier tarea.",
+      "preview": "Vista previa"
+    },
+    "taskCompletionHapticFeedback": {
+      "label": "Vibración al completar tarea",
+      "description": "Vibra brevemente tu dispositivo al terminar cualquier tarea. Solo móvil / navegadores compatibles.",
+      "preview": "Vista previa"
     }
   },
   "notifications": {

@@ -289,6 +289,14 @@ async def update_users_me(
                 detail=UserMessages.INVALID_TASK_COMPLETION_VISUAL_FEEDBACK,
             )
         current_user.task_completion_visual_feedback = candidate
+    if "task_completion_audio_feedback" in update_data:
+        current_user.task_completion_audio_feedback = bool(
+            update_data["task_completion_audio_feedback"]
+        )
+    if "task_completion_haptic_feedback" in update_data:
+        current_user.task_completion_haptic_feedback = bool(
+            update_data["task_completion_haptic_feedback"]
+        )
     if "locale" in update_data:
         current_user.locale = update_data["locale"]
 

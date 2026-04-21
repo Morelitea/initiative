@@ -1,6 +1,6 @@
 import confetti from "canvas-confetti";
 
-import { getLastPointer } from "@/lib/taskCompletionVisualFeedback";
+import { getLastPointer } from "@/lib/taskCompletionFeedback";
 
 import { PIXEL_COIN_PATH } from "./svg/PixelCoin";
 import { PIXEL_DIAMOND_PATH } from "./svg/PixelDiamond";

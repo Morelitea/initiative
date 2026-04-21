@@ -2405,6 +2405,8 @@ export interface UserRead {
   last_task_assignment_digest_at: string | null;
   color_theme: string;
   task_completion_visual_feedback: string;
+  task_completion_audio_feedback: boolean;
+  task_completion_haptic_feedback: boolean;
   locale: string;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
@@ -2430,6 +2432,8 @@ export interface UserSelfUpdate {
   push_mentions?: boolean | null;
   color_theme?: string | null;
   task_completion_visual_feedback?: string | null;
+  task_completion_audio_feedback?: boolean | null;
+  task_completion_haptic_feedback?: boolean | null;
   locale?: string | null;
 }
 
@@ -2506,6 +2510,8 @@ export interface UserUpdate {
   push_mentions?: boolean | null;
   color_theme?: string | null;
   task_completion_visual_feedback?: string | null;
+  task_completion_audio_feedback?: boolean | null;
+  task_completion_haptic_feedback?: boolean | null;
   locale?: string | null;
 }
 
