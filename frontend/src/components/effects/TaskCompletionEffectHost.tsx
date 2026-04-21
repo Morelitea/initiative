@@ -5,7 +5,7 @@ import {
   type TaskCompletionEventDetail,
   getLastPointer,
   recordPointer,
-} from "@/lib/taskCompletionVisualFeedback";
+} from "@/lib/taskCompletionFeedback";
 
 import { D20Roller } from "./D20Roller";
 import { HeartFloater } from "./HeartFloater";

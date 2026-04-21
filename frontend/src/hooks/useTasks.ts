@@ -28,10 +28,7 @@ import {
 import { getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey } from "@/api/generated/task-statuses/task-statuses";
 import { invalidateAllTasks, invalidateTask, invalidateTaskSubtasks } from "@/api/query-keys";
 import { getErrorMessage } from "@/lib/errorMessage";
-import {
-  dispatchTaskCompletionVisualFeedback,
-  parseTaskCompletionVisualFeedback,
-} from "@/lib/taskCompletionVisualFeedback";
+import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 import { useAuth } from "@/hooks/useAuth";
 import type {
   ArchiveDoneResponse,
@@ -186,19 +183,17 @@ export const useUpdateTask = (
       void invalidateAllTasks();
       void invalidateTask(vars.taskId);
 
-      // Visual feedback: only when (a) the current user is signed in, (b) the
-      // status actually transitioned non-done -> done, (c) the user is one of
-      // the assignees, and (d) they've opted in via their profile preference.
+      // Completion feedback: only when (a) the current user is signed in,
+      // (b) the status actually transitioned non-done -> done. Audio +
+      // haptic always fire on completion the user initiated; visual is
+      // additionally gated on the user being assigned to the task.
       const previousCategory = (context as { previousCategory?: string | null } | undefined)
         ?.previousCategory;
       const newCategory = updated?.task_status?.category;
       const movedIntoDone = newCategory === "done" && previousCategory !== "done";
       if (movedIntoDone && user) {
         const isAssigned = updated.assignees?.some((assignee) => assignee.id === user.id) ?? false;
-        const preference = parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback);
-        if (isAssigned && preference !== "none") {
-          dispatchTaskCompletionVisualFeedback(preference);
-        }
+        fireTaskCompletionFeedback(user, { isAssigned });
       }
 
       onSuccess?.(...args);
@@ -381,13 +376,18 @@ export const useReorderTasks = (options?: MutationOpts<TaskListRead[], TaskReord
       ) as unknown as Promise<TaskListRead[]>;
     },
     onMutate: (payload) => {
-      // Decide whether THIS reorder is a non-done -> done transition for an
-      // assigned task by inspecting only the payload items whose
-      // task_status_id actually changed. The reorder response contains every
-      // reordered task in the project, so checking each response item leads
-      // to false positives whenever a task's cache state is missing or stale
-      // (e.g. an already-Done task filtered out of the kanban view).
-      let shouldCelebrate = false;
+      // Detect non-done -> done transitions in this reorder by inspecting
+      // only the payload items whose task_status_id actually changed. The
+      // reorder response contains every reordered task in the project, so
+      // checking each response item leads to false positives whenever a
+      // task's cache state is missing or stale (e.g. an already-Done task
+      // filtered out of the kanban view).
+      //
+      // Track two flags separately because audio + haptic fire on any
+      // transition the user initiated, while visual additionally requires
+      // the user to be assigned to the task.
+      let didTransitionToDone = false;
+      let assignedTransitionToDone = false;
       if (user) {
         for (const item of payload.items) {
           const cached = findCachedTask(queryClient, item.id);
@@ -400,25 +400,27 @@ export const useReorderTasks = (options?: MutationOpts<TaskListRead[], TaskReord
             >(getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(cached.project_id))
             ?.find((s) => s.id === item.task_status_id);
           if (newStatus?.category !== "done") continue; // not moving into done
+          didTransitionToDone = true;
           const isAssigned = cached.assignees?.some((assignee) => assignee.id === user.id) ?? false;
           if (isAssigned) {
-            shouldCelebrate = true;
-            break;
+            assignedTransitionToDone = true;
+            break; // any assignment guarantees both flags; no need to keep scanning
           }
         }
       }
-      return { shouldCelebrate };
+      return { didTransitionToDone, assignedTransitionToDone };
     },
     onSuccess: (...args) => {
       const [, , context] = args;
       void invalidateAllTasks();
 
-      const ctx = context as { shouldCelebrate?: boolean } | undefined;
-      if (ctx?.shouldCelebrate && user) {
-        const preference = parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback);
-        if (preference !== "none") {
-          dispatchTaskCompletionVisualFeedback(preference);
-        }
+      const ctx = context as
+        | { didTransitionToDone?: boolean; assignedTransitionToDone?: boolean }
+        | undefined;
+      if (ctx?.didTransitionToDone && user) {
+        fireTaskCompletionFeedback(user, {
+          isAssigned: ctx.assignedTransitionToDone ?? false,
+        });
       }
 
       onSuccess?.(...args);

@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { getTheme, getThemeList } from "@/lib/themes";
 import type { ThemeColors } from "@/lib/themes";
@@ -19,7 +20,9 @@ import {
   type TaskCompletionVisualFeedback,
   dispatchTaskCompletionVisualFeedback,
   parseTaskCompletionVisualFeedback,
-} from "@/lib/taskCompletionVisualFeedback";
+  playTaskCompletionSound,
+  triggerTaskCompletionHaptic,
+} from "@/lib/taskCompletionFeedback";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 
 const WEEK_START_OPTIONS = [
@@ -169,12 +172,20 @@ export const UserSettingsInterfacePage = ({
   const [visualFeedback, setVisualFeedback] = useState<TaskCompletionVisualFeedback>(() =>
     parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback)
   );
+  const [audioFeedback, setAudioFeedback] = useState<boolean>(
+    user.task_completion_audio_feedback ?? true
+  );
+  const [hapticFeedback, setHapticFeedback] = useState<boolean>(
+    user.task_completion_haptic_feedback ?? true
+  );
 
   useEffect(() => {
     setWeekStartsOn(user.week_starts_on ?? 0);
     setColorTheme(user.color_theme ?? "kobold");
     setLocale(user.locale ?? "en");
     setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
+    setAudioFeedback(user.task_completion_audio_feedback ?? true);
+    setHapticFeedback(user.task_completion_haptic_feedback ?? true);
   }, [user]);
 
   const updateInterfacePrefs = useUpdateCurrentUser({
@@ -195,6 +206,12 @@ export const UserSettingsInterfacePage = ({
           parseTaskCompletionVisualFeedback(String(variables.task_completion_visual_feedback))
         );
       }
+      if (variables.task_completion_audio_feedback !== undefined) {
+        setAudioFeedback(Boolean(variables.task_completion_audio_feedback));
+      }
+      if (variables.task_completion_haptic_feedback !== undefined) {
+        setHapticFeedback(Boolean(variables.task_completion_haptic_feedback));
+      }
       await refreshUser();
       toast.success(t("interface.updateSuccess"));
     },
@@ -204,6 +221,8 @@ export const UserSettingsInterfacePage = ({
       setColorTheme(user.color_theme ?? "kobold");
       setLocale(user.locale ?? "en");
       setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
+      setAudioFeedback(user.task_completion_audio_feedback ?? true);
+      setHapticFeedback(user.task_completion_haptic_feedback ?? true);
     },
   });
 
@@ -342,6 +361,60 @@ export const UserSettingsInterfacePage = ({
                 disabled={visualFeedback === "none"}
               >
                 {t("interface.taskCompletionVisualFeedback.preview")}
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">{t("interface.taskCompletionAudioFeedback.label")}</p>
+              <p className="text-muted-foreground text-sm">
+                {t("interface.taskCompletionAudioFeedback.description")}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={audioFeedback}
+                onCheckedChange={(next) => {
+                  setAudioFeedback(next);
+                  updateInterfacePrefs.mutate({ task_completion_audio_feedback: next });
+                }}
+                disabled={updateInterfacePrefs.isPending}
+                aria-label={t("interface.taskCompletionAudioFeedback.label")}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => playTaskCompletionSound()}
+              >
+                {t("interface.taskCompletionAudioFeedback.preview")}
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">{t("interface.taskCompletionHapticFeedback.label")}</p>
+              <p className="text-muted-foreground text-sm">
+                {t("interface.taskCompletionHapticFeedback.description")}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={hapticFeedback}
+                onCheckedChange={(next) => {
+                  setHapticFeedback(next);
+                  updateInterfacePrefs.mutate({ task_completion_haptic_feedback: next });
+                }}
+                disabled={updateInterfacePrefs.isPending}
+                aria-label={t("interface.taskCompletionHapticFeedback.label")}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => triggerTaskCompletionHaptic()}
+              >
+                {t("interface.taskCompletionHapticFeedback.preview")}
               </Button>
             </div>
           </div>
