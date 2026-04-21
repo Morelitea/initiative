@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Multiplayer cursors on whiteboards. When multiple users edit the same whiteboard document at once, each person now sees the others' pointer positions in real time, labeled with their name and tinted with their avatar color. Cursor updates piggyback on the existing Yjs awareness channel, so no new backend routes were needed.
+
+### Changed
+
+- Collaboration cursor colors are now deterministic per user and consistent across the app. The Lexical document editor caret, whiteboard cursor, and collaboration badge avatar all derive the same color from the user's id, so a given user shows up the same way everywhere. Previously the Lexical caret picked a random color per session and the avatar badge used a separate palette, so none of them agreed.
+
 ## [0.40.0] - 2026-04-20
 
 ### Added

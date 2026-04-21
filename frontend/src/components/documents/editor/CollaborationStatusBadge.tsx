@@ -7,6 +7,7 @@ import { Circle, CloudOff, RefreshCw, Users, Wifi, WifiOff } from "lucide-react"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getUserColorHsl } from "@/lib/userColor";
 import type { CollaboratorInfo } from "@/lib/yjs/CollaborationProvider";
 import type { ConnectionStatus } from "@/hooks/useCollaboration";
 
@@ -166,22 +167,9 @@ interface CollaboratorAvatarProps {
   index: number;
 }
 
-// Colors for collaborator avatars
-const AVATAR_COLORS = [
-  "bg-red-500",
-  "bg-orange-500",
-  "bg-amber-500",
-  "bg-lime-500",
-  "bg-emerald-500",
-  "bg-cyan-500",
-  "bg-blue-500",
-  "bg-violet-500",
-  "bg-pink-500",
-];
-
 function CollaboratorAvatar({ collaborator, index }: CollaboratorAvatarProps) {
   const { t } = useTranslation("documents");
-  const colorClass = AVATAR_COLORS[collaborator.user_id % AVATAR_COLORS.length];
+  const bgColor = getUserColorHsl(collaborator.user_id);
   const initials = collaborator.name
     .split(" ")
     .map((n) => n.charAt(0))
@@ -195,10 +183,9 @@ function CollaboratorAvatar({ collaborator, index }: CollaboratorAvatarProps) {
         <TooltipTrigger asChild>
           <div
             className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-xs font-medium text-white dark:border-gray-800",
-              colorClass
+              "flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-xs font-medium text-gray-900 dark:border-gray-800"
             )}
-            style={{ zIndex: 10 - index }}
+            style={{ zIndex: 10 - index, backgroundColor: bgColor }}
           >
             {initials}
           </div>

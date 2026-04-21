@@ -24,9 +24,11 @@ import type {
   OrderedExcalidrawElement,
 } from "@excalidraw/excalidraw/element/types";
 import * as Y from "yjs";
+import type { ProviderAwareness } from "@lexical/yjs";
 
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/useTheme";
+import { useWhiteboardCursors } from "@/hooks/useWhiteboardCursors";
 
 export interface WhiteboardScene {
   elements: readonly ExcalidrawElement[];
@@ -57,6 +59,10 @@ export interface WhiteboardDocumentEditorProps {
    *  stale (another user has continued editing while we were gone) and
    *  the Yjs state wins on bootstrap. */
   hasOtherCollaborators?: boolean;
+  /** Yjs awareness for peer cursor presence. Null in REST-only mode. */
+  awareness?: ProviderAwareness | null;
+  /** Current user for the cursor label + color. Null-safe. */
+  currentUser?: { id: number; name: string } | null;
 }
 
 /**
@@ -83,6 +89,8 @@ export function WhiteboardDocumentEditor({
   yDoc = null,
   isSynced = true,
   hasOtherCollaborators = false,
+  awareness = null,
+  currentUser = null,
 }: WhiteboardDocumentEditorProps) {
   const { t } = useTranslation("documents");
   const { resolvedTheme } = useTheme();
@@ -120,6 +128,41 @@ export function WhiteboardDocumentEditor({
   const writesAllowedRef = useRef(false);
 
   const collaborative = Boolean(yDoc);
+
+  // Peer cursor presence via Yjs awareness. No-op when awareness is null
+  // (REST-only mode) or when enabled is false.
+  const { collaborators: peerCollaborators, publishPointer } = useWhiteboardCursors({
+    awareness,
+    clientId: yDoc?.clientID ?? null,
+    user: currentUser,
+    enabled: collaborative,
+  });
+
+  // Excalidraw's onPointerUpdate fires with scene coords (post pan/zoom), so
+  // each viewer re-projects through their own transform — no translation needed.
+  const handlePointerUpdate = useCallback(
+    (payload: {
+      pointer: { x: number; y: number; tool: "pointer" | "laser" };
+      button: "down" | "up";
+    }) => {
+      publishPointer(payload.pointer, payload.button);
+    },
+    [publishPointer]
+  );
+
+  // Push peer cursors into Excalidraw via updateScene. `collaborators` isn't
+  // a direct prop — it lives in AppState and is updated imperatively. Passing
+  // via updateScene won't generate a history entry (CaptureUpdateAction.NEVER)
+  // and, importantly, won't mirror the peer map back into our serialized scene
+  // because handleExcalidrawChange uses the "database" serializer which strips
+  // ephemeral appState fields including collaborators.
+  useEffect(() => {
+    if (!excalidrawAPIRef.current) return;
+    excalidrawAPIRef.current.updateScene({
+      collaborators: peerCollaborators,
+      captureUpdate: CaptureUpdateAction.NEVER,
+    });
+  }, [peerCollaborators]);
 
   // Only compute initialData once per mount (the Excalidraw key in the parent
   // forces remount on document switch, so this is safe).
@@ -369,6 +412,7 @@ export function WhiteboardDocumentEditor({
         }}
         initialData={initialData}
         onChange={handleExcalidrawChange}
+        onPointerUpdate={handlePointerUpdate}
         viewModeEnabled={readOnly}
         isCollaborating={collaborative}
         theme={resolvedTheme}
