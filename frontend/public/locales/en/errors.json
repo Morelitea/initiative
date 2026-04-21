@@ -118,6 +118,8 @@
   "DOCUMENT_ROLE_WRONG_INITIATIVE": "Role must belong to the document's initiative",
   "DOCUMENT_ROLE_PERMISSION_NOT_FOUND": "Role permission not found",
   "DOCUMENT_AI_NATIVE_ONLY": "AI summarization is only available for native documents",
+  "DOCUMENT_SMART_LINK_URL_REQUIRED": "A URL is required for smart-link documents",
+  "DOCUMENT_SMART_LINK_URL_INVALID": "Smart-link URLs must start with http:// or https://",
   "DOCUMENT_INVALID_TAG_IDS": "One or more tag IDs are invalid",
   "COMMENT_NOT_FOUND": "Comment not found",
   "COMMENT_PERMISSION_DENIED": "Not authorized to comment",

@@ -19,6 +19,7 @@ class DocumentType(str, Enum):
     native = "native"  # Lexical editor document
     file = "file"  # Uploaded file (PDF, DOCX, etc.)
     whiteboard = "whiteboard"  # Excalidraw scene stored in content JSONB
+    smart_link = "smart_link"  # URL-backed iframe embed (Figma, YouTube, …)
 
 
 class Document(SQLModel, table=True):

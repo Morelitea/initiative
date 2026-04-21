@@ -506,3 +506,89 @@ def test_normalize_native_still_injects_root() -> None:
     result = normalize_document_content({}, document_type=DocumentType.native)
     assert "root" in result
     assert isinstance(result["root"], dict)
+
+
+@pytest.mark.integration
+async def test_create_smart_link_document(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """POST /documents/ with document_type='smart_link' stores only the URL."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    headers = get_guild_headers(guild, owner)
+    response = await client.post(
+        "/api/v1/documents/",
+        headers=headers,
+        json={
+            "title": "Design file",
+            "initiative_id": initiative.id,
+            "document_type": "smart_link",
+            "content": {"url": "https://www.figma.com/design/abc/Example"},
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["document_type"] == "smart_link"
+    assert body["content"] == {"url": "https://www.figma.com/design/abc/Example"}
+
+
+@pytest.mark.integration
+async def test_create_smart_link_rejects_missing_url(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    headers = get_guild_headers(guild, owner)
+    response = await client.post(
+        "/api/v1/documents/",
+        headers=headers,
+        json={
+            "title": "Bad link",
+            "initiative_id": initiative.id,
+            "document_type": "smart_link",
+            "content": {},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "DOCUMENT_SMART_LINK_URL_REQUIRED"
+
+
+@pytest.mark.integration
+async def test_create_smart_link_rejects_non_http_url(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    headers = get_guild_headers(guild, owner)
+    response = await client.post(
+        "/api/v1/documents/",
+        headers=headers,
+        json={
+            "title": "Bad scheme",
+            "initiative_id": initiative.id,
+            "document_type": "smart_link",
+            "content": {"url": "ftp://example.com/file"},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "DOCUMENT_SMART_LINK_URL_INVALID"
+
+
+def test_normalize_smart_link_returns_only_url() -> None:
+    """normalize_document_content should strip any extra fields."""
+    from app.services.documents import normalize_document_content
+
+    result = normalize_document_content(
+        {"url": "https://youtu.be/dQw4w9WgXcQ", "extra": "ignored"},
+        document_type=DocumentType.smart_link,
+    )
+    assert result == {"url": "https://youtu.be/dQw4w9WgXcQ"}

@@ -87,6 +87,7 @@
   "card": {
     "updated": "Updated {{date}}",
     "template": "Template",
+    "whiteboardLabel": "Whiteboard",
     "projects_one": "{{count}} project",
     "projects_other": "{{count}} projects",
     "comments_one": "{{count}} comment",
@@ -241,9 +242,19 @@
     "descriptionStandalone": "Documents live inside an initiative. Pick one to get started.",
     "tabNew": "New document",
     "tabUpload": "Upload file",
+    "tabSmartLink": "Smart link",
     "documentTypeLabel": "Document type",
     "documentTypeText": "Text document",
     "documentTypeWhiteboard": "Whiteboard",
+    "documentTypeSmartLink": "Smart link",
+    "smartLinkUrlLabel": "URL",
+    "smartLinkUrlPlaceholder": "Paste a link",
+    "smartLinkSupportedProviders": "Supported:",
+    "smartLinkProviderDetected": "Detected: {{provider}}",
+    "smartLinkNeedsEmbedUrl": "This {{provider}} link can't be embedded directly.",
+    "smartLinkGenericNote": "Unknown provider — the link will open in a new tab when viewed.",
+    "smartLinkDisclaimer": "Only the URL is saved; Initiative doesn't fetch anything from the link.",
+    "createSmartLink": "Create smart link",
     "titleLabel": "Title",
     "titlePlaceholderAttach": "Product launch brief",
     "titlePlaceholderStandalone": "Document title",
@@ -311,6 +322,14 @@
   "backlinks": {
     "title_one": "Linked from {{count}} document",
     "title_other": "Linked from {{count}} documents"
+  },
+  "smartLink": {
+    "missingUrl": "This smart link has no URL.",
+    "openInNewTab": "Open in new tab",
+    "unsupportedProvider": "This link's provider isn't embeddable; use the button below to open it in a new tab.",
+    "oneDriveEmbedHint": "This is a OneDrive share link. Open the file in OneDrive → File → Share → Embed this document. Copy the generated URL and paste it here — it will end with ?em=2.",
+    "sharePointEmbedHint": "This is a SharePoint share link. Open the file in SharePoint → Embed (via the toolbar). Copy the generated URL and paste it here — it will include action=embedview.",
+    "airtableEmbedHint": "This is an Airtable view URL. In Airtable, open Share view → enable 'Embed on your site'. Copy the airtable.com/embed/... URL and paste it here."
   },
   "whiteboard": {
     "loading": "Loading whiteboard…",

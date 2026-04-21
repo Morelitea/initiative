@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
+from fastapi import HTTPException, status
 from sqlalchemy import func
 from app.db.session import reapply_rls_context
 from sqlalchemy.orm import selectinload
@@ -19,6 +20,7 @@ from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleMo
 from app.models.tag import DocumentTag
 from app.models.project import Project
 from app.core.config import settings
+from app.core.messages import DocumentMessages
 from app.services import attachments as attachments_service
 from app.services.collaboration import collaboration_manager
 
@@ -72,6 +74,25 @@ def normalize_document_content(
             "appState": payload.get("appState") or {},
             "files": payload.get("files") or {},
         }
+
+    if document_type == DocumentType.smart_link:
+        if not isinstance(payload, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=DocumentMessages.SMART_LINK_URL_REQUIRED,
+            )
+        url = str(payload.get("url") or "").strip()
+        if not url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=DocumentMessages.SMART_LINK_URL_REQUIRED,
+            )
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=DocumentMessages.SMART_LINK_URL_INVALID,
+            )
+        return {"url": url}
 
     # native (default)
     if not isinstance(payload, dict):
