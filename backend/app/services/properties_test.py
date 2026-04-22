@@ -393,3 +393,32 @@ def test_parse_property_filters_defaults_op_to_eq():
     """op defaults to ``eq`` when omitted."""
     parsed = parse_property_filters('[{"property_id": 1, "value": "x"}]')
     assert parsed[0].op == FilterOp.eq
+
+
+@pytest.mark.unit
+def test_parse_property_filters_is_null_defaults_value_to_true():
+    """Omitting ``value`` on an is_null filter means "is empty" (True)."""
+    parsed = parse_property_filters('[{"property_id": 1, "op": "is_null"}]')
+    assert parsed[0].op == FilterOp.is_null
+    assert parsed[0].value is True
+
+
+@pytest.mark.unit
+def test_parse_property_filters_is_null_preserves_explicit_booleans():
+    parsed_true = parse_property_filters(
+        '[{"property_id": 1, "op": "is_null", "value": true}]'
+    )
+    parsed_false = parse_property_filters(
+        '[{"property_id": 1, "op": "is_null", "value": false}]'
+    )
+    assert parsed_true[0].value is True
+    assert parsed_false[0].value is False
+
+
+@pytest.mark.unit
+def test_parse_property_filters_is_null_rejects_non_bool_value():
+    """Non-bool values on is_null raise rather than silently coerce."""
+    with pytest.raises(ValueError, match="must be a boolean"):
+        parse_property_filters('[{"property_id": 1, "op": "is_null", "value": "yes"}]')
+    with pytest.raises(ValueError, match="must be a boolean"):
+        parse_property_filters('[{"property_id": 1, "op": "is_null", "value": 1}]')

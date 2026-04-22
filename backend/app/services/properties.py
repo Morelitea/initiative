@@ -744,12 +744,34 @@ class ParsedPropertyFilter:
         self.value = value
 
 
+def normalize_is_null_value(raw: Any) -> bool:
+    """Coerce an ``is_null`` filter's ``value`` into an explicit bool.
+
+    ``is_null`` semantics: ``True`` means "is empty" (no row / null
+    value), ``False`` means "is not empty". A missing ``value`` key
+    defaults to ``True`` — reading the op name literally, the natural
+    meaning of ``is_null`` without a value is "is null". Explicit
+    booleans pass through. Explicit non-booleans (strings, numbers,
+    arrays) raise :class:`ValueError` so callers don't silently fall
+    back to ``bool()`` coercion that would treat ``"false"`` as truthy.
+    """
+    if raw is None:
+        return True
+    if isinstance(raw, bool):
+        return raw
+    raise ValueError(
+        "is_null filter value must be a boolean (True = is empty, False = is not empty)"
+    )
+
+
 def parse_property_filters(raw: Optional[str]) -> List[ParsedPropertyFilter]:
     """Parse the ``property_filters`` query param into validated conditions.
 
     Raises :class:`ValueError` on malformed input (caller converts to 400).
     Returns an empty list when ``raw`` is falsy. Caps the number of
-    predicates at :data:`MAX_PROPERTY_FILTERS`.
+    predicates at :data:`MAX_PROPERTY_FILTERS`. For ``is_null`` entries
+    the ``value`` is normalized via :func:`normalize_is_null_value` so
+    the downstream predicate always sees an explicit bool.
     """
     import json
 
@@ -786,6 +808,8 @@ def parse_property_filters(raw: Optional[str]) -> List[ParsedPropertyFilter]:
             op = FilterOp(op_raw)
         except ValueError as exc:
             raise ValueError(f"unknown filter op: {op_raw!r}") from exc
+        if op == FilterOp.is_null:
+            value = normalize_is_null_value(value)
         parsed.append(ParsedPropertyFilter(property_id=pid, op=op, value=value))
     return parsed
 

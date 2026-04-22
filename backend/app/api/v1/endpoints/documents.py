@@ -287,6 +287,8 @@ async def _apply_property_filters(
         if cond.op == FilterOp.is_null:
             # "Is empty" / "is not empty" must match documents that lack
             # a row entirely as well as rows with a null value.
+            # ``cond.value`` is pre-normalized by ``parse_property_filters``
+            # to an explicit bool (missing/None ⇒ True ⇒ "is empty").
             clauses.append(
                 properties_service.property_value_presence_predicate(
                     DocumentPropertyValue,
@@ -294,7 +296,7 @@ async def _apply_property_filters(
                     DocumentPropertyValue.document_id,
                     cond.property_id,
                     defn.type,
-                    is_empty=bool(cond.value),
+                    is_empty=cond.value,
                 )
             )
             continue

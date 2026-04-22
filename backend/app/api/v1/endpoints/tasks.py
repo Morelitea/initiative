@@ -241,13 +241,19 @@ def _build_task_filter_fields(
             # "Is empty" must match tasks that either have no row in
             # task_property_values for this property_id OR have a row
             # with a null value column. Delegate to the presence helper.
+            # Tasks' generic conditions parser doesn't go through
+            # parse_property_filters, so normalize the is_null bool here.
+            try:
+                is_empty = properties_service.normalize_is_null_value(raw_value)
+            except ValueError:
+                return None
             return properties_service.property_value_presence_predicate(
                 TaskPropertyValue,
                 Task.id,
                 TaskPropertyValue.task_id,
                 pid,
                 defn.type,
-                is_empty=bool(raw_value),
+                is_empty=is_empty,
             )
 
         try:
@@ -784,6 +790,13 @@ def _property_value_filter_clauses(
         if defn is None:
             continue
         if cond.op == FilterOp.is_null:
+            # Same normalization path as the filter-handler branch above:
+            # the global-task list paths accept raw conditions objects
+            # without going through parse_property_filters, so guard here.
+            try:
+                is_empty = properties_service.normalize_is_null_value(raw_value)
+            except ValueError:
+                continue
             clauses.append(
                 properties_service.property_value_presence_predicate(
                     TaskPropertyValue,
@@ -791,7 +804,7 @@ def _property_value_filter_clauses(
                     TaskPropertyValue.task_id,
                     pid,
                     defn.type,
-                    is_empty=bool(raw_value),
+                    is_empty=is_empty,
                 )
             )
             continue
