@@ -160,10 +160,15 @@ export const DocumentDetailPage = () => {
   const documentTypeFromQuery = documentQuery.data?.document_type;
 
   // Collaboration hook - only enable when we have a valid document ID.
-  // Smart-link docs have no editable content, so skip opening a Yjs WebSocket
-  // once we know the type. Before the doc loads we mirror existing behavior
-  // (enable immediately) so collab handshake isn't delayed for the common
-  // native/whiteboard case.
+  // The WebSocket opens lazily when something calls `providerFactory`:
+  // Lexical's CollaborationPlugin (inside <Editor>) or the whiteboard
+  // Y.Doc extraction effect. For smart_link docs neither runs — we render
+  // <SmartLinkDocumentViewer> instead — so no WS is ever opened, even
+  // though `enabled` is true while the document type is still loading.
+  // Gating on the fetched type (instead of leaving enabled permissive)
+  // would delay Lexical's CollaborationPlugin initial mount past the
+  // first render where `<Editor>` appears, which regresses the collab
+  // bootstrap and leaves Lexical stuck on "Syncing document…".
   const collaboration = useCollaboration({
     documentId: parsedId,
     enabled:
