@@ -592,3 +592,38 @@ def test_normalize_smart_link_returns_only_url() -> None:
         document_type=DocumentType.smart_link,
     )
     assert result == {"url": "https://youtu.be/dQw4w9WgXcQ"}
+
+
+def test_normalize_smart_link_raises_on_missing_url() -> None:
+    """normalize_document_content should raise a domain error for missing URL,
+    not an HTTPException (transport concern lives at the endpoint layer)."""
+    from app.services.documents import DocumentContentError, normalize_document_content
+
+    with pytest.raises(DocumentContentError) as exc_info:
+        normalize_document_content({}, document_type=DocumentType.smart_link)
+    assert exc_info.value.code == "DOCUMENT_SMART_LINK_URL_REQUIRED"
+
+    with pytest.raises(DocumentContentError) as exc_info:
+        normalize_document_content(None, document_type=DocumentType.smart_link)
+    assert exc_info.value.code == "DOCUMENT_SMART_LINK_URL_REQUIRED"
+
+
+def test_normalize_smart_link_raises_on_bad_scheme() -> None:
+    from app.services.documents import DocumentContentError, normalize_document_content
+
+    with pytest.raises(DocumentContentError) as exc_info:
+        normalize_document_content(
+            {"url": "ftp://example.com/file"},
+            document_type=DocumentType.smart_link,
+        )
+    assert exc_info.value.code == "DOCUMENT_SMART_LINK_URL_INVALID"
+
+
+def test_document_content_error_is_value_error() -> None:
+    """DocumentContentError inherits from ValueError so generic
+    ``except ValueError`` handlers still work."""
+    from app.services.documents import DocumentContentError
+
+    exc = DocumentContentError("SOME_CODE")
+    assert isinstance(exc, ValueError)
+    assert exc.code == "SOME_CODE"
