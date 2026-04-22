@@ -87,6 +87,7 @@
   "card": {
     "updated": "Mis à jour {{date}}",
     "template": "Modèle",
+    "whiteboardLabel": "Tableau blanc",
     "projects_one": "{{count}} projet",
     "projects_other": "{{count}} projets",
     "comments_one": "{{count}} commentaire",
@@ -241,9 +242,19 @@
     "descriptionStandalone": "Les documents sont liés à une initiative. Choisissez-en une pour commencer.",
     "tabNew": "Nouveau document",
     "tabUpload": "Télécharger un fichier",
+    "tabSmartLink": "Lien intelligent",
     "documentTypeLabel": "Type de document",
     "documentTypeText": "Document texte",
     "documentTypeWhiteboard": "Tableau blanc",
+    "documentTypeSmartLink": "Lien intelligent",
+    "smartLinkUrlLabel": "URL",
+    "smartLinkUrlPlaceholder": "Collez un lien",
+    "smartLinkSupportedProviders": "Pris en charge :",
+    "smartLinkProviderDetected": "Détecté : {{provider}}",
+    "smartLinkNeedsEmbedUrl": "Ce lien {{provider}} ne peut pas être intégré directement.",
+    "smartLinkGenericNote": "Fournisseur inconnu : le lien s'ouvrira dans un nouvel onglet lors de la consultation.",
+    "smartLinkDisclaimer": "Seule l'URL est enregistrée ; Initiative ne récupère rien du lien.",
+    "createSmartLink": "Créer un lien intelligent",
     "titleLabel": "Titre",
     "titlePlaceholderAttach": "Brief de lancement produit",
     "titlePlaceholderStandalone": "Titre du document",
@@ -311,6 +322,14 @@
   "backlinks": {
     "title_one": "Lié depuis {{count}} document",
     "title_other": "Lié depuis {{count}} documents"
+  },
+  "smartLink": {
+    "missingUrl": "Ce lien intelligent n'a pas d'URL.",
+    "openInNewTab": "Ouvrir dans un nouvel onglet",
+    "unsupportedProvider": "Le fournisseur de ce lien n'est pas intégrable ; utilisez le bouton ci-dessous pour l'ouvrir dans un nouvel onglet.",
+    "oneDriveEmbedHint": "Ceci est un lien de partage OneDrive. Ouvrez le fichier dans OneDrive → Fichier → Partager → Intégrer ce document. Copiez l'URL générée et collez-la ici — elle se termine par ?em=2.",
+    "sharePointEmbedHint": "Ceci est un lien de partage SharePoint. Ouvrez le fichier dans SharePoint → Intégrer (via la barre d'outils). Copiez l'URL générée et collez-la ici — elle contient action=embedview.",
+    "airtableEmbedHint": "Ceci est une URL de vue Airtable. Dans Airtable, ouvrez 'Partager la vue' → activez 'Intégrer sur votre site'. Copiez l'URL airtable.com/embed/... et collez-la ici."
   },
   "whiteboard": {
     "loading": "Chargement du tableau blanc…",

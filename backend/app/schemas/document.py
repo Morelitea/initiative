@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.document import DocumentPermissionLevel
+from app.models.document import DocumentPermissionLevel, DocumentType
 from app.schemas.initiative import InitiativeRead, serialize_initiative
 from app.schemas.tag import TagSummary
 
@@ -13,7 +13,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.document import Document, ProjectDocument
 
 LexicalState = Dict[str, Any]
-DocumentTypeStr = Literal["native", "file", "whiteboard"]
+DocumentTypeStr = Literal["native", "file", "whiteboard", "smart_link"]
 
 
 class DocumentProjectLink(BaseModel):
@@ -136,6 +136,10 @@ class DocumentSummary(DocumentBase):
     file_content_type: Optional[str] = None
     file_size: Optional[int] = None
     original_filename: Optional[str] = None
+    # Smart-link URL surfaced on the summary so cards can render the
+    # provider-specific icon without fetching the full content JSONB.
+    # Only populated when document_type == "smart_link".
+    smart_link_url: Optional[str] = None
     my_permission_level: Optional[str] = None
     yjs_updated_at: Optional[datetime] = None
 
@@ -236,6 +240,12 @@ def serialize_document_summary(
     my_permission_level: Optional[str] = None,
 ) -> DocumentSummary:
     initiative = serialize_initiative(document.initiative) if document.initiative else None
+    smart_link_url: Optional[str] = None
+    if document.document_type == DocumentType.smart_link:
+        content = document.content or {}
+        url = content.get("url") if isinstance(content, dict) else None
+        if isinstance(url, str) and url:
+            smart_link_url = url
     return DocumentSummary(
         id=document.id,
         initiative_id=document.initiative_id,
@@ -257,6 +267,7 @@ def serialize_document_summary(
         file_content_type=document.file_content_type,
         file_size=document.file_size,
         original_filename=document.original_filename,
+        smart_link_url=smart_link_url,
         my_permission_level=my_permission_level,
         yjs_updated_at=document.yjs_updated_at,
     )

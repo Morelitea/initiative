@@ -19,6 +19,7 @@ from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleMo
 from app.models.tag import DocumentTag
 from app.models.project import Project
 from app.core.config import settings
+from app.core.messages import DocumentMessages
 from app.services import attachments as attachments_service
 from app.services.collaboration import collaboration_manager
 
@@ -50,6 +51,20 @@ def _empty_state() -> dict[str, Any]:
 EMPTY_LEXICAL_STATE = _empty_state()
 
 
+class DocumentContentError(ValueError):
+    """Raised when document content fails type-specific validation.
+
+    The `code` attribute is a stable error constant from DocumentMessages
+    that callers (endpoints) translate to a localized HTTPException.
+    Inheriting from ValueError keeps bare ``except ValueError`` catches
+    working for callers that don't care about the structured code.
+    """
+
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
 def normalize_document_content(
     payload: dict[str, Any] | None,
     *,
@@ -72,6 +87,16 @@ def normalize_document_content(
             "appState": payload.get("appState") or {},
             "files": payload.get("files") or {},
         }
+
+    if document_type == DocumentType.smart_link:
+        if not isinstance(payload, dict):
+            raise DocumentContentError(DocumentMessages.SMART_LINK_URL_REQUIRED)
+        url = str(payload.get("url") or "").strip()
+        if not url:
+            raise DocumentContentError(DocumentMessages.SMART_LINK_URL_REQUIRED)
+        if not (url.startswith("http://") or url.startswith("https://")):
+            raise DocumentContentError(DocumentMessages.SMART_LINK_URL_INVALID)
+        return {"url": url}
 
     # native (default)
     if not isinstance(payload, dict):

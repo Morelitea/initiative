@@ -30,6 +30,7 @@ export function buildDocumentSummary(overrides: Partial<DocumentSummary> = {}): 
     file_content_type: null,
     file_size: null,
     original_filename: null,
+    smart_link_url: null,
     ...overrides,
   };
 }
