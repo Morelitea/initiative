@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-04-21
+
 ### Added
 
 - New **smart link** document type. Create one from the dialog's new third tab by pasting a URL — Figma files, YouTube videos, Loom recordings, Vimeo videos, Google Docs/Sheets/Slides/Drawings, Miro boards, Airtable embed views, and Office docs are embedded inline; other URLs render a link card that opens in a new tab. Only the URL is stored; Initiative doesn't fetch anything from the link. Adding support for a new provider later automatically upgrades any existing smart-link docs whose URLs match that provider — no migration needed, since the provider is always derived from the URL at render time.
