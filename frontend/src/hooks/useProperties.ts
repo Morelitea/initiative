@@ -30,10 +30,12 @@ import type {
   PropertyDefinitionUpdate,
   PropertyDefinitionUpdateResponse,
   PropertyEntitiesResult,
+  PropertyOption,
   PropertyValuesSetRequest,
   TaskRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { MutationOpts } from "@/types/mutation";
+import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
 
 // ── Queries ──────────────────────────────────────────────────────────────────
 
@@ -164,6 +166,63 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) => {
     },
     onSettled,
   });
+};
+
+/**
+ * Append a single option to a select / multi_select definition and return
+ * the newly-added option. If a case-insensitive label match already exists
+ * the existing option is returned without hitting the network, so the UI
+ * can use it transparently as "picked" after the user typed an existing
+ * label.
+ */
+export const useAppendPropertyOption = () => {
+  const { t } = useTranslation("properties");
+
+  const mutation = useMutation({
+    mutationFn: async (vars: {
+      definition: PropertyDefinitionRead;
+      label: string;
+      color?: string | null;
+    }) => {
+      const label = vars.label.trim();
+      if (!label) {
+        throw new Error("Option label cannot be empty");
+      }
+      const existing = findOptionByLabel(vars.definition, label);
+      if (existing) {
+        return { option: existing, created: false as const };
+      }
+      const currentOptions = vars.definition.options ?? [];
+      const slug = buildUniqueOptionSlug(label, currentOptions);
+      const newOption: PropertyOption = {
+        value: slug,
+        label,
+        color: vars.color ?? null,
+      };
+      const nextOptions: PropertyOption[] = [...currentOptions, newOption];
+      await updatePropertyDefinitionApiV1PropertyDefinitionsDefinitionIdPatch(vars.definition.id, {
+        options: nextOptions,
+      });
+      return { option: newOption, created: true as const };
+    },
+    onSuccess: (result) => {
+      void invalidateAllProperties();
+      void invalidateAllDocuments();
+      void invalidateAllTasks();
+      if (result.created) {
+        toast.success(t("input.optionAdded"));
+      }
+    },
+    onError: () => {
+      toast.error(t("input.optionAddFailed"));
+    },
+  });
+
+  return {
+    appendOption: (definition: PropertyDefinitionRead, label: string, color?: string | null) =>
+      mutation.mutateAsync({ definition, label, color }),
+    isPending: mutation.isPending,
+  };
 };
 
 export const useSetDocumentProperties = (

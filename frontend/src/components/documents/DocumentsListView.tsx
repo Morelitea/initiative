@@ -20,11 +20,18 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
+import { buildPropertyColumns, propertyColumnId } from "@/components/properties/propertyColumns";
+import { useProperties } from "@/hooks/useProperties";
+import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { dateSortingFn } from "@/lib/sorting";
-import type { DocumentSummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import {
+  PropertyAppliesTo,
+  type DocumentSummary,
+  type TagSummary,
+} from "@/api/generated/initiativeAPI.schemas";
 
 // Cell component that uses guild-scoped URLs
 const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
@@ -101,6 +108,30 @@ export const DocumentsListView = ({
 }: DocumentsListViewProps) => {
   const { t } = useTranslation(["documents", "common"]);
   const dateLocale = useDateLocale();
+
+  const { data: allPropertyDefinitions = [] } = useProperties();
+  const documentPropertyDefinitions = useMemo(
+    () =>
+      allPropertyDefinitions.filter(
+        (definition) =>
+          definition.applies_to === PropertyAppliesTo.document ||
+          definition.applies_to === PropertyAppliesTo.both
+      ),
+    [allPropertyDefinitions]
+  );
+  const propertyColumns = useMemo(
+    () =>
+      buildPropertyColumns<DocumentSummary>(documentPropertyDefinitions, (row) => row.properties),
+    [documentPropertyDefinitions]
+  );
+  const propertyHiddenIds = useMemo(
+    () => documentPropertyDefinitions.map((definition) => propertyColumnId(definition)),
+    [documentPropertyDefinitions]
+  );
+  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
+    "initiative-documents-columns",
+    propertyHiddenIds
+  );
 
   // Column definitions with translations (must be inside component for hook access)
   const documentColumns: ColumnDef<DocumentSummary>[] = useMemo(
@@ -219,6 +250,17 @@ export const DocumentsListView = ({
     [t, dateLocale]
   );
 
+  const columnsWithProperties = useMemo<ColumnDef<DocumentSummary>[]>(() => {
+    if (propertyColumns.length === 0) return documentColumns;
+    const tagsIdx = documentColumns.findIndex((c) => (c as { id?: string }).id === "tags");
+    if (tagsIdx === -1) return [...documentColumns, ...propertyColumns];
+    return [
+      ...documentColumns.slice(0, tagsIdx + 1),
+      ...propertyColumns,
+      ...documentColumns.slice(tagsIdx + 1),
+    ];
+  }, [documentColumns, propertyColumns]);
+
   return (
     <>
       {selectedDocuments.length > 0 && (
@@ -295,8 +337,10 @@ export const DocumentsListView = ({
         </div>
       )}
       <DataTable
-        columns={documentColumns}
+        columns={columnsWithProperties}
         data={documents}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
         enableFilterInput
         filterInputColumnKey="title"
         filterInputPlaceholder={t("documents:page.filterPlaceholder")}

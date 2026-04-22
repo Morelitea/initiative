@@ -978,6 +978,7 @@ export const ProjectTasksSection = ({
             />
           )}
           <ProjectTasksTableView
+            projectId={projectId}
             tasks={statusFilteredTasks}
             taskStatuses={sortedTaskStatuses}
             sensors={listSensors}

@@ -43,7 +43,15 @@
     "multiSelectPlaceholder": "Select options",
     "userPlaceholder": "Assign person…",
     "unknownOption": "Unknown option: {{value}}",
-    "clear": "Clear"
+    "clear": "Clear",
+    "searchOptions": "Search or create option…",
+    "createOption": "Create \"{{label}}\"",
+    "optionAdded": "Option added",
+    "optionAddFailed": "Could not add option"
+  },
+  "cell": {
+    "emptyValue": "—",
+    "none": "None"
   },
   "manager": {
     "title": "Custom properties",

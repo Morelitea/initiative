@@ -127,9 +127,10 @@ describe("PropertyInput", () => {
     it("renders the options and fires onChange with the option slug when picked", async () => {
       const onChange = vi.fn();
       renderWithProviders(<PropertyInput definition={selectDef} value="" onChange={onChange} />);
-      const trigger = screen.getByRole("combobox");
+      // The new picker is a Popover-trigger button (not a Radix combobox).
+      const trigger = screen.getByRole("button", { name: /Select/i });
       await userEvent.click(trigger);
-      const liveOption = await screen.findByRole("option", { name: "Live" });
+      const liveOption = await screen.findByRole("option", { name: /Live/i });
       await userEvent.click(liveOption);
       expect(onChange).toHaveBeenCalledWith("live");
     });
@@ -154,13 +155,10 @@ describe("PropertyInput", () => {
       });
       const onChange = vi.fn();
       renderWithProviders(<PropertyInput definition={multiDef} value={[]} onChange={onChange} />);
-      const trigger = screen.getByRole("combobox");
+      const trigger = screen.getByRole("button", { name: /Select options/i });
       await userEvent.click(trigger);
       const alphaOption = await screen.findByRole("option", { name: /Alpha/i });
-      // MultiSelect uses pointer events to toggle; fire them to drive the
-      // onPointerUp handler that actually calls toggleValue.
-      fireEvent.pointerDown(alphaOption);
-      fireEvent.pointerUp(alphaOption);
+      await userEvent.click(alphaOption);
       expect(onChange).toHaveBeenCalledWith(["alpha"]);
     });
   });
@@ -230,8 +228,7 @@ describe("PropertyInput", () => {
           disabled
         />
       );
-      // Radix Select disables the trigger via data attr + aria-disabled.
-      const trigger = screen.getByRole("combobox");
+      const trigger = screen.getByRole("button", { name: /Select/i });
       expect(trigger).toBeDisabled();
     });
 
@@ -278,11 +275,62 @@ describe("PropertyInput", () => {
         ],
       });
       renderWithProviders(<PropertyInput definition={multi} value="" onChange={vi.fn()} />);
-      const trigger = screen.getByRole("combobox");
+      const trigger = screen.getByRole("button", { name: /Select/i });
       await userEvent.click(trigger);
       const listbox = await screen.findByRole("listbox");
-      expect(within(listbox).getByRole("option", { name: "One" })).toBeInTheDocument();
-      expect(within(listbox).getByRole("option", { name: "Two" })).toBeInTheDocument();
+      expect(within(listbox).getByRole("option", { name: /One/i })).toBeInTheDocument();
+      expect(within(listbox).getByRole("option", { name: /Two/i })).toBeInTheDocument();
+    });
+  });
+
+  describe("inline option creation on select", () => {
+    it("offers a 'Create' command when typing a new label, and appends + selects it on click", async () => {
+      const definition = def({
+        id: 33,
+        type: PropertyType.select,
+        name: "Status",
+        options: [buildPropertyOption({ value: "draft", label: "Draft" })],
+      });
+      const bodies: unknown[] = [];
+      server.use(
+        http.patch("/api/v1/property-definitions/:id", async ({ request }) => {
+          const body = await request.json();
+          bodies.push(body);
+          return HttpResponse.json({
+            definition: { ...definition, options: (body as { options: unknown }).options },
+            orphaned_value_count: 0,
+          });
+        })
+      );
+      const onChange = vi.fn();
+      renderWithProviders(<PropertyInput definition={definition} value="" onChange={onChange} />);
+      const trigger = screen.getByRole("button", { name: /Select/i });
+      await userEvent.click(trigger);
+      const searchBox = await screen.findByPlaceholderText(/Search or create/i);
+      await userEvent.type(searchBox, "In Review");
+      const createItem = await screen.findByRole("option", { name: /Create "In Review"/i });
+      await userEvent.click(createItem);
+      await waitFor(() => expect(bodies).toHaveLength(1));
+      const patched = bodies[0] as { options: Array<{ value: string; label: string }> };
+      expect(patched.options).toEqual([
+        expect.objectContaining({ value: "draft", label: "Draft" }),
+        expect.objectContaining({ value: "in_review", label: "In Review" }),
+      ]);
+      await waitFor(() => expect(onChange).toHaveBeenCalledWith("in_review"));
+    });
+
+    it("does NOT offer Create when the typed label matches an existing option (case-insensitive)", async () => {
+      const definition = def({
+        type: PropertyType.select,
+        options: [buildPropertyOption({ value: "live", label: "Live" })],
+      });
+      renderWithProviders(<PropertyInput definition={definition} value="" onChange={vi.fn()} />);
+      const trigger = screen.getByRole("button", { name: /Select/i });
+      await userEvent.click(trigger);
+      const searchBox = await screen.findByPlaceholderText(/Search or create/i);
+      await userEvent.type(searchBox, "live");
+      expect(screen.queryByRole("option", { name: /Create "live"/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("option", { name: /Live/i })).toBeInTheDocument();
     });
   });
 });

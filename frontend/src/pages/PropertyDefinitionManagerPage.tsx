@@ -48,6 +48,7 @@ import {
   type PropertyType as PropertyTypeValue,
 } from "@/api/generated/initiativeAPI.schemas";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
+import { slugify, typeRequiresOptions } from "@/components/properties/propertyHelpers";
 
 const PROPERTY_TYPE_OPTIONS: PropertyTypeValue[] = [
   PropertyType.text,
@@ -68,17 +69,6 @@ const APPLIES_TO_OPTIONS: PropertyAppliesTo[] = [
 ];
 
 const DEFAULT_COLOR = "#64748B";
-
-const typeRequiresOptions = (type: PropertyTypeValue): boolean =>
-  type === PropertyType.select || type === PropertyType.multi_select;
-
-const slugify = (raw: string): string =>
-  raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 64);
 
 interface DialogState {
   mode: "create" | "edit";

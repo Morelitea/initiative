@@ -26,6 +26,7 @@ import {
 } from "@/api/generated/initiativeAPI.schemas";
 import type { PropertyEntityKind } from "./PropertyList";
 import { iconForPropertyType } from "./propertyTypeIcons";
+import { slugify, typeRequiresOptions } from "./propertyHelpers";
 
 export interface AddPropertyButtonProps {
   entityKind: PropertyEntityKind;
@@ -45,17 +46,6 @@ const ORDERED_TYPES: PropertyTypeValue[] = [
   PropertyType.multi_select,
   PropertyType.user_reference,
 ];
-
-const typeRequiresOptions = (type: PropertyTypeValue): boolean =>
-  type === PropertyType.select || type === PropertyType.multi_select;
-
-const slugify = (raw: string): string =>
-  raw
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 64);
 
 export const AddPropertyButton = ({
   entityKind,
