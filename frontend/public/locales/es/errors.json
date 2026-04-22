@@ -118,6 +118,8 @@
   "DOCUMENT_ROLE_WRONG_INITIATIVE": "El rol debe pertenecer a la iniciativa del documento",
   "DOCUMENT_ROLE_PERMISSION_NOT_FOUND": "Permiso de rol no encontrado",
   "DOCUMENT_AI_NATIVE_ONLY": "La generación de resúmenes con IA solo está disponible para documentos nativos",
+  "DOCUMENT_SMART_LINK_URL_REQUIRED": "Se requiere una URL para los documentos de enlace inteligente",
+  "DOCUMENT_SMART_LINK_URL_INVALID": "Las URL de enlace inteligente deben comenzar con http:// o https://",
   "DOCUMENT_INVALID_TAG_IDS": "Uno o más IDs de etiqueta no son válidos",
   "COMMENT_NOT_FOUND": "Comentario no encontrado",
   "COMMENT_PERMISSION_DENIED": "No autorizado para comentar",

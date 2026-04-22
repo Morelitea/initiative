@@ -87,6 +87,7 @@
   "card": {
     "updated": "Actualizado {{date}}",
     "template": "Plantilla",
+    "whiteboardLabel": "Pizarra",
     "projects_one": "{{count}} proyecto",
     "projects_other": "{{count}} proyectos",
     "comments_one": "{{count}} comentario",
@@ -241,9 +242,19 @@
     "descriptionStandalone": "Los documentos pertenecen a una iniciativa. Selecciona una para comenzar.",
     "tabNew": "Nuevo documento",
     "tabUpload": "Subir archivo",
+    "tabSmartLink": "Enlace inteligente",
     "documentTypeLabel": "Tipo de documento",
     "documentTypeText": "Documento de texto",
     "documentTypeWhiteboard": "Pizarra",
+    "documentTypeSmartLink": "Enlace inteligente",
+    "smartLinkUrlLabel": "URL",
+    "smartLinkUrlPlaceholder": "Pega un enlace",
+    "smartLinkSupportedProviders": "Compatibles:",
+    "smartLinkProviderDetected": "Detectado: {{provider}}",
+    "smartLinkNeedsEmbedUrl": "Este enlace de {{provider}} no se puede incrustar directamente.",
+    "smartLinkGenericNote": "Proveedor desconocido: el enlace se abrirá en una nueva pestaña al visualizarlo.",
+    "smartLinkDisclaimer": "Solo se guarda la URL; Initiative no recupera nada del enlace.",
+    "createSmartLink": "Crear enlace inteligente",
     "titleLabel": "Título",
     "titlePlaceholderAttach": "Resumen de lanzamiento de producto",
     "titlePlaceholderStandalone": "Título del documento",
@@ -311,6 +322,14 @@
   "backlinks": {
     "title_one": "Enlazado desde {{count}} documento",
     "title_other": "Enlazado desde {{count}} documentos"
+  },
+  "smartLink": {
+    "missingUrl": "Este enlace inteligente no tiene URL.",
+    "openInNewTab": "Abrir en nueva pestaña",
+    "unsupportedProvider": "El proveedor de este enlace no es incrustable; usa el botón de abajo para abrirlo en una nueva pestaña.",
+    "oneDriveEmbedHint": "Este es un enlace para compartir de OneDrive. Abre el archivo en OneDrive → Archivo → Compartir → Insertar este documento. Copia la URL generada y pégala aquí: terminará con ?em=2.",
+    "sharePointEmbedHint": "Este es un enlace para compartir de SharePoint. Abre el archivo en SharePoint → Insertar (desde la barra de herramientas). Copia la URL generada y pégala aquí: incluirá action=embedview.",
+    "airtableEmbedHint": "Esta es una URL de vista de Airtable. En Airtable, abre 'Compartir vista' → activa 'Insertar en tu sitio'. Copia la URL airtable.com/embed/... y pégala aquí."
   },
   "whiteboard": {
     "loading": "Cargando pizarra…",

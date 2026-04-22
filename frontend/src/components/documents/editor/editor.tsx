@@ -19,22 +19,7 @@ import { cn } from "@/lib/utils";
 import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 import type { CollaborationProvider } from "@/lib/yjs/CollaborationProvider";
 import { useAuth } from "@/hooks/useAuth";
-
-// Generate a random color for cursor presence
-function getRandomColor(): string {
-  const colors = [
-    "#f87171", // red
-    "#fb923c", // orange
-    "#fbbf24", // amber
-    "#a3e635", // lime
-    "#34d399", // emerald
-    "#22d3ee", // cyan
-    "#60a5fa", // blue
-    "#a78bfa", // violet
-    "#f472b6", // pink
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
-}
+import { getUserColorHsl } from "@/lib/userColor";
 
 const editorConfig: InitialConfigType = {
   namespace: "Editor",
@@ -110,7 +95,9 @@ export function Editor({
   onWikilinkCreate,
 }: EditorProps) {
   const { user } = useAuth();
-  const userColor = useRef(getRandomColor());
+  // Per-user deterministic cursor color — matches the user's avatar in the
+  // collaboration status badge and their cursor on whiteboards.
+  const userColor = useRef(user ? getUserColorHsl(user.id) : "hsl(0, 0%, 70%)");
   const userName = user?.full_name || user?.email || "Anonymous";
   // Ref for the collaboration cursors container - must be inside the scrolling editor content
   const cursorsContainerRef = useRef<HTMLDivElement>(null!);

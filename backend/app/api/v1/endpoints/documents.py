@@ -616,15 +616,20 @@ async def create_document(
 
     requested_type = DocumentType(document_in.document_type)
 
+    try:
+        normalized_content = documents_service.normalize_document_content(
+            document_in.content,
+            document_type=requested_type,
+        )
+    except documents_service.DocumentContentError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code) from exc
+
     document = Document(
         title=title,
         initiative_id=initiative.id,
         guild_id=guild_context.guild_id,
         document_type=requested_type,
-        content=documents_service.normalize_document_content(
-            document_in.content,
-            document_type=requested_type,
-        ),
+        content=normalized_content,
         created_by_id=current_user.id,
         updated_by_id=current_user.id,
         featured_image_url=document_in.featured_image_url,
@@ -878,10 +883,13 @@ async def update_document(
 
     content_updated = False
     if "content" in update_data:
-        document.content = documents_service.normalize_document_content(
-            update_data["content"],
-            document_type=document.document_type,
-        )
+        try:
+            document.content = documents_service.normalize_document_content(
+                update_data["content"],
+                document_type=document.document_type,
+            )
+        except documents_service.DocumentContentError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code) from exc
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
         # Clear yjs_state ONLY if there is no active collaboration room.

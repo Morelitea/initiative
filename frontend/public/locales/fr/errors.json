@@ -118,6 +118,8 @@
   "DOCUMENT_ROLE_WRONG_INITIATIVE": "Le rôle doit appartenir à l'initiative du document",
   "DOCUMENT_ROLE_PERMISSION_NOT_FOUND": "Permission de rôle introuvable",
   "DOCUMENT_AI_NATIVE_ONLY": "La synthèse IA est uniquement disponible pour les documents natifs",
+  "DOCUMENT_SMART_LINK_URL_REQUIRED": "Une URL est requise pour les documents de lien intelligent",
+  "DOCUMENT_SMART_LINK_URL_INVALID": "Les URLs de lien intelligent doivent commencer par http:// ou https://",
   "DOCUMENT_INVALID_TAG_IDS": "Un ou plusieurs identifiants d'étiquettes sont invalides",
   "COMMENT_NOT_FOUND": "Commentaire introuvable",
   "COMMENT_PERMISSION_DENIED": "Non autorisé à commenter",

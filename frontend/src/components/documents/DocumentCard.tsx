@@ -10,6 +10,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { getFileTypeLabel, getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
+import { matchSmartLinkProvider } from "@/lib/smartLinkProviders";
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -30,16 +31,28 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
     ? getFileTypeLabel(document.file_content_type, document.original_filename)
     : null;
 
-  const FileIcon = getDocumentIcon(
-    document.document_type,
-    document.file_content_type,
-    document.original_filename
-  );
-  const fileIconColor = getDocumentIconColor(
-    document.document_type,
-    document.file_content_type,
-    document.original_filename
-  );
+  // Smart-link docs use the matched provider's brand icon when we recognize
+  // the URL. The provider registry falls back to a generic Link icon for
+  // unknown URLs, which is still a better default than the scroll icon
+  // getDocumentIcon would produce for smart_link.
+  const smartLinkMatch =
+    document.document_type === "smart_link" && document.smart_link_url
+      ? matchSmartLinkProvider(document.smart_link_url)
+      : null;
+  const FileIcon = smartLinkMatch
+    ? smartLinkMatch.icon
+    : getDocumentIcon(
+        document.document_type,
+        document.file_content_type,
+        document.original_filename
+      );
+  const fileIconColor = smartLinkMatch
+    ? "text-muted-foreground"
+    : getDocumentIconColor(
+        document.document_type,
+        document.file_content_type,
+        document.original_filename
+      );
 
   return (
     <Link
@@ -72,6 +85,10 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
           {isFileDocument && fileTypeLabel ? (
             <Badge variant="secondary">{fileTypeLabel}</Badge>
           ) : null}
+          {document.document_type === "whiteboard" ? (
+            <Badge variant="secondary">{t("card.whiteboardLabel")}</Badge>
+          ) : null}
+          {smartLinkMatch ? <Badge variant="secondary">{smartLinkMatch.label}</Badge> : null}
           {document.is_template ? <Badge variant="outline">{t("card.template")}</Badge> : null}
           <Badge variant="secondary">{t("card.projects", { count: projectCount })}</Badge>
           <Badge variant="secondary">{t("card.comments", { count: commentCount })}</Badge>

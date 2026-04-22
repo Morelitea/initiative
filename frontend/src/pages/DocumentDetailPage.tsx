@@ -12,6 +12,7 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
 import {
+  ExternalLink,
   ImagePlus,
   Loader2,
   Maximize2,
@@ -55,8 +56,15 @@ const WhiteboardDocumentEditor = lazy(() =>
     default: m.WhiteboardDocumentEditor,
   }))
 );
+const SmartLinkDocumentViewer = lazy(() =>
+  import("@/components/documents/SmartLinkDocumentViewer").then((m) => ({
+    default: m.SmartLinkDocumentViewer,
+  }))
+);
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
+import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
 import type * as Y from "yjs";
+import type { ProviderAwareness } from "@lexical/yjs";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { useCollaboration } from "@/hooks/useCollaboration";
@@ -127,6 +135,7 @@ export const DocumentDetailPage = () => {
   // with the Yjs state (which would clobber the unsaved local work).
   const [whiteboardSceneFromCache, setWhiteboardSceneFromCache] = useState(false);
   const [whiteboardYDoc, setWhiteboardYDoc] = useState<Y.Doc | null>(null);
+  const [whiteboardAwareness, setWhiteboardAwareness] = useState<ProviderAwareness | null>(null);
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -144,10 +153,26 @@ export const DocumentDetailPage = () => {
   const [wikilinkTitle, setWikilinkTitle] = useState("");
   const wikilinkUpdateCallbackRef = useRef<((documentId: number) => void) | null>(null);
 
-  // Collaboration hook - only enable when we have a valid document ID
+  // Network status for offline detection
+  const { isOnline } = useNetworkStatus();
+
+  const documentQuery = useDocument(Number.isFinite(parsedId) ? parsedId : null);
+  const documentTypeFromQuery = documentQuery.data?.document_type;
+
+  // Collaboration hook - only enable when we have a valid document ID.
+  // The WebSocket opens lazily when something calls `providerFactory`:
+  // Lexical's CollaborationPlugin (inside <Editor>) or the whiteboard
+  // Y.Doc extraction effect. For smart_link docs neither runs — we render
+  // <SmartLinkDocumentViewer> instead — so no WS is ever opened, even
+  // though `enabled` is true while the document type is still loading.
+  // Gating on the fetched type (instead of leaving enabled permissive)
+  // would delay Lexical's CollaborationPlugin initial mount past the
+  // first render where `<Editor>` appears, which regresses the collab
+  // bootstrap and leaves Lexical stuck on "Syncing document…".
   const collaboration = useCollaboration({
     documentId: parsedId,
-    enabled: collaborationEnabled && Number.isFinite(parsedId),
+    enabled:
+      collaborationEnabled && Number.isFinite(parsedId) && documentTypeFromQuery !== "smart_link",
     onError: (error) => {
       // Show toast and fall back to autosave mode on collaboration error
       toast.error(t("detail.collaborationFailed"), {
@@ -156,11 +181,6 @@ export const DocumentDetailPage = () => {
       setCollaborationEnabled(false);
     },
   });
-
-  // Network status for offline detection
-  const { isOnline } = useNetworkStatus();
-
-  const documentQuery = useDocument(Number.isFinite(parsedId) ? parsedId : null);
 
   const commentsQueryParams = { document_id: parsedId };
   const commentsCache = useCommentsCache(commentsQueryParams);
@@ -281,13 +301,18 @@ export const DocumentDetailPage = () => {
     return JSON.stringify(contentState);
   }, [document?.document_type, whiteboardScene, contentState]);
 
-  // Unified content payload for save mutations (branches on document type)
+  // Unified content payload for save mutations (branches on document type).
+  // Smart-link docs have no editable content here — echo the existing content
+  // back so PATCHes from a title/featured-image change don't try to rewrite
+  // the URL (which would fail backend validation if contentState were empty).
   const contentForSave = useMemo(
     () =>
       document?.document_type === "whiteboard"
         ? (whiteboardScene as unknown as Record<string, unknown>)
-        : (contentState as unknown as Record<string, unknown>),
-    [document?.document_type, whiteboardScene, contentState]
+        : document?.document_type === "smart_link"
+          ? (document.content as unknown as Record<string, unknown>)
+          : (contentState as unknown as Record<string, unknown>),
+    [document?.document_type, document?.content, whiteboardScene, contentState]
   );
   const normalizedDocumentFeatured = document?.featured_image_url ?? null;
   const canEditDocument = useMemo(() => {
@@ -461,15 +486,18 @@ export const DocumentDetailPage = () => {
   useEffect(() => {
     if (document?.document_type !== "whiteboard") {
       setWhiteboardYDoc(null);
+      setWhiteboardAwareness(null);
       return;
     }
     if (!collaborationEnabled || !collaboration.providerFactory || !collaboration.isReady) {
       setWhiteboardYDoc(null);
+      setWhiteboardAwareness(null);
       return;
     }
     const yjsDocMap = new Map<string, import("yjs").Doc>();
     const provider = collaboration.providerFactory("main", yjsDocMap);
     setWhiteboardYDoc(provider.doc);
+    setWhiteboardAwareness(provider.awareness);
     // No cleanup — useCollaboration owns the provider lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -1070,13 +1098,26 @@ export const DocumentDetailPage = () => {
                   isOnline={isOnline}
                 />
               )}
+              {document.document_type === "smart_link" &&
+              typeof (document.content as { url?: unknown } | null)?.url === "string" ? (
+                <Button asChild type="button" variant="ghost" size="sm" className="ml-auto">
+                  <a
+                    href={(document.content as { url: string }).url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                    {t("smartLink.openInNewTab")}
+                  </a>
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsFullscreen((value) => !value)}
                 aria-label={t(isFullscreen ? "detail.exitFullscreen" : "detail.enterFullscreen")}
-                className="ml-auto"
+                className={cn(document.document_type !== "smart_link" && "ml-auto")}
               >
                 {isFullscreen ? (
                   <Minimize2 className="mr-2 h-4 w-4" />
@@ -1108,6 +1149,14 @@ export const DocumentDetailPage = () => {
                     yDoc={collaborationEnabled && collaboration.isReady ? whiteboardYDoc : null}
                     isSynced={collaboration.isSynced}
                     hasOtherCollaborators={collaboration.collaborators.length > 0}
+                    awareness={
+                      collaborationEnabled && collaboration.isReady ? whiteboardAwareness : null
+                    }
+                    currentUser={
+                      user
+                        ? { id: user.id, name: user.full_name || user.email || "Anonymous" }
+                        : null
+                    }
                     className={cn(isFullscreen && "h-full min-h-0 flex-1")}
                   />
                 ) : (
@@ -1115,6 +1164,12 @@ export const DocumentDetailPage = () => {
                     <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
                   </div>
                 )
+              ) : document.document_type === "smart_link" ? (
+                <SmartLinkDocumentViewer
+                  key={parsedId}
+                  content={document.content as unknown as SmartLinkContent | null}
+                  className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                />
               ) : (
                 <Editor
                   key={parsedId}
@@ -1138,7 +1193,9 @@ export const DocumentDetailPage = () => {
               )}
             </Suspense>
             <div className="flex flex-wrap items-center gap-3">
-              {canEditDocument ? (
+              {/* Smart-link docs have nothing editable on this page — suppress
+                  the save/autosave bar entirely. */}
+              {document.document_type === "smart_link" ? null : canEditDocument ? (
                 <>
                   {/* When collaboration is active, changes sync in real-time */}
                   {collaboration.isCollaborating ? (

@@ -4,12 +4,14 @@ import {
   FileSpreadsheet,
   FileText,
   ImageIcon,
+  Link as LinkIcon,
   Loader2,
   Plus,
   Presentation,
   Upload,
   X,
 } from "lucide-react";
+import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLinkProviders";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -74,7 +76,7 @@ export const CreateDocumentDialog = ({
 }: CreateDocumentDialogProps) => {
   const { t } = useTranslation(["documents", "common"]);
 
-  const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload">("new");
+  const [createDialogTab, setCreateDialogTab] = useState<"new" | "upload" | "smartLink">("new");
   const [newTitle, setNewTitle] = useState("");
   const [selectedInitiativeId, setSelectedInitiativeId] = useState(
     defaultInitiativeId ? String(defaultInitiativeId) : ""
@@ -83,6 +85,7 @@ export const CreateDocumentDialog = ({
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
   const [newDocumentType, setNewDocumentType] = useState<"native" | "whiteboard">("native");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [smartLinkUrl, setSmartLinkUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
   const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
@@ -133,6 +136,7 @@ export const CreateDocumentDialog = ({
       setIsTemplateDocument(false);
       setNewDocumentType("native");
       setSelectedFile(null);
+      setSmartLinkUrl("");
       setCreateDialogTab("new");
       setRoleGrants([]);
       setUserGrants([]);
@@ -196,6 +200,15 @@ export const CreateDocumentDialog = ({
   const isCreating = createDocument.isPending || uploadDocument.isPending;
   const canSubmitNew = newTitle.trim() && effectiveInitiativeId && !isCreating;
   const canSubmitUpload = newTitle.trim() && effectiveInitiativeId && selectedFile && !isCreating;
+  const trimmedSmartLinkUrl = smartLinkUrl.trim();
+  const smartLinkProviderMatch = useMemo(
+    () => (trimmedSmartLinkUrl ? matchSmartLinkProvider(trimmedSmartLinkUrl) : null),
+    [trimmedSmartLinkUrl]
+  );
+  const smartLinkUrlIsHttp = /^https?:\/\//.test(trimmedSmartLinkUrl);
+  const canSubmitSmartLink = Boolean(
+    newTitle.trim() && effectiveInitiativeId && smartLinkUrlIsHttp && !isCreating
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -209,9 +222,9 @@ export const CreateDocumentDialog = ({
 
         <Tabs
           value={createDialogTab}
-          onValueChange={(value) => setCreateDialogTab(value as "new" | "upload")}
+          onValueChange={(value) => setCreateDialogTab(value as "new" | "upload" | "smartLink")}
         >
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="new" className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               {t("create.tabNew")}
@@ -219,6 +232,10 @@ export const CreateDocumentDialog = ({
             <TabsTrigger value="upload" className="flex items-center gap-2">
               <Upload className="h-4 w-4" />
               {t("create.tabUpload")}
+            </TabsTrigger>
+            <TabsTrigger value="smartLink" className="flex items-center gap-2">
+              <LinkIcon className="h-4 w-4" />
+              {t("create.tabSmartLink")}
             </TabsTrigger>
           </TabsList>
 
@@ -399,6 +416,57 @@ export const CreateDocumentDialog = ({
               </p>
             </div>
           </TabsContent>
+
+          {/* Smart link tab content */}
+          <TabsContent value="smartLink" className="mt-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="create-doc-smart-link-url">{t("create.smartLinkUrlLabel")}</Label>
+              <Input
+                id="create-doc-smart-link-url"
+                type="url"
+                value={smartLinkUrl}
+                onChange={(e) => setSmartLinkUrl(e.target.value)}
+                placeholder={t("create.smartLinkUrlPlaceholder")}
+                autoComplete="off"
+              />
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground text-xs">
+                  {t("create.smartLinkSupportedProviders")}
+                </span>
+                <div className="text-muted-foreground flex flex-wrap items-center gap-2">
+                  {SUPPORTED_PROVIDER_BADGES.map((p) => (
+                    <span key={p.id} title={p.label} aria-label={p.label} className="inline-flex">
+                      <p.icon className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {smartLinkProviderMatch ? (
+                <div className="text-muted-foreground flex items-start gap-2 text-xs">
+                  <smartLinkProviderMatch.icon className="mt-0.5 h-4 w-4 shrink-0" />
+                  {smartLinkProviderMatch.canEmbed ? (
+                    <span>
+                      {t("create.smartLinkProviderDetected", {
+                        provider: smartLinkProviderMatch.label,
+                      })}
+                    </span>
+                  ) : smartLinkProviderMatch.embedHintKey ? (
+                    <span>
+                      <span className="font-medium">
+                        {t("create.smartLinkNeedsEmbedUrl", {
+                          provider: smartLinkProviderMatch.label,
+                        })}
+                      </span>{" "}
+                      {t(smartLinkProviderMatch.embedHintKey)}
+                    </span>
+                  ) : (
+                    <span>{t("create.smartLinkGenericNote")}</span>
+                  )}
+                </div>
+              ) : null}
+              <p className="text-muted-foreground text-xs">{t("create.smartLinkDisclaimer")}</p>
+            </div>
+          </TabsContent>
         </Tabs>
 
         <Accordion type="single" collapsible>
@@ -446,7 +514,7 @@ export const CreateDocumentDialog = ({
                 t("create.createDocument")
               )}
             </Button>
-          ) : (
+          ) : createDialogTab === "upload" ? (
             <Button
               type="button"
               onClick={() => {
@@ -471,6 +539,34 @@ export const CreateDocumentDialog = ({
                 </>
               ) : (
                 t("create.uploadDocument")
+              )}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => {
+                const trimmedTitle = newTitle.trim();
+                if (!trimmedTitle || !effectiveInitiativeId) return;
+                if (!smartLinkUrlIsHttp) return;
+                createDocument.mutate({
+                  title: trimmedTitle,
+                  initiative_id: effectiveInitiativeId,
+                  project_id: projectId,
+                  document_type: "smart_link",
+                  content: { url: trimmedSmartLinkUrl },
+                  role_grants: roleGrants,
+                  user_grants: userGrants,
+                });
+              }}
+              disabled={!canSubmitSmartLink || accessLoading}
+            >
+              {createDocument.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("create.creating")}
+                </>
+              ) : (
+                t("create.createSmartLink")
               )}
             </Button>
           )}
