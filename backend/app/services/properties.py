@@ -17,7 +17,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
 
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
-from sqlalchemy import func
+from sqlalchemy import func, true
 from sqlalchemy.orm import selectinload
 from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -480,29 +480,33 @@ async def count_orphaned_values(
     Used on PATCH of a select/multi_select definition when the option list
     changes — the SPA surfaces the count as a warning. Orphaned values are
     preserved (not cleared) by design.
+
+    Executes two ``COUNT`` queries per junction table (one for value_text,
+    one for value_json) rather than pulling rows into Python. For
+    multi_select the JSONB ``<@`` operator asks Postgres whether every
+    stored slug is contained in the valid-slug set — rows that fail that
+    check (i.e. contain at least one slug outside the new option list)
+    count as orphans.
     """
+    valid_list = list(valid_slugs)
     count = 0
     for value_model in (DocumentPropertyValue, TaskPropertyValue):
-        # value_text (single select)
-        stmt_text = select(value_model).where(
+        # value_text (single select): NOT IN the new slug list counts.
+        stmt_text = select(func.count()).where(
             value_model.property_id == defn_id,
             value_model.value_text.is_not(None),
+            value_model.value_text.not_in(valid_list) if valid_list else true(),
         )
-        result = await session.exec(stmt_text)
-        for row in result.all():
-            if row.value_text not in valid_slugs:
-                count += 1
+        count += (await session.exec(stmt_text)).one()
 
-        # value_json (multi_select)
-        stmt_json = select(value_model).where(
+        # value_json (multi_select): not fully contained in the valid set
+        # means at least one element is orphaned.
+        stmt_json = select(func.count()).where(
             value_model.property_id == defn_id,
             value_model.value_json.is_not(None),
+            ~value_model.value_json.op("<@")(valid_list),
         )
-        result = await session.exec(stmt_json)
-        for row in result.all():
-            payload = row.value_json or []
-            if any(slug not in valid_slugs for slug in payload):
-                count += 1
+        count += (await session.exec(stmt_json)).one()
 
     return count
 
