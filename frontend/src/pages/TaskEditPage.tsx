@@ -46,6 +46,8 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { useRoleLabels, getRoleLabel } from "@/hooks/useRoleLabels";
 import type {
   CommentRead,
+  PropertyDefinitionRead,
+  PropertySummary,
   TagSummary,
   TaskListRead,
   TaskListReadRecurrenceStrategy,
@@ -63,6 +65,9 @@ import { TaskStatusOption, statusTriggerStyle } from "@/components/tasks/TaskSta
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TagPicker } from "@/components/tags";
 import { useSetTaskTags } from "@/hooks/useTags";
+import { PropertyList } from "@/components/properties/PropertyList";
+import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
+import { useSetTaskProperties } from "@/hooks/useProperties";
 import {
   AlertCircle,
   Archive,
@@ -106,7 +111,7 @@ export const TaskEditPage = () => {
   const router = useRouter();
   useAuth();
   useGuilds();
-  const { t } = useTranslation(["tasks", "common"]);
+  const { t } = useTranslation(["tasks", "common", "properties"]);
   const gp = useGuildPath();
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
@@ -124,6 +129,11 @@ export const TaskEditPage = () => {
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
   const [tags, setTags] = useState<TagSummary[]>([]);
+  // Locally-added property definitions that don't yet have a persisted value.
+  // Rendered alongside `task.properties` as empty-valued stubs so the user
+  // can fill them in; PropertyList's PUT persists them once a value is set.
+  const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
+  const setTaskPropertiesMutation = useSetTaskProperties();
   const [isMoveDialogOpen, setIsMoveDialogOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [moveContext, setMoveContext] = useState<MoveTaskVariables | null>(null);
@@ -320,6 +330,61 @@ export const TaskEditPage = () => {
   }, [users, project]);
 
   const task = taskQuery.data;
+
+  // Combine server-attached properties with locally-added stubs (definitions
+  // the user just picked but hasn't given a value yet). Drop any pending
+  // entries that the server has since returned as attached.
+  const serverProperties = useMemo<PropertySummary[]>(() => task?.properties ?? [], [task]);
+  const serverPropertyIds = useMemo(
+    () => new Set(serverProperties.map((p) => p.property_id)),
+    [serverProperties]
+  );
+  const combinedProperties = useMemo<PropertySummary[]>(() => {
+    const stubs: PropertySummary[] = pendingProperties
+      .filter((def) => !serverPropertyIds.has(def.id))
+      .map((def) => ({
+        property_id: def.id,
+        name: def.name,
+        type: def.type,
+        applies_to: def.applies_to,
+        options: def.options ?? null,
+        value: null,
+      }));
+    return [...serverProperties, ...stubs];
+  }, [serverProperties, pendingProperties, serverPropertyIds]);
+  const combinedPropertyIds = useMemo(
+    () => combinedProperties.map((p) => p.property_id),
+    [combinedProperties]
+  );
+
+  useEffect(() => {
+    if (pendingProperties.length === 0) return;
+    setPendingProperties((prev) => prev.filter((def) => !serverPropertyIds.has(def.id)));
+  }, [serverPropertyIds, pendingProperties.length]);
+
+  const handleAddProperty = (definition: PropertyDefinitionRead) => {
+    setPendingProperties((prev) =>
+      prev.some((def) => def.id === definition.id) ? prev : [...prev, definition]
+    );
+    // Persist the attached-but-empty row immediately so the property
+    // survives a refresh before the user enters a value.
+    if (!Number.isFinite(parsedTaskId) || serverPropertyIds.has(definition.id)) return;
+    const values = [
+      ...serverProperties.map((p) => ({
+        property_id: p.property_id,
+        value:
+          p.type === "user_reference" && p.value && typeof p.value === "object" && "id" in p.value
+            ? (p.value as { id: number }).id
+            : (p.value ?? null),
+      })),
+      { property_id: definition.id, value: null },
+    ];
+    setTaskPropertiesMutation.mutate({
+      taskId: parsedTaskId,
+      values: { values },
+    });
+  };
+
   // Pure DAC: permissions inherited from project
   const myLevel = project?.my_permission_level;
   const hasWritePermission = myLevel === "owner" || myLevel === "write";
@@ -656,6 +721,22 @@ export const TaskEditPage = () => {
                   />
                 </div>
               </div>
+
+              <section className="space-y-2">
+                <Label>{t("properties:title")}</Label>
+                <PropertyList
+                  entityKind="task"
+                  entityId={parsedTaskId}
+                  properties={combinedProperties}
+                  disabled={isReadOnly}
+                />
+                <AddPropertyButton
+                  entityKind="task"
+                  currentPropertyIds={combinedPropertyIds}
+                  onAdd={handleAddProperty}
+                  disabled={isReadOnly}
+                />
+              </section>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">

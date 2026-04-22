@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.document import DocumentPermissionLevel, DocumentType
 from app.schemas.initiative import InitiativeRead, serialize_initiative
+from app.schemas.property import PropertySummary
 from app.schemas.tag import TagSummary
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -130,6 +131,7 @@ class DocumentSummary(DocumentBase):
     permissions: List[DocumentPermissionRead] = Field(default_factory=list)
     role_permissions: List[DocumentRolePermissionRead] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
+    properties: List[PropertySummary] = Field(default_factory=list)
     # File document fields
     document_type: DocumentTypeStr = "native"
     file_url: Optional[str] = None
@@ -234,6 +236,20 @@ def _serialize_document_tags(document: "Document") -> List[TagSummary]:
     return tags
 
 
+def _serialize_document_properties(document: "Document") -> List[PropertySummary]:
+    """Serialize loaded document property values.
+
+    Requires ``property_values.property_definition`` (and ``.value_user``
+    for user_reference) to be eager-loaded — otherwise they are skipped.
+    """
+    # Local import avoids the schema layer pulling in the service at
+    # module import time.
+    from app.services.properties import summaries_from_rows
+
+    rows = getattr(document, "property_values", None) or []
+    return summaries_from_rows(rows)
+
+
 def serialize_document_summary(
     document: "Document",
     *,
@@ -262,6 +278,7 @@ def serialize_document_summary(
         permissions=_serialize_permissions(document),
         role_permissions=_serialize_role_permissions(document),
         tags=_serialize_document_tags(document),
+        properties=_serialize_document_properties(document),
         document_type=document.document_type.value if document.document_type else "native",
         file_url=document.file_url,
         file_content_type=document.file_content_type,

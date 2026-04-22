@@ -16,6 +16,7 @@ from app.models.comment import Comment
 from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
+from app.models.property import DocumentPropertyValue
 from app.models.tag import DocumentTag
 from app.models.project import Project
 from app.core.config import settings
@@ -116,6 +117,7 @@ async def get_document(
     *,
     document_id: int,
     guild_id: int,
+    populate_existing: bool = False,
 ) -> Document | None:
     statement = (
         select(Document)
@@ -135,8 +137,20 @@ async def get_document(
             selectinload(Document.permissions),
             selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.property_definition
+            ),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.value_user
+            ),
         )
     )
+    if populate_existing:
+        # Force SA to refresh attributes on any Document already in the
+        # session's identity map. Needed after commits that mutate
+        # collections (e.g. property_values replace-all) since
+        # expire_on_commit=False otherwise keeps stale relationships.
+        statement = statement.execution_options(populate_existing=True)
     result = await session.exec(statement)
     document = result.one_or_none()
     if document:

@@ -710,6 +710,68 @@ export interface DocumentRolePermissionRead {
   created_at: string;
 }
 
+/**
+ * Supported value types for a property definition.
+ */
+export type PropertyType = (typeof PropertyType)[keyof typeof PropertyType];
+
+export const PropertyType = {
+  text: "text",
+  number: "number",
+  checkbox: "checkbox",
+  date: "date",
+  datetime: "datetime",
+  url: "url",
+  select: "select",
+  multi_select: "multi_select",
+  user_reference: "user_reference",
+} as const;
+
+/**
+ * Which entity kinds a property definition may attach to.
+ */
+export type PropertyAppliesTo = (typeof PropertyAppliesTo)[keyof typeof PropertyAppliesTo];
+
+export const PropertyAppliesTo = {
+  document: "document",
+  task: "task",
+  both: "both",
+} as const;
+
+/**
+ * One option entry for select / multi_select property definitions.
+ */
+export interface PropertyOption {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   * @pattern ^[A-Za-z0-9][A-Za-z0-9_\-]*$
+   */
+  value: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  label: string;
+  color?: string | null;
+}
+
+/**
+ * Lightweight property value for embedding in DocumentRead / TaskRead.
+
+``value`` is rehydrated from the correct typed column by the service
+layer. For ``user_reference`` properties the service attaches a
+minimal ``{id, full_name}`` dict.
+ */
+export interface PropertySummary {
+  property_id: number;
+  name: string;
+  type: PropertyType;
+  applies_to: PropertyAppliesTo;
+  options: PropertyOption[] | null;
+  value: unknown;
+}
+
 export type DocumentSummaryDocumentType =
   (typeof DocumentSummaryDocumentType)[keyof typeof DocumentSummaryDocumentType];
 
@@ -736,6 +798,7 @@ export interface DocumentSummary {
   permissions: DocumentPermissionRead[];
   role_permissions: DocumentRolePermissionRead[];
   tags: TagSummary[];
+  properties: PropertySummary[];
   document_type: DocumentSummaryDocumentType;
   file_url: string | null;
   file_content_type: string | null;
@@ -797,6 +860,7 @@ export interface DocumentRead {
   permissions: DocumentPermissionRead[];
   role_permissions: DocumentRolePermissionRead[];
   tags: TagSummary[];
+  properties: PropertySummary[];
   document_type: DocumentReadDocumentType;
   file_url: string | null;
   file_content_type: string | null;
@@ -1519,6 +1583,107 @@ export interface ProjectUpdate {
   pinned?: boolean | null;
 }
 
+export interface PropertyDefinitionCreate {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  name: string;
+  type: PropertyType;
+  applies_to?: PropertyAppliesTo;
+  position?: number;
+  color?: string | null;
+  options?: PropertyOption[] | null;
+}
+
+export interface PropertyDefinitionRead {
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  name: string;
+  type: PropertyType;
+  applies_to: PropertyAppliesTo;
+  position: number;
+  color: string | null;
+  options: PropertyOption[] | null;
+  id: number;
+  guild_id: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Mutable fields on a property definition.
+
+``type`` is deliberately excluded — type changes require a dedicated
+flow because existing values would become invalid. The endpoint
+raises 409 PROPERTY_TYPE_CHANGE_BLOCKED if any values exist; the
+service layer enforces the rule.
+ */
+export interface PropertyDefinitionUpdate {
+  name?: string | null;
+  applies_to?: PropertyAppliesTo | null;
+  position?: number | null;
+  color?: string | null;
+  options?: PropertyOption[] | null;
+}
+
+/**
+ * Envelope for PATCH /property-definitions/{id}.
+
+Always returns ``orphaned_value_count`` so the SPA can surface a
+warning when option removal leaves dangling values. For non-option
+updates this is always 0.
+ */
+export interface PropertyDefinitionUpdateResponse {
+  definition: PropertyDefinitionRead;
+  orphaned_value_count: number;
+}
+
+export interface TaggedTaskSummary {
+  id: number;
+  title: string;
+  project_id: number;
+  project_name: string | null;
+}
+
+export interface TaggedDocumentSummary {
+  id: number;
+  title: string;
+  initiative_id: number;
+  initiative_name: string | null;
+}
+
+/**
+ * Response for GET /property-definitions/{id}/entities.
+ */
+export interface PropertyEntitiesResult {
+  tasks: TaggedTaskSummary[];
+  documents: TaggedDocumentSummary[];
+}
+
+/**
+ * A single (property_id, value) pair submitted by the client.
+
+The value is polymorphic because the Pydantic layer can't know the
+definition's type. Typed validation runs server-side in
+``app.services.properties._validate_value_for_type``.
+ */
+export interface PropertyValueInput {
+  property_id: number;
+  value?: unknown;
+}
+
+/**
+ * Replace-all payload for PUT /{entity}/{id}/properties.
+
+An empty list clears every property value on the entity.
+ */
+export interface PropertyValuesSetRequest {
+  values?: PropertyValueInput[];
+}
+
 /**
  * Request body for registering a push notification token.
  */
@@ -1833,20 +1998,6 @@ export interface TagUpdate {
   color?: string | null;
 }
 
-export interface TaggedDocumentSummary {
-  id: number;
-  title: string;
-  initiative_id: number;
-  initiative_name: string | null;
-}
-
-export interface TaggedTaskSummary {
-  id: number;
-  title: string;
-  project_id: number;
-  project_name: string | null;
-}
-
 export interface TaggedProjectSummary {
   id: number;
   name: string;
@@ -2113,6 +2264,7 @@ export interface TaskListRead {
   initiative_color: string | null;
   subtask_progress: TaskSubtaskProgress | null;
   tags: TagSummary[];
+  properties: PropertySummary[];
 }
 
 export interface TaskListResponse {
@@ -2178,6 +2330,7 @@ export interface TaskRead {
   project: TaskProjectSummary | null;
   subtask_progress: TaskSubtaskProgress | null;
   tags: TagSummary[];
+  properties: PropertySummary[];
 }
 
 export interface TaskReorderItem {
@@ -2861,6 +3014,10 @@ export type ListDocumentsApiV1DocumentsGetParams = {
    */
   untagged?: boolean | null;
   /**
+   * JSON-encoded list of property-value filters, e.g. `[{"property_id": 12, "op": "eq", "value": "live"}]`. Maximum 5 conditions per request.
+   */
+  property_filters?: string | null;
+  /**
    * @minimum 1
    */
   page?: number;
@@ -2949,6 +3106,10 @@ export type ListCalendarEventsApiV1CalendarEventsGetParams = {
    * @maximum 200
    */
   page_size?: number;
+};
+
+export type ListPropertyDefinitionsApiV1PropertyDefinitionsGetParams = {
+  applies_to?: PropertyAppliesTo | null;
 };
 
 export type ListAutomationsApiV1AutomationsGetParams = {

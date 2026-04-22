@@ -25,6 +25,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { getItem, setItem } from "@/lib/storage";
 import { useGuilds } from "@/hooks/useGuilds";
+import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
@@ -42,6 +43,7 @@ const FILTER_DEFAULTS = {
   statusFilters: ["backlog", "todo", "in_progress"] as TaskStatusCategory[],
   priorityFilters: [] as TaskPriority[],
   guildFilters: [] as number[],
+  propertyFilters: [] as PropertyFilterCondition[],
   sorting: SORT_DEFAULTS,
 };
 
@@ -62,6 +64,9 @@ const readStoredPrefs = (storageKey: string) => {
       guildFilters: Array.isArray(parsed?.guildFilters)
         ? parsed.guildFilters
         : FILTER_DEFAULTS.guildFilters,
+      propertyFilters: Array.isArray(parsed?.propertyFilters)
+        ? (parsed.propertyFilters as PropertyFilterCondition[])
+        : FILTER_DEFAULTS.propertyFilters,
       sorting: Array.isArray(parsed?.sorting) ? parsed.sorting : FILTER_DEFAULTS.sorting,
     };
   } catch {
@@ -121,6 +126,9 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   );
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [guildFilters, setGuildFilters] = useState<number[]>(() => storedPrefs.guildFilters);
+  const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>(
+    () => storedPrefs.propertyFilters
+  );
 
   // --- Pagination state ---
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
@@ -169,15 +177,24 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   );
 
   // Reset to page 1 when filters change
+  const propertyFiltersKey = JSON.stringify(propertyFilters);
   useEffect(() => {
     setPage(1);
-  }, [statusFilters, priorityFilters, guildFilters, setPage]);
+  }, [statusFilters, priorityFilters, guildFilters, propertyFiltersKey, setPage]);
 
   // --- User timezone for server-side date_group calculation ---
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
   // --- Tasks query ---
   const tasksParams = useMemo((): ListTasksApiV1TasksGetParams => {
+    // Build synthesized property-value conditions. The tasks backend exposes
+    // ``property_values`` as a virtual field where ``value`` is the shape
+    // ``{property_id, value}`` (see backend/app/api/v1/endpoints/tasks.py).
+    const propertyConditions: FilterCondition[] = propertyFilters.map((entry) => ({
+      field: "property_values",
+      op: entry.op as FilterCondition["op"],
+      value: { property_id: entry.property_id, value: entry.value },
+    }));
     const conditions: FilterCondition[] = [
       ...(statusFilters.length > 0
         ? [{ field: "status_category", op: "in_" as const, value: statusFilters }]
@@ -188,6 +205,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       ...(guildFilters.length > 0
         ? [{ field: "guild_id", op: "in_" as const, value: guildFilters }]
         : []),
+      ...propertyConditions,
     ];
     return {
       scope: scope as ListTasksApiV1TasksGetParams["scope"],
@@ -197,7 +215,17 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       sorting: sorting.length > 0 ? sorting : undefined,
       tz: userTimezone,
     };
-  }, [scope, statusFilters, priorityFilters, guildFilters, page, pageSize, sorting, userTimezone]);
+  }, [
+    scope,
+    statusFilters,
+    priorityFilters,
+    guildFilters,
+    propertyFilters,
+    page,
+    pageSize,
+    sorting,
+    userTimezone,
+  ]);
 
   const tasksQuery = useQuery<TaskListResponse>({
     queryKey: getListTasksApiV1TasksGetQueryKey(tasksParams),
@@ -285,10 +313,11 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       statusFilters,
       priorityFilters,
       guildFilters,
+      propertyFilters,
       sorting,
     };
     setItem(storageKey, JSON.stringify(payload));
-  }, [statusFilters, priorityFilters, guildFilters, sorting, storageKey]);
+  }, [statusFilters, priorityFilters, guildFilters, propertyFilters, sorting, storageKey]);
 
   // --- Status helpers ---
   const fetchProjectStatuses = useCallback(async (projectId: number, guildId: number | null) => {
@@ -419,6 +448,8 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     setPriorityFilters,
     guildFilters,
     setGuildFilters,
+    propertyFilters,
+    setPropertyFilters,
     filtersOpen,
     setFiltersOpen,
 
