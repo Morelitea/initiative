@@ -41,6 +41,9 @@ import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { useSetDocumentTags } from "@/hooks/useTags";
+import { PropertyList } from "@/components/properties/PropertyList";
+import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
+import { useSetDocumentProperties } from "@/hooks/useProperties";
 
 // Lazy load heavy components
 const Editor = lazy(() =>
@@ -89,6 +92,8 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type {
   CommentRead,
   DocumentProjectLink,
+  PropertyDefinitionRead,
+  PropertySummary,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { uploadAttachment } from "@/lib/attachmentUtils";
@@ -100,7 +105,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { getItem, setItem, removeItem } from "@/lib/storage";
 
 export const DocumentDetailPage = () => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "properties"]);
   const dateLocale = useDateLocale();
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
@@ -115,6 +120,11 @@ export const DocumentDetailPage = () => {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<TagSummary[]>([]);
+  // Locally-added property definitions that don't yet have a persisted value.
+  // Rendered alongside `document.properties` as empty-valued stubs so the user
+  // can fill them in; PropertyList's PUT persists them once a value is set.
+  const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
+  const setDocumentPropertiesMutation = useSetDocumentProperties();
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
@@ -848,6 +858,65 @@ export const DocumentDetailPage = () => {
     [parsedId, setDocumentTagsMutation]
   );
 
+  // Combine server-attached properties with locally-added stubs (definitions
+  // the user just picked but hasn't given a value yet). Drop any pending
+  // entries that the server has since returned as attached.
+  const serverProperties = useMemo<PropertySummary[]>(() => document?.properties ?? [], [document]);
+  const serverPropertyIds = useMemo(
+    () => new Set(serverProperties.map((p) => p.property_id)),
+    [serverProperties]
+  );
+  const combinedProperties = useMemo<PropertySummary[]>(() => {
+    const stubs: PropertySummary[] = pendingProperties
+      .filter((def) => !serverPropertyIds.has(def.id))
+      .map((def) => ({
+        property_id: def.id,
+        name: def.name,
+        type: def.type,
+        applies_to: def.applies_to,
+        options: def.options ?? null,
+        value: null,
+      }));
+    return [...serverProperties, ...stubs];
+  }, [serverProperties, pendingProperties, serverPropertyIds]);
+  const combinedPropertyIds = useMemo(
+    () => combinedProperties.map((p) => p.property_id),
+    [combinedProperties]
+  );
+
+  useEffect(() => {
+    if (pendingProperties.length === 0) return;
+    setPendingProperties((prev) => prev.filter((def) => !serverPropertyIds.has(def.id)));
+  }, [serverPropertyIds, pendingProperties.length]);
+
+  const handleAddProperty = useCallback(
+    (definition: PropertyDefinitionRead) => {
+      setPendingProperties((prev) =>
+        prev.some((def) => def.id === definition.id) ? prev : [...prev, definition]
+      );
+      // Persist the attached-but-empty row immediately so the property
+      // survives a refresh before the user enters a value. We reuse the
+      // replace-all PUT shape: include every currently-attached property
+      // plus the newly-added one with value=null.
+      if (!Number.isFinite(parsedId) || serverPropertyIds.has(definition.id)) return;
+      const values = [
+        ...serverProperties.map((p) => ({
+          property_id: p.property_id,
+          value:
+            p.type === "user_reference" && p.value && typeof p.value === "object" && "id" in p.value
+              ? (p.value as { id: number }).id
+              : (p.value ?? null),
+        })),
+        { property_id: definition.id, value: null },
+      ];
+      setDocumentPropertiesMutation.mutate({
+        documentId: parsedId,
+        values: { values },
+      });
+    },
+    [parsedId, serverProperties, serverPropertyIds, setDocumentPropertiesMutation]
+  );
+
   if (!Number.isFinite(parsedId)) {
     return <p className="text-destructive">{t("detail.invalidId")}</p>;
   }
@@ -1056,6 +1125,23 @@ export const DocumentDetailPage = () => {
                 onChange={handleTagsChange}
                 disabled={!canEditDocument}
                 placeholder={t("detail.tagsPlaceholder")}
+              />
+            </div>
+
+            {/* Properties */}
+            <div className="space-y-2">
+              <Label>{t("properties:title")}</Label>
+              <PropertyList
+                entityKind="document"
+                entityId={parsedId}
+                properties={combinedProperties}
+                disabled={!canEditDocument}
+              />
+              <AddPropertyButton
+                entityKind="document"
+                currentPropertyIds={combinedPropertyIds}
+                onAdd={handleAddProperty}
+                disabled={!canEditDocument}
               />
             </div>
           </CardContent>

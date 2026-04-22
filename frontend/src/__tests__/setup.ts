@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 
 import { server } from "./helpers/msw-server";
 import { resetFactories } from "./factories";
+import "./helpers/i18n-test";
 
 // ---------------------------------------------------------------------------
 // Global Capacitor mocks – these modules are imported at the top level by many
@@ -108,6 +109,27 @@ class ResizeObserverStub {
   disconnect() {}
 }
 window.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
+
+// Radix UI uses PointerEvent APIs that jsdom doesn't implement. Without these
+// shims Select/Popover trigger interactions crash before opening the menu.
+if (!("PointerEvent" in window)) {
+  // jsdom is missing PointerEvent; fall back to MouseEvent which satisfies
+  // Radix's `new PointerEvent(...)` constructor usage in test.
+  (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent =
+    MouseEvent as unknown as typeof MouseEvent;
+}
+if (!HTMLElement.prototype.hasPointerCapture) {
+  HTMLElement.prototype.hasPointerCapture = () => false;
+}
+if (!HTMLElement.prototype.releasePointerCapture) {
+  HTMLElement.prototype.releasePointerCapture = () => {};
+}
+if (!HTMLElement.prototype.setPointerCapture) {
+  HTMLElement.prototype.setPointerCapture = () => {};
+}
+if (!HTMLElement.prototype.scrollIntoView) {
+  HTMLElement.prototype.scrollIntoView = () => {};
+}
 
 // ---------------------------------------------------------------------------
 // MSW lifecycle

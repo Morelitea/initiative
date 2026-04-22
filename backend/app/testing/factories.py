@@ -12,10 +12,19 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import create_access_token, get_password_hash
+from app.models.document import Document
 from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
+from app.models.property import (
+    DocumentPropertyValue,
+    PropertyAppliesTo,
+    PropertyDefinition,
+    PropertyType,
+    TaskPropertyValue,
+)
 from app.models.queue import Queue, QueueItem
+from app.models.task import Task
 from app.models.user import User, UserRole
 from app.services.initiatives import create_builtin_roles
 
@@ -474,3 +483,145 @@ async def create_initiative_member(
         await session.commit()
 
     return membership
+
+
+async def create_property_definition(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    name: str | None = None,
+    type: PropertyType = PropertyType.text,
+    applies_to: PropertyAppliesTo = PropertyAppliesTo.both,
+    options: list[dict] | None = None,
+    color: str | None = None,
+    position: float = 0.0,
+    commit: bool = True,
+    **overrides: Any,
+) -> PropertyDefinition:
+    """
+    Create a test property definition with sensible defaults.
+
+    Auto-generates a unique name if not provided. When ``type`` is a
+    select/multi_select and ``options`` is None, seeds a default option
+    list so the definition is valid.
+
+    Args:
+        session: Database session
+        guild: Guild the definition belongs to
+        name: Property name (auto-generated if None)
+        type: Property type (default: text)
+        applies_to: Entity scope (default: both)
+        options: Option list for select/multi_select types
+        color: Optional hex color
+        position: Sort position (default: 0.0)
+        commit: Whether to commit the transaction (default True)
+        **overrides: Override any default field values
+
+    Returns:
+        Created PropertyDefinition instance
+    """
+    if name is None:
+        name = f"Prop {datetime.now(timezone.utc).timestamp()}"
+
+    if type in {PropertyType.select, PropertyType.multi_select} and options is None:
+        options = [
+            {"value": "a", "label": "A"},
+            {"value": "b", "label": "B"},
+        ]
+    elif type not in {PropertyType.select, PropertyType.multi_select}:
+        # Non-select types don't store options.
+        options = None
+
+    defaults = {
+        "guild_id": guild.id,
+        "name": name,
+        "type": type,
+        "applies_to": applies_to,
+        "position": position,
+        "color": color,
+        "options": options,
+    }
+
+    data = {**defaults, **overrides}
+    definition = PropertyDefinition(**data)
+    session.add(definition)
+
+    if commit:
+        await session.commit()
+        await session.refresh(definition)
+
+    return definition
+
+
+async def create_document_property_value(
+    session: AsyncSession,
+    document: Document,
+    definition: PropertyDefinition,
+    *,
+    commit: bool = True,
+    **value_kwargs: Any,
+) -> DocumentPropertyValue:
+    """
+    Attach a typed property value to a document.
+
+    Accepts any of ``value_text``, ``value_number``, ``value_boolean``,
+    ``value_date``, ``value_datetime``, ``value_user_id``, ``value_json``.
+
+    Args:
+        session: Database session
+        document: Document to attach the value to
+        definition: PropertyDefinition the value references
+        commit: Whether to commit the transaction (default True)
+        **value_kwargs: Typed column values
+
+    Returns:
+        Created DocumentPropertyValue instance
+    """
+    row = DocumentPropertyValue(
+        document_id=document.id,
+        property_id=definition.id,
+        **value_kwargs,
+    )
+    session.add(row)
+
+    if commit:
+        await session.commit()
+
+    return row
+
+
+async def create_task_property_value(
+    session: AsyncSession,
+    task: Task,
+    definition: PropertyDefinition,
+    *,
+    commit: bool = True,
+    **value_kwargs: Any,
+) -> TaskPropertyValue:
+    """
+    Attach a typed property value to a task.
+
+    Accepts any of ``value_text``, ``value_number``, ``value_boolean``,
+    ``value_date``, ``value_datetime``, ``value_user_id``, ``value_json``.
+
+    Args:
+        session: Database session
+        task: Task to attach the value to
+        definition: PropertyDefinition the value references
+        commit: Whether to commit the transaction (default True)
+        **value_kwargs: Typed column values
+
+    Returns:
+        Created TaskPropertyValue instance
+    """
+    row = TaskPropertyValue(
+        task_id=task.id,
+        property_id=definition.id,
+        **value_kwargs,
+    )
+    session.add(row)
+
+    if commit:
+        await session.commit()
+
+    return row
