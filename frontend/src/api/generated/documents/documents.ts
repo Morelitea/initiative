@@ -45,7 +45,6 @@ import type {
   GetDocumentCountsApiV1DocumentsCountsGetParams,
   HTTPValidationError,
   ListDocumentsApiV1DocumentsGetParams,
-  PropertyValuesSetRequest,
   TagSetRequest,
 } from "../initiativeAPI.schemas";
 
@@ -2147,108 +2146,6 @@ export const useSetDocumentTagsApiV1DocumentsDocumentIdTagsPut = <
 > => {
   return useMutation(
     getSetDocumentTagsApiV1DocumentsDocumentIdTagsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Replace the custom property values on a document.
-
-Requires document write access (same gate as PUT /tags). Values are
-validated server-side against each property definition's type and
-options.
- * @summary Set Document Properties
- */
-export const setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut = (
-  documentId: number,
-  propertyValuesSetRequest: BodyType<PropertyValuesSetRequest>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DocumentRead>(
-    {
-      url: `/api/v1/documents/${documentId}/properties`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: propertyValuesSetRequest,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut>>,
-    TError,
-    { documentId: number; data: BodyType<PropertyValuesSetRequest> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut>>,
-  TError,
-  { documentId: number; data: BodyType<PropertyValuesSetRequest> },
-  TContext
-> => {
-  const mutationKey = ["setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut>>,
-    { documentId: number; data: BodyType<PropertyValuesSetRequest> }
-  > = (props) => {
-    const { documentId, data } = props ?? {};
-
-    return setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut(
-      documentId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut>>
->;
-export type SetDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPutMutationBody =
-  BodyType<PropertyValuesSetRequest>;
-export type SetDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Set Document Properties
- */
-export const useSetDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut>>,
-      TError,
-      { documentId: number; data: BodyType<PropertyValuesSetRequest> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut>>,
-  TError,
-  { documentId: number; data: BodyType<PropertyValuesSetRequest> },
-  TContext
-> => {
-  return useMutation(
-    getSetDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPutMutationOptions(options),
     queryClient
   );
 };

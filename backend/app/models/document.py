@@ -12,7 +12,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tag import DocumentTag
     from app.models.queue import QueueItemDocument
     from app.models.calendar_event import CalendarEventDocument
-    from app.models.property import DocumentPropertyValue
 
 
 class DocumentType(str, Enum):
@@ -100,10 +99,6 @@ class Document(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     tag_links: List["DocumentTag"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    property_values: List["DocumentPropertyValue"] = Relationship(
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

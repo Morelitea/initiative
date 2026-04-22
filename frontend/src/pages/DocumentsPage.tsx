@@ -37,7 +37,6 @@ import type {
   TagRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 import { useTags } from "@/hooks/useTags";
@@ -132,8 +131,6 @@ export const DocumentsView = ({
       setTagFilters(fixedTagIds);
     }
   }, [fixedTagIds]);
-
-  const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>([]);
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSizeState] = useState(20);
@@ -278,24 +275,9 @@ export const DocumentsView = ({
 
   // Reset to page 1 when filters or view mode change
   const queryTagIdsKey = JSON.stringify(queryTagIds);
-  const propertyFiltersKey = JSON.stringify(propertyFilters);
   useEffect(() => {
     setPage(1);
-  }, [
-    viewMode,
-    initiativeFilter,
-    searchQuery,
-    queryTagIdsKey,
-    treeWantsUntagged,
-    propertyFiltersKey,
-    setPage,
-  ]);
-
-  // Serialize property filters for the backend query string. The backend
-  // expects a JSON-encoded array on ``property_filters`` and we pre-encode
-  // it just before passing to the hook so the react-query key stays a
-  // primitive string (same serialization => same cache key).
-  const encodedPropertyFilters = propertyFilters.length > 0 ? propertyFiltersKey : null;
+  }, [viewMode, initiativeFilter, searchQuery, queryTagIdsKey, treeWantsUntagged, setPage]);
 
   const documentsQueryParams: ListDocumentsApiV1DocumentsGetParams = {
     ...(initiativeFilter !== INITIATIVE_FILTER_ALL
@@ -304,7 +286,6 @@ export const DocumentsView = ({
     ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
     ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
     ...(treeWantsUntagged ? { untagged: true } : {}),
-    ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
     page,
     page_size: pageSize,
     ...(sortBy ? { sort_by: sortBy } : {}),
@@ -334,7 +315,6 @@ export const DocumentsView = ({
         ...(searchQuery.trim() ? { search: searchQuery.trim() } : {}),
         ...(queryTagIds.length > 0 ? { tag_ids: queryTagIds } : {}),
         ...(treeWantsUntagged ? { untagged: true } : {}),
-        ...(encodedPropertyFilters ? { property_filters: encodedPropertyFilters } : {}),
         page: targetPage,
         page_size: pageSize,
         ...(sortBy ? { sort_by: sortBy } : {}),
@@ -347,7 +327,6 @@ export const DocumentsView = ({
       searchQuery,
       queryTagIds,
       treeWantsUntagged,
-      encodedPropertyFilters,
       pageSize,
       sortBy,
       sortDir,
@@ -633,8 +612,6 @@ export const DocumentsView = ({
         tagFilters={selectedTagsForFilter}
         onTagFiltersChange={handleTagFiltersChange}
         fixedTagIds={fixedTagIds}
-        propertyFilters={propertyFilters}
-        onPropertyFiltersChange={setPropertyFilters}
       />
 
       {!canViewDocs ? (

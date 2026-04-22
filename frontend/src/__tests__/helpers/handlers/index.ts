@@ -7,7 +7,6 @@ import { tagHandlers } from "./tag.handlers";
 import { settingsHandlers } from "./settings.handlers";
 import { documentHandlers } from "./document.handlers";
 import { userHandlers } from "./user.handlers";
-import { propertyHandlers } from "./property.handlers";
 
 export const handlers = [
   ...authHandlers,
@@ -19,5 +18,4 @@ export const handlers = [
   ...settingsHandlers,
   ...documentHandlers,
   ...userHandlers,
-  ...propertyHandlers,
 ];

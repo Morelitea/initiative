@@ -208,7 +208,3 @@ export const invalidateLatestVersion = () => invalidateExact([`/api/v1/version/l
 // ── Task Statuses ────────────────────────────────────────────────────────────
 
 export const invalidateAllTaskStatuses = () => invalidatePrefix("/api/v1/projects");
-
-// ── Properties ──────────────────────────────────────────────────────────────
-
-export const invalidateAllProperties = () => invalidatePrefix("/api/v1/property-definitions");

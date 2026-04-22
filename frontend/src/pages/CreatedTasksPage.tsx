@@ -149,8 +149,6 @@ export const CreatedTasksPage = () => {
               setPriorityFilters={table.setPriorityFilters}
               guildFilters={table.guildFilters}
               setGuildFilters={table.setGuildFilters}
-              propertyFilters={table.propertyFilters}
-              setPropertyFilters={table.setPropertyFilters}
               filtersOpen={table.filtersOpen}
               setFiltersOpen={table.setFiltersOpen}
               guilds={guilds}

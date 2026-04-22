@@ -8,7 +8,6 @@ from app.schemas.task_status import TaskStatusRead
 from app.schemas.guild import GuildSummary
 from app.schemas.subtask import TaskSubtaskProgress
 from app.schemas.tag import TagSummary
-from app.schemas.property import PropertySummary
 
 from app.models.task import TaskPriority
 
@@ -172,7 +171,6 @@ class TaskRead(TaskBase):
     project: Optional[TaskProjectSummary] = None
     subtask_progress: Optional[TaskSubtaskProgress] = None
     tags: List[TagSummary] = []
-    properties: List[PropertySummary] = []
 
 
 class TaskListRead(TaskBase):
@@ -199,7 +197,6 @@ class TaskListRead(TaskBase):
     initiative_color: Optional[str] = None
     subtask_progress: Optional[TaskSubtaskProgress] = None
     tags: List[TagSummary] = []
-    properties: List[PropertySummary] = []
 
 
 class TaskListResponse(BaseModel):

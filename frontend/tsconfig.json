@@ -35,9 +35,7 @@
     "vite.config.d.ts"
   ],
   "exclude": [
-    "src/__tests__",
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx"
+    "src/__tests__"
   ],
   "references": [
     {

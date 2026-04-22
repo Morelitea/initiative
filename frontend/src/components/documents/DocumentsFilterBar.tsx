@@ -13,8 +13,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TagPicker } from "@/components/tags/TagPicker";
-import { PropertyFilter } from "@/components/properties/PropertyFilter";
-import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import type { InitiativeRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 const INITIATIVE_FILTER_ALL = "all";
@@ -34,8 +32,6 @@ export interface DocumentsFilterBarProps {
   tagFilters: TagSummary[];
   onTagFiltersChange: (tags: TagSummary[]) => void;
   fixedTagIds?: number[];
-  propertyFilters: PropertyFilterCondition[];
-  onPropertyFiltersChange: (next: PropertyFilterCondition[]) => void;
 }
 
 export const DocumentsFilterBar = ({
@@ -53,8 +49,6 @@ export const DocumentsFilterBar = ({
   tagFilters,
   onTagFiltersChange,
   fixedTagIds,
-  propertyFilters,
-  onPropertyFiltersChange,
 }: DocumentsFilterBarProps) => {
   const { t } = useTranslation("documents");
 
@@ -75,83 +69,74 @@ export const DocumentsFilterBar = ({
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent forceMount className="data-[state=closed]:hidden">
-        <div className="border-muted bg-background/40 mt-2 flex flex-col gap-3 rounded-md border p-3 sm:mt-0">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="w-full space-y-2 sm:flex-1">
+        <div className="border-muted bg-background/40 mt-2 flex flex-wrap items-end gap-4 rounded-md border p-3 sm:mt-0">
+          <div className="w-full space-y-2 sm:flex-1">
+            <Label
+              htmlFor="document-search"
+              className="text-muted-foreground block text-xs font-medium"
+            >
+              {t("page.searchLabel")}
+            </Label>
+            <Input
+              id="document-search"
+              type="search"
+              placeholder={t("page.searchPlaceholder")}
+              value={searchQuery}
+              onChange={(event) => onSearchQueryChange(event.target.value)}
+            />
+          </div>
+          {lockedInitiativeId ? (
+            <div className="w-full space-y-2 sm:w-60">
+              <Label className="text-muted-foreground block text-xs font-medium">
+                {t("page.initiativeLabel")}
+              </Label>
+              <p className="text-sm font-medium">
+                {lockedInitiativeName ?? t("page.selectedInitiative")}
+              </p>
+            </div>
+          ) : (
+            <div className="w-full space-y-2 sm:w-60">
               <Label
-                htmlFor="document-search"
+                htmlFor="document-initiative-filter"
                 className="text-muted-foreground block text-xs font-medium"
               >
-                {t("page.searchLabel")}
+                {t("page.initiativeLabel")}
               </Label>
-              <Input
-                id="document-search"
-                type="search"
-                placeholder={t("page.searchPlaceholder")}
-                value={searchQuery}
-                onChange={(event) => onSearchQueryChange(event.target.value)}
+              <Select
+                value={initiativeFilter}
+                onValueChange={(value) => onInitiativeFilterChange(value)}
+                disabled={initiativesLoading}
+              >
+                <SelectTrigger id="document-initiative-filter">
+                  <SelectValue placeholder={t("page.allInitiatives")} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={INITIATIVE_FILTER_ALL}>{t("page.allInitiatives")}</SelectItem>
+                  {viewableInitiatives.map((initiative) => (
+                    <SelectItem key={initiative.id} value={String(initiative.id)}>
+                      {initiative.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          {viewMode !== "tags" && !fixedTagIds && (
+            <div className="w-full space-y-2 sm:w-48">
+              <Label
+                htmlFor="document-tag-filter"
+                className="text-muted-foreground block text-xs font-medium"
+              >
+                {t("page.filterByTag")}
+              </Label>
+              <TagPicker
+                selectedTags={tagFilters}
+                onChange={onTagFiltersChange}
+                placeholder={t("page.allTags")}
+                variant="filter"
               />
             </div>
-            {lockedInitiativeId ? (
-              <div className="w-full space-y-2 sm:w-60">
-                <Label className="text-muted-foreground block text-xs font-medium">
-                  {t("page.initiativeLabel")}
-                </Label>
-                <p className="text-sm font-medium">
-                  {lockedInitiativeName ?? t("page.selectedInitiative")}
-                </p>
-              </div>
-            ) : (
-              <div className="w-full space-y-2 sm:w-60">
-                <Label
-                  htmlFor="document-initiative-filter"
-                  className="text-muted-foreground block text-xs font-medium"
-                >
-                  {t("page.initiativeLabel")}
-                </Label>
-                <Select
-                  value={initiativeFilter}
-                  onValueChange={(value) => onInitiativeFilterChange(value)}
-                  disabled={initiativesLoading}
-                >
-                  <SelectTrigger id="document-initiative-filter">
-                    <SelectValue placeholder={t("page.allInitiatives")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={INITIATIVE_FILTER_ALL}>
-                      {t("page.allInitiatives")}
-                    </SelectItem>
-                    {viewableInitiatives.map((initiative) => (
-                      <SelectItem key={initiative.id} value={String(initiative.id)}>
-                        {initiative.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {viewMode !== "tags" && !fixedTagIds && (
-              <div className="w-full space-y-2 sm:w-48">
-                <Label
-                  htmlFor="document-tag-filter"
-                  className="text-muted-foreground block text-xs font-medium"
-                >
-                  {t("page.filterByTag")}
-                </Label>
-                <TagPicker
-                  selectedTags={tagFilters}
-                  onChange={onTagFiltersChange}
-                  placeholder={t("page.allTags")}
-                  variant="filter"
-                />
-              </div>
-            )}
-          </div>
-          <PropertyFilter
-            appliesTo="document"
-            value={propertyFilters}
-            onChange={onPropertyFiltersChange}
-          />
+          )}
         </div>
       </CollapsibleContent>
     </Collapsible>

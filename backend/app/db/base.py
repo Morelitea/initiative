@@ -14,11 +14,6 @@ from app.models.document import Document, DocumentPermission, DocumentRolePermis
 from app.models.notification import Notification
 from app.models.oidc_claim_mapping import OIDCClaimMapping
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
-from app.models.property import (
-    DocumentPropertyValue,
-    PropertyDefinition,
-    TaskPropertyValue,
-)
 from app.models.queue import Queue, QueueItem, QueueItemTag, QueuePermission, QueueRolePermission, QueueItemDocument, QueueItemTask
 from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, CalendarEventTag, CalendarEventDocument
 from app.models.automation import AutomationFlow, AutomationRun, AutomationRunStep
@@ -55,9 +50,6 @@ __all__ = [
     "TaskTag",
     "ProjectTag",
     "DocumentTag",
-    "PropertyDefinition",
-    "DocumentPropertyValue",
-    "TaskPropertyValue",
     "Queue",
     "QueueItem",
     "QueueItemTag",

@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **Custom Properties** (Obsidian-style metadata) for documents and tasks. Guild admins can define reusable properties on the new Custom Properties page under guild settings, each with a name, color, and one of nine types — text, number, checkbox, date, date & time, URL, single-select, multi-select, or person. Properties appear in the metadata card on each document and as a new section on each task edit page, alongside tags, with an icon per type in the picker so the shape of the input is visible at a glance. Property filter rows join the existing search and tag filters on the Documents list, My Tasks, Created tasks, and the project detail page's task list — using the correct typed predicate per property type (containment for multi-select, comparison for number/date, equality for select, etc.) and an "is empty" option that matches entities that either have no value set or no row for that property at all. Adding a property without a value still persists the row so it survives navigation, and removing an option from a select-type property preserves existing values and surfaces an "N existing values reference removed options" warning to the admin — values render as "Unknown option" in the UI until re-mapped, matching how Notion and Obsidian handle the same situation.
-
 ## [0.41.0] - 2026-04-21
 
 ### Added

@@ -295,7 +295,6 @@ const createFallbackSummary = (
   permissions: [],
   role_permissions: [],
   tags: [],
-  properties: [],
   document_type: "native",
   file_url: null,
   file_content_type: null,
