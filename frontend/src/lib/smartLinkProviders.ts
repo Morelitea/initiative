@@ -193,13 +193,18 @@ const PROVIDERS: Array<{
     id: "airtable",
     match: (url) => {
       if (!/(^|\.)airtable\.com$/.test(url.hostname)) return null;
-      if (/^\/embed\//.test(url.pathname)) {
+      // Extract the share id and reconstruct a canonical embed URL so that
+      // any user-appended query params (tracking junk, stale session args,
+      // etc.) don't leak into the iframe src. Matches the YouTube/Loom/
+      // Vimeo/Google Docs/Miro pattern of build-from-extracted-id.
+      const m = /^\/embed\/([^/?#]+)/.exec(url.pathname);
+      if (m) {
         return {
           id: "airtable",
           label: "Airtable",
           canEmbed: true,
           icon: SiAirtable,
-          embedSrc: url.toString(),
+          embedSrc: `https://airtable.com/embed/${m[1]}`,
           iframeAttrs: { referrerPolicy: "no-referrer" },
         };
       }
