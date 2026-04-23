@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
@@ -78,9 +78,15 @@ class PropertyDefinition(SQLModel, table=True):
             server_default="both",
         ),
     )
+    # NUMERIC(20, 10) on the DB side; ``asdecimal=False`` keeps the Python
+    # value a plain ``float`` so downstream serializers (Pydantic/Orval) don't
+    # have to juggle Decimal. Exact representation in Postgres avoids float
+    # precision rounding when drag-reorder sets midpoint positions.
     position: float = Field(
         default=0.0,
-        sa_column=Column(Float, nullable=False, server_default="0"),
+        sa_column=Column(
+            Numeric(20, 10, asdecimal=False), nullable=False, server_default="0"
+        ),
     )
     color: Optional[str] = Field(
         default=None,

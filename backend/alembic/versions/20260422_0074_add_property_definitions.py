@@ -201,7 +201,12 @@ def upgrade() -> None:
             name VARCHAR(100) NOT NULL,
             type property_type NOT NULL,
             applies_to property_applies_to NOT NULL DEFAULT 'both',
-            position REAL NOT NULL DEFAULT 0,
+            -- NUMERIC (not REAL) so drag-reorder midpoint inserts — which set
+            -- the new row's position to the fractional mean of its neighbors —
+            -- never hit float-precision rounding and force a rebalance.
+            -- (20,10) gives 10 decimal places of scale: plenty of headroom
+            -- for subdivisions while staying compact.
+            position NUMERIC(20, 10) NOT NULL DEFAULT 0,
             color VARCHAR(7),
             options JSONB,
             created_at TIMESTAMPTZ NOT NULL,
