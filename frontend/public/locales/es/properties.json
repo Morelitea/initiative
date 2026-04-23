@@ -56,8 +56,6 @@
   "manager": {
     "title": "Custom properties",
     "description": "Define reusable metadata for documents and tasks in this initiative.",
-    "missingInitiative": "Initiative required",
-    "missingInitiativeDescription": "Custom properties are managed per initiative. Open an initiative and head to its settings to manage its property definitions.",
     "newDefinition": "New property",
     "editDefinition": "Edit property",
     "nameLabel": "Name",

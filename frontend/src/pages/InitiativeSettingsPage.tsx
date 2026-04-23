@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { guildPath, useGuildPath } from "@/lib/guildUrl";
+import { useGuildPath } from "@/lib/guildUrl";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -29,6 +29,7 @@ import { InitiativeSettingsMembersTab } from "@/components/initiatives/settings/
 import { InitiativeSettingsRolesTab } from "@/components/initiatives/settings/InitiativeSettingsRolesTab";
 import { InitiativeSettingsDangerTab } from "@/components/initiatives/settings/InitiativeSettingsDangerTab";
 import { InitiativeSettingsDialogs } from "@/components/initiatives/settings/InitiativeSettingsDialogs";
+import { InitiativeSettingsPropertiesTab } from "@/components/initiatives/settings/InitiativeSettingsPropertiesTab";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -237,17 +238,7 @@ export const InitiativeSettingsPage = () => {
         <p className="text-muted-foreground text-sm">{t("settings.subtitle")}</p>
       </div>
 
-      <Tabs
-        defaultValue="details"
-        className="space-y-4"
-        onValueChange={(next) => {
-          if (next === "properties" && activeGuild?.id) {
-            router.navigate({
-              to: guildPath(activeGuild.id, `/initiatives/${initiativeId}/settings/properties`),
-            });
-          }
-        }}
-      >
+      <Tabs defaultValue="details" className="space-y-4">
         <TabsList className="w-full max-w-xl justify-start">
           <TabsTrigger value="details">{t("settings.detailsTab")}</TabsTrigger>
           <TabsTrigger value="members">{t("settings.membersTab")}</TabsTrigger>
@@ -295,6 +286,8 @@ export const InitiativeSettingsPage = () => {
             setRoleToRename(role);
           }}
         />
+
+        <InitiativeSettingsPropertiesTab initiativeId={initiativeId} />
 
         <InitiativeSettingsDangerTab
           isDefault={initiative.is_default}

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useParams } from "@tanstack/react-router";
-import { AlertCircle, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TabsContent } from "@/components/ui/tabs";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -197,19 +197,16 @@ const OptionListEditor = ({ options, onChange, disabled }: OptionListEditorProps
 
 /**
  * Initiative-admin surface for listing and managing custom property
- * definitions. Pairs with ``PropertyFilter``/``PropertyList``/
- * ``PropertyInput`` which render individual values on documents and tasks.
+ * definitions. Renders as a ``<TabsContent value="properties">`` panel
+ * inside :class:`InitiativeSettingsPage` — consistent with the other
+ * settings tabs rather than living on its own route. Pairs with
+ * ``PropertyFilter``/``PropertyList``/``PropertyInput`` which render
+ * individual values on documents and tasks.
  */
-export const PropertyDefinitionManagerPage = () => {
+export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId: number }) => {
   const { t } = useTranslation(["properties", "common"]);
-  const params = useParams({ strict: false }) as { initiativeId?: string };
-  const parsedInitiativeId = Number(params.initiativeId);
-  const hasValidInitiativeId = Number.isFinite(parsedInitiativeId) && parsedInitiativeId > 0;
-  const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
 
-  const propertiesQuery = useProperties({
-    initiativeId: hasValidInitiativeId ? initiativeId : undefined,
-  });
+  const propertiesQuery = useProperties({ initiativeId });
   const createMutation = useCreateProperty();
   const updateMutation = useUpdateProperty();
   const deleteMutation = useDeleteProperty();
@@ -291,7 +288,6 @@ export const PropertyDefinitionManagerPage = () => {
       : undefined;
 
     if (dialogState.mode === "create") {
-      if (!hasValidInitiativeId) return;
       const payload: PropertyDefinitionCreate = {
         name: trimmedName,
         type: formState.type,
@@ -350,22 +346,8 @@ export const PropertyDefinitionManagerPage = () => {
     }
   };
 
-  if (!hasValidInitiativeId) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
-            {t("properties:manager.missingInitiative")}
-          </CardTitle>
-          <CardDescription>{t("properties:manager.missingInitiativeDescription")}</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <TabsContent value="properties" className="space-y-6">
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
@@ -596,6 +578,6 @@ export const PropertyDefinitionManagerPage = () => {
         isLoading={deleteMutation.isPending}
         destructive
       />
-    </div>
+    </TabsContent>
   );
 };
