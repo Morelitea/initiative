@@ -6,6 +6,7 @@ from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.calendar_event import RSVPStatus
+from app.schemas.property import PropertySummary
 from app.schemas.tag import TagSummary
 from app.schemas.user import UserPublic
 
@@ -123,6 +124,7 @@ class CalendarEventSummary(CalendarEventBase):
     created_by_id: int
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)
+    property_values: List[PropertySummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -185,6 +187,20 @@ def _serialize_attendees(event: "CalendarEvent") -> List[CalendarEventAttendeeRe
     return result
 
 
+def _serialize_event_properties(event: "CalendarEvent") -> List[PropertySummary]:
+    """Serialize loaded event property values.
+
+    Requires ``property_values.property_definition`` (and ``.value_user``
+    for user_reference) to be eager-loaded — otherwise they are skipped.
+    """
+    # Local import avoids the schema layer pulling in the service at
+    # module import time.
+    from app.services.properties import summaries_from_rows
+
+    rows = getattr(event, "property_values", None) or []
+    return summaries_from_rows(rows)
+
+
 def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
     raw = getattr(event, "recurrence", None)
     if not raw:
@@ -219,6 +235,7 @@ def serialize_calendar_event_summary(event: "CalendarEvent") -> CalendarEventSum
         created_by_id=event.created_by_id,
         attendee_count=len(attendees_list),
         attendee_names=names,
+        property_values=_serialize_event_properties(event),
         created_at=event.created_at,
         updated_at=event.updated_at,
     )

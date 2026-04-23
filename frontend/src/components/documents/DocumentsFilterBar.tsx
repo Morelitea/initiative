@@ -147,11 +147,7 @@ export const DocumentsFilterBar = ({
               </div>
             )}
           </div>
-          <PropertyFilter
-            appliesTo="document"
-            value={propertyFilters}
-            onChange={onPropertyFiltersChange}
-          />
+          <PropertyFilter value={propertyFilters} onChange={onPropertyFiltersChange} />
         </div>
       </CollapsibleContent>
     </Collapsible>

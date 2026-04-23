@@ -44,7 +44,6 @@ import { TaskStatusOption, statusTriggerStyle } from "@/components/tasks/TaskSta
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { useProperties } from "@/hooks/useProperties";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
-import { PropertyAppliesTo } from "@/api/generated/initiativeAPI.schemas";
 
 type ProjectTasksListViewProps = {
   projectId: number;
@@ -192,16 +191,7 @@ const ProjectTasksTableViewComponent = ({
 
   // Programmatic property columns (hidden by default, persist visibility).
   // Scoped to the project's initiative so the column list stays focused.
-  const { data: allPropertyDefinitions = [] } = useProperties({ initiativeId });
-  const propertyDefinitions = useMemo(
-    () =>
-      allPropertyDefinitions.filter(
-        (definition) =>
-          definition.applies_to === PropertyAppliesTo.task ||
-          definition.applies_to === PropertyAppliesTo.both
-      ),
-    [allPropertyDefinitions]
-  );
+  const { data: propertyDefinitions = [] } = useProperties({ initiativeId });
   const propertyColumns = useMemo(
     () => buildPropertyColumns<TaskListRead>(propertyDefinitions, (row) => row.properties),
     [propertyDefinitions]

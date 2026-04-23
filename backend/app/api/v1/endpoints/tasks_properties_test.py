@@ -4,7 +4,6 @@ Integration tests for task custom-property endpoints.
 Mirrors documents_properties_test.py for the task side:
 - PUT /tasks/{id}/properties replace-all semantics
 - Type validation per property type (representative set)
-- applies_to mismatch rejection
 - user_reference non-initiative-member rejection
 - Filtering via the ``conditions`` query param's ``property_values`` field
 - RLS cross-initiative isolation
@@ -20,7 +19,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
 from app.models.property import (
-    PropertyAppliesTo,
     PropertyType,
     TaskPropertyValue,
 )
@@ -128,36 +126,6 @@ async def test_put_task_properties_empty_clears_existing(
         select(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
     )
     assert rows.all() == []
-
-
-# ---------------------------------------------------------------------------
-# applies_to mismatch
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_put_task_properties_document_only_definition_rejected(
-    client: AsyncClient, session: AsyncSession
-):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    project = await create_project(session, initiative, user, name="P")
-    task = await _create_task(session, project)
-
-    defn = await create_property_definition(
-        session, initiative, name="Doc Only", type=PropertyType.text,
-        applies_to=PropertyAppliesTo.document,
-    )
-
-    response = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
-        headers=get_guild_headers(guild, user),
-        json={"values": [{"property_id": defn.id, "value": "no"}]},
-    )
-    assert response.status_code == 400
-    assert response.json()["detail"] == "PROPERTY_APPLIES_TO_MISMATCH"
 
 
 # ---------------------------------------------------------------------------

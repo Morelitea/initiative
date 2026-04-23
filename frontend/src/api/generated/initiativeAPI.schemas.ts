@@ -415,6 +415,56 @@ export interface CalendarEventDocumentRead {
   attached_at: string;
 }
 
+/**
+ * Supported value types for a property definition.
+ */
+export type PropertyType = (typeof PropertyType)[keyof typeof PropertyType];
+
+export const PropertyType = {
+  text: "text",
+  number: "number",
+  checkbox: "checkbox",
+  date: "date",
+  datetime: "datetime",
+  url: "url",
+  select: "select",
+  multi_select: "multi_select",
+  user_reference: "user_reference",
+} as const;
+
+/**
+ * One option entry for select / multi_select property definitions.
+ */
+export interface PropertyOption {
+  /**
+   * @minLength 1
+   * @maxLength 64
+   * @pattern ^[A-Za-z0-9][A-Za-z0-9_\-]*$
+   */
+  value: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  label: string;
+  color?: string | null;
+}
+
+/**
+ * Lightweight property value for embedding in entity reads.
+
+``value`` is rehydrated from the correct typed column by the service
+layer. For ``user_reference`` properties the service attaches a
+minimal ``{id, full_name}`` dict.
+ */
+export interface PropertySummary {
+  property_id: number;
+  name: string;
+  type: PropertyType;
+  options: PropertyOption[] | null;
+  value: unknown;
+}
+
 export interface CalendarEventSummary {
   /**
    * @minLength 1
@@ -434,6 +484,7 @@ export interface CalendarEventSummary {
   created_by_id: number;
   attendee_count: number;
   attendee_names: string[];
+  property_values: PropertySummary[];
   created_at: string;
   updated_at: string;
 }
@@ -478,6 +529,7 @@ export interface CalendarEventRead {
   created_by_id: number;
   attendee_count: number;
   attendee_names: string[];
+  property_values: PropertySummary[];
   created_at: string;
   updated_at: string;
   attendees: CalendarEventAttendeeRead[];
@@ -708,68 +760,6 @@ export interface DocumentRolePermissionRead {
   role_display_name: string;
   level: DocumentPermissionLevel;
   created_at: string;
-}
-
-/**
- * Supported value types for a property definition.
- */
-export type PropertyType = (typeof PropertyType)[keyof typeof PropertyType];
-
-export const PropertyType = {
-  text: "text",
-  number: "number",
-  checkbox: "checkbox",
-  date: "date",
-  datetime: "datetime",
-  url: "url",
-  select: "select",
-  multi_select: "multi_select",
-  user_reference: "user_reference",
-} as const;
-
-/**
- * Which entity kinds a property definition may attach to.
- */
-export type PropertyAppliesTo = (typeof PropertyAppliesTo)[keyof typeof PropertyAppliesTo];
-
-export const PropertyAppliesTo = {
-  document: "document",
-  task: "task",
-  both: "both",
-} as const;
-
-/**
- * One option entry for select / multi_select property definitions.
- */
-export interface PropertyOption {
-  /**
-   * @minLength 1
-   * @maxLength 64
-   * @pattern ^[A-Za-z0-9][A-Za-z0-9_\-]*$
-   */
-  value: string;
-  /**
-   * @minLength 1
-   * @maxLength 100
-   */
-  label: string;
-  color?: string | null;
-}
-
-/**
- * Lightweight property value for embedding in DocumentRead / TaskRead.
-
-``value`` is rehydrated from the correct typed column by the service
-layer. For ``user_reference`` properties the service attaches a
-minimal ``{id, full_name}`` dict.
- */
-export interface PropertySummary {
-  property_id: number;
-  name: string;
-  type: PropertyType;
-  applies_to: PropertyAppliesTo;
-  options: PropertyOption[] | null;
-  value: unknown;
 }
 
 export type DocumentSummaryDocumentType =
@@ -1590,7 +1580,6 @@ export interface PropertyDefinitionCreate {
    */
   name: string;
   type: PropertyType;
-  applies_to?: PropertyAppliesTo;
   position?: number;
   color?: string | null;
   options?: PropertyOption[] | null;
@@ -1604,7 +1593,6 @@ export interface PropertyDefinitionRead {
    */
   name: string;
   type: PropertyType;
-  applies_to: PropertyAppliesTo;
   position: number;
   color: string | null;
   options: PropertyOption[] | null;
@@ -1624,7 +1612,6 @@ service layer enforces the rule.
  */
 export interface PropertyDefinitionUpdate {
   name?: string | null;
-  applies_to?: PropertyAppliesTo | null;
   position?: number | null;
   color?: string | null;
   options?: PropertyOption[] | null;
@@ -1656,12 +1643,20 @@ export interface TaggedDocumentSummary {
   initiative_name: string | null;
 }
 
+export interface TaggedEventSummary {
+  id: number;
+  title: string;
+  initiative_id: number;
+  initiative_name: string | null;
+}
+
 /**
  * Response for GET /property-definitions/{id}/entities.
  */
 export interface PropertyEntitiesResult {
   tasks: TaggedTaskSummary[];
   documents: TaggedDocumentSummary[];
+  events: TaggedEventSummary[];
 }
 
 /**
@@ -3098,6 +3093,7 @@ export type ListCalendarEventsApiV1CalendarEventsGetParams = {
   initiative_id?: number | null;
   start_after?: string | null;
   start_before?: string | null;
+  property_filters?: string | null;
   /**
    * @minimum 1
    */
@@ -3111,7 +3107,6 @@ export type ListCalendarEventsApiV1CalendarEventsGetParams = {
 
 export type ListPropertyDefinitionsApiV1PropertyDefinitionsGetParams = {
   initiative_id?: number | null;
-  applies_to?: PropertyAppliesTo | null;
 };
 
 export type ListAutomationsApiV1AutomationsGetParams = {

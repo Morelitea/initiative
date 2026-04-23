@@ -29,6 +29,10 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
+import {
+  PropertyFilter,
+  type PropertyFilterCondition,
+} from "@/components/properties/PropertyFilter";
 
 const STORAGE_KEY = "initiative-events-prefs";
 
@@ -57,6 +61,7 @@ interface StoredPrefs {
   statusFilters: TaskStatusCategory[];
   priorityFilters: TaskPriority[];
   projectFilters: number[];
+  propertyFilters: PropertyFilterCondition[];
 }
 
 const PREFS_DEFAULTS: StoredPrefs = {
@@ -65,6 +70,7 @@ const PREFS_DEFAULTS: StoredPrefs = {
   statusFilters: [], // Don't apply default status filters - they're custom per guild
   priorityFilters: [],
   projectFilters: [],
+  propertyFilters: [],
 };
 
 const readStoredPrefs = (): StoredPrefs => {
@@ -86,6 +92,9 @@ const readStoredPrefs = (): StoredPrefs => {
       projectFilters: Array.isArray(parsed?.projectFilters)
         ? parsed.projectFilters
         : PREFS_DEFAULTS.projectFilters,
+      propertyFilters: Array.isArray(parsed?.propertyFilters)
+        ? parsed.propertyFilters
+        : PREFS_DEFAULTS.propertyFilters,
     };
   } catch {
     return PREFS_DEFAULTS;
@@ -134,6 +143,9 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     () => storedPrefs.priorityFilters
   );
   const [projectFilters, setProjectFilters] = useState<number[]>(() => storedPrefs.projectFilters);
+  const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>(
+    () => storedPrefs.propertyFilters
+  );
   const [filtersOpen, setFiltersOpen] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches
   );
@@ -151,15 +163,30 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   useEffect(() => {
     setItem(
       STORAGE_KEY,
-      JSON.stringify({ showEvents, showTasks, statusFilters, priorityFilters, projectFilters })
+      JSON.stringify({
+        showEvents,
+        showTasks,
+        statusFilters,
+        priorityFilters,
+        projectFilters,
+        propertyFilters,
+      })
     );
-  }, [showEvents, showTasks, statusFilters, priorityFilters, projectFilters]);
+  }, [showEvents, showTasks, statusFilters, priorityFilters, projectFilters, propertyFilters]);
+
+  // Serialize property filters into the query-param shape the backend
+  // expects. Empty list drops the param entirely so the URL stays clean.
+  const propertyFiltersParam = useMemo(() => {
+    if (propertyFilters.length === 0) return undefined;
+    return JSON.stringify(propertyFilters);
+  }, [propertyFilters]);
 
   // --- Events query (scoped to initiative) ---
   const eventsQuery = useCalendarEventsList({
     ...(initiativeId ? { initiative_id: initiativeId } : {}),
     start_after: startOfYear(subYears(focusDate, 1)).toISOString(),
     start_before: endOfYear(addYears(focusDate, 1)).toISOString(),
+    ...(propertyFiltersParam ? { property_filters: propertyFiltersParam } : {}),
     page: 1,
     page_size: 100,
   });
@@ -186,13 +213,33 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     if (projectFilters.length > 0) {
       conditions.push({ field: "project_id", op: "in_", value: projectFilters });
     }
+    // Translate the shared PropertyFilter conditions into the tasks endpoint's
+    // ``property_values`` virtual-field shape so the same filter row narrows
+    // both events and tasks on the calendar. PropertyFilterCondition.op is
+    // typed as string (runtime value matches FilterOp); cast here rather
+    // than re-enumerate.
+    for (const cond of propertyFilters) {
+      conditions.push({
+        field: "property_values",
+        op: cond.op as FilterCondition["op"],
+        value: { property_id: cond.property_id, value: cond.value },
+      });
+    }
     return {
       conditions: conditions.length > 0 ? conditions : undefined,
       page: 1,
       page_size: 100,
       tz: userTimezone,
     };
-  }, [showTasks, initiativeId, statusFilters, priorityFilters, projectFilters, userTimezone]);
+  }, [
+    showTasks,
+    initiativeId,
+    statusFilters,
+    priorityFilters,
+    projectFilters,
+    propertyFilters,
+    userTimezone,
+  ]);
 
   const defaultTaskParams: ListTasksApiV1TasksGetParams = { page: 1, page_size: 100 };
   const tasksQuery = useTasks(tasksParams ?? defaultTaskParams, {
@@ -224,6 +271,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           allDay: event.all_day,
           color: event.color ?? "#6366f1",
           attendees: (event.attendee_names ?? []).map((name) => ({ name })),
+          properties: event.property_values,
           meta: { type: "event", eventId: event.id },
         });
       });
@@ -246,6 +294,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
             allDay: true,
             color,
             attendees: taskAttendees,
+            properties: task.properties,
             meta: { type: "task", taskId: task.id },
           });
         }
@@ -258,6 +307,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
             allDay: true,
             color,
             attendees: taskAttendees,
+            properties: task.properties,
             meta: { type: "task", taskId: task.id },
           });
         }
@@ -471,6 +521,18 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
               >
                 {t("tasks:myCalendar.typeTasks" as never)}
               </Button>
+            </div>
+            {/* Custom property filters — applied to both events and tasks
+                rendered on the calendar. Scoped to the active initiative
+                when one is selected, union across accessible initiatives
+                otherwise. Nested inside the same bordered filter container
+                so it lines up with the other controls. */}
+            <div className="w-full">
+              <PropertyFilter
+                value={propertyFilters}
+                onChange={setPropertyFilters}
+                {...(initiativeId != null ? { initiativeId } : {})}
+              />
             </div>
           </div>
         </CollapsibleContent>

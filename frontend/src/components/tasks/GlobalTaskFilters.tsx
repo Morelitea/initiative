@@ -132,7 +132,7 @@ export const GlobalTaskFilters = ({
               />
             </div>
           </div>
-          <PropertyFilter appliesTo="task" value={propertyFilters} onChange={setPropertyFilters} />
+          <PropertyFilter value={propertyFilters} onChange={setPropertyFilters} />
         </div>
       </CollapsibleContent>
     </Collapsible>

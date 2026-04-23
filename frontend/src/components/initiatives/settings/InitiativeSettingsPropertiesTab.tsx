@@ -18,13 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -40,7 +34,6 @@ import {
   useUpdateProperty,
 } from "@/hooks/useProperties";
 import {
-  PropertyAppliesTo,
   PropertyType,
   type PropertyDefinitionCreate,
   type PropertyDefinitionRead,
@@ -63,12 +56,6 @@ const PROPERTY_TYPE_OPTIONS: PropertyTypeValue[] = [
   PropertyType.user_reference,
 ];
 
-const APPLIES_TO_OPTIONS: PropertyAppliesTo[] = [
-  PropertyAppliesTo.both,
-  PropertyAppliesTo.document,
-  PropertyAppliesTo.task,
-];
-
 const DEFAULT_COLOR = "#64748B";
 
 interface DialogState {
@@ -79,7 +66,6 @@ interface DialogState {
 interface FormState {
   name: string;
   type: PropertyTypeValue;
-  appliesTo: PropertyAppliesTo;
   color: string | null;
   options: PropertyOption[];
 }
@@ -87,7 +73,6 @@ interface FormState {
 const emptyFormState: FormState = {
   name: "",
   type: PropertyType.text,
-  appliesTo: PropertyAppliesTo.both,
   color: null,
   options: [],
 };
@@ -95,7 +80,6 @@ const emptyFormState: FormState = {
 const definitionToFormState = (definition: PropertyDefinitionRead): FormState => ({
   name: definition.name,
   type: definition.type,
-  appliesTo: definition.applies_to,
   color: definition.color,
   options: (definition.options ?? []).map((option) => ({
     value: option.value,
@@ -291,7 +275,6 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
       const payload: PropertyDefinitionCreate = {
         name: trimmedName,
         type: formState.type,
-        applies_to: formState.appliesTo,
         initiative_id: initiativeId,
         color: formState.color ?? null,
         options,
@@ -309,7 +292,6 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
     if (!dialogState.definition) return;
     const payload: PropertyDefinitionUpdate = {
       name: trimmedName,
-      applies_to: formState.appliesTo,
       color: formState.color ?? null,
       // Type is immutable on edit, so use the existing definition's type to
       // decide whether to include options in the PATCH payload.
@@ -374,7 +356,6 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
                   <TableRow>
                     <TableHead>{t("properties:manager.nameLabel")}</TableHead>
                     <TableHead>{t("properties:manager.typeLabel")}</TableHead>
-                    <TableHead>{t("properties:manager.appliesToLabel")}</TableHead>
                     <TableHead>{t("properties:manager.optionsLabel")}</TableHead>
                     <TableHead>{t("properties:manager.colorLabel")}</TableHead>
                     <TableHead className="w-32 text-right" />
@@ -397,7 +378,6 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
                             );
                           })()}
                         </TableCell>
-                        <TableCell>{t(`properties:appliesTo.${definition.applies_to}`)}</TableCell>
                         <TableCell>{optionCount > 0 ? optionCount : "—"}</TableCell>
                         <TableCell>
                           {definition.color ? (
@@ -474,61 +454,37 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="property-manager-type">{t("properties:manager.typeLabel")}</Label>
-                <Select
-                  value={formState.type}
-                  onValueChange={(next) => handleTypeChange(next as PropertyTypeValue)}
-                  disabled={isEditing}
-                >
-                  <SelectTrigger id="property-manager-type">
-                    <div className="flex min-w-0 items-center gap-2">
-                      {(() => {
-                        const Icon = iconForPropertyType(formState.type);
-                        return <Icon className="h-4 w-4 shrink-0" />;
-                      })()}
-                      <span className="truncate">{t(`properties:types.${formState.type}`)}</span>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROPERTY_TYPE_OPTIONS.map((type) => {
-                      const Icon = iconForPropertyType(type);
-                      const label = t(`properties:types.${type}`);
-                      return (
-                        <SelectItem key={type} value={type} textValue={label}>
-                          <div className="flex items-center gap-2">
-                            <Icon className="h-4 w-4 shrink-0" />
-                            <span>{label}</span>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="property-manager-applies-to">
-                  {t("properties:manager.appliesToLabel")}
-                </Label>
-                <Select
-                  value={formState.appliesTo}
-                  onValueChange={(next) =>
-                    setFormState((prev) => ({ ...prev, appliesTo: next as PropertyAppliesTo }))
-                  }
-                >
-                  <SelectTrigger id="property-manager-applies-to">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {APPLIES_TO_OPTIONS.map((scope) => (
-                      <SelectItem key={scope} value={scope}>
-                        {t(`properties:appliesTo.${scope}`)}
+            <div className="space-y-2">
+              <Label htmlFor="property-manager-type">{t("properties:manager.typeLabel")}</Label>
+              <Select
+                value={formState.type}
+                onValueChange={(next) => handleTypeChange(next as PropertyTypeValue)}
+                disabled={isEditing}
+              >
+                <SelectTrigger id="property-manager-type">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {(() => {
+                      const Icon = iconForPropertyType(formState.type);
+                      return <Icon className="h-4 w-4 shrink-0" />;
+                    })()}
+                    <span className="truncate">{t(`properties:types.${formState.type}`)}</span>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {PROPERTY_TYPE_OPTIONS.map((type) => {
+                    const Icon = iconForPropertyType(type);
+                    const label = t(`properties:types.${type}`);
+                    return (
+                      <SelectItem key={type} value={type} textValue={label}>
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4 shrink-0" />
+                          <span>{label}</span>
+                        </div>
                       </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">

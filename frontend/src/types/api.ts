@@ -22,4 +22,4 @@ export type {
   PropertyValuesSetRequest,
 } from "@/api/generated/initiativeAPI.schemas";
 
-export { PropertyAppliesTo, PropertyType } from "@/api/generated/initiativeAPI.schemas";
+export { PropertyType } from "@/api/generated/initiativeAPI.schemas";

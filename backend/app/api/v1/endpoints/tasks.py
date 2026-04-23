@@ -219,9 +219,10 @@ def _build_task_filter_fields(
         """Filter tasks by a custom property value.
 
         ``value`` is expected to be a dict of the form
-        ``{"property_id": int, "value": <any>}``. The condition resolves
-        to a subquery on ``task_property_values`` predicated on the
-        typed column that matches the definition's type.
+        ``{"property_id": int, "value": <any>}``. Delegates compilation
+        to :func:`properties_service.build_single_property_clause` so
+        the typed-column + is_empty semantics stay in sync with docs /
+        events and the shared parse path used for ``property_filters``.
         """
         if not isinstance(value, dict):
             return None
@@ -236,45 +237,9 @@ def _build_task_filter_fields(
             # Unknown or cross-guild property — silently skip (defense in
             # depth, consistent with the rest of apply_filters).
             return None
-
-        if op == FilterOp.is_null:
-            # "Is empty" must match tasks that either have no row in
-            # task_property_values for this property_id OR have a row
-            # with a null value column. Delegate to the presence helper.
-            # Tasks' generic conditions parser doesn't go through
-            # parse_property_filters, so normalize the is_null bool here.
-            try:
-                is_empty = properties_service.normalize_is_null_value(raw_value)
-            except ValueError:
-                return None
-            return properties_service.property_value_presence_predicate(
-                TaskPropertyValue,
-                Task.id,
-                TaskPropertyValue.task_id,
-                pid,
-                defn.type,
-                is_empty=is_empty,
-            )
-
-        try:
-            column = properties_service.typed_column_for_property(
-                TaskPropertyValue, defn.type
-            )
-        except ValueError:
-            return None
-        predicate = properties_service.build_property_value_predicate(
-            column, defn.type, op, raw_value
+        return properties_service.build_single_property_clause(
+            "task", pid, op, raw_value, defn
         )
-        if predicate is None:
-            return None
-        subq = (
-            select(TaskPropertyValue.task_id)
-            .where(
-                TaskPropertyValue.property_id == pid,
-                predicate,
-            )
-        )
-        return Task.id.in_(subq)
 
     fields["status_category"] = _status_category_handler
     fields["assignee_ids"] = _assignee_ids_handler
@@ -773,8 +738,10 @@ def _property_value_filter_clauses(
     """Compile ``property_values`` conditions to SA WHERE clauses for tasks.
 
     Shared between the global and non-global list paths so the global
-    paths also honor custom-property filters. Unknown property_ids are
-    silently skipped (the filter handler does the same).
+    paths also honor custom-property filters. Task conditions arrive with
+    ``{"property_id": pid, "value": raw}`` payloads — unwrap that and
+    delegate to :func:`properties_service.build_single_property_clause`
+    so the compiled predicate stays in lockstep with docs/events.
     """
     clauses = []
     for cond in property_value_conditions:
@@ -789,41 +756,11 @@ def _property_value_filter_clauses(
         defn = property_definitions.get(pid)
         if defn is None:
             continue
-        if cond.op == FilterOp.is_null:
-            # Same normalization path as the filter-handler branch above:
-            # the global-task list paths accept raw conditions objects
-            # without going through parse_property_filters, so guard here.
-            try:
-                is_empty = properties_service.normalize_is_null_value(raw_value)
-            except ValueError:
-                continue
-            clauses.append(
-                properties_service.property_value_presence_predicate(
-                    TaskPropertyValue,
-                    Task.id,
-                    TaskPropertyValue.task_id,
-                    pid,
-                    defn.type,
-                    is_empty=is_empty,
-                )
-            )
-            continue
-        try:
-            column = properties_service.typed_column_for_property(
-                TaskPropertyValue, defn.type
-            )
-        except ValueError:
-            continue
-        predicate = properties_service.build_property_value_predicate(
-            column, defn.type, cond.op, raw_value
+        clause = properties_service.build_single_property_clause(
+            "task", pid, cond.op, raw_value, defn
         )
-        if predicate is None:
-            continue
-        subq = (
-            select(TaskPropertyValue.task_id)
-            .where(TaskPropertyValue.property_id == pid, predicate)
-        )
-        clauses.append(Task.id.in_(subq))
+        if clause is not None:
+            clauses.append(clause)
     return clauses
 
 

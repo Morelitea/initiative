@@ -21,7 +21,6 @@ export const propertyHandlers = [
       buildPropertyDefinition({
         name: (body.name as string) ?? "New property",
         type: (body.type as never) ?? "text",
-        applies_to: (body.applies_to as never) ?? "both",
         initiative_id: typeof body.initiative_id === "number" ? body.initiative_id : 1,
         options: (body.options as never) ?? null,
       })

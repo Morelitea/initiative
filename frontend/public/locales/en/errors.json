@@ -105,7 +105,6 @@
   "PROPERTY_NOT_INITIATIVE_MEMBER": "You need to be a member of this initiative to manage its properties",
   "PROPERTY_OPTIONS_REQUIRED": "Select and multi-select properties require at least one option",
   "PROPERTY_DUPLICATE_OPTION_VALUE": "Option values must be unique within a property",
-  "PROPERTY_APPLIES_TO_MISMATCH": "This property does not apply to this entity type",
   "ATTACHMENT_IMAGE_ONLY": "Only image uploads are supported",
   "ATTACHMENT_FILE_EMPTY": "Uploaded file is empty",
   "ATTACHMENT_INVALID_IMAGE": "Unable to validate image contents",

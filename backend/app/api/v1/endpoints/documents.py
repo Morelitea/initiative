@@ -52,7 +52,6 @@ from app.schemas.document import (
 )
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.property import PropertyValuesSetRequest
-from app.schemas.query import FilterOp
 from app.schemas.tag import TagSetRequest
 from app.services import attachments as attachments_service
 from app.services import documents as documents_service
@@ -265,11 +264,11 @@ async def _apply_property_filters(
 ) -> list:
     """Return SA WHERE clauses for parsed property filter conditions.
 
-    Each condition compiles to a subquery on
-    ``document_property_values`` predicated on the typed column that
-    matches the definition's type. Unknown or inaccessible property_ids
-    are silently skipped — RLS on ``property_definitions`` already
-    constrains which ids the caller can resolve.
+    Thin adapter over the shared
+    :func:`properties_service.build_property_filter_clauses` helper —
+    loads the definitions visible under the caller's RLS, then delegates
+    the per-condition compilation so documents, tasks, and events all
+    share one source of truth for typed-column + is_empty semantics.
     """
     if not conditions:
         return []
@@ -277,47 +276,9 @@ async def _apply_property_filters(
         session,
         [c.property_id for c in conditions],
     )
-    clauses = []
-    for cond in conditions:
-        defn = defs.get(cond.property_id)
-        if defn is None:
-            continue
-        if cond.op == FilterOp.is_null:
-            # "Is empty" / "is not empty" must match documents that lack
-            # a row entirely as well as rows with a null value.
-            # ``cond.value`` is pre-normalized by ``parse_property_filters``
-            # to an explicit bool (missing/None ⇒ True ⇒ "is empty").
-            clauses.append(
-                properties_service.property_value_presence_predicate(
-                    DocumentPropertyValue,
-                    Document.id,
-                    DocumentPropertyValue.document_id,
-                    cond.property_id,
-                    defn.type,
-                    is_empty=cond.value,
-                )
-            )
-            continue
-        try:
-            column = properties_service.typed_column_for_property(
-                DocumentPropertyValue, defn.type
-            )
-        except ValueError:
-            continue
-        predicate = properties_service.build_property_value_predicate(
-            column, defn.type, cond.op, cond.value
-        )
-        if predicate is None:
-            continue
-        subq = (
-            select(DocumentPropertyValue.document_id)
-            .where(
-                DocumentPropertyValue.property_id == cond.property_id,
-                predicate,
-            )
-        )
-        clauses.append(Document.id.in_(subq))
-    return clauses
+    return properties_service.build_property_filter_clauses(
+        "document", conditions, defs
+    )
 
 
 async def _list_global_documents(

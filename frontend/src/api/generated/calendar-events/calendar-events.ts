@@ -35,6 +35,7 @@ import type {
   ICalParseResult,
   ListCalendarEventsApiV1CalendarEventsGetParams,
   ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,
+  PropertyValuesSetRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1698,6 +1699,104 @@ export const useSetDocumentsApiV1CalendarEventsEventIdDocumentsPut = <
 > => {
   return useMutation(
     getSetDocumentsApiV1CalendarEventsEventIdDocumentsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Replace-all set of property values on an event.
+
+Mirrors the tasks/documents shape: any initiative member with
+``create_events`` (or guild admin) can attach values; cross-initiative
+definitions return 404 DEFINITION_NOT_FOUND via the service layer.
+ * @summary Set Event Properties
+ */
+export const setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut = (
+  eventId: number,
+  propertyValuesSetRequest: BodyType<PropertyValuesSetRequest>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<CalendarEventRead>(
+    {
+      url: `/api/v1/calendar-events/${eventId}/properties`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: propertyValuesSetRequest,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetEventPropertiesApiV1CalendarEventsEventIdPropertiesPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut>>,
+    TError,
+    { eventId: number; data: BodyType<PropertyValuesSetRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut>>,
+  TError,
+  { eventId: number; data: BodyType<PropertyValuesSetRequest> },
+  TContext
+> => {
+  const mutationKey = ["setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut>>,
+    { eventId: number; data: BodyType<PropertyValuesSetRequest> }
+  > = (props) => {
+    const { eventId, data } = props ?? {};
+
+    return setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut(eventId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetEventPropertiesApiV1CalendarEventsEventIdPropertiesPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut>>
+>;
+export type SetEventPropertiesApiV1CalendarEventsEventIdPropertiesPutMutationBody =
+  BodyType<PropertyValuesSetRequest>;
+export type SetEventPropertiesApiV1CalendarEventsEventIdPropertiesPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Event Properties
+ */
+export const useSetEventPropertiesApiV1CalendarEventsEventIdPropertiesPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut>>,
+      TError,
+      { eventId: number; data: BodyType<PropertyValuesSetRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut>>,
+  TError,
+  { eventId: number; data: BodyType<PropertyValuesSetRequest> },
+  TContext
+> => {
+  return useMutation(
+    getSetEventPropertiesApiV1CalendarEventsEventIdPropertiesPutMutationOptions(options),
     queryClient
   );
 };

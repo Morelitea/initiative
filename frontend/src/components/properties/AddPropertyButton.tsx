@@ -17,19 +17,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { useCreateProperty, useProperties } from "@/hooks/useProperties";
 import {
-  PropertyAppliesTo,
   PropertyType,
   type PropertyDefinitionCreate,
   type PropertyDefinitionRead,
   type PropertyOption,
   type PropertyType as PropertyTypeValue,
 } from "@/api/generated/initiativeAPI.schemas";
-import type { PropertyEntityKind } from "./PropertyList";
 import { iconForPropertyType } from "./propertyTypeIcons";
 import { slugify, typeRequiresOptions } from "./propertyHelpers";
 
 export interface AddPropertyButtonProps {
-  entityKind: PropertyEntityKind;
   /**
    * Initiative the entity belongs to. Scopes both the candidate list (so the
    * picker only surfaces definitions from this initiative) and the inline
@@ -55,7 +52,6 @@ const ORDERED_TYPES: PropertyTypeValue[] = [
 ];
 
 export const AddPropertyButton = ({
-  entityKind,
   initiativeId,
   currentPropertyIds,
   onAdd,
@@ -78,12 +74,8 @@ export const AddPropertyButton = ({
 
   const candidates = useMemo(() => {
     const all = propertiesQuery.data ?? [];
-    return all.filter((definition) => {
-      if (currentIdSet.has(definition.id)) return false;
-      const appliesTo = definition.applies_to;
-      return appliesTo === entityKind || appliesTo === PropertyAppliesTo.both;
-    });
-  }, [propertiesQuery.data, currentIdSet, entityKind]);
+    return all.filter((definition) => !currentIdSet.has(definition.id));
+  }, [propertiesQuery.data, currentIdSet]);
 
   const filteredCandidates = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -152,7 +144,6 @@ export const AddPropertyButton = ({
     const payload: PropertyDefinitionCreate = {
       name,
       type: newType,
-      applies_to: PropertyAppliesTo.both,
       initiative_id: initiativeId,
       options,
     };

@@ -5,11 +5,7 @@ import { http, HttpResponse } from "msw";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { server } from "@/__tests__/helpers/msw-server";
 import { buildPropertyOption, buildPropertySummary } from "@/__tests__/factories/properties";
-import {
-  PropertyAppliesTo,
-  PropertyType,
-  type PropertySummary,
-} from "@/api/generated/initiativeAPI.schemas";
+import { PropertyType, type PropertySummary } from "@/api/generated/initiativeAPI.schemas";
 
 import { PropertyList } from "./PropertyList";
 
@@ -239,7 +235,6 @@ describe("PropertyList", () => {
       property_id: 11,
       name: "Status",
       type: PropertyType.select,
-      applies_to: PropertyAppliesTo.document,
       options: [
         buildPropertyOption({ value: "draft", label: "Draft" }),
         buildPropertyOption({ value: "live", label: "Live" }),
