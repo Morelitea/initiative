@@ -18,22 +18,45 @@ import { iconForPropertyType } from "./propertyTypeIcons";
 const PROPERTY_COLUMN_CAP = 100;
 
 /**
- * Column id for a property. Defaults to the property's name so the column
- * visibility dropdown (which uses the column id as its label) shows a
- * human-readable label. Falls back to ``property-<id>`` when the name is
- * empty so the id is always a stable, non-blank string.
+ * Namespace prefix on every property column id. Prevents a user-defined
+ * property named ``"status"`` / ``"priority"`` / ``"tags"`` (etc.) from
+ * silently shadowing a static column with the same id in TanStack Table's
+ * internal ``columnsByID`` map. Static column ids in this codebase are all
+ * plain lowercase words without punctuation, so the ``:`` separator
+ * guarantees no collision regardless of what property names users pick.
+ */
+const PROPERTY_COLUMN_ID_PREFIX = "property:";
+
+/**
+ * Column id for a property. Always prefixed with ``property:`` so it can
+ * never collide with a static column id (e.g. the project-tasks table's
+ * ``"status"`` / ``"priority"`` columns). The dropdown label rendering
+ * reads the display name from ``columnDef.meta.label`` so end users don't
+ * see the prefix — :func:`propertyColumnLabel` computes that label.
  *
- * When the caller has already detected a name collision (two definitions
- * with the same name in the same list — only possible in global views that
- * union across initiatives), pass ``isAmbiguous=true`` and the id is
- * suffixed with the property id to stay unique + stable.
+ * Uses the property's name to stay stable across renders (visibility
+ * state persists by id). Falls back to ``property:#<id>`` when the name is
+ * empty. When two definitions in the same list share a name
+ * (``isAmbiguous=true``, only possible in global views that aggregate
+ * across multiple initiatives), the id + label get a ``(#<id>)`` suffix.
  */
 export const propertyColumnId = (
   definition: Pick<PropertyDefinitionRead, "id" | "name">,
   isAmbiguous = false
 ): string => {
   const trimmed = definition.name?.trim();
-  const base = trimmed && trimmed.length > 0 ? trimmed : `property-${definition.id}`;
+  const base = trimmed && trimmed.length > 0 ? trimmed : `#${definition.id}`;
+  const suffix = isAmbiguous ? ` (#${definition.id})` : "";
+  return `${PROPERTY_COLUMN_ID_PREFIX}${base}${suffix}`;
+};
+
+/** Human-readable label used by the column-visibility dropdown. */
+export const propertyColumnLabel = (
+  definition: Pick<PropertyDefinitionRead, "id" | "name">,
+  isAmbiguous = false
+): string => {
+  const trimmed = definition.name?.trim();
+  const base = trimmed && trimmed.length > 0 ? trimmed : `#${definition.id}`;
   return isAmbiguous ? `${base} (#${definition.id})` : base;
 };
 
@@ -85,14 +108,17 @@ export function buildPropertyColumns<T>(
   return capped.map((definition) => {
     const Icon = iconForPropertyType(definition.type);
     const ambiguous = isDefinitionAmbiguous(definition, ambiguousNames);
+    const label = propertyColumnLabel(definition, ambiguous);
     return {
       id: propertyColumnId(definition, ambiguous),
+      // Read by DataTable's column-visibility dropdown so the toggle shows
+      // the user-facing name (e.g. "Status") instead of the prefixed id
+      // (``property:Status``).
+      meta: { label },
       header: () => (
         <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs font-medium">
           <Icon className="h-3.5 w-3.5" aria-hidden />
-          <span className="truncate">
-            {ambiguous ? `${definition.name} (#${definition.id})` : definition.name}
-          </span>
+          <span className="truncate">{label}</span>
         </span>
       ),
       cell: ({ row }) => {

@@ -605,6 +605,7 @@ export function DataTable<TData, TValue>({
                         .getAllColumns()
                         .filter((column) => column.getCanHide())
                         .map((column) => {
+                          const meta = column.columnDef.meta as { label?: string } | undefined;
                           return (
                             <DropdownMenuCheckboxItem
                               key={column.id}
@@ -612,7 +613,7 @@ export function DataTable<TData, TValue>({
                               checked={column.getIsVisible()}
                               onCheckedChange={(value) => column.toggleVisibility(!!value)}
                             >
-                              {column.id}
+                              {meta?.label ?? column.id}
                             </DropdownMenuCheckboxItem>
                           );
                         })}
@@ -704,6 +705,7 @@ export function DataTable<TData, TValue>({
                           .getAllColumns()
                           .filter((column) => column.getCanHide())
                           .map((column) => {
+                            const meta = column.columnDef.meta as { label?: string } | undefined;
                             return (
                               <DropdownMenuCheckboxItem
                                 key={column.id}
@@ -711,7 +713,7 @@ export function DataTable<TData, TValue>({
                                 checked={column.getIsVisible()}
                                 onCheckedChange={(value) => column.toggleVisibility(!!value)}
                               >
-                                {column.id}
+                                {meta?.label ?? column.id}
                               </DropdownMenuCheckboxItem>
                             );
                           })}
