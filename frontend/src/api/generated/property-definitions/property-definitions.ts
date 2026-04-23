@@ -203,7 +203,11 @@ export function useListPropertyDefinitionsApiV1PropertyDefinitionsGet<
 /**
  * Create a new property definition on an initiative.
 
-Requires the caller to be a member of the target initiative.
+Requires the caller to be a member of the target initiative. The
+membership check runs on the admin session so it isn't affected by
+the active-guild RLS context — users can add properties to any
+initiative they belong to, not just ones in their currently-active
+guild.
  * @summary Create Property Definition
  */
 export const createPropertyDefinitionApiV1PropertyDefinitionsPost = (

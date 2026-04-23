@@ -9,11 +9,14 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.api.deps import RLSSessionDep, SessionDep, get_current_active_user
 from app.core.messages import PropertyMessages
-from app.db.session import reapply_rls_context
+from app.db.session import get_admin_session, reapply_rls_context
 from app.models.document import Document
-from app.models.initiative import InitiativeMember
+from app.models.guild import GuildMembership, GuildRole
+from app.models.initiative import Initiative, InitiativeMember
 from app.models.property import (
     DocumentPropertyValue,
     PropertyAppliesTo,
@@ -22,7 +25,7 @@ from app.models.property import (
     TaskPropertyValue,
 )
 from app.models.task import Task
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.property import (
     PropertyDefinitionCreate,
     PropertyDefinitionRead,
@@ -82,25 +85,58 @@ async def _check_duplicate_name(
 
 
 async def _ensure_initiative_member(
-    session: SessionDep,
+    admin_session: AsyncSession,
     initiative_id: int,
-    user_id: int,
+    user: User,
 ) -> None:
-    """Explicit membership check before insert.
+    """Explicit membership check before insert, bypassing RLS.
 
-    RLS would block a non-member's INSERT as well, but the resulting error
-    is opaque. Surfacing a clean 403 here makes API errors actionable.
+    Runs on an admin session so the check isn't filtered by the caller's
+    active ``X-Guild-ID`` header. ``initiative_members`` is guild-scoped
+    under RLS — if the user's active guild differs from the target
+    initiative's guild, their own membership row would otherwise be
+    invisible, producing a false "not a member" result. The admin
+    session sees the row regardless of active guild.
+
+    Mirrors the RLS policy bypasses: superadmins and guild admins of
+    the initiative's guild pass without an explicit ``InitiativeMember``
+    row (same semantics as the restrictive RLS policy's
+    ``OR IS_ADMIN OR IS_SUPER`` clause).
+
+    Surfaces a clean ``NOT_INITIATIVE_MEMBER`` 403 so the client can
+    distinguish "you're not in this initiative" from "the definition id
+    is gone" (the original misleading ``DEFINITION_NOT_FOUND`` code).
     """
+    # Superadmin bypass.
+    if user.role == UserRole.admin:
+        return
+
+    # Direct initiative membership.
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user_id,
+        InitiativeMember.user_id == user.id,
     )
-    result = await session.exec(stmt)
-    if result.one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=PropertyMessages.DEFINITION_NOT_FOUND,
+    result = await admin_session.exec(stmt)
+    if result.one_or_none() is not None:
+        return
+
+    # Guild-admin bypass: look up the initiative's guild and check if the
+    # user is an admin there.
+    init_stmt = select(Initiative.guild_id).where(Initiative.id == initiative_id)
+    guild_id = (await admin_session.exec(init_stmt)).one_or_none()
+    if guild_id is not None:
+        admin_stmt = select(GuildMembership).where(
+            GuildMembership.guild_id == guild_id,
+            GuildMembership.user_id == user.id,
+            GuildMembership.role == GuildRole.admin,
         )
+        if (await admin_session.exec(admin_stmt)).one_or_none() is not None:
+            return
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=PropertyMessages.NOT_INITIATIVE_MEMBER,
+    )
 
 
 def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
@@ -149,13 +185,18 @@ async def list_property_definitions(
 async def create_property_definition(
     payload: PropertyDefinitionCreate,
     session: RLSSessionDep,
+    admin_session: Annotated[AsyncSession, Depends(get_admin_session)],
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> PropertyDefinition:
     """Create a new property definition on an initiative.
 
-    Requires the caller to be a member of the target initiative.
+    Requires the caller to be a member of the target initiative. The
+    membership check runs on the admin session so it isn't affected by
+    the active-guild RLS context — users can add properties to any
+    initiative they belong to, not just ones in their currently-active
+    guild.
     """
-    await _ensure_initiative_member(session, payload.initiative_id, current_user.id)
+    await _ensure_initiative_member(admin_session, payload.initiative_id, current_user)
     await _check_duplicate_name(session, payload.initiative_id, payload.name)
 
     defn = PropertyDefinition(

@@ -250,6 +250,7 @@ async def test_create_rejected_when_not_initiative_member(
         "/api/v1/property-definitions/", headers=headers, json=payload
     )
     assert response.status_code == 403
+    assert response.json()["detail"] == "PROPERTY_NOT_INITIATIVE_MEMBER"
 
 
 @pytest.mark.integration
