@@ -732,9 +732,10 @@ export const TaskEditPage = () => {
                 />
                 <AddPropertyButton
                   entityKind="task"
+                  initiativeId={project?.initiative_id ?? 0}
                   currentPropertyIds={combinedPropertyIds}
                   onAdd={handleAddProperty}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || !project?.initiative_id}
                 />
               </section>
 

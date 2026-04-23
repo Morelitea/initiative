@@ -5,9 +5,10 @@ Mirrors documents_properties_test.py for the task side:
 - PUT /tasks/{id}/properties replace-all semantics
 - Type validation per property type (representative set)
 - applies_to mismatch rejection
-- user_reference cross-guild rejection
+- user_reference non-initiative-member rejection
 - Filtering via the ``conditions`` query param's ``property_values`` field
-- RLS cross-guild isolation
+- RLS cross-initiative isolation
+- Move across initiatives drops property values; duplicate in same project carries
 """
 
 import json
@@ -70,10 +71,10 @@ async def test_put_task_properties_sets_values(
     task = await _create_task(session, project)
 
     text_defn = await create_property_definition(
-        session, guild, name="Note", type=PropertyType.text
+        session, initiative, name="Note", type=PropertyType.text
     )
     number_defn = await create_property_definition(
-        session, guild, name="Score", type=PropertyType.number
+        session, initiative, name="Score", type=PropertyType.number
     )
 
     headers = get_guild_headers(guild, user)
@@ -105,7 +106,9 @@ async def test_put_task_properties_empty_clears_existing(
     project = await create_project(session, initiative, user, name="P")
     task = await _create_task(session, project)
 
-    defn = await create_property_definition(session, guild, name="Tag", type=PropertyType.text)
+    defn = await create_property_definition(
+        session, initiative, name="Tag", type=PropertyType.text
+    )
 
     headers = get_guild_headers(guild, user)
     await client.put(
@@ -144,7 +147,7 @@ async def test_put_task_properties_document_only_definition_rejected(
     task = await _create_task(session, project)
 
     defn = await create_property_definition(
-        session, guild, name="Doc Only", type=PropertyType.text,
+        session, initiative, name="Doc Only", type=PropertyType.text,
         applies_to=PropertyAppliesTo.document,
     )
 
@@ -173,7 +176,9 @@ async def test_put_task_text_rejects_non_string(
     project = await create_project(session, initiative, user, name="P")
     task = await _create_task(session, project)
 
-    defn = await create_property_definition(session, guild, name="T", type=PropertyType.text)
+    defn = await create_property_definition(
+        session, initiative, name="T", type=PropertyType.text
+    )
 
     response = await client.put(
         f"/api/v1/tasks/{task.id}/properties",
@@ -195,7 +200,9 @@ async def test_put_task_number_accepts_numeric_string(
     project = await create_project(session, initiative, user, name="P")
     task = await _create_task(session, project)
 
-    defn = await create_property_definition(session, guild, name="N", type=PropertyType.number)
+    defn = await create_property_definition(
+        session, initiative, name="N", type=PropertyType.number
+    )
 
     response = await client.put(
         f"/api/v1/tasks/{task.id}/properties",
@@ -218,7 +225,9 @@ async def test_put_task_date_accepts_iso_and_rejects_garbage(
     project = await create_project(session, initiative, user, name="P")
     task = await _create_task(session, project)
 
-    defn = await create_property_definition(session, guild, name="D", type=PropertyType.date)
+    defn = await create_property_definition(
+        session, initiative, name="D", type=PropertyType.date
+    )
     headers = get_guild_headers(guild, user)
 
     ok = await client.put(
@@ -249,7 +258,7 @@ async def test_put_task_multi_select_unknown_slug_rejected(
     task = await _create_task(session, project)
 
     defn = await create_property_definition(
-        session, guild, name="M", type=PropertyType.multi_select,
+        session, initiative, name="M", type=PropertyType.multi_select,
         options=[{"value": "a", "label": "A"}, {"value": "b", "label": "B"}],
     )
 
@@ -263,21 +272,24 @@ async def test_put_task_multi_select_unknown_slug_rejected(
 
 
 @pytest.mark.integration
-async def test_put_task_user_reference_non_member_rejected(
+async def test_put_task_user_reference_non_initiative_member_rejected(
     client: AsyncClient, session: AsyncSession
 ):
     user = await create_user(session, email="u@example.com")
     outsider = await create_user(session, email="outsider@example.com")
     guild = await create_guild(session)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    # outsider intentionally not a guild member
+    # outsider is a guild member but NOT an initiative member
+    await create_guild_membership(
+        session, user=outsider, guild=guild, role=GuildRole.member
+    )
 
     initiative = await create_initiative(session, guild, user, name="Init")
     project = await create_project(session, initiative, user, name="P")
     task = await _create_task(session, project)
 
     defn = await create_property_definition(
-        session, guild, name="Owner", type=PropertyType.user_reference
+        session, initiative, name="Owner", type=PropertyType.user_reference
     )
 
     response = await client.put(
@@ -286,11 +298,11 @@ async def test_put_task_user_reference_non_member_rejected(
         json={"values": [{"property_id": defn.id, "value": outsider.id}]},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "PROPERTY_USER_NOT_IN_GUILD"
+    assert response.json()["detail"] == "PROPERTY_USER_NOT_IN_INITIATIVE"
 
 
 # ---------------------------------------------------------------------------
-# RLS cross-guild isolation
+# RLS cross-guild / cross-initiative isolation
 # ---------------------------------------------------------------------------
 
 
@@ -319,29 +331,111 @@ async def test_put_task_properties_cross_guild_task_returns_404(
 
 
 @pytest.mark.integration
-async def test_put_task_cross_guild_definition_rejected(
+async def test_put_task_cross_initiative_definition_rejected(
     client: AsyncClient, session: AsyncSession
 ):
+    """A definition from initiative B can't be attached to a task in A."""
     user = await create_user(session, email="u@example.com")
-    guild_a = await create_guild(session, name="A")
-    guild_b = await create_guild(session, name="B")
-    await create_guild_membership(session, user=user, guild=guild_a, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild_b, role=GuildRole.admin)
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
 
-    initiative_a = await create_initiative(session, guild_a, user, name="Init A")
-    project_a = await create_project(session, initiative_a, user, name="P")
+    init_a = await create_initiative(session, guild, user, name="A")
+    init_b = await create_initiative(session, guild, user, name="B")
+    project_a = await create_project(session, init_a, user, name="P")
     task_a = await _create_task(session, project_a)
 
-    # Definition lives in guild B but the request is scoped to guild A.
-    defn_b = await create_property_definition(session, guild_b, name="Foreign")
+    defn_b = await create_property_definition(session, init_b, name="Foreign")
 
     response = await client.put(
         f"/api/v1/tasks/{task_a.id}/properties",
-        headers=get_guild_headers(guild_a, user),
+        headers=get_guild_headers(guild, user),
         json={"values": [{"property_id": defn_b.id, "value": "x"}]},
     )
-    assert response.status_code in {400, 404}
+    assert response.status_code == 404
     assert response.json()["detail"] == "PROPERTY_DEFINITION_NOT_FOUND"
+
+
+# ---------------------------------------------------------------------------
+# Move / duplicate value cascades
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_move_task_across_initiatives_drops_property_values(
+    client: AsyncClient, session: AsyncSession
+):
+    """Moving a task to a project in a different initiative drops its values."""
+    user = await create_user(session, email="u@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    init_a = await create_initiative(session, guild, user, name="A")
+    init_b = await create_initiative(session, guild, user, name="B")
+    project_a = await create_project(session, init_a, user, name="PA")
+    project_b = await create_project(session, init_b, user, name="PB")
+
+    task = await _create_task(session, project_a, title="Mover")
+    defn = await create_property_definition(
+        session, init_a, name="Tag", type=PropertyType.text
+    )
+
+    headers = get_guild_headers(guild, user)
+    await client.put(
+        f"/api/v1/tasks/{task.id}/properties",
+        headers=headers,
+        json={"values": [{"property_id": defn.id, "value": "beforeMove"}]},
+    )
+
+    move_resp = await client.post(
+        f"/api/v1/tasks/{task.id}/move",
+        headers=headers,
+        json={"target_project_id": project_b.id},
+    )
+    assert move_resp.status_code == 200
+
+    # Property values should be gone.
+    rows = await session.exec(
+        select(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
+    )
+    assert rows.all() == []
+
+
+@pytest.mark.integration
+async def test_duplicate_task_same_project_carries_property_values(
+    client: AsyncClient, session: AsyncSession
+):
+    """Duplicating a task in its own project (same initiative) copies values."""
+    user = await create_user(session, email="u@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user, name="Init")
+    project = await create_project(session, initiative, user, name="P")
+    task = await _create_task(session, project, title="Orig")
+
+    defn = await create_property_definition(
+        session, initiative, name="Tag", type=PropertyType.text
+    )
+
+    headers = get_guild_headers(guild, user)
+    await client.put(
+        f"/api/v1/tasks/{task.id}/properties",
+        headers=headers,
+        json={"values": [{"property_id": defn.id, "value": "carry"}]},
+    )
+
+    dup_resp = await client.post(
+        f"/api/v1/tasks/{task.id}/duplicate", headers=headers
+    )
+    assert dup_resp.status_code == 201
+    dup = dup_resp.json()
+    props = {p["property_id"]: p["value"] for p in dup["properties"]}
+    assert props.get(defn.id) == "carry"
+
+    dup_rows = await session.exec(
+        select(TaskPropertyValue).where(TaskPropertyValue.task_id == dup["id"])
+    )
+    dup_list = dup_rows.all()
+    assert len(dup_list) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -361,7 +455,9 @@ async def test_list_tasks_filter_by_property_text_eq(
     task_match = await _create_task(session, project, "Match")
     task_other = await _create_task(session, project, "Other")
 
-    defn = await create_property_definition(session, guild, name="Tag", type=PropertyType.text)
+    defn = await create_property_definition(
+        session, initiative, name="Tag", type=PropertyType.text
+    )
     headers = get_guild_headers(guild, user)
 
     await client.put(
@@ -405,7 +501,7 @@ async def test_list_tasks_filter_by_property_multi_select(
     task_b = await _create_task(session, project, "B")
 
     defn = await create_property_definition(
-        session, guild, name="Labels", type=PropertyType.multi_select,
+        session, initiative, name="Labels", type=PropertyType.multi_select,
         options=[{"value": "alpha", "label": "Alpha"}, {"value": "beta", "label": "Beta"}],
     )
     headers = get_guild_headers(guild, user)

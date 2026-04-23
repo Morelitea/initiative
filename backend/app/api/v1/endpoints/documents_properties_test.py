@@ -4,8 +4,9 @@ Integration tests for document custom-property endpoints.
 Covers:
 - PUT /documents/{id}/properties replace-all semantics
 - Value-type validation per property type
-- RLS cross-guild isolation
+- RLS cross-initiative isolation
 - Documents list filtering via ``property_filters``
+- Copy / duplicate value cascades (same-initiative carries; cross drops)
 """
 
 import json
@@ -97,10 +98,10 @@ async def test_put_sets_multiple_property_values(
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     text_defn = await create_property_definition(
-        session, guild, name="Tag", type=PropertyType.text
+        session, initiative, name="Tag", type=PropertyType.text
     )
     number_defn = await create_property_definition(
-        session, guild, name="Count", type=PropertyType.number
+        session, initiative, name="Count", type=PropertyType.number
     )
 
     headers = get_guild_headers(guild, user)
@@ -133,7 +134,9 @@ async def test_put_empty_values_clears_existing_values(
     initiative = await create_initiative(session, guild, user, name="Init")
     doc = await _create_document(session, initiative=initiative, owner=user)
 
-    defn = await create_property_definition(session, guild, name="Tag", type=PropertyType.text)
+    defn = await create_property_definition(
+        session, initiative, name="Tag", type=PropertyType.text
+    )
 
     headers = get_guild_headers(guild, user)
     # Populate first
@@ -175,7 +178,7 @@ async def test_put_applies_to_task_only_rejected_on_document(
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     defn = await create_property_definition(
-        session, guild, name="Task Only", type=PropertyType.text,
+        session, initiative, name="Task Only", type=PropertyType.text,
         applies_to=PropertyAppliesTo.task,
     )
 
@@ -191,33 +194,33 @@ async def test_put_applies_to_task_only_rejected_on_document(
 
 
 # ---------------------------------------------------------------------------
-# Cross-guild isolation
+# Cross-initiative isolation
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
-async def test_put_cross_guild_definition_rejected(
+async def test_put_cross_initiative_definition_rejected(
     client: AsyncClient, session: AsyncSession
 ):
+    """A definition from initiative B can't be attached to a doc in A."""
     user = await create_user(session, email="u@example.com")
-    guild_a = await create_guild(session, name="A")
-    guild_b = await create_guild(session, name="B")
-    await create_guild_membership(session, user=user, guild=guild_a, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild_b, role=GuildRole.admin)
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
 
-    initiative_a = await create_initiative(session, guild_a, user, name="Init A")
-    doc = await _create_document(session, initiative=initiative_a, owner=user)
+    init_a = await create_initiative(session, guild, user, name="A")
+    init_b = await create_initiative(session, guild, user, name="B")
 
-    # Definition lives in guild B.
-    defn_b = await create_property_definition(session, guild_b, name="Foreign")
+    doc = await _create_document(session, initiative=init_a, owner=user)
+
+    # Definition lives in initiative B.
+    defn_b = await create_property_definition(session, init_b, name="Foreign")
 
     response = await client.put(
         f"/api/v1/documents/{doc.id}/properties",
-        headers=get_guild_headers(guild_a, user),
+        headers=get_guild_headers(guild, user),
         json={"values": [{"property_id": defn_b.id, "value": "x"}]},
     )
-    assert response.status_code in {400, 404}
-    # Service raises 404 DEFINITION_NOT_FOUND for cross-guild / unknown ids.
+    assert response.status_code == 404
     assert response.json()["detail"] == "PROPERTY_DEFINITION_NOT_FOUND"
 
 
@@ -261,7 +264,7 @@ async def test_put_text_value_against_number_type_rejected(
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     defn = await create_property_definition(
-        session, guild, name="Count", type=PropertyType.number
+        session, initiative, name="Count", type=PropertyType.number
     )
 
     response = await client.put(
@@ -284,7 +287,7 @@ async def test_put_select_unknown_option_rejected(
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     defn = await create_property_definition(
-        session, guild, name="Phase", type=PropertyType.select,
+        session, initiative, name="Phase", type=PropertyType.select,
         options=[{"value": "draft", "label": "Draft"}],
     )
 
@@ -308,7 +311,7 @@ async def test_put_multi_select_unknown_option_rejected(
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     defn = await create_property_definition(
-        session, guild, name="Tags", type=PropertyType.multi_select,
+        session, initiative, name="Tags", type=PropertyType.multi_select,
         options=[{"value": "one", "label": "One"}, {"value": "two", "label": "Two"}],
     )
 
@@ -322,20 +325,23 @@ async def test_put_multi_select_unknown_option_rejected(
 
 
 @pytest.mark.integration
-async def test_put_user_reference_non_member_rejected(
+async def test_put_user_reference_non_initiative_member_rejected(
     client: AsyncClient, session: AsyncSession
 ):
     user = await create_user(session, email="u@example.com")
     outsider = await create_user(session, email="outsider@example.com")
     guild = await create_guild(session)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    # NOTE: outsider is intentionally *not* a member of guild.
+    # outsider IS in the guild but NOT in the initiative.
+    await create_guild_membership(
+        session, user=outsider, guild=guild, role=GuildRole.member
+    )
 
     initiative = await create_initiative(session, guild, user, name="Init")
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     defn = await create_property_definition(
-        session, guild, name="Owner", type=PropertyType.user_reference
+        session, initiative, name="Owner", type=PropertyType.user_reference
     )
 
     response = await client.put(
@@ -344,7 +350,7 @@ async def test_put_user_reference_non_member_rejected(
         json={"values": [{"property_id": defn.id, "value": outsider.id}]},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "PROPERTY_USER_NOT_IN_GUILD"
+    assert response.json()["detail"] == "PROPERTY_USER_NOT_IN_INITIATIVE"
 
 
 @pytest.mark.integration
@@ -358,7 +364,7 @@ async def test_put_url_accepts_valid_url_and_rejects_invalid(
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     defn = await create_property_definition(
-        session, guild, name="Site", type=PropertyType.url
+        session, initiative, name="Site", type=PropertyType.url
     )
 
     headers = get_guild_headers(guild, user)
@@ -383,43 +389,6 @@ async def test_put_url_accepts_valid_url_and_rejects_invalid(
 
 
 # ---------------------------------------------------------------------------
-# Global documents (guild_id IS NULL on the document row)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_put_properties_on_doc_with_null_guild_id(
-    client: AsyncClient, session: AsyncSession
-):
-    """Documents whose own ``guild_id`` column is NULL still support property attach.
-
-    Access resolves through the owner's DocumentPermission + the
-    document's initiative (whose ``guild_id`` matches the request header).
-    """
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    # create_initiative already adds the creator as PM via the factory.
-    initiative = await create_initiative(session, guild, user, name="Init")
-
-    # guild_id_override=None produces a doc with Document.guild_id IS NULL
-    doc = await _create_document(
-        session, initiative=initiative, owner=user, guild_id_override=None
-    )
-    defn = await create_property_definition(session, guild, name="Tag", type=PropertyType.text)
-
-    response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
-        headers=get_guild_headers(guild, user),
-        json={"values": [{"property_id": defn.id, "value": "alpha"}]},
-    )
-
-    assert response.status_code == 200
-    props = {p["property_id"]: p["value"] for p in response.json()["properties"]}
-    assert props[defn.id] == "alpha"
-
-
-# ---------------------------------------------------------------------------
 # Documents list — property_filters query param
 # ---------------------------------------------------------------------------
 
@@ -433,7 +402,9 @@ async def test_list_documents_property_filter_text_eq(
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name="Init")
 
-    defn = await create_property_definition(session, guild, name="Tag", type=PropertyType.text)
+    defn = await create_property_definition(
+        session, initiative, name="Tag", type=PropertyType.text
+    )
 
     doc_match = await _create_document(session, initiative=initiative, owner=user, title="Match")
     doc_other = await _create_document(session, initiative=initiative, owner=user, title="Other")
@@ -473,7 +444,7 @@ async def test_list_documents_property_filter_number_eq(
     initiative = await create_initiative(session, guild, user, name="Init")
 
     defn = await create_property_definition(
-        session, guild, name="Score", type=PropertyType.number
+        session, initiative, name="Score", type=PropertyType.number
     )
 
     docs = [
@@ -513,7 +484,7 @@ async def test_list_documents_property_filter_multi_select_contains(
     initiative = await create_initiative(session, guild, user, name="Init")
 
     defn = await create_property_definition(
-        session, guild, name="Labels", type=PropertyType.multi_select,
+        session, initiative, name="Labels", type=PropertyType.multi_select,
         options=[
             {"value": "alpha", "label": "Alpha"},
             {"value": "beta", "label": "Beta"},
@@ -583,3 +554,100 @@ async def test_list_documents_too_many_property_filters_returns_400(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "QUERY_INVALID_CONDITIONS"
+
+
+# ---------------------------------------------------------------------------
+# Copy / duplicate cascades for property values
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_duplicate_document_same_initiative_carries_property_values(
+    client: AsyncClient, session: AsyncSession
+):
+    """Duplicating a document in place (same initiative) copies its values."""
+    user = await create_user(session, email="u@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user, name="Init")
+
+    doc = await _create_document(session, initiative=initiative, owner=user, title="Src")
+    defn = await create_property_definition(
+        session, initiative, name="Tag", type=PropertyType.text
+    )
+
+    headers = get_guild_headers(guild, user)
+    await client.put(
+        f"/api/v1/documents/{doc.id}/properties",
+        headers=headers,
+        json={"values": [{"property_id": defn.id, "value": "carryover"}]},
+    )
+
+    response = await client.post(
+        f"/api/v1/documents/{doc.id}/duplicate",
+        headers=headers,
+        json={"title": "Dup"},
+    )
+    assert response.status_code == 201
+    dup = response.json()
+    props = {p["property_id"]: p["value"] for p in dup["properties"]}
+    assert props.get(defn.id) == "carryover"
+
+    # Verify in DB
+    dup_rows = await session.exec(
+        select(DocumentPropertyValue).where(
+            DocumentPropertyValue.document_id == dup["id"]
+        )
+    )
+    dup_list = dup_rows.all()
+    assert len(dup_list) == 1
+    assert dup_list[0].property_id == defn.id
+
+
+@pytest.mark.integration
+async def test_copy_document_cross_initiative_drops_property_values(
+    client: AsyncClient, session: AsyncSession
+):
+    """Copying a document to a different initiative drops its property values."""
+    user = await create_user(session, email="u@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    init_a = await create_initiative(session, guild, user, name="A")
+    init_b = await create_initiative(session, guild, user, name="B")
+
+    doc = await _create_document(session, initiative=init_a, owner=user, title="Src")
+    defn = await create_property_definition(
+        session, init_a, name="Tag", type=PropertyType.text
+    )
+
+    headers = get_guild_headers(guild, user)
+    await client.put(
+        f"/api/v1/documents/{doc.id}/properties",
+        headers=headers,
+        json={"values": [{"property_id": defn.id, "value": "onlyA"}]},
+    )
+
+    response = await client.post(
+        f"/api/v1/documents/{doc.id}/copy",
+        headers=headers,
+        json={"title": "Copied", "target_initiative_id": init_b.id},
+    )
+    assert response.status_code == 201
+    copied = response.json()
+    # New doc should have no property values (cross-initiative copy).
+    assert copied["properties"] == []
+
+    copied_rows = await session.exec(
+        select(DocumentPropertyValue).where(
+            DocumentPropertyValue.document_id == copied["id"]
+        )
+    )
+    assert copied_rows.all() == []
+
+    # Original is untouched.
+    original_rows = await session.exec(
+        select(DocumentPropertyValue).where(
+            DocumentPropertyValue.document_id == doc.id
+        )
+    )
+    assert len(original_rows.all()) == 1

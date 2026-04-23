@@ -1594,6 +1594,7 @@ export interface PropertyDefinitionCreate {
   position?: number;
   color?: string | null;
   options?: PropertyOption[] | null;
+  initiative_id: number;
 }
 
 export interface PropertyDefinitionRead {
@@ -1608,7 +1609,7 @@ export interface PropertyDefinitionRead {
   color: string | null;
   options: PropertyOption[] | null;
   id: number;
-  guild_id: number;
+  initiative_id: number;
   created_at: string;
   updated_at: string;
 }
@@ -3109,6 +3110,7 @@ export type ListCalendarEventsApiV1CalendarEventsGetParams = {
 };
 
 export type ListPropertyDefinitionsApiV1PropertyDefinitionsGetParams = {
+  initiative_id?: number | null;
   applies_to?: PropertyAppliesTo | null;
 };
 

@@ -487,7 +487,7 @@ async def create_initiative_member(
 
 async def create_property_definition(
     session: AsyncSession,
-    guild: Guild,
+    initiative: Initiative,
     *,
     name: str | None = None,
     type: PropertyType = PropertyType.text,
@@ -507,7 +507,7 @@ async def create_property_definition(
 
     Args:
         session: Database session
-        guild: Guild the definition belongs to
+        initiative: Initiative the definition belongs to
         name: Property name (auto-generated if None)
         type: Property type (default: text)
         applies_to: Entity scope (default: both)
@@ -533,7 +533,7 @@ async def create_property_definition(
         options = None
 
     defaults = {
-        "guild_id": guild.id,
+        "initiative_id": initiative.id,
         "name": name,
         "type": type,
         "applies_to": applies_to,

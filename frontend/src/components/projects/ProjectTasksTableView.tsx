@@ -41,13 +41,19 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { TagBadge } from "@/components/tags/TagBadge";
 import { useGuildPath } from "@/lib/guildUrl";
 import { TaskStatusOption, statusTriggerStyle } from "@/components/tasks/TaskStatusOption";
-import { buildPropertyColumns, propertyColumnId } from "@/components/properties/propertyColumns";
+import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { useProperties } from "@/hooks/useProperties";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { PropertyAppliesTo } from "@/api/generated/initiativeAPI.schemas";
 
 type ProjectTasksListViewProps = {
   projectId: number;
+  /**
+   * Initiative the project belongs to. Scopes the property column list so
+   * this table surfaces only the initiative's property definitions (global
+   * views like My Tasks still use the unbound union).
+   */
+  initiativeId: number;
   tasks: TaskListRead[];
   taskStatuses: TaskStatusRead[];
   sensors: DndContextProps["sensors"];
@@ -164,6 +170,7 @@ const SortableRowWrapperInner = ({
 
 const ProjectTasksTableViewComponent = ({
   projectId,
+  initiativeId,
   tasks,
   taskStatuses,
   sensors,
@@ -184,7 +191,8 @@ const ProjectTasksTableViewComponent = ({
   const gp = useGuildPath();
 
   // Programmatic property columns (hidden by default, persist visibility).
-  const { data: allPropertyDefinitions = [] } = useProperties();
+  // Scoped to the project's initiative so the column list stays focused.
+  const { data: allPropertyDefinitions = [] } = useProperties({ initiativeId });
   const propertyDefinitions = useMemo(
     () =>
       allPropertyDefinitions.filter(
@@ -199,7 +207,7 @@ const ProjectTasksTableViewComponent = ({
     [propertyDefinitions]
   );
   const propertyHiddenIds = useMemo(
-    () => propertyDefinitions.map((definition) => propertyColumnId(definition)),
+    () => propertyColumnIds(propertyDefinitions),
     [propertyDefinitions]
   );
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
@@ -585,7 +593,8 @@ export const ProjectTasksTableView = memo(
       prevProps.canReorderTasks === nextProps.canReorderTasks &&
       prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
       prevProps.canOpenTask === nextProps.canOpenTask &&
-      prevProps.taskActionsDisabled === nextProps.taskActionsDisabled
+      prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
+      prevProps.initiativeId === nextProps.initiativeId
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
     );
   }

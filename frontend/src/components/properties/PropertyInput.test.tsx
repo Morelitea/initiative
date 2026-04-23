@@ -246,7 +246,7 @@ describe("PropertyInput", () => {
   });
 
   describe("summary-shape definitions", () => {
-    it("accepts a PropertySummary (no id/guild_id) as definition", () => {
+    it("accepts a PropertySummary (no id/initiative_id) as definition", () => {
       renderWithProviders(
         <PropertyInput
           definition={{

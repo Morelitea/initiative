@@ -30,6 +30,13 @@ import { slugify, typeRequiresOptions } from "./propertyHelpers";
 
 export interface AddPropertyButtonProps {
   entityKind: PropertyEntityKind;
+  /**
+   * Initiative the entity belongs to. Scopes both the candidate list (so the
+   * picker only surfaces definitions from this initiative) and the inline
+   * "create new property" submission (bakes ``initiative_id`` into the create
+   * payload).
+   */
+  initiativeId: number;
   currentPropertyIds: number[];
   onAdd: (definition: PropertyDefinitionRead) => void;
   disabled?: boolean;
@@ -49,6 +56,7 @@ const ORDERED_TYPES: PropertyTypeValue[] = [
 
 export const AddPropertyButton = ({
   entityKind,
+  initiativeId,
   currentPropertyIds,
   onAdd,
   disabled = false,
@@ -63,7 +71,7 @@ export const AddPropertyButton = ({
   const [newType, setNewType] = useState<PropertyTypeValue>(PropertyType.text);
   const [newOptions, setNewOptions] = useState<PropertyOption[]>([]);
 
-  const propertiesQuery = useProperties();
+  const propertiesQuery = useProperties({ initiativeId });
   const createPropertyMutation = useCreateProperty();
 
   const currentIdSet = useMemo(() => new Set(currentPropertyIds), [currentPropertyIds]);
@@ -145,6 +153,7 @@ export const AddPropertyButton = ({
       name,
       type: newType,
       applies_to: PropertyAppliesTo.both,
+      initiative_id: initiativeId,
       options,
     };
 
@@ -155,7 +164,7 @@ export const AddPropertyButton = ({
     } catch {
       // toast handled inside the mutation hook
     }
-  }, [newName, newType, newOptions, createPropertyMutation, onAdd, handleOpenChange]);
+  }, [newName, newType, newOptions, initiativeId, createPropertyMutation, onAdd, handleOpenChange]);
 
   const canSubmit = useMemo(() => {
     if (!newName.trim()) return false;

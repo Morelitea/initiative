@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
-import { buildPropertyColumns, propertyColumnId } from "@/components/properties/propertyColumns";
+import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { useProperties } from "@/hooks/useProperties";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { useDateLocale } from "@/hooks/useDateLocale";
@@ -125,7 +125,7 @@ export const DocumentsListView = ({
     [documentPropertyDefinitions]
   );
   const propertyHiddenIds = useMemo(
-    () => documentPropertyDefinitions.map((definition) => propertyColumnId(definition)),
+    () => propertyColumnIds(documentPropertyDefinitions),
     [documentPropertyDefinitions]
   );
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(

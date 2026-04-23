@@ -36,7 +36,12 @@ import type { ErrorType, BodyType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * List property definitions in the current guild, ordered by position.
+ * List property definitions.
+
+With ``initiative_id``, returns definitions for that initiative only
+(filtered explicitly and subject to RLS). Without it, RLS returns the
+union across every initiative the caller can see — used by global
+views (My Tasks, Created Tasks, global Documents list).
  * @summary List Property Definitions
  */
 export const listPropertyDefinitionsApiV1PropertyDefinitionsGet = (
@@ -196,7 +201,9 @@ export function useListPropertyDefinitionsApiV1PropertyDefinitionsGet<
 }
 
 /**
- * Create a new property definition in the current guild.
+ * Create a new property definition on an initiative.
+
+Requires the caller to be a member of the target initiative.
  * @summary Create Property Definition
  */
 export const createPropertyDefinitionApiV1PropertyDefinitionsPost = (

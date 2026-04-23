@@ -39,14 +39,34 @@ import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/propertie
 
 // ── Queries ──────────────────────────────────────────────────────────────────
 
-export const useProperties = (appliesTo?: PropertyAppliesTo) => {
-  const params = appliesTo ? { applies_to: appliesTo } : undefined;
+/**
+ * List property definitions.
+ *
+ * - ``initiativeId`` bound: scopes to that one initiative (for per-doc/task
+ *   pickers and the initiative settings manager page).
+ * - ``initiativeId`` omitted: returns the union across every initiative the
+ *   caller is a member of — used by global views (My Tasks, Documents list)
+ *   so property columns and filters aggregate across initiatives.
+ *
+ * ``appliesTo`` narrows to ``document`` / ``task`` when provided.
+ */
+export const useProperties = (
+  options?: { initiativeId?: number; appliesTo?: PropertyAppliesTo } | PropertyAppliesTo
+) => {
+  // Back-compat: older call sites pass a bare PropertyAppliesTo string.
+  const resolved = typeof options === "string" ? { appliesTo: options } : (options ?? {});
+  const params: { initiative_id?: number; applies_to?: PropertyAppliesTo } = {};
+  if (resolved.initiativeId !== undefined) params.initiative_id = resolved.initiativeId;
+  if (resolved.appliesTo !== undefined) params.applies_to = resolved.appliesTo;
+  const hasParams = Object.keys(params).length > 0;
   return useQuery<PropertyDefinitionRead[]>({
-    queryKey: getListPropertyDefinitionsApiV1PropertyDefinitionsGetQueryKey(params),
+    queryKey: getListPropertyDefinitionsApiV1PropertyDefinitionsGetQueryKey(
+      hasParams ? params : undefined
+    ),
     queryFn: () =>
-      listPropertyDefinitionsApiV1PropertyDefinitionsGet(params) as unknown as Promise<
-        PropertyDefinitionRead[]
-      >,
+      listPropertyDefinitionsApiV1PropertyDefinitionsGet(
+        hasParams ? params : undefined
+      ) as unknown as Promise<PropertyDefinitionRead[]>,
     staleTime: 60 * 1000,
   });
 };

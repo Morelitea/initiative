@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { useParams } from "@tanstack/react-router";
+import { AlertCircle, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -195,13 +196,20 @@ const OptionListEditor = ({ options, onChange, disabled }: OptionListEditorProps
 };
 
 /**
- * Guild-admin surface for listing and managing custom property definitions.
- * Pairs with ``PropertyFilter``/``PropertyList``/``PropertyInput`` which
- * render individual values on documents and tasks.
+ * Initiative-admin surface for listing and managing custom property
+ * definitions. Pairs with ``PropertyFilter``/``PropertyList``/
+ * ``PropertyInput`` which render individual values on documents and tasks.
  */
 export const PropertyDefinitionManagerPage = () => {
   const { t } = useTranslation(["properties", "common"]);
-  const propertiesQuery = useProperties();
+  const params = useParams({ strict: false }) as { initiativeId?: string };
+  const parsedInitiativeId = Number(params.initiativeId);
+  const hasValidInitiativeId = Number.isFinite(parsedInitiativeId) && parsedInitiativeId > 0;
+  const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
+
+  const propertiesQuery = useProperties({
+    initiativeId: hasValidInitiativeId ? initiativeId : undefined,
+  });
   const createMutation = useCreateProperty();
   const updateMutation = useUpdateProperty();
   const deleteMutation = useDeleteProperty();
@@ -283,10 +291,12 @@ export const PropertyDefinitionManagerPage = () => {
       : undefined;
 
     if (dialogState.mode === "create") {
+      if (!hasValidInitiativeId) return;
       const payload: PropertyDefinitionCreate = {
         name: trimmedName,
         type: formState.type,
         applies_to: formState.appliesTo,
+        initiative_id: initiativeId,
         color: formState.color ?? null,
         options,
       };
@@ -339,6 +349,20 @@ export const PropertyDefinitionManagerPage = () => {
       // Error toast handled by the mutation hook.
     }
   };
+
+  if (!hasValidInitiativeId) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            {t("properties:manager.missingInitiative")}
+          </CardTitle>
+          <CardDescription>{t("properties:manager.missingInitiativeDescription")}</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">

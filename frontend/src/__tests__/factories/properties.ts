@@ -18,7 +18,7 @@ export function buildPropertyDefinition(
   counter++;
   return {
     id: counter,
-    guild_id: 1,
+    initiative_id: 1,
     name: "Priority",
     type: PropertyType.text,
     applies_to: PropertyAppliesTo.both,

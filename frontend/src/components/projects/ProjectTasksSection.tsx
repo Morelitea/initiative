@@ -150,6 +150,12 @@ const getDefaultFiltersVisibility = () => {
 
 type ProjectTasksSectionProps = {
   projectId: number;
+  /**
+   * Initiative the project belongs to. Threaded down to the table view so
+   * programmatic property columns stay scoped to this initiative's
+   * definitions.
+   */
+  initiativeId: number;
   taskStatuses: TaskStatusRead[];
   userOptions: UserOption[];
   canEditTaskDetails: boolean;
@@ -163,6 +169,7 @@ type ProjectTasksSectionProps = {
 
 export const ProjectTasksSection = ({
   projectId,
+  initiativeId,
   taskStatuses,
   userOptions,
   canEditTaskDetails,
@@ -979,6 +986,7 @@ export const ProjectTasksSection = ({
           )}
           <ProjectTasksTableView
             projectId={projectId}
+            initiativeId={initiativeId}
             tasks={statusFilteredTasks}
             taskStatuses={sortedTaskStatuses}
             sensors={listSensors}

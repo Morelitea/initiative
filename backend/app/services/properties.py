@@ -24,7 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import PropertyMessages
 from app.models.document import Document
-from app.models.guild import GuildMembership
+from app.models.initiative import InitiativeMember
 from app.models.property import (
     DocumentPropertyValue,
     PropertyAppliesTo,
@@ -158,16 +158,18 @@ def _parsed_options(defn: PropertyDefinition) -> List[PropertyOption]:
     return parsed
 
 
-async def _ensure_user_in_guild(session: AsyncSession, user_id: int, guild_id: int) -> None:
-    stmt = select(GuildMembership).where(
-        GuildMembership.guild_id == guild_id,
-        GuildMembership.user_id == user_id,
+async def _ensure_user_in_initiative(
+    session: AsyncSession, user_id: int, initiative_id: int
+) -> None:
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == initiative_id,
+        InitiativeMember.user_id == user_id,
     )
     result = await session.exec(stmt)
     if result.one_or_none() is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=PropertyMessages.USER_NOT_IN_GUILD,
+            detail=PropertyMessages.USER_NOT_IN_INITIATIVE,
         )
 
 
@@ -192,7 +194,7 @@ async def _validate_value_for_type(
     session: AsyncSession,
     defn: PropertyDefinition,
     raw_value: Any,
-    guild_id: int,
+    initiative_id: int,
 ) -> Dict[str, Any]:
     """Return the typed-column dict for ``raw_value`` under ``defn``.
 
@@ -201,8 +203,8 @@ async def _validate_value_for_type(
     persists as an attached-but-empty record.
 
     Raises ``HTTPException`` 400 on type mismatches or select/option
-    issues, 400 ``USER_NOT_IN_GUILD`` for cross-guild ``user_reference``
-    values.
+    issues, 400 ``USER_NOT_IN_INITIATIVE`` for cross-initiative
+    ``user_reference`` values.
     """
     cols = _empty_columns()
 
@@ -251,7 +253,7 @@ async def _validate_value_for_type(
     elif ptype is PropertyType.user_reference:
         if not isinstance(raw_value, int) or isinstance(raw_value, bool):
             raise _bad_value()
-        await _ensure_user_in_guild(session, raw_value, guild_id)
+        await _ensure_user_in_initiative(session, raw_value, initiative_id)
         cols["value_user_id"] = raw_value
     else:  # pragma: no cover - defensive; PropertyType is closed
         raise _bad_value()
@@ -285,7 +287,7 @@ async def _set_property_values(
     entity_kind: str,
     entity_id: int,
     values: Sequence[PropertyValueInput],
-    guild_id: int,
+    initiative_id: int,
 ) -> None:
     value_model = (
         DocumentPropertyValue if entity_kind == "document" else TaskPropertyValue
@@ -310,7 +312,7 @@ async def _set_property_values(
 
     for entry in values:
         defn = definitions.get(entry.property_id)
-        if defn is None or defn.guild_id != guild_id:
+        if defn is None or defn.initiative_id != initiative_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=PropertyMessages.DEFINITION_NOT_FOUND,
@@ -320,7 +322,9 @@ async def _set_property_values(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=PropertyMessages.APPLIES_TO_MISMATCH,
             )
-        cols = await _validate_value_for_type(session, defn, entry.value, guild_id)
+        cols = await _validate_value_for_type(
+            session, defn, entry.value, initiative_id
+        )
 
         if entity_kind == "document":
             row = DocumentPropertyValue(
@@ -341,7 +345,7 @@ async def set_document_property_values(
     session: AsyncSession,
     document: Document,
     values: Sequence[PropertyValueInput],
-    guild_id: int,
+    initiative_id: int,
 ) -> None:
     """Replace all property values attached to ``document``.
 
@@ -352,7 +356,7 @@ async def set_document_property_values(
         entity_kind="document",
         entity_id=document.id,
         values=values,
-        guild_id=guild_id,
+        initiative_id=initiative_id,
     )
 
 
@@ -360,7 +364,7 @@ async def set_task_property_values(
     session: AsyncSession,
     task: Task,
     values: Sequence[PropertyValueInput],
-    guild_id: int,
+    initiative_id: int,
 ) -> None:
     """Replace all property values attached to ``task``.
 
@@ -371,7 +375,7 @@ async def set_task_property_values(
         entity_kind="task",
         entity_id=task.id,
         values=values,
-        guild_id=guild_id,
+        initiative_id=initiative_id,
     )
 
 
@@ -817,20 +821,16 @@ def parse_property_filters(raw: Optional[str]) -> List[ParsedPropertyFilter]:
 async def load_definitions_by_ids(
     session: AsyncSession,
     definition_ids: Iterable[int],
-    *,
-    guild_id: int,
 ) -> Dict[int, PropertyDefinition]:
-    """Load property definitions for a guild keyed by id.
+    """Load property definitions by id.
 
     Used by list filters so the endpoint can resolve the correct typed
-    column per condition without issuing one query per condition.
+    column per condition without issuing one query per condition. RLS
+    constrains visibility to the caller's accessible initiatives.
     """
     ids = list({did for did in definition_ids if did is not None})
     if not ids:
         return {}
-    stmt = select(PropertyDefinition).where(
-        PropertyDefinition.id.in_(ids),
-        PropertyDefinition.guild_id == guild_id,
-    )
+    stmt = select(PropertyDefinition).where(PropertyDefinition.id.in_(ids))
     result = await session.exec(stmt)
     return {defn.id: defn for defn in result.all()}

@@ -51,7 +51,7 @@ class PropertyDefinitionBase(BaseModel):
 
 
 class PropertyDefinitionCreate(PropertyDefinitionBase):
-    pass
+    initiative_id: int
 
 
 class PropertyDefinitionUpdate(BaseModel):
@@ -92,7 +92,7 @@ class PropertyDefinitionRead(PropertyDefinitionBase):
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     id: int
-    guild_id: int
+    initiative_id: int
     created_at: datetime
     updated_at: datetime
 

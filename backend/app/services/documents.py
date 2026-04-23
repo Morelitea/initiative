@@ -279,6 +279,31 @@ async def duplicate_document(
             for link in source_tag_links
         ])
 
+    # Copy property values ONLY when the target initiative matches the
+    # source's — definitions are initiative-scoped, so cross-initiative
+    # copies would produce orphaned values the target can't resolve.
+    if target_initiative_id == source.initiative_id:
+        source_value_stmt = select(DocumentPropertyValue).where(
+            DocumentPropertyValue.document_id == source.id
+        )
+        source_values_result = await session.exec(source_value_stmt)
+        source_values = source_values_result.all()
+        if source_values:
+            session.add_all([
+                DocumentPropertyValue(
+                    document_id=duplicated.id,
+                    property_id=row.property_id,
+                    value_text=row.value_text,
+                    value_number=row.value_number,
+                    value_boolean=row.value_boolean,
+                    value_date=row.value_date,
+                    value_datetime=row.value_datetime,
+                    value_user_id=row.value_user_id,
+                    value_json=deepcopy(row.value_json) if row.value_json is not None else None,
+                )
+                for row in source_values
+            ])
+
     await session.commit()
     return duplicated
 

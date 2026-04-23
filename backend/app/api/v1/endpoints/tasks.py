@@ -1053,7 +1053,6 @@ async def list_tasks(
     property_definitions_map = await properties_service.load_definitions_by_ids(
         session,
         _property_ids_needed,
-        guild_id=guild_context.guild_id,
     )
 
     if scope == "global":
@@ -1396,12 +1395,22 @@ async def move_task(
     default_status = await task_statuses_service.get_default_status(session, target_project.id)
     now = datetime.now(timezone.utc)
     source_project_id = task.project_id
+    source_initiative_id = task.project.initiative_id if task.project else None
     task.project_id = target_project.id
     task.task_status_id = default_status.id
     task.task_status = default_status
     task.sort_order = 0
     task.updated_at = now
     session.add(task)
+
+    # If the move crosses initiative boundaries, drop property values —
+    # their definitions belong to the old initiative and can't resolve in
+    # the new one.
+    if source_initiative_id is not None and source_initiative_id != target_project.initiative_id:
+        await session.execute(
+            delete(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
+        )
+
     await _touch_project(session, source_project_id, timestamp=now)
     await _touch_project(session, target_project.id, timestamp=now)
     await session.commit()
@@ -1491,6 +1500,31 @@ async def duplicate_task(
         session.add_all([
             TaskTag(task_id=new_task.id, tag_id=link.tag_id)
             for link in original_task.tag_links
+        ])
+
+    # Copy property values — duplicate stays in the same project and
+    # therefore the same initiative, so definitions always resolve.
+    from copy import deepcopy  # local import to avoid top-level clutter
+
+    source_values_stmt = select(TaskPropertyValue).where(
+        TaskPropertyValue.task_id == original_task.id
+    )
+    source_values_result = await session.exec(source_values_stmt)
+    source_values = source_values_result.all()
+    if source_values:
+        session.add_all([
+            TaskPropertyValue(
+                task_id=new_task.id,
+                property_id=row.property_id,
+                value_text=row.value_text,
+                value_number=row.value_number,
+                value_boolean=row.value_boolean,
+                value_date=row.value_date,
+                value_datetime=row.value_datetime,
+                value_user_id=row.value_user_id,
+                value_json=deepcopy(row.value_json) if row.value_json is not None else None,
+            )
+            for row in source_values
         ])
 
     await _touch_project(session, original_task.project_id)
@@ -2097,13 +2131,19 @@ async def set_task_properties(
 
     task_id_to_update = task.id
     project_id = task.project_id
+    initiative_id = task.project.initiative_id if task.project else None
+    if initiative_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=TaskMessages.NOT_FOUND,
+        )
 
     try:
         await properties_service.set_task_property_values(
             session,
             task,
             payload.values,
-            guild_context.guild_id,
+            initiative_id,
         )
     except HTTPException:
         await session.rollback()

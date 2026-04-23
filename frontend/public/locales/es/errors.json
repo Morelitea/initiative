@@ -101,7 +101,7 @@
   "PROPERTY_TYPE_CHANGE_BLOCKED": "No se puede cambiar el tipo de propiedad mientras haya valores. Elimina primero los valores asociados.",
   "PROPERTY_INVALID_VALUE_FOR_TYPE": "El valor no coincide con el tipo de la propiedad",
   "PROPERTY_OPTION_NOT_IN_DEFINITION": "La opción seleccionada no es válida para esta propiedad",
-  "PROPERTY_USER_NOT_IN_GUILD": "El usuario referenciado no es miembro de este gremio",
+  "PROPERTY_USER_NOT_IN_INITIATIVE": "El usuario referenciado no es miembro de esta iniciativa",
   "PROPERTY_OPTIONS_REQUIRED": "Las propiedades de selección requieren al menos una opción",
   "PROPERTY_DUPLICATE_OPTION_VALUE": "Los valores de opción deben ser únicos dentro de una propiedad",
   "PROPERTY_APPLIES_TO_MISMATCH": "Esta propiedad no se aplica a este tipo de entidad",

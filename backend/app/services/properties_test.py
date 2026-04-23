@@ -24,6 +24,8 @@ from app.services.properties import (
 from app.testing import (
     create_guild,
     create_guild_membership,
+    create_initiative,
+    create_initiative_member,
     create_user,
 )
 
@@ -32,11 +34,11 @@ def _make_definition(
     type: PropertyType,
     *,
     options: list[dict] | None = None,
-    guild_id: int = 1,
+    initiative_id: int = 1,
 ) -> PropertyDefinition:
     """Build a non-persisted PropertyDefinition for pure-function tests."""
     defn = PropertyDefinition(
-        guild_id=guild_id,
+        initiative_id=initiative_id,
         name="Prop",
         type=type,
         applies_to=PropertyAppliesTo.both,
@@ -55,7 +57,7 @@ def _make_definition(
 @pytest.mark.service
 async def test_validate_text_accepts_string(session: AsyncSession):
     defn = _make_definition(PropertyType.text)
-    cols = await _validate_value_for_type(session, defn, "hello", guild_id=1)
+    cols = await _validate_value_for_type(session, defn, "hello", initiative_id=1)
     assert cols["value_text"] == "hello"
     assert cols["value_number"] is None
 
@@ -65,7 +67,7 @@ async def test_validate_text_accepts_string(session: AsyncSession):
 async def test_validate_text_rejects_non_string(session: AsyncSession):
     defn = _make_definition(PropertyType.text)
     with pytest.raises(HTTPException) as exc_info:
-        await _validate_value_for_type(session, defn, 123, guild_id=1)
+        await _validate_value_for_type(session, defn, 123, initiative_id=1)
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "PROPERTY_INVALID_VALUE_FOR_TYPE"
 
@@ -82,13 +84,13 @@ async def test_validate_number_accepts_int_float_and_string(
 ):
     defn = _make_definition(PropertyType.number)
 
-    cols_int = await _validate_value_for_type(session, defn, 10, guild_id=1)
+    cols_int = await _validate_value_for_type(session, defn, 10, initiative_id=1)
     assert cols_int["value_number"] == Decimal("10")
 
-    cols_float = await _validate_value_for_type(session, defn, 2.5, guild_id=1)
+    cols_float = await _validate_value_for_type(session, defn, 2.5, initiative_id=1)
     assert cols_float["value_number"] == Decimal("2.5")
 
-    cols_str = await _validate_value_for_type(session, defn, "42.0", guild_id=1)
+    cols_str = await _validate_value_for_type(session, defn, "42.0", initiative_id=1)
     assert cols_str["value_number"] == Decimal("42.0")
 
 
@@ -97,7 +99,7 @@ async def test_validate_number_accepts_int_float_and_string(
 async def test_validate_number_rejects_non_numeric(session: AsyncSession):
     defn = _make_definition(PropertyType.number)
     with pytest.raises(HTTPException) as exc_info:
-        await _validate_value_for_type(session, defn, "abc", guild_id=1)
+        await _validate_value_for_type(session, defn, "abc", initiative_id=1)
     assert exc_info.value.detail == "PROPERTY_INVALID_VALUE_FOR_TYPE"
 
 
@@ -110,7 +112,7 @@ async def test_validate_number_rejects_non_numeric(session: AsyncSession):
 @pytest.mark.service
 async def test_validate_checkbox_accepts_bool(session: AsyncSession):
     defn = _make_definition(PropertyType.checkbox)
-    cols = await _validate_value_for_type(session, defn, True, guild_id=1)
+    cols = await _validate_value_for_type(session, defn, True, initiative_id=1)
     assert cols["value_boolean"] is True
 
 
@@ -121,7 +123,7 @@ async def test_validate_checkbox_rejects_non_bool(session: AsyncSession):
     defn = _make_definition(PropertyType.checkbox)
     for bad in ("true", "false", 1, 0, "garbage"):
         with pytest.raises(HTTPException):
-            await _validate_value_for_type(session, defn, bad, guild_id=1)
+            await _validate_value_for_type(session, defn, bad, initiative_id=1)
 
 
 # ---------------------------------------------------------------------------
@@ -133,7 +135,7 @@ async def test_validate_checkbox_rejects_non_bool(session: AsyncSession):
 @pytest.mark.service
 async def test_validate_date_accepts_iso_string(session: AsyncSession):
     defn = _make_definition(PropertyType.date)
-    cols = await _validate_value_for_type(session, defn, "2026-04-22", guild_id=1)
+    cols = await _validate_value_for_type(session, defn, "2026-04-22", initiative_id=1)
     assert cols["value_date"] == date(2026, 4, 22)
 
 
@@ -142,7 +144,7 @@ async def test_validate_date_accepts_iso_string(session: AsyncSession):
 async def test_validate_date_rejects_malformed(session: AsyncSession):
     defn = _make_definition(PropertyType.date)
     with pytest.raises(HTTPException):
-        await _validate_value_for_type(session, defn, "notadate", guild_id=1)
+        await _validate_value_for_type(session, defn, "notadate", initiative_id=1)
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +157,7 @@ async def test_validate_date_rejects_malformed(session: AsyncSession):
 async def test_validate_datetime_accepts_iso_with_tz(session: AsyncSession):
     defn = _make_definition(PropertyType.datetime)
     cols = await _validate_value_for_type(
-        session, defn, "2026-04-22T10:00:00+00:00", guild_id=1
+        session, defn, "2026-04-22T10:00:00+00:00", initiative_id=1
     )
     assert isinstance(cols["value_datetime"], datetime)
     assert cols["value_datetime"].tzinfo is not None
@@ -166,7 +168,7 @@ async def test_validate_datetime_accepts_iso_with_tz(session: AsyncSession):
 async def test_validate_datetime_rejects_malformed(session: AsyncSession):
     defn = _make_definition(PropertyType.datetime)
     with pytest.raises(HTTPException):
-        await _validate_value_for_type(session, defn, "notadatetime", guild_id=1)
+        await _validate_value_for_type(session, defn, "notadatetime", initiative_id=1)
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +182,7 @@ async def test_validate_url_accepts_http_https(session: AsyncSession):
     defn = _make_definition(PropertyType.url)
 
     for ok_url in ("https://example.com", "http://example.com/path?q=1"):
-        cols = await _validate_value_for_type(session, defn, ok_url, guild_id=1)
+        cols = await _validate_value_for_type(session, defn, ok_url, initiative_id=1)
         assert cols["value_text"] == ok_url
 
 
@@ -190,7 +192,7 @@ async def test_validate_url_rejects_invalid(session: AsyncSession):
     defn = _make_definition(PropertyType.url)
     for bad in ("ftp://example.com", "not a url"):
         with pytest.raises(HTTPException):
-            await _validate_value_for_type(session, defn, bad, guild_id=1)
+            await _validate_value_for_type(session, defn, bad, initiative_id=1)
 
 
 @pytest.mark.unit
@@ -217,7 +219,7 @@ async def test_validate_empty_values_are_attached_but_empty(session: AsyncSessio
         (multi_defn, None),
         (multi_defn, []),
     ):
-        cols = await _validate_value_for_type(session, defn, empty, guild_id=1)
+        cols = await _validate_value_for_type(session, defn, empty, initiative_id=1)
         assert cols["value_text"] is None
         assert cols["value_number"] is None
         assert cols["value_boolean"] is None
@@ -237,7 +239,7 @@ async def test_validate_select_slug_in_options(session: AsyncSession):
         PropertyType.select,
         options=[{"value": "live", "label": "Live"}],
     )
-    cols = await _validate_value_for_type(session, defn, "live", guild_id=1)
+    cols = await _validate_value_for_type(session, defn, "live", initiative_id=1)
     assert cols["value_text"] == "live"
 
 
@@ -249,7 +251,7 @@ async def test_validate_select_rejects_unknown_slug(session: AsyncSession):
         options=[{"value": "live", "label": "Live"}],
     )
     with pytest.raises(HTTPException) as exc_info:
-        await _validate_value_for_type(session, defn, "ghost", guild_id=1)
+        await _validate_value_for_type(session, defn, "ghost", initiative_id=1)
     assert exc_info.value.detail == "PROPERTY_OPTION_NOT_IN_DEFINITION"
 
 
@@ -271,7 +273,7 @@ async def test_validate_multi_select_all_slugs_valid_and_deduped(
         ],
     )
     cols = await _validate_value_for_type(
-        session, defn, ["a", "b", "a"], guild_id=1
+        session, defn, ["a", "b", "a"], initiative_id=1
     )
     assert cols["value_json"] == ["a", "b"]
 
@@ -286,7 +288,7 @@ async def test_validate_multi_select_rejects_unknown_slug(
         options=[{"value": "a", "label": "A"}],
     )
     with pytest.raises(HTTPException) as exc_info:
-        await _validate_value_for_type(session, defn, ["a", "nope"], guild_id=1)
+        await _validate_value_for_type(session, defn, ["a", "nope"], initiative_id=1)
     assert exc_info.value.detail == "PROPERTY_OPTION_NOT_IN_DEFINITION"
 
 
@@ -297,7 +299,7 @@ async def test_validate_multi_select_rejects_unknown_slug(
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_validate_user_reference_accepts_guild_member(
+async def test_validate_user_reference_accepts_initiative_member(
     session: AsyncSession,
 ):
     user = await create_user(session, email="member@example.com")
@@ -305,9 +307,12 @@ async def test_validate_user_reference_accepts_guild_member(
     await create_guild_membership(
         session, user=user, guild=guild, role=GuildRole.member
     )
+    initiative = await create_initiative(session, guild, user, name="Init")
 
-    defn = _make_definition(PropertyType.user_reference, guild_id=guild.id)
-    cols = await _validate_value_for_type(session, defn, user.id, guild_id=guild.id)
+    defn = _make_definition(PropertyType.user_reference, initiative_id=initiative.id)
+    cols = await _validate_value_for_type(
+        session, defn, user.id, initiative_id=initiative.id
+    )
     assert cols["value_user_id"] == user.id
 
 
@@ -322,21 +327,49 @@ async def test_validate_user_reference_rejects_non_member(
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.admin
     )
+    # Outsider IS in the guild, but NOT in the initiative.
+    await create_guild_membership(
+        session, user=outsider, guild=guild, role=GuildRole.member
+    )
+    initiative = await create_initiative(session, guild, member, name="Init")
 
-    defn = _make_definition(PropertyType.user_reference, guild_id=guild.id)
+    defn = _make_definition(PropertyType.user_reference, initiative_id=initiative.id)
     with pytest.raises(HTTPException) as exc_info:
         await _validate_value_for_type(
-            session, defn, outsider.id, guild_id=guild.id
+            session, defn, outsider.id, initiative_id=initiative.id
         )
-    assert exc_info.value.detail == "PROPERTY_USER_NOT_IN_GUILD"
+    assert exc_info.value.detail == "PROPERTY_USER_NOT_IN_INITIATIVE"
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_validate_user_reference_accepts_explicit_initiative_member(
+    session: AsyncSession,
+):
+    """Adding a user as an InitiativeMember lets user_reference resolve."""
+    pm = await create_user(session, email="pm@example.com")
+    teammate = await create_user(session, email="teammate@example.com")
+    guild = await create_guild(session, creator=pm)
+    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=teammate, guild=guild, role=GuildRole.member
+    )
+    initiative = await create_initiative(session, guild, pm, name="Init")
+    await create_initiative_member(session, initiative, teammate, role_name="member")
+
+    defn = _make_definition(PropertyType.user_reference, initiative_id=initiative.id)
+    cols = await _validate_value_for_type(
+        session, defn, teammate.id, initiative_id=initiative.id
+    )
+    assert cols["value_user_id"] == teammate.id
 
 
 @pytest.mark.unit
 @pytest.mark.service
 async def test_validate_user_reference_rejects_non_int(session: AsyncSession):
-    defn = _make_definition(PropertyType.user_reference, guild_id=1)
+    defn = _make_definition(PropertyType.user_reference, initiative_id=1)
     with pytest.raises(HTTPException):
-        await _validate_value_for_type(session, defn, "1", guild_id=1)
+        await _validate_value_for_type(session, defn, "1", initiative_id=1)
 
 
 # ---------------------------------------------------------------------------

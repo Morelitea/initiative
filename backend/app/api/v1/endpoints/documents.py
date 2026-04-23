@@ -261,23 +261,21 @@ def _build_visible_docs_filters(
 
 async def _apply_property_filters(
     session: SessionDep,
-    guild_id: int,
     conditions: list,
 ) -> list:
     """Return SA WHERE clauses for parsed property filter conditions.
 
     Each condition compiles to a subquery on
     ``document_property_values`` predicated on the typed column that
-    matches the definition's type. Unknown or cross-guild property_ids
-    are silently skipped (defense in depth — parsing has already capped
-    the overall condition count).
+    matches the definition's type. Unknown or inaccessible property_ids
+    are silently skipped — RLS on ``property_definitions`` already
+    constrains which ids the caller can resolve.
     """
     if not conditions:
         return []
     defs = await properties_service.load_definitions_by_ids(
         session,
         [c.property_id for c in conditions],
-        guild_id=guild_id,
     )
     clauses = []
     for cond in conditions:
@@ -544,7 +542,7 @@ async def list_documents(
             detail=QueryMessages.INVALID_CONDITIONS,
         )
     property_clauses = await _apply_property_filters(
-        session, guild_context.guild_id, parsed_property_filters
+        session, parsed_property_filters
     )
     conditions.extend(property_clauses)
 
@@ -1513,7 +1511,7 @@ async def set_document_properties(
             session,
             document,
             payload.values,
-            guild_context.guild_id,
+            document.initiative_id,
         )
     except HTTPException:
         await session.rollback()

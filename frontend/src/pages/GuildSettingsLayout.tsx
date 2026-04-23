@@ -7,7 +7,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath, extractSubPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 export const GuildSettingsLayout = () => {
-  const { t } = useTranslation(["settings", "properties"]);
+  const { t } = useTranslation(["settings"]);
   const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.role === "admin";
   const location = useLocation();
@@ -34,11 +34,6 @@ export const GuildSettingsLayout = () => {
         value: "users",
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
-      },
-      {
-        value: "properties",
-        label: t("properties:manager.title"),
-        path: urlGuildId ? guildPath(urlGuildId, "/settings/properties") : "/settings/properties",
       },
     ],
     [urlGuildId, t]
@@ -67,7 +62,6 @@ export const GuildSettingsLayout = () => {
     { value: "guild", subPath: "/settings" },
     { value: "ai", subPath: "/settings/ai" },
     { value: "users", subPath: "/settings/users" },
-    { value: "properties", subPath: "/settings/properties" },
   ];
 
   const activeTab =

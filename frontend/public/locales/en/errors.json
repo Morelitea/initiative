@@ -101,7 +101,7 @@
   "PROPERTY_TYPE_CHANGE_BLOCKED": "Cannot change property type while values exist. Remove attached values first.",
   "PROPERTY_INVALID_VALUE_FOR_TYPE": "Value does not match the property's type",
   "PROPERTY_OPTION_NOT_IN_DEFINITION": "Selected option is not valid for this property",
-  "PROPERTY_USER_NOT_IN_GUILD": "Referenced user is not a member of this guild",
+  "PROPERTY_USER_NOT_IN_INITIATIVE": "Referenced user is not a member of this initiative",
   "PROPERTY_OPTIONS_REQUIRED": "Select and multi-select properties require at least one option",
   "PROPERTY_DUPLICATE_OPTION_VALUE": "Option values must be unique within a property",
   "PROPERTY_APPLIES_TO_MISMATCH": "This property does not apply to this entity type",

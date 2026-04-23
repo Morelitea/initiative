@@ -1,12 +1,15 @@
 """Add custom property definitions and value junction tables.
 
 Creates the ``property_type`` and ``property_applies_to`` enums, the
-guild-scoped ``property_definitions`` table, and the two typed-column
+initiative-scoped ``property_definitions`` table, and the two typed-column
 junction tables (``document_property_values`` and ``task_property_values``)
-that store property values for documents and tasks. Applies guild-scoped
-RLS to the definitions table and junction-through-parent RLS (with a
-fallback to initiative membership for global documents that have
-``guild_id IS NULL``) to the value tables.
+that store property values for documents and tasks.
+
+``property_definitions`` uses the two-tier RLS pattern (permissive guild
+isolation + restrictive initiative membership) matching
+``calendar_events``. The junction tables use a single ``EXISTS`` predicate
+that traverses the parent entity (document or task→project) to the
+definition's initiative and requires initiative membership.
 
 Revision ID: 20260422_0074
 Revises: 20260421_0073
@@ -32,25 +35,43 @@ IS_SUPER = "current_setting('app.is_superadmin'::text, true) = 'true'::text"
 IS_ADMIN = f"{GUILD_ROLE} = 'admin'::text"
 BYPASS = f"OR ({IS_ADMIN}) OR ({IS_SUPER})"
 
+# Used by the definitions table's permissive guild policy. NULLIF so an
+# empty guild setting short-circuits the subquery instead of raising.
+GUILD_ID_NULLIF = (
+    "NULLIF(current_setting('app.current_guild_id'::text, true), ''::text)::int"
+)
+GUILD_CHECK_VIA_INITIATIVE = (
+    "(initiative_id IN (SELECT id FROM initiatives "
+    f"WHERE guild_id = {GUILD_ID_NULLIF})) OR ({IS_SUPER})"
+)
+
+
+def _definition_membership_expr() -> str:
+    """Restrictive membership predicate for property_definitions."""
+    return (
+        "EXISTS ("
+        "SELECT 1 FROM initiatives "
+        "WHERE initiatives.id = property_definitions.initiative_id "
+        f"AND is_initiative_member(initiatives.id, ({USER_ID}))"
+        ")"
+    )
+
 
 def _document_value_rls_expr() -> str:
     """RLS predicate for document_property_values.
 
     Enforces that:
-      * the definition belongs to the same guild as the document (blocking
-        cross-guild attach attempts)
-      * the current session has access to the document via guild or
-        initiative membership (fallback for ``guild_id IS NULL`` global docs)
+      * the document's initiative matches the definition's initiative
+        (blocks cross-initiative attach attempts)
+      * the current user is a member of that initiative
     """
     return (
         "EXISTS ("
         "SELECT 1 FROM documents d "
         "JOIN property_definitions pd ON pd.id = document_property_values.property_id "
         "WHERE d.id = document_property_values.document_id "
-        f"AND ((d.guild_id = pd.guild_id "
-        f"      AND (d.guild_id = ({GUILD_ID}) OR ({IS_SUPER}))) "
-        f"     OR (d.guild_id IS NULL "
-        f"         AND is_initiative_member(d.initiative_id, ({USER_ID}))))"
+        "AND d.initiative_id = pd.initiative_id "
+        f"AND is_initiative_member(pd.initiative_id, ({USER_ID}))"
         ")"
     )
 
@@ -58,9 +79,9 @@ def _document_value_rls_expr() -> str:
 def _task_value_rls_expr() -> str:
     """RLS predicate for task_property_values.
 
-    Tasks reach the initiative through ``projects`` and may have
-    ``guild_id IS NULL``; the fallback to ``is_initiative_member`` routes
-    via the owning project.
+    Tasks reach the initiative through ``projects``; the predicate checks
+    that the task's project belongs to the same initiative as the
+    definition, and that the current user is a member of that initiative.
     """
     return (
         "EXISTS ("
@@ -68,80 +89,88 @@ def _task_value_rls_expr() -> str:
         "JOIN projects proj ON proj.id = t.project_id "
         "JOIN property_definitions pd ON pd.id = task_property_values.property_id "
         "WHERE t.id = task_property_values.task_id "
-        f"AND ((t.guild_id = pd.guild_id "
-        f"      AND (t.guild_id = ({GUILD_ID}) OR ({IS_SUPER}))) "
-        f"     OR (t.guild_id IS NULL "
-        f"         AND is_initiative_member(proj.initiative_id, ({USER_ID}))))"
+        "AND proj.initiative_id = pd.initiative_id "
+        f"AND is_initiative_member(pd.initiative_id, ({USER_ID}))"
         ")"
     )
 
 
 def _add_definition_rls(conn) -> None:
-    """property_definitions uses the standard 4-policy guild pattern."""
+    """Two-tier RLS on property_definitions: guild isolation + init membership."""
     table = "property_definitions"
     conn.execute(text(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY"))
     conn.execute(text(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY"))
 
-    # SELECT via membership
-    member_check = (
-        f"EXISTS (SELECT 1 FROM guild_memberships "
-        f"WHERE guild_memberships.guild_id = {table}.guild_id "
-        f"AND guild_memberships.user_id = ({USER_ID}))"
-    )
-    gid_eq = f"guild_id = ({GUILD_ID})"
+    # Permissive guild isolation (the definition's initiative belongs to
+    # the current guild, or superadmin bypass).
+    conn.execute(text(
+        f"CREATE POLICY guild_isolation ON {table} "
+        f"AS PERMISSIVE FOR ALL "
+        f"USING ({GUILD_CHECK_VIA_INITIATIVE}) "
+        f"WITH CHECK ({GUILD_CHECK_VIA_INITIATIVE})"
+    ))
+
+    # Restrictive initiative membership — caller must be a member of the
+    # definition's initiative (admin / superadmin bypass).
+    membership = _definition_membership_expr()
+    bypass_expr = f"({membership} {BYPASS})"
 
     conn.execute(text(
-        f"CREATE POLICY guild_select ON {table} "
-        f"AS PERMISSIVE FOR SELECT "
-        f"USING (({member_check}) OR ({IS_SUPER}))"
+        f"CREATE POLICY initiative_member_select ON {table} "
+        f"AS RESTRICTIVE FOR SELECT USING ({bypass_expr})"
     ))
     conn.execute(text(
-        f"CREATE POLICY guild_insert ON {table} "
-        f"AS PERMISSIVE FOR INSERT "
-        f"WITH CHECK (({gid_eq}) OR ({IS_SUPER}))"
+        f"CREATE POLICY initiative_member_insert ON {table} "
+        f"AS RESTRICTIVE FOR INSERT WITH CHECK ({bypass_expr})"
     ))
     conn.execute(text(
-        f"CREATE POLICY guild_update ON {table} "
-        f"AS PERMISSIVE FOR UPDATE "
-        f"USING (({gid_eq}) OR ({IS_SUPER})) "
-        f"WITH CHECK (({gid_eq}) OR ({IS_SUPER}))"
+        f"CREATE POLICY initiative_member_update ON {table} "
+        f"AS RESTRICTIVE FOR UPDATE USING ({bypass_expr}) WITH CHECK ({bypass_expr})"
     ))
     conn.execute(text(
-        f"CREATE POLICY guild_delete ON {table} "
-        f"AS PERMISSIVE FOR DELETE "
-        f"USING (({gid_eq}) OR ({IS_SUPER}))"
+        f"CREATE POLICY initiative_member_delete ON {table} "
+        f"AS RESTRICTIVE FOR DELETE USING ({bypass_expr})"
     ))
 
 
 def _add_value_rls(conn, junction_table: str, expr: str) -> None:
-    """Junction-through-parent RLS for {document,task}_property_values."""
+    """Simplified single-policy RLS for {document,task}_property_values.
+
+    The EXISTS predicate already enforces initiative-match + membership,
+    so one permissive policy per command suffices (with admin/superadmin
+    bypass for parity with the definitions table).
+    """
     conn.execute(text(f"ALTER TABLE {junction_table} ENABLE ROW LEVEL SECURITY"))
     conn.execute(text(f"ALTER TABLE {junction_table} FORCE ROW LEVEL SECURITY"))
 
     bypass_expr = f"(({expr}) {BYPASS})"
 
-    # One policy per command so INSERT's WITH CHECK and SELECT's USING
-    # line up cleanly with the baseline guild junction pattern.
     conn.execute(text(
-        f"CREATE POLICY guild_select ON {junction_table} "
+        f"CREATE POLICY initiative_member_select ON {junction_table} "
         f"AS PERMISSIVE FOR SELECT USING ({bypass_expr})"
     ))
     conn.execute(text(
-        f"CREATE POLICY guild_insert ON {junction_table} "
+        f"CREATE POLICY initiative_member_insert ON {junction_table} "
         f"AS PERMISSIVE FOR INSERT WITH CHECK ({bypass_expr})"
     ))
     conn.execute(text(
-        f"CREATE POLICY guild_update ON {junction_table} "
+        f"CREATE POLICY initiative_member_update ON {junction_table} "
         f"AS PERMISSIVE FOR UPDATE USING ({bypass_expr}) WITH CHECK ({bypass_expr})"
     ))
     conn.execute(text(
-        f"CREATE POLICY guild_delete ON {junction_table} "
+        f"CREATE POLICY initiative_member_delete ON {junction_table} "
         f"AS PERMISSIVE FOR DELETE USING ({bypass_expr})"
     ))
 
 
 def _drop_rls(conn, table: str) -> None:
-    for policy in ("guild_select", "guild_insert", "guild_update", "guild_delete"):
+    for policy in (
+        "guild_isolation",
+        "initiative_member_select",
+        "initiative_member_insert",
+        "initiative_member_update",
+        "initiative_member_delete",
+    ):
         conn.execute(text(f"DROP POLICY IF EXISTS {policy} ON {table}"))
     conn.execute(text(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY"))
 
@@ -163,7 +192,7 @@ def upgrade() -> None:
     conn.execute(text("""
         CREATE TABLE property_definitions (
             id SERIAL PRIMARY KEY,
-            guild_id INTEGER NOT NULL REFERENCES guilds(id),
+            initiative_id INTEGER NOT NULL REFERENCES initiatives(id),
             name VARCHAR(100) NOT NULL,
             type property_type NOT NULL,
             applies_to property_applies_to NOT NULL DEFAULT 'both',
@@ -175,12 +204,12 @@ def upgrade() -> None:
         )
     """))
     conn.execute(text(
-        "CREATE INDEX ix_property_definitions_guild_id "
-        "ON property_definitions (guild_id)"
+        "CREATE INDEX ix_property_definitions_initiative_id "
+        "ON property_definitions (initiative_id)"
     ))
     conn.execute(text(
-        "CREATE UNIQUE INDEX ix_property_definitions_guild_lower_name "
-        "ON property_definitions (guild_id, lower(name))"
+        "CREATE UNIQUE INDEX ix_property_definitions_initiative_lower_name "
+        "ON property_definitions (initiative_id, lower(name))"
     ))
 
     # -- document_property_values --

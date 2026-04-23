@@ -10,7 +10,7 @@ import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
 import { useProperties } from "@/hooks/useProperties";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
 import { PropertyAppliesTo, type TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { buildPropertyColumns, propertyColumnId } from "@/components/properties/propertyColumns";
+import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
 import { CalendarView, type CalendarEntry, type CalendarViewMode } from "@/components/calendar";
@@ -55,7 +55,7 @@ export const MyTasksPage = () => {
     [taskPropertyDefinitions]
   );
   const propertyHiddenIds = useMemo(
-    () => taskPropertyDefinitions.map((definition) => propertyColumnId(definition)),
+    () => propertyColumnIds(taskPropertyDefinitions),
     [taskPropertyDefinitions]
   );
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(

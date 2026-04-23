@@ -10,7 +10,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.document import Document
-    from app.models.guild import Guild
+    from app.models.initiative import Initiative
     from app.models.task import Task
     from app.models.user import User
 
@@ -38,11 +38,11 @@ class PropertyAppliesTo(str, Enum):
 
 
 class PropertyDefinition(SQLModel, table=True):
-    """Guild-scoped custom property definition.
+    """Initiative-scoped custom property definition.
 
-    Mirrors the Tag pattern: definitions live on the guild, values live on
-    entity-specific junction tables (``document_property_values`` /
-    ``task_property_values``) so they stay SARGable under RLS.
+    Definitions live on a single initiative; values live on entity-specific
+    junction tables (``document_property_values`` / ``task_property_values``)
+    so they stay SARGable under RLS.
     """
 
     __tablename__ = "property_definitions"
@@ -50,7 +50,7 @@ class PropertyDefinition(SQLModel, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
+    initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     name: str = Field(
         sa_column=Column(String(length=100), nullable=False),
     )
@@ -99,7 +99,7 @@ class PropertyDefinition(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    guild: Optional["Guild"] = Relationship()
+    initiative: Optional["Initiative"] = Relationship()
     document_values: List["DocumentPropertyValue"] = Relationship(
         back_populates="property_definition",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

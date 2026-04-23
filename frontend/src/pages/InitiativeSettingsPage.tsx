@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useGuildPath } from "@/lib/guildUrl";
+import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -41,7 +41,7 @@ export const InitiativeSettingsPage = () => {
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const router = useRouter();
 
-  const { t } = useTranslation(["initiatives", "common"]);
+  const { t } = useTranslation(["initiatives", "common", "properties"]);
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
@@ -237,11 +237,22 @@ export const InitiativeSettingsPage = () => {
         <p className="text-muted-foreground text-sm">{t("settings.subtitle")}</p>
       </div>
 
-      <Tabs defaultValue="details" className="space-y-4">
+      <Tabs
+        defaultValue="details"
+        className="space-y-4"
+        onValueChange={(next) => {
+          if (next === "properties" && activeGuild?.id) {
+            router.navigate({
+              to: guildPath(activeGuild.id, `/initiatives/${initiativeId}/settings/properties`),
+            });
+          }
+        }}
+      >
         <TabsList className="w-full max-w-xl justify-start">
           <TabsTrigger value="details">{t("settings.detailsTab")}</TabsTrigger>
           <TabsTrigger value="members">{t("settings.membersTab")}</TabsTrigger>
           <TabsTrigger value="roles">{t("settings.rolesTab")}</TabsTrigger>
+          <TabsTrigger value="properties">{t("properties:manager.title")}</TabsTrigger>
           <TabsTrigger value="danger">{t("settings.dangerTab")}</TabsTrigger>
         </TabsList>
         <InitiativeSettingsDetailsTab

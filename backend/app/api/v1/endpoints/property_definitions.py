@@ -1,4 +1,4 @@
-"""CRUD endpoints for guild-scoped custom property definitions."""
+"""CRUD endpoints for initiative-scoped custom property definitions."""
 
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
@@ -9,10 +9,11 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import RLSSessionDep, SessionDep, get_current_active_user
 from app.core.messages import PropertyMessages
 from app.db.session import reapply_rls_context
 from app.models.document import Document
+from app.models.initiative import InitiativeMember
 from app.models.property import (
     DocumentPropertyValue,
     PropertyAppliesTo,
@@ -34,8 +35,6 @@ from app.services import properties as properties_service
 
 router = APIRouter()
 
-GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-
 
 class PropertyEntitiesResult(BaseModel):
     """Response for GET /property-definitions/{id}/entities."""
@@ -49,12 +48,9 @@ class PropertyEntitiesResult(BaseModel):
 async def _get_definition_or_404(
     session: SessionDep,
     definition_id: int,
-    guild_id: int,
 ) -> PropertyDefinition:
-    stmt = select(PropertyDefinition).where(
-        PropertyDefinition.id == definition_id,
-        PropertyDefinition.guild_id == guild_id,
-    )
+    """Fetch a definition by id, relying on RLS for scope enforcement."""
+    stmt = select(PropertyDefinition).where(PropertyDefinition.id == definition_id)
     result = await session.exec(stmt)
     defn = result.one_or_none()
     if defn is None:
@@ -67,12 +63,12 @@ async def _get_definition_or_404(
 
 async def _check_duplicate_name(
     session: SessionDep,
-    guild_id: int,
+    initiative_id: int,
     name: str,
     exclude_id: Optional[int] = None,
 ) -> None:
     stmt = select(PropertyDefinition).where(
-        PropertyDefinition.guild_id == guild_id,
+        PropertyDefinition.initiative_id == initiative_id,
         func.lower(PropertyDefinition.name) == name.lower().strip(),
     )
     if exclude_id is not None:
@@ -82,6 +78,28 @@ async def _check_duplicate_name(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=PropertyMessages.NAME_ALREADY_EXISTS,
+        )
+
+
+async def _ensure_initiative_member(
+    session: SessionDep,
+    initiative_id: int,
+    user_id: int,
+) -> None:
+    """Explicit membership check before insert.
+
+    RLS would block a non-member's INSERT as well, but the resulting error
+    is opaque. Surfacing a clean 403 here makes API errors actionable.
+    """
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == initiative_id,
+        InitiativeMember.user_id == user_id,
+    )
+    result = await session.exec(stmt)
+    if result.one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=PropertyMessages.DEFINITION_NOT_FOUND,
         )
 
 
@@ -102,13 +120,19 @@ def _serialize_options(options: Optional[list]) -> Optional[list[dict]]:
 async def list_property_definitions(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
+    initiative_id: Optional[int] = Query(default=None),
     applies_to: Optional[PropertyAppliesTo] = Query(default=None),
 ) -> List[PropertyDefinition]:
-    """List property definitions in the current guild, ordered by position."""
-    stmt = select(PropertyDefinition).where(
-        PropertyDefinition.guild_id == guild_context.guild_id
-    )
+    """List property definitions.
+
+    With ``initiative_id``, returns definitions for that initiative only
+    (filtered explicitly and subject to RLS). Without it, RLS returns the
+    union across every initiative the caller can see — used by global
+    views (My Tasks, Created Tasks, global Documents list).
+    """
+    stmt = select(PropertyDefinition)
+    if initiative_id is not None:
+        stmt = stmt.where(PropertyDefinition.initiative_id == initiative_id)
     if applies_to is not None:
         if applies_to is PropertyAppliesTo.both:
             stmt = stmt.where(PropertyDefinition.applies_to == PropertyAppliesTo.both)
@@ -126,13 +150,16 @@ async def create_property_definition(
     payload: PropertyDefinitionCreate,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
 ) -> PropertyDefinition:
-    """Create a new property definition in the current guild."""
-    await _check_duplicate_name(session, guild_context.guild_id, payload.name)
+    """Create a new property definition on an initiative.
+
+    Requires the caller to be a member of the target initiative.
+    """
+    await _ensure_initiative_member(session, payload.initiative_id, current_user.id)
+    await _check_duplicate_name(session, payload.initiative_id, payload.name)
 
     defn = PropertyDefinition(
-        guild_id=guild_context.guild_id,
+        initiative_id=payload.initiative_id,
         name=payload.name.strip(),
         type=payload.type,
         applies_to=payload.applies_to,
@@ -152,10 +179,9 @@ async def get_property_definition(
     definition_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
 ) -> PropertyDefinition:
     """Fetch a single property definition."""
-    return await _get_definition_or_404(session, definition_id, guild_context.guild_id)
+    return await _get_definition_or_404(session, definition_id)
 
 
 @router.patch("/{definition_id}", response_model=PropertyDefinitionUpdateResponse)
@@ -164,7 +190,6 @@ async def update_property_definition(
     payload: PropertyDefinitionUpdate,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
 ) -> PropertyDefinitionUpdateResponse:
     """Update a property definition.
 
@@ -173,14 +198,14 @@ async def update_property_definition(
     select / multi_select definition returns ``orphaned_value_count`` so
     the SPA can warn about dangling values.
     """
-    defn = await _get_definition_or_404(session, definition_id, guild_context.guild_id)
+    defn = await _get_definition_or_404(session, definition_id)
 
     data = payload.model_dump(exclude_unset=True)
 
     if "name" in data and data["name"] is not None:
         await _check_duplicate_name(
             session,
-            guild_context.guild_id,
+            defn.initiative_id,
             data["name"],
             exclude_id=defn.id,
         )
@@ -230,10 +255,9 @@ async def delete_property_definition(
     definition_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
 ) -> None:
     """Delete a property definition. Cascades to remove all attached values."""
-    defn = await _get_definition_or_404(session, definition_id, guild_context.guild_id)
+    defn = await _get_definition_or_404(session, definition_id)
     await session.delete(defn)
     await session.commit()
 
@@ -243,13 +267,12 @@ async def get_property_entities(
     definition_id: int,
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
 ) -> PropertyEntitiesResult:
     """List all documents and tasks with a value for this property.
 
     Results are constrained by the user's project / document visibility.
     """
-    defn = await _get_definition_or_404(session, definition_id, guild_context.guild_id)
+    defn = await _get_definition_or_404(session, definition_id)
 
     project_access_subq = permissions_service.visible_project_ids_subquery(current_user.id)
     doc_access_subq = permissions_service.visible_document_ids_subquery(current_user.id)

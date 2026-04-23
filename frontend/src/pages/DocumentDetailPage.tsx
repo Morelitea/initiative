@@ -1184,6 +1184,7 @@ export const DocumentDetailPage = () => {
                   />
                   <AddPropertyButton
                     entityKind="document"
+                    initiativeId={document.initiative_id}
                     currentPropertyIds={combinedPropertyIds}
                     onAdd={handleAddProperty}
                     disabled={!canEditDocument}

@@ -38,7 +38,12 @@ describe("AddPropertyButton", () => {
       }),
     ]);
     renderWithProviders(
-      <AddPropertyButton entityKind="document" currentPropertyIds={[]} onAdd={vi.fn()} />
+      <AddPropertyButton
+        entityKind="document"
+        initiativeId={7}
+        currentPropertyIds={[]}
+        onAdd={vi.fn()}
+      />
     );
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
     await waitFor(() => expect(screen.getByText("Doc Only")).toBeInTheDocument());
@@ -60,7 +65,12 @@ describe("AddPropertyButton", () => {
       }),
     ]);
     renderWithProviders(
-      <AddPropertyButton entityKind="document" currentPropertyIds={[1]} onAdd={vi.fn()} />
+      <AddPropertyButton
+        entityKind="document"
+        initiativeId={7}
+        currentPropertyIds={[1]}
+        onAdd={vi.fn()}
+      />
     );
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
     await waitFor(() => expect(screen.getByText("Beta")).toBeInTheDocument());
@@ -78,7 +88,12 @@ describe("AddPropertyButton", () => {
     mockDefinitions(defs);
     const onAdd = vi.fn();
     renderWithProviders(
-      <AddPropertyButton entityKind="document" currentPropertyIds={[]} onAdd={onAdd} />
+      <AddPropertyButton
+        entityKind="document"
+        initiativeId={7}
+        currentPropertyIds={[]}
+        onAdd={onAdd}
+      />
     );
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
     const item = await screen.findByText("Priority");
@@ -101,7 +116,12 @@ describe("AddPropertyButton", () => {
       }),
     ]);
     renderWithProviders(
-      <AddPropertyButton entityKind="document" currentPropertyIds={[]} onAdd={vi.fn()} />
+      <AddPropertyButton
+        entityKind="document"
+        initiativeId={7}
+        currentPropertyIds={[]}
+        onAdd={vi.fn()}
+      />
     );
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
     const searchInput = await screen.findByPlaceholderText(/Search properties/i);
@@ -133,7 +153,12 @@ describe("AddPropertyButton", () => {
 
     const onAdd = vi.fn();
     renderWithProviders(
-      <AddPropertyButton entityKind="document" currentPropertyIds={[]} onAdd={onAdd} />
+      <AddPropertyButton
+        entityKind="document"
+        initiativeId={7}
+        currentPropertyIds={[]}
+        onAdd={onAdd}
+      />
     );
 
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
@@ -156,6 +181,7 @@ describe("AddPropertyButton", () => {
         name: "Quarter",
         type: "text",
         applies_to: "both",
+        initiative_id: 7,
       })
     );
     await waitFor(() =>
@@ -166,7 +192,13 @@ describe("AddPropertyButton", () => {
   it("disables the trigger when disabled=true", () => {
     mockDefinitions([]);
     renderWithProviders(
-      <AddPropertyButton entityKind="document" currentPropertyIds={[]} onAdd={vi.fn()} disabled />
+      <AddPropertyButton
+        entityKind="document"
+        initiativeId={7}
+        currentPropertyIds={[]}
+        onAdd={vi.fn()}
+        disabled
+      />
     );
     expect(screen.getByRole("button", { name: /Add property/i })).toBeDisabled();
   });

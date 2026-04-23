@@ -86,7 +86,7 @@ const toDefinitionForPatch = (defn: PropertyDefinitionLike): PropertyDefinitionR
     id: summary.property_id,
     // The remaining fields aren't used by the append helper, but the type
     // demands them. They're harmless placeholders.
-    guild_id: 0,
+    initiative_id: 0,
     name: summary.name,
     type: summary.type,
     applies_to: summary.applies_to,
