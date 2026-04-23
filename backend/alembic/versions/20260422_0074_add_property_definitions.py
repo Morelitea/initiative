@@ -189,10 +189,15 @@ def upgrade() -> None:
     ))
 
     # -- property_definitions --
+    # ``initiative_id`` cascades on initiative delete so dev-data cleanup
+    # and in-app initiative deletion don't need to hand-remove definitions
+    # first. Definitions belong exclusively to their initiative; once the
+    # initiative is gone they're orphan noise. This cascade chains through
+    # to ``{document,task}_property_values`` via their own ON DELETE CASCADE.
     conn.execute(text("""
         CREATE TABLE property_definitions (
             id SERIAL PRIMARY KEY,
-            initiative_id INTEGER NOT NULL REFERENCES initiatives(id),
+            initiative_id INTEGER NOT NULL REFERENCES initiatives(id) ON DELETE CASCADE,
             name VARCHAR(100) NOT NULL,
             type property_type NOT NULL,
             applies_to property_applies_to NOT NULL DEFAULT 'both',
@@ -222,7 +227,7 @@ def upgrade() -> None:
             value_boolean BOOLEAN,
             value_date DATE,
             value_datetime TIMESTAMPTZ,
-            value_user_id INTEGER REFERENCES users(id),
+            value_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
             value_json JSONB,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
@@ -240,7 +245,7 @@ def upgrade() -> None:
             value_boolean BOOLEAN,
             value_date DATE,
             value_datetime TIMESTAMPTZ,
-            value_user_id INTEGER REFERENCES users(id),
+            value_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
             value_json JSONB,
             created_at TIMESTAMPTZ NOT NULL,
             updated_at TIMESTAMPTZ NOT NULL,
