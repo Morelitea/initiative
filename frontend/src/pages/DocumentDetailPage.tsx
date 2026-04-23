@@ -12,6 +12,8 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import type { SerializedEditorState } from "lexical";
 import {
+  ChevronDown,
+  ChevronUp,
   ExternalLink,
   ImagePlus,
   Loader2,
@@ -41,6 +43,9 @@ import { DocumentSidePanel, useDocumentSidePanel } from "@/components/documents/
 import { DocumentSummary } from "@/components/documents/DocumentSummary";
 import { TagPicker } from "@/components/tags/TagPicker";
 import { useSetDocumentTags } from "@/hooks/useTags";
+import { PropertyList } from "@/components/properties/PropertyList";
+import { AddPropertyButton } from "@/components/properties/AddPropertyButton";
+import { useSetDocumentProperties } from "@/hooks/useProperties";
 
 // Lazy load heavy components
 const Editor = lazy(() =>
@@ -80,6 +85,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -89,6 +95,8 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type {
   CommentRead,
   DocumentProjectLink,
+  PropertyDefinitionRead,
+  PropertySummary,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 import { uploadAttachment } from "@/lib/attachmentUtils";
@@ -100,7 +108,7 @@ import { getHttpStatus } from "@/lib/errorMessage";
 import { getItem, setItem, removeItem } from "@/lib/storage";
 
 export const DocumentDetailPage = () => {
-  const { t } = useTranslation("documents");
+  const { t } = useTranslation(["documents", "properties"]);
   const dateLocale = useDateLocale();
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
@@ -115,6 +123,17 @@ export const DocumentDetailPage = () => {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [featuredImageUrl, setFeaturedImageUrl] = useState<string | null>(null);
   const [tags, setTags] = useState<TagSummary[]>([]);
+  // Locally-added property definitions that don't yet have a persisted value.
+  // Rendered alongside `document.properties` as empty-valued stubs so the user
+  // can fill them in; PropertyList's PUT persists them once a value is set.
+  const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
+  const setDocumentPropertiesMutation = useSetDocumentProperties();
+  // Persisted collapse state for the metadata card (mirrors the pattern used
+  // by the Documents section on project pages).
+  const metadataCollapsedStorageKey = "document:metadataCollapsed";
+  const [isMetadataCollapsed, setIsMetadataCollapsed] = useState<boolean>(
+    () => getItem(metadataCollapsedStorageKey) === "true"
+  );
   const [isUploadingFeaturedImage, setIsUploadingFeaturedImage] = useState(false);
   const [title, setTitle] = useState("");
   const [contentState, setContentState] = useState<SerializedEditorState>(createEmptyEditorState());
@@ -848,6 +867,65 @@ export const DocumentDetailPage = () => {
     [parsedId, setDocumentTagsMutation]
   );
 
+  // Combine server-attached properties with locally-added stubs (definitions
+  // the user just picked but hasn't given a value yet). Drop any pending
+  // entries that the server has since returned as attached.
+  const serverProperties = useMemo<PropertySummary[]>(() => document?.properties ?? [], [document]);
+  const serverPropertyIds = useMemo(
+    () => new Set(serverProperties.map((p) => p.property_id)),
+    [serverProperties]
+  );
+  const combinedProperties = useMemo<PropertySummary[]>(() => {
+    const stubs: PropertySummary[] = pendingProperties
+      .filter((def) => !serverPropertyIds.has(def.id))
+      .map((def) => ({
+        property_id: def.id,
+        name: def.name,
+        type: def.type,
+        applies_to: def.applies_to,
+        options: def.options ?? null,
+        value: null,
+      }));
+    return [...serverProperties, ...stubs];
+  }, [serverProperties, pendingProperties, serverPropertyIds]);
+  const combinedPropertyIds = useMemo(
+    () => combinedProperties.map((p) => p.property_id),
+    [combinedProperties]
+  );
+
+  useEffect(() => {
+    if (pendingProperties.length === 0) return;
+    setPendingProperties((prev) => prev.filter((def) => !serverPropertyIds.has(def.id)));
+  }, [serverPropertyIds, pendingProperties.length]);
+
+  const handleAddProperty = useCallback(
+    (definition: PropertyDefinitionRead) => {
+      setPendingProperties((prev) =>
+        prev.some((def) => def.id === definition.id) ? prev : [...prev, definition]
+      );
+      // Persist the attached-but-empty row immediately so the property
+      // survives a refresh before the user enters a value. We reuse the
+      // replace-all PUT shape: include every currently-attached property
+      // plus the newly-added one with value=null.
+      if (!Number.isFinite(parsedId) || serverPropertyIds.has(definition.id)) return;
+      const values = [
+        ...serverProperties.map((p) => ({
+          property_id: p.property_id,
+          value:
+            p.type === "user_reference" && p.value && typeof p.value === "object" && "id" in p.value
+              ? (p.value as { id: number }).id
+              : (p.value ?? null),
+        })),
+        { property_id: definition.id, value: null },
+      ];
+      setDocumentPropertiesMutation.mutate({
+        documentId: parsedId,
+        values: { values },
+      });
+    },
+    [parsedId, serverProperties, serverPropertyIds, setDocumentPropertiesMutation]
+  );
+
   if (!Number.isFinite(parsedId)) {
     return <p className="text-destructive">{t("detail.invalidId")}</p>;
   }
@@ -966,99 +1044,155 @@ export const DocumentDetailPage = () => {
       </div>
       <div className="space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle>{t("detail.metadataTitle")}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Featured image — hidden for image documents (the image IS the featured image) */}
-            {!(
-              document.document_type === "file" && document.file_content_type?.startsWith("image/")
-            ) && (
-              <div className="space-y-2">
-                <Label>{t("detail.featuredImage")}</Label>
-                <div className="flex flex-col gap-4 md:flex-row md:items-center">
-                  <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
-                    {featuredImageUrl ? (
-                      <img
-                        src={resolveUploadUrl(featuredImageUrl) ?? undefined}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="text-muted-foreground flex h-full items-center justify-center">
-                        <ScrollText className="h-10 w-10" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <input
-                      ref={featuredImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleFeaturedImageChange}
-                    />
-                    {canEditDocument ? (
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={openFeaturedImagePicker}
-                          disabled={isUploadingFeaturedImage}
-                        >
-                          {isUploadingFeaturedImage ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              {t("detail.uploading")}
-                            </>
-                          ) : (
-                            <>
-                              <ImagePlus className="mr-2 h-4 w-4" />
-                              {t("detail.uploadImage")}
-                            </>
-                          )}
-                        </Button>
-                        {featuredImageUrl ? (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => {
-                              setFeaturedImageUrl(null);
-                              isAutosaveRef.current = true;
-                              saveDocument.mutate({
-                                documentId: parsedId,
-                                data: {
-                                  title: title?.trim(),
-                                  content: contentForSave,
-                                  featured_image_url: null,
-                                },
-                              });
-                            }}
-                            disabled={isUploadingFeaturedImage}
-                          >
-                            <X className="mr-2 h-4 w-4" />
-                            {t("detail.removeImage")}
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    <p className="text-muted-foreground text-xs">{t("detail.uploadHelpText")}</p>
-                  </div>
-                </div>
+          <Collapsible
+            open={!isMetadataCollapsed}
+            onOpenChange={(open) => {
+              const collapsed = !open;
+              setIsMetadataCollapsed(collapsed);
+              setItem(metadataCollapsedStorageKey, collapsed.toString());
+            }}
+          >
+            <CardHeader>
+              <div className="inline-flex items-center gap-2">
+                <CardTitle>{t("detail.metadataTitle")}</CardTitle>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 rounded-full"
+                  onClick={() => {
+                    setIsMetadataCollapsed((prev) => {
+                      const next = !prev;
+                      setItem(metadataCollapsedStorageKey, next.toString());
+                      return next;
+                    });
+                  }}
+                  aria-label={
+                    isMetadataCollapsed ? t("detail.expandMetadata") : t("detail.collapseMetadata")
+                  }
+                >
+                  {isMetadataCollapsed ? (
+                    <ChevronDown className="h-4 w-4" />
+                  ) : (
+                    <ChevronUp className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
-            )}
+            </CardHeader>
+            <CollapsibleContent className="data-[state=closed]:hidden">
+              <CardContent className="space-y-6">
+                {/* Featured image — hidden for image documents (the image IS the featured image) */}
+                {!(
+                  document.document_type === "file" &&
+                  document.file_content_type?.startsWith("image/")
+                ) && (
+                  <div className="space-y-2">
+                    <Label>{t("detail.featuredImage")}</Label>
+                    <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                      <div className="bg-muted relative aspect-square w-full overflow-hidden rounded-xl border md:w-50">
+                        {featuredImageUrl ? (
+                          <img
+                            src={resolveUploadUrl(featuredImageUrl) ?? undefined}
+                            alt=""
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="text-muted-foreground flex h-full items-center justify-center">
+                            <ScrollText className="h-10 w-10" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <input
+                          ref={featuredImageInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleFeaturedImageChange}
+                        />
+                        {canEditDocument ? (
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={openFeaturedImagePicker}
+                              disabled={isUploadingFeaturedImage}
+                            >
+                              {isUploadingFeaturedImage ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  {t("detail.uploading")}
+                                </>
+                              ) : (
+                                <>
+                                  <ImagePlus className="mr-2 h-4 w-4" />
+                                  {t("detail.uploadImage")}
+                                </>
+                              )}
+                            </Button>
+                            {featuredImageUrl ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => {
+                                  setFeaturedImageUrl(null);
+                                  isAutosaveRef.current = true;
+                                  saveDocument.mutate({
+                                    documentId: parsedId,
+                                    data: {
+                                      title: title?.trim(),
+                                      content: contentForSave,
+                                      featured_image_url: null,
+                                    },
+                                  });
+                                }}
+                                disabled={isUploadingFeaturedImage}
+                              >
+                                <X className="mr-2 h-4 w-4" />
+                                {t("detail.removeImage")}
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        <p className="text-muted-foreground text-xs">
+                          {t("detail.uploadHelpText")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
-            {/* Tags */}
-            <div className="space-y-2">
-              <Label>{t("detail.tagsLabel")}</Label>
-              <TagPicker
-                selectedTags={tags}
-                onChange={handleTagsChange}
-                disabled={!canEditDocument}
-                placeholder={t("detail.tagsPlaceholder")}
-              />
-            </div>
-          </CardContent>
+                {/* Tags */}
+                <div className="space-y-2">
+                  <Label>{t("detail.tagsLabel")}</Label>
+                  <TagPicker
+                    selectedTags={tags}
+                    onChange={handleTagsChange}
+                    disabled={!canEditDocument}
+                    placeholder={t("detail.tagsPlaceholder")}
+                  />
+                </div>
+
+                {/* Properties */}
+                <div className="space-y-2">
+                  <Label>{t("properties:title")}</Label>
+                  <PropertyList
+                    entityKind="document"
+                    entityId={parsedId}
+                    properties={combinedProperties}
+                    disabled={!canEditDocument}
+                  />
+                  <AddPropertyButton
+                    entityKind="document"
+                    initiativeId={document.initiative_id}
+                    currentPropertyIds={combinedPropertyIds}
+                    onAdd={handleAddProperty}
+                    disabled={!canEditDocument}
+                  />
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
 
         {/* File document viewer */}

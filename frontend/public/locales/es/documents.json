@@ -109,6 +109,8 @@
     "updated": "Actualizado {{date}}",
     "template": "Plantilla",
     "metadataTitle": "Metadatos",
+    "expandMetadata": "Expand metadata",
+    "collapseMetadata": "Collapse metadata",
     "featuredImage": "Imagen destacada",
     "uploadImage": "Subir imagen destacada",
     "uploading": "Subiendo\u2026",

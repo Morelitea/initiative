@@ -7,6 +7,10 @@ import { invalidateAllTasks } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
+import { useProperties } from "@/hooks/useProperties";
+import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
+import { PropertyAppliesTo, type TaskListRead } from "@/api/generated/initiativeAPI.schemas";
+import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
 import { CalendarView, type CalendarEntry, type CalendarViewMode } from "@/components/calendar";
@@ -36,29 +40,63 @@ export const MyTasksPage = () => {
     await invalidateAllTasks();
   }, []);
 
-  const columns = useMemo(
+  const { data: allPropertyDefinitions = [] } = useProperties();
+  const taskPropertyDefinitions = useMemo(
     () =>
-      globalTaskColumns({
-        activeGuildId: table.activeGuildId,
-        isUpdatingTaskStatus: table.isUpdatingTaskStatus,
-        changeTaskStatus: table.changeTaskStatus,
-        changeTaskStatusById: table.changeTaskStatusById,
-        fetchProjectStatuses: table.fetchProjectStatuses,
-        projectStatusCache: table.projectStatusCache,
-        projectsById: table.projectsById,
-        t: t as TranslateFn,
-      }),
-    [
-      table.activeGuildId,
-      table.isUpdatingTaskStatus,
-      table.changeTaskStatus,
-      table.changeTaskStatusById,
-      table.fetchProjectStatuses,
-      table.projectStatusCache,
-      table.projectsById,
-      t,
-    ]
+      allPropertyDefinitions.filter(
+        (definition) =>
+          definition.applies_to === PropertyAppliesTo.task ||
+          definition.applies_to === PropertyAppliesTo.both
+      ),
+    [allPropertyDefinitions]
   );
+  const propertyColumns = useMemo(
+    () => buildPropertyColumns<TaskListRead>(taskPropertyDefinitions, (row) => row.properties),
+    [taskPropertyDefinitions]
+  );
+  const propertyHiddenIds = useMemo(
+    () => propertyColumnIds(taskPropertyDefinitions),
+    [taskPropertyDefinitions]
+  );
+  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
+    "initiative-my-tasks-columns",
+    propertyHiddenIds
+  );
+  // Seed the two existing hidden-by-default columns from this page only on
+  // first-ever render; after that, persisted state governs everything.
+  const effectiveColumnVisibility = useMemo(() => {
+    const next = { ...columnVisibility };
+    if (!("date group" in next)) next["date group"] = false;
+    if (!("guild" in next)) next["guild"] = false;
+    return next;
+  }, [columnVisibility]);
+
+  const columns = useMemo(() => {
+    const base = globalTaskColumns({
+      activeGuildId: table.activeGuildId,
+      isUpdatingTaskStatus: table.isUpdatingTaskStatus,
+      changeTaskStatus: table.changeTaskStatus,
+      changeTaskStatusById: table.changeTaskStatusById,
+      fetchProjectStatuses: table.fetchProjectStatuses,
+      projectStatusCache: table.projectStatusCache,
+      projectsById: table.projectsById,
+      t: t as TranslateFn,
+    });
+    if (propertyColumns.length === 0) return base;
+    const tagsIdx = base.findIndex((c) => (c as { id?: string }).id === "tags");
+    if (tagsIdx === -1) return [...base, ...propertyColumns];
+    return [...base.slice(0, tagsIdx + 1), ...propertyColumns, ...base.slice(tagsIdx + 1)];
+  }, [
+    table.activeGuildId,
+    table.isUpdatingTaskStatus,
+    table.changeTaskStatus,
+    table.changeTaskStatusById,
+    table.fetchProjectStatuses,
+    table.projectStatusCache,
+    table.projectsById,
+    t,
+    propertyColumns,
+  ]);
 
   const groupingOptions = useMemo(
     () => [
@@ -151,6 +189,8 @@ export const MyTasksPage = () => {
               setPriorityFilters={table.setPriorityFilters}
               guildFilters={table.guildFilters}
               setGuildFilters={table.setGuildFilters}
+              propertyFilters={table.propertyFilters}
+              setPropertyFilters={table.setPropertyFilters}
               filtersOpen={table.filtersOpen}
               setFiltersOpen={table.setFiltersOpen}
               guilds={guilds}
@@ -178,10 +218,11 @@ export const MyTasksPage = () => {
                   columns={columns}
                   data={table.displayTasks}
                   groupingOptions={groupingOptions}
+                  columnVisibility={effectiveColumnVisibility}
+                  onColumnVisibilityChange={setColumnVisibility}
                   initialState={{
                     grouping: ["date group"],
                     expanded: true,
-                    columnVisibility: { "date group": false, guild: false },
                   }}
                   initialSorting={[
                     { id: "date group", desc: false },

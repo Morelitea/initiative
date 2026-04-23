@@ -51,6 +51,7 @@ import { CalendarView, type CalendarEntry, type CalendarViewMode } from "@/compo
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
+import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import {
   priorityVariant,
   type DueFilterOption,
@@ -83,6 +84,7 @@ type StoredFilters = {
   dueFilter: DueFilterOption;
   statusFilters: number[];
   tagFilters: number[];
+  propertyFilters: PropertyFilterCondition[];
   showArchived: boolean;
 };
 
@@ -92,6 +94,7 @@ const DEFAULT_FILTERS: StoredFilters = {
   dueFilter: "all",
   statusFilters: [],
   tagFilters: [],
+  propertyFilters: [],
   showArchived: false,
 };
 
@@ -103,6 +106,7 @@ type FilterAction =
   | { type: "SET_DUE_FILTER"; payload: DueFilterOption }
   | { type: "SET_STATUS_FILTERS"; payload: number[] }
   | { type: "SET_TAG_FILTERS"; payload: number[] }
+  | { type: "SET_PROPERTY_FILTERS"; payload: PropertyFilterCondition[] }
   | { type: "SET_SHOW_ARCHIVED"; payload: boolean };
 
 function filterReducer(state: StoredFilters, action: FilterAction): StoredFilters {
@@ -121,6 +125,8 @@ function filterReducer(state: StoredFilters, action: FilterAction): StoredFilter
       return { ...state, statusFilters: action.payload };
     case "SET_TAG_FILTERS":
       return { ...state, tagFilters: action.payload };
+    case "SET_PROPERTY_FILTERS":
+      return { ...state, propertyFilters: action.payload };
     case "SET_SHOW_ARCHIVED":
       return { ...state, showArchived: action.payload };
   }
@@ -144,6 +150,12 @@ const getDefaultFiltersVisibility = () => {
 
 type ProjectTasksSectionProps = {
   projectId: number;
+  /**
+   * Initiative the project belongs to. Threaded down to the table view so
+   * programmatic property columns stay scoped to this initiative's
+   * definitions.
+   */
+  initiativeId: number;
   taskStatuses: TaskStatusRead[];
   userOptions: UserOption[];
   canEditTaskDetails: boolean;
@@ -157,6 +169,7 @@ type ProjectTasksSectionProps = {
 
 export const ProjectTasksSection = ({
   projectId,
+  initiativeId,
   taskStatuses,
   userOptions,
   canEditTaskDetails,
@@ -186,7 +199,15 @@ export const ProjectTasksSection = ({
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
   const [filters, dispatchFilters] = useReducer(filterReducer, DEFAULT_FILTERS);
-  const { viewMode, assigneeFilters, dueFilter, statusFilters, tagFilters, showArchived } = filters;
+  const {
+    viewMode,
+    assigneeFilters,
+    dueFilter,
+    statusFilters,
+    tagFilters,
+    propertyFilters,
+    showArchived,
+  } = filters;
 
   // Fetch guild tags for filtering
   const { data: tags = [] } = useTags();
@@ -226,6 +247,11 @@ export const ProjectTasksSection = ({
       ? [{ field: "task_status_id", op: "in_" as const, value: statusFilters }]
       : []),
     ...(tagFilters.length > 0 ? [{ field: "tag_ids", op: "in_" as const, value: tagFilters }] : []),
+    ...propertyFilters.map((entry) => ({
+      field: "property_values" as const,
+      op: entry.op as FilterCondition["op"],
+      value: { property_id: entry.property_id, value: entry.value },
+    })),
   ];
   const taskListParams: ListTasksApiV1TasksGetParams = {
     conditions,
@@ -286,6 +312,10 @@ export const ProjectTasksSection = ({
     (v: number[]) => dispatchFilters({ type: "SET_TAG_FILTERS", payload: v }),
     []
   );
+  const handlePropertyFiltersChange = useCallback(
+    (v: PropertyFilterCondition[]) => dispatchFilters({ type: "SET_PROPERTY_FILTERS", payload: v }),
+    []
+  );
   const handleShowArchivedChange = useCallback(
     (v: boolean) => dispatchFilters({ type: "SET_SHOW_ARCHIVED", payload: v }),
     []
@@ -343,6 +373,15 @@ export const ProjectTasksSection = ({
         }
         if (Array.isArray(parsed.tagFilters)) {
           loaded.tagFilters = parsed.tagFilters;
+        }
+        if (Array.isArray(parsed.propertyFilters)) {
+          loaded.propertyFilters = parsed.propertyFilters.filter(
+            (entry): entry is PropertyFilterCondition =>
+              entry !== null &&
+              typeof entry === "object" &&
+              typeof (entry as PropertyFilterCondition).property_id === "number" &&
+              typeof (entry as PropertyFilterCondition).op === "string"
+          );
         }
         if (typeof parsed.showArchived === "boolean") {
           loaded.showArchived = parsed.showArchived;
@@ -890,11 +929,13 @@ export const ProjectTasksSection = ({
               dueFilter={dueFilter}
               statusFilters={statusFilters}
               tagFilters={tagFilters}
+              propertyFilters={propertyFilters}
               showArchived={showArchived}
               onAssigneeFiltersChange={handleAssigneeFiltersChange}
               onDueFilterChange={handleDueFilterChange}
               onStatusFiltersChange={handleStatusFiltersChange}
               onTagFiltersChange={handleTagFiltersChange}
+              onPropertyFiltersChange={handlePropertyFiltersChange}
               onShowArchivedChange={handleShowArchivedChange}
             />
           </CollapsibleContent>
@@ -944,6 +985,8 @@ export const ProjectTasksSection = ({
             />
           )}
           <ProjectTasksTableView
+            projectId={projectId}
+            initiativeId={initiativeId}
             tasks={statusFilteredTasks}
             taskStatuses={sortedTaskStatuses}
             sensors={listSensors}

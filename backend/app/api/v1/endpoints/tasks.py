@@ -31,6 +31,7 @@ from app.models.project import Project, ProjectPermission, ProjectRolePermission
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
 from app.models.tag import Tag, TaskTag
+from app.models.property import PropertyDefinition, TaskPropertyValue
 from app.models.user import User
 from app.models.guild import GuildMembership
 from app.models.comment import Comment
@@ -47,6 +48,7 @@ from app.schemas.subtask import (
 )
 from app.schemas.ai_generation import GenerateSubtasksResponse, GenerateDescriptionResponse
 from app.schemas.tag import TagSummary, TagSetRequest
+from app.schemas.property import PropertyValuesSetRequest
 from app.services.realtime import broadcast_event
 from app.services import event_publisher
 from app.services import notifications as notifications_service
@@ -54,6 +56,7 @@ from app.services import permissions as permissions_service
 from app.services.recurrence import get_next_due_date
 from app.services import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
+from app.services import properties as properties_service
 from app.core.messages import ProjectMessages, QueryMessages, TaskMessages, SubtaskMessages
 
 router = APIRouter()
@@ -136,7 +139,12 @@ def _task_sort_fields(tz: str | None = None) -> dict[str, object]:
 TASK_DEFAULT_SORT = [(Task.sort_order, "asc"), (Task.id, "asc")]
 
 
-def _build_task_filter_fields(*, guild_id: int, current_user_id: int) -> dict:
+def _build_task_filter_fields(
+    *,
+    guild_id: int,
+    current_user_id: int,
+    property_definitions: Optional[dict[int, PropertyDefinition]] = None,
+) -> dict:
     """Build allowed_fields dict from Task model columns plus callable overrides.
 
     Every column on the Task table is automatically available as a filter
@@ -205,10 +213,74 @@ def _build_task_filter_fields(*, guild_id: int, current_user_id: int) -> dict:
         )
         return Task.project_id.in_(subq)
 
+    defs_map: dict[int, PropertyDefinition] = property_definitions or {}
+
+    def _property_values_handler(op: FilterOp, value):
+        """Filter tasks by a custom property value.
+
+        ``value`` is expected to be a dict of the form
+        ``{"property_id": int, "value": <any>}``. The condition resolves
+        to a subquery on ``task_property_values`` predicated on the
+        typed column that matches the definition's type.
+        """
+        if not isinstance(value, dict):
+            return None
+        pid_raw = value.get("property_id")
+        raw_value = value.get("value")
+        try:
+            pid = int(pid_raw)
+        except (TypeError, ValueError):
+            return None
+        defn = defs_map.get(pid)
+        if defn is None:
+            # Unknown or cross-guild property — silently skip (defense in
+            # depth, consistent with the rest of apply_filters).
+            return None
+
+        if op == FilterOp.is_null:
+            # "Is empty" must match tasks that either have no row in
+            # task_property_values for this property_id OR have a row
+            # with a null value column. Delegate to the presence helper.
+            # Tasks' generic conditions parser doesn't go through
+            # parse_property_filters, so normalize the is_null bool here.
+            try:
+                is_empty = properties_service.normalize_is_null_value(raw_value)
+            except ValueError:
+                return None
+            return properties_service.property_value_presence_predicate(
+                TaskPropertyValue,
+                Task.id,
+                TaskPropertyValue.task_id,
+                pid,
+                defn.type,
+                is_empty=is_empty,
+            )
+
+        try:
+            column = properties_service.typed_column_for_property(
+                TaskPropertyValue, defn.type
+            )
+        except ValueError:
+            return None
+        predicate = properties_service.build_property_value_predicate(
+            column, defn.type, op, raw_value
+        )
+        if predicate is None:
+            return None
+        subq = (
+            select(TaskPropertyValue.task_id)
+            .where(
+                TaskPropertyValue.property_id == pid,
+                predicate,
+            )
+        )
+        return Task.id.in_(subq)
+
     fields["status_category"] = _status_category_handler
     fields["assignee_ids"] = _assignee_ids_handler
     fields["tag_ids"] = _tag_ids_handler
     fields["initiative_ids"] = _initiative_ids_handler
+    fields["property_values"] = _property_values_handler
 
     return fields
 
@@ -304,6 +376,18 @@ def _annotate_task_tags(tasks: list[Task]) -> None:
         object.__setattr__(task, "tags", tags)
 
 
+def _annotate_task_properties(tasks: list[Task]) -> None:
+    """Annotate tasks with serialized ``PropertySummary`` values.
+
+    Relies on ``task.property_values`` being eager-loaded with the
+    ``property_definition`` (and ``value_user`` where relevant) relationship.
+    """
+    for task in tasks:
+        rows = getattr(task, "property_values", []) or []
+        summaries = properties_service.summaries_from_rows(rows)
+        object.__setattr__(task, "properties", summaries)
+
+
 def _task_to_list_read(task: Task) -> TaskListRead:
     """Convert Task model to lightweight TaskListRead schema"""
     from app.schemas.task import TaskAssigneeSummary
@@ -350,6 +434,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         initiative_color=initiative.color if initiative else None,
         subtask_progress=getattr(task, "subtask_progress", None),
         tags=getattr(task, "tags", []),
+        properties=getattr(task, "properties", []),
     )
 
 
@@ -413,7 +498,13 @@ def _task_payload(task: Task) -> dict:
     return TaskRead.model_validate(task).model_dump(mode="json")
 
 
-async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task | None:
+async def _fetch_task(
+    session: SessionDep,
+    task_id: int,
+    guild_id: int,
+    *,
+    populate_existing: bool = False,
+) -> Task | None:
     stmt = (
         select(Task)
         .join(Task.project)
@@ -429,14 +520,27 @@ async def _fetch_task(session: SessionDep, task_id: int, guild_id: int) -> Task 
             selectinload(Task.assignees),
             selectinload(Task.task_status),
             selectinload(Task.tag_links).selectinload(TaskTag.tag),
+            selectinload(Task.property_values).selectinload(
+                TaskPropertyValue.property_definition
+            ),
+            selectinload(Task.property_values).selectinload(
+                TaskPropertyValue.value_user
+            ),
         )
     )
+    if populate_existing:
+        # Force SA to refresh relationships on any Task already in the
+        # session's identity map. Required after commits that mutate
+        # collections (e.g. property_values replace-all) since
+        # expire_on_commit=False keeps stale collections otherwise.
+        stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
     task = result.one_or_none()
     if task:
         await _annotate_tasks(session, [task])
         _annotate_task_guild([task])
         _annotate_task_tags([task])
+        _annotate_task_properties([task])
     return task
 
 
@@ -662,6 +766,67 @@ async def _allowed_project_ids(
     return {row[0] for row in permission_ids_result.all() if row[0] is not None}
 
 
+def _property_value_filter_clauses(
+    property_value_conditions: list,
+    property_definitions: dict,
+) -> list:
+    """Compile ``property_values`` conditions to SA WHERE clauses for tasks.
+
+    Shared between the global and non-global list paths so the global
+    paths also honor custom-property filters. Unknown property_ids are
+    silently skipped (the filter handler does the same).
+    """
+    clauses = []
+    for cond in property_value_conditions:
+        if not isinstance(cond.value, dict):
+            continue
+        pid_raw = cond.value.get("property_id")
+        raw_value = cond.value.get("value")
+        try:
+            pid = int(pid_raw)
+        except (TypeError, ValueError):
+            continue
+        defn = property_definitions.get(pid)
+        if defn is None:
+            continue
+        if cond.op == FilterOp.is_null:
+            # Same normalization path as the filter-handler branch above:
+            # the global-task list paths accept raw conditions objects
+            # without going through parse_property_filters, so guard here.
+            try:
+                is_empty = properties_service.normalize_is_null_value(raw_value)
+            except ValueError:
+                continue
+            clauses.append(
+                properties_service.property_value_presence_predicate(
+                    TaskPropertyValue,
+                    Task.id,
+                    TaskPropertyValue.task_id,
+                    pid,
+                    defn.type,
+                    is_empty=is_empty,
+                )
+            )
+            continue
+        try:
+            column = properties_service.typed_column_for_property(
+                TaskPropertyValue, defn.type
+            )
+        except ValueError:
+            continue
+        predicate = properties_service.build_property_value_predicate(
+            column, defn.type, cond.op, raw_value
+        )
+        if predicate is None:
+            continue
+        subq = (
+            select(TaskPropertyValue.task_id)
+            .where(TaskPropertyValue.property_id == pid, predicate)
+        )
+        clauses.append(Task.id.in_(subq))
+    return clauses
+
+
 async def _list_global_tasks(
     session: SessionDep,
     current_user: User,
@@ -671,6 +836,8 @@ async def _list_global_tasks(
     status_category: Optional[List[TaskStatusCategory]],
     initiative_ids: Optional[List[int]],
     guild_ids: Optional[List[int]],
+    property_value_conditions: list | None = None,
+    property_definitions: dict | None = None,
     include_archived: bool = False,
     page: int = 1,
     page_size: int = 20,
@@ -693,6 +860,11 @@ async def _list_global_tasks(
         conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
     if guild_ids:
         conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
+    conditions.extend(
+        _property_value_filter_clauses(
+            property_value_conditions or [], property_definitions or {}
+        )
+    )
 
     # Build base join chain
     def _base_query(stmt):
@@ -720,6 +892,12 @@ async def _list_global_tasks(
         selectinload(Task.assignees),
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.property_definition
+        ),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.value_user
+        ),
     )
     statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT)
 
@@ -735,6 +913,8 @@ async def _list_global_created_tasks(
     status_category: Optional[List[TaskStatusCategory]],
     initiative_ids: Optional[List[int]],
     guild_ids: Optional[List[int]],
+    property_value_conditions: list | None = None,
+    property_definitions: dict | None = None,
     include_archived: bool = False,
     page: int = 1,
     page_size: int = 20,
@@ -758,6 +938,11 @@ async def _list_global_created_tasks(
         conditions.append(Project.initiative_id.in_(tuple(initiative_ids)))
     if guild_ids:
         conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
+    conditions.extend(
+        _property_value_filter_clauses(
+            property_value_conditions or [], property_definitions or {}
+        )
+    )
 
     def _base_query(stmt):
         stmt = (
@@ -783,6 +968,12 @@ async def _list_global_created_tasks(
         selectinload(Task.assignees),
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.property_definition
+        ),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.value_user
+        ),
     )
     statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT)
 
@@ -841,6 +1032,29 @@ async def list_tasks(
     initiative_ids = extract_condition_value(user_conditions, "initiative_ids")
     guild_ids = extract_condition_value(user_conditions, "guild_ids")
 
+    # Collect property_values conditions — global paths need them too, so
+    # pre-load referenced definitions here and pass them down.
+    property_value_conditions = [
+        cond for cond in user_conditions if cond.field == "property_values"
+    ]
+    if len(property_value_conditions) > properties_service.MAX_PROPERTY_FILTERS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
+    _property_ids_needed: list[int] = []
+    for _cond in property_value_conditions:
+        if isinstance(_cond.value, dict):
+            _pid_raw = _cond.value.get("property_id")
+            try:
+                _property_ids_needed.append(int(_pid_raw))
+            except (TypeError, ValueError):
+                continue
+    property_definitions_map = await properties_service.load_definitions_by_ids(
+        session,
+        _property_ids_needed,
+    )
+
     if scope == "global":
         tasks, total_count, actual_page = await _list_global_tasks(
             session,
@@ -850,6 +1064,8 @@ async def list_tasks(
             status_category=status_category,
             initiative_ids=initiative_ids,
             guild_ids=guild_ids,
+            property_value_conditions=property_value_conditions,
+            property_definitions=property_definitions_map,
             include_archived=include_archived,
             page=page,
             page_size=page_size,
@@ -858,6 +1074,7 @@ async def list_tasks(
         )
         await _annotate_tasks(session, tasks)
         _annotate_task_tags(tasks)
+        _annotate_task_properties(tasks)
         items = [_task_to_list_read(task) for task in tasks]
         return TaskListResponse(**build_paginated_response(
             items=items, total_count=total_count, page=actual_page,
@@ -873,6 +1090,8 @@ async def list_tasks(
             status_category=status_category,
             initiative_ids=initiative_ids,
             guild_ids=guild_ids,
+            property_value_conditions=property_value_conditions,
+            property_definitions=property_definitions_map,
             include_archived=include_archived,
             page=page,
             page_size=page_size,
@@ -881,6 +1100,7 @@ async def list_tasks(
         )
         await _annotate_tasks(session, tasks)
         _annotate_task_tags(tasks)
+        _annotate_task_properties(tasks)
         items = [_task_to_list_read(task) for task in tasks]
         return TaskListResponse(**build_paginated_response(
             items=items, total_count=total_count, page=actual_page,
@@ -907,9 +1127,13 @@ async def list_tasks(
             ))
         access_conditions.append(Task.project_id.in_(tuple(allowed_ids)))
 
+    # ``property_definitions_map`` is pre-loaded above (at function top)
+    # so the non-global path and both global paths share the same cache.
+
     filter_fields = _build_task_filter_fields(
         guild_id=guild_context.guild_id,
         current_user_id=current_user.id,
+        property_definitions=property_definitions_map,
     )
 
     def _build_non_global_query(stmt):
@@ -928,12 +1152,19 @@ async def list_tasks(
         selectinload(Task.assignees),
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.property_definition
+        ),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.value_user
+        ),
     )
     statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT)
 
     tasks, total_count, actual_page = await paginated_query(session, statement, count_stmt, page, page_size)
     await _annotate_tasks(session, tasks)
     _annotate_task_tags(tasks)
+    _annotate_task_properties(tasks)
     items = [_task_to_list_read(task) for task in tasks]
     return TaskListResponse(**build_paginated_response(
         items=items, total_count=total_count, page=actual_page,
@@ -1164,12 +1395,22 @@ async def move_task(
     default_status = await task_statuses_service.get_default_status(session, target_project.id)
     now = datetime.now(timezone.utc)
     source_project_id = task.project_id
+    source_initiative_id = task.project.initiative_id if task.project else None
     task.project_id = target_project.id
     task.task_status_id = default_status.id
     task.task_status = default_status
     task.sort_order = 0
     task.updated_at = now
     session.add(task)
+
+    # If the move crosses initiative boundaries, drop property values —
+    # their definitions belong to the old initiative and can't resolve in
+    # the new one.
+    if source_initiative_id is not None and source_initiative_id != target_project.initiative_id:
+        await session.execute(
+            delete(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
+        )
+
     await _touch_project(session, source_project_id, timestamp=now)
     await _touch_project(session, target_project.id, timestamp=now)
     await session.commit()
@@ -1259,6 +1500,31 @@ async def duplicate_task(
         session.add_all([
             TaskTag(task_id=new_task.id, tag_id=link.tag_id)
             for link in original_task.tag_links
+        ])
+
+    # Copy property values — duplicate stays in the same project and
+    # therefore the same initiative, so definitions always resolve.
+    from copy import deepcopy  # local import to avoid top-level clutter
+
+    source_values_stmt = select(TaskPropertyValue).where(
+        TaskPropertyValue.task_id == original_task.id
+    )
+    source_values_result = await session.exec(source_values_stmt)
+    source_values = source_values_result.all()
+    if source_values:
+        session.add_all([
+            TaskPropertyValue(
+                task_id=new_task.id,
+                property_id=row.property_id,
+                value_text=row.value_text,
+                value_number=row.value_number,
+                value_boolean=row.value_boolean,
+                value_date=row.value_date,
+                value_datetime=row.value_datetime,
+                value_user_id=row.value_user_id,
+                value_json=deepcopy(row.value_json) if row.value_json is not None else None,
+            )
+            for row in source_values
         ])
 
     await _touch_project(session, original_task.project_id)
@@ -1837,3 +2103,78 @@ async def set_task_tags(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
     await broadcast_event("task", "updated", _task_payload(task))
     return task
+
+
+@router.put("/{task_id}/properties", response_model=TaskRead)
+async def set_task_properties(
+    task_id: int,
+    payload: PropertyValuesSetRequest,
+    session: ServiceRLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> Task:
+    """Replace the custom property values on a task.
+
+    Requires write access (same permission gate as PUT /tags). Validates
+    each value against its definition's type and options server-side.
+    """
+    task = await _fetch_task(session, task_id, guild_context.guild_id)
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+
+    await _ensure_can_manage(
+        session,
+        task.project_id,
+        current_user,
+        guild_id=guild_context.guild_id,
+    )
+
+    task_id_to_update = task.id
+    project_id = task.project_id
+    initiative_id = task.project.initiative_id if task.project else None
+    if initiative_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=TaskMessages.NOT_FOUND,
+        )
+
+    try:
+        await properties_service.set_task_property_values(
+            session,
+            task,
+            payload.values,
+            initiative_id,
+        )
+    except HTTPException:
+        await session.rollback()
+        await reapply_rls_context(session)
+        raise
+
+    # Update task timestamp via a lightweight select (avoids stale
+    # relationship objects after the DELETE in the service).
+    ts_stmt = select(Task).where(Task.id == task_id_to_update)
+    ts_result = await session.exec(ts_stmt)
+    ts_task = ts_result.one()
+    now = datetime.now(timezone.utc)
+    ts_task.updated_at = now
+    await _touch_project(session, project_id, timestamp=now)
+
+    await session.commit()
+    await reapply_rls_context(session)
+
+    # populate_existing=True forces selectinload to refresh the cached
+    # task's property_values collection; expire_on_commit=False keeps the
+    # stale collection otherwise.
+    refreshed = await _fetch_task(
+        session,
+        task_id_to_update,
+        guild_context.guild_id,
+        populate_existing=True,
+    )
+    if refreshed is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=TaskMessages.MISSING_AFTER_UPDATE,
+        )
+    await broadcast_event("task", "updated", _task_payload(refreshed))
+    return refreshed

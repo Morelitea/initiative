@@ -16,6 +16,7 @@ from app.models.comment import Comment
 from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
+from app.models.property import DocumentPropertyValue
 from app.models.tag import DocumentTag
 from app.models.project import Project
 from app.core.config import settings
@@ -116,6 +117,7 @@ async def get_document(
     *,
     document_id: int,
     guild_id: int,
+    populate_existing: bool = False,
 ) -> Document | None:
     statement = (
         select(Document)
@@ -135,8 +137,20 @@ async def get_document(
             selectinload(Document.permissions),
             selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.property_definition
+            ),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.value_user
+            ),
         )
     )
+    if populate_existing:
+        # Force SA to refresh attributes on any Document already in the
+        # session's identity map. Needed after commits that mutate
+        # collections (e.g. property_values replace-all) since
+        # expire_on_commit=False otherwise keeps stale relationships.
+        statement = statement.execution_options(populate_existing=True)
     result = await session.exec(statement)
     document = result.one_or_none()
     if document:
@@ -264,6 +278,31 @@ async def duplicate_document(
             )
             for link in source_tag_links
         ])
+
+    # Copy property values ONLY when the target initiative matches the
+    # source's — definitions are initiative-scoped, so cross-initiative
+    # copies would produce orphaned values the target can't resolve.
+    if target_initiative_id == source.initiative_id:
+        source_value_stmt = select(DocumentPropertyValue).where(
+            DocumentPropertyValue.document_id == source.id
+        )
+        source_values_result = await session.exec(source_value_stmt)
+        source_values = source_values_result.all()
+        if source_values:
+            session.add_all([
+                DocumentPropertyValue(
+                    document_id=duplicated.id,
+                    property_id=row.property_id,
+                    value_text=row.value_text,
+                    value_number=row.value_number,
+                    value_boolean=row.value_boolean,
+                    value_date=row.value_date,
+                    value_datetime=row.value_datetime,
+                    value_user_id=row.value_user_id,
+                    value_json=deepcopy(row.value_json) if row.value_json is not None else None,
+                )
+                for row in source_values
+            ])
 
     await session.commit()
     return duplicated

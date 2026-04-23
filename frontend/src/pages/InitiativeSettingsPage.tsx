@@ -29,6 +29,7 @@ import { InitiativeSettingsMembersTab } from "@/components/initiatives/settings/
 import { InitiativeSettingsRolesTab } from "@/components/initiatives/settings/InitiativeSettingsRolesTab";
 import { InitiativeSettingsDangerTab } from "@/components/initiatives/settings/InitiativeSettingsDangerTab";
 import { InitiativeSettingsDialogs } from "@/components/initiatives/settings/InitiativeSettingsDialogs";
+import { InitiativeSettingsPropertiesTab } from "@/components/initiatives/settings/InitiativeSettingsPropertiesTab";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -41,7 +42,7 @@ export const InitiativeSettingsPage = () => {
   const initiativeId = hasValidInitiativeId ? parsedInitiativeId : 0;
   const router = useRouter();
 
-  const { t } = useTranslation(["initiatives", "common"]);
+  const { t } = useTranslation(["initiatives", "common", "properties"]);
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
   const { data: roleLabels } = useRoleLabels();
@@ -242,6 +243,7 @@ export const InitiativeSettingsPage = () => {
           <TabsTrigger value="details">{t("settings.detailsTab")}</TabsTrigger>
           <TabsTrigger value="members">{t("settings.membersTab")}</TabsTrigger>
           <TabsTrigger value="roles">{t("settings.rolesTab")}</TabsTrigger>
+          <TabsTrigger value="properties">{t("properties:manager.title")}</TabsTrigger>
           <TabsTrigger value="danger">{t("settings.dangerTab")}</TabsTrigger>
         </TabsList>
         <InitiativeSettingsDetailsTab
@@ -284,6 +286,8 @@ export const InitiativeSettingsPage = () => {
             setRoleToRename(role);
           }}
         />
+
+        <InitiativeSettingsPropertiesTab initiativeId={initiativeId} />
 
         <InitiativeSettingsDangerTab
           isDefault={initiative.is_default}

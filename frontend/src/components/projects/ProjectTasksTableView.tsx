@@ -41,8 +41,19 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { TagBadge } from "@/components/tags/TagBadge";
 import { useGuildPath } from "@/lib/guildUrl";
 import { TaskStatusOption, statusTriggerStyle } from "@/components/tasks/TaskStatusOption";
+import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
+import { useProperties } from "@/hooks/useProperties";
+import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
+import { PropertyAppliesTo } from "@/api/generated/initiativeAPI.schemas";
 
 type ProjectTasksListViewProps = {
+  projectId: number;
+  /**
+   * Initiative the project belongs to. Scopes the property column list so
+   * this table surfaces only the initiative's property definitions (global
+   * views like My Tasks still use the unbound union).
+   */
+  initiativeId: number;
   tasks: TaskListRead[];
   taskStatuses: TaskStatusRead[];
   sensors: DndContextProps["sensors"];
@@ -158,6 +169,8 @@ const SortableRowWrapperInner = ({
 };
 
 const ProjectTasksTableViewComponent = ({
+  projectId,
+  initiativeId,
   tasks,
   taskStatuses,
   sensors,
@@ -176,6 +189,40 @@ const ProjectTasksTableViewComponent = ({
   const { t } = useTranslation("projects");
   const statusDisabled = !canEditTaskDetails || taskActionsDisabled;
   const gp = useGuildPath();
+
+  // Programmatic property columns (hidden by default, persist visibility).
+  // Scoped to the project's initiative so the column list stays focused.
+  const { data: allPropertyDefinitions = [] } = useProperties({ initiativeId });
+  const propertyDefinitions = useMemo(
+    () =>
+      allPropertyDefinitions.filter(
+        (definition) =>
+          definition.applies_to === PropertyAppliesTo.task ||
+          definition.applies_to === PropertyAppliesTo.both
+      ),
+    [allPropertyDefinitions]
+  );
+  const propertyColumns = useMemo(
+    () => buildPropertyColumns<TaskListRead>(propertyDefinitions, (row) => row.properties),
+    [propertyDefinitions]
+  );
+  const propertyHiddenIds = useMemo(
+    () => propertyColumnIds(propertyDefinitions),
+    [propertyDefinitions]
+  );
+  const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
+    `initiative-project-${projectId}-task-columns`,
+    propertyHiddenIds
+  );
+  // "date group" column must always start hidden in this view (non-property
+  // toggle). Merge it once with the persisted map.
+  const effectiveColumnVisibility = useMemo(
+    () =>
+      "date group" in columnVisibility
+        ? columnVisibility
+        : { ...columnVisibility, "date group": false },
+    [columnVisibility]
+  );
 
   // Memoize status lookups to avoid repeated array searches
   const statusLookup = useMemo(() => {
@@ -427,6 +474,15 @@ const ProjectTasksTableViewComponent = ({
     ],
     [canOpenTask, gp, onStatusChange, onTaskClick, statusDisabled, taskStatuses, statusLookup, t]
   );
+  // Insert programmatic property columns between tags (index of "tags") and
+  // comments. We splice by id so the insertion point is robust to column-list
+  // refactors.
+  const columnsWithProperties = useMemo<ColumnDef<TaskListRead>[]>(() => {
+    if (propertyColumns.length === 0) return columns;
+    const tagsIdx = columns.findIndex((c) => (c as { id?: string }).id === "tags");
+    if (tagsIdx === -1) return [...columns, ...propertyColumns];
+    return [...columns.slice(0, tagsIdx + 1), ...propertyColumns, ...columns.slice(tagsIdx + 1)];
+  }, [columns, propertyColumns]);
   const groupingOptions = useMemo(() => [{ id: "date group", label: t("table.dateWindow") }], [t]);
 
   const sortableItems = useMemo(() => tasks.map((task) => task.id.toString()), [tasks]);
@@ -469,12 +525,14 @@ const ProjectTasksTableViewComponent = ({
         strategy={verticalListSortingStrategy}
       >
         <DataTable
-          columns={columns}
+          columns={columnsWithProperties}
           data={tasks}
           enableVirtualization
           virtualContainerHeight="h-[calc(100vh-20rem)]"
           virtualRowHeight={52}
           groupingOptions={groupingOptions}
+          columnVisibility={effectiveColumnVisibility}
+          onColumnVisibilityChange={setColumnVisibility}
           onSortingChange={handleSortingChange}
           onGroupingChange={handleGroupingChange}
           helpText={(table) => {
@@ -505,7 +563,6 @@ const ProjectTasksTableViewComponent = ({
           initialState={{
             // grouping: ["date group"],
             expanded: true,
-            columnVisibility: { "date group": false },
           }}
           rowWrapper={rowWrapper}
           enableFilterInput
@@ -536,7 +593,8 @@ export const ProjectTasksTableView = memo(
       prevProps.canReorderTasks === nextProps.canReorderTasks &&
       prevProps.canEditTaskDetails === nextProps.canEditTaskDetails &&
       prevProps.canOpenTask === nextProps.canOpenTask &&
-      prevProps.taskActionsDisabled === nextProps.taskActionsDisabled
+      prevProps.taskActionsDisabled === nextProps.taskActionsDisabled &&
+      prevProps.initiativeId === nextProps.initiativeId
       // Note: Intentionally ignoring callback prop changes as they're functionally the same
     );
   }

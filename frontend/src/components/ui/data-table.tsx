@@ -82,6 +82,15 @@ interface DataTableProps<TData, TValue> {
   filterInputPlaceholder?: string;
   filterInputColumnKey?: string;
   enableColumnVisibilityDropdown?: boolean;
+  /**
+   * When provided, the DataTable treats ``columnVisibility`` as controlled
+   * state. Use this together with ``onColumnVisibilityChange`` to persist
+   * toggles across sessions (see ``usePersistedColumnVisibility``).
+   */
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: (
+    updater: VisibilityState | ((prev: VisibilityState) => VisibilityState)
+  ) => void;
   enablePagination?: boolean;
   enableResetSorting?: boolean;
   initialSorting?: SortingState;
@@ -130,6 +139,8 @@ export function DataTable<TData, TValue>({
   filterInputPlaceholder = "Filter...",
   filterInputColumnKey = "name",
   enableColumnVisibilityDropdown = false,
+  columnVisibility: controlledColumnVisibility,
+  onColumnVisibilityChange: externalOnColumnVisibilityChange,
   enablePagination = false,
   enableResetSorting: enableClearSorting = false,
   initialSorting,
@@ -175,8 +186,26 @@ export function DataTable<TData, TValue>({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(
     () => (initialStateRef.current?.columnFilters as ColumnFiltersState) ?? []
   );
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
+  const [internalColumnVisibility, setInternalColumnVisibility] = useState<VisibilityState>(
     () => initialStateRef.current?.columnVisibility ?? {}
+  );
+  const isColumnVisibilityControlled = controlledColumnVisibility !== undefined;
+  const columnVisibility = isColumnVisibilityControlled
+    ? controlledColumnVisibility
+    : internalColumnVisibility;
+  const handleColumnVisibilityChange = useCallback(
+    (updater: VisibilityState | ((prev: VisibilityState) => VisibilityState)) => {
+      if (isColumnVisibilityControlled) {
+        externalOnColumnVisibilityChange?.(updater);
+        return;
+      }
+      setInternalColumnVisibility((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        externalOnColumnVisibilityChange?.(next);
+        return next;
+      });
+    },
+    [externalOnColumnVisibilityChange, isColumnVisibilityControlled]
   );
   const [grouping, setGrouping] = useState<GroupingState>(() =>
     groupingEnabled ? initialGroupingRef.current : []
@@ -281,7 +310,7 @@ export function DataTable<TData, TValue>({
     },
     onSortingChange: handleSortingChange,
     onColumnFiltersChange: setColumnFilters,
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
     onGroupingChange: groupingEnabled ? handleGroupingChange : undefined,
     onPaginationChange: handlePaginationChange,
     onRowSelectionChange: enableRowSelection ? setRowSelection : undefined,
@@ -568,11 +597,15 @@ export function DataTable<TData, TValue>({
                         {t("columns")} <ChevronDown />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent
+                      align="end"
+                      className="max-h-[min(70vh,24rem)] overflow-y-auto"
+                    >
                       {table
                         .getAllColumns()
                         .filter((column) => column.getCanHide())
                         .map((column) => {
+                          const meta = column.columnDef.meta as { label?: string } | undefined;
                           return (
                             <DropdownMenuCheckboxItem
                               key={column.id}
@@ -580,7 +613,7 @@ export function DataTable<TData, TValue>({
                               checked={column.getIsVisible()}
                               onCheckedChange={(value) => column.toggleVisibility(!!value)}
                             >
-                              {column.id}
+                              {meta?.label ?? column.id}
                             </DropdownMenuCheckboxItem>
                           );
                         })}
@@ -659,26 +692,32 @@ export function DataTable<TData, TValue>({
 
                   {enableColumnVisibilityDropdown && (
                     <>
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>{t("columns")}</DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          {table
-                            .getAllColumns()
-                            .filter((column) => column.getCanHide())
-                            .map((column) => {
-                              return (
-                                <DropdownMenuCheckboxItem
-                                  key={column.id}
-                                  className="capitalize"
-                                  checked={column.getIsVisible()}
-                                  onCheckedChange={(value) => column.toggleVisibility(!!value)}
-                                >
-                                  {column.id}
-                                </DropdownMenuCheckboxItem>
-                              );
-                            })}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
+                      {/*
+                        Inline the columns list on mobile rather than opening a
+                        nested sub-dropdown — on narrow screens the sub content
+                        can't fit next to the parent menu and ends up clipped
+                        off the left edge of the viewport. A single scrollable
+                        region inside the main menu keeps everything on-screen.
+                      */}
+                      <DropdownMenuLabel>{t("columns")}</DropdownMenuLabel>
+                      <div className="max-h-[min(50vh,20rem)] overflow-y-auto">
+                        {table
+                          .getAllColumns()
+                          .filter((column) => column.getCanHide())
+                          .map((column) => {
+                            const meta = column.columnDef.meta as { label?: string } | undefined;
+                            return (
+                              <DropdownMenuCheckboxItem
+                                key={column.id}
+                                className="capitalize"
+                                checked={column.getIsVisible()}
+                                onCheckedChange={(value) => column.toggleVisibility(!!value)}
+                              >
+                                {meta?.label ?? column.id}
+                              </DropdownMenuCheckboxItem>
+                            );
+                          })}
+                      </div>
                     </>
                   )}
                 </DropdownMenuContent>
