@@ -7,9 +7,11 @@ import {
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
   approveUserApiV1UsersUserIdApprovePost,
   deleteUserApiV1UsersUserIdDelete,
+  exportUsersCsvApiV1UsersExportCsvGet,
 } from "@/api/generated/users/users";
 import { updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch } from "@/api/generated/guilds/guilds";
 import { invalidateUsersList, invalidateCurrentUser } from "@/api/query-keys";
+import { downloadBlob } from "@/lib/csv";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 import type {
@@ -18,6 +20,7 @@ import type {
   UserRead,
   AccountDeletionRequest,
   AccountDeletionResponse,
+  ExportUsersCsvApiV1UsersExportCsvGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
@@ -129,6 +132,35 @@ export const useRemoveGuildMember = (options?: MutationOpts<void, number>) => {
     },
     onSuccess: (...args) => {
       void invalidateUsersList();
+      onSuccess?.(...args);
+    },
+    onError: (...args) => {
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
+type ExportGuildUsersVars = {
+  params: ExportUsersCsvApiV1UsersExportCsvGetParams;
+  filename: string;
+};
+
+/** Download the guild members CSV from the backend and trigger a browser save. */
+export const useExportGuildUsersCsv = (options?: MutationOpts<void, ExportGuildUsersVars>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({ params, filename }: ExportGuildUsersVars) => {
+      const blob = (await exportUsersCsvApiV1UsersExportCsvGet(params, {
+        responseType: "blob",
+        // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
+        paramsSerializer: { indexes: null },
+      })) as Blob;
+      downloadBlob(blob, filename);
+    },
+    onSuccess: (...args) => {
       onSuccess?.(...args);
     },
     onError: (...args) => {

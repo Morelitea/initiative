@@ -26,6 +26,7 @@ import type {
   AdminGuildRoleUpdate,
   AdminInitiativeRoleUpdate,
   AdminUserDeleteRequest,
+  ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
   HTTPValidationError,
   PlatformAdminCountResponse,
   PlatformRoleUpdate,
@@ -152,6 +153,168 @@ export function useListAllUsersApiV1AdminUsersGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getListAllUsersApiV1AdminUsersGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Export platform users as a CSV file. Pass `user_id` one or more times to
+restrict the export to a subset. Without `user_id`, every user (except the
+system user) is included. Platform-admin only.
+ * @summary Export Platform Users Csv
+ */
+export const exportPlatformUsersCsvApiV1AdminUsersExportCsvGet = (
+  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<unknown>(
+    { url: `/api/v1/admin/users/export.csv`, method: "GET", params, signal },
+    options
+  );
+};
+
+export const getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryKey = (
+  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams
+) => {
+  return [`/api/v1/admin/users/export.csv`, ...(params ? [params] : [])] as const;
+};
+
+export const getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>
+  > = ({ signal }) =>
+    exportPlatformUsersCsvApiV1AdminUsersExportCsvGet(params, requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>
+>;
+export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params: undefined | ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+          TError,
+          Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Export Platform Users Csv
+ */
+
+export function useExportPlatformUsersCsvApiV1AdminUsersExportCsvGet<
+  TData = Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  params?: ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof exportPlatformUsersCsvApiV1AdminUsersExportCsvGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getExportPlatformUsersCsvApiV1AdminUsersExportCsvGetQueryOptions(
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

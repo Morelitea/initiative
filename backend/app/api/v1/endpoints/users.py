@@ -3,7 +3,7 @@ from typing import Annotated, List, Optional
 import re
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel import select, update as sql_update
 
 from app.api.deps import (
@@ -47,6 +47,7 @@ from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
 from app.services import users as users_service
 from app.services import api_keys as api_keys_service
+from app.services import csv_export
 from app.services import stats_service
 
 # Allowed values for the optional "task completion visual feedback" effect.
@@ -157,6 +158,78 @@ async def list_users(
         member.initiative_roles = getattr(user, "initiative_roles", [])
         response.append(member)
     return response
+
+
+_GUILD_CSV_HEADERS = [
+    "user_id",
+    "email",
+    "full_name",
+    "guild_role",
+    "platform_role",
+    "oidc_managed",
+    "is_active",
+    "email_verified",
+    "created_at",
+    "initiative_roles",
+]
+
+
+@router.get("/export.csv")
+async def export_users_csv(
+    session: RLSSessionDep,
+    guild_context: GuildAdminContext,
+    user_id: Annotated[list[int] | None, Query()] = None,
+) -> Response:
+    """Export guild members as a CSV file. Pass `user_id` one or more times to
+    restrict the export to a subset. Without `user_id`, all visible members are
+    included. Guild-admin only."""
+    stmt = (
+        select(User, GuildMembership.role, GuildMembership.oidc_managed)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(GuildMembership.guild_id == guild_context.guild_id)
+        .order_by(User.created_at.asc())
+    )
+    if user_id:
+        stmt = stmt.where(User.id.in_(user_id))
+    result = await session.exec(stmt)
+    rows = result.all()
+
+    if user_id and not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+
+    users = [row[0] for row in rows]
+    await initiatives_service.load_user_initiative_roles(session, users)
+
+    csv_rows = []
+    for user, guild_role, oidc_managed in rows:
+        csv_rows.append([
+            user.id,
+            user.email,
+            user.full_name or "",
+            guild_role.value,
+            user.role.value if hasattr(user.role, "value") else user.role,
+            oidc_managed,
+            user.is_active,
+            user.email_verified,
+            user.created_at.isoformat() if user.created_at else "",
+            csv_export.format_initiative_roles(user),
+        ])
+
+    csv_bytes = csv_export.build_csv(_GUILD_CSV_HEADERS, csv_rows)
+
+    if len(rows) == 1 and user_id:
+        single_user = rows[0][0]
+        filename = f"user-{single_user.id}-{csv_export.safe_filename_component(single_user.email)}.csv"
+    else:
+        guild_slug = csv_export.safe_filename_component(guild_context.guild.name or "guild")
+        datestamp = datetime.now(timezone.utc).date().isoformat()
+        filename = f"{guild_slug}-users-{datestamp}.csv"
+
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)

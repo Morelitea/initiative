@@ -406,3 +406,171 @@ async def test_list_users_only_shows_guild_members(client: AsyncClient, session:
     # Should only see user1, not user2
     assert len(data) == 1
     assert data[0]["email"] == "user1@example.com"
+
+
+def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:
+    """Strip the UTF-8 BOM and parse the CSV body into (headers, rows)."""
+    import csv
+    import io
+
+    text = body.decode("utf-8")
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    return rows[0], rows[1:]
+
+
+@pytest.mark.integration
+async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSession):
+    """Guild admin can export all members as CSV."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com", full_name="Ada Admin")
+    member = await create_user(session, email="member@example.com", full_name="Mel Member")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get("/api/v1/users/export.csv", headers=headers)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment; filename=" in response.headers["content-disposition"]
+    assert response.content.startswith("\ufeff".encode("utf-8"))
+
+    header_row, data_rows = _parse_csv(response.content)
+    assert header_row == [
+        "user_id",
+        "email",
+        "full_name",
+        "guild_role",
+        "platform_role",
+        "oidc_managed",
+        "is_active",
+        "email_verified",
+        "created_at",
+        "initiative_roles",
+    ]
+    emails = {row[1] for row in data_rows}
+    assert emails == {"admin@example.com", "member@example.com"}
+
+
+@pytest.mark.integration
+async def test_export_users_csv_forbidden_for_member(client: AsyncClient, session: AsyncSession):
+    """A plain guild member cannot hit the export endpoint."""
+    guild = await create_guild(session)
+    member = await create_user(session, email="m@example.com")
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, member)
+    response = await client.get("/api/v1/users/export.csv", headers=headers)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_export_users_csv_requires_guild_context(client: AsyncClient, session: AsyncSession):
+    """Without the guild header the export is rejected."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    response = await client.get("/api/v1/users/export.csv", headers=headers)
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_export_users_csv_single_user_id(client: AsyncClient, session: AsyncSession):
+    """Passing one user_id returns exactly that row with a per-user filename."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    target = await create_user(session, email="target@example.com", full_name="Target User")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=target, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get(
+        f"/api/v1/users/export.csv?user_id={target.id}", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert f"user-{target.id}-" in response.headers["content-disposition"]
+    _, data_rows = _parse_csv(response.content)
+    assert len(data_rows) == 1
+    assert data_rows[0][0] == str(target.id)
+    assert data_rows[0][1] == "target@example.com"
+
+
+@pytest.mark.integration
+async def test_export_users_csv_multi_user_id(client: AsyncClient, session: AsyncSession):
+    """Two user_id values return two rows with a bulk-style filename."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    a = await create_user(session, email="a@example.com")
+    b = await create_user(session, email="b@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=a, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=b, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get(
+        f"/api/v1/users/export.csv?user_id={a.id}&user_id={b.id}", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert "-users-" in response.headers["content-disposition"]
+    _, data_rows = _parse_csv(response.content)
+    emails = {row[1] for row in data_rows}
+    assert emails == {"a@example.com", "b@example.com"}
+
+
+@pytest.mark.integration
+async def test_export_users_csv_partial_miss(client: AsyncClient, session: AsyncSession):
+    """Unknown ids are dropped silently; known ids are returned."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    target = await create_user(session, email="target@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=target, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get(
+        f"/api/v1/users/export.csv?user_id={target.id}&user_id=99999", headers=headers
+    )
+
+    assert response.status_code == 200
+    _, data_rows = _parse_csv(response.content)
+    assert len(data_rows) == 1
+    assert data_rows[0][0] == str(target.id)
+
+
+@pytest.mark.integration
+async def test_export_users_csv_no_matches_returns_404(client: AsyncClient, session: AsyncSession):
+    """All requested ids missing/invisible under RLS -> 404."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get(
+        "/api/v1/users/export.csv?user_id=99998&user_id=99999", headers=headers
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_export_users_csv_user_outside_guild(client: AsyncClient, session: AsyncSession):
+    """A user who exists but isn't in the active guild is not visible."""
+    guild1 = await create_guild(session)
+    guild2 = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    outsider = await create_user(session, email="outsider@example.com")
+    await create_guild_membership(session, user=admin, guild=guild1, role=GuildRole.admin)
+    await create_guild_membership(session, user=outsider, guild=guild2, role=GuildRole.member)
+
+    headers = get_guild_headers(guild1, admin)
+    response = await client.get(
+        f"/api/v1/users/export.csv?user_id={outsider.id}", headers=headers
+    )
+
+    assert response.status_code == 404
