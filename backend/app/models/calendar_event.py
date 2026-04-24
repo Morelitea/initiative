@@ -8,6 +8,7 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative
+    from app.models.property import CalendarEventPropertyValue
     from app.models.user import User
     from app.models.tag import Tag
     from app.models.document import Document
@@ -67,6 +68,10 @@ class CalendarEvent(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     document_links: List["CalendarEventDocument"] = Relationship(
+        back_populates="calendar_event",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    property_values: List["CalendarEventPropertyValue"] = Relationship(
         back_populates="calendar_event",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )

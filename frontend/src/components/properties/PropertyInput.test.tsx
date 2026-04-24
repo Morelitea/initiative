@@ -6,16 +6,12 @@ import { http, HttpResponse } from "msw";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { server } from "@/__tests__/helpers/msw-server";
 import { buildPropertyDefinition, buildPropertyOption } from "@/__tests__/factories/properties";
-import {
-  PropertyAppliesTo,
-  PropertyType,
-  type PropertyDefinitionRead,
-} from "@/api/generated/initiativeAPI.schemas";
+import { PropertyType, type PropertyDefinitionRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { PropertyInput } from "./PropertyInput";
 
 const def = (overrides: Partial<PropertyDefinitionRead>) =>
-  buildPropertyDefinition({ applies_to: PropertyAppliesTo.both, ...overrides });
+  buildPropertyDefinition({ ...overrides });
 
 describe("PropertyInput", () => {
   describe("text type", () => {
@@ -253,7 +249,6 @@ describe("PropertyInput", () => {
             property_id: 9,
             name: "Lite",
             type: PropertyType.text,
-            applies_to: PropertyAppliesTo.both,
             options: null,
             value: null,
           }}

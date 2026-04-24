@@ -42,9 +42,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
+import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 import type { RSVPStatus } from "@/api/generated/initiativeAPI.schemas";
 
-const RSVP_LABEL_KEYS: Record<string, "rsvpPending" | "rsvpAccepted" | "rsvpDeclined" | "rsvpTentative"> = {
+const RSVP_LABEL_KEYS: Record<
+  string,
+  "rsvpPending" | "rsvpAccepted" | "rsvpDeclined" | "rsvpTentative"
+> = {
   pending: "rsvpPending",
   accepted: "rsvpAccepted",
   declined: "rsvpDeclined",
@@ -120,7 +125,9 @@ const formatDateRange = (startStr: string, endStr: string, allDay: boolean): str
 };
 
 /** Map RSVP status to a badge variant */
-const rsvpBadgeVariant = (status: RSVPStatus): "default" | "secondary" | "destructive" | "outline" => {
+const rsvpBadgeVariant = (
+  status: RSVPStatus
+): "default" | "secondary" | "destructive" | "outline" => {
   switch (status) {
     case "accepted":
       return "default";
@@ -312,9 +319,7 @@ export function EventDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
-              <span className="text-muted-foreground text-sm">
-                {t("rsvp")}:
-              </span>
+              <span className="text-muted-foreground text-sm">{t("rsvp")}:</span>
               {myRsvpStatus && (
                 <Badge variant={rsvpBadgeVariant(myRsvpStatus)}>
                   {t(rsvpLabelKey(myRsvpStatus))}
@@ -322,9 +327,7 @@ export function EventDetailPage() {
               )}
               <Select
                 value={myRsvpStatus ?? "pending"}
-                onValueChange={(value) =>
-                  updateRSVP.mutate({ rsvp_status: value as RSVPStatus })
-                }
+                onValueChange={(value) => updateRSVP.mutate({ rsvp_status: value as RSVPStatus })}
                 disabled={updateRSVP.isPending}
               >
                 <SelectTrigger className="w-[140px]">
@@ -362,7 +365,9 @@ export function EventDetailPage() {
                   className="flex items-center justify-between rounded-md border px-3 py-2"
                 >
                   <span className="text-sm font-medium">
-                    {attendee.user?.full_name?.trim() || attendee.user?.email || `User #${attendee.user_id}`}
+                    {attendee.user?.full_name?.trim() ||
+                      attendee.user?.email ||
+                      `User #${attendee.user_id}`}
                   </span>
                   <Badge variant={rsvpBadgeVariant(attendee.rsvp_status)}>
                     {t(rsvpLabelKey(attendee.rsvp_status))}
@@ -373,6 +378,34 @@ export function EventDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Custom Properties — read-only view; edits happen on the Settings page. */}
+      {event.property_values.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">{t("properties")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {event.property_values.map((property) => {
+                const Icon = iconForPropertyType(property.type);
+                return (
+                  <li
+                    key={property.property_id}
+                    className="grid grid-cols-[minmax(0,8rem)_1fr] items-center gap-2"
+                  >
+                    <span className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs font-normal">
+                      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <span className="truncate">{property.name}</span>
+                    </span>
+                    <PropertyValueCell summary={property} variant="cell" />
+                  </li>
+                );
+              })}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tags */}
       {event.tags.length > 0 && (

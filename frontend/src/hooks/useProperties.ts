@@ -15,16 +15,19 @@ import {
 } from "@/api/generated/property-definitions/property-definitions";
 import { setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut } from "@/api/generated/documents/documents";
 import { setTaskPropertiesApiV1TasksTaskIdPropertiesPut } from "@/api/generated/tasks/tasks";
+import { setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut } from "@/api/generated/calendar-events/calendar-events";
 import {
   invalidateAllProperties,
   invalidateAllDocuments,
   invalidateAllTasks,
+  invalidateAllCalendarEvents,
+  invalidateCalendarEvent,
   invalidateDocument,
   invalidateTask,
 } from "@/api/query-keys";
 import type {
+  CalendarEventRead,
   DocumentRead,
-  PropertyAppliesTo,
   PropertyDefinitionCreate,
   PropertyDefinitionRead,
   PropertyDefinitionUpdate,
@@ -42,22 +45,16 @@ import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/propertie
 /**
  * List property definitions.
  *
- * - ``initiativeId`` bound: scopes to that one initiative (for per-doc/task
+ * - ``initiativeId`` bound: scopes to that one initiative (for per-entity
  *   pickers and the initiative settings manager page).
  * - ``initiativeId`` omitted: returns the union across every initiative the
- *   caller is a member of — used by global views (My Tasks, Documents list)
- *   so property columns and filters aggregate across initiatives.
- *
- * ``appliesTo`` narrows to ``document`` / ``task`` when provided.
+ *   caller is a member of — used by global views (My Tasks, Documents list,
+ *   events list) so property columns and filters aggregate across initiatives.
  */
-export const useProperties = (
-  options?: { initiativeId?: number; appliesTo?: PropertyAppliesTo } | PropertyAppliesTo
-) => {
-  // Back-compat: older call sites pass a bare PropertyAppliesTo string.
-  const resolved = typeof options === "string" ? { appliesTo: options } : (options ?? {});
-  const params: { initiative_id?: number; applies_to?: PropertyAppliesTo } = {};
-  if (resolved.initiativeId !== undefined) params.initiative_id = resolved.initiativeId;
-  if (resolved.appliesTo !== undefined) params.applies_to = resolved.appliesTo;
+export const useProperties = (options?: { initiativeId?: number }) => {
+  const initiativeId = options?.initiativeId;
+  const params: { initiative_id?: number } = {};
+  if (initiativeId !== undefined) params.initiative_id = initiativeId;
   const hasParams = Object.keys(params).length > 0;
   return useQuery<PropertyDefinitionRead[]>({
     queryKey: getListPropertyDefinitionsApiV1PropertyDefinitionsGetQueryKey(
@@ -150,9 +147,11 @@ export const useUpdateProperty = (
     },
     onSuccess: (...args) => {
       void invalidateAllProperties();
-      // Embedded summaries on documents/tasks need to pick up name/options/color changes.
+      // Embedded summaries on documents/tasks/events need to pick up
+      // name/options/color changes.
       void invalidateAllDocuments();
       void invalidateAllTasks();
+      void invalidateAllCalendarEvents();
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -177,6 +176,7 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) => {
       void invalidateAllProperties();
       void invalidateAllDocuments();
       void invalidateAllTasks();
+      void invalidateAllCalendarEvents();
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -229,6 +229,7 @@ export const useAppendPropertyOption = () => {
       void invalidateAllProperties();
       void invalidateAllDocuments();
       void invalidateAllTasks();
+      void invalidateAllCalendarEvents();
       if (result.created) {
         toast.success(t("input.optionAdded"));
       }
@@ -302,6 +303,40 @@ export const useSetTaskProperties = (
     onSuccess: (data, variables, ...rest2) => {
       void invalidateAllTasks();
       void invalidateTask(variables.taskId);
+      onSuccess?.(data, variables, ...rest2);
+    },
+    onError: (...args) => {
+      const message = args[0] instanceof Error ? args[0].message : t("manager.setValuesError");
+      toast.error(message);
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
+export const useSetEventProperties = (
+  options?: MutationOpts<CalendarEventRead, { eventId: number; values: PropertyValuesSetRequest }>
+) => {
+  const { t } = useTranslation("properties");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({
+      eventId,
+      values,
+    }: {
+      eventId: number;
+      values: PropertyValuesSetRequest;
+    }) => {
+      return setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut(
+        eventId,
+        values
+      ) as unknown as Promise<CalendarEventRead>;
+    },
+    onSuccess: (data, variables, ...rest2) => {
+      void invalidateAllCalendarEvents();
+      void invalidateCalendarEvent(variables.eventId);
       onSuccess?.(data, variables, ...rest2);
     },
     onError: (...args) => {

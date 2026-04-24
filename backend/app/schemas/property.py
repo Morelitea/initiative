@@ -5,7 +5,7 @@ from typing import Any, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.models.property import PropertyAppliesTo, PropertyType
+from app.models.property import PropertyType
 
 _SLUG_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_\-]*$"
 _HEX_COLOR_PATTERN = r"^#[0-9A-Fa-f]{6}$"
@@ -23,7 +23,6 @@ class PropertyOption(BaseModel):
 class PropertyDefinitionBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     type: PropertyType
-    applies_to: PropertyAppliesTo = PropertyAppliesTo.both
     position: float = 0.0
     color: Optional[str] = Field(default=None, pattern=_HEX_COLOR_PATTERN)
     options: Optional[List[PropertyOption]] = None
@@ -64,7 +63,6 @@ class PropertyDefinitionUpdate(BaseModel):
     """
 
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    applies_to: Optional[PropertyAppliesTo] = None
     position: Optional[float] = None
     color: Optional[str] = Field(default=None, pattern=_HEX_COLOR_PATTERN)
     options: Optional[List[PropertyOption]] = None
@@ -133,7 +131,7 @@ class PropertyValuesSetRequest(BaseModel):
 
 
 class PropertySummary(BaseModel):
-    """Lightweight property value for embedding in DocumentRead / TaskRead.
+    """Lightweight property value for embedding in entity reads.
 
     ``value`` is rehydrated from the correct typed column by the service
     layer. For ``user_reference`` properties the service attaches a
@@ -145,6 +143,5 @@ class PropertySummary(BaseModel):
     property_id: int
     name: str
     type: PropertyType
-    applies_to: PropertyAppliesTo
     options: Optional[List[PropertyOption]] = None
     value: Any = None

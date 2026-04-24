@@ -882,7 +882,6 @@ export const DocumentDetailPage = () => {
         property_id: def.id,
         name: def.name,
         type: def.type,
-        applies_to: def.applies_to,
         options: def.options ?? null,
         value: null,
       }));
@@ -1183,7 +1182,6 @@ export const DocumentDetailPage = () => {
                     disabled={!canEditDocument}
                   />
                   <AddPropertyButton
-                    entityKind="document"
                     initiativeId={document.initiative_id}
                     currentPropertyIds={combinedPropertyIds}
                     onAdd={handleAddProperty}

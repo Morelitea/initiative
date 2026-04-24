@@ -33,9 +33,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
+import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
 import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
+import type { PropertySummary } from "@/api/generated/initiativeAPI.schemas";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -66,6 +69,9 @@ export type CalendarEntry = {
   allDay?: boolean;
   color?: string | null;
   attendees?: CalendarEntryAttendee[];
+  /** Custom property values attached to the underlying entity. Rendered as
+   *  compact chips on the list view; other calendar views omit them. */
+  properties?: PropertySummary[];
   /** Any extra data the consumer wants to pass through */
   meta?: Record<string, unknown>;
 };
@@ -1259,7 +1265,7 @@ function ListView({
                 aria-hidden="true"
               />
 
-              {/* Title + description */}
+              {/* Title + description + property chips */}
               <div className="min-w-0 flex-1">
                 <span className="truncate font-medium">{entry.title}</span>
                 {entry.description && (
@@ -1267,6 +1273,21 @@ function ListView({
                     {entry.description}
                   </p>
                 )}
+                {(() => {
+                  const chips = nonEmptyPropertySummaries(entry.properties);
+                  if (chips.length === 0) return null;
+                  return (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {chips.map((summary) => (
+                        <PropertyValueCell
+                          key={summary.property_id}
+                          summary={summary}
+                          variant="chip"
+                        />
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Attendee avatars */}

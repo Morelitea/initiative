@@ -14,12 +14,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import RLSSessionDep, SessionDep, get_current_active_user
 from app.core.messages import PropertyMessages
 from app.db.session import get_admin_session, reapply_rls_context
+from app.models.calendar_event import CalendarEvent
 from app.models.document import Document
 from app.models.guild import GuildMembership, GuildRole
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.property import (
+    CalendarEventPropertyValue,
     DocumentPropertyValue,
-    PropertyAppliesTo,
     PropertyDefinition,
     PropertyType,
     TaskPropertyValue,
@@ -32,7 +33,11 @@ from app.schemas.property import (
     PropertyDefinitionUpdate,
     PropertyDefinitionUpdateResponse,
 )
-from app.schemas.tag import TaggedDocumentSummary, TaggedTaskSummary
+from app.schemas.tag import (
+    TaggedDocumentSummary,
+    TaggedEventSummary,
+    TaggedTaskSummary,
+)
 from app.services import permissions as permissions_service
 from app.services import properties as properties_service
 
@@ -46,6 +51,7 @@ class PropertyEntitiesResult(BaseModel):
 
     tasks: List[TaggedTaskSummary] = Field(default_factory=list)
     documents: List[TaggedDocumentSummary] = Field(default_factory=list)
+    events: List[TaggedEventSummary] = Field(default_factory=list)
 
 
 async def _get_definition_or_404(
@@ -157,7 +163,6 @@ async def list_property_definitions(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     initiative_id: Optional[int] = Query(default=None),
-    applies_to: Optional[PropertyAppliesTo] = Query(default=None),
 ) -> List[PropertyDefinition]:
     """List property definitions.
 
@@ -169,13 +174,6 @@ async def list_property_definitions(
     stmt = select(PropertyDefinition)
     if initiative_id is not None:
         stmt = stmt.where(PropertyDefinition.initiative_id == initiative_id)
-    if applies_to is not None:
-        if applies_to is PropertyAppliesTo.both:
-            stmt = stmt.where(PropertyDefinition.applies_to == PropertyAppliesTo.both)
-        else:
-            stmt = stmt.where(
-                PropertyDefinition.applies_to.in_([applies_to, PropertyAppliesTo.both])
-            )
     stmt = stmt.order_by(PropertyDefinition.position.asc(), PropertyDefinition.name.asc())
     result = await session.exec(stmt)
     return result.all()
@@ -203,7 +201,6 @@ async def create_property_definition(
         initiative_id=payload.initiative_id,
         name=payload.name.strip(),
         type=payload.type,
-        applies_to=payload.applies_to,
         position=payload.position,
         color=payload.color,
         options=_serialize_options(payload.options),
@@ -251,9 +248,6 @@ async def update_property_definition(
             exclude_id=defn.id,
         )
         defn.name = data["name"].strip()
-
-    if "applies_to" in data and data["applies_to"] is not None:
-        defn.applies_to = data["applies_to"]
 
     if "position" in data and data["position"] is not None:
         defn.position = data["position"]
@@ -360,4 +354,32 @@ async def get_property_entities(
         for doc in documents
     ]
 
-    return PropertyEntitiesResult(tasks=task_summaries, documents=document_summaries)
+    # Events are scoped directly by initiative (no project indirection); RLS
+    # on calendar_event_property_values already constrains visibility to
+    # initiatives the caller belongs to, matching the task/doc treatment.
+    events_stmt = (
+        select(CalendarEvent)
+        .join(
+            CalendarEventPropertyValue,
+            CalendarEventPropertyValue.event_id == CalendarEvent.id,
+        )
+        .where(CalendarEventPropertyValue.property_id == defn.id)
+        .options(selectinload(CalendarEvent.initiative))
+    )
+    events_result = await session.exec(events_stmt)
+    events = events_result.all()
+    event_summaries = [
+        TaggedEventSummary(
+            id=event.id,
+            title=event.title,
+            initiative_id=event.initiative_id,
+            initiative_name=event.initiative.name if event.initiative else None,
+        )
+        for event in events
+    ]
+
+    return PropertyEntitiesResult(
+        tasks=task_summaries,
+        documents=document_summaries,
+        events=event_summaries,
+    )

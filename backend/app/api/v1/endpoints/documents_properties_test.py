@@ -25,7 +25,6 @@ from app.models.document import (
 from app.models.guild import GuildRole
 from app.models.property import (
     DocumentPropertyValue,
-    PropertyAppliesTo,
     PropertyType,
 )
 from app.testing import (
@@ -160,37 +159,6 @@ async def test_put_empty_values_clears_existing_values(
         select(DocumentPropertyValue).where(DocumentPropertyValue.document_id == doc.id)
     )
     assert rows.all() == []
-
-
-# ---------------------------------------------------------------------------
-# applies_to mismatch
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_put_applies_to_task_only_rejected_on_document(
-    client: AsyncClient, session: AsyncSession
-):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    doc = await _create_document(session, initiative=initiative, owner=user)
-
-    defn = await create_property_definition(
-        session, initiative, name="Task Only", type=PropertyType.text,
-        applies_to=PropertyAppliesTo.task,
-    )
-
-    headers = get_guild_headers(guild, user)
-    response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
-        headers=headers,
-        json={"values": [{"property_id": defn.id, "value": "no"}]},
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "PROPERTY_APPLIES_TO_MISMATCH"
 
 
 # ---------------------------------------------------------------------------

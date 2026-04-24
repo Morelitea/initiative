@@ -5,13 +5,17 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { useSetDocumentProperties, useSetTaskProperties } from "@/hooks/useProperties";
+import {
+  useSetDocumentProperties,
+  useSetEventProperties,
+  useSetTaskProperties,
+} from "@/hooks/useProperties";
 import { PropertyType, type PropertySummary } from "@/api/generated/initiativeAPI.schemas";
 
 import { PropertyInput } from "./PropertyInput";
 import { iconForPropertyType } from "./propertyTypeIcons";
 
-export type PropertyEntityKind = "document" | "task";
+export type PropertyEntityKind = "document" | "task" | "event";
 
 export interface PropertyListProps {
   entityKind: PropertyEntityKind;
@@ -91,7 +95,13 @@ export const PropertyList = ({
 
   const setDocumentMutation = useSetDocumentProperties();
   const setTaskMutation = useSetTaskProperties();
-  const activeMutation = entityKind === "document" ? setDocumentMutation : setTaskMutation;
+  const setEventMutation = useSetEventProperties();
+  const activeMutation =
+    entityKind === "document"
+      ? setDocumentMutation
+      : entityKind === "event"
+        ? setEventMutation
+        : setTaskMutation;
 
   // Seed drafts from incoming properties. When the server returns a new
   // snapshot, reconcile any property whose id we don't have a local pending
@@ -164,6 +174,15 @@ export const PropertyList = ({
             },
           }
         );
+      } else if (entityKind === "event") {
+        setEventMutation.mutate(
+          { eventId: entityId, ...variables },
+          {
+            onSettled: () => {
+              pendingRef.current.clear();
+            },
+          }
+        );
       } else {
         setTaskMutation.mutate(
           { taskId: entityId, ...variables },
@@ -175,7 +194,7 @@ export const PropertyList = ({
         );
       }
     }, SAVE_DEBOUNCE_MS);
-  }, [entityKind, entityId, properties, setDocumentMutation, setTaskMutation]);
+  }, [entityKind, entityId, properties, setDocumentMutation, setTaskMutation, setEventMutation]);
 
   useEffect(
     () => () => {

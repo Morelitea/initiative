@@ -6,6 +6,8 @@ Re-exports all factory functions for convenient imports:
 """
 
 from app.testing.factories import (
+    create_calendar_event,
+    create_calendar_event_property_value,
     create_document_property_value,
     create_guild,
     create_guild_membership,
@@ -23,6 +25,8 @@ from app.testing.factories import (
 )
 
 __all__ = [
+    "create_calendar_event",
+    "create_calendar_event_property_value",
     "create_document_property_value",
     "create_guild",
     "create_guild_membership",

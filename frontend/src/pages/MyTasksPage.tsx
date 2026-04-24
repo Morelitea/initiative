@@ -9,7 +9,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
 import { useProperties } from "@/hooks/useProperties";
 import { usePersistedColumnVisibility } from "@/hooks/usePersistedColumnVisibility";
-import { PropertyAppliesTo, type TaskListRead } from "@/api/generated/initiativeAPI.schemas";
+import { type TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
@@ -41,22 +41,13 @@ export const MyTasksPage = () => {
   }, []);
 
   const { data: allPropertyDefinitions = [] } = useProperties();
-  const taskPropertyDefinitions = useMemo(
-    () =>
-      allPropertyDefinitions.filter(
-        (definition) =>
-          definition.applies_to === PropertyAppliesTo.task ||
-          definition.applies_to === PropertyAppliesTo.both
-      ),
+  const propertyColumns = useMemo(
+    () => buildPropertyColumns<TaskListRead>(allPropertyDefinitions, (row) => row.properties),
     [allPropertyDefinitions]
   );
-  const propertyColumns = useMemo(
-    () => buildPropertyColumns<TaskListRead>(taskPropertyDefinitions, (row) => row.properties),
-    [taskPropertyDefinitions]
-  );
   const propertyHiddenIds = useMemo(
-    () => propertyColumnIds(taskPropertyDefinitions),
-    [taskPropertyDefinitions]
+    () => propertyColumnIds(allPropertyDefinitions),
+    [allPropertyDefinitions]
   );
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
     "initiative-my-tasks-columns",

@@ -16,18 +16,12 @@
     "multi_select": "Multi-select",
     "user_reference": "Person"
   },
-  "appliesTo": {
-    "document": "Documents",
-    "task": "Tasks",
-    "both": "Documents & Tasks"
-  },
   "picker": {
     "placeholder": "Search properties…",
     "empty": "No properties match",
     "createHeading": "Create new property",
     "namePlaceholder": "Property name",
     "typeLabel": "Type",
-    "appliesToLabel": "Applies to",
     "createButton": "Create",
     "optionValuePlaceholder": "Value",
     "optionLabelPlaceholder": "Label",
@@ -55,12 +49,11 @@
   },
   "manager": {
     "title": "Custom properties",
-    "description": "Define reusable metadata for documents and tasks in this initiative.",
+    "description": "Define reusable metadata for documents, tasks, and events in this initiative.",
     "newDefinition": "New property",
     "editDefinition": "Edit property",
     "nameLabel": "Name",
     "typeLabel": "Type",
-    "appliesToLabel": "Applies to",
     "optionsLabel": "Options",
     "addOption": "Add option",
     "removeOption": "Remove option",
@@ -69,7 +62,7 @@
     "colorLabel": "Color",
     "delete": "Delete property",
     "deleteConfirmTitle": "Delete this property?",
-    "deleteConfirmBody": "This will remove the property and all values attached to documents and tasks.",
+    "deleteConfirmBody": "This will remove the property and all values attached to documents, tasks, and events.",
     "orphanedWarning": "{{count}} existing values reference removed options. They'll show as 'Unknown option' until updated.",
     "createError": "Failed to create property",
     "updateError": "Failed to update property",

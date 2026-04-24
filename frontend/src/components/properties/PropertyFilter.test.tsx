@@ -6,11 +6,7 @@ import { http, HttpResponse } from "msw";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { server } from "@/__tests__/helpers/msw-server";
 import { buildPropertyDefinition, buildPropertyOption } from "@/__tests__/factories/properties";
-import {
-  PropertyAppliesTo,
-  PropertyType,
-  type PropertyDefinitionRead,
-} from "@/api/generated/initiativeAPI.schemas";
+import { PropertyType, type PropertyDefinitionRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { PropertyFilter, opsForType, type PropertyFilterCondition } from "./PropertyFilter";
 
@@ -37,19 +33,16 @@ describe("PropertyFilter", () => {
     id: 1,
     name: "Owner",
     type: PropertyType.text,
-    applies_to: PropertyAppliesTo.both,
   });
   const numberDef = buildPropertyDefinition({
     id: 2,
     name: "Hours",
     type: PropertyType.number,
-    applies_to: PropertyAppliesTo.both,
   });
   const selectDef = buildPropertyDefinition({
     id: 3,
     name: "Status",
     type: PropertyType.select,
-    applies_to: PropertyAppliesTo.both,
     options: [
       buildPropertyOption({ value: "draft", label: "Draft" }),
       buildPropertyOption({ value: "live", label: "Live" }),
@@ -58,9 +51,7 @@ describe("PropertyFilter", () => {
 
   it("renders nothing if there are no eligible definitions and no existing filters", async () => {
     mockDefinitions([]);
-    const { container } = renderWithProviders(
-      <PropertyFilter value={[]} onChange={vi.fn()} appliesTo="document" />
-    );
+    const { container } = renderWithProviders(<PropertyFilter value={[]} onChange={vi.fn()} />);
     // Wait one tick for the query to settle.
     await waitFor(() => {
       expect(container.querySelector("button")).toBeNull();
@@ -70,7 +61,7 @@ describe("PropertyFilter", () => {
   it("adds a new filter row when the Add button is clicked", async () => {
     mockDefinitions([textDef]);
     const onChange = vi.fn();
-    renderWithProviders(<PropertyFilter value={[]} onChange={onChange} appliesTo="document" />);
+    renderWithProviders(<PropertyFilter value={[]} onChange={onChange} />);
     const addBtn = await screen.findByRole("button", { name: /Add property filter/i });
     expect(addBtn).toBeEnabled();
     await userEvent.click(addBtn);
@@ -86,19 +77,16 @@ describe("PropertyFilter", () => {
         id: 4,
         name: "Extra",
         type: PropertyType.text,
-        applies_to: PropertyAppliesTo.both,
       }),
       buildPropertyDefinition({
         id: 5,
         name: "Fifth",
         type: PropertyType.text,
-        applies_to: PropertyAppliesTo.both,
       }),
       buildPropertyDefinition({
         id: 6,
         name: "Sixth",
         type: PropertyType.text,
-        applies_to: PropertyAppliesTo.both,
       }),
     ]);
     const full: PropertyFilterCondition[] = [
@@ -108,7 +96,7 @@ describe("PropertyFilter", () => {
       { property_id: 4, op: "eq", value: "x" },
       { property_id: 5, op: "eq", value: "y" },
     ];
-    renderWithProviders(<PropertyFilter value={full} onChange={vi.fn()} appliesTo="document" />);
+    renderWithProviders(<PropertyFilter value={full} onChange={vi.fn()} />);
     const addBtn = await screen.findByRole("button", { name: /Add property filter/i });
     expect(addBtn).toBeDisabled();
   });
@@ -117,9 +105,7 @@ describe("PropertyFilter", () => {
     mockDefinitions([textDef, numberDef]);
     const onChange = vi.fn();
     const existing: PropertyFilterCondition[] = [{ property_id: 1, op: "ilike", value: "ada" }];
-    renderWithProviders(
-      <PropertyFilter value={existing} onChange={onChange} appliesTo="document" />
-    );
+    renderWithProviders(<PropertyFilter value={existing} onChange={onChange} />);
     // The property dropdown is the first combobox in the row.
     const propertyCombo = (await screen.findAllByLabelText(/Property/i))[0];
     await userEvent.click(propertyCombo);
@@ -138,9 +124,7 @@ describe("PropertyFilter", () => {
     mockDefinitions([textDef]);
     const onChange = vi.fn();
     const existing: PropertyFilterCondition[] = [{ property_id: 1, op: "eq", value: "" }];
-    renderWithProviders(
-      <PropertyFilter value={existing} onChange={onChange} appliesTo="document" />
-    );
+    renderWithProviders(<PropertyFilter value={existing} onChange={onChange} />);
     // Type into the text value input — placeholder "Empty" comes from the
     // text PropertyInput.
     const valueInput = await screen.findByPlaceholderText(/Empty/i);
@@ -155,9 +139,7 @@ describe("PropertyFilter", () => {
       { property_id: 1, op: "eq", value: "a" },
       { property_id: 2, op: "eq", value: 1 },
     ];
-    renderWithProviders(
-      <PropertyFilter value={existing} onChange={onChange} appliesTo="document" />
-    );
+    renderWithProviders(<PropertyFilter value={existing} onChange={onChange} />);
     const removeButtons = await screen.findAllByRole("button", {
       name: /Remove property filter/i,
     });
@@ -172,9 +154,7 @@ describe("PropertyFilter", () => {
       { property_id: 1, op: "eq", value: "a" },
       { property_id: 2, op: "eq", value: 1 },
     ];
-    renderWithProviders(
-      <PropertyFilter value={existing} onChange={vi.fn()} appliesTo="document" />
-    );
+    renderWithProviders(<PropertyFilter value={existing} onChange={vi.fn()} />);
     // Open the first row's property dropdown. "Hours" is used in the other
     // row, so when enumerating options here it must be disabled (and the
     // currently-selected "Owner" must stay enabled).
@@ -191,12 +171,11 @@ describe("PropertyFilter", () => {
       id: 10,
       name: "Tags",
       type: PropertyType.multi_select,
-      applies_to: PropertyAppliesTo.both,
       options: [buildPropertyOption({ value: "a", label: "A" })],
     });
     mockDefinitions([multiDef]);
     const onChange = vi.fn();
-    renderWithProviders(<PropertyFilter value={[]} onChange={onChange} appliesTo="document" />);
+    renderWithProviders(<PropertyFilter value={[]} onChange={onChange} />);
     const addBtn = await screen.findByRole("button", { name: /Add property filter/i });
     await userEvent.click(addBtn);
     expect(onChange).toHaveBeenCalledWith([{ property_id: 10, op: "eq", value: [] }]);

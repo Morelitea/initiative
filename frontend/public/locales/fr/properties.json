@@ -16,18 +16,12 @@
     "multi_select": "Multi-select",
     "user_reference": "Person"
   },
-  "appliesTo": {
-    "document": "Documents",
-    "task": "Tasks",
-    "both": "Documents & Tasks"
-  },
   "picker": {
     "placeholder": "Search properties…",
     "empty": "No properties match",
     "createHeading": "Create new property",
     "namePlaceholder": "Property name",
     "typeLabel": "Type",
-    "appliesToLabel": "Applies to",
     "createButton": "Create",
     "optionValuePlaceholder": "Value",
     "optionLabelPlaceholder": "Label",
@@ -60,7 +54,6 @@
     "editDefinition": "Edit property",
     "nameLabel": "Name",
     "typeLabel": "Type",
-    "appliesToLabel": "Applies to",
     "optionsLabel": "Options",
     "addOption": "Add option",
     "removeOption": "Remove option",

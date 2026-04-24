@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
+import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
 import { useGuildPath } from "@/lib/guildUrl";
 import { cn } from "@/lib/utils";
 import type { CalendarEventSummary } from "@/api/generated/initiativeAPI.schemas";
@@ -109,6 +111,17 @@ export const EventCard = ({ event, initiativeName, className }: EventCardProps) 
                 {t("attendeeCount", { count: event.attendee_count })}
               </Badge>
             </div>
+            {(() => {
+              const propertyChips = nonEmptyPropertySummaries(event.property_values);
+              if (propertyChips.length === 0) return null;
+              return (
+                <div className="flex flex-wrap gap-1">
+                  {propertyChips.map((summary) => (
+                    <PropertyValueCell key={summary.property_id} summary={summary} variant="chip" />
+                  ))}
+                </div>
+              );
+            })()}
           </div>
         </CardContent>
       </Card>

@@ -3,31 +3,35 @@
 Responsibilities:
 * Validate raw input values against a PropertyDefinition's type and
   return the dict of typed columns to set on a value row.
-* Replace-all attach of property values on documents and tasks.
+* Replace-all attach of property values on documents, tasks, and
+  calendar events.
 * Serialize attached values to the ``PropertySummary`` API shape.
+* Shared helpers for list-endpoint property filter predicates.
 
 The caller owns session lifecycle (commit + reapply_rls_context) — these
 functions only issue the in-transaction INSERT/DELETE statements so the
 endpoint can control when RLS context is re-applied.
 """
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set
 
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 from sqlalchemy import func, true
 from sqlalchemy.orm import selectinload
-from sqlmodel import delete, select
+from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import PropertyMessages
+from app.models.calendar_event import CalendarEvent
 from app.models.document import Document
 from app.models.initiative import InitiativeMember
 from app.models.property import (
+    CalendarEventPropertyValue,
     DocumentPropertyValue,
-    PropertyAppliesTo,
     PropertyDefinition,
     PropertyType,
     TaskPropertyValue,
@@ -37,8 +41,7 @@ from app.models.user import User
 from app.schemas.property import PropertyOption, PropertySummary, PropertyValueInput
 
 # Cap on the number of property predicates accepted by list endpoints.
-# Bounds the per-request subquery count against task_property_values /
-# document_property_values.
+# Bounds the per-request subquery count against each entity's value table.
 MAX_PROPERTY_FILTERS = 5
 
 _HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
@@ -52,6 +55,53 @@ _VALUE_COLUMNS = (
     "value_user_id",
     "value_json",
 )
+
+
+@dataclass(frozen=True)
+class PropertyValueBinding:
+    """Per-entity-kind handles into the property-values schema.
+
+    Holds the four pieces of SQLAlchemy metadata shared by every
+    property-values code path: the value model (row class), the FK column
+    that points at the parent (``event_id`` / ``task_id`` / ``document_id``),
+    the parent model class, and the parent's primary key column. Storing
+    them together lets a single helper dispatch against any entity kind
+    without per-kind ``if/elif`` branches.
+    """
+
+    model: type[SQLModel]
+    fk_column: Any
+    parent_model: type[SQLModel]
+    parent_id_column: Any
+
+
+BINDINGS: Mapping[str, PropertyValueBinding] = {
+    "document": PropertyValueBinding(
+        model=DocumentPropertyValue,
+        fk_column=DocumentPropertyValue.document_id,
+        parent_model=Document,
+        parent_id_column=Document.id,
+    ),
+    "task": PropertyValueBinding(
+        model=TaskPropertyValue,
+        fk_column=TaskPropertyValue.task_id,
+        parent_model=Task,
+        parent_id_column=Task.id,
+    ),
+    "event": PropertyValueBinding(
+        model=CalendarEventPropertyValue,
+        fk_column=CalendarEventPropertyValue.event_id,
+        parent_model=CalendarEvent,
+        parent_id_column=CalendarEvent.id,
+    ),
+}
+
+
+def _binding_for(entity_kind: str) -> PropertyValueBinding:
+    try:
+        return BINDINGS[entity_kind]
+    except KeyError as exc:
+        raise ValueError(f"Unknown entity kind: {entity_kind!r}") from exc
 
 
 def _empty_columns() -> Dict[str, Any]:
@@ -177,8 +227,8 @@ def _is_empty_value(raw_value: Any) -> bool:
     """Return True when ``raw_value`` represents "attached but no value".
 
     Attached-but-empty property rows are allowed so a user can add a
-    property definition to a document/task without being forced to enter
-    a value — the row persists (all typed columns null) and the "is
+    property definition to a document/task/event without being forced to
+    enter a value — the row persists (all typed columns null) and the "is
     empty" filter can match it.
     """
     if raw_value is None:
@@ -261,14 +311,6 @@ async def _validate_value_for_type(
     return cols
 
 
-def _expected_applies_to(entity_kind: str) -> Set[PropertyAppliesTo]:
-    if entity_kind == "document":
-        return {PropertyAppliesTo.document, PropertyAppliesTo.both}
-    if entity_kind == "task":
-        return {PropertyAppliesTo.task, PropertyAppliesTo.both}
-    raise ValueError(f"Unknown entity kind: {entity_kind!r}")
-
-
 async def _load_definitions(
     session: AsyncSession,
     definition_ids: Iterable[int],
@@ -289,18 +331,16 @@ async def _set_property_values(
     values: Sequence[PropertyValueInput],
     initiative_id: int,
 ) -> None:
-    value_model = (
-        DocumentPropertyValue if entity_kind == "document" else TaskPropertyValue
-    )
-    id_column = value_model.document_id if entity_kind == "document" else value_model.task_id
+    binding = _binding_for(entity_kind)
+    value_model = binding.model
+    fk_column = binding.fk_column
 
     # Always wipe existing rows for the entity — replace-all semantics.
-    await session.execute(delete(value_model).where(id_column == entity_id))
+    await session.execute(delete(value_model).where(fk_column == entity_id))
 
     if not values:
         return
 
-    expected = _expected_applies_to(entity_kind)
     requested_ids = [v.property_id for v in values]
     if len(requested_ids) != len(set(requested_ids)):
         raise HTTPException(
@@ -310,6 +350,8 @@ async def _set_property_values(
 
     definitions = await _load_definitions(session, requested_ids)
 
+    fk_name = fk_column.key
+
     for entry in values:
         defn = definitions.get(entry.property_id)
         if defn is None or defn.initiative_id != initiative_id:
@@ -317,27 +359,14 @@ async def _set_property_values(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=PropertyMessages.DEFINITION_NOT_FOUND,
             )
-        if defn.applies_to not in expected:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=PropertyMessages.APPLIES_TO_MISMATCH,
-            )
         cols = await _validate_value_for_type(
             session, defn, entry.value, initiative_id
         )
 
-        if entity_kind == "document":
-            row = DocumentPropertyValue(
-                document_id=entity_id,
-                property_id=defn.id,
-                **cols,
-            )
-        else:
-            row = TaskPropertyValue(
-                task_id=entity_id,
-                property_id=defn.id,
-                **cols,
-            )
+        row = value_model(
+            **{fk_name: entity_id, "property_id": defn.id},
+            **cols,
+        )
         session.add(row)
 
 
@@ -374,6 +403,25 @@ async def set_task_property_values(
         session,
         entity_kind="task",
         entity_id=task.id,
+        values=values,
+        initiative_id=initiative_id,
+    )
+
+
+async def set_event_property_values(
+    session: AsyncSession,
+    event: CalendarEvent,
+    values: Sequence[PropertyValueInput],
+    initiative_id: int,
+) -> None:
+    """Replace all property values attached to ``event``.
+
+    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    """
+    await _set_property_values(
+        session,
+        entity_kind="event",
+        entity_id=event.id,
         values=values,
         initiative_id=initiative_id,
     )
@@ -416,10 +464,10 @@ def _rehydrate_value(defn: PropertyDefinition, row: Any, user: Optional[User]) -
 def summaries_from_rows(rows: Iterable[Any]) -> List[PropertySummary]:
     """Build :class:`PropertySummary` list from loaded value rows.
 
-    ``rows`` must be ``DocumentPropertyValue`` or ``TaskPropertyValue``
-    instances with ``property_definition`` (and ``value_user`` when
-    applicable) eager-loaded. Sync so it can be called from the existing
-    non-async doc/task serializers.
+    ``rows`` must be ``DocumentPropertyValue`` / ``TaskPropertyValue`` /
+    ``CalendarEventPropertyValue`` instances with ``property_definition``
+    (and ``value_user`` when applicable) eager-loaded. Sync so it can be
+    called from the existing non-async doc/task serializers.
     """
     summaries: List[PropertySummary] = []
     for row in rows:
@@ -432,7 +480,6 @@ def summaries_from_rows(rows: Iterable[Any]) -> List[PropertySummary]:
                 property_id=defn.id,
                 name=defn.name,
                 type=defn.type,
-                applies_to=defn.applies_to,
                 options=_parsed_options(defn) or None,
                 value=value,
             )
@@ -447,14 +494,13 @@ async def _serialize_values(
     entity_kind: str,
     entity_id: int,
 ) -> List[PropertySummary]:
-    value_model = (
-        DocumentPropertyValue if entity_kind == "document" else TaskPropertyValue
-    )
-    id_column = value_model.document_id if entity_kind == "document" else value_model.task_id
+    binding = _binding_for(entity_kind)
+    value_model = binding.model
+    fk_column = binding.fk_column
 
     stmt = (
         select(value_model)
-        .where(id_column == entity_id)
+        .where(fk_column == entity_id)
         .options(
             selectinload(value_model.property_definition),
             selectinload(value_model.value_user),
@@ -479,6 +525,13 @@ async def serialize_task_properties(
     return await _serialize_values(session, entity_kind="task", entity_id=task.id)
 
 
+async def serialize_event_properties(
+    session: AsyncSession,
+    event: CalendarEvent,
+) -> List[PropertySummary]:
+    return await _serialize_values(session, entity_kind="event", entity_id=event.id)
+
+
 async def count_orphaned_values(
     session: AsyncSession,
     defn_id: int,
@@ -490,7 +543,7 @@ async def count_orphaned_values(
     changes — the SPA surfaces the count as a warning. Orphaned values are
     preserved (not cleared) by design.
 
-    Executes two ``COUNT`` queries per junction table (one for value_text,
+    Executes two ``COUNT`` queries per value table (one for value_text,
     one for value_json) rather than pulling rows into Python. For
     multi_select the JSONB ``<@`` operator asks Postgres whether every
     stored slug is contained in the valid-slug set — rows that fail that
@@ -499,7 +552,8 @@ async def count_orphaned_values(
     """
     valid_list = list(valid_slugs)
     count = 0
-    for value_model in (DocumentPropertyValue, TaskPropertyValue):
+    for binding in BINDINGS.values():
+        value_model = binding.model
         # value_text (single select): NOT IN the new slug list counts.
         stmt_text = select(func.count()).where(
             value_model.property_id == defn_id,
@@ -524,8 +578,9 @@ async def any_values_exist_for_definition(
     session: AsyncSession,
     defn_id: int,
 ) -> bool:
-    """Return True if any document or task currently has this property set."""
-    for value_model in (DocumentPropertyValue, TaskPropertyValue):
+    """Return True if any entity currently has this property set."""
+    for binding in BINDINGS.values():
+        value_model = binding.model
         stmt = select(value_model).where(value_model.property_id == defn_id).limit(1)
         result = await session.exec(stmt)
         if result.first() is not None:
@@ -718,9 +773,11 @@ def property_value_presence_predicate(
     - ``is_empty=False`` → match entities that have a row with a
       non-empty value.
 
-    ``parent_id_column`` is ``Task.id`` / ``Document.id``;
-    ``entity_id_column`` is ``TaskPropertyValue.task_id`` /
-    ``DocumentPropertyValue.document_id``.
+    ``parent_id_column`` is ``Task.id`` / ``Document.id`` /
+    ``CalendarEvent.id``; ``entity_id_column`` is
+    ``TaskPropertyValue.task_id`` /
+    ``DocumentPropertyValue.document_id`` /
+    ``CalendarEventPropertyValue.event_id``.
     """
     typed = typed_column_for_property(value_model, property_type)
     non_empty = typed.is_not(None)
@@ -736,6 +793,84 @@ def property_value_presence_predicate(
     if is_empty:
         return parent_id_column.not_in(subq)
     return parent_id_column.in_(subq)
+
+
+def build_single_property_clause(
+    entity_kind: str,
+    property_id: int,
+    op: Any,
+    value: Any,
+    defn: PropertyDefinition,
+) -> Any:
+    """Compile one property filter condition into a single SA WHERE clause.
+
+    Returns ``None`` when the condition is unsupported (unknown type,
+    malformed value) — callers skip it, matching the silent-skip pattern
+    the inline helpers followed before this was lifted.
+
+    The task list endpoint calls this per-condition from its
+    ``property_values`` virtual field handler; the batch
+    :func:`build_property_filter_clauses` below calls it in a loop.
+    """
+    from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles
+
+    binding = _binding_for(entity_kind)
+
+    if op == FilterOp.is_null:
+        # Callers using the parsed-filter API have already normalized
+        # ``value`` to a bool. The tasks inline handler hands us the raw
+        # value, so normalize defensively here too.
+        try:
+            is_empty = normalize_is_null_value(value) if not isinstance(value, bool) else value
+        except ValueError:
+            return None
+        return property_value_presence_predicate(
+            binding.model,
+            binding.parent_id_column,
+            binding.fk_column,
+            property_id,
+            defn.type,
+            is_empty=is_empty,
+        )
+
+    try:
+        column = typed_column_for_property(binding.model, defn.type)
+    except ValueError:
+        return None
+    predicate = build_property_value_predicate(column, defn.type, op, value)
+    if predicate is None:
+        return None
+    subq = (
+        select(binding.fk_column)
+        .where(binding.model.property_id == property_id, predicate)
+    )
+    return binding.parent_id_column.in_(subq)
+
+
+def build_property_filter_clauses(
+    entity_kind: str,
+    conditions: Sequence["ParsedPropertyFilter"],
+    defs_map: Dict[int, PropertyDefinition],
+) -> List[Any]:
+    """Build the WHERE-clause list for a set of parsed property filters.
+
+    Shared by the documents, tasks (global list), and events list
+    endpoints. Unknown / inaccessible property_ids are silently skipped
+    because RLS on ``property_definitions`` has already decided
+    visibility — any id missing from ``defs_map`` was filtered out at the
+    definitions-load step.
+    """
+    clauses: List[Any] = []
+    for cond in conditions:
+        defn = defs_map.get(cond.property_id)
+        if defn is None:
+            continue
+        clause = build_single_property_clause(
+            entity_kind, cond.property_id, cond.op, cond.value, defn
+        )
+        if clause is not None:
+            clauses.append(clause)
+    return clauses
 
 
 class ParsedPropertyFilter:

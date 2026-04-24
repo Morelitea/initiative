@@ -270,16 +270,6 @@
       "tagsDescription": "Agrega etiquetas para organizar y filtrar proyectos.",
       "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
     },
-    "initiative": {
-      "title": "Propiedad de iniciativa",
-      "description": "Selecciona qué iniciativa es propietaria de este proyecto.",
-      "loadError": "No se pudieron cargar las iniciativas.",
-      "owningInitiative": "Iniciativa propietaria",
-      "selectInitiative": "Seleccionar iniciativa",
-      "saving": "Guardando...",
-      "saveInitiative": "Guardar iniciativa",
-      "updated": "Iniciativa del proyecto actualizada"
-    },
     "roleAccess": {
       "title": "Acceso por rol",
       "description": "Otorga acceso a todos los miembros con un rol específico de la iniciativa.",

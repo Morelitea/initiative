@@ -32,7 +32,6 @@ class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     icon: Optional[str] = None
-    initiative_id: Optional[int] = None
     is_template: Optional[bool] = None
     pinned: Optional[bool] = None
 

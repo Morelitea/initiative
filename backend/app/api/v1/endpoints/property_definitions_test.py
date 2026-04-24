@@ -25,7 +25,6 @@ from app.models.document import (
 from app.models.guild import GuildRole
 from app.models.property import (
     DocumentPropertyValue,
-    PropertyAppliesTo,
     PropertyDefinition,
     PropertyType,
     TaskPropertyValue,
@@ -206,7 +205,6 @@ async def test_create_text_property_definition(
     payload = {
         "name": "Status",
         "type": "text",
-        "applies_to": "both",
         "position": 1.0,
         "initiative_id": initiative.id,
     }
@@ -218,7 +216,6 @@ async def test_create_text_property_definition(
     data = response.json()
     assert data["name"] == "Status"
     assert data["type"] == "text"
-    assert data["applies_to"] == "both"
     assert data["initiative_id"] == initiative.id
 
 
@@ -571,30 +568,3 @@ async def test_get_entities_returns_attached_docs_and_tasks(
     assert doc.id in doc_ids
 
 
-# ---------------------------------------------------------------------------
-# applies_to enum round-trip (extra coverage beyond create-update matrix)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.integration
-async def test_create_with_applies_to_task_persists(
-    client: AsyncClient, session: AsyncSession
-):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-
-    headers = get_guild_headers(guild, user)
-    payload = {
-        "name": "Task Only",
-        "type": "text",
-        "applies_to": "task",
-        "initiative_id": initiative.id,
-    }
-    response = await client.post(
-        "/api/v1/property-definitions/", headers=headers, json=payload
-    )
-
-    assert response.status_code == 201
-    assert response.json()["applies_to"] == PropertyAppliesTo.task.value
