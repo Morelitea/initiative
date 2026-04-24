@@ -24,6 +24,8 @@ import { TaskAssigneeList } from "@/components/projects/TaskAssigneeList";
 import { cn } from "@/lib/utils";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
 import { TagBadge } from "@/components/tags";
+import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
+import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
 import { useGuildPath } from "@/lib/guildUrl";
 
 const VIRTUALIZE_THRESHOLD = 20;
@@ -357,6 +359,9 @@ const KanbanCardContent = memo(
             task.tags.map((tag) => (
               <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
             ))}
+          {nonEmptyPropertySummaries(task.properties).map((summary) => (
+            <PropertyValueCell key={summary.property_id} summary={summary} variant="chip" />
+          ))}
         </div>
       </>
     );
@@ -571,6 +576,9 @@ const KanbanTaskCard = ({
           task.tags.map((tag) => (
             <TagBadge key={tag.id} tag={tag} size="sm" to={gp(`/tags/${tag.id}`)} />
           ))}
+        {nonEmptyPropertySummaries(task.properties).map((summary) => (
+          <PropertyValueCell key={summary.property_id} summary={summary} variant="chip" />
+        ))}
       </div>
     </div>
   );

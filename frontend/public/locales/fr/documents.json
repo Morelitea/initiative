@@ -109,6 +109,8 @@
     "updated": "Mis à jour {{date}}",
     "template": "Modèle",
     "metadataTitle": "Métadonnées",
+    "expandMetadata": "Expand metadata",
+    "collapseMetadata": "Collapse metadata",
     "featuredImage": "Image à la une",
     "uploadImage": "Télécharger une image à la une",
     "uploading": "Téléchargement en cours…",

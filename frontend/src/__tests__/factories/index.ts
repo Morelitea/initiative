@@ -53,6 +53,13 @@ export {
   resetCounter as resetQueueCounter,
 } from "./queue.factory";
 
+export {
+  buildPropertyDefinition,
+  buildPropertyOption,
+  buildPropertySummary,
+  resetCounter as resetPropertyCounter,
+} from "./properties";
+
 import { resetCounter as resetUserCounter } from "./user.factory";
 import { resetCounter as resetGuildCounter } from "./guild.factory";
 import { resetCounter as resetInitiativeCounter } from "./initiative.factory";
@@ -63,6 +70,7 @@ import { resetCounter as resetDocumentCounter } from "./document.factory";
 import { resetCounter as resetCommentCounter } from "./comment.factory";
 import { resetCounter as resetNotificationCounter } from "./notification.factory";
 import { resetCounter as resetQueueCounter } from "./queue.factory";
+import { resetCounter as resetPropertyCounter } from "./properties";
 
 /**
  * Resets all factory counters back to 0.
@@ -79,4 +87,5 @@ export function resetFactories(): void {
   resetCommentCounter();
   resetNotificationCounter();
   resetQueueCounter();
+  resetPropertyCounter();
 }

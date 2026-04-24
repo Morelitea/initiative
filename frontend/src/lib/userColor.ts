@@ -28,6 +28,16 @@ export const getUserColorHsl = (userId: number): string => {
   return `hsl(${hue}, 100%, 83%)`;
 };
 
+// Foreground/background pair spreadable into a React ``style`` prop. Every
+// bucket produced by ``getUserColorHsl`` is a bright pastel at lightness
+// 83%, so a single dark text color is readable on all of them — there's no
+// need for a theme-aware or per-hue foreground. Slate-900 matches what
+// ``CollaboratorAvatar`` already hard-coded against these backgrounds.
+export const getUserColorStyle = (userId: number) => ({
+  backgroundColor: getUserColorHsl(userId),
+  color: "#0f172a",
+});
+
 // The string to pass as Collaborator.id so Excalidraw's getClientColor()
 // lands on the same hue as getUserColorHsl(userId).
 export const userColorHashId = (userId: number): string => spreadUserId(userId);

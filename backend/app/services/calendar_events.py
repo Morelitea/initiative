@@ -22,6 +22,7 @@ from app.models.calendar_event import (
 )
 from app.models.document import Document
 from app.models.initiative import Initiative
+from app.models.property import CalendarEventPropertyValue
 from app.models.tag import Tag
 
 
@@ -48,6 +49,10 @@ async def get_event(
             .selectinload(CalendarEventDocument.document),
             selectinload(CalendarEvent.initiative)
             .selectinload(Initiative.memberships),
+            selectinload(CalendarEvent.property_values)
+            .selectinload(CalendarEventPropertyValue.property_definition),
+            selectinload(CalendarEvent.property_values)
+            .selectinload(CalendarEventPropertyValue.value_user),
         )
     )
     if populate_existing:

@@ -7,7 +7,7 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath, extractSubPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 export const GuildSettingsLayout = () => {
-  const { t } = useTranslation("settings");
+  const { t } = useTranslation(["settings"]);
   const { activeGuild, activeGuildId } = useGuilds();
   const isGuildAdmin = activeGuild?.role === "admin";
   const location = useLocation();

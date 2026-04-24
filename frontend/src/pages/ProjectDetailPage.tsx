@@ -262,6 +262,7 @@ export const ProjectDetailPage = () => {
         />
         <ProjectTasksSection
           projectId={project.id}
+          initiativeId={project.initiative_id}
           taskStatuses={taskStatusesQuery.data ?? []}
           userOptions={userOptions}
           canEditTaskDetails={canEditTaskDetails}

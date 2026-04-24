@@ -1,0 +1,976 @@
+"""Service layer for custom property definitions and values.
+
+Responsibilities:
+* Validate raw input values against a PropertyDefinition's type and
+  return the dict of typed columns to set on a value row.
+* Replace-all attach of property values on documents, tasks, and
+  calendar events.
+* Serialize attached values to the ``PropertySummary`` API shape.
+* Shared helpers for list-endpoint property filter predicates.
+
+The caller owns session lifecycle (commit + reapply_rls_context) — these
+functions only issue the in-transaction INSERT/DELETE statements so the
+endpoint can control when RLS context is re-applied.
+"""
+
+from dataclasses import dataclass
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set
+
+from fastapi import HTTPException, status
+from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
+from sqlalchemy import func, true
+from sqlalchemy.orm import selectinload
+from sqlmodel import SQLModel, delete, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.messages import PropertyMessages
+from app.models.calendar_event import CalendarEvent
+from app.models.document import Document
+from app.models.initiative import InitiativeMember
+from app.models.property import (
+    CalendarEventPropertyValue,
+    DocumentPropertyValue,
+    PropertyDefinition,
+    PropertyType,
+    TaskPropertyValue,
+)
+from app.models.task import Task
+from app.models.user import User
+from app.schemas.property import PropertyOption, PropertySummary, PropertyValueInput
+
+# Cap on the number of property predicates accepted by list endpoints.
+# Bounds the per-request subquery count against each entity's value table.
+MAX_PROPERTY_FILTERS = 5
+
+_HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
+
+_VALUE_COLUMNS = (
+    "value_text",
+    "value_number",
+    "value_boolean",
+    "value_date",
+    "value_datetime",
+    "value_user_id",
+    "value_json",
+)
+
+
+@dataclass(frozen=True)
+class PropertyValueBinding:
+    """Per-entity-kind handles into the property-values schema.
+
+    Holds the four pieces of SQLAlchemy metadata shared by every
+    property-values code path: the value model (row class), the FK column
+    that points at the parent (``event_id`` / ``task_id`` / ``document_id``),
+    the parent model class, and the parent's primary key column. Storing
+    them together lets a single helper dispatch against any entity kind
+    without per-kind ``if/elif`` branches.
+    """
+
+    model: type[SQLModel]
+    fk_column: Any
+    parent_model: type[SQLModel]
+    parent_id_column: Any
+
+
+BINDINGS: Mapping[str, PropertyValueBinding] = {
+    "document": PropertyValueBinding(
+        model=DocumentPropertyValue,
+        fk_column=DocumentPropertyValue.document_id,
+        parent_model=Document,
+        parent_id_column=Document.id,
+    ),
+    "task": PropertyValueBinding(
+        model=TaskPropertyValue,
+        fk_column=TaskPropertyValue.task_id,
+        parent_model=Task,
+        parent_id_column=Task.id,
+    ),
+    "event": PropertyValueBinding(
+        model=CalendarEventPropertyValue,
+        fk_column=CalendarEventPropertyValue.event_id,
+        parent_model=CalendarEvent,
+        parent_id_column=CalendarEvent.id,
+    ),
+}
+
+
+def _binding_for(entity_kind: str) -> PropertyValueBinding:
+    try:
+        return BINDINGS[entity_kind]
+    except KeyError as exc:
+        raise ValueError(f"Unknown entity kind: {entity_kind!r}") from exc
+
+
+def _empty_columns() -> Dict[str, Any]:
+    """Return all typed value columns set to None (baseline for an update)."""
+    return {col: None for col in _VALUE_COLUMNS}
+
+
+def _bad_value(code: str = PropertyMessages.INVALID_VALUE_FOR_TYPE) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=code)
+
+
+def _coerce_text(raw: Any) -> str:
+    if not isinstance(raw, str):
+        raise _bad_value()
+    stripped = raw.strip()
+    if not stripped:
+        raise _bad_value()
+    return stripped
+
+
+def _coerce_number(raw: Any) -> Decimal:
+    if isinstance(raw, bool):
+        raise _bad_value()
+    try:
+        if isinstance(raw, Decimal):
+            return raw
+        if isinstance(raw, (int, float)):
+            return Decimal(str(raw))
+        if isinstance(raw, str):
+            return Decimal(raw.strip())
+    except (InvalidOperation, ValueError) as exc:
+        raise _bad_value() from exc
+    raise _bad_value()
+
+
+def _coerce_bool(raw: Any) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    raise _bad_value()
+
+
+def _coerce_date(raw: Any) -> date:
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, date):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return date.fromisoformat(raw)
+        except ValueError as exc:
+            raise _bad_value() from exc
+    raise _bad_value()
+
+
+def _coerce_datetime(raw: Any) -> datetime:
+    if isinstance(raw, datetime):
+        return raw
+    if isinstance(raw, str):
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise _bad_value() from exc
+    raise _bad_value()
+
+
+def _coerce_url(raw: Any) -> str:
+    if not isinstance(raw, str):
+        raise _bad_value()
+    candidate = raw.strip()
+    if not candidate:
+        raise _bad_value()
+    try:
+        _HTTP_URL_ADAPTER.validate_python(candidate)
+    except ValidationError as exc:
+        raise _bad_value() from exc
+    return candidate
+
+
+def _option_slugs(defn: PropertyDefinition) -> Set[str]:
+    options = defn.options or []
+    slugs: Set[str] = set()
+    for opt in options:
+        slug = opt.get("value") if isinstance(opt, dict) else getattr(opt, "value", None)
+        if slug:
+            slugs.add(slug)
+    return slugs
+
+
+def _parsed_options(defn: PropertyDefinition) -> List[PropertyOption]:
+    if not defn.options:
+        return []
+    parsed: List[PropertyOption] = []
+    for raw in defn.options:
+        if isinstance(raw, PropertyOption):
+            parsed.append(raw)
+            continue
+        if isinstance(raw, dict):
+            try:
+                parsed.append(PropertyOption(**raw))
+            except ValidationError:
+                # Options in the DB that fail schema validation are ignored
+                # at serialize time — they can't be produced through the API.
+                continue
+    return parsed
+
+
+async def _ensure_user_in_initiative(
+    session: AsyncSession, user_id: int, initiative_id: int
+) -> None:
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == initiative_id,
+        InitiativeMember.user_id == user_id,
+    )
+    result = await session.exec(stmt)
+    if result.one_or_none() is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=PropertyMessages.USER_NOT_IN_INITIATIVE,
+        )
+
+
+def _is_empty_value(raw_value: Any) -> bool:
+    """Return True when ``raw_value`` represents "attached but no value".
+
+    Attached-but-empty property rows are allowed so a user can add a
+    property definition to a document/task/event without being forced to
+    enter a value — the row persists (all typed columns null) and the "is
+    empty" filter can match it.
+    """
+    if raw_value is None:
+        return True
+    if isinstance(raw_value, str) and not raw_value.strip():
+        return True
+    if isinstance(raw_value, (list, tuple)) and len(raw_value) == 0:
+        return True
+    return False
+
+
+async def _validate_value_for_type(
+    session: AsyncSession,
+    defn: PropertyDefinition,
+    raw_value: Any,
+    initiative_id: int,
+) -> Dict[str, Any]:
+    """Return the typed-column dict for ``raw_value`` under ``defn``.
+
+    When ``raw_value`` is "empty" (None, blank string, empty list) the
+    returned dict has every typed column set to None — the row still
+    persists as an attached-but-empty record.
+
+    Raises ``HTTPException`` 400 on type mismatches or select/option
+    issues, 400 ``USER_NOT_IN_INITIATIVE`` for cross-initiative
+    ``user_reference`` values.
+    """
+    cols = _empty_columns()
+
+    if _is_empty_value(raw_value):
+        return cols
+
+    ptype = defn.type
+
+    if ptype is PropertyType.text:
+        cols["value_text"] = _coerce_text(raw_value)
+    elif ptype is PropertyType.number:
+        cols["value_number"] = _coerce_number(raw_value)
+    elif ptype is PropertyType.checkbox:
+        cols["value_boolean"] = _coerce_bool(raw_value)
+    elif ptype is PropertyType.date:
+        cols["value_date"] = _coerce_date(raw_value)
+    elif ptype is PropertyType.datetime:
+        cols["value_datetime"] = _coerce_datetime(raw_value)
+    elif ptype is PropertyType.url:
+        cols["value_text"] = _coerce_url(raw_value)
+    elif ptype is PropertyType.select:
+        slug = _coerce_text(raw_value)
+        if slug not in _option_slugs(defn):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=PropertyMessages.OPTION_NOT_IN_DEFINITION,
+            )
+        cols["value_text"] = slug
+    elif ptype is PropertyType.multi_select:
+        if not isinstance(raw_value, (list, tuple)):
+            raise _bad_value()
+        valid = _option_slugs(defn)
+        slugs: List[str] = []
+        seen: Set[str] = set()
+        for entry in raw_value:
+            slug = _coerce_text(entry)
+            if slug not in valid:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=PropertyMessages.OPTION_NOT_IN_DEFINITION,
+                )
+            if slug not in seen:
+                seen.add(slug)
+                slugs.append(slug)
+        cols["value_json"] = slugs
+    elif ptype is PropertyType.user_reference:
+        if not isinstance(raw_value, int) or isinstance(raw_value, bool):
+            raise _bad_value()
+        await _ensure_user_in_initiative(session, raw_value, initiative_id)
+        cols["value_user_id"] = raw_value
+    else:  # pragma: no cover - defensive; PropertyType is closed
+        raise _bad_value()
+
+    return cols
+
+
+async def _load_definitions(
+    session: AsyncSession,
+    definition_ids: Iterable[int],
+) -> Dict[int, PropertyDefinition]:
+    ids = list({did for did in definition_ids if did is not None})
+    if not ids:
+        return {}
+    stmt = select(PropertyDefinition).where(PropertyDefinition.id.in_(ids))
+    result = await session.exec(stmt)
+    return {defn.id: defn for defn in result.all()}
+
+
+async def _set_property_values(
+    session: AsyncSession,
+    *,
+    entity_kind: str,
+    entity_id: int,
+    values: Sequence[PropertyValueInput],
+    initiative_id: int,
+) -> None:
+    binding = _binding_for(entity_kind)
+    value_model = binding.model
+    fk_column = binding.fk_column
+
+    # Always wipe existing rows for the entity — replace-all semantics.
+    await session.execute(delete(value_model).where(fk_column == entity_id))
+
+    if not values:
+        return
+
+    requested_ids = [v.property_id for v in values]
+    if len(requested_ids) != len(set(requested_ids)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=PropertyMessages.INVALID_VALUE_FOR_TYPE,
+        )
+
+    definitions = await _load_definitions(session, requested_ids)
+
+    fk_name = fk_column.key
+
+    for entry in values:
+        defn = definitions.get(entry.property_id)
+        if defn is None or defn.initiative_id != initiative_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=PropertyMessages.DEFINITION_NOT_FOUND,
+            )
+        cols = await _validate_value_for_type(
+            session, defn, entry.value, initiative_id
+        )
+
+        row = value_model(
+            **{fk_name: entity_id, "property_id": defn.id},
+            **cols,
+        )
+        session.add(row)
+
+
+async def set_document_property_values(
+    session: AsyncSession,
+    document: Document,
+    values: Sequence[PropertyValueInput],
+    initiative_id: int,
+) -> None:
+    """Replace all property values attached to ``document``.
+
+    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    """
+    await _set_property_values(
+        session,
+        entity_kind="document",
+        entity_id=document.id,
+        values=values,
+        initiative_id=initiative_id,
+    )
+
+
+async def set_task_property_values(
+    session: AsyncSession,
+    task: Task,
+    values: Sequence[PropertyValueInput],
+    initiative_id: int,
+) -> None:
+    """Replace all property values attached to ``task``.
+
+    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    """
+    await _set_property_values(
+        session,
+        entity_kind="task",
+        entity_id=task.id,
+        values=values,
+        initiative_id=initiative_id,
+    )
+
+
+async def set_event_property_values(
+    session: AsyncSession,
+    event: CalendarEvent,
+    values: Sequence[PropertyValueInput],
+    initiative_id: int,
+) -> None:
+    """Replace all property values attached to ``event``.
+
+    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    """
+    await _set_property_values(
+        session,
+        entity_kind="event",
+        entity_id=event.id,
+        values=values,
+        initiative_id=initiative_id,
+    )
+
+
+def _number_to_json(v: Optional[Decimal]) -> Optional[float]:
+    if v is None:
+        return None
+    # Represent as float for JSON serialization; callers needing exact
+    # arithmetic should hit the raw value directly.
+    return float(v)
+
+
+def _rehydrate_value(defn: PropertyDefinition, row: Any, user: Optional[User]) -> Any:
+    ptype = defn.type
+    if ptype in {PropertyType.text, PropertyType.url, PropertyType.select}:
+        return row.value_text
+    if ptype is PropertyType.number:
+        return _number_to_json(row.value_number)
+    if ptype is PropertyType.checkbox:
+        return row.value_boolean
+    if ptype is PropertyType.date:
+        return row.value_date
+    if ptype is PropertyType.datetime:
+        return row.value_datetime
+    if ptype is PropertyType.multi_select:
+        return list(row.value_json) if row.value_json is not None else []
+    if ptype is PropertyType.user_reference:
+        if user is None:
+            return {"id": row.value_user_id} if row.value_user_id else None
+        return {
+            "id": user.id,
+            "full_name": user.full_name,
+            "avatar_url": user.avatar_url,
+            "avatar_base64": user.avatar_base64,
+        }
+    return None  # pragma: no cover
+
+
+def summaries_from_rows(rows: Iterable[Any]) -> List[PropertySummary]:
+    """Build :class:`PropertySummary` list from loaded value rows.
+
+    ``rows`` must be ``DocumentPropertyValue`` / ``TaskPropertyValue`` /
+    ``CalendarEventPropertyValue`` instances with ``property_definition``
+    (and ``value_user`` when applicable) eager-loaded. Sync so it can be
+    called from the existing non-async doc/task serializers.
+    """
+    summaries: List[PropertySummary] = []
+    for row in rows:
+        defn = getattr(row, "property_definition", None)
+        if defn is None:
+            continue
+        value = _rehydrate_value(defn, row, getattr(row, "value_user", None))
+        summaries.append(
+            PropertySummary(
+                property_id=defn.id,
+                name=defn.name,
+                type=defn.type,
+                options=_parsed_options(defn) or None,
+                value=value,
+            )
+        )
+    summaries.sort(key=lambda s: s.name.lower())
+    return summaries
+
+
+async def _serialize_values(
+    session: AsyncSession,
+    *,
+    entity_kind: str,
+    entity_id: int,
+) -> List[PropertySummary]:
+    binding = _binding_for(entity_kind)
+    value_model = binding.model
+    fk_column = binding.fk_column
+
+    stmt = (
+        select(value_model)
+        .where(fk_column == entity_id)
+        .options(
+            selectinload(value_model.property_definition),
+            selectinload(value_model.value_user),
+        )
+    )
+    result = await session.exec(stmt)
+    rows = result.all()
+    return summaries_from_rows(rows)
+
+
+async def serialize_document_properties(
+    session: AsyncSession,
+    document: Document,
+) -> List[PropertySummary]:
+    return await _serialize_values(session, entity_kind="document", entity_id=document.id)
+
+
+async def serialize_task_properties(
+    session: AsyncSession,
+    task: Task,
+) -> List[PropertySummary]:
+    return await _serialize_values(session, entity_kind="task", entity_id=task.id)
+
+
+async def serialize_event_properties(
+    session: AsyncSession,
+    event: CalendarEvent,
+) -> List[PropertySummary]:
+    return await _serialize_values(session, entity_kind="event", entity_id=event.id)
+
+
+async def count_orphaned_values(
+    session: AsyncSession,
+    defn_id: int,
+    valid_slugs: Set[str],
+) -> int:
+    """Count attached values whose option slug is no longer valid.
+
+    Used on PATCH of a select/multi_select definition when the option list
+    changes — the SPA surfaces the count as a warning. Orphaned values are
+    preserved (not cleared) by design.
+
+    Executes two ``COUNT`` queries per value table (one for value_text,
+    one for value_json) rather than pulling rows into Python. For
+    multi_select the JSONB ``<@`` operator asks Postgres whether every
+    stored slug is contained in the valid-slug set — rows that fail that
+    check (i.e. contain at least one slug outside the new option list)
+    count as orphans.
+    """
+    valid_list = list(valid_slugs)
+    count = 0
+    for binding in BINDINGS.values():
+        value_model = binding.model
+        # value_text (single select): NOT IN the new slug list counts.
+        stmt_text = select(func.count()).where(
+            value_model.property_id == defn_id,
+            value_model.value_text.is_not(None),
+            value_model.value_text.not_in(valid_list) if valid_list else true(),
+        )
+        count += (await session.exec(stmt_text)).one()
+
+        # value_json (multi_select): not fully contained in the valid set
+        # means at least one element is orphaned.
+        stmt_json = select(func.count()).where(
+            value_model.property_id == defn_id,
+            value_model.value_json.is_not(None),
+            ~value_model.value_json.op("<@")(valid_list),
+        )
+        count += (await session.exec(stmt_json)).one()
+
+    return count
+
+
+async def any_values_exist_for_definition(
+    session: AsyncSession,
+    defn_id: int,
+) -> bool:
+    """Return True if any entity currently has this property set."""
+    for binding in BINDINGS.values():
+        value_model = binding.model
+        stmt = select(value_model).where(value_model.property_id == defn_id).limit(1)
+        result = await session.exec(stmt)
+        if result.first() is not None:
+            return True
+    return False
+
+
+def typed_column_for_property(
+    value_model: Any,
+    property_type: PropertyType,
+) -> Any:
+    """Return the SA column on ``value_model`` used for the given type.
+
+    Used by list filter builders to compile a typed-column predicate for
+    property_values subqueries (see ``build_property_value_predicate``).
+    """
+    if property_type in {PropertyType.text, PropertyType.url, PropertyType.select}:
+        return value_model.value_text
+    if property_type is PropertyType.number:
+        return value_model.value_number
+    if property_type is PropertyType.checkbox:
+        return value_model.value_boolean
+    if property_type is PropertyType.date:
+        return value_model.value_date
+    if property_type is PropertyType.datetime:
+        return value_model.value_datetime
+    if property_type is PropertyType.user_reference:
+        return value_model.value_user_id
+    if property_type is PropertyType.multi_select:
+        return value_model.value_json
+    raise ValueError(f"Unsupported property type: {property_type!r}")
+
+
+def _coerce_filter_scalar(property_type: PropertyType, raw: Any) -> Any:
+    """Coerce a raw filter value to the Python type matching the column.
+
+    Filter values arrive as JSON scalars (string / number / bool). Postgres
+    refuses to compare a DATE column to a VARCHAR literal, so we convert
+    before building the predicate. Returns the coerced value on success;
+    returns ``None`` when coercion is impossible (the caller skips the
+    filter rather than 500-ing on a bad value).
+    """
+    if raw is None:
+        return None
+    try:
+        if property_type is PropertyType.number:
+            if isinstance(raw, bool):
+                return None
+            if isinstance(raw, Decimal):
+                return raw
+            if isinstance(raw, (int, float)):
+                return Decimal(str(raw))
+            if isinstance(raw, str):
+                return Decimal(raw.strip())
+            return None
+        if property_type is PropertyType.checkbox:
+            if isinstance(raw, bool):
+                return raw
+            if isinstance(raw, str):
+                lowered = raw.strip().lower()
+                if lowered in {"true", "1", "yes"}:
+                    return True
+                if lowered in {"false", "0", "no"}:
+                    return False
+            return None
+        if property_type is PropertyType.date:
+            if isinstance(raw, datetime):
+                return raw.date()
+            if isinstance(raw, date):
+                return raw
+            if isinstance(raw, str):
+                return date.fromisoformat(raw.strip())
+            return None
+        if property_type is PropertyType.datetime:
+            if isinstance(raw, datetime):
+                return raw
+            if isinstance(raw, str):
+                return datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+            return None
+        if property_type is PropertyType.user_reference:
+            if isinstance(raw, bool):
+                return None
+            if isinstance(raw, int):
+                return raw
+            if isinstance(raw, str):
+                return int(raw.strip())
+            return None
+        # text, url, select — use raw string comparison.
+        if isinstance(raw, str):
+            return raw
+        return str(raw)
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+
+def _coerce_filter_value(property_type: PropertyType, op: Any, raw: Any) -> Any:
+    """Coerce either a scalar or a list (for ``in_``) for a typed column."""
+    from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles
+
+    if op == FilterOp.in_:
+        if not isinstance(raw, (list, tuple)):
+            return None
+        coerced = [_coerce_filter_scalar(property_type, entry) for entry in raw]
+        coerced = [c for c in coerced if c is not None]
+        return coerced or None
+    if op == FilterOp.ilike:
+        # ilike only applies to text-like columns; keep the string as-is.
+        return raw if isinstance(raw, str) else None
+    return _coerce_filter_scalar(property_type, raw)
+
+
+def build_property_value_predicate(
+    column: Any,
+    property_type: PropertyType,
+    op: Any,
+    value: Any,
+) -> Any:
+    """Build a single WHERE clause on a property-value typed column.
+
+    ``op`` is a :class:`app.schemas.query.FilterOp`. For ``multi_select``
+    the predicate uses the JSONB containment operator so that a value of
+    ``["alpha"]`` matches rows whose ``value_json`` array contains that
+    slug. All other types use the generic column comparisons after
+    coercing ``value`` to the Python type that matches the typed column
+    (see :func:`_coerce_filter_value`).
+
+    Callers must handle :attr:`FilterOp.is_null` separately via
+    :func:`property_value_presence_predicate` — "empty" needs to match
+    entities that lack a row entirely, not just rows with a null value.
+    """
+    # Import locally to avoid circular dependency: query.py depends on
+    # nothing app-specific but this service module is imported from
+    # endpoints that also depend on query.py.
+    from app.schemas.query import FilterOp  # noqa: WPS433 - intentional local import
+
+    if op == FilterOp.is_null:
+        # Presence vs. absence needs the parent-entity id column to
+        # compose a NOT IN / IN subquery — delegate to
+        # ``property_value_presence_predicate``.
+        return None
+
+    if property_type is PropertyType.multi_select:
+        # Only ``contains-any`` semantics are meaningful for multi_select.
+        # Coerce the incoming value into a JSONB array literal. Accept
+        # either a single slug or a list of slugs.
+        if isinstance(value, (list, tuple)):
+            payload = [entry for entry in value if isinstance(entry, str)]
+        elif isinstance(value, str):
+            payload = [value]
+        else:
+            payload = []
+        if not payload:
+            return None
+        return column.op("@>")(payload)
+
+    coerced = _coerce_filter_value(property_type, op, value)
+    if coerced is None:
+        return None
+
+    if op == FilterOp.eq:
+        return column == coerced
+    if op == FilterOp.lt:
+        return column < coerced
+    if op == FilterOp.lte:
+        return column <= coerced
+    if op == FilterOp.gt:
+        return column > coerced
+    if op == FilterOp.gte:
+        return column >= coerced
+    if op == FilterOp.in_:
+        return column.in_(tuple(coerced))
+    if op == FilterOp.ilike:
+        return column.ilike(f"%{coerced}%")
+    return None
+
+
+def property_value_presence_predicate(
+    value_model: Any,
+    parent_id_column: Any,
+    entity_id_column: Any,
+    property_id: int,
+    property_type: PropertyType,
+    is_empty: bool,
+) -> Any:
+    """Build an IN / NOT IN subquery matching presence of a property value.
+
+    - ``is_empty=True`` → match entities that either have no row in the
+      value table OR have a row where the typed column is NULL
+      (multi_select: empty / null JSON array).
+    - ``is_empty=False`` → match entities that have a row with a
+      non-empty value.
+
+    ``parent_id_column`` is ``Task.id`` / ``Document.id`` /
+    ``CalendarEvent.id``; ``entity_id_column`` is
+    ``TaskPropertyValue.task_id`` /
+    ``DocumentPropertyValue.document_id`` /
+    ``CalendarEventPropertyValue.event_id``.
+    """
+    typed = typed_column_for_property(value_model, property_type)
+    non_empty = typed.is_not(None)
+    if property_type is PropertyType.multi_select:
+        # Treat a stored empty array as "empty" too, so the filter
+        # behaves the same way as the UI does for multi-selects.
+        non_empty = typed.is_not(None) & (func.jsonb_array_length(typed) > 0)
+
+    subq = (
+        select(entity_id_column)
+        .where(value_model.property_id == property_id, non_empty)
+    )
+    if is_empty:
+        return parent_id_column.not_in(subq)
+    return parent_id_column.in_(subq)
+
+
+def build_single_property_clause(
+    entity_kind: str,
+    property_id: int,
+    op: Any,
+    value: Any,
+    defn: PropertyDefinition,
+) -> Any:
+    """Compile one property filter condition into a single SA WHERE clause.
+
+    Returns ``None`` when the condition is unsupported (unknown type,
+    malformed value) — callers skip it, matching the silent-skip pattern
+    the inline helpers followed before this was lifted.
+
+    The task list endpoint calls this per-condition from its
+    ``property_values`` virtual field handler; the batch
+    :func:`build_property_filter_clauses` below calls it in a loop.
+    """
+    from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles
+
+    binding = _binding_for(entity_kind)
+
+    if op == FilterOp.is_null:
+        # Callers using the parsed-filter API have already normalized
+        # ``value`` to a bool. The tasks inline handler hands us the raw
+        # value, so normalize defensively here too.
+        try:
+            is_empty = normalize_is_null_value(value) if not isinstance(value, bool) else value
+        except ValueError:
+            return None
+        return property_value_presence_predicate(
+            binding.model,
+            binding.parent_id_column,
+            binding.fk_column,
+            property_id,
+            defn.type,
+            is_empty=is_empty,
+        )
+
+    try:
+        column = typed_column_for_property(binding.model, defn.type)
+    except ValueError:
+        return None
+    predicate = build_property_value_predicate(column, defn.type, op, value)
+    if predicate is None:
+        return None
+    subq = (
+        select(binding.fk_column)
+        .where(binding.model.property_id == property_id, predicate)
+    )
+    return binding.parent_id_column.in_(subq)
+
+
+def build_property_filter_clauses(
+    entity_kind: str,
+    conditions: Sequence["ParsedPropertyFilter"],
+    defs_map: Dict[int, PropertyDefinition],
+) -> List[Any]:
+    """Build the WHERE-clause list for a set of parsed property filters.
+
+    Shared by the documents, tasks (global list), and events list
+    endpoints. Unknown / inaccessible property_ids are silently skipped
+    because RLS on ``property_definitions`` has already decided
+    visibility — any id missing from ``defs_map`` was filtered out at the
+    definitions-load step.
+    """
+    clauses: List[Any] = []
+    for cond in conditions:
+        defn = defs_map.get(cond.property_id)
+        if defn is None:
+            continue
+        clause = build_single_property_clause(
+            entity_kind, cond.property_id, cond.op, cond.value, defn
+        )
+        if clause is not None:
+            clauses.append(clause)
+    return clauses
+
+
+class ParsedPropertyFilter:
+    """A single decoded property filter condition.
+
+    Kept as a plain dataclass-like object to avoid pulling Pydantic into
+    the hot path — these are ephemeral parser outputs.
+    """
+
+    __slots__ = ("property_id", "op", "value")
+
+    def __init__(self, property_id: int, op: Any, value: Any) -> None:
+        self.property_id = property_id
+        self.op = op
+        self.value = value
+
+
+def normalize_is_null_value(raw: Any) -> bool:
+    """Coerce an ``is_null`` filter's ``value`` into an explicit bool.
+
+    ``is_null`` semantics: ``True`` means "is empty" (no row / null
+    value), ``False`` means "is not empty". A missing ``value`` key
+    defaults to ``True`` — reading the op name literally, the natural
+    meaning of ``is_null`` without a value is "is null". Explicit
+    booleans pass through. Explicit non-booleans (strings, numbers,
+    arrays) raise :class:`ValueError` so callers don't silently fall
+    back to ``bool()`` coercion that would treat ``"false"`` as truthy.
+    """
+    if raw is None:
+        return True
+    if isinstance(raw, bool):
+        return raw
+    raise ValueError(
+        "is_null filter value must be a boolean (True = is empty, False = is not empty)"
+    )
+
+
+def parse_property_filters(raw: Optional[str]) -> List[ParsedPropertyFilter]:
+    """Parse the ``property_filters`` query param into validated conditions.
+
+    Raises :class:`ValueError` on malformed input (caller converts to 400).
+    Returns an empty list when ``raw`` is falsy. Caps the number of
+    predicates at :data:`MAX_PROPERTY_FILTERS`. For ``is_null`` entries
+    the ``value`` is normalized via :func:`normalize_is_null_value` so
+    the downstream predicate always sees an explicit bool.
+    """
+    import json
+
+    from app.schemas.query import FilterOp  # noqa: WPS433 - local to avoid cycles
+
+    if not raw:
+        return []
+
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, ValueError) as exc:
+        raise ValueError("property_filters is not valid JSON") from exc
+
+    if not isinstance(payload, list):
+        raise ValueError("property_filters must be a JSON array")
+
+    if len(payload) > MAX_PROPERTY_FILTERS:
+        raise ValueError(
+            f"too many property filters (max {MAX_PROPERTY_FILTERS})"
+        )
+
+    parsed: List[ParsedPropertyFilter] = []
+    for entry in payload:
+        if not isinstance(entry, dict):
+            raise ValueError("each property filter must be an object")
+        pid_raw = entry.get("property_id")
+        op_raw = entry.get("op", "eq")
+        value = entry.get("value")
+        try:
+            pid = int(pid_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("property_id must be an integer") from exc
+        try:
+            op = FilterOp(op_raw)
+        except ValueError as exc:
+            raise ValueError(f"unknown filter op: {op_raw!r}") from exc
+        if op == FilterOp.is_null:
+            value = normalize_is_null_value(value)
+        parsed.append(ParsedPropertyFilter(property_id=pid, op=op, value=value))
+    return parsed
+
+
+async def load_definitions_by_ids(
+    session: AsyncSession,
+    definition_ids: Iterable[int],
+) -> Dict[int, PropertyDefinition]:
+    """Load property definitions by id.
+
+    Used by list filters so the endpoint can resolve the correct typed
+    column per condition without issuing one query per condition. RLS
+    constrains visibility to the caller's accessible initiatives.
+    """
+    ids = list({did for did in definition_ids if did is not None})
+    if not ids:
+        return {}
+    stmt = select(PropertyDefinition).where(PropertyDefinition.id.in_(ids))
+    result = await session.exec(stmt)
+    return {defn.id: defn for defn in result.all()}

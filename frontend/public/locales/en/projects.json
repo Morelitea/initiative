@@ -287,17 +287,6 @@
       "noWriteAccessTags": "You need write access to manage tags."
     },
 
-    "initiative": {
-      "title": "Initiative ownership",
-      "description": "Select which initiative owns this project.",
-      "loadError": "Unable to load initiatives.",
-      "owningInitiative": "Owning initiative",
-      "selectInitiative": "Select initiative",
-      "saving": "Saving...",
-      "saveInitiative": "Save initiative",
-      "updated": "Project initiative updated"
-    },
-
     "roleAccess": {
       "title": "Role access",
       "description": "Grant access to all members with a specific initiative role.",

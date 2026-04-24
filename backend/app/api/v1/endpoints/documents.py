@@ -19,12 +19,13 @@ from app.api.deps import (
     GuildContext,
 )
 from app.core.config import settings
-from app.core.messages import DocumentMessages, InitiativeMessages
+from app.core.messages import DocumentMessages, InitiativeMessages, QueryMessages
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
 from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
+from app.models.property import DocumentPropertyValue
 from app.models.tag import Tag, DocumentTag
 from app.models.user import User
 from app.models.guild import GuildMembership, GuildRole
@@ -50,12 +51,14 @@ from app.schemas.document import (
     serialize_document_summary,
 )
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
+from app.schemas.property import PropertyValuesSetRequest
 from app.schemas.tag import TagSetRequest
 from app.services import attachments as attachments_service
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
+from app.services import properties as properties_service
 from app.services import rls as rls_service
 from app.services.ai_generation import AIGenerationError, generate_document_summary
 from app.services.collaboration import collaboration_manager
@@ -105,11 +108,13 @@ async def _get_document_or_404(
     *,
     document_id: int,
     guild_id: int,
+    populate_existing: bool = False,
 ) -> Document:
     document = await documents_service.get_document(
         session,
         document_id=document_id,
         guild_id=guild_id,
+        populate_existing=populate_existing,
     )
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND)
@@ -253,6 +258,29 @@ def _build_visible_docs_filters(
     return conditions
 
 
+async def _apply_property_filters(
+    session: SessionDep,
+    conditions: list,
+) -> list:
+    """Return SA WHERE clauses for parsed property filter conditions.
+
+    Thin adapter over the shared
+    :func:`properties_service.build_property_filter_clauses` helper —
+    loads the definitions visible under the caller's RLS, then delegates
+    the per-condition compilation so documents, tasks, and events all
+    share one source of truth for typed-column + is_empty semantics.
+    """
+    if not conditions:
+        return []
+    defs = await properties_service.load_definitions_by_ids(
+        session,
+        [c.property_id for c in conditions],
+    )
+    return properties_service.build_property_filter_clauses(
+        "document", conditions, defs
+    )
+
+
 async def _list_global_documents(
     session: SessionDep,
     current_user: User,
@@ -301,6 +329,12 @@ async def _list_global_documents(
         selectinload(Document.permissions),
         selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
         selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+        selectinload(Document.property_values).selectinload(
+            DocumentPropertyValue.property_definition
+        ),
+        selectinload(Document.property_values).selectinload(
+            DocumentPropertyValue.value_user
+        ),
     )
     statement = _apply_document_sort(statement, sort_by, sort_dir)
 
@@ -390,6 +424,14 @@ async def list_documents(
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
     untagged: Optional[bool] = Query(default=None, description="Filter to documents with no tags"),
+    property_filters: Optional[str] = Query(
+        default=None,
+        description=(
+            "JSON-encoded list of property-value filters, e.g. "
+            "`[{\"property_id\": 12, \"op\": \"eq\", \"value\": \"live\"}]`. "
+            "Maximum 5 conditions per request."
+        ),
+    ),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=0, le=100),
     sort_by: Optional[str] = Query(default=None),
@@ -452,6 +494,19 @@ async def list_documents(
         untagged=untagged,
     )
 
+    # Parse + apply property filters (capped at MAX_PROPERTY_FILTERS).
+    try:
+        parsed_property_filters = properties_service.parse_property_filters(property_filters)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueryMessages.INVALID_CONDITIONS,
+        )
+    property_clauses = await _apply_property_filters(
+        session, parsed_property_filters
+    )
+    conditions.extend(property_clauses)
+
     # Count query
     count_subq = (
         select(Document.id)
@@ -476,6 +531,12 @@ async def list_documents(
             selectinload(Document.permissions),
             selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.property_definition
+            ),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.value_user
+            ),
         )
     )
     stmt = _apply_document_sort(stmt, sort_by, sort_dir)
@@ -1366,6 +1427,12 @@ async def set_document_tags(
             selectinload(Document.permissions),
             selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.property_definition
+            ),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.value_user
+            ),
         )
     )
     result = await session.exec(doc_stmt)
@@ -1377,6 +1444,64 @@ async def set_document_tags(
         doc,
         my_permission_level=_compute_my_doc_permission_level(
             doc, current_user.id,
+        ),
+    )
+
+
+@router.put("/{document_id}/properties", response_model=DocumentRead)
+async def set_document_properties(
+    document_id: int,
+    payload: PropertyValuesSetRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> DocumentRead:
+    """Replace the custom property values on a document.
+
+    Requires document write access (same gate as PUT /tags). Values are
+    validated server-side against each property definition's type and
+    options.
+    """
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
+    _require_document_access(document, current_user, access="write")
+
+    try:
+        await properties_service.set_document_property_values(
+            session,
+            document,
+            payload.values,
+            document.initiative_id,
+        )
+    except HTTPException:
+        await session.rollback()
+        await reapply_rls_context(session)
+        raise
+
+    # Bump updated_at via a lightweight select to avoid touching the
+    # relationship collections after the DELETE in the service layer.
+    ts_stmt = select(Document).where(Document.id == document_id)
+    ts_result = await session.exec(ts_stmt)
+    ts_doc = ts_result.one()
+    ts_doc.updated_at = datetime.now(timezone.utc)
+    await session.commit()
+    await reapply_rls_context(session)
+
+    # populate_existing=True forces selectinload to refresh the cached
+    # document's property_values collection. Without it, expire_on_commit
+    # =False keeps the stale (pre-replace-all) collection in the identity
+    # map and the response serializes as if no values were set.
+    refreshed = await _get_document_or_404(
+        session,
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        populate_existing=True,
+    )
+    return serialize_document(
+        refreshed,
+        my_permission_level=_compute_my_doc_permission_level(
+            refreshed, current_user.id,
         ),
     )
 

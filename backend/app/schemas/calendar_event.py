@@ -6,6 +6,7 @@ from typing import List, Optional, TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.calendar_event import RSVPStatus
+from app.schemas.property import PropertySummary
 from app.schemas.tag import TagSummary
 from app.schemas.user import UserPublic
 
@@ -114,6 +115,23 @@ class CalendarEventUpdate(BaseModel):
     recurrence: Optional[EventRecurrence] = None
 
 
+class CalendarEventAttendeePreview(BaseModel):
+    """Compact per-attendee snapshot for list responses.
+
+    Carries the id + avatar fields the SPA needs to render tinted,
+    image-backed avatars on the calendar list view. The full
+    ``CalendarEventAttendeeRead`` (with RSVP status + timestamps) is
+    still exposed on the detail endpoint.
+    """
+
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    user_id: int
+    name: str
+    avatar_url: Optional[str] = None
+    avatar_base64: Optional[str] = None
+
+
 class CalendarEventSummary(CalendarEventBase):
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
@@ -123,6 +141,8 @@ class CalendarEventSummary(CalendarEventBase):
     created_by_id: int
     attendee_count: int = 0
     attendee_names: List[str] = Field(default_factory=list)
+    attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
+    property_values: List[PropertySummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -185,6 +205,20 @@ def _serialize_attendees(event: "CalendarEvent") -> List[CalendarEventAttendeeRe
     return result
 
 
+def _serialize_event_properties(event: "CalendarEvent") -> List[PropertySummary]:
+    """Serialize loaded event property values.
+
+    Requires ``property_values.property_definition`` (and ``.value_user``
+    for user_reference) to be eager-loaded — otherwise they are skipped.
+    """
+    # Local import avoids the schema layer pulling in the service at
+    # module import time.
+    from app.services.properties import summaries_from_rows
+
+    rows = getattr(event, "property_values", None) or []
+    return summaries_from_rows(rows)
+
+
 def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
     raw = getattr(event, "recurrence", None)
     if not raw:
@@ -200,10 +234,20 @@ def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
 def serialize_calendar_event_summary(event: "CalendarEvent") -> CalendarEventSummary:
     attendees_list = getattr(event, "attendees", None) or []
     names: List[str] = []
+    previews: List[CalendarEventAttendeePreview] = []
     for att in attendees_list:
         user = getattr(att, "user", None)
         if user:
-            names.append(user.full_name or user.email)
+            display = user.full_name or user.email
+            names.append(display)
+            previews.append(
+                CalendarEventAttendeePreview(
+                    user_id=user.id,
+                    name=display,
+                    avatar_url=user.avatar_url,
+                    avatar_base64=user.avatar_base64,
+                )
+            )
     return CalendarEventSummary(
         id=event.id,
         title=event.title,
@@ -219,6 +263,8 @@ def serialize_calendar_event_summary(event: "CalendarEvent") -> CalendarEventSum
         created_by_id=event.created_by_id,
         attendee_count=len(attendees_list),
         attendee_names=names,
+        attendee_previews=previews,
+        property_values=_serialize_event_properties(event),
         created_at=event.created_at,
         updated_at=event.updated_at,
     )

@@ -6,13 +6,18 @@ Re-exports all factory functions for convenient imports:
 """
 
 from app.testing.factories import (
+    create_calendar_event,
+    create_calendar_event_property_value,
+    create_document_property_value,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_initiative_member,
     create_project,
+    create_property_definition,
     create_queue,
     create_queue_item,
+    create_task_property_value,
     create_user,
     get_auth_headers,
     get_auth_token,
@@ -20,13 +25,18 @@ from app.testing.factories import (
 )
 
 __all__ = [
+    "create_calendar_event",
+    "create_calendar_event_property_value",
+    "create_document_property_value",
     "create_guild",
     "create_guild_membership",
     "create_initiative",
     "create_initiative_member",
     "create_project",
+    "create_property_definition",
     "create_queue",
     "create_queue_item",
+    "create_task_property_value",
     "create_user",
     "get_auth_headers",
     "get_auth_token",

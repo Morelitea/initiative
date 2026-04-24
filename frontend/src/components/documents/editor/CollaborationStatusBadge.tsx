@@ -6,8 +6,10 @@ import { useTranslation } from "react-i18next";
 import { Circle, CloudOff, RefreshCw, Users, Wifi, WifiOff } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { getUserColorHsl } from "@/lib/userColor";
+import { getInitials } from "@/lib/initials";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { CollaboratorInfo } from "@/lib/yjs/CollaborationProvider";
 import type { ConnectionStatus } from "@/hooks/useCollaboration";
 
@@ -169,26 +171,21 @@ interface CollaboratorAvatarProps {
 
 function CollaboratorAvatar({ collaborator, index }: CollaboratorAvatarProps) {
   const { t } = useTranslation("documents");
-  const bgColor = getUserColorHsl(collaborator.user_id);
-  const initials = collaborator.name
-    .split(" ")
-    .map((n) => n.charAt(0))
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const initials = getInitials(collaborator.name);
+  const avatarSrc =
+    resolveUploadUrl(collaborator.avatar_url) || collaborator.avatar_base64 || undefined;
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <div
-            className={cn(
-              "flex h-7 w-7 items-center justify-center rounded-full border-2 border-white text-xs font-medium text-gray-900 dark:border-gray-800"
-            )}
-            style={{ zIndex: 10 - index, backgroundColor: bgColor }}
+          <Avatar
+            className={cn("h-7 w-7 border-2 border-white text-xs font-medium dark:border-gray-800")}
+            style={{ zIndex: 10 - index }}
           >
-            {initials}
-          </div>
+            {avatarSrc ? <AvatarImage src={avatarSrc} alt={collaborator.name} /> : null}
+            <AvatarFallback userId={collaborator.user_id}>{initials}</AvatarFallback>
+          </Avatar>
         </TooltipTrigger>
         <TooltipContent className="bg-popover text-popover-foreground">
           <span>{collaborator.name}</span>

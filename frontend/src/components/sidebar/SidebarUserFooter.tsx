@@ -22,6 +22,7 @@ import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { guildPath } from "@/lib/guildUrl";
 
 export interface SidebarUserFooterProps {
+  userId: number | null;
   userDisplayName: string;
   userEmail: string;
   userInitials: string;
@@ -38,6 +39,7 @@ export interface SidebarUserFooterProps {
 }
 
 export const SidebarUserFooter = ({
+  userId,
   userDisplayName,
   userEmail,
   userInitials,
@@ -67,7 +69,9 @@ export const SidebarUserFooter = ({
               >
                 <Avatar className="h-8 w-8 shrink-0">
                   {avatarSrc ? <AvatarImage src={avatarSrc} alt={userDisplayName} /> : null}
-                  <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
+                  <AvatarFallback userId={userId} className="text-xs">
+                    {userInitials}
+                  </AvatarFallback>
                 </Avatar>
                 <div className="flex min-w-0 flex-1 flex-col items-start overflow-hidden text-left">
                   <span className="w-full truncate text-sm font-medium">{userDisplayName}</span>

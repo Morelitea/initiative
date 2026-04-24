@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { TagBadge } from "@/components/tags/TagBadge";
+import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
+import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
@@ -137,6 +139,17 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
               )}
             </div>
           ) : null}
+          {(() => {
+            const propertyChips = nonEmptyPropertySummaries(document.properties);
+            if (propertyChips.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-1">
+                {propertyChips.map((summary) => (
+                  <PropertyValueCell key={summary.property_id} summary={summary} variant="chip" />
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
     </Link>

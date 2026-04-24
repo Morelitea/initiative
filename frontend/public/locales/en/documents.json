@@ -109,6 +109,8 @@
     "updated": "Updated {{date}}",
     "template": "Template",
     "metadataTitle": "Metadata",
+    "expandMetadata": "Expand metadata",
+    "collapseMetadata": "Collapse metadata",
     "featuredImage": "Featured image",
     "uploadImage": "Upload featured image",
     "uploading": "Uploading\u2026",
