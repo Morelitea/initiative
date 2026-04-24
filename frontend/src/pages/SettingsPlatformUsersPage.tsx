@@ -12,6 +12,7 @@ import {
   useAdminUpdatePlatformRole,
 } from "@/hooks/useAdmin";
 import { invalidateAdminUsers } from "@/api/query-keys";
+import { downloadCsv } from "@/lib/csv";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -135,11 +136,6 @@ export const SettingsPlatformUsersPage = () => {
     "initiative_roles",
   ];
 
-  const escapeCsv = (value: unknown) => {
-    const str = value == null ? "" : String(value);
-    return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-
   const serializeUser = (platformUser: UserRead) => [
     platformUser.id,
     platformUser.email,
@@ -156,32 +152,19 @@ export const SettingsPlatformUsersPage = () => {
       .join("; "),
   ];
 
-  const downloadCsv = (rows: UserRead[], filename: string) => {
-    const body = rows.map((u) => serializeUser(u).map(escapeCsv).join(",")).join("\n");
-    const csv = `${CSV_HEADERS.join(",")}\n${body}\n`;
-    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    try {
-      anchor.click();
-    } finally {
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-  };
-
   const exportUserCsv = (platformUser: UserRead) => {
     const safeEmail = platformUser.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    downloadCsv([platformUser], `user-${platformUser.id}-${safeEmail}.csv`);
+    downloadCsv(
+      CSV_HEADERS,
+      [serializeUser(platformUser)],
+      `user-${platformUser.id}-${safeEmail}.csv`
+    );
   };
 
   const exportAllUsersCsv = () => {
     if (!usersQuery.data?.length) return;
     const datestamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(usersQuery.data, `platform-users-${datestamp}.csv`);
+    downloadCsv(CSV_HEADERS, usersQuery.data.map(serializeUser), `platform-users-${datestamp}.csv`);
   };
 
   if (!isAdmin) {

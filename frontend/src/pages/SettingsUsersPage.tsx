@@ -14,6 +14,7 @@ import {
   createGuildInviteApiV1GuildsGuildIdInvitesPost,
   deleteGuildInviteApiV1GuildsGuildIdInvitesInviteIdDelete,
 } from "@/api/generated/guilds/guilds";
+import { downloadCsv } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -135,11 +136,6 @@ export const SettingsUsersPage = () => {
     "initiative_roles",
   ];
 
-  const escapeCsv = (value: unknown) => {
-    const str = value == null ? "" : String(value);
-    return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-  };
-
   const serializeMember = (guildMember: UserGuildMember) => [
     guildMember.id,
     guildMember.email,
@@ -155,33 +151,24 @@ export const SettingsUsersPage = () => {
       .join("; "),
   ];
 
-  const downloadCsv = (rows: UserGuildMember[], filename: string) => {
-    const body = rows.map((m) => serializeMember(m).map(escapeCsv).join(",")).join("\n");
-    const csv = `${CSV_HEADERS.join(",")}\n${body}\n`;
-    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    document.body.appendChild(anchor);
-    try {
-      anchor.click();
-    } finally {
-      anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-  };
-
   const exportUserCsv = (guildMember: UserGuildMember) => {
     const safeEmail = guildMember.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    downloadCsv([guildMember], `user-${guildMember.id}-${safeEmail}.csv`);
+    downloadCsv(
+      CSV_HEADERS,
+      [serializeMember(guildMember)],
+      `user-${guildMember.id}-${safeEmail}.csv`
+    );
   };
 
   const exportAllUsersCsv = () => {
     if (!usersQuery.data?.length) return;
     const safeGuildName = (activeGuild?.name ?? "guild").replace(/[^a-zA-Z0-9._-]+/g, "_");
     const datestamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(usersQuery.data, `${safeGuildName}-users-${datestamp}.csv`);
+    downloadCsv(
+      CSV_HEADERS,
+      usersQuery.data.map(serializeMember),
+      `${safeGuildName}-users-${datestamp}.csv`
+    );
   };
 
   const confirmDeleteUser = () => {
