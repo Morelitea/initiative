@@ -1,6 +1,7 @@
 import * as React from "react";
 import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
+import { getUserColorStyle } from "@/lib/userColor";
 import { cn } from "@/lib/utils";
 
 const Avatar = React.forwardRef<
@@ -27,19 +28,41 @@ const AvatarImage = React.forwardRef<
 ));
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 
+interface AvatarFallbackProps extends React.ComponentPropsWithoutRef<
+  typeof AvatarPrimitive.Fallback
+> {
+  /**
+   * When set, the fallback's background + foreground are driven by the
+   * deterministic ``getUserColorStyle`` hash — the same hue that powers
+   * whiteboard cursors and the Lexical editor caret. Leave undefined for
+   * non-user avatars (guild icons, generic placeholders), which keep the
+   * default ``bg-muted`` look.
+   */
+  userId?: number | null;
+}
+
 const AvatarFallback = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Fallback>,
-  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Fallback
-    ref={ref}
-    className={cn(
-      "bg-muted flex h-full w-full items-center justify-center rounded-full",
-      className
-    )}
-    {...props}
-  />
-));
+  AvatarFallbackProps
+>(({ className, style, userId, ...props }, ref) => {
+  const hasUserColor = typeof userId === "number" && userId > 0;
+  const mergedStyle = hasUserColor ? { ...getUserColorStyle(userId), ...style } : style;
+  return (
+    <AvatarPrimitive.Fallback
+      ref={ref}
+      className={cn(
+        "flex h-full w-full items-center justify-center rounded-full",
+        // Only fall back to ``bg-muted`` when there's no user color. Inline
+        // ``backgroundColor`` would otherwise win anyway, but skipping the
+        // class keeps the computed styles tidy and avoids surprise overrides.
+        !hasUserColor && "bg-muted",
+        className
+      )}
+      style={mergedStyle}
+      {...props}
+    />
+  );
+});
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
 
 export { Avatar, AvatarImage, AvatarFallback };

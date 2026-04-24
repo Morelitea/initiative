@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Moving a project between initiatives. The "Initiative ownership" card is gone from project settings and `PATCH /projects/{id}` no longer accepts `initiative_id`. The move crossed a privacy boundary — the project and everything attached to it suddenly became visible to a different initiative's members — and each new initiative-scoped attachment (role permissions, tags, custom properties, calendar events) needed its own cascade rule to stay coherent. The cost of keeping the move correct grew faster than the demand for the feature. Create the project in the right initiative from the start; if you end up in the wrong one, duplicate it into the target and delete the original. A follow up will enable export and import for projects that will cover this use case.
 
+### Changed
+
+- Avatars are now consistent everywhere a person appears. The same deterministic color that powers the whiteboard cursor and Lexical editor caret tints the initials fallback in comments, task assignees, queue item owners, @-mention typeahead, calendar attendees, custom-property people pickers, and the collaboration badge. The collaboration badge and custom-property people cells also show uploaded profile pictures when available; previously both only ever showed initials. Non-user avatars like guild icons are unchanged.
+
 ## [0.41.0] - 2026-04-21
 
 ### Added

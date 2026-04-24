@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { getInitials } from "@/lib/initials";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
 
 const dataUrl = (value?: string | null) => {
@@ -79,12 +80,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     reader.readAsDataURL(file);
   };
 
-  const initials =
-    (user.full_name ?? user.email ?? "User")
-      .split(/\s+/)
-      .map((part) => part.charAt(0).toUpperCase())
-      .slice(0, 2)
-      .join("") || "PP";
+  const initials = getInitials(user.full_name, user.email);
 
   return (
     <div className="space-y-6">
@@ -93,7 +89,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           {avatarPreview ? (
             <AvatarImage src={dataUrl(avatarPreview)} alt={fullName || user.email} />
           ) : null}
-          <AvatarFallback>{initials}</AvatarFallback>
+          <AvatarFallback userId={user.id}>{initials}</AvatarFallback>
         </Avatar>
         <div>
           <p className="text-lg font-semibold">{user.full_name || user.email}</p>

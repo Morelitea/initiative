@@ -354,6 +354,21 @@ export interface BodyUploadDocumentFileApiV1DocumentsUploadPost {
   file: Blob;
 }
 
+/**
+ * Compact per-attendee snapshot for list responses.
+
+Carries the id + avatar fields the SPA needs to render tinted,
+image-backed avatars on the calendar list view. The full
+``CalendarEventAttendeeRead`` (with RSVP status + timestamps) is
+still exposed on the detail endpoint.
+ */
+export interface CalendarEventAttendeePreview {
+  user_id: number;
+  name: string;
+  avatar_url: string | null;
+  avatar_base64: string | null;
+}
+
 export type RSVPStatus = (typeof RSVPStatus)[keyof typeof RSVPStatus];
 
 export const RSVPStatus = {
@@ -484,6 +499,7 @@ export interface CalendarEventSummary {
   created_by_id: number;
   attendee_count: number;
   attendee_names: string[];
+  attendee_previews: CalendarEventAttendeePreview[];
   property_values: PropertySummary[];
   created_at: string;
   updated_at: string;
@@ -529,6 +545,7 @@ export interface CalendarEventRead {
   created_by_id: number;
   attendee_count: number;
   attendee_names: string[];
+  attendee_previews: CalendarEventAttendeePreview[];
   property_values: PropertySummary[];
   created_at: string;
   updated_at: string;

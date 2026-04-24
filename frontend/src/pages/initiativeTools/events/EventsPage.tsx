@@ -270,7 +270,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           endAt: event.end_at,
           allDay: event.all_day,
           color: event.color ?? "#6366f1",
-          attendees: (event.attendee_names ?? []).map((name) => ({ name })),
+          attendees: (event.attendee_previews ?? []).map((att) => ({
+            name: att.name,
+            avatarUrl: att.avatar_url,
+            avatarBase64: att.avatar_base64,
+            userId: att.user_id,
+          })),
           properties: event.property_values,
           meta: { type: "event", eventId: event.id },
         });
@@ -282,7 +287,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       tasks.forEach((task) => {
         const taskAttendees = task.assignees
           .filter((a) => a.full_name)
-          .map((a) => ({ name: a.full_name!, avatarUrl: a.avatar_url }));
+          .map((a) => ({
+            name: a.full_name!,
+            avatarUrl: a.avatar_url,
+            avatarBase64: a.avatar_base64,
+            userId: a.id,
+          }));
         const color = getProjectColor(task.project_id);
 
         if (task.due_date) {

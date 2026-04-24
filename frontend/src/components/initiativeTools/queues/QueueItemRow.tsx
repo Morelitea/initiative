@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { TagBadge } from "@/components/tags/TagBadge";
+import { getInitials } from "@/lib/initials";
 import { cn } from "@/lib/utils";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
@@ -18,13 +19,10 @@ interface QueueItemRowProps {
 export const QueueItemRow = ({ item, isActive, onEdit, onSetActive }: QueueItemRowProps) => {
   const { t } = useTranslation("queues");
 
-  const userInitials = item.user
-    ? (item.user.full_name ?? item.user.email ?? "U")
-        .split(/\s+/)
-        .map((part) => part.charAt(0).toUpperCase())
-        .join("")
-        .slice(0, 2)
-    : null;
+  const userInitials = item.user ? getInitials(item.user.full_name, item.user.email) : null;
+  const userAvatarSrc = item.user
+    ? resolveUploadUrl(item.user.avatar_url) || item.user.avatar_base64 || undefined
+    : undefined;
 
   return (
     <button
@@ -114,11 +112,12 @@ export const QueueItemRow = ({ item, isActive, onEdit, onSetActive }: QueueItemR
       {/* User avatar */}
       {item.user && (
         <Avatar className="h-7 w-7 shrink-0">
-          <AvatarImage
-            src={resolveUploadUrl(item.user.avatar_url) ?? undefined}
-            alt={item.user.full_name ?? ""}
-          />
-          <AvatarFallback className="text-xs">{userInitials}</AvatarFallback>
+          {userAvatarSrc ? (
+            <AvatarImage src={userAvatarSrc} alt={item.user.full_name ?? ""} />
+          ) : null}
+          <AvatarFallback userId={item.user.id} className="text-xs">
+            {userInitials}
+          </AvatarFallback>
         </Avatar>
       )}
     </button>

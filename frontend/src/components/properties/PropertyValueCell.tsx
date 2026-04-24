@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { Check, ExternalLink, Minus } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/initials";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 import {
   PropertyType,
@@ -84,6 +86,7 @@ interface UserValue {
   id: number;
   full_name?: string | null;
   avatar_url?: string | null;
+  avatar_base64?: string | null;
 }
 
 const extractUser = (raw: unknown): UserValue | null => {
@@ -97,14 +100,6 @@ const extractUser = (raw: unknown): UserValue | null => {
     return { id: raw };
   }
   return null;
-};
-
-const initialsFor = (user: UserValue): string => {
-  const name = user.full_name?.trim();
-  if (!name) return "?";
-  const segments = name.split(/\s+/).filter(Boolean);
-  if (segments.length === 1) return segments[0].slice(0, 2).toUpperCase();
-  return `${segments[0][0]}${segments[segments.length - 1][0]}`.toUpperCase();
 };
 
 /**
@@ -213,11 +208,12 @@ export const PropertyValueCell = ({
         body = <span className="text-muted-foreground italic">{t("cell.emptyValue")}</span>;
       } else {
         const name = user.full_name ?? `#${user.id}`;
+        const userAvatarSrc = resolveUploadUrl(user.avatar_url) || user.avatar_base64 || undefined;
         body = (
           <span className="inline-flex max-w-full items-center gap-2 truncate">
             <Avatar className="h-5 w-5 text-[10px]">
-              {user.avatar_url ? <AvatarImage src={user.avatar_url} alt={name} /> : null}
-              <AvatarFallback>{initialsFor(user)}</AvatarFallback>
+              {userAvatarSrc ? <AvatarImage src={userAvatarSrc} alt={name} /> : null}
+              <AvatarFallback userId={user.id}>{getInitials(user.full_name)}</AvatarFallback>
             </Avatar>
             <span className="truncate">{name}</span>
           </span>

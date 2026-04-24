@@ -25,6 +25,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useTranslation } from "react-i18next";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
+import { getInitials } from "@/lib/initials";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -149,16 +150,7 @@ export const GuildAvatar = ({
   active: boolean;
   size?: "sm" | "md";
 }) => {
-  const initials = useMemo(() => {
-    const parts = name.trim().split(/\s+/);
-    if (!parts.length) {
-      return "G";
-    }
-    return parts
-      .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join("");
-  }, [name]);
+  const initials = useMemo(() => getInitials(name, "G"), [name]);
   return (
     <Avatar className={cn(size === "sm" ? "h-6 w-6" : "h-10 w-10")}>
       {icon ? <AvatarImage src={icon} alt={name} /> : null}

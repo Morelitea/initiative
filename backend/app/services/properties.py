@@ -452,7 +452,12 @@ def _rehydrate_value(defn: PropertyDefinition, row: Any, user: Optional[User]) -
     if ptype is PropertyType.user_reference:
         if user is None:
             return {"id": row.value_user_id} if row.value_user_id else None
-        return {"id": user.id, "full_name": user.full_name}
+        return {
+            "id": user.id,
+            "full_name": user.full_name,
+            "avatar_url": user.avatar_url,
+            "avatar_base64": user.avatar_base64,
+        }
     return None  # pragma: no cover
 
 

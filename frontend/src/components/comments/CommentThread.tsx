@@ -6,6 +6,7 @@ import { Pencil, Reply, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useDateLocale } from "@/hooks/useDateLocale";
+import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { CommentContent } from "./CommentContent";
 import { CommentInput } from "./CommentInput";
@@ -58,17 +59,6 @@ export const CommentThread = ({
   const avatarSrc =
     resolveUploadUrl(comment.author?.avatar_url) || comment.author?.avatar_base64 || undefined;
 
-  const getInitials = (value: string) => {
-    if (!value) return "?";
-    const parts = value.trim().split(/\s+/).filter(Boolean);
-    if (!parts.length) return value.charAt(0).toUpperCase();
-    const initials = parts
-      .slice(0, 2)
-      .map((part) => part.charAt(0).toUpperCase())
-      .join("");
-    return initials || value.charAt(0).toUpperCase();
-  };
-
   const canDelete = currentUserId === comment.author_id || canModerate;
   const canEdit = currentUserId === comment.author_id;
   const visualDepth = Math.min(depth, MAX_VISUAL_DEPTH);
@@ -98,7 +88,7 @@ export const CommentThread = ({
         <div className="flex gap-3">
           <Avatar className="bg-background h-9 w-9 border">
             {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
-            <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
+            <AvatarFallback userId={comment.author_id}>{getInitials(displayName)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">

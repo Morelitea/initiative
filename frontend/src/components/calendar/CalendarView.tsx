@@ -29,13 +29,16 @@ import {
   List,
 } from "lucide-react";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
-import type { PropertySummary } from "@/api/generated/initiativeAPI.schemas";
+import { getInitials } from "@/lib/initials";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
+import type { PropertySummary } from "@/api/generated/initiativeAPI.schemas";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -45,7 +48,16 @@ export type CalendarViewMode = "day" | "week" | "month" | "year" | "list";
 
 export type CalendarEntryAttendee = {
   name: string;
+  /** Uploaded avatar path; needs ``resolveUploadUrl`` to become absolute.
+   *  Preferred over ``avatarBase64`` when both are set. */
   avatarUrl?: string | null;
+  /** Inline base64 data URL for users without an uploaded avatar.
+   *  Rendered as-is (already a full data URL). */
+  avatarBase64?: string | null;
+  /** User id for the deterministic avatar tint. Optional because some
+   *  entry sources (e.g. event summaries, which carry just attendee
+   *  names) don't expose ids yet; those render a neutral fallback. */
+  userId?: number | null;
 };
 
 export type CalendarEntry = {
@@ -142,12 +154,6 @@ function formatTime(date: Date): string {
   const ampm = h >= 12 ? "pm" : "am";
   const hr = h % 12 || 12;
   return m === 0 ? `${hr}${ampm}` : `${hr}:${m.toString().padStart(2, "0")}${ampm}`;
-}
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
 }
 
 function formatHourLabel(hour: number): string {
@@ -1289,27 +1295,25 @@ function ListView({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <div className="flex shrink-0 -space-x-1.5 pt-0.5">
-                      {entry.attendees.slice(0, 4).map((att, i) => (
-                        <span
-                          key={i}
-                          className="bg-muted text-muted-foreground border-card inline-flex h-6 w-6 items-center justify-center rounded-full border-2 text-[9px] font-semibold uppercase"
-                          style={att.avatarUrl ? undefined : {}}
-                        >
-                          {att.avatarUrl ? (
-                            <img
-                              src={att.avatarUrl}
-                              alt={att.name}
-                              className="h-full w-full rounded-full object-cover"
-                            />
-                          ) : (
-                            getInitials(att.name)
-                          )}
-                        </span>
-                      ))}
+                      {entry.attendees.slice(0, 4).map((att, i) => {
+                        const src =
+                          resolveUploadUrl(att.avatarUrl) || att.avatarBase64 || undefined;
+                        return (
+                          <Avatar
+                            key={i}
+                            className="border-card h-6 w-6 border-2 text-[9px] font-semibold uppercase"
+                          >
+                            {src ? <AvatarImage src={src} alt={att.name} /> : null}
+                            <AvatarFallback userId={att.userId}>
+                              {getInitials(att.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                        );
+                      })}
                       {entry.attendees.length > 4 && (
-                        <span className="bg-muted text-muted-foreground border-card inline-flex h-6 w-6 items-center justify-center rounded-full border-2 text-[9px] font-semibold">
-                          +{entry.attendees.length - 4}
-                        </span>
+                        <Avatar className="border-card h-6 w-6 border-2 text-[9px] font-semibold">
+                          <AvatarFallback>+{entry.attendees.length - 4}</AvatarFallback>
+                        </Avatar>
                       )}
                     </div>
                   </TooltipTrigger>
