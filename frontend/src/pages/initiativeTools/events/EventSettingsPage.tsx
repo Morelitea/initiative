@@ -30,6 +30,11 @@ import {
 } from "@/hooks/useCalendarEvents";
 import { useInitiativeMembers } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
+import { AddPropertyButton, PropertyList } from "@/components/properties";
+import type {
+  PropertyDefinitionRead,
+  PropertySummary,
+} from "@/api/generated/initiativeAPI.schemas";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["events", "common"]);
@@ -38,9 +43,7 @@ export function EventSettingsPage() {
   const { eventId: eventIdParam } = useParams({ strict: false });
   const eventId = Number(eventIdParam);
 
-  const { data: event, isLoading } = useCalendarEvent(
-    Number.isFinite(eventId) ? eventId : null
-  );
+  const { data: event, isLoading } = useCalendarEvent(Number.isFinite(eventId) ? eventId : null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -51,6 +54,11 @@ export function EventSettingsPage() {
   const [color, setColor] = useState("");
   const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  // Custom properties — staging pattern: newly-attached definitions land in
+  // ``pendingProperties`` as stub summaries so they show up immediately in
+  // the PropertyList. The list's debounced save handles persistence.
+  const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
 
   // Fetch initiative members
   const { data: members } = useInitiativeMembers(event?.initiative_id ?? null);
@@ -77,6 +85,51 @@ export function EventSettingsPage() {
     }
     return map;
   }, [members, event]);
+
+  // Merge server-side property values with freshly-attached (pending) defs —
+  // mirrors the DocumentDetailPage / TaskEditPage pattern. Pending defs are
+  // rendered as stubs so the input shows immediately; the PropertyList's
+  // debounced PUT persists them (even with null values so attached-empty
+  // rows survive a refresh).
+  const serverProperties: PropertySummary[] = useMemo(
+    () => event?.property_values ?? [],
+    [event?.property_values]
+  );
+  const serverPropertyIds = useMemo(
+    () => new Set(serverProperties.map((p) => p.property_id)),
+    [serverProperties]
+  );
+  const combinedProperties = useMemo<PropertySummary[]>(() => {
+    const stubs: PropertySummary[] = pendingProperties
+      .filter((def) => !serverPropertyIds.has(def.id))
+      .map((def) => ({
+        property_id: def.id,
+        name: def.name,
+        type: def.type,
+        options: def.options ?? null,
+        value: null,
+      }));
+    return [...serverProperties, ...stubs];
+  }, [serverProperties, pendingProperties, serverPropertyIds]);
+  const combinedPropertyIds = useMemo(
+    () => combinedProperties.map((p) => p.property_id),
+    [combinedProperties]
+  );
+
+  // Drop pending stubs once the server snapshot confirms they exist.
+  useEffect(() => {
+    setPendingProperties((prev) => {
+      if (prev.length === 0) return prev;
+      const filtered = prev.filter((def) => !serverPropertyIds.has(def.id));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, [serverPropertyIds]);
+
+  const handleAddProperty = (definition: PropertyDefinitionRead) => {
+    setPendingProperties((prev) =>
+      prev.some((p) => p.id === definition.id) ? prev : [...prev, definition]
+    );
+  };
 
   useEffect(() => {
     if (event) {
@@ -180,12 +233,21 @@ export function EventSettingsPage() {
 
           <div className="space-y-2">
             <Label htmlFor="event-description">{t("description")}</Label>
-            <Textarea id="event-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
+            <Textarea
+              id="event-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="event-location">{t("location")}</Label>
-            <Input id="event-location" value={location} onChange={(e) => setLocation(e.target.value)} />
+            <Input
+              id="event-location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
           </div>
 
           <div className="flex items-center gap-3">
@@ -197,25 +259,52 @@ export function EventSettingsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="event-start">{t("startDate")}</Label>
-                <Input id="event-start" type="date" value={startAt.split("T")[0]} onChange={(e) => setStartAt(e.target.value)} />
+                <Input
+                  id="event-start"
+                  type="date"
+                  value={startAt.split("T")[0]}
+                  onChange={(e) => setStartAt(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="event-end">{t("endDate")}</Label>
-                <Input id="event-end" type="date" value={endAt.split("T")[0]} onChange={(e) => setEndAt(e.target.value)} min={startAt.split("T")[0] || undefined} />
+                <Input
+                  id="event-end"
+                  type="date"
+                  value={endAt.split("T")[0]}
+                  onChange={(e) => setEndAt(e.target.value)}
+                  min={startAt.split("T")[0] || undefined}
+                />
               </div>
             </div>
           ) : (
             <div className="space-y-2">
               <Label htmlFor="event-start">{t("startDate")}</Label>
-              <Input id="event-start" type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
+              <Input
+                id="event-start"
+                type="datetime-local"
+                value={startAt}
+                onChange={(e) => setStartAt(e.target.value)}
+              />
               <Label htmlFor="event-end">{t("endDate")}</Label>
-              <Input id="event-end" type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
+              <Input
+                id="event-end"
+                type="datetime-local"
+                value={endAt}
+                onChange={(e) => setEndAt(e.target.value)}
+              />
             </div>
           )}
 
           <div className="space-y-2">
             <Label htmlFor="event-color">{t("color")}</Label>
-            <Input id="event-color" type="color" value={color || "#6366f1"} onChange={(e) => setColor(e.target.value)} className="h-10 w-20" />
+            <Input
+              id="event-color"
+              type="color"
+              value={color || "#6366f1"}
+              onChange={(e) => setColor(e.target.value)}
+              className="h-10 w-20"
+            />
           </div>
 
           <Button onClick={handleSave} disabled={updateEvent.isPending}>
@@ -266,10 +355,7 @@ export function EventSettingsPage() {
             </div>
           )}
 
-          <Button
-            onClick={handleSaveAttendees}
-            disabled={setAttendees.isPending}
-          >
+          <Button onClick={handleSaveAttendees} disabled={setAttendees.isPending}>
             {setAttendees.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -279,6 +365,21 @@ export function EventSettingsPage() {
               t("common:save")
             )}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Custom Properties */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("properties")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <PropertyList entityKind="event" entityId={eventId} properties={combinedProperties} />
+          <AddPropertyButton
+            initiativeId={event.initiative_id}
+            currentPropertyIds={combinedPropertyIds}
+            onAdd={handleAddProperty}
+          />
         </CardContent>
       </Card>
 

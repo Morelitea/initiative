@@ -89,7 +89,6 @@ const toDefinitionForPatch = (defn: PropertyDefinitionLike): PropertyDefinitionR
     initiative_id: 0,
     name: summary.name,
     type: summary.type,
-    applies_to: summary.applies_to,
     position: 0,
     color: null,
     options: summary.options ?? null,

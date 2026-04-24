@@ -158,7 +158,7 @@ export const ProjectTasksFilters = ({
           </Label>
         </div>
       </div>
-      <PropertyFilter appliesTo="task" value={propertyFilters} onChange={onPropertyFiltersChange} />
+      <PropertyFilter value={propertyFilters} onChange={onPropertyFiltersChange} />
     </div>
   );
 };

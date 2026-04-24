@@ -105,7 +105,6 @@
   "PROPERTY_NOT_INITIATIVE_MEMBER": "Debes ser miembro de esta iniciativa para gestionar sus propiedades",
   "PROPERTY_OPTIONS_REQUIRED": "Las propiedades de selección requieren al menos una opción",
   "PROPERTY_DUPLICATE_OPTION_VALUE": "Los valores de opción deben ser únicos dentro de una propiedad",
-  "PROPERTY_APPLIES_TO_MISMATCH": "Esta propiedad no se aplica a este tipo de entidad",
   "ATTACHMENT_IMAGE_ONLY": "Solo se admiten cargas de imágenes",
   "ATTACHMENT_FILE_EMPTY": "El archivo subido está vacío",
   "ATTACHMENT_INVALID_IMAGE": "No se pudo validar el contenido de la imagen",

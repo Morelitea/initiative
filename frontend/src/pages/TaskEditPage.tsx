@@ -346,7 +346,6 @@ export const TaskEditPage = () => {
         property_id: def.id,
         name: def.name,
         type: def.type,
-        applies_to: def.applies_to,
         options: def.options ?? null,
         value: null,
       }));
@@ -731,7 +730,6 @@ export const TaskEditPage = () => {
                   disabled={isReadOnly}
                 />
                 <AddPropertyButton
-                  entityKind="task"
                   initiativeId={project?.initiative_id ?? 0}
                   currentPropertyIds={combinedPropertyIds}
                   onAdd={handleAddProperty}

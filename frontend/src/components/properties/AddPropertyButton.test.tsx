@@ -6,11 +6,7 @@ import { http, HttpResponse } from "msw";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { server } from "@/__tests__/helpers/msw-server";
 import { buildPropertyDefinition } from "@/__tests__/factories/properties";
-import {
-  PropertyAppliesTo,
-  PropertyType,
-  type PropertyDefinitionRead,
-} from "@/api/generated/initiativeAPI.schemas";
+import { PropertyType, type PropertyDefinitionRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { AddPropertyButton } from "./AddPropertyButton";
 
@@ -19,58 +15,28 @@ const mockDefinitions = (defs: PropertyDefinitionRead[]) => {
 };
 
 describe("AddPropertyButton", () => {
-  it("lists only definitions whose applies_to is compatible with the entity kind", async () => {
+  it("lists every definition the caller can see (no applies_to scope)", async () => {
     mockDefinitions([
-      buildPropertyDefinition({
-        id: 1,
-        name: "Doc Only",
-        applies_to: PropertyAppliesTo.document,
-      }),
-      buildPropertyDefinition({
-        id: 2,
-        name: "Task Only",
-        applies_to: PropertyAppliesTo.task,
-      }),
-      buildPropertyDefinition({
-        id: 3,
-        name: "Both",
-        applies_to: PropertyAppliesTo.both,
-      }),
+      buildPropertyDefinition({ id: 1, name: "Alpha" }),
+      buildPropertyDefinition({ id: 2, name: "Beta" }),
+      buildPropertyDefinition({ id: 3, name: "Gamma" }),
     ]);
     renderWithProviders(
-      <AddPropertyButton
-        entityKind="document"
-        initiativeId={7}
-        currentPropertyIds={[]}
-        onAdd={vi.fn()}
-      />
+      <AddPropertyButton initiativeId={7} currentPropertyIds={[]} onAdd={vi.fn()} />
     );
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
-    await waitFor(() => expect(screen.getByText("Doc Only")).toBeInTheDocument());
-    expect(screen.getByText("Both")).toBeInTheDocument();
-    expect(screen.queryByText("Task Only")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Alpha")).toBeInTheDocument());
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(screen.getByText("Gamma")).toBeInTheDocument();
   });
 
   it("filters out definitions whose id is in currentPropertyIds", async () => {
     mockDefinitions([
-      buildPropertyDefinition({
-        id: 1,
-        name: "Alpha",
-        applies_to: PropertyAppliesTo.both,
-      }),
-      buildPropertyDefinition({
-        id: 2,
-        name: "Beta",
-        applies_to: PropertyAppliesTo.both,
-      }),
+      buildPropertyDefinition({ id: 1, name: "Alpha" }),
+      buildPropertyDefinition({ id: 2, name: "Beta" }),
     ]);
     renderWithProviders(
-      <AddPropertyButton
-        entityKind="document"
-        initiativeId={7}
-        currentPropertyIds={[1]}
-        onAdd={vi.fn()}
-      />
+      <AddPropertyButton initiativeId={7} currentPropertyIds={[1]} onAdd={vi.fn()} />
     );
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
     await waitFor(() => expect(screen.getByText("Beta")).toBeInTheDocument());
@@ -78,22 +44,11 @@ describe("AddPropertyButton", () => {
   });
 
   it("calls onAdd(definition) when an existing definition is picked", async () => {
-    const defs = [
-      buildPropertyDefinition({
-        id: 7,
-        name: "Priority",
-        applies_to: PropertyAppliesTo.both,
-      }),
-    ];
+    const defs = [buildPropertyDefinition({ id: 7, name: "Priority" })];
     mockDefinitions(defs);
     const onAdd = vi.fn();
     renderWithProviders(
-      <AddPropertyButton
-        entityKind="document"
-        initiativeId={7}
-        currentPropertyIds={[]}
-        onAdd={onAdd}
-      />
+      <AddPropertyButton initiativeId={7} currentPropertyIds={[]} onAdd={onAdd} />
     );
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
     const item = await screen.findByText("Priority");
@@ -104,24 +59,11 @@ describe("AddPropertyButton", () => {
 
   it("filters the list case-insensitively by the search input", async () => {
     mockDefinitions([
-      buildPropertyDefinition({
-        id: 1,
-        name: "Alpha",
-        applies_to: PropertyAppliesTo.both,
-      }),
-      buildPropertyDefinition({
-        id: 2,
-        name: "Beta",
-        applies_to: PropertyAppliesTo.both,
-      }),
+      buildPropertyDefinition({ id: 1, name: "Alpha" }),
+      buildPropertyDefinition({ id: 2, name: "Beta" }),
     ]);
     renderWithProviders(
-      <AddPropertyButton
-        entityKind="document"
-        initiativeId={7}
-        currentPropertyIds={[]}
-        onAdd={vi.fn()}
-      />
+      <AddPropertyButton initiativeId={7} currentPropertyIds={[]} onAdd={vi.fn()} />
     );
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
     const searchInput = await screen.findByPlaceholderText(/Search properties/i);
@@ -145,7 +87,6 @@ describe("AddPropertyButton", () => {
             id: 99,
             name: (body as { name: string }).name,
             type: (body as { type: PropertyType }).type,
-            applies_to: PropertyAppliesTo.document,
           })
         );
       })
@@ -153,12 +94,7 @@ describe("AddPropertyButton", () => {
 
     const onAdd = vi.fn();
     renderWithProviders(
-      <AddPropertyButton
-        entityKind="document"
-        initiativeId={7}
-        currentPropertyIds={[]}
-        onAdd={onAdd}
-      />
+      <AddPropertyButton initiativeId={7} currentPropertyIds={[]} onAdd={onAdd} />
     );
 
     await userEvent.click(screen.getByRole("button", { name: /Add property/i }));
@@ -180,7 +116,6 @@ describe("AddPropertyButton", () => {
       expect.objectContaining({
         name: "Quarter",
         type: "text",
-        applies_to: "both",
         initiative_id: 7,
       })
     );
@@ -192,13 +127,7 @@ describe("AddPropertyButton", () => {
   it("disables the trigger when disabled=true", () => {
     mockDefinitions([]);
     renderWithProviders(
-      <AddPropertyButton
-        entityKind="document"
-        initiativeId={7}
-        currentPropertyIds={[]}
-        onAdd={vi.fn()}
-        disabled
-      />
+      <AddPropertyButton initiativeId={7} currentPropertyIds={[]} onAdd={vi.fn()} disabled />
     );
     expect(screen.getByRole("button", { name: /Add property/i })).toBeDisabled();
   });

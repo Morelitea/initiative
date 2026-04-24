@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 if TYPE_CHECKING:  # pragma: no cover
+    from app.models.calendar_event import CalendarEvent
     from app.models.document import Document
     from app.models.initiative import Initiative
     from app.models.task import Task
@@ -29,20 +30,12 @@ class PropertyType(str, Enum):
     user_reference = "user_reference"
 
 
-class PropertyAppliesTo(str, Enum):
-    """Which entity kinds a property definition may attach to."""
-
-    document = "document"
-    task = "task"
-    both = "both"
-
-
 class PropertyDefinition(SQLModel, table=True):
     """Initiative-scoped custom property definition.
 
     Definitions live on a single initiative; values live on entity-specific
-    junction tables (``document_property_values`` / ``task_property_values``)
-    so they stay SARGable under RLS.
+    junction tables (``document_property_values`` / ``task_property_values``
+    / ``calendar_event_property_values``) so they stay SARGable under RLS.
     """
 
     __tablename__ = "property_definitions"
@@ -63,19 +56,6 @@ class PropertyDefinition(SQLModel, table=True):
                 values_callable=lambda e: [item.value for item in e],
             ),
             nullable=False,
-        ),
-    )
-    applies_to: PropertyAppliesTo = Field(
-        default=PropertyAppliesTo.both,
-        sa_column=Column(
-            SQLEnum(
-                PropertyAppliesTo,
-                name="property_applies_to",
-                create_type=False,
-                values_callable=lambda e: [item.value for item in e],
-            ),
-            nullable=False,
-            server_default="both",
         ),
     )
     # NUMERIC(20, 10) on the DB side; ``asdecimal=False`` keeps the Python
@@ -111,6 +91,10 @@ class PropertyDefinition(SQLModel, table=True):
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
     task_values: List["TaskPropertyValue"] = Relationship(
+        back_populates="property_definition",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    event_values: List["CalendarEventPropertyValue"] = Relationship(
         back_populates="property_definition",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
@@ -246,5 +230,72 @@ class TaskPropertyValue(SQLModel, table=True):
     task: Optional["Task"] = Relationship(back_populates="property_values")
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="task_values"
+    )
+    value_user: Optional["User"] = Relationship()
+
+
+class CalendarEventPropertyValue(SQLModel, table=True):
+    """Typed property value attached to a calendar event."""
+
+    __tablename__ = "calendar_event_property_values"
+    __allow_unmapped__ = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    event_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("calendar_events.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+    )
+    property_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("property_definitions.id", ondelete="CASCADE"),
+            primary_key=True,
+            index=True,
+        ),
+    )
+    value_text: Optional[str] = Field(
+        default=None,
+        sa_column=Column(Text, nullable=True),
+    )
+    value_number: Optional[Decimal] = Field(
+        default=None,
+        sa_column=Column(Numeric, nullable=True),
+    )
+    value_boolean: Optional[bool] = Field(
+        default=None,
+        sa_column=Column(Boolean, nullable=True),
+    )
+    value_date: Optional[date] = Field(
+        default=None,
+        sa_column=Column(Date, nullable=True),
+    )
+    value_datetime: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+    )
+    value_user_id: Optional[int] = Field(
+        default=None,
+        foreign_key="users.id",
+        nullable=True,
+    )
+    value_json: Optional[Any] = Field(
+        default=None,
+        sa_column=Column(JSONB, nullable=True),
+    )
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    calendar_event: Optional["CalendarEvent"] = Relationship(back_populates="property_values")
+    property_definition: Optional[PropertyDefinition] = Relationship(
+        back_populates="event_values"
     )
     value_user: Optional["User"] = Relationship()

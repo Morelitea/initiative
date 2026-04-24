@@ -12,16 +12,10 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { useProperties } from "@/hooks/useProperties";
-import {
-  PropertyAppliesTo,
-  PropertyType,
-  type PropertyDefinitionRead,
-} from "@/api/generated/initiativeAPI.schemas";
+import { PropertyType, type PropertyDefinitionRead } from "@/api/generated/initiativeAPI.schemas";
 
 import { PropertyInput } from "./PropertyInput";
 import { iconForPropertyType } from "./propertyTypeIcons";
-
-export type PropertyFilterEntityKind = "document" | "task";
 
 export interface PropertyFilterCondition {
   property_id: number;
@@ -32,7 +26,11 @@ export interface PropertyFilterCondition {
 export interface PropertyFilterProps {
   value: PropertyFilterCondition[];
   onChange: (next: PropertyFilterCondition[]) => void;
-  appliesTo: PropertyFilterEntityKind;
+  /**
+   * Initiative to scope the definitions to. Omit on global views
+   * (union across every initiative the caller can see).
+   */
+  initiativeId?: number;
   maxFilters?: number;
   className?: string;
 }
@@ -114,24 +112,19 @@ const defaultValueForDefinition = (definition: PropertyDefinitionRead, op: Backe
 export const PropertyFilter = ({
   value,
   onChange,
-  appliesTo,
+  initiativeId,
   maxFilters = DEFAULT_MAX_FILTERS,
   className,
 }: PropertyFilterProps) => {
   const { t } = useTranslation("properties");
   const opLabel = useOpLabel();
 
-  // Only pull definitions that can attach to this entity kind (incl. "both").
-  // The hook caches cross-page so we don't incur a request per component.
-  const definitionsQuery = useProperties();
+  // Pull the definitions the caller can see (scoped when ``initiativeId`` is
+  // provided, union across accessible initiatives otherwise). The hook
+  // caches cross-page so we don't incur a request per component.
+  const definitionsQuery = useProperties(initiativeId !== undefined ? { initiativeId } : undefined);
 
-  const eligibleDefinitions = useMemo(() => {
-    const all = definitionsQuery.data ?? [];
-    return all.filter((definition) => {
-      const scope = definition.applies_to;
-      return scope === appliesTo || scope === PropertyAppliesTo.both;
-    });
-  }, [definitionsQuery.data, appliesTo]);
+  const eligibleDefinitions = useMemo(() => definitionsQuery.data ?? [], [definitionsQuery.data]);
 
   const definitionsById = useMemo(() => {
     const map = new Map<number, PropertyDefinitionRead>();

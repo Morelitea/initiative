@@ -105,7 +105,6 @@
   "PROPERTY_NOT_INITIATIVE_MEMBER": "Vous devez être membre de cette initiative pour gérer ses propriétés",
   "PROPERTY_OPTIONS_REQUIRED": "Les propriétés de type sélection nécessitent au moins une option",
   "PROPERTY_DUPLICATE_OPTION_VALUE": "Les valeurs d'option doivent être uniques dans une propriété",
-  "PROPERTY_APPLIES_TO_MISMATCH": "Cette propriété ne s'applique pas à ce type d'entité",
   "ATTACHMENT_IMAGE_ONLY": "Seuls les téléchargements d'images sont pris en charge",
   "ATTACHMENT_FILE_EMPTY": "Le fichier téléchargé est vide",
   "ATTACHMENT_INVALID_IMAGE": "Impossible de valider le contenu de l'image",

@@ -92,5 +92,14 @@ class TaggedDocumentSummary(BaseModel):
     initiative_name: Optional[str] = None
 
 
+class TaggedEventSummary(BaseModel):
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    id: int
+    title: str
+    initiative_id: int
+    initiative_name: Optional[str] = None
+
+
 # Update forward references
 TaggedEntitiesResponse.model_rebuild()

@@ -27,6 +27,7 @@ from app.models.calendar_event import (
 )
 from app.models.guild import GuildMembership
 from app.models.initiative import Initiative, PermissionKey
+from app.models.property import CalendarEventPropertyValue
 from app.models.user import User
 from app.core.messages import CalendarEventMessages, InitiativeMessages
 from app.schemas.calendar_event import (
@@ -39,8 +40,10 @@ from app.schemas.calendar_event import (
     serialize_calendar_event_summary,
 )
 from app.schemas.ical import ICalImportRequest, ICalImportResult, ICalParseRequest, ICalParseResult
+from app.schemas.property import PropertyValuesSetRequest
 from app.services import calendar_events as events_service
 from app.services import ical_service
+from app.services import properties as properties_service
 from app.services import rls as rls_service
 
 router = APIRouter()
@@ -185,6 +188,10 @@ async def list_global_calendar_events(
             CalendarEventAttendee.user,
         ),
         selectinload(CalendarEvent.initiative),
+        selectinload(CalendarEvent.property_values)
+        .selectinload(CalendarEventPropertyValue.property_definition),
+        selectinload(CalendarEvent.property_values)
+        .selectinload(CalendarEventPropertyValue.value_user),
     ).order_by(
         CalendarEvent.start_at.asc(),
         CalendarEvent.id.asc(),
@@ -376,6 +383,7 @@ async def list_calendar_events(
     initiative_id: Optional[int] = Query(default=None),
     start_after: Optional[datetime] = Query(default=None),
     start_before: Optional[datetime] = Query(default=None),
+    property_filters: Optional[str] = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
 ) -> CalendarEventListResponse:
@@ -401,6 +409,27 @@ async def list_calendar_events(
     if start_before is not None:
         conditions.append(CalendarEvent.start_at <= start_before)
 
+    # Property filters: parse, resolve definitions, compile to subquery
+    # clauses shared with documents/tasks so event filtering picks up the
+    # same typed comparison + is_empty presence semantics for free.
+    if property_filters:
+        try:
+            parsed = properties_service.parse_property_filters(property_filters)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(exc),
+            )
+        if parsed:
+            defs_map = await properties_service.load_definitions_by_ids(
+                session, [c.property_id for c in parsed]
+            )
+            conditions.extend(
+                properties_service.build_property_filter_clauses(
+                    "event", parsed, defs_map
+                )
+            )
+
     count_subq = select(CalendarEvent.id).where(*conditions).subquery()
     count_stmt = select(func.count()).select_from(count_subq)
     total_count = (await session.exec(count_stmt)).one()
@@ -411,6 +440,10 @@ async def list_calendar_events(
         .options(
             selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
             selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
+            selectinload(CalendarEvent.property_values)
+            .selectinload(CalendarEventPropertyValue.property_definition),
+            selectinload(CalendarEvent.property_values)
+            .selectinload(CalendarEventPropertyValue.value_user),
         )
         .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc())
         .offset((page - 1) * page_size)
@@ -681,6 +714,42 @@ async def set_documents(
     )
     await events_service.set_event_documents(
         session, event, document_ids, guild_context.guild_id, current_user.id,
+    )
+    await session.commit()
+    await reapply_rls_context(session)
+    hydrated = await _refetch_event(session, event.id)
+    return serialize_calendar_event(hydrated)
+
+
+# ---------------------------------------------------------------------------
+# Custom properties
+# ---------------------------------------------------------------------------
+
+
+@router.put("/{event_id}/properties", response_model=CalendarEventRead)
+async def set_event_properties(
+    event_id: int,
+    payload: PropertyValuesSetRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> CalendarEventRead:
+    """Replace-all set of property values on an event.
+
+    Mirrors the tasks/documents shape: any initiative member with
+    ``create_events`` (or guild admin) can attach values; cross-initiative
+    definitions return 404 DEFINITION_NOT_FOUND via the service layer.
+    """
+    event = await _get_event_or_404(session, event_id)
+    await _check_initiative_permission(
+        session,
+        await _get_initiative_for_event(session, event.initiative_id),
+        current_user,
+        guild_context,
+        PermissionKey.create_events,
+    )
+    await properties_service.set_event_property_values(
+        session, event, payload.values, initiative_id=event.initiative_id
     )
     await session.commit()
     await reapply_rls_context(session)

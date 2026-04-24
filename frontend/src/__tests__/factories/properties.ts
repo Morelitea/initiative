@@ -1,5 +1,4 @@
 import {
-  PropertyAppliesTo,
   PropertyType,
   type PropertyDefinitionRead,
   type PropertyOption,
@@ -21,7 +20,6 @@ export function buildPropertyDefinition(
     initiative_id: 1,
     name: "Priority",
     type: PropertyType.text,
-    applies_to: PropertyAppliesTo.both,
     position: 0,
     color: null,
     options: null,
@@ -46,7 +44,6 @@ export function buildPropertySummary(overrides: Partial<PropertySummary> = {}): 
     property_id: counter,
     name: `Property ${counter}`,
     type: PropertyType.text,
-    applies_to: PropertyAppliesTo.both,
     options: null,
     value: "",
     ...overrides,

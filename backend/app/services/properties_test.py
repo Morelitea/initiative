@@ -14,7 +14,7 @@ from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
-from app.models.property import PropertyAppliesTo, PropertyDefinition, PropertyType
+from app.models.property import PropertyDefinition, PropertyType
 from app.schemas.query import FilterOp
 from app.services.properties import (
     MAX_PROPERTY_FILTERS,
@@ -41,7 +41,6 @@ def _make_definition(
         initiative_id=initiative_id,
         name="Prop",
         type=type,
-        applies_to=PropertyAppliesTo.both,
     )
     if options is not None:
         defn.options = options

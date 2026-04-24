@@ -27,11 +27,7 @@ import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { dateSortingFn } from "@/lib/sorting";
-import {
-  PropertyAppliesTo,
-  type DocumentSummary,
-  type TagSummary,
-} from "@/api/generated/initiativeAPI.schemas";
+import { type DocumentSummary, type TagSummary } from "@/api/generated/initiativeAPI.schemas";
 
 // Cell component that uses guild-scoped URLs
 const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
@@ -110,23 +106,13 @@ export const DocumentsListView = ({
   const dateLocale = useDateLocale();
 
   const { data: allPropertyDefinitions = [] } = useProperties();
-  const documentPropertyDefinitions = useMemo(
-    () =>
-      allPropertyDefinitions.filter(
-        (definition) =>
-          definition.applies_to === PropertyAppliesTo.document ||
-          definition.applies_to === PropertyAppliesTo.both
-      ),
+  const propertyColumns = useMemo(
+    () => buildPropertyColumns<DocumentSummary>(allPropertyDefinitions, (row) => row.properties),
     [allPropertyDefinitions]
   );
-  const propertyColumns = useMemo(
-    () =>
-      buildPropertyColumns<DocumentSummary>(documentPropertyDefinitions, (row) => row.properties),
-    [documentPropertyDefinitions]
-  );
   const propertyHiddenIds = useMemo(
-    () => propertyColumnIds(documentPropertyDefinitions),
-    [documentPropertyDefinitions]
+    () => propertyColumnIds(allPropertyDefinitions),
+    [allPropertyDefinitions]
   );
   const [columnVisibility, setColumnVisibility] = usePersistedColumnVisibility(
     "initiative-documents-columns",
