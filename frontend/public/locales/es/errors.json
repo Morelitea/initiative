@@ -62,7 +62,6 @@
   "PROJECT_INITIATIVE_REQUIRED": "La iniciativa es obligatoria",
   "PROJECT_CREATE_PERMISSION_REQUIRED": "Se requiere permiso para crear proyectos",
   "PROJECT_PIN_PERMISSION_REQUIRED": "Solo los administradores del gremio y gerentes de iniciativa pueden fijar proyectos",
-  "PROJECT_INITIATIVES_REQUIRED": "Las iniciativas son obligatorias",
   "PROJECT_DOCUMENT_NOT_FOUND": "Documento no encontrado",
   "PROJECT_DOCUMENT_WRONG_INITIATIVE": "El documento pertenece a una iniciativa diferente",
   "PROJECT_CANNOT_ASSIGN_OWNER": "No se puede asignar permiso de propietario",

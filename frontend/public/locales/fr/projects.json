@@ -287,17 +287,6 @@
       "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
     },
 
-    "initiative": {
-      "title": "Propriété de l'initiative",
-      "description": "Sélectionnez quelle initiative possède ce projet.",
-      "loadError": "Impossible de charger les initiatives.",
-      "owningInitiative": "Initiative propriétaire",
-      "selectInitiative": "Sélectionner une initiative",
-      "saving": "Enregistrement...",
-      "saveInitiative": "Enregistrer l'initiative",
-      "updated": "Initiative du projet mise à jour"
-    },
-
     "roleAccess": {
       "title": "Accès par rôle",
       "description": "Accorder l'accès à tous les membres ayant un rôle spécifique dans l'initiative.",

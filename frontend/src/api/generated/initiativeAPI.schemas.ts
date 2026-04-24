@@ -1568,7 +1568,6 @@ export interface ProjectUpdate {
   name?: string | null;
   description?: string | null;
   icon?: string | null;
-  initiative_id?: number | null;
   is_template?: boolean | null;
   pinned?: boolean | null;
 }

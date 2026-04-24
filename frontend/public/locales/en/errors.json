@@ -62,7 +62,6 @@
   "PROJECT_INITIATIVE_REQUIRED": "Initiative is required",
   "PROJECT_CREATE_PERMISSION_REQUIRED": "Permission required to create projects",
   "PROJECT_PIN_PERMISSION_REQUIRED": "Only guild admins and initiative managers can pin projects",
-  "PROJECT_INITIATIVES_REQUIRED": "Initiatives are required",
   "PROJECT_DOCUMENT_NOT_FOUND": "Document not found",
   "PROJECT_DOCUMENT_WRONG_INITIATIVE": "Document belongs to a different initiative",
   "PROJECT_CANNOT_ASSIGN_OWNER": "Cannot assign owner permission",

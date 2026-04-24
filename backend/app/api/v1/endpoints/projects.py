@@ -1574,7 +1574,6 @@ async def update_project(
         access="write",
             )
     _ensure_not_archived(project)
-    previous_initiative_id = project.initiative_id
 
     update_data = project_in.dict(exclude_unset=True)
     pinned_sentinel = object()
@@ -1595,19 +1594,6 @@ async def update_project(
             )
         project.pinned_at = datetime.now(timezone.utc) if bool(pinned_value) else None
 
-    if "initiative_id" in update_data:
-        new_initiative_id = update_data.pop("initiative_id")
-        if new_initiative_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.INITIATIVES_REQUIRED)
-        if new_initiative_id != project.initiative_id:
-            await _get_initiative_or_404(new_initiative_id, session, guild_context.guild_id)
-            await _ensure_user_in_initiative(new_initiative_id, project.owner_id, session)
-            project.initiative_id = new_initiative_id
-        if new_initiative_id != previous_initiative_id:
-            for permission in list(project.permissions):
-                if permission.user_id != project.owner_id:
-                    await session.delete(permission)
-            project.permissions = [perm for perm in project.permissions if perm.user_id == project.owner_id]
     for field, value in update_data.items():
         setattr(project, field, value)
     project.updated_at = datetime.now(timezone.utc)
@@ -1616,24 +1602,6 @@ async def update_project(
     await session.commit()
     await reapply_rls_context(session)
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
-    if (
-        project.initiative_id
-        and project.initiative
-        and project.initiative_id != previous_initiative_id
-    ):
-        for membership in project.initiative.memberships:
-            member = membership.user
-            if not member or member.id == current_user.id:
-                continue
-            await notifications_service.notify_project_added(
-                session,
-                member,
-                initiative_name=project.initiative.name,
-                project_name=project.name,
-                project_id=project.id,
-                initiative_id=project.initiative.id,
-                guild_id=guild_context.guild_id,
-            )
     await _attach_task_summaries(session, [project])
     await broadcast_event("project", "updated", _project_payload(
         project,

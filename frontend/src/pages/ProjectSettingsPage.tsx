@@ -12,7 +12,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
-import { useInitiatives } from "@/hooks/useInitiatives";
 import { useProject } from "@/hooks/useProjects";
 import { useGuildPath } from "@/lib/guildUrl";
 import { ProjectTaskStatusesManager } from "@/components/projects/ProjectTaskStatusesManager";
@@ -29,17 +28,13 @@ export const ProjectSettingsPage = () => {
 
   const projectQuery = useProject(Number.isFinite(parsedProjectId) ? parsedProjectId : null);
 
-  const initiativesQuery = useInitiatives({ enabled: user?.role === "admin" });
-
   const project = projectQuery.data;
 
   if (!Number.isFinite(parsedProjectId)) {
     return <p className="text-destructive">{t("detail.invalidProjectId")}</p>;
   }
 
-  const initiativesLoading = user?.role === "admin" ? initiativesQuery.isLoading : false;
-
-  if (projectQuery.isLoading || initiativesLoading) {
+  if (projectQuery.isLoading) {
     return <p className="text-muted-foreground text-sm">{t("settings.loading")}</p>;
   }
 
@@ -130,9 +125,6 @@ export const ProjectSettingsPage = () => {
           project={project}
           projectId={parsedProjectId}
           canWriteProject={canWriteProject}
-          isAdmin={user?.role === "admin"}
-          initiatives={initiativesQuery.data}
-          initiativesError={initiativesQuery.isError}
         />
 
         {/* ── Access tab ── */}
