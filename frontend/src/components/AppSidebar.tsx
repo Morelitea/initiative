@@ -45,6 +45,7 @@ import { useDockerHubVersion, compareVersions } from "@/hooks/useDockerHubVersio
 import { useTags } from "@/hooks/useTags";
 import { useQueuesList } from "@/hooks/useQueues";
 import { getItem, setItem } from "@/lib/storage";
+import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { guildPath } from "@/lib/guildUrl";
@@ -228,13 +229,8 @@ export const AppSidebar = () => {
   const userDisplayName = user?.full_name ?? user?.email ?? "User";
   const userEmail = user?.email ?? "";
   const userInitials = useMemo(
-    () =>
-      userDisplayName
-        .split(/\s+/)
-        .map((part) => part.charAt(0).toUpperCase())
-        .join("")
-        .slice(0, 2) || "U",
-    [userDisplayName]
+    () => getInitials(user?.full_name, user?.email),
+    [user?.full_name, user?.email]
   );
   const avatarSrc = resolveUploadUrl(user?.avatar_url) || user?.avatar_base64 || null;
 
@@ -571,6 +567,7 @@ export const AppSidebar = () => {
         </div>
 
         <SidebarUserFooter
+          userId={user?.id ?? null}
           userDisplayName={userDisplayName}
           userEmail={userEmail}
           userInitials={userInitials}

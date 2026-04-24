@@ -227,6 +227,8 @@ async def websocket_collaborate(
         name=user.full_name or user.email,
         websocket=websocket,
         can_write=can_write,
+        avatar_url=user.avatar_url,
+        avatar_base64=user.avatar_base64,
     )
 
     # Add to room
@@ -248,7 +250,15 @@ async def websocket_collaborate(
 
         # Broadcast that a new user joined
         await room.broadcast_awareness(
-            {"type": "join", "user": {"user_id": user.id, "name": collaborator.name}},
+            {
+                "type": "join",
+                "user": {
+                    "user_id": user.id,
+                    "name": collaborator.name,
+                    "avatar_url": user.avatar_url,
+                    "avatar_base64": user.avatar_base64,
+                },
+            },
             origin_user_id=user.id,
         )
 

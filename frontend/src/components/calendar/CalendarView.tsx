@@ -29,14 +29,12 @@ import {
   List,
 } from "lucide-react";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { getInitials } from "@/lib/initials";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -47,7 +45,16 @@ export type CalendarViewMode = "day" | "week" | "month" | "year" | "list";
 
 export type CalendarEntryAttendee = {
   name: string;
+  /** Uploaded avatar path; needs ``resolveUploadUrl`` to become absolute.
+   *  Preferred over ``avatarBase64`` when both are set. */
   avatarUrl?: string | null;
+  /** Inline base64 data URL for users without an uploaded avatar.
+   *  Rendered as-is (already a full data URL). */
+  avatarBase64?: string | null;
+  /** User id for the deterministic avatar tint. Optional because some
+   *  entry sources (e.g. event summaries, which carry just attendee
+   *  names) don't expose ids yet; those render a neutral fallback. */
+  userId?: number | null;
 };
 
 export type CalendarEntry = {
@@ -143,12 +150,6 @@ function formatTime(date: Date): string {
   return m === 0 ? `${hr}${ampm}` : `${hr}:${m.toString().padStart(2, "0")}${ampm}`;
 }
 
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
-
 function formatHourLabel(hour: number): string {
   if (hour === 0) return "12am";
   if (hour < 12) return `${hour}am`;
@@ -238,21 +239,11 @@ function CalendarHeader({
         <Button type="button" variant="outline" size="sm" onClick={goToToday}>
           {t("common:calendar.today")}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          onClick={() => navigate("prev")}
-        >
+        <Button type="button" variant="outline" size="icon-sm" onClick={() => navigate("prev")}>
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">{t("common:previous")}</span>
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          onClick={() => navigate("next")}
-        >
+        <Button type="button" variant="outline" size="icon-sm" onClick={() => navigate("next")}>
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
           <span className="sr-only">{t("common:next")}</span>
         </Button>
@@ -266,28 +257,30 @@ function CalendarHeader({
           role="group"
           aria-label={t("common:calendar.viewMode")}
         >
-          {VIEW_MODE_CONFIG.filter(({ mode }) => !(hideListView && mode === "list")).map(({ mode, icon: Icon, labelKey }) => (
-            <Tooltip key={mode}>
-              <TooltipTrigger asChild>
-                <button
-                  type="button"
-                  aria-pressed={viewMode === mode}
-                  className={cn(
-                    "inline-flex items-center justify-center rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
-                    "hover:text-accent-foreground focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-1",
-                    viewMode === mode
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-accent/50"
-                  )}
-                  onClick={() => onViewModeChange(mode)}
-                >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                  <span className="sr-only">{t(labelKey)}</span>
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom">{t(labelKey)}</TooltipContent>
-            </Tooltip>
-          ))}
+          {VIEW_MODE_CONFIG.filter(({ mode }) => !(hideListView && mode === "list")).map(
+            ({ mode, icon: Icon, labelKey }) => (
+              <Tooltip key={mode}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    aria-pressed={viewMode === mode}
+                    className={cn(
+                      "inline-flex items-center justify-center rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+                      "hover:text-accent-foreground focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none",
+                      viewMode === mode
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-accent/50"
+                    )}
+                    onClick={() => onViewModeChange(mode)}
+                  >
+                    <Icon className="h-4 w-4" aria-hidden="true" />
+                    <span className="sr-only">{t(labelKey)}</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{t(labelKey)}</TooltipContent>
+              </Tooltip>
+            )
+          )}
         </div>
       </TooltipProvider>
     </div>
@@ -302,7 +295,7 @@ type SpanPlacement = {
   entry: CalendarEntry;
   startCol: number; // 0-based column within the week row
   spanCols: number; // how many columns to span
-  lane: number;     // vertical slot index (for stacking)
+  lane: number; // vertical slot index (for stacking)
   showTitle: boolean; // only show title on first visible day of span
 };
 
@@ -312,7 +305,7 @@ type SpanPlacement = {
  */
 function computeSpanPlacements(
   weekDays: Date[],
-  entries: CalendarEntry[],
+  entries: CalendarEntry[]
 ): { spans: SpanPlacement[]; singleDay: Map<string, CalendarEntry[]>; maxLane: number } {
   const spans: SpanPlacement[] = [];
   const singleDay = new Map<string, CalendarEntry[]>();
@@ -472,7 +465,10 @@ function MonthView({
                         )}
                         style={{ minHeight: 80 + spanAreaHeight }}
                         onClick={(e) => {
-                          if (e.target === e.currentTarget || (e.target as HTMLElement).closest("[data-slot='day-number']")) {
+                          if (
+                            e.target === e.currentTarget ||
+                            (e.target as HTMLElement).closest("[data-slot='day-number']")
+                          ) {
                             onSlotClick?.(startOfDay(day));
                           }
                         }}
@@ -484,9 +480,7 @@ function MonthView({
                         }}
                       >
                         <div className="flex items-center justify-between" data-slot="day-number">
-                          <span className="text-sm font-medium">
-                            {format(day, "d")}
-                          </span>
+                          <span className="text-sm font-medium">{format(day, "d")}</span>
                           {isToday(day) && (
                             <span className="text-primary text-[10px] font-semibold uppercase">
                               {t("common:calendar.today")}
@@ -504,7 +498,9 @@ function MonthView({
                               type="button"
                               className={cn(
                                 "flex w-full items-center gap-1 text-left text-[11px] leading-tight",
-                                onEntryClick ? "hover:bg-accent cursor-pointer rounded px-0.5" : "cursor-default"
+                                onEntryClick
+                                  ? "hover:bg-accent cursor-pointer rounded px-0.5"
+                                  : "cursor-default"
                               )}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -545,7 +541,7 @@ function MonthView({
                       type="button"
                       className={cn(
                         "absolute z-10 flex items-center gap-1 overflow-hidden rounded px-2 text-[11px] font-medium text-white",
-                        onEntryClick ? "hover:brightness-90 cursor-pointer" : "cursor-default"
+                        onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
                       )}
                       style={{
                         left: `calc(${leftPct}% + 4px)`,
@@ -607,7 +603,10 @@ function WeekView({
   const timedByDate = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
     for (const [key, dayEntries] of singleDay) {
-      map.set(key, dayEntries.filter((e) => !e.allDay));
+      map.set(
+        key,
+        dayEntries.filter((e) => !e.allDay)
+      );
     }
     return map;
   }, [singleDay]);
@@ -695,13 +694,10 @@ function WeekView({
         {/* All-day / multi-day spanning bar area */}
         {allSpans.spans.length > 0 && (
           <div className="grid grid-cols-[60px_repeat(7,1fr)] border-b">
-            <div className="text-muted-foreground flex items-start justify-end pr-2 pt-1 text-[10px]">
+            <div className="text-muted-foreground flex items-start justify-end pt-1 pr-2 text-[10px]">
               {t("common:calendar.allDay")}
             </div>
-            <div
-              className="relative col-span-7"
-              style={{ height: spanAreaHeight + 4 }}
-            >
+            <div className="relative col-span-7" style={{ height: spanAreaHeight + 4 }}>
               {allSpans.spans.map((span) => {
                 const leftFrac = span.startCol / 7;
                 const widthFrac = span.spanCols / 7;
@@ -712,7 +708,7 @@ function WeekView({
                     type="button"
                     className={cn(
                       "absolute z-10 flex items-center gap-1 overflow-hidden rounded px-2 text-[11px] font-medium text-white",
-                      onEntryClick ? "hover:brightness-90 cursor-pointer" : "cursor-default"
+                      onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
                     )}
                     style={{
                       left: `calc(${leftFrac * 100}% + 2px)`,
@@ -735,13 +731,13 @@ function WeekView({
         )}
 
         {/* Time grid with positioned blocks */}
-        <div className="grid grid-cols-[60px_repeat(7,1fr)] max-h-[600px] overflow-y-auto">
+        <div className="grid max-h-[600px] grid-cols-[60px_repeat(7,1fr)] overflow-y-auto">
           {/* Time gutter */}
           <div>
             {hours.map((hour) => (
               <div
                 key={hour}
-                className="text-muted-foreground flex items-start justify-end border-b pr-2 pt-1 text-[10px]"
+                className="text-muted-foreground flex items-start justify-end border-b pt-1 pr-2 text-[10px]"
                 style={{ height: ROW_HEIGHT }}
               >
                 {formatHourLabel(hour)}
@@ -755,14 +751,22 @@ function WeekView({
             const dayEntries = timedByDate.get(key) ?? [];
 
             // Compute positioned blocks for this day's timed entries
-            const dayBlocks: { entry: CalendarEntry; startHour: number; endHour: number; lane: number }[] = [];
+            const dayBlocks: {
+              entry: CalendarEntry;
+              startHour: number;
+              endHour: number;
+              lane: number;
+            }[] = [];
             for (const entry of dayEntries) {
               const { start, end } = parseEntry(entry);
               const sH = getHours(start) + getMinutes(start) / 60;
               const eH = getHours(end) + getMinutes(end) / 60;
               dayBlocks.push({ entry, startHour: sH, endHour: eH <= sH ? sH + 1 : eH, lane: 0 });
             }
-            dayBlocks.sort((a, b) => a.startHour - b.startHour || (b.endHour - b.startHour) - (a.endHour - a.startHour));
+            dayBlocks.sort(
+              (a, b) =>
+                a.startHour - b.startHour || b.endHour - b.startHour - (a.endHour - a.startHour)
+            );
             const laneEnds: number[] = [];
             for (const block of dayBlocks) {
               let assigned = false;
@@ -787,7 +791,7 @@ function WeekView({
                 {hours.map((hour) => (
                   <div
                     key={hour}
-                    className={cn("border-b", onSlotClick && "cursor-pointer hover:bg-accent/30")}
+                    className={cn("border-b", onSlotClick && "hover:bg-accent/30 cursor-pointer")}
                     style={{ height: ROW_HEIGHT }}
                     role={onSlotClick ? "button" : undefined}
                     tabIndex={onSlotClick ? 0 : undefined}
@@ -820,7 +824,7 @@ function WeekView({
                       type="button"
                       className={cn(
                         "absolute z-10 flex overflow-hidden rounded-r border text-left text-[11px] transition-colors",
-                        onEntryClick ? "hover:brightness-90 cursor-pointer" : "cursor-default"
+                        onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
                       )}
                       style={{
                         top,
@@ -840,7 +844,8 @@ function WeekView({
                         <span className="truncate font-medium">{block.entry.title}</span>
                         {height >= 32 && (
                           <span className="text-muted-foreground text-[10px]">
-                            {formatTime(parseEntry(block.entry).start)} – {formatTime(parseEntry(block.entry).end)}
+                            {formatTime(parseEntry(block.entry).start)} –{" "}
+                            {formatTime(parseEntry(block.entry).end)}
                           </span>
                         )}
                       </div>
@@ -905,7 +910,9 @@ function DayView({
       result.push({ entry, startHour: sH, endHour: eH <= sH ? sH + 1 : eH, lane: 0 });
     }
     // Sort and assign lanes for overlapping
-    result.sort((a, b) => a.startHour - b.startHour || (b.endHour - b.startHour) - (a.endHour - a.startHour));
+    result.sort(
+      (a, b) => a.startHour - b.startHour || b.endHour - b.startHour - (a.endHour - a.startHour)
+    );
     const laneEnds: number[] = [];
     for (const block of result) {
       let assigned = false;
@@ -939,7 +946,7 @@ function DayView({
               type="button"
               className={cn(
                 "flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[11px] font-medium text-white transition-colors",
-                onEntryClick ? "hover:brightness-90 cursor-pointer" : "cursor-default"
+                onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
               )}
               style={{
                 backgroundColor: entry.color || "var(--primary)",
@@ -953,13 +960,13 @@ function DayView({
       ) : null}
 
       {/* Hour grid with positioned timed blocks */}
-      <div className="grid grid-cols-[60px_1fr] max-h-[600px] overflow-y-auto">
+      <div className="grid max-h-[600px] grid-cols-[60px_1fr] overflow-y-auto">
         {/* Time gutter */}
         <div>
           {hours.map((hour) => (
             <div
               key={hour}
-              className="text-muted-foreground flex items-start justify-end border-b pr-3 pt-1 text-[10px]"
+              className="text-muted-foreground flex items-start justify-end border-b pt-1 pr-3 text-[10px]"
               style={{ height: ROW_HEIGHT }}
             >
               {formatHourLabel(hour)}
@@ -973,7 +980,7 @@ function DayView({
           {hours.map((hour) => (
             <div
               key={hour}
-              className={cn("border-b", onSlotClick && "cursor-pointer hover:bg-accent/30")}
+              className={cn("border-b", onSlotClick && "hover:bg-accent/30 cursor-pointer")}
               style={{ height: ROW_HEIGHT }}
               role={onSlotClick ? "button" : undefined}
               tabIndex={onSlotClick ? 0 : undefined}
@@ -1006,7 +1013,7 @@ function DayView({
                 type="button"
                 className={cn(
                   "absolute z-10 flex overflow-hidden rounded-r border text-left text-[11px] transition-colors",
-                  onEntryClick ? "hover:brightness-90 cursor-pointer" : "cursor-default"
+                  onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
                 )}
                 style={{
                   top,
@@ -1025,7 +1032,8 @@ function DayView({
                 <div className="flex flex-col px-2 py-1">
                   <span className="truncate font-medium">{block.entry.title}</span>
                   <span className="text-muted-foreground text-[10px]">
-                    {formatTime(parseEntry(block.entry).start)} – {formatTime(parseEntry(block.entry).end)}
+                    {formatTime(parseEntry(block.entry).start)} –{" "}
+                    {formatTime(parseEntry(block.entry).end)}
                   </span>
                 </div>
               </button>
@@ -1065,9 +1073,7 @@ function YearView({
   }, [year]);
 
   const weekdayLabelsShort = useMemo(() => {
-    const labels = WEEKDAY_KEYS.map((key) =>
-      t(`dates:weekdaysShort.${key}`).charAt(0)
-    );
+    const labels = WEEKDAY_KEYS.map((key) => t(`dates:weekdaysShort.${key}`).charAt(0));
     return labels.slice(weekStartsOn).concat(labels.slice(0, weekStartsOn));
   }, [weekStartsOn, t]);
 
@@ -1078,20 +1084,27 @@ function YearView({
         const gridStart = startOfWeek(monthStart, { weekStartsOn });
         const gridEnd = endOfWeek(endOfMonth(monthDate), { weekStartsOn });
         const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
-        const monthIndex = (monthDate.getMonth() + 1) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+        const monthIndex = (monthDate.getMonth() + 1) as
+          | 1
+          | 2
+          | 3
+          | 4
+          | 5
+          | 6
+          | 7
+          | 8
+          | 9
+          | 10
+          | 11
+          | 12;
 
         return (
           <div key={monthIndex} className="space-y-1">
-            <p className="text-sm font-semibold">
-              {t(`dates:months.${monthIndex}`)}
-            </p>
+            <p className="text-sm font-semibold">{t(`dates:months.${monthIndex}`)}</p>
             {/* Mini weekday header */}
             <div className="grid grid-cols-7 text-center">
               {weekdayLabelsShort.map((label, i) => (
-                <div
-                  key={i}
-                  className="text-muted-foreground py-0.5 text-[9px] font-medium"
-                >
+                <div key={i} className="text-muted-foreground py-0.5 text-[9px] font-medium">
                   {label}
                 </div>
               ))}
@@ -1134,7 +1147,7 @@ function YearView({
                     )}
                     {inMonth && dayEntries.length > 3 && (
                       <span
-                        className="rounded-full px-1 text-[7px] font-bold leading-tight text-white"
+                        className="rounded-full px-1 text-[7px] leading-tight font-bold text-white"
                         style={{ backgroundColor: "var(--primary)" }}
                       >
                         {dayEntries.length}
@@ -1212,99 +1225,97 @@ function ListView({
 
   return (
     <TooltipProvider delayDuration={200}>
-    <div className="space-y-1">
-      {rows.map(({ entry, displayDate, isSpanDay }) => {
-        const { start } = parseEntry(entry);
-        const day = format(displayDate, "d");
-        const month = format(displayDate, "MMM");
-        const weekday = format(displayDate, "EEEE");
+      <div className="space-y-1">
+        {rows.map(({ entry, displayDate, isSpanDay }) => {
+          const { start } = parseEntry(entry);
+          const day = format(displayDate, "d");
+          const month = format(displayDate, "MMM");
+          const weekday = format(displayDate, "EEEE");
 
-        return (
-          <button
-            key={`${entry.id}-${dateKey(displayDate)}`}
-            type="button"
-            className={cn(
-              "flex w-full items-start gap-4 rounded-md border px-3 py-2.5 text-left text-sm transition-colors",
-              isToday(displayDate) && "ring-primary/60 ring-1",
-              onEntryClick ? "hover:bg-accent cursor-pointer" : "cursor-default"
-            )}
-            onClick={() => onEntryClick?.(entry)}
-          >
-            {/* Date column: day + month */}
-            <div className="flex w-14 shrink-0 flex-col items-center leading-tight pt-0.5">
-              <span className="text-lg font-bold">{day}</span>
-              <span className="text-muted-foreground text-[11px] uppercase">{month}</span>
-            </div>
-
-            {/* Weekday name */}
-            <span className="text-muted-foreground w-24 shrink-0 pt-1 text-xs">{weekday}</span>
-
-            {/* Color dot */}
-            <span
-              className="bg-muted-foreground mt-1.5 h-3 w-3 shrink-0 rounded-full"
-              style={{ backgroundColor: entry.color || undefined }}
-              aria-hidden="true"
-            />
-
-            {/* Title + description */}
-            <div className="min-w-0 flex-1">
-              <span className="truncate font-medium">{entry.title}</span>
-              {entry.description && (
-                <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">
-                  {entry.description}
-                </p>
+          return (
+            <button
+              key={`${entry.id}-${dateKey(displayDate)}`}
+              type="button"
+              className={cn(
+                "flex w-full items-start gap-4 rounded-md border px-3 py-2.5 text-left text-sm transition-colors",
+                isToday(displayDate) && "ring-primary/60 ring-1",
+                onEntryClick ? "hover:bg-accent cursor-pointer" : "cursor-default"
               )}
-            </div>
+              onClick={() => onEntryClick?.(entry)}
+            >
+              {/* Date column: day + month */}
+              <div className="flex w-14 shrink-0 flex-col items-center pt-0.5 leading-tight">
+                <span className="text-lg font-bold">{day}</span>
+                <span className="text-muted-foreground text-[11px] uppercase">{month}</span>
+              </div>
 
-            {/* Attendee avatars */}
-            {entry.attendees && entry.attendees.length > 0 && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="flex shrink-0 -space-x-1.5 pt-0.5">
-                    {entry.attendees.slice(0, 4).map((att, i) => (
-                      <span
-                        key={i}
-                        className="bg-muted text-muted-foreground border-card inline-flex h-6 w-6 items-center justify-center rounded-full border-2 text-[9px] font-semibold uppercase"
-                        style={att.avatarUrl ? undefined : {}}
-                      >
-                        {att.avatarUrl ? (
-                          <img
-                            src={att.avatarUrl}
-                            alt={att.name}
-                            className="h-full w-full rounded-full object-cover"
-                          />
-                        ) : (
-                          getInitials(att.name)
-                        )}
-                      </span>
-                    ))}
-                    {entry.attendees.length > 4 && (
-                      <span className="bg-muted text-muted-foreground border-card inline-flex h-6 w-6 items-center justify-center rounded-full border-2 text-[9px] font-semibold">
-                        +{entry.attendees.length - 4}
-                      </span>
-                    )}
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <div className="space-y-0.5 text-xs">
-                    {entry.attendees.map((att, i) => (
-                      <div key={i}>{att.name}</div>
-                    ))}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            )}
+              {/* Weekday name */}
+              <span className="text-muted-foreground w-24 shrink-0 pt-1 text-xs">{weekday}</span>
 
-            {/* Time */}
-            <span className="text-muted-foreground shrink-0 pt-1 text-xs">
-              {entry.allDay || isSpanDay
-                ? t("common:calendar.allDay")
-                : `${formatTime(start)} – ${formatTime(parseEntry(entry).end)}`}
-            </span>
-          </button>
-        );
-      })}
-    </div>
+              {/* Color dot */}
+              <span
+                className="bg-muted-foreground mt-1.5 h-3 w-3 shrink-0 rounded-full"
+                style={{ backgroundColor: entry.color || undefined }}
+                aria-hidden="true"
+              />
+
+              {/* Title + description */}
+              <div className="min-w-0 flex-1">
+                <span className="truncate font-medium">{entry.title}</span>
+                {entry.description && (
+                  <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">
+                    {entry.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Attendee avatars */}
+              {entry.attendees && entry.attendees.length > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex shrink-0 -space-x-1.5 pt-0.5">
+                      {entry.attendees.slice(0, 4).map((att, i) => {
+                        const src =
+                          resolveUploadUrl(att.avatarUrl) || att.avatarBase64 || undefined;
+                        return (
+                          <Avatar
+                            key={i}
+                            className="border-card h-6 w-6 border-2 text-[9px] font-semibold uppercase"
+                          >
+                            {src ? <AvatarImage src={src} alt={att.name} /> : null}
+                            <AvatarFallback userId={att.userId}>
+                              {getInitials(att.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                        );
+                      })}
+                      {entry.attendees.length > 4 && (
+                        <Avatar className="border-card h-6 w-6 border-2 text-[9px] font-semibold">
+                          <AvatarFallback>+{entry.attendees.length - 4}</AvatarFallback>
+                        </Avatar>
+                      )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <div className="space-y-0.5 text-xs">
+                      {entry.attendees.map((att, i) => (
+                        <div key={i}>{att.name}</div>
+                      ))}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Time */}
+              <span className="text-muted-foreground shrink-0 pt-1 text-xs">
+                {entry.allDay || isSpanDay
+                  ? t("common:calendar.allDay")
+                  : `${formatTime(start)} – ${formatTime(parseEntry(entry).end)}`}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </TooltipProvider>
   );
 }
@@ -1338,7 +1349,11 @@ function CalendarSkeleton() {
 // Period Label
 // ---------------------------------------------------------------------------
 
-function usePeriodLabel(viewMode: CalendarViewMode, focusDate: Date, weekStartsOn: 0 | 1 | 2 | 3 | 4 | 5 | 6): string {
+function usePeriodLabel(
+  viewMode: CalendarViewMode,
+  focusDate: Date,
+  weekStartsOn: 0 | 1 | 2 | 3 | 4 | 5 | 6
+): string {
   const { i18n } = useTranslation();
 
   return useMemo(() => {
@@ -1454,11 +1469,7 @@ export const CalendarView = ({
       ) : null}
 
       {viewMode === "list" ? (
-        <ListView
-          entries={entries}
-          focusDate={focusDate}
-          onEntryClick={onEntryClick}
-        />
+        <ListView entries={entries} focusDate={focusDate} onEntryClick={onEntryClick} />
       ) : null}
     </div>
   );

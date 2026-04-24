@@ -110,7 +110,12 @@ export const MyCalendarPage = () => {
     table.displayTasks.forEach((task) => {
       const taskAttendees = task.assignees
         .filter((a) => a.full_name)
-        .map((a) => ({ name: a.full_name!, avatarUrl: a.avatar_url }));
+        .map((a) => ({
+          name: a.full_name!,
+          avatarUrl: a.avatar_url,
+          avatarBase64: a.avatar_base64,
+          userId: a.id,
+        }));
 
       if (task.due_date) {
         entries.push({

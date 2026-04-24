@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Properties show up in the task tables (project, My Tasks, Created tasks) and the Documents list as columns you can toggle on from the column-visibility dropdown — one per defined property, hidden by default. Toggle state is remembered per table across reloads and guild switches. Global views (My Tasks, Created tasks, the documents list) aggregate columns across every initiative the user is a member of; if two initiatives happen to use the same property name, the dropdown label disambiguates them with an id suffix. Property values also render as compact chips on kanban task cards and document cards next to the tag row. The select/multi-select value picker on documents and tasks supports creating a new option inline from the picker itself without needing to open the admin page; typing a label that matches an existing option (case-insensitive) picks the existing option instead of offering to create a duplicate.
 - Moving or copying entities across initiative boundaries drops property values that wouldn't resolve in the target: task moves between projects in different initiatives cascade-delete the task's property values, and document copies to a different initiative land with no properties. Same-initiative task duplicates and document duplicates preserve their property values.
 
+### Changed
+
+- Avatars are now consistent everywhere a person appears.
+
 ## [0.41.0] - 2026-04-21
 
 ### Added

@@ -27,6 +27,10 @@ export interface CollaboratorInfo {
   user_id: number;
   name: string;
   can_write: boolean;
+  /** Uploaded avatar path (needs ``resolveUploadUrl`` to become absolute). */
+  avatar_url?: string | null;
+  /** Inline base64 data URL set for users who haven't uploaded a file. */
+  avatar_base64?: string | null;
   cursor?: {
     anchor: { path: number[]; offset: number };
     focus: { path: number[]; offset: number };
@@ -647,7 +651,14 @@ export class CollaborationProvider implements Provider {
 
       case "join": {
         // A user joined - add them if not already present
-        const user = message.user as { user_id: number; name: string } | undefined;
+        const user = message.user as
+          | {
+              user_id: number;
+              name: string;
+              avatar_url?: string | null;
+              avatar_base64?: string | null;
+            }
+          | undefined;
         if (user) {
           const exists = this._collaborators.some((c) => c.user_id === user.user_id);
           if (!exists) {
@@ -657,6 +668,8 @@ export class CollaborationProvider implements Provider {
                 user_id: user.user_id,
                 name: user.name,
                 can_write: true, // Default to true, server will correct if needed
+                avatar_url: user.avatar_url ?? null,
+                avatar_base64: user.avatar_base64 ?? null,
               },
             ];
             this.emitCollaborators();

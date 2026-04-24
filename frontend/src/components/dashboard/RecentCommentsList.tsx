@@ -8,23 +8,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildPath } from "@/lib/guildUrl";
+import { getInitials } from "@/lib/initials";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { RecentActivityEntry } from "@/api/generated/initiativeAPI.schemas";
 
 interface RecentCommentsListProps {
   comments: RecentActivityEntry[];
   isLoading?: boolean;
-}
-
-function getInitials(name?: string | null, email?: string): string {
-  if (name) {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  }
-  return (email ?? "?")[0].toUpperCase();
 }
 
 export function RecentCommentsList({ comments, isLoading }: RecentCommentsListProps) {
@@ -80,13 +70,15 @@ export function RecentCommentsList({ comments, isLoading }: RecentCommentsListPr
                 );
               }
 
+              const authorAvatarSrc =
+                resolveUploadUrl(entry.author?.avatar_url) ||
+                entry.author?.avatar_base64 ||
+                undefined;
               const content = (
                 <div className="flex gap-3">
                   <Avatar className="h-8 w-8 shrink-0">
-                    <AvatarImage
-                      src={entry.author?.avatar_url ?? entry.author?.avatar_base64 ?? undefined}
-                    />
-                    <AvatarFallback className="text-xs">
+                    {authorAvatarSrc ? <AvatarImage src={authorAvatarSrc} /> : null}
+                    <AvatarFallback userId={entry.author?.id ?? null} className="text-xs">
                       {getInitials(entry.author?.full_name, entry.author?.email)}
                     </AvatarFallback>
                   </Avatar>

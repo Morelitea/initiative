@@ -234,7 +234,12 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       tasks.forEach((task) => {
         const taskAttendees = task.assignees
           .filter((a) => a.full_name)
-          .map((a) => ({ name: a.full_name!, avatarUrl: a.avatar_url }));
+          .map((a) => ({
+            name: a.full_name!,
+            avatarUrl: a.avatar_url,
+            avatarBase64: a.avatar_base64,
+            userId: a.id,
+          }));
         const color = getProjectColor(task.project_id);
 
         if (task.due_date) {

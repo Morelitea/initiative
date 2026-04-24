@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { $createMentionNode } from "@/components/ui/editor/nodes/mention-node";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 
@@ -109,14 +110,6 @@ function getDisplayName(user: UserPublic): string {
   return user.full_name?.trim() || user.email;
 }
 
-function getInitials(name: string): string {
-  const parts = name.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
-}
-
 class MentionTypeaheadOption extends MenuOption {
   name: string;
   userId: number;
@@ -153,12 +146,10 @@ function useMentionLookupService(
         return new MentionTypeaheadOption(
           displayName,
           user.id,
-          (
-            <Avatar className="h-5 w-5 text-[10px]">
-              {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-          )
+          <Avatar className="h-5 w-5 text-[10px]">
+            {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
+            <AvatarFallback userId={user.id}>{initials}</AvatarFallback>
+          </Avatar>
         );
       });
   }, [queryString, users]);
