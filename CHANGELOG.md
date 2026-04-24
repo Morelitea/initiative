@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-04-23
+
 ### Added
 
 - **Custom properties** on documents, tasks, and calendar events. Initiative managers define reusable properties from a new Custom Properties tab in initiative settings, picking from nine types (text, number, checkbox, date, date & time, URL, single-select, multi-select, or person). Attach them to any document, task, or event alongside tags; filter by them in every list; toggle per-property columns on the task and document tables; and see compact chips on kanban cards, document cards, and the calendar list view. Select/multi-select pickers support creating new options inline without leaving the entity.
