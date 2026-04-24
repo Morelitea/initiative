@@ -159,7 +159,7 @@ export const SettingsPlatformUsersPage = () => {
   const downloadCsv = (rows: UserRead[], filename: string) => {
     const body = rows.map((u) => serializeUser(u).map(escapeCsv).join(",")).join("\n");
     const csv = `${CSV_HEADERS.join(",")}\n${body}\n`;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
