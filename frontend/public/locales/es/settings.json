@@ -510,6 +510,7 @@
     "reactivate": "Reactivar",
     "exportUser": "Exportar",
     "exportAll": "Exportar todo como CSV",
+    "exportError": "No se pudo exportar los usuarios.",
     "deleteUser": "Eliminar usuario",
     "promoteSuccess": "Usuario promovido a administrador",
     "demoteSuccess": "Usuario degradado a miembro",

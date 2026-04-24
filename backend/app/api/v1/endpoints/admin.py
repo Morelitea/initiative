@@ -1,7 +1,7 @@
 from typing import Annotated, List
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 from sqlmodel import select
 
 from app.api.deps import require_roles
@@ -26,6 +26,7 @@ from app.schemas.admin import (
 from app.core.encryption import hash_email
 from app.core.messages import AdminMessages, SettingsMessages
 from app.services import user_tokens
+from app.services import csv_export
 from app.services import email as email_service
 from app.services import initiatives as initiatives_service
 from app.services import users as users_service
@@ -50,6 +51,79 @@ async def list_all_users(
     users = result.all()
     await initiatives_service.load_user_initiative_roles(session, users)
     return users
+
+
+_PLATFORM_CSV_HEADERS = [
+    "user_id",
+    "email",
+    "full_name",
+    "platform_role",
+    "is_active",
+    "email_verified",
+    "created_at",
+    "updated_at",
+    "timezone",
+    "locale",
+    "initiative_roles",
+]
+
+
+@router.get("/users/export.csv")
+async def export_platform_users_csv(
+    session: AdminSessionDep,
+    _current_user: AdminUserDep,
+    user_id: Annotated[list[int] | None, Query()] = None,
+) -> Response:
+    """Export platform users as a CSV file. Pass `user_id` one or more times to
+    restrict the export to a subset. Without `user_id`, every user (except the
+    system user) is included. Platform-admin only."""
+    from app.services.users import SYSTEM_USER_EMAIL
+
+    stmt = (
+        select(User)
+        .where(User.email_hash != hash_email(SYSTEM_USER_EMAIL))
+        .order_by(User.created_at.asc())
+    )
+    if user_id:
+        stmt = stmt.where(User.id.in_(user_id))
+    result = await session.exec(stmt)
+    users = list(result.all())
+
+    if user_id and not users:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
+
+    await initiatives_service.load_user_initiative_roles(session, users)
+
+    rows = []
+    for user in users:
+        rows.append([
+            user.id,
+            user.email,
+            user.full_name or "",
+            user.role.value if hasattr(user.role, "value") else user.role,
+            user.is_active,
+            user.email_verified,
+            user.created_at.isoformat() if user.created_at else "",
+            user.updated_at.isoformat() if user.updated_at else "",
+            user.timezone or "",
+            user.locale or "",
+            csv_export.format_initiative_roles(user),
+        ])
+
+    csv_bytes = csv_export.build_csv(_PLATFORM_CSV_HEADERS, rows)
+
+    if len(users) == 1 and user_id:
+        single_user = users[0]
+        filename = f"user-{single_user.id}-{csv_export.safe_filename_component(single_user.email)}.csv"
+    else:
+        datestamp = datetime.now(timezone.utc).date().isoformat()
+        filename = f"platform-users-{datestamp}.csv"
+
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/users/{user_id}/reset-password", response_model=VerificationSendResponse)

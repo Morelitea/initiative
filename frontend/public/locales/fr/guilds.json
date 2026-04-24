@@ -118,6 +118,7 @@
     "reactivate": "Réactiver",
     "exportUser": "Exporter",
     "exportAll": "Tout exporter en CSV",
+    "exportError": "Impossible d'exporter les utilisateurs.",
     "removeFromGuild": "Retirer du groupe",
     "removeUserTitle": "Retirer l'utilisateur du groupe ?",
     "removeUserDescription": "Cela retirera {{email}} du groupe. Cette action est irréversible.",

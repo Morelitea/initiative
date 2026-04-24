@@ -118,6 +118,7 @@
     "reactivate": "Reactivate",
     "exportUser": "Export",
     "exportAll": "Export all as CSV",
+    "exportError": "Unable to export users.",
     "removeFromGuild": "Remove from guild",
     "removeUserTitle": "Remove user from guild?",
     "removeUserDescription": "This will remove {{email}} from the guild. This cannot be undone.",

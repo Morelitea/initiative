@@ -2869,6 +2869,10 @@ export type OidcCallbackApiV1AuthOidcCallbackGetParams = {
   state?: string | null;
 };
 
+export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams = {
+  user_id?: number[] | null;
+};
+
 export type GetUserStatsApiV1UsersMeStatsGetParams = {
   /**
    * Optional guild ID to filter stats
@@ -2880,6 +2884,10 @@ export type GetUserStatsApiV1UsersMeStatsGetParams = {
    * @maximum 365
    */
   days?: number;
+};
+
+export type ExportUsersCsvApiV1UsersExportCsvGetParams = {
+  user_id?: number[] | null;
 };
 
 export type ListProjectsApiV1ProjectsGetParams = {

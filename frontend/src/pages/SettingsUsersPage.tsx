@@ -14,7 +14,8 @@ import {
   createGuildInviteApiV1GuildsGuildIdInvitesPost,
   deleteGuildInviteApiV1GuildsGuildIdInvitesInviteIdDelete,
 } from "@/api/generated/guilds/guilds";
-import { downloadCsv } from "@/lib/csv";
+import { apiClient } from "@/api/client";
+import { downloadBlob, filenameFromContentDisposition } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -123,52 +124,31 @@ export const SettingsUsersPage = () => {
     setDeleteUserConfirm({ userId, email });
   };
 
-  const CSV_HEADERS = [
-    "user_id",
-    "email",
-    "full_name",
-    "guild_role",
-    "platform_role",
-    "oidc_managed",
-    "is_active",
-    "email_verified",
-    "created_at",
-    "initiative_roles",
-  ];
-
-  const serializeMember = (guildMember: UserGuildMember) => [
-    guildMember.id,
-    guildMember.email,
-    guildMember.full_name ?? "",
-    guildMember.guild_role ?? "",
-    guildMember.role,
-    guildMember.oidc_managed,
-    guildMember.is_active,
-    guildMember.email_verified,
-    guildMember.created_at,
-    guildMember.initiative_roles
-      .map((entry) => `${entry.initiative_name}: ${entry.role}`)
-      .join("; "),
-  ];
+  const downloadExport = async (params: { user_id?: number[] }, fallbackFilename: string) => {
+    try {
+      const response = await apiClient.get("/api/v1/users/export.csv", {
+        params,
+        paramsSerializer: { indexes: null },
+        responseType: "blob",
+      });
+      const filename = filenameFromContentDisposition(
+        response.headers["content-disposition"],
+        fallbackFilename
+      );
+      downloadBlob(response.data as Blob, filename);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "guilds:users.exportError"));
+    }
+  };
 
   const exportUserCsv = (guildMember: UserGuildMember) => {
-    const safeEmail = guildMember.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    downloadCsv(
-      CSV_HEADERS,
-      [serializeMember(guildMember)],
-      `user-${guildMember.id}-${safeEmail}.csv`
-    );
+    void downloadExport({ user_id: [guildMember.id] }, `user-${guildMember.id}.csv`);
   };
 
   const exportAllUsersCsv = () => {
-    if (!usersQuery.data?.length) return;
     const safeGuildName = (activeGuild?.name ?? "guild").replace(/[^a-zA-Z0-9._-]+/g, "_");
     const datestamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(
-      CSV_HEADERS,
-      usersQuery.data.map(serializeMember),
-      `${safeGuildName}-users-${datestamp}.csv`
-    );
+    void downloadExport({}, `${safeGuildName}-users-${datestamp}.csv`);
   };
 
   const confirmDeleteUser = () => {

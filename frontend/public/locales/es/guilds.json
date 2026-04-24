@@ -118,6 +118,7 @@
     "reactivate": "Reactivar",
     "exportUser": "Exportar",
     "exportAll": "Exportar todo como CSV",
+    "exportError": "No se pudo exportar los usuarios.",
     "removeFromGuild": "Eliminar del gremio",
     "removeUserTitle": "¿Eliminar usuario del gremio?",
     "removeUserDescription": "Esto eliminará a {{email}} del gremio. Esta acción no se puede deshacer.",

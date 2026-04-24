@@ -12,7 +12,9 @@ import {
   useAdminUpdatePlatformRole,
 } from "@/hooks/useAdmin";
 import { invalidateAdminUsers } from "@/api/query-keys";
-import { downloadCsv } from "@/lib/csv";
+import { apiClient } from "@/api/client";
+import { downloadBlob, filenameFromContentDisposition } from "@/lib/csv";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,49 +124,30 @@ export const SettingsPlatformUsersPage = () => {
     }
   };
 
-  const CSV_HEADERS = [
-    "user_id",
-    "email",
-    "full_name",
-    "platform_role",
-    "is_active",
-    "email_verified",
-    "created_at",
-    "updated_at",
-    "timezone",
-    "locale",
-    "initiative_roles",
-  ];
-
-  const serializeUser = (platformUser: UserRead) => [
-    platformUser.id,
-    platformUser.email,
-    platformUser.full_name ?? "",
-    platformUser.role,
-    platformUser.is_active,
-    platformUser.email_verified,
-    platformUser.created_at,
-    platformUser.updated_at,
-    platformUser.timezone,
-    platformUser.locale,
-    platformUser.initiative_roles
-      .map((entry) => `${entry.initiative_name}: ${entry.role}`)
-      .join("; "),
-  ];
+  const downloadExport = async (params: { user_id?: number[] }, fallbackFilename: string) => {
+    try {
+      const response = await apiClient.get("/api/v1/admin/users/export.csv", {
+        params,
+        paramsSerializer: { indexes: null },
+        responseType: "blob",
+      });
+      const filename = filenameFromContentDisposition(
+        response.headers["content-disposition"],
+        fallbackFilename
+      );
+      downloadBlob(response.data as Blob, filename);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "settings:platformUsers.exportError"));
+    }
+  };
 
   const exportUserCsv = (platformUser: UserRead) => {
-    const safeEmail = platformUser.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
-    downloadCsv(
-      CSV_HEADERS,
-      [serializeUser(platformUser)],
-      `user-${platformUser.id}-${safeEmail}.csv`
-    );
+    void downloadExport({ user_id: [platformUser.id] }, `user-${platformUser.id}.csv`);
   };
 
   const exportAllUsersCsv = () => {
-    if (!usersQuery.data?.length) return;
     const datestamp = new Date().toISOString().slice(0, 10);
-    downloadCsv(CSV_HEADERS, usersQuery.data.map(serializeUser), `platform-users-${datestamp}.csv`);
+    void downloadExport({}, `platform-users-${datestamp}.csv`);
   };
 
   if (!isAdmin) {
