@@ -154,7 +154,12 @@ export const MyCalendarPage = () => {
           endAt: event.end_at,
           allDay: event.all_day,
           color: event.color ?? "#6366f1",
-          attendees: (event.attendee_names ?? []).map((name) => ({ name })),
+          attendees: (event.attendee_previews ?? []).map((att) => ({
+            name: att.name,
+            avatarUrl: att.avatar_url,
+            avatarBase64: att.avatar_base64,
+            userId: att.user_id,
+          })),
           meta: { type: "event", eventId: event.id, guildId: event.guild_id },
         });
       });
