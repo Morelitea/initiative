@@ -116,7 +116,7 @@
     "sourceOidc": "OIDC",
     "sourceManual": "Manual",
     "reactivate": "Reactivar",
-    "exportUser": "Exportar usuario como CSV",
+    "exportUser": "Exportar",
     "exportAll": "Exportar todo como CSV",
     "removeFromGuild": "Eliminar del gremio",
     "removeUserTitle": "¿Eliminar usuario del gremio?",

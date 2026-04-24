@@ -284,12 +284,11 @@ export const SettingsUsersPage = () => {
             <Button
               type="button"
               variant="outline"
-              size="icon"
+              size="sm"
               onClick={() => exportUserCsv(guildMember)}
-              title={t("users.exportUser")}
             >
               <Download className="h-4 w-4" />
-              <span className="sr-only">{t("users.exportUser")}</span>
+              {t("users.exportUser")}
             </Button>
             <Button
               type="button"

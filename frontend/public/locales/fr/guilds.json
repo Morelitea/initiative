@@ -116,7 +116,7 @@
     "sourceOidc": "OIDC",
     "sourceManual": "Manuel",
     "reactivate": "Réactiver",
-    "exportUser": "Exporter l'utilisateur en CSV",
+    "exportUser": "Exporter",
     "exportAll": "Tout exporter en CSV",
     "removeFromGuild": "Retirer du groupe",
     "removeUserTitle": "Retirer l'utilisateur du groupe ?",
