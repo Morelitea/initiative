@@ -10,10 +10,9 @@ import {
   useAdminTriggerPasswordReset,
   useAdminReactivateUser,
   useAdminUpdatePlatformRole,
+  useExportPlatformUsersCsv,
 } from "@/hooks/useAdmin";
 import { invalidateAdminUsers } from "@/api/query-keys";
-import { apiClient } from "@/api/client";
-import { downloadBlob, filenameFromContentDisposition } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { Badge } from "@/components/ui/badge";
@@ -124,30 +123,26 @@ export const SettingsPlatformUsersPage = () => {
     }
   };
 
-  const downloadExport = async (params: { user_id?: number[] }, fallbackFilename: string) => {
-    try {
-      const response = await apiClient.get("/api/v1/admin/users/export.csv", {
-        params,
-        paramsSerializer: { indexes: null },
-        responseType: "blob",
-      });
-      const filename = filenameFromContentDisposition(
-        response.headers["content-disposition"],
-        fallbackFilename
-      );
-      downloadBlob(response.data as Blob, filename);
-    } catch (err) {
+  const exportPlatformUsers = useExportPlatformUsersCsv({
+    onError: (err) => {
       toast.error(getErrorMessage(err, "settings:platformUsers.exportError"));
-    }
-  };
+    },
+  });
 
   const exportUserCsv = (platformUser: UserRead) => {
-    void downloadExport({ user_id: [platformUser.id] }, `user-${platformUser.id}.csv`);
+    const safeEmail = platformUser.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    exportPlatformUsers.mutate({
+      params: { user_id: [platformUser.id] },
+      filename: `user-${platformUser.id}-${safeEmail}.csv`,
+    });
   };
 
   const exportAllUsersCsv = () => {
     const datestamp = new Date().toISOString().slice(0, 10);
-    void downloadExport({}, `platform-users-${datestamp}.csv`);
+    exportPlatformUsers.mutate({
+      params: {},
+      filename: `platform-users-${datestamp}.csv`,
+    });
   };
 
   if (!isAdmin) {

@@ -8,14 +8,13 @@ import {
   useApproveUser,
   useUpdateGuildMembership,
   useRemoveGuildMember,
+  useExportGuildUsersCsv,
 } from "@/hooks/useUsers";
 import {
   listGuildInvitesApiV1GuildsGuildIdInvitesGet,
   createGuildInviteApiV1GuildsGuildIdInvitesPost,
   deleteGuildInviteApiV1GuildsGuildIdInvitesInviteIdDelete,
 } from "@/api/generated/guilds/guilds";
-import { apiClient } from "@/api/client";
-import { downloadBlob, filenameFromContentDisposition } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -124,31 +123,27 @@ export const SettingsUsersPage = () => {
     setDeleteUserConfirm({ userId, email });
   };
 
-  const downloadExport = async (params: { user_id?: number[] }, fallbackFilename: string) => {
-    try {
-      const response = await apiClient.get("/api/v1/users/export.csv", {
-        params,
-        paramsSerializer: { indexes: null },
-        responseType: "blob",
-      });
-      const filename = filenameFromContentDisposition(
-        response.headers["content-disposition"],
-        fallbackFilename
-      );
-      downloadBlob(response.data as Blob, filename);
-    } catch (err) {
+  const exportGuildUsers = useExportGuildUsersCsv({
+    onError: (err) => {
       toast.error(getErrorMessage(err, "guilds:users.exportError"));
-    }
-  };
+    },
+  });
 
   const exportUserCsv = (guildMember: UserGuildMember) => {
-    void downloadExport({ user_id: [guildMember.id] }, `user-${guildMember.id}.csv`);
+    const safeEmail = guildMember.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    exportGuildUsers.mutate({
+      params: { user_id: [guildMember.id] },
+      filename: `user-${guildMember.id}-${safeEmail}.csv`,
+    });
   };
 
   const exportAllUsersCsv = () => {
     const safeGuildName = (activeGuild?.name ?? "guild").replace(/[^a-zA-Z0-9._-]+/g, "_");
     const datestamp = new Date().toISOString().slice(0, 10);
-    void downloadExport({}, `${safeGuildName}-users-${datestamp}.csv`);
+    exportGuildUsers.mutate({
+      params: {},
+      filename: `${safeGuildName}-users-${datestamp}.csv`,
+    });
   };
 
   const confirmDeleteUser = () => {

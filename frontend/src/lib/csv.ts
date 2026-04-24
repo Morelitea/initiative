@@ -12,19 +12,3 @@ export const downloadBlob = (blob: Blob, filename: string): void => {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 };
-
-const FILENAME_PATTERN = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i;
-
-export const filenameFromContentDisposition = (
-  header: string | undefined | null,
-  fallback: string
-): string => {
-  if (!header) return fallback;
-  const match = FILENAME_PATTERN.exec(header);
-  if (!match) return fallback;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return match[1];
-  }
-};
