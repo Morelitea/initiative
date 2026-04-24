@@ -3,75 +3,47 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { TagPicker } from "@/components/tags";
 import { useUpdateProject } from "@/hooks/useProjects";
 import { useSetProjectTags } from "@/hooks/useTags";
-import type {
-  InitiativeRead,
-  ProjectRead,
-  TagSummary,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { ProjectRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { TabsContent } from "@/components/ui/tabs";
 
 interface ProjectSettingsDetailsTabProps {
   project: ProjectRead;
   projectId: number;
   canWriteProject: boolean;
-  isAdmin: boolean;
-  initiatives: InitiativeRead[] | undefined;
-  initiativesError: boolean;
 }
 
 export const ProjectSettingsDetailsTab = ({
   project,
   projectId,
   canWriteProject,
-  isAdmin,
-  initiatives,
-  initiativesError,
 }: ProjectSettingsDetailsTabProps) => {
   const { t } = useTranslation("projects");
 
-  const [selectedInitiativeId, setSelectedInitiativeId] = useState<string>("");
   const [nameText, setNameText] = useState<string>("");
   const [iconText, setIconText] = useState<string>("");
   const [identityMessage, setIdentityMessage] = useState<string | null>(null);
   const [descriptionText, setDescriptionText] = useState<string>("");
   const [descriptionMessage, setDescriptionMessage] = useState<string | null>(null);
-  const [initiativeMessage, setInitiativeMessage] = useState<string | null>(null);
   const [projectTags, setProjectTags] = useState<TagSummary[]>([]);
 
   const setProjectTagsMutation = useSetProjectTags();
 
   useEffect(() => {
     if (project) {
-      setSelectedInitiativeId(String(project.initiative_id));
       setNameText(project.name);
       setIconText(project.icon ?? "");
       setDescriptionText(project.description ?? "");
       setProjectTags(project.tags ?? []);
-      setInitiativeMessage(null);
       setIdentityMessage(null);
       setDescriptionMessage(null);
     }
   }, [project]);
-
-  const updateInitiativeOwnership = useUpdateProject({
-    onSuccess: (data) => {
-      setInitiativeMessage(t("settings.initiative.updated"));
-      setSelectedInitiativeId(String(data.initiative_id));
-    },
-  });
 
   const updateIdentity = useUpdateProject({
     onSuccess: (data) => {
@@ -235,60 +207,6 @@ export const ProjectSettingsDetailsTab = ({
           </div>
         </CardContent>
       </Card>
-
-      {isAdmin ? (
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle>{t("settings.initiative.title")}</CardTitle>
-            <CardDescription>{t("settings.initiative.description")}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {initiativesError ? (
-              <p className="text-destructive text-sm">{t("settings.initiative.loadError")}</p>
-            ) : (
-              <form
-                className="flex flex-wrap items-end gap-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!selectedInitiativeId) return;
-                  updateInitiativeOwnership.mutate({
-                    projectId: projectId,
-                    data: { initiative_id: Number(selectedInitiativeId) },
-                  });
-                }}
-              >
-                <div className="min-w-[220px] flex-1">
-                  <Label htmlFor="project-initiative">
-                    {t("settings.initiative.owningInitiative")}
-                  </Label>
-                  <Select value={selectedInitiativeId} onValueChange={setSelectedInitiativeId}>
-                    <SelectTrigger id="project-initiative" className="mt-2">
-                      <SelectValue placeholder={t("settings.initiative.selectInitiative")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {initiatives?.map((initiative) => (
-                        <SelectItem key={initiative.id} value={String(initiative.id)}>
-                          {initiative.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Button type="submit" disabled={updateInitiativeOwnership.isPending}>
-                    {updateInitiativeOwnership.isPending
-                      ? t("settings.initiative.saving")
-                      : t("settings.initiative.saveInitiative")}
-                  </Button>
-                  {initiativeMessage ? (
-                    <p className="text-primary text-sm">{initiativeMessage}</p>
-                  ) : null}
-                </div>
-              </form>
-            )}
-          </CardContent>
-        </Card>
-      ) : null}
     </TabsContent>
   );
 };

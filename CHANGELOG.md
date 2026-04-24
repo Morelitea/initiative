@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Custom properties** on documents, tasks, and calendar events. Initiative managers define reusable properties from a new Custom Properties tab in initiative settings, picking from nine types (text, number, checkbox, date, date & time, URL, single-select, multi-select, or person). Attach them to any document, task, or event alongside tags; filter by them in every list; toggle per-property columns on the task and document tables; and see compact chips on kanban cards, document cards, and the calendar list view. Select/multi-select pickers support creating new options inline without leaving the entity.
 
+### Removed
+
+- Moving a project between initiatives. The "Initiative ownership" card is gone from project settings and `PATCH /projects/{id}` no longer accepts `initiative_id`. The move crossed a privacy boundary — the project and everything attached to it suddenly became visible to a different initiative's members — and each new initiative-scoped attachment (role permissions, tags, custom properties, calendar events) needed its own cascade rule to stay coherent. The cost of keeping the move correct grew faster than the demand for the feature. Create the project in the right initiative from the start; if you end up in the wrong one, duplicate it into the target and delete the original. A follow up will enable export and import for projects that will cover this use case.
+
 ## [0.41.0] - 2026-04-21
 
 ### Added

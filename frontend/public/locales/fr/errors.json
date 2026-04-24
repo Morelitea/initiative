@@ -62,7 +62,6 @@
   "PROJECT_INITIATIVE_REQUIRED": "Une initiative est requise",
   "PROJECT_CREATE_PERMISSION_REQUIRED": "Permission requise pour créer des projets",
   "PROJECT_PIN_PERMISSION_REQUIRED": "Seuls les administrateurs du groupe et les gestionnaires d'initiative peuvent épingler des projets",
-  "PROJECT_INITIATIVES_REQUIRED": "Les initiatives sont requises",
   "PROJECT_DOCUMENT_NOT_FOUND": "Document introuvable",
   "PROJECT_DOCUMENT_WRONG_INITIATIVE": "Le document appartient à une autre initiative",
   "PROJECT_CANNOT_ASSIGN_OWNER": "Impossible d'attribuer la permission de propriétaire",
