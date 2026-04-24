@@ -163,8 +163,13 @@ export const SettingsUsersPage = () => {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = filename;
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    document.body.appendChild(anchor);
+    try {
+      anchor.click();
+    } finally {
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
   };
 
   const exportUserCsv = (guildMember: UserGuildMember) => {
