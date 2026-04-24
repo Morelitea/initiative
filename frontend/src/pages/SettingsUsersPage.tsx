@@ -38,7 +38,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatDistanceToNow } from "date-fns";
-import { Copy, RefreshCcw, Trash2 } from "lucide-react";
+import { Copy, Download, RefreshCcw, Trash2 } from "lucide-react";
 
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
@@ -122,6 +122,63 @@ export const SettingsUsersPage = () => {
     setDeleteUserConfirm({ userId, email });
   };
 
+  const CSV_HEADERS = [
+    "user_id",
+    "email",
+    "full_name",
+    "guild_role",
+    "platform_role",
+    "oidc_managed",
+    "is_active",
+    "email_verified",
+    "created_at",
+    "initiative_roles",
+  ];
+
+  const escapeCsv = (value: unknown) => {
+    const str = value == null ? "" : String(value);
+    return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+
+  const serializeMember = (guildMember: UserGuildMember) => [
+    guildMember.id,
+    guildMember.email,
+    guildMember.full_name ?? "",
+    guildMember.guild_role ?? "",
+    guildMember.role,
+    guildMember.oidc_managed,
+    guildMember.is_active,
+    guildMember.email_verified,
+    guildMember.created_at,
+    guildMember.initiative_roles
+      .map((entry) => `${entry.initiative_name}: ${entry.role}`)
+      .join("; "),
+  ];
+
+  const downloadCsv = (rows: UserGuildMember[], filename: string) => {
+    const body = rows.map((m) => serializeMember(m).map(escapeCsv).join(",")).join("\n");
+    const csv = `${CSV_HEADERS.join(",")}\n${body}\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const exportUserCsv = (guildMember: UserGuildMember) => {
+    const safeEmail = guildMember.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    downloadCsv([guildMember], `user-${guildMember.id}-${safeEmail}.csv`);
+  };
+
+  const exportAllUsersCsv = () => {
+    if (!usersQuery.data?.length) return;
+    const safeGuildName = (activeGuild?.name ?? "guild").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const datestamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(usersQuery.data, `${safeGuildName}-users-${datestamp}.csv`);
+  };
+
   const confirmDeleteUser = () => {
     if (deleteUserConfirm) {
       deleteUser.mutate(deleteUserConfirm.userId);
@@ -144,6 +201,13 @@ export const SettingsUsersPage = () => {
   }
 
   const userColumns: ColumnDef<UserGuildMember>[] = [
+    {
+      accessorKey: "id",
+      header: t("users.userIdColumn"),
+      cell: ({ row }) => (
+        <p className="text-muted-foreground font-mono text-sm">{row.original.id}</p>
+      ),
+    },
     {
       id: "user",
       header: t("users.userColumn"),
@@ -225,6 +289,16 @@ export const SettingsUsersPage = () => {
                 {t("users.reactivate")}
               </Button>
             ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => exportUserCsv(guildMember)}
+              title={t("users.exportUser")}
+            >
+              <Download className="h-4 w-4" />
+              <span className="sr-only">{t("users.exportUser")}</span>
+            </Button>
             <Button
               type="button"
               variant="destructive"
@@ -385,9 +459,21 @@ export const SettingsUsersPage = () => {
         </CardContent>
       </Card>
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("users.usersTitle")}</CardTitle>
-          <CardDescription>{t("users.usersDescription")}</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>{t("users.usersTitle")}</CardTitle>
+            <CardDescription>{t("users.usersDescription")}</CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={exportAllUsersCsv}
+            disabled={!usersQuery.data?.length}
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            {t("users.exportAll")}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <DataTable

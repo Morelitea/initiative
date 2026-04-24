@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
+import { Download, Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
 
 import {
   usePlatformUsers,
@@ -121,6 +121,64 @@ export const SettingsPlatformUsersPage = () => {
     }
   };
 
+  const CSV_HEADERS = [
+    "user_id",
+    "email",
+    "full_name",
+    "platform_role",
+    "is_active",
+    "email_verified",
+    "created_at",
+    "updated_at",
+    "timezone",
+    "locale",
+    "initiative_roles",
+  ];
+
+  const escapeCsv = (value: unknown) => {
+    const str = value == null ? "" : String(value);
+    return /[",\n\r]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+
+  const serializeUser = (platformUser: UserRead) => [
+    platformUser.id,
+    platformUser.email,
+    platformUser.full_name ?? "",
+    platformUser.role,
+    platformUser.is_active,
+    platformUser.email_verified,
+    platformUser.created_at,
+    platformUser.updated_at,
+    platformUser.timezone,
+    platformUser.locale,
+    platformUser.initiative_roles
+      .map((entry) => `${entry.initiative_name}: ${entry.role}`)
+      .join("; "),
+  ];
+
+  const downloadCsv = (rows: UserRead[], filename: string) => {
+    const body = rows.map((u) => serializeUser(u).map(escapeCsv).join(",")).join("\n");
+    const csv = `${CSV_HEADERS.join(",")}\n${body}\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const exportUserCsv = (platformUser: UserRead) => {
+    const safeEmail = platformUser.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    downloadCsv([platformUser], `user-${platformUser.id}-${safeEmail}.csv`);
+  };
+
+  const exportAllUsersCsv = () => {
+    if (!usersQuery.data?.length) return;
+    const datestamp = new Date().toISOString().slice(0, 10);
+    downloadCsv(usersQuery.data, `platform-users-${datestamp}.csv`);
+  };
+
   if (!isAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -138,6 +196,13 @@ export const SettingsPlatformUsersPage = () => {
   }
 
   const userColumns: ColumnDef<UserRead>[] = [
+    {
+      accessorKey: "id",
+      header: t("platformUsers.columnId"),
+      cell: ({ row }) => (
+        <p className="text-muted-foreground font-mono text-sm">{row.original.id}</p>
+      ),
+    },
     {
       id: "name",
       header: t("platformUsers.columnName"),
@@ -269,6 +334,16 @@ export const SettingsPlatformUsersPage = () => {
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
               </Button>
             )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => exportUserCsv(platformUser)}
+              title={t("platformUsers.exportUser")}
+            >
+              <Download className="h-4 w-4" />
+              {t("platformUsers.exportUser")}
+            </Button>
             {!isSelf && (
               <Button
                 type="button"
@@ -290,9 +365,21 @@ export const SettingsPlatformUsersPage = () => {
   return (
     <div className="space-y-6">
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("platformUsers.title")}</CardTitle>
-          <CardDescription>{t("platformUsers.description")}</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>{t("platformUsers.title")}</CardTitle>
+            <CardDescription>{t("platformUsers.description")}</CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={exportAllUsersCsv}
+            disabled={!usersQuery.data?.length}
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            {t("platformUsers.exportAll")}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <DataTable

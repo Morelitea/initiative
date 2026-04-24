@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Guild settings → Users and platform admin → Users now show a **User ID** column, a per-row **Export** button, and an **Export all as CSV** button in the card header. Exports contain ID, email, full name, roles, status, timestamps, and initiative roles. This lets guild admins (and platform admins) preserve an ID-to-employee mapping for their own records before removing a user, so redacted accounts can still be reconciled against historical data. Removing a user continues to drop them from the list as before.
+
 ## [0.42.0] - 2026-04-23
 
 ### Added
