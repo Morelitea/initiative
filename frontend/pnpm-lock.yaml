@@ -260,6 +260,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      robot-toast:
+        specifier: ^2.1.5
+        version: 2.1.5(react@19.2.5)
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -6162,6 +6165,15 @@ packages:
     resolution: {integrity: sha512-LKg+Cr2ZF61fkcaK1UdkH2yEBBKnYjTyWzTJT6KNPcSPaiT7HSdhtMXQuN5wkTX0Xu72KQ1l8S42rlmexS2hSA==}
     engines: {node: 20 || >=22}
     hasBin: true
+
+  robot-toast@2.1.5:
+    resolution: {integrity: sha512-j2DCh8lHSCfNZ3lX7XfJAfkP7tN9MBluINKnuSAZnBgqtiC4dRO1biaZqtw0aMNi9Q1Q6KEsWJFOuR+xLCMVyg==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      react: '>=16.8.0'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   robust-predicates@3.0.3:
     resolution: {integrity: sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA==}
@@ -13703,6 +13715,10 @@ snapshots:
     dependencies:
       glob: 13.0.6
       package-json-from-dist: 1.0.1
+
+  robot-toast@2.1.5(react@19.2.5):
+    optionalDependencies:
+      react: 19.2.5
 
   robust-predicates@3.0.3: {}
 

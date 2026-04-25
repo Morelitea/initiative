@@ -104,6 +104,7 @@
     "recharts": "2.15.4",
     "rehype-slug": "^6.0.0",
     "remark-gfm": "^4.0.1",
+    "robot-toast": "^2.1.5",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.1",
     "tailwindcss": "^4.2.4",
