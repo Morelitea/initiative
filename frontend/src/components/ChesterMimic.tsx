@@ -364,61 +364,6 @@ export const ChesterMimic = ({ mood = "idle", size = 80 }: ChesterMimicProps) =>
           </g>
         )}
       </svg>
-
-      <style>{`
-        @keyframes chester-tongue {
-          0%, 100% { transform: rotate(0deg); }
-          30% { transform: rotate(3deg); }
-          70% { transform: rotate(-3deg); }
-        }
-        .animate-chester-tongue {
-          transform-origin: 16px 17px;
-          animation: chester-tongue 0.4s ease-in-out infinite;
-        }
-        @keyframes chester-bounce {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-3px); }
-        }
-        @keyframes chester-bounce-fast {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-6px); }
-        }
-        @keyframes chester-wave {
-          0%, 100% { transform: rotate(0deg); }
-          25% { transform: rotate(-5deg); }
-          75% { transform: rotate(5deg); }
-        }
-        @keyframes chester-tilt {
-          0%, 100% { transform: rotate(0deg); }
-          50% { transform: rotate(-4deg); }
-        }
-        @keyframes chester-chomp {
-          0%, 100% { transform: rotate(-22deg); }
-          50% { transform: rotate(-4deg); }
-        }
-        @keyframes chester-sparkle {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.4; }
-        }
-        .animate-chester-bounce {
-          animation: chester-bounce 2s ease-in-out infinite;
-        }
-        .animate-chester-bounce-fast {
-          animation: chester-bounce-fast 0.6s ease-in-out infinite;
-        }
-        .animate-chester-wave {
-          animation: chester-wave 1s ease-in-out infinite;
-        }
-        .animate-chester-tilt {
-          animation: chester-tilt 2.5s ease-in-out infinite;
-        }
-        .animate-chester-chomp {
-          animation: chester-chomp 0.35s ease-in-out infinite;
-        }
-        .animate-chester-sparkle {
-          animation: chester-sparkle 1.2s ease-in-out infinite;
-        }
-      `}</style>
     </div>
   );
 };
