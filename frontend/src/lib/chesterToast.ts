@@ -37,8 +37,12 @@ export interface ChesterToastOptions {
   position?: ChesterToastPosition;
   /** Sonner-style action; mapped to a single robot-toast button. */
   action?: { label: string; onClick: (e: MouseEvent) => void };
-  onDismiss?: () => void;
-  onAutoClose?: () => void;
+  /**
+   * Fires when the toast closes for any reason (manual dismiss or auto-close).
+   * Sonner's separate `onDismiss` / `onAutoClose` are not honored — robot-toast
+   * exposes a single close hook with no way to distinguish the two.
+   */
+  onClose?: () => void;
 }
 
 type RobotToastType = "default" | "success" | "error" | "warning" | "info";
@@ -81,8 +85,7 @@ const buildInput = (
   if (opts?.action) {
     input.buttons = [{ label: opts.action.label, onClick: opts.action.onClick }];
   }
-  const onClose = opts?.onDismiss ?? opts?.onAutoClose;
-  if (onClose) input.onClose = onClose;
+  if (opts?.onClose) input.onClose = opts.onClose;
   return input;
 };
 
