@@ -364,6 +364,41 @@ async def check_deletion_eligibility(
     return can_delete, blockers, warnings, owned_projects
 
 
+async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
+    """Remove the user from every guild and initiative they belong to,
+    handing owned documents off to PMs along the way. Returns the loaded
+    ``User`` row but does NOT commit — the caller is responsible for
+    issuing exactly one commit so its own status / PII writes land in
+    the same transaction as the membership cleanup.
+
+    Splitting the membership work out of ``deactivate_user`` lets
+    ``soft_delete_user`` perform PII erasure atomically: a failure
+    during anonymization rolls back the membership delete too, instead
+    of leaving the user as a half-deactivated row with PII intact.
+    """
+    from app.services import initiatives as initiatives_service
+
+    user = (await session.exec(select(User).where(User.id == user_id))).one()
+
+    memberships = (
+        await session.exec(
+            select(GuildMembership).where(GuildMembership.user_id == user_id)
+        )
+    ).all()
+
+    for membership in memberships:
+        await initiatives_service.remove_user_from_guild_initiatives(
+            session,
+            guild_id=membership.guild_id,
+            user_id=user_id,
+        )
+
+    for membership in memberships:
+        await session.delete(membership)
+
+    return user
+
+
 async def deactivate_user(session: AsyncSession, user_id: int) -> None:
     """Reversibly deactivate a user account.
 
@@ -372,33 +407,10 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> None:
     outstanding JWTs stop authenticating. PII (name, email, avatar) is
     left intact so the user can be reactivated by an admin later.
     """
-    from app.services import initiatives as initiatives_service
-
-    stmt = select(User).where(User.id == user_id)
-    result = await session.exec(stmt)
-    user = result.one()
-
-    # Get all guild memberships to remove from initiatives
-    guild_stmt = select(GuildMembership).where(GuildMembership.user_id == user_id)
-    guild_result = await session.exec(guild_stmt)
-    memberships = guild_result.all()
-
-    # Remove from all guild initiatives
-    for membership in memberships:
-        await initiatives_service.remove_user_from_guild_initiatives(
-            session,
-            guild_id=membership.guild_id,
-            user_id=user_id,
-        )
-
-    # Delete all guild memberships
-    for membership in memberships:
-        await session.delete(membership)
-
-    # Deactivate user; bump token_version so existing JWTs are rejected.
-    # (Owned documents are handed off to other initiative PMs inside
-    # ``remove_user_from_guild_initiatives`` above, before the
-    # InitiativeMember rows are dropped.)
+    user = await _drop_user_memberships(session, user_id)
+    # Owned documents are handed off to other initiative PMs inside
+    # ``_drop_user_memberships`` above, before the InitiativeMember
+    # rows are dropped.
     user.status = UserStatus.deactivated
     user.token_version += 1
     user.updated_at = datetime.now(timezone.utc)
@@ -418,21 +430,19 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     render the placeholder "Deleted user #{id}" wherever the original
     user was referenced.
 
+    All of this happens inside a single transaction with one commit at
+    the end, so a "right to be forgotten" request never ends up in a
+    half-applied state — either every change lands or none do.
+
     This is irreversible — there is no undo.
     """
     import secrets
     from app.models.push_token import PushToken
 
-    # Phase 1: do everything deactivate does (memberships, token_version, status).
-    await deactivate_user(session, user_id)
+    user = await _drop_user_memberships(session, user_id)
 
-    # Reload the row in this session after the commit deactivate did.
-    stmt = select(User).where(User.id == user_id)
-    result = await session.exec(stmt)
-    user = result.one()
-
-    # Mark as anonymized.
     user.status = UserStatus.anonymized
+    user.token_version += 1
 
     # Replace email with a sentinel that won't collide on the unique index
     # and can't be looked up by anyone trying to authenticate. The
@@ -478,6 +488,8 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
     await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
 
+    # Single commit: membership removal + PII wipe + auth-artifact
+    # revocation either all succeed or all roll back together.
     await session.commit()
 
 
