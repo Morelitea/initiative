@@ -127,3 +127,52 @@ async def test_export_platform_users_csv_no_matches_returns_404(
     )
 
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_anonymized_user_cannot_be_deactivated_or_re_anonymized(
+    client: AsyncClient, session: AsyncSession
+):
+    """Once a user is anonymized, the only valid follow-up is hard delete.
+
+    Regression: previously ``deactivate`` on an anonymized row flipped
+    its status back to ``deactivated``, which then satisfied the
+    reactivate endpoint's anonymized check and let an admin resurrect a
+    PII-stripped husk as an active loginable account.
+    """
+    from app.services import users as users_service
+
+    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    target = await create_user(session, email="target@example.com")
+    await users_service.soft_delete_user(session, target.id)
+
+    headers = get_auth_headers(admin)
+
+    # Reject deactivate
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/admin/users/{target.id}",
+        headers=headers,
+        json={"action": "deactivate"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "ADMIN_ALREADY_ANONYMIZED"
+
+    # Reject another soft_delete
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/admin/users/{target.id}",
+        headers=headers,
+        json={"action": "soft_delete"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "ADMIN_ALREADY_ANONYMIZED"
+
+    # Hard delete still allowed
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/admin/users/{target.id}",
+        headers=headers,
+        json={"action": "hard_delete"},
+    )
+    assert response.status_code == 200

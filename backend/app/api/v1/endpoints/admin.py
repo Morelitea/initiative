@@ -383,6 +383,18 @@ async def delete_user(
             detail=blockers[0] if blockers else AdminMessages.USER_CANNOT_BE_DELETED,
         )
 
+    # An already-anonymized row is a permanently empty husk; the only
+    # valid follow-up is hard delete. Refuse deactivate / soft_delete
+    # explicitly — without this guard, deactivate would flip
+    # ``anonymized`` → ``deactivated``, which then satisfies the
+    # ``reactivate`` endpoint's anonymized check and lets an admin
+    # accidentally resurrect the husk as an active loginable account.
+    if user.status == UserStatus.anonymized and payload.action != "hard_delete":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.ALREADY_ANONYMIZED,
+        )
+
     # Project transfers are required for every action when the user owns
     # projects. Even pure deactivation strands the projects until the user
     # is reactivated — only owners can act on them — so we always force
