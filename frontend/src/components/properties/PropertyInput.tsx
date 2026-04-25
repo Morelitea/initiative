@@ -254,10 +254,15 @@ export const PropertyInput = ({
 
     case PropertyType.user_reference: {
       const currentId = coerceUserId(value);
-      const items = users.map((user) => ({
-        value: String(user.id),
-        label: user.full_name ?? user.email,
-      }));
+      // Drop anonymized users from the picker — they can't be assigned to
+      // anything new. Existing values referencing them still render via the
+      // shared display helper elsewhere.
+      const items = users
+        .filter((user) => user.status !== "anonymized")
+        .map((user) => ({
+          value: String(user.id),
+          label: user.full_name ?? user.email,
+        }));
       return (
         <SearchableCombobox
           items={items}

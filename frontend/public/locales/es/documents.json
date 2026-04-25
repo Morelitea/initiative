@@ -14,7 +14,6 @@
     "hideFilters": "Ocultar filtros",
     "updating": "Actualizando..."
   },
-
   "page": {
     "title": "Documentos",
     "subtitle": "Mantén el conocimiento de la iniciativa organizado y adjunta documentos a proyectos.",
@@ -334,8 +333,8 @@
     "airtableEmbedHint": "Esta es una URL de vista de Airtable. En Airtable, abre 'Compartir vista' → activa 'Insertar en tu sitio'. Copia la URL airtable.com/embed/... y pégala aquí."
   },
   "whiteboard": {
-    "loading": "Cargando pizarra…",
-    "syncing": "Sincronizando pizarra…",
+    "loading": "Cargando pizarra\u2026",
+    "syncing": "Sincronizando pizarra\u2026",
     "readOnly": "Tienes acceso de solo lectura a esta pizarra."
   },
   "sidePanel": {

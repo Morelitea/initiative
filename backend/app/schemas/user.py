@@ -4,7 +4,7 @@ from typing import Dict, List, Literal, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, computed_field
 
 from app.models.initiative import InitiativeRole
-from app.models.user import UserRole
+from app.models.user import UserRole, UserStatus
 from app.core.config import settings
 
 
@@ -22,7 +22,7 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
     password: Optional[str] = None
-    is_active: Optional[bool] = None
+    status: Optional[UserStatus] = None
     avatar_base64: Optional[str] = None
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
@@ -46,7 +46,12 @@ class UserUpdate(BaseModel):
 
 
 class UserPublic(BaseModel):
-    """Public user information exposed to other users"""
+    """Public user information exposed to other users.
+
+    Includes ``status`` so the frontend can render the "Deleted user #{id}"
+    placeholder for anonymized accounts wherever a person appears
+    (comment authors, task assignees, mentions, calendar attendees).
+    """
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     id: int
@@ -54,6 +59,7 @@ class UserPublic(BaseModel):
     full_name: Optional[str] = None
     avatar_base64: Optional[str] = None
     avatar_url: Optional[str] = None
+    status: UserStatus = UserStatus.active
 
 
 class UserGuildMember(UserPublic):
@@ -62,7 +68,7 @@ class UserGuildMember(UserPublic):
     role: UserRole  # Platform role
     guild_role: Optional[str] = None  # Guild role (admin/member) - set by endpoint
     oidc_managed: bool = False  # Whether membership is managed via OIDC claim mappings
-    is_active: bool
+    status: UserStatus
     email_verified: bool
     created_at: datetime
     initiative_roles: List["UserInitiativeRole"] = Field(default_factory=list)
@@ -72,7 +78,7 @@ class UserRead(UserBase):
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     id: int
-    is_active: bool
+    status: UserStatus
     email_verified: bool
     created_at: datetime
     updated_at: datetime
@@ -154,8 +160,12 @@ class ProjectBasic(BaseModel):
 
 
 class AccountDeletionRequest(BaseModel):
-    """Request to delete or deactivate a user account"""
-    deletion_type: Literal["soft", "hard"]
+    """Request from a user to deactivate or anonymize (soft-delete) their own account.
+
+    `hard_delete` is intentionally not allowed from this self-service endpoint;
+    only platform admins can purge a row, and they do so via the admin endpoint.
+    """
+    action: Literal["deactivate", "soft_delete"]
     password: str
     confirmation_text: str
     project_transfers: Optional[Dict[int, int]] = None  # {project_id: new_owner_id}
@@ -173,9 +183,9 @@ class DeletionEligibilityResponse(BaseModel):
 
 
 class AccountDeletionResponse(BaseModel):
-    """Response after account deletion attempt"""
+    """Response after a deactivate / anonymize / hard-delete action."""
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     success: bool
-    deletion_type: str
+    action: str
     message: str

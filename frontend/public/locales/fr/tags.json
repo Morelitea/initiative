@@ -10,37 +10,33 @@
     "deleteTitle": "Supprimer l'étiquette ?",
     "deleteDescription": "Cela supprimera l'étiquette « {{name}} » de toutes les tâches, projets et documents. Cette action est irréversible.",
     "deleted": "Étiquette supprimée",
-    "saving": "Enregistrement…",
+    "saving": "Enregistrement\u2026",
     "save": "Enregistrer",
     "tasksTab": "Tâches ({{count}})",
     "projectsTab": "Projets ({{count}})",
     "documentsTab": "Documents ({{count}})"
   },
-
   "picker": {
     "defaultPlaceholder": "Ajouter des étiquettes...",
     "createHeading": "Créer une nouvelle étiquette",
     "namePlaceholder": "Nom de l'étiquette",
-    "creating": "Création en cours…",
+    "creating": "Création en cours\u2026",
     "create": "Créer",
     "searchPlaceholder": "Rechercher ou créer des étiquettes...",
-    "loading": "Chargement…",
+    "loading": "Chargement\u2026",
     "existingTags": "Étiquettes existantes",
     "noTagsFound": "Aucune étiquette trouvée.",
     "createTag": "Créer « {{name}} »",
     "selected": "{{count}} sélectionné(e)(s)"
   },
-
   "tree": {
     "notTagged": "Non étiqueté",
     "collapse": "Réduire",
     "expand": "Développer"
   },
-
   "badge": {
     "remove": "Supprimer l'étiquette {{name}}"
   },
-
   "updated": "Étiquette mise à jour.",
   "deleted": "Étiquette supprimée.",
   "createError": "Impossible de créer l'étiquette.",

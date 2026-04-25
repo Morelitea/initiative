@@ -24,7 +24,7 @@ from app.core.rate_limit import limiter
 from app.core.encryption import decrypt_field, encrypt_field, encrypt_token, hash_email, SALT_EMAIL, SALT_OIDC_CLIENT_SECRET
 from app.core.messages import AuthMessages, OidcMessages
 from app.core.security import create_access_token, get_password_hash, verify_password
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserStatus
 from app.models.guild import GuildRole
 from app.schemas.token import Token
 from app.schemas.auth import (
@@ -97,7 +97,7 @@ async def register_user(
             full_name=user_in.full_name,
             hashed_password=get_password_hash(user_in.password),
             role=user_role,
-            is_active=True,
+            status=UserStatus.active,
             email_verified=is_first_user or not smtp_configured,
         )
         session.add(user)
@@ -181,7 +181,7 @@ async def login_access_token(
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INCORRECT_CREDENTIALS)
 
-    if not user.is_active:
+    if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
     if not user.email_verified:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_NOT_VERIFIED)
@@ -254,7 +254,7 @@ async def create_device_token(
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INCORRECT_CREDENTIALS)
 
-    if not user.is_active:
+    if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
     if not user.email_verified:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_NOT_VERIFIED)
@@ -536,7 +536,7 @@ async def oidc_callback(
             full_name=full_name,
             hashed_password=get_password_hash(random_password),
             role=UserRole.member,
-            is_active=True,
+            status=UserStatus.active,
             avatar_url=avatar_url,
             avatar_base64=None,
             email_verified=True,
@@ -549,8 +549,8 @@ async def oidc_callback(
         await session.refresh(user)
     else:
         updated = False
-        if not user.is_active:
-            user.is_active = True
+        if user.status != UserStatus.active:
+            user.status = UserStatus.active
             updated = True
         if not user.email_verified:
             user.email_verified = True
@@ -693,7 +693,7 @@ async def request_password_reset(request: Request, payload: PasswordResetRequest
     stmt = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(stmt)
     user = result.one_or_none()
-    if not user or not user.is_active:
+    if not user or user.status != UserStatus.active:
         return VerificationSendResponse(status="sent")
     try:
         token = await user_tokens.create_token(

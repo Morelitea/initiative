@@ -1,7 +1,7 @@
 {
   "title": "Vue d'ensemble du groupe",
   "subtitle": "Vue d'ensemble et activité du groupe",
-  "loading": "Chargement du tableau de bord…",
+  "loading": "Chargement du tableau de bord\u2026",
   "error": "Impossible de charger les données du tableau de bord. Veuillez réessayer plus tard.",
   "quickActions": {
     "projects": "Projets",

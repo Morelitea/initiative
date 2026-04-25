@@ -227,17 +227,17 @@ export const SettingsPlatformUsersPage = () => {
       header: t("platformUsers.columnStatus"),
       cell: ({ row }) => {
         const platformUser = row.original;
-        return (
-          <span
-            className={
-              platformUser.is_active
-                ? "text-sm text-green-600 dark:text-green-400"
-                : "text-muted-foreground text-sm"
-            }
-          >
-            {platformUser.is_active ? t("platformUsers.active") : t("platformUsers.inactive")}
-          </span>
-        );
+        const labelKey =
+          platformUser.status === "active"
+            ? "platformUsers.active"
+            : platformUser.status === "anonymized"
+              ? "platformUsers.anonymized"
+              : "platformUsers.deactivated";
+        const className =
+          platformUser.status === "active"
+            ? "text-sm text-green-600 dark:text-green-400"
+            : "text-muted-foreground text-sm";
+        return <span className={className}>{t(labelKey)}</span>;
       },
     },
     {
@@ -277,7 +277,7 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.promoteToAdmin")}
               </Button>
             )}
-            {!platformUser.is_active ? (
+            {platformUser.status === "deactivated" && (
               <Button
                 type="button"
                 variant="outline"
@@ -288,7 +288,8 @@ export const SettingsPlatformUsersPage = () => {
                 <UserCheck className="h-4 w-4" />
                 {t("platformUsers.reactivate")}
               </Button>
-            ) : (
+            )}
+            {platformUser.status === "active" && (
               <Button
                 type="button"
                 variant="outline"

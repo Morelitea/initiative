@@ -41,7 +41,7 @@ async def test_get_current_user(client: AsyncClient, session: AsyncSession):
     assert data["id"] == user.id
     assert data["email"] == "test@example.com"
     assert data["full_name"] == "Test User"
-    assert data["is_active"] is True
+    assert data["status"] == "active"
 
 
 @pytest.mark.integration
@@ -263,7 +263,7 @@ async def test_user_can_change_password(client: AsyncClient, session: AsyncSessi
 @pytest.mark.integration
 async def test_inactive_user_cannot_access_endpoints(client: AsyncClient, session: AsyncSession):
     """Test that inactive users cannot access protected endpoints."""
-    from app.models.user import User
+    from app.models.user import User, UserStatus
 
     # Create inactive user
     user = User(
@@ -271,7 +271,7 @@ async def test_inactive_user_cannot_access_endpoints(client: AsyncClient, sessio
         email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",
         hashed_password="dummy",
-        is_active=False,
+        status=UserStatus.deactivated,
     )
     session.add(user)
     await session.commit()
@@ -446,7 +446,7 @@ async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSess
         "guild_role",
         "platform_role",
         "oidc_managed",
-        "is_active",
+        "status",
         "email_verified",
         "created_at",
         "initiative_roles",

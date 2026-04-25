@@ -133,6 +133,7 @@ function useMentionLookupService(
     }
     const lowerQuery = queryString.toLowerCase();
     return users
+      .filter((user) => user.status !== "anonymized")
       .filter((user) => {
         const name = getDisplayName(user).toLowerCase();
         const email = user.email.toLowerCase();

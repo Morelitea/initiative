@@ -47,7 +47,7 @@ async def test_export_platform_users_csv_as_admin(client: AsyncClient, session: 
         "email",
         "full_name",
         "platform_role",
-        "is_active",
+        "status",
         "email_verified",
         "created_at",
         "updated_at",

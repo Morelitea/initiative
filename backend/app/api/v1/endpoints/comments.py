@@ -12,7 +12,7 @@ from app.models.document import Document
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
 from app.models.task import Task
-from app.models.user import User
+from app.models.user import User, UserStatus
 from app.services.permissions import visible_document_ids_subquery, visible_project_ids_subquery
 from app.schemas.comment import (
     CommentAuthor,
@@ -286,7 +286,7 @@ async def search_mentionables(
             .join(InitiativeMember, InitiativeMember.user_id == User.id)
             .where(
                 InitiativeMember.initiative_id == initiative_id,
-                User.is_active.is_(True),
+                User.status == UserStatus.active,
             )
         )
         if query:

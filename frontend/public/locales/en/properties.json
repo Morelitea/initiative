@@ -2,7 +2,7 @@
   "title": "Properties",
   "addProperty": "Add property",
   "noProperties": "No properties",
-  "saving": "Saving…",
+  "saving": "Saving\u2026",
   "saved": "Saved",
   "remove": "Remove property",
   "types": {
@@ -17,7 +17,7 @@
     "user_reference": "Person"
   },
   "picker": {
-    "placeholder": "Search properties…",
+    "placeholder": "Search properties\u2026",
     "empty": "No properties match",
     "createHeading": "Create new property",
     "namePlaceholder": "Property name",
@@ -32,13 +32,13 @@
   "input": {
     "textPlaceholder": "Empty",
     "numberPlaceholder": "0",
-    "urlPlaceholder": "https://…",
-    "selectPlaceholder": "Select…",
+    "urlPlaceholder": "https://\u2026",
+    "selectPlaceholder": "Select\u2026",
     "multiSelectPlaceholder": "Select options",
-    "userPlaceholder": "Assign person…",
+    "userPlaceholder": "Assign person\u2026",
     "unknownOption": "Unknown option: {{value}}",
     "clear": "Clear",
-    "searchOptions": "Search or create option…",
+    "searchOptions": "Search or create option\u2026",
     "createOption": "Create \"{{label}}\"",
     "optionAdded": "Option added",
     "optionAddFailed": "Could not add option"

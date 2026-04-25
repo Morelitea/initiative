@@ -312,8 +312,6 @@
     "confirmDeletionDescription": "Confirmer la suppression du compte",
     "softDeleteLabel": "Désactiver le compte (Suppression douce)",
     "softDeleteRadioDescription": "Vous ne pouvez pas vous connecter, mais toutes les données sont préservées. Un administrateur peut réactiver votre compte ultérieurement.",
-    "hardDeleteLabel": "Supprimer définitivement le compte (Suppression permanente)",
-    "hardDeleteRadioDescription": "La plupart des données seront supprimées du système. Les commentaires et documents seront conservés mais étiquetés « [Utilisateur supprimé] ». Cette action est irréversible.",
     "cannotDelete": "Impossible de supprimer le compte :",
     "resolveIssues": "Veuillez résoudre ces problèmes avant de supprimer votre compte.",
     "important": "Important :",
@@ -321,8 +319,6 @@
     "selectNewOwners": "Sélectionnez de nouveaux propriétaires pour vos projets avant de procéder à la suppression du compte.",
     "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
     "actionSerious": "Cette action est sérieuse :",
-    "softConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter, mais toutes vos données seront préservées. Un administrateur peut réactiver votre compte.",
-    "hardConfirmDescription": "Votre compte sera définitivement supprimé. Vos projets seront transférés. Les commentaires et documents resteront mais afficheront « [Utilisateur supprimé] » comme auteur. Cette action est irréversible.",
     "confirmPasswordLabel": "Confirmez votre mot de passe",
     "enterPassword": "Entrez votre mot de passe",
     "typeToConfirm": "Tapez <1>DELETE MY ACCOUNT</1> pour confirmer",
@@ -334,7 +330,12 @@
     "deleteAccountButton": "Supprimer le compte",
     "checking": "Vérification…",
     "deactivateSuccess": "Compte désactivé avec succès",
-    "deleteSuccess": "Compte supprimé définitivement"
+    "deleteSuccess": "Compte supprimé définitivement",
+    "deactivateLabel": "Désactiver mon compte (les administrateurs pourront le réactiver plus tard)",
+    "deactivateRadioDescription": "Vous ne pourrez pas vous connecter. Un administrateur peut réactiver votre compte sur demande. Votre nom, e-mail et contenu restent intacts.",
+    "deactivateConfirmDescription": "Votre compte sera désactivé. Vous ne pourrez pas vous connecter tant qu'un administrateur ne l'aura pas réactivé. Votre nom, e-mail et contenu restent intacts.",
+    "softDeleteConfirmDescription": "Votre nom, e-mail et avatar seront supprimés. Vous ne pourrez pas vous connecter. Les commentaires, tâches et autres contenus dont vous êtes l'auteur resteront visibles sous \"Utilisateur supprimé\". Cette action est irréversible.",
+    "softDeleteSuccess": "Votre compte a été anonymisé."
   },
   "branding": {
     "adminOnly": "Seuls les administrateurs de la plateforme peuvent gérer les paramètres d'image de marque.",
@@ -521,7 +522,9 @@
     "reactivateError": "Impossible de réactiver l'utilisateur",
     "cannotDemoteLastAdmin": "Impossible de rétrograder le dernier administrateur de plateforme",
     "cannotChangeOwnRole": "Impossible de changer votre propre rôle",
-    "permissionRequired": "Vous avez besoin des permissions {{adminLabel}} pour voir cette page."
+    "permissionRequired": "Vous avez besoin des permissions {{adminLabel}} pour voir cette page.",
+    "deactivated": "Désactivé",
+    "anonymized": "Anonymisé"
   },
   "adminDeleteUser": {
     "title": "Supprimer l'utilisateur",
@@ -573,6 +576,16 @@
     "deactivating": "Désactivation en cours…",
     "deleteSuccess": "Utilisateur supprimé",
     "deactivateSuccess": "Utilisateur désactivé",
-    "deleteError": "Impossible de supprimer l'utilisateur"
+    "deleteError": "Impossible de supprimer l'utilisateur",
+    "deactivateTitle": "Désactiver",
+    "deactivateDescription": "L'utilisateur ne peut pas se connecter. Les informations personnelles sont conservées. Réversible depuis la page des utilisateurs.",
+    "anonymizeButton": "Anonymiser l'utilisateur",
+    "confirmDeactivate": "Désactiver {{email}} — il ne pourra pas se connecter mais ses données sont conservées.",
+    "confirmDeactivateTitle": "Confirmer la désactivation",
+    "confirmAnonymizeTitle": "Confirmer l'anonymisation",
+    "deleteInitiative": "Supprimer l'initiative",
+    "deleteInitiativeConfirm": "Supprimer l'initiative \"{{initiativeName}}\" ? Ses projets, tâches, documents et adhésions seront supprimés définitivement.",
+    "deleteInitiativeSuccess": "Initiative supprimée",
+    "deleteInitiativeError": "Impossible de supprimer l'initiative"
   }
 }

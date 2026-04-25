@@ -2801,6 +2801,25 @@ async def clean() -> None:
             await session.flush()
             print("  Removed initiative roles")
 
+            # Sweep any leftover projects that still reference one of the
+            # seeded initiatives. The script tracks projects it created in
+            # `state["projects"]`, but projects created outside that path
+            # (e.g. via the running app during dev) won't be in that list.
+            # `Initiative.projects` has no `delete-orphan` cascade, so when
+            # we delete the initiative below SQLAlchemy autoflush would try
+            # to NULL each leftover `Project.initiative_id` — which the
+            # NOT NULL constraint rejects. Delete them explicitly first.
+            if state.get("initiatives"):
+                leftover_result = await session.exec(
+                    select(Project).where(Project.initiative_id.in_(state["initiatives"]))
+                )
+                leftover_projects = leftover_result.all()
+                for project in leftover_projects:
+                    await session.delete(project)
+                if leftover_projects:
+                    await session.flush()
+                    print(f"  Removed {len(leftover_projects)} untracked projects")
+
             # Initiatives
             for iid in state.get("initiatives", []):
                 obj = await session.get(Initiative, iid)

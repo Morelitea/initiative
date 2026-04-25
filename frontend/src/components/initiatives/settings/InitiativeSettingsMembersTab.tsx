@@ -69,7 +69,9 @@ export const InitiativeSettingsMembersTab = ({
       return [];
     }
     const existingIds = new Set(members.map((member) => member.user.id));
-    return usersQuery.data.filter((candidate) => !existingIds.has(candidate.id));
+    return usersQuery.data.filter(
+      (candidate) => !existingIds.has(candidate.id) && candidate.status !== "anonymized"
+    );
   }, [usersQuery.data, members]);
 
   const addMember = useAddInitiativeMember({

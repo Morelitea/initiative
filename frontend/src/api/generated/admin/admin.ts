@@ -955,9 +955,16 @@ export function useCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionElig
 }
 
 /**
- * Delete a user account (admin only).
+ * Delete, anonymize, or deactivate a user account (admin only).
 
-Supports soft delete (deactivation) or hard delete (permanent removal).
+`action` selects the path:
+  - `deactivate` — reversible; flips status to deactivated, drops memberships.
+  - `soft_delete` — anonymizes PII; keeps the row so historical FKs still resolve.
+  - `hard_delete` — permanently removes the row and cascades cleanup.
+
+For both `soft_delete` and `hard_delete`, projects the user solely owns
+must be transferred — only owners hold certain permissions, and an
+anonymized owner row can't act on them.
 
 Restrictions:
 - Cannot delete yourself (use /users/me/delete-account)
@@ -1135,6 +1142,108 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
 > => {
   return useMutation(
     getAdminDeleteGuildApiV1AdminGuildsGuildIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Delete an initiative (platform admin only).
+
+Used by the user-deletion blocker-resolution flow when a target user is
+the sole project manager of an initiative with no other members the
+admin could promote in their place. Cascades to projects, members,
+roles, role permissions, and tags via ORM relationships; projects are
+deleted explicitly first because ``Initiative.projects`` is not set
+up as ``delete-orphan`` and ``projects.initiative_id`` is NOT NULL.
+
+Default initiatives are deletable here — that restriction exists for
+guild admins (so the guild always has a default for new project
+creation), but a platform admin cleaning up a soon-to-be-deleted
+user shouldn't be blocked by it.
+ * @summary Admin Delete Initiative
+ */
+export const adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete = (
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/admin/initiatives/${initiativeId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getAdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete>>,
+    TError,
+    { initiativeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete>>,
+  TError,
+  { initiativeId: number },
+  TContext
+> => {
+  const mutationKey = ["adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete>>,
+    { initiativeId: number }
+  > = (props) => {
+    const { initiativeId } = props ?? {};
+
+    return adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(
+      initiativeId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDeleteMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete>>
+  >;
+
+export type AdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Admin Delete Initiative
+ */
+export const useAdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete>>,
+      TError,
+      { initiativeId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete>>,
+  TError,
+  { initiativeId: number },
+  TContext
+> => {
+  return useMutation(
+    getAdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDeleteMutationOptions(options),
     queryClient
   );
 };

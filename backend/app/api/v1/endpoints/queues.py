@@ -32,7 +32,7 @@ from app.models.queue import (
 )
 from app.models.guild import GuildMembership
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
-from app.models.user import User
+from app.models.user import User, UserStatus
 from app.schemas.token import TokenPayload
 from app.core.messages import QueueMessages, InitiativeMessages
 from app.schemas.queue import (
@@ -999,7 +999,7 @@ async def _ws_authenticate(token: str, session) -> Optional[User]:
             stmt = select(User).where(User.id == int(token_data.sub))
             result = await session.exec(stmt)
             user = result.one_or_none()
-            if user and user.is_active:
+            if user and user.status == UserStatus.active:
                 return user
     except jwt.PyJWTError:
         pass
@@ -1009,7 +1009,7 @@ async def _ws_authenticate(token: str, session) -> Optional[User]:
         stmt = select(User).where(User.id == device_token.user_id)
         result = await session.exec(stmt)
         user = result.one_or_none()
-        if user and user.is_active:
+        if user and user.status == UserStatus.active:
             return user
     return None
 

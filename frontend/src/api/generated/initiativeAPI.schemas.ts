@@ -37,32 +37,35 @@ export interface AITestConnectionResponse {
   available_models: string[] | null;
 }
 
-export type AccountDeletionRequestDeletionType =
-  (typeof AccountDeletionRequestDeletionType)[keyof typeof AccountDeletionRequestDeletionType];
+export type AccountDeletionRequestAction =
+  (typeof AccountDeletionRequestAction)[keyof typeof AccountDeletionRequestAction];
 
-export const AccountDeletionRequestDeletionType = {
-  soft: "soft",
-  hard: "hard",
+export const AccountDeletionRequestAction = {
+  deactivate: "deactivate",
+  soft_delete: "soft_delete",
 } as const;
 
 export type AccountDeletionRequestProjectTransfers = { [key: string]: number } | null;
 
 /**
- * Request to delete or deactivate a user account
+ * Request from a user to deactivate or anonymize (soft-delete) their own account.
+
+`hard_delete` is intentionally not allowed from this self-service endpoint;
+only platform admins can purge a row, and they do so via the admin endpoint.
  */
 export interface AccountDeletionRequest {
-  deletion_type: AccountDeletionRequestDeletionType;
+  action: AccountDeletionRequestAction;
   password: string;
   confirmation_text: string;
   project_transfers?: AccountDeletionRequestProjectTransfers;
 }
 
 /**
- * Response after account deletion attempt
+ * Response after a deactivate / anonymize / hard-delete action.
  */
 export interface AccountDeletionResponse {
   success: boolean;
-  deletion_type: string;
+  action: string;
   message: string;
 }
 
@@ -75,8 +78,20 @@ export interface ProjectBasic {
   initiative_id: number;
 }
 
+export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
+
+export const UserStatus = {
+  active: "active",
+  deactivated: "deactivated",
+  anonymized: "anonymized",
+} as const;
+
 /**
- * Public user information exposed to other users
+ * Public user information exposed to other users.
+
+Includes ``status`` so the frontend can render the "Deleted user #{id}"
+placeholder for anonymized accounts wherever a person appears
+(comment authors, task assignees, mentions, calendar attendees).
  */
 export interface UserPublic {
   id: number;
@@ -84,6 +99,7 @@ export interface UserPublic {
   full_name: string | null;
   avatar_base64: string | null;
   avatar_url: string | null;
+  status: UserStatus;
 }
 
 /**
@@ -145,21 +161,22 @@ export interface AdminInitiativeRoleUpdate {
   role: InitiativeRole;
 }
 
-export type AdminUserDeleteRequestDeletionType =
-  (typeof AdminUserDeleteRequestDeletionType)[keyof typeof AdminUserDeleteRequestDeletionType];
+export type AdminUserDeleteRequestAction =
+  (typeof AdminUserDeleteRequestAction)[keyof typeof AdminUserDeleteRequestAction];
 
-export const AdminUserDeleteRequestDeletionType = {
-  soft: "soft",
-  hard: "hard",
+export const AdminUserDeleteRequestAction = {
+  deactivate: "deactivate",
+  soft_delete: "soft_delete",
+  hard_delete: "hard_delete",
 } as const;
 
 export type AdminUserDeleteRequestProjectTransfers = { [key: string]: number } | null;
 
 /**
- * Request to delete a user as platform admin.
+ * Request to deactivate, anonymize (soft delete), or hard delete a user as platform admin.
  */
 export interface AdminUserDeleteRequest {
-  deletion_type: AdminUserDeleteRequestDeletionType;
+  action: AdminUserDeleteRequestAction;
   project_transfers?: AdminUserDeleteRequestProjectTransfers;
 }
 
@@ -2027,13 +2044,17 @@ export interface TaggedEntitiesResponse {
 }
 
 /**
- * Minimal assignee data for task lists
+ * Minimal assignee data for task lists.
+
+Includes ``status`` so the frontend can render the "Deleted user
+#{id}" placeholder for anonymized assignees inline.
  */
 export interface TaskAssigneeSummary {
   id: number;
   full_name: string | null;
   avatar_url: string | null;
   avatar_base64: string | null;
+  status: UserStatus;
 }
 
 export type TaskCreateRecurrenceStrategy =
@@ -2538,10 +2559,10 @@ export interface UserGuildMember {
   full_name: string | null;
   avatar_base64: string | null;
   avatar_url: string | null;
+  status: UserStatus;
   role: UserRole;
   guild_role: string | null;
   oidc_managed: boolean;
-  is_active: boolean;
   email_verified: boolean;
   created_at: string;
   initiative_roles: UserInitiativeRole[];
@@ -2552,7 +2573,7 @@ export interface UserRead {
   full_name: string | null;
   role: UserRole;
   id: number;
-  is_active: boolean;
+  status: UserStatus;
   email_verified: boolean;
   created_at: string;
   updated_at: string;
@@ -2662,7 +2683,7 @@ export interface UserUpdate {
   full_name?: string | null;
   role?: UserRole | null;
   password?: string | null;
-  is_active?: boolean | null;
+  status?: UserStatus | null;
   avatar_base64?: string | null;
   avatar_url?: string | null;
   week_starts_on?: number | null;
