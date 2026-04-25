@@ -177,6 +177,139 @@ export const SettingsBrandingPage = () => {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("branding.chesterPlayground.title")}</CardTitle>
+          <CardDescription>{t("branding.chesterPlayground.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast(t("branding.chesterPlayground.default.message"))}
+            >
+              {t("branding.chesterPlayground.default.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.success(t("branding.chesterPlayground.success.message"))}
+            >
+              {t("branding.chesterPlayground.success.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.error(t("branding.chesterPlayground.error.message"))}
+            >
+              {t("branding.chesterPlayground.error.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.warning(t("branding.chesterPlayground.warning.message"))}
+            >
+              {t("branding.chesterPlayground.warning.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.info(t("branding.chesterPlayground.info.message"))}
+            >
+              {t("branding.chesterPlayground.info.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.loading(t("branding.chesterPlayground.loading.message"))}
+            >
+              {t("branding.chesterPlayground.loading.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                toast.success(t("branding.chesterPlayground.withDescription.message"), {
+                  description: t("branding.chesterPlayground.withDescription.detail"),
+                })
+              }
+            >
+              {t("branding.chesterPlayground.withDescription.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                toast.info(t("branding.chesterPlayground.withAction.message"), {
+                  action: {
+                    label: t("branding.chesterPlayground.withAction.actionLabel"),
+                    onClick: () =>
+                      toast.success(t("branding.chesterPlayground.withAction.reverted")),
+                  },
+                })
+              }
+            >
+              {t("branding.chesterPlayground.withAction.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                toast.warning(t("branding.chesterPlayground.sticky.message"), {
+                  id: "chester-sticky",
+                  duration: Infinity,
+                });
+              }}
+            >
+              {t("branding.chesterPlayground.sticky.label")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => toast.dismiss("chester-sticky")}>
+              {t("branding.chesterPlayground.dismissSticky")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                toast.promise(new Promise((resolve) => setTimeout(() => resolve("done"), 2000)), {
+                  loading: t("branding.chesterPlayground.promiseResolve.loading"),
+                  success: t("branding.chesterPlayground.promiseResolve.success"),
+                  error: t("branding.chesterPlayground.promiseReject.errorPrefix", {
+                    message: "",
+                  }),
+                });
+              }}
+            >
+              {t("branding.chesterPlayground.promiseResolve.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                toast
+                  .promise(
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("boom")), 2000)),
+                    {
+                      loading: t("branding.chesterPlayground.promiseReject.loading"),
+                      success: t("branding.chesterPlayground.promiseResolve.success"),
+                      error: (err) =>
+                        t("branding.chesterPlayground.promiseReject.errorPrefix", {
+                          message: (err as Error).message,
+                        }),
+                    }
+                  )
+                  .catch(() => undefined);
+              }}
+            >
+              {t("branding.chesterPlayground.promiseReject.label")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => toast.dismiss()}>
+              {t("branding.chesterPlayground.dismissAll")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
