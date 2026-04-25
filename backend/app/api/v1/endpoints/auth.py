@@ -548,10 +548,17 @@ async def oidc_callback(
         await session.commit()
         await session.refresh(user)
     else:
-        updated = False
+        # Refuse to silently reactivate an admin- or self-deactivated account
+        # via OIDC. Deactivation is now an explicit, reversible state that
+        # only an admin can undo (see ``/api/v1/users/{id}/approve``); letting
+        # a deactivated user log in via SSO would bypass that gate. Anonymized
+        # accounts can't reach this branch in practice (their ``email_hash``
+        # is randomized so the lookup above won't match), but reject them too
+        # as defense in depth.
         if user.status != UserStatus.active:
-            user.status = UserStatus.active
-            updated = True
+            return _error_redirect(is_mobile, "account_inactive")
+
+        updated = False
         if not user.email_verified:
             user.email_verified = True
             updated = True
