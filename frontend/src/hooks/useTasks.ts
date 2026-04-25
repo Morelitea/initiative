@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   readTaskApiV1TasksTaskIdGet,
   getReadTaskApiV1TasksTaskIdGetQueryKey,

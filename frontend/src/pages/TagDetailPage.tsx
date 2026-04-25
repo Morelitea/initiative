@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { Navigate, useParams, useRouter } from "@tanstack/react-router";
 import {
   Loader2,
@@ -12,8 +11,9 @@ import {
   Trash2,
   TagIcon,
 } from "lucide-react";
-import { StatusMessage } from "@/components/StatusMessage";
 
+import { toast } from "@/lib/chesterToast";
+import { StatusMessage } from "@/components/StatusMessage";
 import { useTag, useTagEntities, useDeleteTag, useUpdateTag } from "@/hooks/useTags";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,7 +72,15 @@ export const TagDetailPage = () => {
   }
 
   if (tagError || !tag) {
-    return <StatusMessage icon={<SearchX />} title={t("detail.notFound")} description={t("detail.notFoundDescription")} backTo="/" backLabel={t("detail.backToTags")} />;
+    return (
+      <StatusMessage
+        icon={<SearchX />}
+        title={t("detail.notFound")}
+        description={t("detail.notFoundDescription")}
+        backTo="/"
+        backLabel={t("detail.backToTags")}
+      />
+    );
   }
 
   const handleStartEdit = () => {

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Loader2, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   AlertDialog,
   AlertDialogAction,

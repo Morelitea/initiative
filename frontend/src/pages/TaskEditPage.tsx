@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useRouter } from "@tanstack/react-router";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { queryClient } from "@/lib/queryClient";
 import { getReadTaskApiV1TasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";

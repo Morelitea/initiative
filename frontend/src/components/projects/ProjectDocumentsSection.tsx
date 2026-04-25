@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { getItem, setItem } from "@/lib/storage";
 import { Loader2, Link, Unlink, ChevronDown, ChevronUp, FilePlus } from "lucide-react";
-import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+
+import { toast } from "@/lib/chesterToast";
 import { useInitiativeDocuments } from "@/hooks/useDocuments";
 import { useAttachProjectDocument, useDetachProjectDocument } from "@/hooks/useProjects";
 import { useDateLocale } from "@/hooks/useDateLocale";

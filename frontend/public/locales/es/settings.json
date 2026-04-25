@@ -364,7 +364,62 @@
     "saveRoles": "Guardar etiquetas de roles",
     "savingRoles": "Guardando\u2026",
     "rolesSuccess": "Etiquetas de roles actualizadas",
-    "rolesUpdateError": "No se pudieron actualizar las etiquetas de roles."
+    "rolesUpdateError": "No se pudieron actualizar las etiquetas de roles.",
+    "chesterPlayground": {
+      "title": "Banco de pruebas de Chester",
+      "description": "Activa cada tipo de notificación para previsualizar la variante de Chester y su animación.",
+      "default": {
+        "label": "predeterminado (inactivo)",
+        "message": "Solo una notificación"
+      },
+      "success": {
+        "label": "éxito (orgulloso)",
+        "message": "Guardado correctamente"
+      },
+      "error": {
+        "label": "error (alterado)",
+        "message": "Algo salió mal"
+      },
+      "warning": {
+        "label": "advertencia (pensativo)",
+        "message": "Ten cuidado"
+      },
+      "info": {
+        "label": "información (hablando)",
+        "message": "Atención"
+      },
+      "loading": {
+        "label": "cargando (hablando, fijo)",
+        "message": "Trabajando en ello…"
+      },
+      "withDescription": {
+        "label": "con descripción",
+        "message": "Perfil actualizado",
+        "detail": "Tus cambios ya están activos en todos los dispositivos."
+      },
+      "withAction": {
+        "label": "con acción",
+        "message": "Haz clic en deshacer para revertir",
+        "actionLabel": "Deshacer",
+        "reverted": "Revertido"
+      },
+      "sticky": {
+        "label": "fijo (con id)",
+        "message": "Notificación fija — descártame"
+      },
+      "dismissSticky": "descartar fijo",
+      "promiseResolve": {
+        "label": "promesa (resuelta)",
+        "loading": "Haciendo algo asíncrono…",
+        "success": "Funcionó"
+      },
+      "promiseReject": {
+        "label": "promesa (rechazada)",
+        "loading": "Haciendo algo arriesgado…",
+        "errorPrefix": "Falló: {{message}}"
+      },
+      "dismissAll": "descartar todo"
+    }
   },
   "email": {
     "adminOnly": "Solo los administradores de la plataforma pueden gestionar la configuración de email.",

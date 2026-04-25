@@ -10,8 +10,8 @@ import type {
 } from "@xyflow/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   useListAutomationsApiV1AutomationsGet,
   useCreateAutomationApiV1AutomationsPost,

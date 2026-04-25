@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { AlertCircle, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 
+import { toast } from "@/lib/chesterToast";
 import {
   useUserDeletionEligibility,
   useAdminDeleteUser,

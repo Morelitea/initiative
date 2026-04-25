@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { Download, Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
 
+import { toast } from "@/lib/chesterToast";
 import {
   usePlatformUsers,
   usePlatformAdminCount,

@@ -260,9 +260,9 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      robot-toast:
+        specifier: ^2.1.5
+        version: 2.1.5(react@19.2.5)
       tailwind-merge:
         specifier: ^2.6.1
         version: 2.6.1
@@ -6163,6 +6163,15 @@ packages:
     engines: {node: 20 || >=22}
     hasBin: true
 
+  robot-toast@2.1.5:
+    resolution: {integrity: sha512-j2DCh8lHSCfNZ3lX7XfJAfkP7tN9MBluINKnuSAZnBgqtiC4dRO1biaZqtw0aMNi9Q1Q6KEsWJFOuR+xLCMVyg==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      react: '>=16.8.0'
+    peerDependenciesMeta:
+      react:
+        optional: true
+
   robust-predicates@3.0.3:
     resolution: {integrity: sha512-NS3levdsRIUOmiJ8FZWCP7LG3QpJyrs/TE0Zpf1yvZu8cAJJ6QMW92H1c7kWpdIHo8RvmLxN/o2JXTKHp74lUA==}
 
@@ -6336,12 +6345,6 @@ packages:
 
   sliced@1.0.1:
     resolution: {integrity: sha512-VZBmZP8WU3sMOZm1bdgTadsQbcscK0UM8oKxKVBs4XAhUo2Xxzm/OFMGBkPusxw9xL3Uy8LrzEqGqJhclsr0yA==}
-
-  sonner@2.0.7:
-    resolution: {integrity: sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w==}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
-      react-dom: ^18.0.0 || ^19.0.0 || ^19.0.0-rc
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
@@ -13704,6 +13707,10 @@ snapshots:
       glob: 13.0.6
       package-json-from-dist: 1.0.1
 
+  robot-toast@2.1.5(react@19.2.5):
+    optionalDependencies:
+      react: 19.2.5
+
   robust-predicates@3.0.3: {}
 
   rollup@4.60.1:
@@ -13930,11 +13937,6 @@ snapshots:
       is-fullwidth-code-point: 5.1.0
 
   sliced@1.0.1: {}
-
-  sonner@2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
-    dependencies:
-      react: 19.2.5
-      react-dom: 19.2.5(react@19.2.5)
 
   source-map-js@1.2.1: {}
 

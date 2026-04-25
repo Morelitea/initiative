@@ -1,8 +1,8 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { Smartphone, Trash2 } from "lucide-react";
 
+import { toast } from "@/lib/chesterToast";
 import {
   useMyApiKeys,
   useDeviceTokens,

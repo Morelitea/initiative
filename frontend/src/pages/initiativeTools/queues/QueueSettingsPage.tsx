@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
 import { ColumnDef } from "@tanstack/react-table";
 import { Loader2, Trash2 } from "lucide-react";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
+import { toast } from "@/lib/chesterToast";
 import {
   Breadcrumb,
   BreadcrumbItem,

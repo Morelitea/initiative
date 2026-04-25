@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
+import { toast } from "@/lib/chesterToast";
 
 import type { OIDCClaimMappingRead } from "@/api/generated/initiativeAPI.schemas";
 import {
