@@ -41,7 +41,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
+import { toast } from "@/lib/chesterToast";
 import { cn } from "@/lib/utils";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { LogoIcon } from "../LogoIcon";

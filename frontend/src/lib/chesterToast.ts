@@ -30,6 +30,8 @@ export interface ChesterToastOptions {
   id?: string | number;
   /** ms to auto-dismiss; pass `Infinity` to keep open until dismissed. */
   duration?: number;
+  /** Secondary line appended below the main message (Sonner parity). */
+  description?: string;
   /** Override the auto-selected Chester variant with any imported SVG URL. */
   robotVariant?: string;
   position?: ChesterToastPosition;
@@ -39,9 +41,11 @@ export interface ChesterToastOptions {
   onAutoClose?: () => void;
 }
 
+type RobotToastType = "default" | "success" | "error" | "warning" | "info";
+
 interface RobotToastInput {
   message: string;
-  type: ChesterToastType;
+  type: RobotToastType;
   robotVariant: string;
   position?: ChesterToastPosition;
   autoClose?: number | boolean;
@@ -51,14 +55,23 @@ interface RobotToastInput {
 
 const idMap = new Map<string | number, number>();
 
+const ROBOT_TYPE_BY_TYPE: Record<ChesterToastType, RobotToastType> = {
+  default: "default",
+  success: "success",
+  error: "error",
+  warning: "warning",
+  info: "info",
+  loading: "info",
+};
+
 const buildInput = (
   message: string,
   type: ChesterToastType,
   opts?: ChesterToastOptions
 ): RobotToastInput => {
   const input: RobotToastInput = {
-    message,
-    type,
+    message: opts?.description ? `${message}\n${opts.description}` : message,
+    type: ROBOT_TYPE_BY_TYPE[type],
     robotVariant: opts?.robotVariant ?? VARIANT_BY_TYPE[type],
   };
   if (opts?.position) input.position = opts.position;

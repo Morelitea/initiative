@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { useAllDocumentIds, useCreateDocument } from "@/hooks/useDocuments";
 import { Button } from "@/components/ui/button";
 import {

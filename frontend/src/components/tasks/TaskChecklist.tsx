@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import {
   DndContext,
   PointerSensor,
@@ -18,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Loader2, Trash2, SquareCheck, Sparkles } from "lucide-react";
 
+import { toast } from "@/lib/chesterToast";
 import {
   useSubtasks,
   useCreateSubtask,

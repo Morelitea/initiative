@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
+
+import { toast } from "@/lib/chesterToast";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

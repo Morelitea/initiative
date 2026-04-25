@@ -1,7 +1,7 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";

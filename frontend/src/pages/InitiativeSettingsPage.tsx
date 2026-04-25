@@ -3,7 +3,8 @@ import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
+
+import { toast } from "@/lib/chesterToast";
 import {
   Breadcrumb,
   BreadcrumbItem,

@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Loader2, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   useUpdateQueueItem,
   useDeleteQueueItem,

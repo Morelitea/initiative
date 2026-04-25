@@ -9,8 +9,8 @@ import {
   useState,
 } from "react";
 import type { AxiosError } from "axios";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { apiClient, setCurrentGuildId } from "@/api/client";
 import { resetGuildScopedQueries } from "@/api/query-keys";
 import { getItem, setItem, removeItem } from "@/lib/storage";

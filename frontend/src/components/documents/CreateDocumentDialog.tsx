@@ -13,8 +13,8 @@ import {
 } from "lucide-react";
 import { matchSmartLinkProvider, SUPPORTED_PROVIDER_BADGES } from "@/lib/smartLinkProviders";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { useAllDocumentIds, useCreateDocument, useUploadDocument } from "@/hooks/useDocuments";
 import { useInitiative } from "@/hooks/useInitiatives";
 import { Button } from "@/components/ui/button";

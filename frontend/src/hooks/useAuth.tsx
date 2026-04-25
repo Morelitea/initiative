@@ -1,8 +1,8 @@
 import { ReactNode, createContext, useContext, useEffect, useState, useCallback } from "react";
 import { Capacitor } from "@capacitor/core";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   apiClient,
   setAuthToken,

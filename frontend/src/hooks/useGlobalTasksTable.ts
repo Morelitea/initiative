@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
+import { toast } from "@/lib/chesterToast";
 import {
   listTasksApiV1TasksGet,
   getListTasksApiV1TasksGetQueryKey,

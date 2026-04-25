@@ -4,8 +4,8 @@ import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import { keepPreviousData } from "@tanstack/react-query";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { useTasks, usePrefetchTasks, useUpdateTask } from "@/hooks/useTasks";
 import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { useGuildPath } from "@/lib/guildUrl";

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
@@ -14,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { TabsContent } from "@/components/ui/tabs";
-import { toast } from "sonner";
+import { toast } from "@/lib/chesterToast";
 import {
   useAddDocumentMember,
   useUpdateDocumentMember,

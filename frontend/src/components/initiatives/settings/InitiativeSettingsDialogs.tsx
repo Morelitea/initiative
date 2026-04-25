@@ -28,7 +28,7 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import { useCreateRole, useUpdateRole, useDeleteRole } from "@/hooks/useInitiativeRoles";
 import { useRemoveInitiativeMember } from "@/hooks/useInitiatives";
-import { toast } from "sonner";
+import { toast } from "@/lib/chesterToast";
 
 interface InitiativeSettingsDialogsProps {
   initiativeId: number;
