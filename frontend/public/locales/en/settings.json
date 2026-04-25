@@ -213,6 +213,61 @@
       "label": "Vibration on task completion",
       "description": "Briefly vibrate your device when you finish any task. Mobile / supported browsers only.",
       "preview": "Preview"
+    },
+    "chesterPlayground": {
+      "title": "Chester toast playground",
+      "description": "Trigger each toast type to preview its Chester variant and animation.",
+      "default": {
+        "label": "default (idle)",
+        "message": "Just a notification"
+      },
+      "success": {
+        "label": "success (proud)",
+        "message": "Saved successfully"
+      },
+      "error": {
+        "label": "error (excited)",
+        "message": "Something went wrong"
+      },
+      "warning": {
+        "label": "warning (thinking)",
+        "message": "Be careful"
+      },
+      "info": {
+        "label": "info (talking)",
+        "message": "Heads up"
+      },
+      "loading": {
+        "label": "loading (talking, sticky)",
+        "message": "Working on it…"
+      },
+      "withDescription": {
+        "label": "with description",
+        "message": "Profile updated",
+        "detail": "Your changes are now live across all devices."
+      },
+      "withAction": {
+        "label": "with action",
+        "message": "Click undo to revert",
+        "actionLabel": "Undo",
+        "reverted": "Reverted"
+      },
+      "sticky": {
+        "label": "sticky (id-based)",
+        "message": "Sticky toast — dismiss me"
+      },
+      "dismissSticky": "dismiss sticky",
+      "promiseResolve": {
+        "label": "promise (resolve)",
+        "loading": "Doing something async…",
+        "success": "It worked"
+      },
+      "promiseReject": {
+        "label": "promise (reject)",
+        "loading": "Doing something risky…",
+        "errorPrefix": "It failed: {{message}}"
+      },
+      "dismissAll": "dismiss all"
     }
   },
   "notifications": {

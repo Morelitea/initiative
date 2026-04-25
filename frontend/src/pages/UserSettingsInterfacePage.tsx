@@ -422,6 +422,139 @@ export const UserSettingsInterfacePage = ({
       </Card>
 
       <ThemeColorPreview themeId={colorTheme} />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("interface.chesterPlayground.title")}</CardTitle>
+          <CardDescription>{t("interface.chesterPlayground.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast(t("interface.chesterPlayground.default.message"))}
+            >
+              {t("interface.chesterPlayground.default.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.success(t("interface.chesterPlayground.success.message"))}
+            >
+              {t("interface.chesterPlayground.success.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.error(t("interface.chesterPlayground.error.message"))}
+            >
+              {t("interface.chesterPlayground.error.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.warning(t("interface.chesterPlayground.warning.message"))}
+            >
+              {t("interface.chesterPlayground.warning.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.info(t("interface.chesterPlayground.info.message"))}
+            >
+              {t("interface.chesterPlayground.info.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => toast.loading(t("interface.chesterPlayground.loading.message"))}
+            >
+              {t("interface.chesterPlayground.loading.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                toast.success(t("interface.chesterPlayground.withDescription.message"), {
+                  description: t("interface.chesterPlayground.withDescription.detail"),
+                })
+              }
+            >
+              {t("interface.chesterPlayground.withDescription.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                toast.info(t("interface.chesterPlayground.withAction.message"), {
+                  action: {
+                    label: t("interface.chesterPlayground.withAction.actionLabel"),
+                    onClick: () =>
+                      toast.success(t("interface.chesterPlayground.withAction.reverted")),
+                  },
+                })
+              }
+            >
+              {t("interface.chesterPlayground.withAction.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                toast.warning(t("interface.chesterPlayground.sticky.message"), {
+                  id: "chester-sticky",
+                  duration: Infinity,
+                });
+              }}
+            >
+              {t("interface.chesterPlayground.sticky.label")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => toast.dismiss("chester-sticky")}>
+              {t("interface.chesterPlayground.dismissSticky")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                toast.promise(new Promise((resolve) => setTimeout(() => resolve("done"), 2000)), {
+                  loading: t("interface.chesterPlayground.promiseResolve.loading"),
+                  success: t("interface.chesterPlayground.promiseResolve.success"),
+                  error: t("interface.chesterPlayground.promiseReject.errorPrefix", {
+                    message: "",
+                  }),
+                });
+              }}
+            >
+              {t("interface.chesterPlayground.promiseResolve.label")}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                toast
+                  .promise(
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("boom")), 2000)),
+                    {
+                      loading: t("interface.chesterPlayground.promiseReject.loading"),
+                      success: t("interface.chesterPlayground.promiseResolve.success"),
+                      error: (err) =>
+                        t("interface.chesterPlayground.promiseReject.errorPrefix", {
+                          message: (err as Error).message,
+                        }),
+                    }
+                  )
+                  .catch(() => undefined);
+              }}
+            >
+              {t("interface.chesterPlayground.promiseReject.label")}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => toast.dismiss()}>
+              {t("interface.chesterPlayground.dismissAll")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

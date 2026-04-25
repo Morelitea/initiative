@@ -213,6 +213,61 @@
       "label": "Vibration à la fin d'une tâche",
       "description": "Fait brièvement vibrer votre appareil quand vous terminez une tâche. Mobile / navigateurs pris en charge uniquement.",
       "preview": "Aperçu"
+    },
+    "chesterPlayground": {
+      "title": "Banc d'essai des notifications Chester",
+      "description": "Déclenchez chaque type de notification pour prévisualiser la variante de Chester et son animation.",
+      "default": {
+        "label": "défaut (au repos)",
+        "message": "Une simple notification"
+      },
+      "success": {
+        "label": "succès (fier)",
+        "message": "Enregistré avec succès"
+      },
+      "error": {
+        "label": "erreur (agité)",
+        "message": "Une erreur est survenue"
+      },
+      "warning": {
+        "label": "avertissement (pensif)",
+        "message": "Soyez prudent"
+      },
+      "info": {
+        "label": "info (parlant)",
+        "message": "Pour info"
+      },
+      "loading": {
+        "label": "chargement (parlant, persistant)",
+        "message": "En cours…"
+      },
+      "withDescription": {
+        "label": "avec description",
+        "message": "Profil mis à jour",
+        "detail": "Vos modifications sont maintenant actives sur tous vos appareils."
+      },
+      "withAction": {
+        "label": "avec action",
+        "message": "Cliquez sur annuler pour revenir en arrière",
+        "actionLabel": "Annuler",
+        "reverted": "Annulé"
+      },
+      "sticky": {
+        "label": "persistant (par id)",
+        "message": "Notification persistante — fermez-moi"
+      },
+      "dismissSticky": "fermer la persistante",
+      "promiseResolve": {
+        "label": "promesse (résolue)",
+        "loading": "Opération asynchrone en cours…",
+        "success": "Ça a marché"
+      },
+      "promiseReject": {
+        "label": "promesse (rejetée)",
+        "loading": "Opération risquée en cours…",
+        "errorPrefix": "Échec : {{message}}"
+      },
+      "dismissAll": "tout fermer"
     }
   },
   "notifications": {
