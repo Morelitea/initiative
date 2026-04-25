@@ -21,7 +21,7 @@ from app.db.session import get_admin_session, reapply_rls_context, set_rls_conte
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
 from app.models.initiative import InitiativeMember
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserStatus
 from app.models.user_token import UserToken, UserTokenPurpose
 from app.schemas.user import (
     UserCreate,
@@ -167,7 +167,7 @@ _GUILD_CSV_HEADERS = [
     "guild_role",
     "platform_role",
     "oidc_managed",
-    "is_active",
+    "status",
     "email_verified",
     "created_at",
     "initiative_roles",
@@ -209,7 +209,7 @@ async def export_users_csv(
             guild_role.value,
             user.role.value if hasattr(user.role, "value") else user.role,
             oidc_managed,
-            user.is_active,
+            user.status.value if hasattr(user.status, "value") else user.status,
             user.email_verified,
             user.created_at.isoformat() if user.created_at else "",
             csv_export.format_initiative_roles(user),
@@ -485,8 +485,16 @@ async def approve_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
 
-    if not user.is_active:
-        user.is_active = True
+    if user.status == UserStatus.anonymized:
+        # Anonymized rows are permanently empty husks — no PII to restore,
+        # no login to reactivate. Refuse rather than misleadingly succeed.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.CANNOT_REACTIVATE_ANONYMIZED,
+        )
+
+    if user.status != UserStatus.active:
+        user.status = UserStatus.active
         user.updated_at = datetime.now(timezone.utc)
         session.add(user)
         await session.commit()
@@ -540,10 +548,18 @@ async def get_my_initiative_members(
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
+    # Exclude anonymized rows — they're empty husks of departed users and
+    # must not be selectable as project-transfer targets, otherwise a
+    # self-deleting user could hand a live project to a non-person.
+    # Deactivated users are also excluded: their account is locked and
+    # they can't act as an owner until reactivated.
     stmt = (
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            User.status == UserStatus.active,
+        )
         .order_by(User.full_name, User.id)
     )
     result = await session.exec(stmt)
@@ -564,21 +580,32 @@ async def delete_own_account(
             detail=UserMessages.CANNOT_DELETE_LAST_ADMIN,
         )
 
-    # Verify password
-    if not verify_password(request.password, current_user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=UserMessages.INVALID_PASSWORD,
-        )
+    # Verify password — skipped for OIDC-only users, who were created
+    # with a random ``hashed_password`` they were never shown
+    # (auth.py provisioning flow). Without this exemption an OIDC-only
+    # account would have no way to satisfy the gate and could only be
+    # removed by an admin.
+    if current_user.oidc_sub is None:
+        if not verify_password(request.password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=UserMessages.INVALID_PASSWORD,
+            )
 
-    # Check confirmation text
-    if request.confirmation_text != "DELETE MY ACCOUNT":
+    # The confirmation phrase is action-specific so the user can't accidentally
+    # anonymize when they meant to deactivate, or vice versa.
+    expected_phrase = (
+        "DEACTIVATE MY ACCOUNT" if request.action == "deactivate" else "DELETE MY ACCOUNT"
+    )
+    if request.confirmation_text != expected_phrase:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.CONFIRMATION_MISMATCH,
         )
 
-    # Check deletion eligibility (includes last admin and sole PM checks)
+    # Eligibility check (sole PM, last admin) applies to both actions —
+    # even deactivation leaves projects without an effective manager
+    # until reactivation, so transfer is required before either path.
     can_delete, blockers, _, owned_projects = await users_service.check_deletion_eligibility(
         session, current_user.id
     )
@@ -589,44 +616,61 @@ async def delete_own_account(
             detail=f"Cannot delete account: {'; '.join(blockers)}",
         )
 
-    # Perform deletion based on type
-    if request.deletion_type == "soft":
-        await users_service.soft_delete_user(session, current_user.id)
+    # Project transfers are required for both actions when the user owns projects.
+    if owned_projects:
+        if not request.project_transfers:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=UserMessages.PROJECT_TRANSFERS_REQUIRED,
+            )
+
+        owned_project_ids = {project.id for project in owned_projects}
+        transfer_ids = set(request.project_transfers.keys())
+
+        missing = sorted(owned_project_ids - transfer_ids)
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Missing transfer recipients for projects: {missing}",
+            )
+
+        # Reject surplus entries — anything in the transfer map that
+        # isn't actually owned by the requester. Without this guard,
+        # a crafted request with extra IDs would silently transfer
+        # ownership of unrelated projects.
+        extra = sorted(transfer_ids - owned_project_ids)
+        if extra:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"project_transfers contains projects not owned by user: {extra}",
+            )
+
+        for project_id, new_owner_id in request.project_transfers.items():
+            try:
+                await users_service.transfer_project_ownership(
+                    session, project_id, new_owner_id
+                )
+            except users_service.InvalidTransferRecipient:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=UserMessages.INVALID_TRANSFER_RECIPIENT,
+                )
+
+    if request.action == "deactivate":
+        await users_service.deactivate_user(session, current_user.id)
         return AccountDeletionResponse(
             success=True,
-            deletion_type="soft",
+            action="deactivate",
             message="Your account has been deactivated. Contact an administrator to reactivate.",
         )
-    else:  # hard delete
-        # Validate project transfers
-        if owned_projects:
-            if not request.project_transfers:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=UserMessages.PROJECT_TRANSFERS_REQUIRED,
-                )
 
-            owned_project_ids = {project.id for project in owned_projects}
-            transfer_ids = set(request.project_transfers.keys())
-
-            if owned_project_ids != transfer_ids:
-                missing = owned_project_ids - transfer_ids
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Missing transfer recipients for projects: {missing}",
-                )
-
-        await users_service.hard_delete_user(
-            session,
-            current_user.id,
-            request.project_transfers or {},
-        )
-
-        return AccountDeletionResponse(
-            success=True,
-            deletion_type="hard",
-            message="Your account has been permanently deleted.",
-        )
+    # action == "soft_delete"
+    await users_service.soft_delete_user(session, current_user.id)
+    return AccountDeletionResponse(
+        success=True,
+        action="soft_delete",
+        message="Your account has been anonymized.",
+    )
 
 
 @router.get("/me/api-keys", response_model=ApiKeyListResponse)

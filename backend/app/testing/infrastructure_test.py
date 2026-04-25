@@ -9,6 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.user import UserStatus
 from app.testing.factories import create_user, get_auth_headers
 
 
@@ -31,7 +32,7 @@ async def test_create_user_factory(session: AsyncSession):
     assert user.id is not None
     assert user.email == "factory-test@example.com"
     assert user.full_name == "Factory Test User"
-    assert user.is_active is True
+    assert user.status == UserStatus.active
     assert user.hashed_password is not None
 
 

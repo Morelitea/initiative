@@ -246,7 +246,7 @@ export const SettingsUsersPage = () => {
         const isSelf = guildMember.id === user?.id;
         return (
           <div className="flex flex-wrap gap-2">
-            {!guildMember.is_active ? (
+            {guildMember.status === "deactivated" ? (
               <Button
                 type="button"
                 variant="secondary"

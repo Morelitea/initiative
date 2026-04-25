@@ -10,7 +10,7 @@ from app.db.session import reapply_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.api_key import UserApiKey
-from app.models.user import User
+from app.models.user import User, UserStatus
 
 API_KEY_PREFIX = "ppk_"
 API_KEY_DISPLAY_PREFIX_LENGTH = 12
@@ -81,7 +81,7 @@ async def authenticate_api_key(session: AsyncSession, token: str) -> Optional[Us
 
     user_result = await session.exec(select(User).where(User.id == api_key.user_id))
     user = user_result.one_or_none()
-    if not user or not user.is_active:
+    if not user or user.status != UserStatus.active:
         return None
 
     api_key.last_used_at = now

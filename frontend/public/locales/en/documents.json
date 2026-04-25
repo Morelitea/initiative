@@ -14,7 +14,6 @@
     "hideFilters": "Hide filters",
     "updating": "Updating..."
   },
-
   "page": {
     "title": "Documents",
     "subtitle": "Keep initiative knowledge organized and attach docs to projects.",
@@ -334,8 +333,8 @@
     "airtableEmbedHint": "This is an Airtable view URL. In Airtable, open Share view → enable 'Embed on your site'. Copy the airtable.com/embed/... URL and paste it here."
   },
   "whiteboard": {
-    "loading": "Loading whiteboard…",
-    "syncing": "Syncing whiteboard…",
+    "loading": "Loading whiteboard\u2026",
+    "syncing": "Syncing whiteboard\u2026",
     "readOnly": "You have read-only access to this whiteboard."
   },
   "sidePanel": {

@@ -9,7 +9,8 @@ from app.db.session import get_admin_session
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import Guild, GuildRole
 from app.models.initiative import Initiative, InitiativeMember
-from app.models.user import User, UserRole
+from app.models.project import Project
+from app.models.user import User, UserRole, UserStatus
 from app.models.user_token import UserTokenPurpose
 from app.schemas.user import UserRead, AccountDeletionResponse, ProjectBasic, UserPublic
 from app.schemas.auth import VerificationSendResponse
@@ -58,7 +59,7 @@ _PLATFORM_CSV_HEADERS = [
     "email",
     "full_name",
     "platform_role",
-    "is_active",
+    "status",
     "email_verified",
     "created_at",
     "updated_at",
@@ -101,7 +102,7 @@ async def export_platform_users_csv(
             user.email,
             user.full_name or "",
             user.role.value if hasattr(user.role, "value") else user.role,
-            user.is_active,
+            user.status.value if hasattr(user.status, "value") else user.status,
             user.email_verified,
             user.created_at.isoformat() if user.created_at else "",
             user.updated_at.isoformat() if user.updated_at else "",
@@ -139,7 +140,7 @@ async def trigger_password_reset(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
 
-    if not user.is_active:
+    if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AdminMessages.CANNOT_RESET_INACTIVE)
 
     try:
@@ -176,10 +177,16 @@ async def reactivate_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
 
-    if user.is_active:
+    if user.status == UserStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AdminMessages.USER_ALREADY_ACTIVE)
 
-    user.is_active = True
+    if user.status == UserStatus.anonymized:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_REACTIVATE_ANONYMIZED,
+        )
+
+    user.status = UserStatus.active
     user.updated_at = datetime.now(timezone.utc)
     session.add(user)
     await session.commit()
@@ -330,9 +337,16 @@ async def delete_user(
     session: AdminSessionDep,
     current_user: AdminUserDep,
 ) -> AccountDeletionResponse:
-    """Delete a user account (admin only).
+    """Delete, anonymize, or deactivate a user account (admin only).
 
-    Supports soft delete (deactivation) or hard delete (permanent removal).
+    `action` selects the path:
+      - `deactivate` — reversible; flips status to deactivated, drops memberships.
+      - `soft_delete` — anonymizes PII; keeps the row so historical FKs still resolve.
+      - `hard_delete` — permanently removes the row and cascades cleanup.
+
+    For both `soft_delete` and `hard_delete`, projects the user solely owns
+    must be transferred — only owners hold certain permissions, and an
+    anonymized owner row can't act on them.
 
     Restrictions:
     - Cannot delete yourself (use /users/me/delete-account)
@@ -369,37 +383,95 @@ async def delete_user(
             detail=blockers[0] if blockers else AdminMessages.USER_CANNOT_BE_DELETED,
         )
 
-    if payload.deletion_type == "soft":
+    # An already-anonymized row is a permanently empty husk; the only
+    # valid follow-up is hard delete. Refuse deactivate / soft_delete
+    # explicitly — without this guard, deactivate would flip
+    # ``anonymized`` → ``deactivated``, which then satisfies the
+    # ``reactivate`` endpoint's anonymized check and lets an admin
+    # accidentally resurrect the husk as an active loginable account.
+    if user.status == UserStatus.anonymized and payload.action != "hard_delete":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.ALREADY_ANONYMIZED,
+        )
+
+    # Project transfers are required for every action when the user owns
+    # projects. Even pure deactivation strands the projects until the user
+    # is reactivated — only owners can act on them — so we always force
+    # transfer up-front. ``hard_delete_user`` performs the transfers
+    # itself; the other two actions need an explicit pre-transfer.
+    if owned_projects:
+        if not payload.project_transfers:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AdminMessages.PROJECT_TRANSFERS_REQUIRED,
+            )
+
+        owned_ids = {p.id for p in owned_projects}
+        transfer_ids = set(payload.project_transfers.keys())
+
+        missing = sorted(owned_ids - transfer_ids)
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Missing transfer recipients for projects: {missing}",
+            )
+
+        # Reject surplus entries — anything in the transfer map that
+        # isn't actually owned by the target user. Without this guard,
+        # an admin POSTing extra IDs (deliberately or by client bug)
+        # would silently transfer ownership of unrelated projects.
+        extra = sorted(transfer_ids - owned_ids)
+        if extra:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"project_transfers contains projects not owned by user: {extra}",
+            )
+
+        if payload.action in ("deactivate", "soft_delete"):
+            for project_id, new_owner_id in payload.project_transfers.items():
+                try:
+                    await users_service.transfer_project_ownership(
+                        session, project_id, new_owner_id
+                    )
+                except users_service.InvalidTransferRecipient:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=AdminMessages.INVALID_TRANSFER_RECIPIENT,
+                    )
+
+    if payload.action == "deactivate":
+        await users_service.deactivate_user(session, user_id)
+        return AccountDeletionResponse(
+            success=True,
+            action="deactivate",
+            message=f"User {user.email} has been deactivated",
+        )
+
+    if payload.action == "soft_delete":
         await users_service.soft_delete_user(session, user_id)
         return AccountDeletionResponse(
             success=True,
-            deletion_type="soft",
-            message=f"User {user.email} has been deactivated",
+            action="soft_delete",
+            message=f"User {user.email} has been anonymized",
         )
-    else:
-        # Hard delete - validate project transfers
-        if owned_projects:
-            if not payload.project_transfers:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=AdminMessages.PROJECT_TRANSFERS_REQUIRED,
-                )
 
-            missing = [p.id for p in owned_projects if p.id not in payload.project_transfers]
-            if missing:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Missing transfer recipients for projects: {missing}",
-                )
-
+    # hard_delete: the service performs project transfers internally,
+    # so the recipient-validity check happens there too.
+    try:
         await users_service.hard_delete_user(
             session, user_id, payload.project_transfers or {}
         )
-        return AccountDeletionResponse(
-            success=True,
-            deletion_type="hard",
-            message=f"User {user.email} has been permanently deleted",
+    except users_service.InvalidTransferRecipient:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.INVALID_TRANSFER_RECIPIENT,
         )
+    return AccountDeletionResponse(
+        success=True,
+        action="hard_delete",
+        message=f"User {user.email} has been permanently deleted",
+    )
 
 
 @router.delete("/guilds/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
@@ -420,6 +492,45 @@ async def admin_delete_guild(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND)
 
     await guilds_service.delete_guild(session, guild)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/initiatives/{initiative_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+async def admin_delete_initiative(
+    initiative_id: int,
+    session: AdminSessionDep,
+    _current_user: AdminUserDep,
+) -> Response:
+    """Delete an initiative (platform admin only).
+
+    Used by the user-deletion blocker-resolution flow when a target user is
+    the sole project manager of an initiative with no other members the
+    admin could promote in their place. Cascades to projects, members,
+    roles, role permissions, and tags via ORM relationships; projects are
+    deleted explicitly first because ``Initiative.projects`` is not set
+    up as ``delete-orphan`` and ``projects.initiative_id`` is NOT NULL.
+
+    Default initiatives are deletable here — that restriction exists for
+    guild admins (so the guild always has a default for new project
+    creation), but a platform admin cleaning up a soon-to-be-deleted
+    user shouldn't be blocked by it.
+    """
+    initiative = await session.get(Initiative, initiative_id)
+    if not initiative:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+        )
+
+    project_result = await session.exec(
+        select(Project).where(Project.initiative_id == initiative_id)
+    )
+    for project in project_result.all():
+        await session.delete(project)
+    await session.flush()
+
+    await session.delete(initiative)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -488,10 +599,18 @@ async def admin_get_initiative_members(
     if not result.one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.INITIATIVE_NOT_FOUND)
 
+    # Active members only — anonymized rows are husks of departed users
+    # and deactivated rows are locked, so neither can be a valid project
+    # transfer target. The admin dialog (and the self-delete dialog
+    # via the parallel ``/users/me/initiative-members`` endpoint) rely
+    # on this filter to avoid offering an unselectable "Deleted user".
     stmt = (
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            User.status == UserStatus.active,
+        )
         .order_by(User.full_name, User.id)
     )
     result = await session.exec(stmt)

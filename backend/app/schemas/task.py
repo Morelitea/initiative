@@ -11,16 +11,22 @@ from app.schemas.tag import TagSummary
 from app.schemas.property import PropertySummary
 
 from app.models.task import TaskPriority
+from app.models.user import UserStatus
 
 
 class TaskAssigneeSummary(BaseModel):
-    """Minimal assignee data for task lists"""
+    """Minimal assignee data for task lists.
+
+    Includes ``status`` so the frontend can render the "Deleted user
+    #{id}" placeholder for anonymized assignees inline.
+    """
     model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
 
     id: int
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
     avatar_base64: Optional[str] = None
+    status: UserStatus = UserStatus.active
 
 
 WeekdayLiteral = Literal["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]

@@ -17,7 +17,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import create_access_token, get_password_hash
-from app.models.user import User
+from app.models.user import User, UserStatus
 from app.testing.factories import create_user, get_auth_headers, get_auth_token
 
 
@@ -63,7 +63,7 @@ async def test_register_first_user(client: AsyncClient):
     data = response.json()
     assert data["email"] == "first@example.com"
     assert data["full_name"] == "First User"
-    assert data["is_active"] is True
+    assert data["status"] == "active"
     assert data["role"] == "admin"  # First user should be admin
 
 
@@ -113,7 +113,7 @@ async def test_login_success(client: AsyncClient, session: AsyncSession):
         email_encrypted=encrypt_field("login@example.com", SALT_EMAIL),
         full_name="Login User",
         hashed_password=get_password_hash(password),
-        is_active=True,
+        status=UserStatus.active,
         email_verified=True,
     )
     session.add(user)
@@ -145,7 +145,7 @@ async def test_login_wrong_password(client: AsyncClient, session: AsyncSession):
         email_encrypted=encrypt_field("test@example.com", SALT_EMAIL),
         full_name="Test User",
         hashed_password=get_password_hash(password),
-        is_active=True,
+        status=UserStatus.active,
         email_verified=True,
     )
     session.add(user)
@@ -173,7 +173,7 @@ async def test_login_inactive_user(client: AsyncClient, session: AsyncSession):
         email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",
         hashed_password=get_password_hash(password),
-        is_active=False,  # Inactive user
+        status=UserStatus.deactivated,  # Deactivated user
         email_verified=True,
     )
     session.add(user)
@@ -201,7 +201,7 @@ async def test_login_unverified_email(client: AsyncClient, session: AsyncSession
         email_encrypted=encrypt_field("unverified@example.com", SALT_EMAIL),
         full_name="Unverified User",
         hashed_password=get_password_hash(password),
-        is_active=True,
+        status=UserStatus.active,
         email_verified=False,  # Email not verified
     )
     session.add(user)
@@ -245,7 +245,7 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
         email_encrypted=encrypt_field("test@example.com", SALT_EMAIL),
         full_name="Test User",
         hashed_password=get_password_hash(password),
-        is_active=True,
+        status=UserStatus.active,
         email_verified=True,
     )
     session.add(user)

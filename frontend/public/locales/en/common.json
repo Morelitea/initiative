@@ -1,4 +1,5 @@
 {
+  "deletedUserName": "Deleted user #{{id}}",
   "save": "Save",
   "cancel": "Cancel",
   "delete": "Delete",

@@ -18,6 +18,12 @@ class UserRole(str, Enum):
     member = "member"
 
 
+class UserStatus(str, Enum):
+    active = "active"
+    deactivated = "deactivated"
+    anonymized = "anonymized"
+
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
@@ -31,7 +37,14 @@ class User(SQLModel, table=True):
     role: UserRole = Field(
         sa_column=Column(SQLEnum(UserRole, name="user_role"), nullable=False, server_default=UserRole.member.value)
     )
-    is_active: bool = Field(default=True)
+    status: UserStatus = Field(
+        default=UserStatus.active,
+        sa_column=Column(
+            SQLEnum(UserStatus, name="user_status"),
+            nullable=False,
+            server_default=UserStatus.active.value,
+        ),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.messages import AuthMessages, GuildMessages
 from app.db.session import get_session, set_rls_context
 from app.models.guild import Guild, GuildMembership, GuildRole
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserStatus
 from app.schemas.token import TokenPayload
 from app.services import api_keys as api_keys_service
 from app.services import guilds as guilds_service
@@ -48,7 +48,7 @@ async def get_current_user(
         candidate = auth_header[7:]
         if secrets.compare_digest(candidate, settings.AUTOMATION_SERVICE_TOKEN):
             # Return a synthetic user object for the service account
-            return User(id=-1, email="automation-engine@internal", full_name="Automation Engine", is_active=True)
+            return User(id=-1, email="automation-engine@internal", full_name="Automation Engine", status=UserStatus.active)
 
     # Handle DeviceToken scheme
     if auth_header.startswith("DeviceToken "):
@@ -123,7 +123,7 @@ async def get_current_user_optional(
 async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> User:
-    if not current_user.is_active:
+    if current_user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
     return current_user
 
@@ -349,7 +349,7 @@ async def get_upload_user(
         device_token = auth_header[12:]  # len("DeviceToken ") = 12
         user = await _authenticate_device_token(session, device_token)
         if user:
-            if not user.is_active:
+            if user.status != UserStatus.active:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
             return user
         raise HTTPException(
@@ -370,7 +370,7 @@ async def get_upload_user(
     # Try API key authentication first
     user = await api_keys_service.authenticate_api_key(session, token)
     if user:
-        if not user.is_active:
+        if user.status != UserStatus.active:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
         return user
 
@@ -385,7 +385,7 @@ async def get_upload_user(
         if token_param and not bearer_token:
             user = await _authenticate_device_token(session, token_param)
             if user:
-                if not user.is_active:
+                if user.status != UserStatus.active:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
                 return user
         raise HTTPException(
@@ -408,7 +408,7 @@ async def get_upload_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
     if token_data.ver is None or token_data.ver != user.token_version:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN)
-    if not user.is_active:
+    if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
     return user
 

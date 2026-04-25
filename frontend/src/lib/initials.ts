@@ -1,4 +1,10 @@
 /**
+ * Sentinel returned for anonymized accounts. Distinct from the "?"
+ * fallback so the avatar doesn't look like a missing-user error.
+ */
+export const ANONYMIZED_INITIALS = "–";
+
+/**
  * Compute display initials from a user's name.
  *
  * - Two or more words → first character of the first two words (e.g.
@@ -12,6 +18,9 @@
  *
  * Always returns a non-empty, uppercased string so callers can hand the
  * result straight to an ``AvatarFallback`` without further guarding.
+ *
+ * Use ``getInitialsForUser`` (in lib/userDisplay.ts) when you have the
+ * full user object — it handles anonymized accounts.
  */
 export const getInitials = (value?: string | null, fallback?: string | null): string => {
   const name = value?.trim();

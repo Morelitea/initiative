@@ -8,7 +8,6 @@ import { useMyDeletionEligibility } from "@/hooks/useAdmin";
 import { getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet } from "@/api/generated/users/users";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -30,7 +29,14 @@ import {
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
-type DeletionType = "soft" | "hard";
+/**
+ * Self-deletion is constrained to two actions:
+ *   - ``deactivate`` — reversible, PII intact, admin can reactivate later.
+ *   - ``soft_delete`` — anonymize (PII removed), permanent.
+ * Hard delete is admin-only and lives on the admin endpoint; the
+ * self-service endpoint rejects ``hard_delete`` with 403.
+ */
+type SelfAction = "deactivate" | "soft_delete";
 type DeletionStep = "choose-type" | "check-blockers" | "transfer-projects" | "confirm";
 
 interface ProjectBasic {
@@ -51,6 +57,11 @@ interface DeleteAccountDialogProps extends DialogWithSuccessProps {
   user: UserRead;
 }
 
+const CONFIRMATION_PHRASES: Record<SelfAction, string> = {
+  deactivate: "DEACTIVATE MY ACCOUNT",
+  soft_delete: "DELETE MY ACCOUNT",
+};
+
 export function DeleteAccountDialog({
   open,
   onOpenChange,
@@ -59,23 +70,21 @@ export function DeleteAccountDialog({
 }: DeleteAccountDialogProps) {
   const { t } = useTranslation("settings");
   const [step, setStep] = useState<DeletionStep>("choose-type");
-  const [deletionType, setDeletionType] = useState<DeletionType>("soft");
+  const [action, setAction] = useState<SelfAction>("deactivate");
   const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
   const [password, setPassword] = useState("");
   const [confirmationText, setConfirmationText] = useState("");
-  const [agreedToConsequences, setAgreedToConsequences] = useState(false);
 
   // Reset state when dialog opens/closes
   useEffect(() => {
     if (!open) {
       setStep("choose-type");
-      setDeletionType("soft");
+      setAction("deactivate");
       setEligibility(null);
       setProjectTransfers({});
       setPassword("");
       setConfirmationText("");
-      setAgreedToConsequences(false);
     }
   }, [open]);
 
@@ -104,13 +113,12 @@ export function DeleteAccountDialog({
     [initiativeMembers, user.id]
   );
 
-  // Delete account mutation
   const deleteAccount = useDeleteOwnAccount({
     onSuccess: () => {
       toast.success(
-        deletionType === "soft"
+        action === "deactivate"
           ? t("deleteAccount.deactivateSuccess")
-          : t("deleteAccount.deleteSuccess")
+          : t("deleteAccount.softDeleteSuccess")
       );
       onSuccess();
     },
@@ -130,28 +138,25 @@ export function DeleteAccountDialog({
       if (result.data) {
         setEligibility(result.data);
 
-        // Load initiative members for all owned projects
+        // Load initiative members for any projects we'd need to transfer.
         for (const project of result.data.owned_projects) {
           await fetchInitiativeMembers(project.initiative_id);
         }
 
-        // If no blockers and no projects to transfer (or soft delete), skip to confirm
-        if (
-          result.data.can_delete &&
-          (deletionType === "soft" || result.data.owned_projects.length === 0)
-        ) {
-          setStep("confirm");
-        } else if (
-          result.data.can_delete &&
-          deletionType === "hard" &&
-          result.data.owned_projects.length > 0
-        ) {
-          setStep("transfer-projects");
+        // Project transfers are required for both actions when the user
+        // owns projects — only owners hold certain permissions, and a
+        // deactivated/anonymized owner row can't act on them.
+        if (result.data.can_delete) {
+          if (result.data.owned_projects.length > 0) {
+            setStep("transfer-projects");
+          } else {
+            setStep("confirm");
+          }
         }
       }
     } else if (step === "check-blockers") {
       if (eligibility?.can_delete) {
-        if (deletionType === "hard" && eligibility.owned_projects.length > 0) {
+        if (eligibility.owned_projects.length > 0) {
           setStep("transfer-projects");
         } else {
           setStep("confirm");
@@ -164,7 +169,7 @@ export function DeleteAccountDialog({
 
   const handleBack = () => {
     if (step === "confirm") {
-      if (deletionType === "hard" && eligibility?.owned_projects.length) {
+      if (eligibility?.owned_projects.length) {
         setStep("transfer-projects");
       } else {
         setStep("check-blockers");
@@ -176,25 +181,30 @@ export function DeleteAccountDialog({
     }
   };
 
-  const handleDelete = () => {
+  const handleSubmit = () => {
     deleteAccount.mutate({
-      deletion_type: deletionType,
+      action,
       password,
       confirmation_text: confirmationText,
-      project_transfers: deletionType === "hard" ? projectTransfers : undefined,
+      project_transfers: eligibility?.owned_projects.length ? projectTransfers : undefined,
     });
   };
 
+  const expectedConfirmation = CONFIRMATION_PHRASES[action];
+  // OIDC-provisioned accounts have no usable password (the random hash
+  // assigned at SSO callback was never shown to the user). The backend
+  // skips the password gate for these users; the dialog hides the
+  // password field accordingly.
+  const isOidcUser = user.oidc_sub != null;
+
   // Validation
-  const canProceedFromChooseType = deletionType !== null;
+  const canProceedFromChooseType = action !== null;
   const canProceedFromBlockers = eligibility?.can_delete === true;
   const canProceedFromTransfers =
     !eligibility?.owned_projects.length ||
     eligibility.owned_projects.every((project) => !!projectTransfers[project.id]);
   const canConfirm =
-    password.length > 0 &&
-    confirmationText === "DELETE MY ACCOUNT" &&
-    (deletionType === "soft" || agreedToConsequences);
+    (isOidcUser || password.length > 0) && confirmationText === expectedConfirmation;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -210,36 +220,33 @@ export function DeleteAccountDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Step 1: Choose Type */}
+          {/* Step 1: Choose action */}
           {step === "choose-type" && (
-            <RadioGroup
-              value={deletionType}
-              onValueChange={(value) => setDeletionType(value as DeletionType)}
-            >
+            <RadioGroup value={action} onValueChange={(value) => setAction(value as SelfAction)}>
               <div className="space-y-4">
                 <div className="flex items-start space-x-3 rounded-lg border p-4">
-                  <RadioGroupItem value="soft" id="soft" className="mt-0.5" />
+                  <RadioGroupItem value="deactivate" id="deactivate" className="mt-0.5" />
                   <div className="flex-1 space-y-1">
-                    <Label htmlFor="soft" className="cursor-pointer text-base font-medium">
-                      {t("deleteAccount.softDeleteLabel")}
+                    <Label htmlFor="deactivate" className="cursor-pointer text-base font-medium">
+                      {t("deleteAccount.deactivateLabel")}
                     </Label>
                     <p className="text-muted-foreground text-sm">
-                      {t("deleteAccount.softDeleteRadioDescription")}
+                      {t("deleteAccount.deactivateRadioDescription")}
                     </p>
                   </div>
                 </div>
 
                 <div className="border-destructive/50 flex items-start space-x-3 rounded-lg border p-4">
-                  <RadioGroupItem value="hard" id="hard" className="mt-0.5" />
+                  <RadioGroupItem value="soft_delete" id="soft_delete" className="mt-0.5" />
                   <div className="flex-1 space-y-1">
                     <Label
-                      htmlFor="hard"
+                      htmlFor="soft_delete"
                       className="text-destructive cursor-pointer text-base font-medium"
                     >
-                      {t("deleteAccount.hardDeleteLabel")}
+                      {t("deleteAccount.softDeleteLabel")}
                     </Label>
                     <p className="text-muted-foreground text-sm">
-                      {t("deleteAccount.hardDeleteRadioDescription")}
+                      {t("deleteAccount.softDeleteRadioDescription")}
                     </p>
                   </div>
                 </div>
@@ -337,53 +344,42 @@ export function DeleteAccountDialog({
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <div className="mb-2 font-semibold">{t("deleteAccount.actionSerious")}</div>
-                  {deletionType === "soft" ? (
-                    <p className="text-sm">{t("deleteAccount.softConfirmDescription")}</p>
-                  ) : (
-                    <p className="text-sm">{t("deleteAccount.hardConfirmDescription")}</p>
-                  )}
+                  <p className="text-sm">
+                    {t(
+                      action === "deactivate"
+                        ? "deleteAccount.deactivateConfirmDescription"
+                        : "deleteAccount.softDeleteConfirmDescription"
+                    )}
+                  </p>
                 </AlertDescription>
               </Alert>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">{t("deleteAccount.confirmPasswordLabel")}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t("deleteAccount.enterPassword")}
-                />
-              </div>
+              {!isOidcUser && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">{t("deleteAccount.confirmPasswordLabel")}</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t("deleteAccount.enterPassword")}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="confirmation">
                   {t("deleteAccount.typeToConfirmPrefix")}{" "}
-                  <span className="font-mono font-bold">
-                    {t("deleteAccount.typeToConfirmCode")}
-                  </span>{" "}
+                  <span className="font-mono font-bold">{expectedConfirmation}</span>{" "}
                   {t("deleteAccount.typeToConfirmSuffix")}
                 </Label>
                 <Input
                   id="confirmation"
                   value={confirmationText}
                   onChange={(e) => setConfirmationText(e.target.value)}
-                  placeholder={t("deleteAccount.confirmationPlaceholder")}
+                  placeholder={expectedConfirmation}
                 />
               </div>
-
-              {deletionType === "hard" && (
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="agree"
-                    checked={agreedToConsequences}
-                    onCheckedChange={(checked) => setAgreedToConsequences(checked === true)}
-                  />
-                  <Label htmlFor="agree" className="cursor-pointer text-sm">
-                    {t("deleteAccount.agreeConsequences")}
-                  </Label>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -430,7 +426,7 @@ export function DeleteAccountDialog({
               ) : (
                 <Button
                   variant="destructive"
-                  onClick={handleDelete}
+                  onClick={handleSubmit}
                   disabled={!canConfirm || deleteAccount.isPending}
                 >
                   {deleteAccount.isPending ? (
@@ -438,7 +434,7 @@ export function DeleteAccountDialog({
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       {t("deleteAccount.deleting")}
                     </>
-                  ) : deletionType === "soft" ? (
+                  ) : action === "deactivate" ? (
                     t("deleteAccount.deactivateAccount")
                   ) : (
                     t("deleteAccount.deleteAccountButton")

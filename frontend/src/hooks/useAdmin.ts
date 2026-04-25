@@ -9,6 +9,7 @@ import {
   getCheckUserDeletionEligibilityApiV1AdminUsersUserIdDeletionEligibilityGetQueryKey,
   deleteUserApiV1AdminUsersUserIdDelete,
   adminDeleteGuildApiV1AdminGuildsGuildIdDelete,
+  adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete,
   adminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRolePatch,
   adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch,
   triggerPasswordResetApiV1AdminUsersUserIdResetPasswordPost,
@@ -156,6 +157,31 @@ export const useAdminDeleteGuild = (options?: MutationOpts<void, number>) => {
     onSuccess: (...args) => {
       void invalidateAdminUsers();
       void invalidateAllGuilds();
+      onSuccess?.(...args);
+    },
+    onError: (...args) => {
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
+/** Delete an initiative (platform admin only).
+ *
+ * Used in the user-deletion blocker-resolution flow when the target
+ * user is the sole project manager of an initiative with no other
+ * members the admin can promote in their place.
+ */
+export const useAdminDeleteInitiative = (options?: MutationOpts<void, number>) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (initiativeId: number) => {
+      await adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(initiativeId);
+    },
+    onSuccess: (...args) => {
+      void invalidateAdminUsers();
       onSuccess?.(...args);
     },
     onError: (...args) => {

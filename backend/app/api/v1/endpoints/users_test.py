@@ -41,7 +41,7 @@ async def test_get_current_user(client: AsyncClient, session: AsyncSession):
     assert data["id"] == user.id
     assert data["email"] == "test@example.com"
     assert data["full_name"] == "Test User"
-    assert data["is_active"] is True
+    assert data["status"] == "active"
 
 
 @pytest.mark.integration
@@ -263,7 +263,7 @@ async def test_user_can_change_password(client: AsyncClient, session: AsyncSessi
 @pytest.mark.integration
 async def test_inactive_user_cannot_access_endpoints(client: AsyncClient, session: AsyncSession):
     """Test that inactive users cannot access protected endpoints."""
-    from app.models.user import User
+    from app.models.user import User, UserStatus
 
     # Create inactive user
     user = User(
@@ -271,7 +271,7 @@ async def test_inactive_user_cannot_access_endpoints(client: AsyncClient, sessio
         email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",
         hashed_password="dummy",
-        is_active=False,
+        status=UserStatus.deactivated,
     )
     session.add(user)
     await session.commit()
@@ -446,7 +446,7 @@ async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSess
         "guild_role",
         "platform_role",
         "oidc_managed",
-        "is_active",
+        "status",
         "email_verified",
         "created_at",
         "initiative_roles",
@@ -574,3 +574,146 @@ async def test_export_users_csv_user_outside_guild(client: AsyncClient, session:
     )
 
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_oidc_user_can_self_delete_without_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """OIDC-provisioned users have no usable password (the random hash
+    set at SSO callback was never shown). The self-deletion endpoint
+    must skip the password gate for them, otherwise they'd be
+    permanently blocked from the "Delete account" flow.
+    """
+    user = await create_user(session, email="oidc-user@example.com")
+    user.oidc_sub = "oidc-subject-123"
+    session.add(user)
+    await session.commit()
+
+    headers = get_auth_headers(user)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["success"] is True
+    assert body["action"] == "soft_delete"
+
+
+@pytest.mark.integration
+async def test_password_user_cannot_skip_password_check(
+    client: AsyncClient, session: AsyncSession
+):
+    """A non-OIDC user still has to satisfy the password gate."""
+    from app.core.security import get_password_hash
+
+    user = await create_user(session, email="pwd-user@example.com")
+    user.hashed_password = get_password_hash("real-password")
+    session.add(user)
+    await session.commit()
+
+    headers = get_auth_headers(user)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "wrong-password",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_initiative_members_excludes_anonymized(
+    client: AsyncClient, session: AsyncSession
+):
+    """The transfer-target picker must not return anonymized rows.
+
+    Regression: without the status filter, an anonymized husk would
+    appear as a selectable project transfer target — and since the
+    backend transfer accepted any user id, a self-deleting user could
+    hand a live project to a non-person.
+    """
+    from app.services import users as users_service
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+    )
+
+    creator = await create_user(session, email="creator@example.com")
+    guild = await create_guild(session, creator=creator)
+    initiative = await create_initiative(session, guild=guild, creator=creator)
+
+    departing = await create_user(session, email="departing@example.com")
+    await create_initiative_member(session, initiative=initiative, user=departing)
+
+    survivor = await create_user(session, email="survivor@example.com")
+    await create_initiative_member(session, initiative=initiative, user=survivor)
+
+    # Anonymize the departing user — they should disappear from the picker.
+    await users_service.soft_delete_user(session, departing.id)
+
+    headers = get_auth_headers(creator)
+    response = await client.get(
+        f"/api/v1/users/me/initiative-members/{initiative.id}", headers=headers
+    )
+    assert response.status_code == 200
+    ids = {member["id"] for member in response.json()}
+    assert departing.id not in ids
+    assert survivor.id in ids
+
+
+@pytest.mark.integration
+async def test_self_delete_rejects_anonymized_transfer_target(
+    client: AsyncClient, session: AsyncSession
+):
+    """Even if the client crafts a request that targets an anonymized
+    user, ``transfer_project_ownership`` refuses and the endpoint
+    returns a 400 instead of stranding a project on a husk."""
+    from app.services import users as users_service
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    owner = await create_user(session, email="leaving@example.com")
+    co_admin = await create_user(session, email="co-admin@example.com")
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=co_admin, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild=guild, creator=owner)
+    # Add co_admin as another PM so the eligibility check passes.
+    await create_initiative_member(
+        session, initiative=initiative, user=co_admin, role_name="project_manager",
+    )
+
+    husk = await create_user(session, email="husk@example.com")
+    await create_initiative_member(session, initiative=initiative, user=husk)
+    await users_service.soft_delete_user(session, husk.id)
+
+    project = await create_project(session, initiative=initiative, owner=owner)
+
+    headers = get_auth_headers(owner)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "testpassword123",
+            "confirmation_text": "DELETE MY ACCOUNT",
+            "project_transfers": {str(project.id): husk.id},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_TRANSFER_RECIPIENT"

@@ -8,6 +8,7 @@ import {
   useAdminDeleteUser,
   useAdminPromoteGuildMember,
   useAdminDeleteGuild,
+  useAdminDeleteInitiative,
   useAdminPromoteInitiativeMember,
 } from "@/hooks/useAdmin";
 import { adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet } from "@/api/generated/admin/admin";
@@ -35,7 +36,17 @@ import type {
 } from "@/api/generated/initiativeAPI.schemas";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
-type DeletionType = "soft" | "hard";
+/**
+ * Three actions are exposed in the admin dialog:
+ *   - ``deactivate`` — reversible; flips status, drops memberships, PII intact.
+ *   - ``soft_delete`` — anonymize PII (permanent), keep the row.
+ *   - ``hard_delete`` — purge the row, cascade clean up related data.
+ * Project transfer is required for all three: only owners hold certain
+ * permissions, and a deactivated/anonymized/deleted owner can't act on
+ * the projects they own. Transfer is enforced before the action runs so
+ * projects always have a usable owner.
+ */
+type AdminAction = "deactivate" | "soft_delete" | "hard_delete";
 type DeletionStep =
   | "choose-type"
   | "check-blockers"
@@ -55,7 +66,7 @@ export function AdminDeleteUserDialog({
 }: AdminDeleteUserDialogProps) {
   const { t } = useTranslation("settings");
   const [step, setStep] = useState<DeletionStep>("choose-type");
-  const [deletionType, setDeletionType] = useState<DeletionType>("soft");
+  const [action, setAction] = useState<AdminAction>("deactivate");
   const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
   const [confirmationText, setConfirmationText] = useState("");
@@ -63,18 +74,21 @@ export function AdminDeleteUserDialog({
 
   // State for blocker resolution
   const [guildDeleteConfirm, setGuildDeleteConfirm] = useState<GuildBlockerInfo | null>(null);
+  const [initiativeDeleteConfirm, setInitiativeDeleteConfirm] =
+    useState<InitiativeBlockerInfo | null>(null);
   const [isResolvingBlocker, setIsResolvingBlocker] = useState(false);
 
   // Reset state when dialog opens/closes
   useEffect(() => {
     if (!open) {
       setStep("choose-type");
-      setDeletionType("soft");
+      setAction("deactivate");
       setEligibility(null);
       setProjectTransfers({});
       setConfirmationText("");
       setAgreedToConsequences(false);
       setGuildDeleteConfirm(null);
+      setInitiativeDeleteConfirm(null);
       setIsResolvingBlocker(false);
     }
   }, [open]);
@@ -134,6 +148,21 @@ export function AdminDeleteUserDialog({
     onSettled: () => setIsResolvingBlocker(false),
   });
 
+  const deleteInitiative = useAdminDeleteInitiative({
+    onSuccess: async () => {
+      toast.success(t("adminDeleteUser.deleteInitiativeSuccess"));
+      setInitiativeDeleteConfirm(null);
+      await refreshEligibility();
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        t("adminDeleteUser.deleteInitiativeError");
+      toast.error(message);
+    },
+    onSettled: () => setIsResolvingBlocker(false),
+  });
+
   const promoteInitiativeMember = useAdminPromoteInitiativeMember({
     onSuccess: async () => {
       toast.success(t("adminDeleteUser.promoteSuccess"));
@@ -176,7 +205,7 @@ export function AdminDeleteUserDialog({
 
       // If blockers are now resolved, move forward
       if (result.data.can_delete) {
-        if (deletionType === "hard" && result.data.owned_projects.length > 0) {
+        if (result.data.owned_projects.length > 0) {
           setStep("transfer-projects");
         } else {
           setStep("confirm");
@@ -204,22 +233,15 @@ export function AdminDeleteUserDialog({
 
         if (!result.data.can_delete && hasResolvableBlockers) {
           setStep("resolve-blockers");
-        } else if (
-          result.data.can_delete &&
-          (deletionType === "soft" || result.data.owned_projects.length === 0)
-        ) {
+        } else if (result.data.can_delete && result.data.owned_projects.length === 0) {
           setStep("confirm");
-        } else if (
-          result.data.can_delete &&
-          deletionType === "hard" &&
-          result.data.owned_projects.length > 0
-        ) {
+        } else if (result.data.can_delete && result.data.owned_projects.length > 0) {
           setStep("transfer-projects");
         }
       }
     } else if (step === "check-blockers" || step === "resolve-blockers") {
       if (eligibility?.can_delete) {
-        if (deletionType === "hard" && eligibility.owned_projects.length > 0) {
+        if (eligibility.owned_projects.length > 0) {
           setStep("transfer-projects");
         } else {
           setStep("confirm");
@@ -232,7 +254,7 @@ export function AdminDeleteUserDialog({
 
   const handleBack = () => {
     if (step === "confirm") {
-      if (deletionType === "hard" && eligibility?.owned_projects.length) {
+      if (eligibility?.owned_projects.length) {
         setStep("transfer-projects");
       } else if (hasBlockers) {
         setStep("resolve-blockers");
@@ -254,8 +276,8 @@ export function AdminDeleteUserDialog({
 
   const handleDelete = () => {
     deleteUser.mutate({
-      deletion_type: deletionType,
-      project_transfers: deletionType === "hard" ? projectTransfers : undefined,
+      action: action,
+      project_transfers: eligibility?.owned_projects.length ? projectTransfers : undefined,
     });
   };
 
@@ -269,6 +291,11 @@ export function AdminDeleteUserDialog({
     deleteGuild.mutate(guildId);
   };
 
+  const handleDeleteInitiative = (initiativeId: number) => {
+    setIsResolvingBlocker(true);
+    deleteInitiative.mutate(initiativeId);
+  };
+
   const handlePromoteInitiativeMember = (initiativeId: number, userId: number) => {
     setIsResolvingBlocker(true);
     promoteInitiativeMember.mutate({ initiativeId, userId });
@@ -280,14 +307,14 @@ export function AdminDeleteUserDialog({
     (eligibility?.initiative_blockers.length ?? 0) > 0;
 
   // Validation
-  const canProceedFromChooseType = deletionType !== null;
+  const canProceedFromChooseType = action !== null;
   const canProceedFromBlockers = eligibility?.can_delete === true;
   const canProceedFromTransfers =
     !eligibility?.owned_projects.length ||
     eligibility.owned_projects.every((project) => !!projectTransfers[project.id]);
   const confirmationRequired = targetUser.email.split("@")[0].toUpperCase();
   const canConfirm =
-    confirmationText === confirmationRequired && (deletionType === "soft" || agreedToConsequences);
+    confirmationText === confirmationRequired && (action !== "hard_delete" || agreedToConsequences);
 
   const displayName = targetUser.full_name || targetUser.email;
 
@@ -309,22 +336,38 @@ export function AdminDeleteUserDialog({
             {step === "check-blockers" && t("adminDeleteUser.checkingEligibility")}
             {step === "resolve-blockers" && t("adminDeleteUser.stepBlockers")}
             {step === "transfer-projects" && t("adminDeleteUser.stepTransfer")}
-            {step === "confirm" && t("adminDeleteUser.confirmTitle")}
+            {step === "confirm" &&
+              t(
+                action === "deactivate"
+                  ? "adminDeleteUser.confirmDeactivateTitle"
+                  : action === "soft_delete"
+                    ? "adminDeleteUser.confirmAnonymizeTitle"
+                    : "adminDeleteUser.confirmTitle"
+              )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           {/* Step 1: Choose Type */}
           {step === "choose-type" && (
-            <RadioGroup
-              value={deletionType}
-              onValueChange={(value) => setDeletionType(value as DeletionType)}
-            >
+            <RadioGroup value={action} onValueChange={(value) => setAction(value as AdminAction)}>
               <div className="space-y-4">
                 <div className="flex items-start space-x-3 rounded-lg border p-4">
-                  <RadioGroupItem value="soft" id="soft" className="mt-0.5" />
+                  <RadioGroupItem value="deactivate" id="deactivate" className="mt-0.5" />
                   <div className="flex-1 space-y-1">
-                    <Label htmlFor="soft" className="cursor-pointer text-base font-medium">
+                    <Label htmlFor="deactivate" className="cursor-pointer text-base font-medium">
+                      {t("adminDeleteUser.deactivateTitle")}
+                    </Label>
+                    <p className="text-muted-foreground text-sm">
+                      {t("adminDeleteUser.deactivateDescription")}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-3 rounded-lg border p-4">
+                  <RadioGroupItem value="soft_delete" id="soft_delete" className="mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <Label htmlFor="soft_delete" className="cursor-pointer text-base font-medium">
                       {t("adminDeleteUser.softDeleteTitle")}
                     </Label>
                     <p className="text-muted-foreground text-sm">
@@ -334,10 +377,10 @@ export function AdminDeleteUserDialog({
                 </div>
 
                 <div className="border-destructive/50 flex items-start space-x-3 rounded-lg border p-4">
-                  <RadioGroupItem value="hard" id="hard" className="mt-0.5" />
+                  <RadioGroupItem value="hard_delete" id="hard_delete" className="mt-0.5" />
                   <div className="flex-1 space-y-1">
                     <Label
-                      htmlFor="hard"
+                      htmlFor="hard_delete"
                       className="text-destructive cursor-pointer text-base font-medium"
                     >
                       {t("adminDeleteUser.hardDeleteTitle")}
@@ -516,15 +559,27 @@ export function AdminDeleteUserDialog({
                               key={initBlocker.initiative_id}
                               className={guildBlocker ? "space-y-2" : "space-y-3"}
                             >
-                              <div>
-                                <h4 className="font-medium">
-                                  {t("adminDeleteUser.initiativeBlockerTitle", {
-                                    initiativeName: initBlocker.initiative_name,
-                                  })}
-                                </h4>
-                                <p className="text-muted-foreground text-sm">
-                                  {t("adminDeleteUser.initiativeBlockerDescription")}
-                                </p>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                  <h4 className="font-medium">
+                                    {t("adminDeleteUser.initiativeBlockerTitle", {
+                                      initiativeName: initBlocker.initiative_name,
+                                    })}
+                                  </h4>
+                                  <p className="text-muted-foreground text-sm">
+                                    {t("adminDeleteUser.initiativeBlockerDescription")}
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={() => setInitiativeDeleteConfirm(initBlocker)}
+                                  disabled={isResolvingBlocker}
+                                >
+                                  <Trash2 className="mr-1 h-4 w-4" />
+                                  {t("adminDeleteUser.deleteInitiative")}
+                                </Button>
                               </div>
 
                               {initBlocker.other_members.length > 0 ? (
@@ -614,16 +669,25 @@ export function AdminDeleteUserDialog({
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <div className="mb-2 font-semibold">{t("adminDeleteUser.confirmTitle")}</div>
-                  {deletionType === "soft" ? (
-                    <p className="text-sm">
-                      {t("adminDeleteUser.confirmSoftDelete", { email: displayName })}
-                    </p>
-                  ) : (
-                    <p className="text-sm">
-                      {t("adminDeleteUser.confirmHardDelete", { email: displayName })}
-                    </p>
-                  )}
+                  <div className="mb-2 font-semibold">
+                    {t(
+                      action === "deactivate"
+                        ? "adminDeleteUser.confirmDeactivateTitle"
+                        : action === "soft_delete"
+                          ? "adminDeleteUser.confirmAnonymizeTitle"
+                          : "adminDeleteUser.confirmTitle"
+                    )}
+                  </div>
+                  <p className="text-sm">
+                    {t(
+                      action === "deactivate"
+                        ? "adminDeleteUser.confirmDeactivate"
+                        : action === "soft_delete"
+                          ? "adminDeleteUser.confirmSoftDelete"
+                          : "adminDeleteUser.confirmHardDelete",
+                      { email: displayName }
+                    )}
+                  </p>
                 </AlertDescription>
               </Alert>
 
@@ -637,7 +701,7 @@ export function AdminDeleteUserDialog({
                 />
               </div>
 
-              {deletionType === "hard" && (
+              {action === "hard_delete" && (
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="agree"
@@ -703,12 +767,14 @@ export function AdminDeleteUserDialog({
                   {deleteUser.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {deletionType === "soft"
+                      {action === "deactivate"
                         ? t("adminDeleteUser.deactivating")
                         : t("adminDeleteUser.deleting")}
                     </>
-                  ) : deletionType === "soft" ? (
+                  ) : action === "deactivate" ? (
                     t("adminDeleteUser.deactivateButton")
+                  ) : action === "soft_delete" ? (
+                    t("adminDeleteUser.anonymizeButton")
                   ) : (
                     t("adminDeleteUser.deleteButton")
                   )}
@@ -731,6 +797,22 @@ export function AdminDeleteUserDialog({
         destructive
         onConfirm={() => guildDeleteConfirm && handleDeleteGuild(guildDeleteConfirm.guild_id)}
         isLoading={deleteGuild.isPending}
+      />
+
+      {/* Initiative deletion confirmation dialog */}
+      <ConfirmDialog
+        open={initiativeDeleteConfirm !== null}
+        onOpenChange={(open) => !open && setInitiativeDeleteConfirm(null)}
+        title={t("adminDeleteUser.deleteInitiative")}
+        description={t("adminDeleteUser.deleteInitiativeConfirm", {
+          initiativeName: initiativeDeleteConfirm?.initiative_name,
+        })}
+        confirmLabel={t("adminDeleteUser.deleteInitiative")}
+        destructive
+        onConfirm={() =>
+          initiativeDeleteConfirm && handleDeleteInitiative(initiativeDeleteConfirm.initiative_id)
+        }
+        isLoading={deleteInitiative.isPending}
       />
     </Dialog>
   );
