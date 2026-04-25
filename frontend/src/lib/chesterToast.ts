@@ -85,7 +85,14 @@ const buildInput = (
   if (opts?.action) {
     input.buttons = [{ label: opts.action.label, onClick: opts.action.onClick }];
   }
-  if (opts?.onClose) input.onClose = opts.onClose;
+  const userId = opts?.id;
+  const userOnClose = opts?.onClose;
+  if (userId !== undefined || userOnClose) {
+    input.onClose = () => {
+      if (userId !== undefined) idMap.delete(userId);
+      userOnClose?.();
+    };
+  }
   return input;
 };
 
