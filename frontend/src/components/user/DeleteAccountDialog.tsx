@@ -191,6 +191,11 @@ export function DeleteAccountDialog({
   };
 
   const expectedConfirmation = CONFIRMATION_PHRASES[action];
+  // OIDC-provisioned accounts have no usable password (the random hash
+  // assigned at SSO callback was never shown to the user). The backend
+  // skips the password gate for these users; the dialog hides the
+  // password field accordingly.
+  const isOidcUser = user.oidc_sub != null;
 
   // Validation
   const canProceedFromChooseType = action !== null;
@@ -198,7 +203,8 @@ export function DeleteAccountDialog({
   const canProceedFromTransfers =
     !eligibility?.owned_projects.length ||
     eligibility.owned_projects.every((project) => !!projectTransfers[project.id]);
-  const canConfirm = password.length > 0 && confirmationText === expectedConfirmation;
+  const canConfirm =
+    (isOidcUser || password.length > 0) && confirmationText === expectedConfirmation;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -348,16 +354,18 @@ export function DeleteAccountDialog({
                 </AlertDescription>
               </Alert>
 
-              <div className="space-y-2">
-                <Label htmlFor="password">{t("deleteAccount.confirmPasswordLabel")}</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder={t("deleteAccount.enterPassword")}
-                />
-              </div>
+              {!isOidcUser && (
+                <div className="space-y-2">
+                  <Label htmlFor="password">{t("deleteAccount.confirmPasswordLabel")}</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t("deleteAccount.enterPassword")}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="confirmation">

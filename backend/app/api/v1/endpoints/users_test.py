@@ -574,3 +574,60 @@ async def test_export_users_csv_user_outside_guild(client: AsyncClient, session:
     )
 
     assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_oidc_user_can_self_delete_without_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """OIDC-provisioned users have no usable password (the random hash
+    set at SSO callback was never shown). The self-deletion endpoint
+    must skip the password gate for them, otherwise they'd be
+    permanently blocked from the "Delete account" flow.
+    """
+    user = await create_user(session, email="oidc-user@example.com")
+    user.oidc_sub = "oidc-subject-123"
+    session.add(user)
+    await session.commit()
+
+    headers = get_auth_headers(user)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["success"] is True
+    assert body["action"] == "soft_delete"
+
+
+@pytest.mark.integration
+async def test_password_user_cannot_skip_password_check(
+    client: AsyncClient, session: AsyncSession
+):
+    """A non-OIDC user still has to satisfy the password gate."""
+    from app.core.security import get_password_hash
+
+    user = await create_user(session, email="pwd-user@example.com")
+    user.hashed_password = get_password_hash("real-password")
+    session.add(user)
+    await session.commit()
+
+    headers = get_auth_headers(user)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "wrong-password",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 401

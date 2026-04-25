@@ -572,12 +572,17 @@ async def delete_own_account(
             detail=UserMessages.CANNOT_DELETE_LAST_ADMIN,
         )
 
-    # Verify password
-    if not verify_password(request.password, current_user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=UserMessages.INVALID_PASSWORD,
-        )
+    # Verify password — skipped for OIDC-only users, who were created
+    # with a random ``hashed_password`` they were never shown
+    # (auth.py provisioning flow). Without this exemption an OIDC-only
+    # account would have no way to satisfy the gate and could only be
+    # removed by an admin.
+    if current_user.oidc_sub is None:
+        if not verify_password(request.password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=UserMessages.INVALID_PASSWORD,
+            )
 
     # The confirmation phrase is action-specific so the user can't accidentally
     # anonymize when they meant to deactivate, or vice versa.
