@@ -176,3 +176,68 @@ async def test_anonymized_user_cannot_be_deactivated_or_re_anonymized(
         json={"action": "hard_delete"},
     )
     assert response.status_code == 200
+
+
+@pytest.mark.integration
+async def test_admin_delete_rejects_surplus_project_transfers(
+    client: AsyncClient, session: AsyncSession
+):
+    """A project_transfers entry that doesn't belong to the target user
+    must be rejected, not silently applied. Without this guard an admin
+    could deliberately or accidentally transfer ownership of unrelated
+    projects via the same payload.
+    """
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+    from app.models.guild import GuildRole
+
+    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    target = await create_user(session, email="target@example.com")
+    bystander = await create_user(session, email="bystander@example.com")
+
+    # Build a guild + initiative with admin (PM), target, and bystander
+    # all members; one project owned by target, one by bystander.
+    from app.testing.factories import create_guild as _create_guild
+    from app.testing.factories import create_guild_membership as _create_gm
+
+    guild = await _create_guild(session, creator=admin)
+    await _create_gm(session, user=admin, guild=guild, role=GuildRole.admin)
+    await _create_gm(session, user=target, guild=guild, role=GuildRole.member)
+    await _create_gm(session, user=bystander, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=target)
+    await create_initiative_member(session, initiative=initiative, user=bystander)
+
+    target_project = await create_project(session, initiative=initiative, owner=target)
+    bystander_project = await create_project(
+        session, initiative=initiative, owner=bystander
+    )
+
+    headers = get_auth_headers(admin)
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/admin/users/{target.id}",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "project_transfers": {
+                str(target_project.id): admin.id,
+                # Surplus: bystander_project doesn't belong to target.
+                str(bystander_project.id): admin.id,
+            },
+        },
+    )
+    assert response.status_code == 400
+    assert "not owned by user" in response.json()["detail"]
+
+    # Bystander's project ownership is unchanged.
+    from sqlmodel import select as _select
+    from app.models.project import Project
+
+    refreshed = (
+        await session.exec(_select(Project).where(Project.id == bystander_project.id))
+    ).one()
+    assert refreshed.owner_id == bystander.id

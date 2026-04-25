@@ -407,11 +407,25 @@ async def delete_user(
                 detail=AdminMessages.PROJECT_TRANSFERS_REQUIRED,
             )
 
-        missing = [p.id for p in owned_projects if p.id not in payload.project_transfers]
+        owned_ids = {p.id for p in owned_projects}
+        transfer_ids = set(payload.project_transfers.keys())
+
+        missing = sorted(owned_ids - transfer_ids)
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Missing transfer recipients for projects: {missing}",
+            )
+
+        # Reject surplus entries — anything in the transfer map that
+        # isn't actually owned by the target user. Without this guard,
+        # an admin POSTing extra IDs (deliberately or by client bug)
+        # would silently transfer ownership of unrelated projects.
+        extra = sorted(transfer_ids - owned_ids)
+        if extra:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"project_transfers contains projects not owned by user: {extra}",
             )
 
         if payload.action in ("deactivate", "soft_delete"):

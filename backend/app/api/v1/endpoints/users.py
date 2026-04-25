@@ -627,11 +627,22 @@ async def delete_own_account(
         owned_project_ids = {project.id for project in owned_projects}
         transfer_ids = set(request.project_transfers.keys())
 
-        if owned_project_ids != transfer_ids:
-            missing = owned_project_ids - transfer_ids
+        missing = sorted(owned_project_ids - transfer_ids)
+        if missing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Missing transfer recipients for projects: {missing}",
+            )
+
+        # Reject surplus entries — anything in the transfer map that
+        # isn't actually owned by the requester. Without this guard,
+        # a crafted request with extra IDs would silently transfer
+        # ownership of unrelated projects.
+        extra = sorted(transfer_ids - owned_project_ids)
+        if extra:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"project_transfers contains projects not owned by user: {extra}",
             )
 
         for project_id, new_owner_id in request.project_transfers.items():
