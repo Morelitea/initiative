@@ -416,7 +416,15 @@ async def delete_user(
 
         if payload.action in ("deactivate", "soft_delete"):
             for project_id, new_owner_id in payload.project_transfers.items():
-                await users_service.transfer_project_ownership(session, project_id, new_owner_id)
+                try:
+                    await users_service.transfer_project_ownership(
+                        session, project_id, new_owner_id
+                    )
+                except users_service.InvalidTransferRecipient:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=AdminMessages.INVALID_TRANSFER_RECIPIENT,
+                    )
 
     if payload.action == "deactivate":
         await users_service.deactivate_user(session, user_id)
@@ -434,10 +442,17 @@ async def delete_user(
             message=f"User {user.email} has been anonymized",
         )
 
-    # hard_delete
-    await users_service.hard_delete_user(
-        session, user_id, payload.project_transfers or {}
-    )
+    # hard_delete: the service performs project transfers internally,
+    # so the recipient-validity check happens there too.
+    try:
+        await users_service.hard_delete_user(
+            session, user_id, payload.project_transfers or {}
+        )
+    except users_service.InvalidTransferRecipient:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.INVALID_TRANSFER_RECIPIENT,
+        )
     return AccountDeletionResponse(
         success=True,
         action="hard_delete",
@@ -570,10 +585,18 @@ async def admin_get_initiative_members(
     if not result.one_or_none():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.INITIATIVE_NOT_FOUND)
 
+    # Active members only — anonymized rows are husks of departed users
+    # and deactivated rows are locked, so neither can be a valid project
+    # transfer target. The admin dialog (and the self-delete dialog
+    # via the parallel ``/users/me/initiative-members`` endpoint) rely
+    # on this filter to avoid offering an unselectable "Deleted user".
     stmt = (
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            User.status == UserStatus.active,
+        )
         .order_by(User.full_name, User.id)
     )
     result = await session.exec(stmt)

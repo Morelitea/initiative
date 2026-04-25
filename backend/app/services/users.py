@@ -493,15 +493,34 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     await session.commit()
 
 
+class InvalidTransferRecipient(Exception):
+    """Raised when a project transfer target isn't a valid owner."""
+
+
 async def transfer_project_ownership(
     session: AsyncSession,
     project_id: int,
     new_owner_id: int,
 ) -> None:
-    """Transfer project ownership to another user."""
-    stmt = select(Project).where(Project.id == project_id)
-    result = await session.exec(stmt)
-    project = result.one()
+    """Transfer project ownership to another user.
+
+    Refuses to transfer to a user who isn't ``active`` — anonymized
+    husks and deactivated accounts can't act on projects, so handing
+    one a project would strand it. The transfer-target picker on
+    self-delete and admin-delete dialogs already filters non-active
+    users out (``GET /users/me/initiative-members`` and
+    ``GET /admin/initiatives/.../members``); this is the server-side
+    safety net for clients that bypass those endpoints.
+    """
+    project = (await session.exec(select(Project).where(Project.id == project_id))).one()
+
+    new_owner = (
+        await session.exec(select(User).where(User.id == new_owner_id))
+    ).one_or_none()
+    if new_owner is None or new_owner.status != UserStatus.active:
+        raise InvalidTransferRecipient(
+            f"Project {project_id} transfer target {new_owner_id} is not an active user"
+        )
 
     project.owner_id = new_owner_id
     project.updated_at = datetime.now(timezone.utc)

@@ -631,3 +631,89 @@ async def test_password_user_cannot_skip_password_check(
     )
 
     assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_initiative_members_excludes_anonymized(
+    client: AsyncClient, session: AsyncSession
+):
+    """The transfer-target picker must not return anonymized rows.
+
+    Regression: without the status filter, an anonymized husk would
+    appear as a selectable project transfer target — and since the
+    backend transfer accepted any user id, a self-deleting user could
+    hand a live project to a non-person.
+    """
+    from app.services import users as users_service
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+    )
+
+    creator = await create_user(session, email="creator@example.com")
+    guild = await create_guild(session, creator=creator)
+    initiative = await create_initiative(session, guild=guild, creator=creator)
+
+    departing = await create_user(session, email="departing@example.com")
+    await create_initiative_member(session, initiative=initiative, user=departing)
+
+    survivor = await create_user(session, email="survivor@example.com")
+    await create_initiative_member(session, initiative=initiative, user=survivor)
+
+    # Anonymize the departing user — they should disappear from the picker.
+    await users_service.soft_delete_user(session, departing.id)
+
+    headers = get_auth_headers(creator)
+    response = await client.get(
+        f"/api/v1/users/me/initiative-members/{initiative.id}", headers=headers
+    )
+    assert response.status_code == 200
+    ids = {member["id"] for member in response.json()}
+    assert departing.id not in ids
+    assert survivor.id in ids
+
+
+@pytest.mark.integration
+async def test_self_delete_rejects_anonymized_transfer_target(
+    client: AsyncClient, session: AsyncSession
+):
+    """Even if the client crafts a request that targets an anonymized
+    user, ``transfer_project_ownership`` refuses and the endpoint
+    returns a 400 instead of stranding a project on a husk."""
+    from app.services import users as users_service
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    owner = await create_user(session, email="leaving@example.com")
+    co_admin = await create_user(session, email="co-admin@example.com")
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=co_admin, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild=guild, creator=owner)
+    # Add co_admin as another PM so the eligibility check passes.
+    await create_initiative_member(
+        session, initiative=initiative, user=co_admin, role_name="project_manager",
+    )
+
+    husk = await create_user(session, email="husk@example.com")
+    await create_initiative_member(session, initiative=initiative, user=husk)
+    await users_service.soft_delete_user(session, husk.id)
+
+    project = await create_project(session, initiative=initiative, owner=owner)
+
+    headers = get_auth_headers(owner)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "testpassword123",
+            "confirmation_text": "DELETE MY ACCOUNT",
+            "project_transfers": {str(project.id): husk.id},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_TRANSFER_RECIPIENT"

@@ -548,10 +548,18 @@ async def get_my_initiative_members(
     if not membership:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
+    # Exclude anonymized rows — they're empty husks of departed users and
+    # must not be selectable as project-transfer targets, otherwise a
+    # self-deleting user could hand a live project to a non-person.
+    # Deactivated users are also excluded: their account is locked and
+    # they can't act as an owner until reactivated.
     stmt = (
         select(User)
         .join(InitiativeMember, InitiativeMember.user_id == User.id)
-        .where(InitiativeMember.initiative_id == initiative_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            User.status == UserStatus.active,
+        )
         .order_by(User.full_name, User.id)
     )
     result = await session.exec(stmt)
@@ -627,7 +635,15 @@ async def delete_own_account(
             )
 
         for project_id, new_owner_id in request.project_transfers.items():
-            await users_service.transfer_project_ownership(session, project_id, new_owner_id)
+            try:
+                await users_service.transfer_project_ownership(
+                    session, project_id, new_owner_id
+                )
+            except users_service.InvalidTransferRecipient:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=UserMessages.INVALID_TRANSFER_RECIPIENT,
+                )
 
     if request.action == "deactivate":
         await users_service.deactivate_user(session, current_user.id)
