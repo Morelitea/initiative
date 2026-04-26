@@ -75,6 +75,16 @@ def _apply_migrations():
     _run_test_migrations()
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _install_soft_delete_filter():
+    """Install the SQLAlchemy session-wide filter that hides soft-deleted rows
+    by default. Mirrors the production startup hook in app/main.py so tests
+    see the same query semantics as live requests."""
+    from app.db.soft_delete_filter import install_soft_delete_filter
+
+    install_soft_delete_filter()
+
+
 @pytest.fixture(scope="function")
 async def engine():
     """Create a test database engine."""

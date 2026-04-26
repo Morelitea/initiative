@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
 from sqlmodel import Field, SQLModel, Relationship
 from pydantic import ConfigDict
 
@@ -32,5 +32,11 @@ class GuildSetting(SQLModel, table=True):
     ai_base_url: Optional[str] = Field(default=None, sa_column=Column(String(1000), nullable=True))
     ai_model: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
     ai_allow_user_override: Optional[bool] = Field(default=None, sa_column=Column(Boolean, nullable=True))
+
+    # Trash retention. NULL means "never auto-purge". Default 90 days.
+    retention_days: Optional[int] = Field(
+        default=90,
+        sa_column=Column(Integer, nullable=True, server_default="90"),
+    )
 
     guild: Optional["Guild"] = Relationship(back_populates="settings", sa_relationship_kwargs={"uselist": False})

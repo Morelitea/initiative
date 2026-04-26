@@ -5,6 +5,8 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.models._mixins import SoftDeleteMixin
+
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.automation import AutomationFlow
     from app.models.project import Project
@@ -160,7 +162,7 @@ class InitiativeMember(SQLModel, table=True):
     role_ref: Optional["InitiativeRoleModel"] = Relationship(back_populates="members")
 
 
-class Initiative(SQLModel, table=True):
+class Initiative(SoftDeleteMixin, table=True):
     __tablename__ = "initiatives"
 
     id: Optional[int] = Field(default=None, primary_key=True)

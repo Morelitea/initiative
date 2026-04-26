@@ -240,6 +240,8 @@ async def update_guild(
     description: str | None = None,
     icon_base64: str | None = None,
     icon_provided: bool = False,
+    retention_days: int | None = None,
+    retention_days_provided: bool = False,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -258,7 +260,23 @@ async def update_guild(
         guild.updated_at = datetime.now(timezone.utc)
         session.add(guild)
         await session.flush()
+    if retention_days_provided:
+        from app.services.app_settings import get_or_create_guild_settings
+
+        gs = await get_or_create_guild_settings(session, guild_id)
+        if gs.retention_days != retention_days:
+            gs.retention_days = retention_days
+            session.add(gs)
+            await session.flush()
     return guild
+
+
+async def get_guild_retention_days(session: AsyncSession, guild_id: int) -> int | None:
+    """Return the per-guild trash retention period in days (or None for never)."""
+    stmt = select(GuildSetting.retention_days).where(GuildSetting.guild_id == guild_id)
+    result = await session.exec(stmt)
+    row = result.one_or_none()
+    return row if row is not None else 90
 
 
 async def _invite_code_exists(session: AsyncSession, code: str) -> bool:
