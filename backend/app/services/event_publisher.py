@@ -30,21 +30,25 @@ _session = None  # aioboto3.Session
 _client_cm = None  # async context manager wrapping the kinesis client
 _client = None  # active kinesis client
 _background_tasks: set[asyncio.Task] = set()
+# Latched once startup hits a non-recoverable misconfig (missing AWS_REGION
+# or aioboto3). Without this, every dispatched event would re-enter connect()
+# and re-emit the same error log line indefinitely.
+_misconfigured = False
 
 
 async def connect() -> None:
     """Open the Kinesis client on startup. No-op when the flag is off."""
-    global _session, _client_cm, _client
+    global _session, _client_cm, _client, _misconfigured
 
-    if not settings.ENABLE_EVENT_PUBLISHING:
-        logger.debug("Event publishing disabled; kinesis publisher is a no-op")
+    if _misconfigured or not settings.ENABLE_EVENT_PUBLISHING:
         return
 
     if not settings.AWS_REGION:
         logger.error(
             "ENABLE_EVENT_PUBLISHING=true but AWS_REGION is not set; "
-            "kinesis publisher will drop events"
+            "event publishing disabled until config is fixed and service restarted"
         )
+        _misconfigured = True
         return
 
     try:
@@ -52,8 +56,9 @@ async def connect() -> None:
     except ImportError:
         logger.error(
             "ENABLE_EVENT_PUBLISHING=true but aioboto3 is not installed; "
-            "install the infra extras or disable event publishing"
+            "rebuild with INSTALL_INFRA_EXTRAS=true or disable event publishing"
         )
+        _misconfigured = True
         return
 
     try:
@@ -70,6 +75,7 @@ async def connect() -> None:
             settings.AWS_ENDPOINT_URL or "<aws default>",
         )
     except Exception as e:
+        # Transient failures (network, AWS unreachable) — retry on next event.
         logger.warning("Could not initialize Kinesis client: %s", e)
         _client = None
         _client_cm = None
@@ -77,7 +83,7 @@ async def connect() -> None:
 
 async def close() -> None:
     """Cancel in-flight publishes and close the Kinesis client on shutdown."""
-    global _client, _client_cm, _session
+    global _client, _client_cm, _session, _misconfigured
 
     for task in _background_tasks:
         task.cancel()
@@ -91,6 +97,9 @@ async def close() -> None:
     _client = None
     _client_cm = None
     _session = None
+    # Reset latch so a fresh process starts with a clean slate; the connect()
+    # call on startup is what re-decides whether the env is healthy.
+    _misconfigured = False
 
 
 async def publish_event(
@@ -144,6 +153,11 @@ def _build_envelope(
 async def _publish_background(envelope: dict[str, Any]) -> None:
     """Background task — does not block the API response."""
     global _client
+
+    if _misconfigured:
+        # Already logged once at startup; subsequent events drop silently
+        # so the log isn't flooded.
+        return
 
     if _client is None:
         try:

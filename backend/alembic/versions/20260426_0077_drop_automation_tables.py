@@ -10,8 +10,6 @@ Create Date: 2026-04-26
 """
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy import text
 
 
 revision = "20260426_0077"
@@ -31,13 +29,11 @@ _RLS_POLICIES = (
 
 
 def upgrade() -> None:
-    conn = op.get_bind()
-
     # Drop RLS policies before the tables — DROP TABLE will fail otherwise.
     for table in _AUTOMATION_TABLES:
         for policy in _RLS_POLICIES:
-            conn.execute(text(f"DROP POLICY IF EXISTS {policy} ON {table}"))
-        conn.execute(text(f"ALTER TABLE IF EXISTS {table} DISABLE ROW LEVEL SECURITY"))
+            op.execute(f"DROP POLICY IF EXISTS {policy} ON {table}")
+        op.execute(f"ALTER TABLE IF EXISTS {table} DISABLE ROW LEVEL SECURITY")
 
     # Drop tables in FK-dependency order (steps -> runs -> flows).
     for table in _AUTOMATION_TABLES:
@@ -45,7 +41,7 @@ def upgrade() -> None:
 
     # Drop the automation_engine role; revoke first to guard against any
     # leftover grants on tables we keep (initiatives).
-    conn.execute(text("""
+    op.execute("""
         DO $$ BEGIN
             IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'automation_engine') THEN
                 REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM automation_engine;
@@ -53,30 +49,30 @@ def upgrade() -> None:
                 DROP ROLE automation_engine;
             END IF;
         END $$
-    """))
+    """)
 
     # Drop role-permission rows for automation keys before tightening the
     # CHECK constraint, otherwise the ALTER fails.
-    conn.execute(text(
+    op.execute(
         "DELETE FROM initiative_role_permissions "
         "WHERE permission_key IN ('automations_enabled', 'create_automations')"
-    ))
+    )
 
-    conn.execute(text(
+    op.execute(
         "ALTER TABLE initiative_role_permissions "
         "DROP CONSTRAINT IF EXISTS ck_initiative_role_permissions_permission_key"
-    ))
-    conn.execute(text(
+    )
+    op.execute(
         "ALTER TABLE initiative_role_permissions "
         "ADD CONSTRAINT ck_initiative_role_permissions_permission_key "
         "CHECK (permission_key IN ("
         "'docs_enabled', 'projects_enabled', 'create_docs', 'create_projects', "
         "'queues_enabled', 'create_queues', "
         "'events_enabled', 'create_events'))"
-    ))
+    )
 
-    # Use raw SQL with IF EXISTS so the migration is idempotent — the column
-    # may already be missing in environments that never ran 0067.
+    # IF EXISTS so the migration is idempotent — the column may already be
+    # missing in environments that never ran 0067.
     op.execute("ALTER TABLE initiatives DROP COLUMN IF EXISTS automations_enabled")
 
 

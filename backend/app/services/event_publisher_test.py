@@ -50,6 +50,27 @@ async def test_connect_is_noop_when_disabled(monkeypatch):
 
 
 @pytest.mark.unit
+async def test_misconfig_is_logged_once_then_latches(monkeypatch, caplog):
+    """Missing AWS_REGION while ENABLE_EVENT_PUBLISHING=true must log the
+    error exactly once. Subsequent connects + publishes drop silently — no
+    repeated stack of error/warning lines per dispatched event."""
+    monkeypatch.setattr(settings, "ENABLE_EVENT_PUBLISHING", True)
+    monkeypatch.setattr(settings, "AWS_REGION", None)
+    monkeypatch.setattr(event_publisher, "_misconfigured", False)
+    monkeypatch.setattr(event_publisher, "_client", None)
+
+    import logging
+    with caplog.at_level(logging.ERROR, logger=event_publisher.logger.name):
+        await event_publisher.connect()
+        await event_publisher.connect()
+        await event_publisher.connect()
+
+    error_lines = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert len(error_lines) == 1, f"expected exactly 1 error log, got {len(error_lines)}"
+    assert event_publisher._misconfigured is True
+
+
+@pytest.mark.unit
 def test_envelope_has_only_canonical_top_level_fields():
     envelope = event_publisher._build_envelope(
         "task_created",
