@@ -63,9 +63,15 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_FULL_NAME: str | None = None
     DISABLE_GUILD_CREATION: bool = False
     ENABLE_PUBLIC_REGISTRATION: bool = True  # When False, requires invite code to register
-    ENABLE_AUTOMATIONS: bool = False  # Infra-only: enables automation pipeline features
-    REDIS_URL: str | None = None  # e.g. redis://redis:6379/0 (only needed when automations enabled)
-    AUTOMATION_SERVICE_TOKEN: str | None = None  # Shared secret for engine API callbacks
+    # Domain event publishing to AWS Kinesis (infra variant only).
+    # When True, mutations on tasks/projects/etc. emit encrypted envelopes to
+    # KINESIS_STREAM_NAME for the inititative_infra automation engine to consume.
+    # Set to False on the OSS image; aioboto3 is imported lazily so it isn't a
+    # hard dependency.
+    ENABLE_EVENT_PUBLISHING: bool = False
+    AWS_REGION: str | None = None
+    KINESIS_STREAM_NAME: str = "initiative.events.v1"
+    AWS_ENDPOINT_URL: str | None = None  # LocalStack override; unset uses real AWS
     BEHIND_PROXY: bool = False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
 
     @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")

@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, ai_settings, attachments, auth, automations, calendar_events, collaboration, comments, documents, events, guilds, imports, initiatives, notifications, projects, property_definitions, push, queues, settings, tags, task_statuses, tasks, users, version
+from app.api.v1.endpoints import admin, ai_settings, attachments, auth, calendar_events, collaboration, comments, documents, events, guilds, imports, initiatives, notifications, projects, property_definitions, push, queues, settings, tags, task_statuses, tasks, users, version
 
 api_router = APIRouter()
 api_router.include_router(version.router, tags=["version"])
@@ -27,4 +27,3 @@ api_router.include_router(queues.router, prefix="/queues", tags=["queues"])
 api_router.include_router(calendar_events.router, prefix="/calendar-events", tags=["calendar-events"])
 api_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 api_router.include_router(property_definitions.router, prefix="/property-definitions", tags=["property-definitions"])
-api_router.include_router(automations.router, tags=["automations"])

@@ -1,4 +1,3 @@
-import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated, Optional
@@ -40,15 +39,8 @@ async def get_current_user(
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
 ) -> User:
-    # Check for Authorization header - could be Bearer, DeviceToken, API key, or service token
+    # Check for Authorization header - could be Bearer, DeviceToken, or API key
     auth_header = request.headers.get("Authorization", "")
-
-    # Handle automation engine service token — return a synthetic service user
-    if auth_header.startswith("Bearer ") and settings.AUTOMATION_SERVICE_TOKEN:
-        candidate = auth_header[7:]
-        if secrets.compare_digest(candidate, settings.AUTOMATION_SERVICE_TOKEN):
-            # Return a synthetic user object for the service account
-            return User(id=-1, email="automation-engine@internal", full_name="Automation Engine", status=UserStatus.active)
 
     # Handle DeviceToken scheme
     if auth_header.startswith("DeviceToken "):
@@ -194,66 +186,6 @@ def require_guild_roles(*roles: GuildRole) -> Callable:
     return dependency
 
 
-def _is_service_token(request: Request) -> bool:
-    """Check if the request uses the automation engine service token."""
-    if not settings.AUTOMATION_SERVICE_TOKEN:
-        return False
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return False
-    token = auth_header[7:]
-    return secrets.compare_digest(token, settings.AUTOMATION_SERVICE_TOKEN)
-
-
-async def get_service_or_guild_membership(
-    request: Request,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    requested_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
-) -> GuildContext:
-    """Get guild context, supporting both user JWT and engine service token auth.
-
-    For normal users, delegates to get_guild_membership. For the automation
-    engine's service token, creates a synthetic admin membership scoped to
-    the guild specified by X-Guild-ID.
-
-    get_current_user already recognises the service token and returns a
-    synthetic User(id=-1), so the dependency chain resolves without error.
-    """
-    # Service token path
-    if _is_service_token(request):
-        if not requested_guild_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Service token requires X-Guild-ID header",
-            )
-        statement = select(Guild).where(Guild.id == requested_guild_id)
-        result = await session.exec(statement)
-        guild = result.one_or_none()
-        if not guild:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=GuildMessages.GUILD_NOT_FOUND,
-            )
-        synthetic_membership = GuildMembership(
-            user_id=-1,
-            guild_id=requested_guild_id,
-            role=GuildRole.admin,
-        )
-        # Scope RLS to this guild — NOT cross-guild superadmin
-        await set_rls_context(
-            session,
-            user_id=-1,
-            guild_id=requested_guild_id,
-            guild_role=GuildRole.admin.value,
-            is_superadmin=False,
-        )
-        return GuildContext(guild=guild, membership=synthetic_membership)
-
-    # Normal user path
-    return await get_guild_membership(session, current_user, requested_guild_id)
-
-
 async def get_guild_session(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -282,31 +214,6 @@ async def get_guild_session(
 
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
-
-
-async def get_service_guild_session(
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_service_or_guild_membership)],
-) -> AsyncSession:
-    """Like get_guild_session but uses the service-token-aware guild resolver.
-
-    Used on endpoints that the automation engine calls back to (tasks, tags, etc.).
-    For normal users, behaves identically to get_guild_session.
-    """
-    is_service = current_user.id == -1
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        guild_role=guild_context.role.value,
-        is_superadmin=(not is_service) and (current_user.role == UserRole.admin),
-    )
-    return session
-
-
-# RLS session that supports both normal users and engine service token
-ServiceRLSSessionDep = Annotated[AsyncSession, Depends(get_service_guild_session)]
 
 
 async def get_user_session(
