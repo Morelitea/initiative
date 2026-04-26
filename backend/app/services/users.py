@@ -671,15 +671,30 @@ async def is_last_platform_admin(
     if not user or user.role != UserRole.admin or user.status != UserStatus.active:
         return False
 
-    other_admins_stmt = select(func.count(User.id)).where(
-        User.role == UserRole.admin,
-        User.status == UserStatus.active,
-        User.id != user_id,
-    )
+    # PostgreSQL rejects ``SELECT COUNT(...) FOR UPDATE`` (aggregates
+    # can't take row locks), so the for_update path locks the candidate
+    # rows themselves and counts them in Python — same trick
+    # ``count_platform_admins`` uses for the same reason.
     if for_update:
-        other_admins_stmt = other_admins_stmt.with_for_update()
-    other_count = (await session.exec(other_admins_stmt)).one()
-    return other_count == 0
+        other_admins_stmt = (
+            select(User)
+            .where(
+                User.role == UserRole.admin,
+                User.status == UserStatus.active,
+                User.id != user_id,
+            )
+            .with_for_update()
+        )
+        others = (await session.exec(other_admins_stmt)).all()
+        return len(others) == 0
+    else:
+        other_admins_stmt = select(func.count(User.id)).where(
+            User.role == UserRole.admin,
+            User.status == UserStatus.active,
+            User.id != user_id,
+        )
+        other_count = (await session.exec(other_admins_stmt)).one()
+        return other_count == 0
 
 
 async def hard_delete_user(

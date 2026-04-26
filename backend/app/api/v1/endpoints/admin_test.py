@@ -302,3 +302,31 @@ async def test_platform_role_change_rejected_on_inactive_users(
         await session.exec(select(User).where(User.id == anon.id))
     ).one()
     assert refreshed.role == UserRole.member
+
+
+@pytest.mark.integration
+async def test_demote_admin_uses_for_update_path_without_postgres_error(
+    client: AsyncClient, session: AsyncSession
+):
+    """Regression: ``is_last_platform_admin(..., for_update=True)`` ran
+    a ``SELECT COUNT(...) FOR UPDATE``, which PostgreSQL rejects with
+    "FOR UPDATE is not allowed with aggregate functions". Every valid
+    demote of an active admin would crash with an unhandled
+    ProgrammingError. The endpoint must complete normally and the
+    target's role must end up demoted.
+    """
+    from sqlmodel import select
+    from app.models.user import User
+
+    deleter = await create_user(session, email="deleter@example.com", role=UserRole.admin)
+    target = await create_user(session, email="demoteme@example.com", role=UserRole.admin)
+
+    response = await client.patch(
+        f"/api/v1/admin/users/{target.id}/platform-role",
+        headers=get_auth_headers(deleter),
+        json={"role": "member"},
+    )
+    assert response.status_code == 200, response.text
+
+    refreshed = (await session.exec(select(User).where(User.id == target.id))).one()
+    assert refreshed.role == UserRole.member
