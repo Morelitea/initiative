@@ -156,6 +156,7 @@
   "ADMIN_CANNOT_RESET_INACTIVE": "Impossible de réinitialiser le mot de passe d'un utilisateur inactif",
   "ADMIN_USER_ALREADY_ACTIVE": "L'utilisateur est déjà actif",
   "ADMIN_CANNOT_CHANGE_OWN_ROLE": "Impossible de modifier votre propre rôle de plateforme",
+  "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE": "Impossible de modifier le rôle de plateforme d'un compte désactivé ou anonymisé",
   "ADMIN_CANNOT_DEMOTE_LAST_ADMIN": "Impossible de rétrograder le dernier administrateur de plateforme",
   "ADMIN_USE_SELF_DELETION": "Utilisez la page des paramètres du compte pour supprimer votre propre compte",
   "ADMIN_CANNOT_DELETE_LAST_ADMIN": "Impossible de supprimer le dernier administrateur de plateforme",

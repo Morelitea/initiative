@@ -249,10 +249,17 @@ export const SettingsPlatformUsersPage = () => {
         const isPlatformAdmin = platformUser.role === "admin";
         const isSelf = platformUser.id === user?.id;
         const isLastAdmin = isPlatformAdmin && (adminCountQuery.data?.count ?? 0) <= 1;
+        // Promote / Demote / Reset password are no-ops on non-active
+        // accounts (the backend rejects role changes with
+        // ADMIN_CANNOT_CHANGE_ROLE_INACTIVE and password reset with
+        // ADMIN_CANNOT_RESET_INACTIVE), so hide them here too. The
+        // Reactivate button is gated on status === "deactivated"
+        // separately below.
+        const isActive = platformUser.status === "active";
 
         return (
           <div className="flex flex-wrap gap-2">
-            {isPlatformAdmin && !isSelf && (
+            {isActive && isPlatformAdmin && !isSelf && (
               <Button
                 type="button"
                 variant="outline"
@@ -265,7 +272,7 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.demoteToUser")}
               </Button>
             )}
-            {!isPlatformAdmin && (
+            {isActive && !isPlatformAdmin && (
               <Button
                 type="button"
                 variant="outline"
