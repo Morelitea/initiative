@@ -443,6 +443,11 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
 
     user.status = UserStatus.anonymized
     user.token_version += 1
+    # Demote any platform admin to member. The row is now an empty husk
+    # that can't act on anything; leaving the admin role on it would be
+    # misleading in audit views and would inflate any role-only count
+    # that doesn't also filter by status.
+    user.role = UserRole.member
 
     # Replace email with a sentinel that won't collide on the unique index
     # and can't be looked up by anyone trying to authenticate. The
@@ -644,7 +649,13 @@ async def count_platform_admins(session: AsyncSession, *, for_update: bool = Fal
 async def is_last_platform_admin(
     session: AsyncSession, user_id: int, *, for_update: bool = False
 ) -> bool:
-    """Check if user is the last remaining platform admin.
+    """True iff removing this user would leave zero active platform admins.
+
+    A non-admin target, or an admin target whose ``status`` isn't
+    ``active``, doesn't contribute to the active-admin count
+    (``count_platform_admins`` filters by status), so removing them
+    can't drop the count to zero — return False in those cases.
+    Otherwise count OTHER active admins and return True iff none exist.
 
     Args:
         session: Database session
@@ -657,9 +668,18 @@ async def is_last_platform_admin(
         stmt = select(User).where(User.id == user_id)
     result = await session.exec(stmt)
     user = result.one_or_none()
-    if not user or user.role != UserRole.admin:
+    if not user or user.role != UserRole.admin or user.status != UserStatus.active:
         return False
-    return await count_platform_admins(session, for_update=for_update) <= 1
+
+    other_admins_stmt = select(func.count(User.id)).where(
+        User.role == UserRole.admin,
+        User.status == UserStatus.active,
+        User.id != user_id,
+    )
+    if for_update:
+        other_admins_stmt = other_admins_stmt.with_for_update()
+    other_count = (await session.exec(other_admins_stmt)).one()
+    return other_count == 0
 
 
 async def hard_delete_user(

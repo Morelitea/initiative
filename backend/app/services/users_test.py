@@ -209,16 +209,19 @@ async def test_deactivate_user(session: AsyncSession):
 @pytest.mark.service
 async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     """Soft delete (anonymize) clears PII, blocks login, drops memberships,
-    revokes auth artifacts, and keeps the row so historical FKs resolve."""
+    demotes platform admins to member, revokes auth artifacts, and keeps
+    the row so historical FKs resolve."""
     from app.models.api_key import UserApiKey
     from app.models.push_token import PushToken
     from app.models.user_token import UserToken
+    from app.models.user import UserRole
 
     user = await create_user(
         session,
         email="toanonymize@example.com",
         full_name="Anonymizer Test",
         avatar_url="https://example.com/avatar.png",
+        role=UserRole.admin,
     )
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
@@ -259,6 +262,9 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     # The row stays — same id, same created_at — so FKs resolve.
     assert anonymized.id == original_id
     assert anonymized.status == UserStatus.anonymized
+    # Platform-admin role demoted to member so the husk doesn't carry
+    # elevated privileges.
+    assert anonymized.role == UserRole.member
     # PII gone.
     assert anonymized.full_name is None
     assert anonymized.avatar_url is None
@@ -311,3 +317,45 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     # polcmd '6' = DELETE; polpermissive False = restrictive.
     # See: https://www.postgresql.org/docs/current/catalog-pg-policy.html
     assert deny_policy[2] is False  # restrictive
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_is_last_platform_admin_ignores_inactive_targets(session: AsyncSession):
+    """An admin whose status isn't ``active`` doesn't contribute to the
+    active-admin count, so they can never be "the last admin". Without
+    this fix, deleting a deactivated admin while another active admin
+    existed would trip the wrong-blocker path: ``count_platform_admins``
+    saw 1 (just the other admin), the helper returned True for the
+    deactivated target, and the eligibility endpoint blocked the
+    delete with "User is the last platform admin".
+    """
+    from app.models.user import UserRole
+
+    active_admin = await create_user(
+        session, email="active-admin@example.com", role=UserRole.admin
+    )
+    deact_admin = await create_user(
+        session, email="deact-admin@example.com", role=UserRole.admin
+    )
+    await user_service.deactivate_user(session, deact_admin.id)
+
+    # The active admin really is the last *active* admin.
+    assert await user_service.is_last_platform_admin(session, active_admin.id) is True
+
+    # The deactivated admin is never "the last admin" — they're not in
+    # the count to begin with, so removing them changes nothing.
+    assert await user_service.is_last_platform_admin(session, deact_admin.id) is False
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_is_last_platform_admin_with_other_active_admin(session: AsyncSession):
+    """When a second active admin exists, neither is the last admin."""
+    from app.models.user import UserRole
+
+    a = await create_user(session, email="a@example.com", role=UserRole.admin)
+    b = await create_user(session, email="b@example.com", role=UserRole.admin)
+
+    assert await user_service.is_last_platform_admin(session, a.id) is False
+    assert await user_service.is_last_platform_admin(session, b.id) is False

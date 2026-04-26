@@ -90,9 +90,14 @@ export const SettingsPlatformUsersPage = () => {
   };
 
   const updatePlatformRole = useAdminUpdatePlatformRole({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Read the new role off the mutation variables, not off
+      // ``roleChangeConfirm``. The confirm dialog may have already
+      // closed (which calls setRoleChangeConfirm(null)) by the time
+      // this callback fires, so the closure could see ``null`` and
+      // pick the wrong toast.
       toast.success(
-        roleChangeConfirm?.newRole === "admin"
+        variables.role === "admin"
           ? t("platformUsers.promoteSuccess")
           : t("platformUsers.demoteSuccess")
       );
