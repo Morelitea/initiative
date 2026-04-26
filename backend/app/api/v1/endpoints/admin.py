@@ -230,6 +230,18 @@ async def update_platform_role(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
 
+    # Refuse role changes on non-active accounts. A deactivated row's role
+    # change is meaningless until the user is reactivated, and an
+    # anonymized row should never gain or lose elevated privileges (the
+    # account is permanently gone). ``count_platform_admins`` already
+    # excludes non-active users from its count, so promoting a husk to
+    # admin would also confuse the last-admin invariant.
+    if user.status != UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_CHANGE_ROLE_INACTIVE,
+        )
+
     # Check if demoting the last admin (FOR UPDATE already acquired above)
     if user.role == UserRole.admin and payload.role != UserRole.admin:
         if await users_service.is_last_platform_admin(session, user_id, for_update=True):

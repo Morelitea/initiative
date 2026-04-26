@@ -156,6 +156,7 @@
   "ADMIN_CANNOT_RESET_INACTIVE": "No se puede restablecer la contraseña de un usuario inactivo",
   "ADMIN_USER_ALREADY_ACTIVE": "El usuario ya está activo",
   "ADMIN_CANNOT_CHANGE_OWN_ROLE": "No puedes cambiar tu propio rol de plataforma",
+  "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE": "No se puede cambiar el rol de plataforma de una cuenta desactivada o anonimizada",
   "ADMIN_CANNOT_DEMOTE_LAST_ADMIN": "No se puede degradar al último administrador de la plataforma",
   "ADMIN_USE_SELF_DELETION": "Usa la página de configuración de cuenta para eliminar tu propia cuenta",
   "ADMIN_CANNOT_DELETE_LAST_ADMIN": "No se puede eliminar al último administrador de la plataforma",

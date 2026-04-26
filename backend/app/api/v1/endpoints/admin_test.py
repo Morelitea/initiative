@@ -241,3 +241,113 @@ async def test_admin_delete_rejects_surplus_project_transfers(
         await session.exec(_select(Project).where(Project.id == bystander_project.id))
     ).one()
     assert refreshed.owner_id == bystander.id
+
+
+@pytest.mark.integration
+async def test_platform_role_change_rejected_on_inactive_users(
+    client: AsyncClient, session: AsyncSession
+):
+    """Platform role mutations on deactivated or anonymized users are
+    refused with ``ADMIN_CANNOT_CHANGE_ROLE_INACTIVE``. The role on the
+    target row is unchanged.
+    """
+    from sqlmodel import select
+    from app.models.user import User
+    from app.services import users as users_service
+
+    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    headers = get_auth_headers(admin)
+
+    # 1. Deactivated regular user — promote attempt rejected.
+    deact_member = await create_user(session, email="deact-member@example.com")
+    await users_service.deactivate_user(session, deact_member.id)
+    response = await client.patch(
+        f"/api/v1/admin/users/{deact_member.id}/platform-role",
+        headers=headers,
+        json={"role": "admin"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
+    refreshed = (
+        await session.exec(select(User).where(User.id == deact_member.id))
+    ).one()
+    assert refreshed.role == UserRole.member
+
+    # 2. Deactivated admin user — demote attempt rejected.
+    second_admin = await create_user(session, email="second-admin@example.com", role=UserRole.admin)
+    await users_service.deactivate_user(session, second_admin.id)
+    response = await client.patch(
+        f"/api/v1/admin/users/{second_admin.id}/platform-role",
+        headers=headers,
+        json={"role": "member"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
+    refreshed = (
+        await session.exec(select(User).where(User.id == second_admin.id))
+    ).one()
+    assert refreshed.role == UserRole.admin
+
+    # 3. Anonymized user — both directions rejected.
+    anon = await create_user(session, email="anon-target@example.com")
+    await users_service.soft_delete_user(session, anon.id)
+
+    # 3a. Promote attempt (member → admin).
+    response = await client.patch(
+        f"/api/v1/admin/users/{anon.id}/platform-role",
+        headers=headers,
+        json={"role": "admin"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
+    refreshed = (
+        await session.exec(select(User).where(User.id == anon.id))
+    ).one()
+    assert refreshed.role == UserRole.member
+
+    # 3b. Demote attempt (admin → member). soft_delete_user already
+    # demoted the row to member, so flip role back to admin directly
+    # in the DB (bypassing the endpoint, which would refuse) to set up
+    # the demote scenario.
+    refreshed.role = UserRole.admin
+    session.add(refreshed)
+    await session.commit()
+    response = await client.patch(
+        f"/api/v1/admin/users/{anon.id}/platform-role",
+        headers=headers,
+        json={"role": "member"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
+    refreshed = (
+        await session.exec(select(User).where(User.id == anon.id))
+    ).one()
+    assert refreshed.role == UserRole.admin
+
+
+@pytest.mark.integration
+async def test_demote_admin_uses_for_update_path_without_postgres_error(
+    client: AsyncClient, session: AsyncSession
+):
+    """Regression: ``is_last_platform_admin(..., for_update=True)`` ran
+    a ``SELECT COUNT(...) FOR UPDATE``, which PostgreSQL rejects with
+    "FOR UPDATE is not allowed with aggregate functions". Every valid
+    demote of an active admin would crash with an unhandled
+    ProgrammingError. The endpoint must complete normally and the
+    target's role must end up demoted.
+    """
+    from sqlmodel import select
+    from app.models.user import User
+
+    deleter = await create_user(session, email="deleter@example.com", role=UserRole.admin)
+    target = await create_user(session, email="demoteme@example.com", role=UserRole.admin)
+
+    response = await client.patch(
+        f"/api/v1/admin/users/{target.id}/platform-role",
+        headers=get_auth_headers(deleter),
+        json={"role": "member"},
+    )
+    assert response.status_code == 200, response.text
+
+    refreshed = (await session.exec(select(User).where(User.id == target.id))).one()
+    assert refreshed.role == UserRole.member

@@ -54,6 +54,47 @@ type DeletionStep =
   | "transfer-projects"
   | "confirm";
 
+/**
+ * Which actions make sense for a target in a given lifecycle state:
+ *   - active     → all three (deactivate / anonymize / hard delete)
+ *   - deactivated → only anonymize / hard delete (already locked, can't re-deactivate)
+ *   - anonymized → only hard delete (PII already gone; deactivate / soft_delete
+ *                  are explicitly rejected by the backend with ALREADY_ANONYMIZED)
+ * Default selection is the first entry of the list.
+ */
+const ACTIONS_BY_STATUS: Record<string, readonly AdminAction[]> = {
+  active: ["deactivate", "soft_delete", "hard_delete"],
+  deactivated: ["soft_delete", "hard_delete"],
+  anonymized: ["hard_delete"],
+};
+const validActionsFor = (status: string | undefined): readonly AdminAction[] =>
+  ACTIONS_BY_STATUS[status ?? "active"] ?? ACTIONS_BY_STATUS.active;
+
+/** Per-action labels and styling, indexed by AdminAction. Pulled out of
+ *  the JSX so the radio-group render is a simple map over validActions.
+ *  ``as const`` preserves the literal type of the translation keys, which
+ *  i18next-typed needs to validate them against the Resources union. */
+const ACTION_META = {
+  deactivate: {
+    titleKey: "adminDeleteUser.deactivateTitle",
+    descriptionKey: "adminDeleteUser.deactivateDescription",
+    borderClass: "",
+    labelClass: "",
+  },
+  soft_delete: {
+    titleKey: "adminDeleteUser.softDeleteTitle",
+    descriptionKey: "adminDeleteUser.softDeleteDescription",
+    borderClass: "",
+    labelClass: "",
+  },
+  hard_delete: {
+    titleKey: "adminDeleteUser.hardDeleteTitle",
+    descriptionKey: "adminDeleteUser.hardDeleteDescription",
+    borderClass: "border-destructive/50",
+    labelClass: "text-destructive",
+  },
+} as const satisfies Record<AdminAction, unknown>;
+
 interface AdminDeleteUserDialogProps extends DialogWithSuccessProps {
   targetUser: UserRead;
 }
@@ -65,8 +106,9 @@ export function AdminDeleteUserDialog({
   targetUser,
 }: AdminDeleteUserDialogProps) {
   const { t } = useTranslation("settings");
+  const validActions = validActionsFor(targetUser.status);
   const [step, setStep] = useState<DeletionStep>("choose-type");
-  const [action, setAction] = useState<AdminAction>("deactivate");
+  const [action, setAction] = useState<AdminAction>(validActions[0]);
   const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
   const [confirmationText, setConfirmationText] = useState("");
@@ -78,11 +120,13 @@ export function AdminDeleteUserDialog({
     useState<InitiativeBlockerInfo | null>(null);
   const [isResolvingBlocker, setIsResolvingBlocker] = useState(false);
 
-  // Reset state when dialog opens/closes
+  // Reset state when dialog opens/closes. Default action falls back to
+  // whatever's valid for the target's current status, so a deactivated
+  // target lands on "soft_delete" and an anonymized one on "hard_delete".
   useEffect(() => {
     if (!open) {
       setStep("choose-type");
-      setAction("deactivate");
+      setAction(validActions[0]);
       setEligibility(null);
       setProjectTransfers({});
       setConfirmationText("");
@@ -91,7 +135,7 @@ export function AdminDeleteUserDialog({
       setInitiativeDeleteConfirm(null);
       setIsResolvingBlocker(false);
     }
-  }, [open]);
+  }, [open, validActions]);
 
   // Fetch deletion eligibility
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
@@ -352,44 +396,26 @@ export function AdminDeleteUserDialog({
           {step === "choose-type" && (
             <RadioGroup value={action} onValueChange={(value) => setAction(value as AdminAction)}>
               <div className="space-y-4">
-                <div className="flex items-start space-x-3 rounded-lg border p-4">
-                  <RadioGroupItem value="deactivate" id="deactivate" className="mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <Label htmlFor="deactivate" className="cursor-pointer text-base font-medium">
-                      {t("adminDeleteUser.deactivateTitle")}
-                    </Label>
-                    <p className="text-muted-foreground text-sm">
-                      {t("adminDeleteUser.deactivateDescription")}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3 rounded-lg border p-4">
-                  <RadioGroupItem value="soft_delete" id="soft_delete" className="mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <Label htmlFor="soft_delete" className="cursor-pointer text-base font-medium">
-                      {t("adminDeleteUser.softDeleteTitle")}
-                    </Label>
-                    <p className="text-muted-foreground text-sm">
-                      {t("adminDeleteUser.softDeleteDescription")}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="border-destructive/50 flex items-start space-x-3 rounded-lg border p-4">
-                  <RadioGroupItem value="hard_delete" id="hard_delete" className="mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <Label
-                      htmlFor="hard_delete"
-                      className="text-destructive cursor-pointer text-base font-medium"
+                {validActions.map((option) => {
+                  const meta = ACTION_META[option];
+                  return (
+                    <div
+                      key={option}
+                      className={`flex items-start space-x-3 rounded-lg border p-4 ${meta.borderClass}`}
                     >
-                      {t("adminDeleteUser.hardDeleteTitle")}
-                    </Label>
-                    <p className="text-muted-foreground text-sm">
-                      {t("adminDeleteUser.hardDeleteDescription")}
-                    </p>
-                  </div>
-                </div>
+                      <RadioGroupItem value={option} id={option} className="mt-0.5" />
+                      <div className="flex-1 space-y-1">
+                        <Label
+                          htmlFor={option}
+                          className={`cursor-pointer text-base font-medium ${meta.labelClass}`}
+                        >
+                          {t(meta.titleKey)}
+                        </Label>
+                        <p className="text-muted-foreground text-sm">{t(meta.descriptionKey)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </RadioGroup>
           )}

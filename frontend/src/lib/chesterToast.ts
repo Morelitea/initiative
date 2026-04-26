@@ -1,4 +1,4 @@
-import { toast as robotToast } from "robot-toast";
+import { toast as robotToast, RobotToastOptions } from "robot-toast";
 
 import excitedSvg from "@/assets/chester/excited.svg";
 import idleSvg from "@/assets/chester/idle.svg";
@@ -35,6 +35,7 @@ export interface ChesterToastOptions {
   /** Override the auto-selected Chester variant with any imported SVG URL. */
   robotVariant?: string;
   position?: ChesterToastPosition;
+  typeSpeed?: number;
   /** Sonner-style action; mapped to a single robot-toast button. */
   action?: { label: string; onClick: (e: MouseEvent) => void };
   /**
@@ -46,16 +47,6 @@ export interface ChesterToastOptions {
 }
 
 type RobotToastType = "default" | "success" | "error" | "warning" | "info";
-
-interface RobotToastInput {
-  message: string;
-  type: RobotToastType;
-  robotVariant: string;
-  position?: ChesterToastPosition;
-  autoClose?: number | boolean;
-  buttons?: { label: string; onClick: (e: MouseEvent) => void }[];
-  onClose?: () => void;
-}
 
 const idMap = new Map<string | number, number>();
 
@@ -72,13 +63,14 @@ const buildInput = (
   message: string,
   type: ChesterToastType,
   opts?: ChesterToastOptions
-): RobotToastInput => {
-  const input: RobotToastInput = {
+): RobotToastOptions => {
+  const input: RobotToastOptions = {
     message: opts?.description ? `${message}\n${opts.description}` : message,
     type: ROBOT_TYPE_BY_TYPE[type],
     robotVariant: opts?.robotVariant ?? VARIANT_BY_TYPE[type],
+    position: opts?.position ?? "bottom-center",
+    typeSpeed: opts?.typeSpeed ?? 20,
   };
-  if (opts?.position) input.position = opts.position;
   if (opts?.duration !== undefined) {
     input.autoClose = Number.isFinite(opts.duration) ? opts.duration : false;
   }
