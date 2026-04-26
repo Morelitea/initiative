@@ -422,12 +422,21 @@ async def delete_queue(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    """Delete a queue. Requires owner permission or guild admin."""
+    """Soft-delete a queue. Cascades to its items. Requires owner permission
+    or guild admin."""
+    from app.services import guilds as guilds_service
+    from app.services.soft_delete import soft_delete_entity
+
     queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="read")
-    # Require owner or guild admin
     if not rls_service.is_guild_admin(guild_context.role):
         queues_service.require_queue_access(queue, current_user, require_owner=True)
-    await session.delete(queue)
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    await soft_delete_entity(
+        session,
+        queue,
+        deleted_by_user_id=current_user.id,
+        retention_days=retention_days,
+    )
     await session.commit()
     await queue_manager.broadcast(queue_id, "queue_deleted", {"id": queue_id})
 
@@ -538,16 +547,24 @@ async def delete_queue_item(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    """Remove an item from a queue. Requires write access."""
+    """Soft-delete a queue item. Requires write access on the parent queue."""
+    from app.services import guilds as guilds_service
+    from app.services.soft_delete import soft_delete_entity
+
     queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
     item = await _get_item_for_queue(session, queue_id, item_id)
 
-    # If this item is the current active item, clear it
     if queue.current_item_id == item.id:
         queue.current_item_id = None
         session.add(queue)
 
-    await session.delete(item)
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    await soft_delete_entity(
+        session,
+        item,
+        deleted_by_user_id=current_user.id,
+        retention_days=retention_days,
+    )
     await session.commit()
     await queue_manager.broadcast(queue_id, "item_removed", {"id": item_id})
 

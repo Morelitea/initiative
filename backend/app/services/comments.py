@@ -535,7 +535,16 @@ async def delete_comment(
     if not (is_author or is_guild_admin or is_initiative_manager):
         raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_DELETE)
 
-    await session.delete(comment)
+    from app.services import guilds as guilds_service
+    from app.services.soft_delete import soft_delete_entity
+
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
+    await soft_delete_entity(
+        session,
+        comment,
+        deleted_by_user_id=user.id,
+        retention_days=retention_days,
+    )
     return comment
 
 

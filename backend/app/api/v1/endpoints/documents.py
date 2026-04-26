@@ -1287,22 +1287,25 @@ async def delete_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
+    """Soft-delete a document. Upload rows + filesystem blobs survive so a
+    restored document keeps its images and file body. Wikilinks pointing at
+    this document continue to reference the row but resolve to nothing
+    (the active-row filter hides it). Both URL-orphan cleanup for native
+    docs and the 1:1 Upload cleanup for file-type docs run later, at
+    hard-purge time, via ``purge_document_uploads``."""
+    from app.services import guilds as guilds_service
+    from app.services.soft_delete import soft_delete_entity
+
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
     _require_document_access(document, current_user, require_owner=True)
-    removed_upload_urls = attachments_service.extract_upload_urls(document.content)
-    if document.featured_image_url:
-        removed_upload_urls.add(document.featured_image_url)
-    # For file documents, also delete the uploaded file
-    if document.file_url:
-        removed_upload_urls.add(document.file_url)
-    # Unresolve any wikilinks pointing to this document before deletion
-    await documents_service.unresolve_wikilinks_to_document(session, deleted_document_id=document_id)
-    if removed_upload_urls:
-        filenames = [url.split("/")[-1] for url in removed_upload_urls]
-        await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
-    await session.delete(document)
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    await soft_delete_entity(
+        session,
+        document,
+        deleted_by_user_id=current_user.id,
+        retention_days=retention_days,
+    )
     await session.commit()
-    attachments_service.delete_uploads_by_urls(removed_upload_urls)
 
 
 @router.post("/{document_id}/mentions", status_code=status.HTTP_204_NO_CONTENT)

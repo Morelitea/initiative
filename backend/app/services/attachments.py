@@ -105,6 +105,97 @@ def delete_uploads_by_urls(urls: Iterable[str]) -> None:
         delete_upload_by_url(normalized)
 
 
+async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
+    """Delete Upload rows + filesystem blobs for documents about to be hard-purged.
+
+    Handles both shapes:
+    - ``document_type == "file"`` — Document and its sibling Upload row are
+      a 1:1 binding (the Upload was created at the same moment the Document
+      was created via POST /documents/upload). Always cleans up.
+    - ``document_type == "native"`` — embedded URLs in ``content`` JSONB and
+      ``featured_image_url`` may be shared across multiple documents. Runs
+      an orphan check; only removes Upload + blob when no OTHER non-purged
+      document still references the URL. Soft-deleted-but-not-purged
+      documents still pin uploads (the user might restore them).
+
+    Caller must use a session that can DELETE from ``uploads`` — typically
+    ``AdminSessionDep`` for the auto-purge worker, or an admin-role
+    ``RLSSessionDep`` for the manual "Delete Now" action. Caller commits.
+    """
+    from sqlalchemy import delete as sa_delete, or_, text
+    from sqlmodel import select
+
+    from app.db.soft_delete_filter import select_including_deleted
+    from app.models.document import Document, DocumentType
+    from app.models.upload import Upload
+
+    docs_list = list(documents)
+    if not docs_list:
+        return
+
+    doomed_ids = {d.id for d in docs_list}
+
+    # 1. File-type docs: 1:1 cleanup (no orphan check needed — the file
+    #    backs exactly one document by construction).
+    file_url_filenames: Set[str] = set()
+    file_urls_to_unlink: Set[str] = set()
+    for d in docs_list:
+        if d.document_type == DocumentType.file and d.file_url:
+            file_urls_to_unlink.add(d.file_url)
+            normalized = normalize_upload_url(d.file_url)
+            if normalized:
+                file_url_filenames.add(Path(normalized).name)
+
+    if file_url_filenames:
+        await session.exec(
+            sa_delete(Upload).where(Upload.filename.in_(file_url_filenames))
+        )
+
+    # 2. Native-doc embedded URLs: orphan-check before deletion.
+    embedded_urls: Set[str] = set()
+    for d in docs_list:
+        if d.document_type == DocumentType.native:
+            embedded_urls.update(extract_upload_urls(d.content))
+            if d.featured_image_url:
+                normalized = normalize_upload_url(d.featured_image_url)
+                if normalized:
+                    embedded_urls.add(normalized)
+
+    orphan_urls: Set[str] = set()
+    if embedded_urls:
+        for url in embedded_urls:
+            normalized = normalize_upload_url(url)
+            if not normalized:
+                continue
+            stmt = (
+                select_including_deleted(Document.id)
+                .where(
+                    or_(
+                        text(
+                            "documents.content::text LIKE :pattern"
+                        ).bindparams(pattern=f"%{normalized}%"),
+                        Document.featured_image_url == normalized,
+                    )
+                )
+                .where(~Document.id.in_(doomed_ids))
+                .limit(1)
+            )
+            result = await session.exec(stmt)
+            if result.one_or_none() is None:
+                orphan_urls.add(normalized)
+
+        if orphan_urls:
+            orphan_filenames = {Path(u).name for u in orphan_urls}
+            await session.exec(
+                sa_delete(Upload).where(Upload.filename.in_(orphan_filenames))
+            )
+
+    # 3. Filesystem blobs — best-effort, after the rows are deleted so the
+    #    invariant "Upload row exists ⇒ blob exists" holds in any
+    #    intermediate state.
+    delete_uploads_by_urls(file_urls_to_unlink | orphan_urls)
+
+
 def extract_upload_urls(payload: Any) -> Set[str]:
     urls: Set[str] = set()
 
