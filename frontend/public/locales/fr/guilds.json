@@ -81,7 +81,12 @@
     "deleteConfirmTitle": "Supprimer le groupe ?",
     "deleteConfirmDescription": "Supprimer <bold>{{name}}</bold> supprimera définitivement toutes les initiatives, projets, tâches et documents qu'il contient. Cette action est irréversible.",
     "deleteConfirmLabel": "Tapez <bold>{{name}}</bold> pour confirmer :",
-    "unableToDelete": "Impossible de supprimer le groupe."
+    "unableToDelete": "Impossible de supprimer le groupe.",
+    "retentionTitle": "Rétention de la corbeille",
+    "retentionDescription": "Combien de temps les éléments supprimés restent dans la corbeille avant d'être supprimés définitivement. Réglez sur \"Jamais\" pour les conserver jusqu'à ce qu'un administrateur les supprime manuellement.",
+    "retentionDaysLabel": "Jours",
+    "retentionNeverLabel": "Ne jamais purger automatiquement",
+    "retentionUpdatedSuccessfully": "Rétention mise à jour."
   },
   "users": {
     "adminRequired": "Vous avez besoin des permissions {{adminLabel}} pour voir cette page.",

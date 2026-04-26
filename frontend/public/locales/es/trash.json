@@ -1,0 +1,40 @@
+{
+  "title": "Papelera",
+  "description": "Los elementos aquí se eliminarán permanentemente después del período de retención del gremio. Puedes restaurarlos en cualquier momento antes de eso.",
+  "scopeGuild": "Todo en el gremio",
+  "scopeMine": "Solo lo mío",
+  "empty": "La papelera está vacía.",
+  "columnType": "Tipo",
+  "columnName": "Nombre",
+  "columnDeletedBy": "Eliminado por",
+  "columnDeletedAt": "Eliminado",
+  "columnPurgeAt": "Eliminación automática",
+  "columnActions": "Acciones",
+  "restoreButton": "Restaurar",
+  "deleteNowButton": "Eliminar ahora",
+  "neverPurges": "Nunca",
+  "deleteNowConfirmTitle": "¿Eliminar permanentemente?",
+  "deleteNowConfirmDescription": "Esto eliminará definitivamente el {{type}} y todo su contenido. Esta acción no se puede deshacer.",
+  "deleteNowConfirmAction": "Eliminar para siempre",
+  "restoreSuccess": "Restaurado.",
+  "restoreError": "No se pudo restaurar ese elemento.",
+  "purgeSuccess": "Eliminado permanentemente.",
+  "purgeError": "No se pudo eliminar permanentemente ese elemento.",
+  "reassignDialog": {
+    "title": "Elige un nuevo propietario",
+    "description": "El propietario original de este {{type}} ya no es miembro de la iniciativa. Elige a alguien para asumir la propiedad antes de restaurar.",
+    "ownerLabel": "Nuevo propietario",
+    "confirm": "Restaurar con nuevo propietario"
+  },
+  "entityType": {
+    "project": "Proyecto",
+    "task": "Tarea",
+    "document": "Documento",
+    "comment": "Comentario",
+    "initiative": "Iniciativa",
+    "tag": "Etiqueta",
+    "queue": "Cola",
+    "queue_item": "Elemento de cola",
+    "calendar_event": "Evento de calendario"
+  }
+}

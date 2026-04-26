@@ -9,6 +9,7 @@
       "ai": "AI",
       "import": "Import",
       "security": "Security",
+      "trash": "Trash",
       "danger": "Danger Zone"
     },
     "loginRequired": "You need to be logged in to manage your profile.",
@@ -21,7 +22,8 @@
     "tabs": {
       "guild": "Guild",
       "ai": "AI",
-      "users": "Users"
+      "users": "Users",
+      "trash": "Trash"
     }
   },
   "adminLayout": {

@@ -9,6 +9,7 @@
       "ai": "IA",
       "import": "Importar",
       "security": "Seguridad",
+      "trash": "Papelera",
       "danger": "Zona de peligro"
     },
     "loginRequired": "Necesitas iniciar sesión para administrar tu perfil.",
@@ -21,7 +22,8 @@
     "tabs": {
       "guild": "Gremio",
       "ai": "IA",
-      "users": "Usuarios"
+      "users": "Usuarios",
+      "trash": "Papelera"
     }
   },
   "adminLayout": {

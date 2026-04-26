@@ -263,32 +263,54 @@ async def restore_entity(
     return RestoreResult(needs_reassignment=False)
 
 
+async def _gather_descendants(
+    session: AsyncSession,
+    parent: SoftDeleteMixin,
+) -> list[SoftDeleteMixin]:
+    """Walk CASCADE_CHILDREN in pre-order and return every descendant of
+    ``parent`` (active OR soft-deleted) in dependency order — children
+    before grandchildren. Used by ``hard_purge_entity`` to issue explicit
+    deletes since most FKs in this codebase use ORM cascade (which doesn't
+    fire unless the rows are loaded) rather than DB-level ON DELETE CASCADE.
+    """
+    out: list[SoftDeleteMixin] = []
+    for child_model, fk_col in CASCADE_CHILDREN.get(type(parent), []):
+        fk = getattr(child_model, fk_col)
+        stmt = select_including_deleted(child_model).where(fk == parent.id)
+        result = await session.exec(stmt)
+        for child in result.all():
+            out.append(child)
+            out.extend(await _gather_descendants(session, child))
+    return out
+
+
 async def hard_purge_entity(
     admin_session: AsyncSession,
     entity: SoftDeleteMixin,
 ) -> None:
-    """Hard-delete the entity. Caller must use AdminSessionDep (BYPASSRLS)
-    because the in-app ``app_user`` role's RESTRICTIVE DELETE policy denies
-    DELETEs except for guild-admin sessions.
+    """Hard-delete the entity and every descendant. Caller must use
+    AdminSessionDep (BYPASSRLS) because the in-app ``app_user`` role's
+    RESTRICTIVE DELETE policy denies DELETEs except for guild-admin sessions.
 
-    For Documents (and Initiative cascades that include Documents), upload
-    cleanup runs first so blobs on disk and ``Upload`` rows pinned only by
-    the doomed documents are also removed. The remaining FK CASCADEs at
-    the DB layer take care of children (tasks/comments/permissions/etc).
+    Descendants are walked via the same CASCADE_CHILDREN registry the
+    soft-delete path uses, then deleted in reverse (grandchildren first)
+    so DB-level FK constraints don't fire. For Documents anywhere in the
+    descendant set, upload cleanup runs before the DELETEs so blobs on
+    disk and ``Upload`` rows pinned only by the doomed documents are also
+    removed.
 
     Caller commits.
     """
     from app.services.attachments import purge_document_uploads
 
-    doomed_documents: list[Document] = []
-    if isinstance(entity, Document):
-        doomed_documents.append(entity)
-    elif isinstance(entity, Initiative):
-        stmt = select_including_deleted(Document).where(Document.initiative_id == entity.id)
-        result = await admin_session.exec(stmt)
-        doomed_documents.extend(result.all())
+    descendants = await _gather_descendants(admin_session, entity)
+    all_doomed: list[SoftDeleteMixin] = [entity, *descendants]
 
+    doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:
         await purge_document_uploads(admin_session, doomed_documents)
 
-    await admin_session.delete(entity)
+    # Reverse so we delete leaves before parents — needed because most FKs
+    # in this codebase don't use DB-level ON DELETE CASCADE.
+    for row in reversed(all_doomed):
+        await admin_session.delete(row)

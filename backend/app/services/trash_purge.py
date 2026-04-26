@@ -20,8 +20,6 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
-from sqlalchemy import delete as sa_delete
-
 from app.db.session import AdminSessionLocal
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.calendar_event import CalendarEvent
@@ -32,7 +30,7 @@ from app.models.project import Project
 from app.models.queue import Queue, QueueItem
 from app.models.tag import Tag
 from app.models.task import Task
-from app.services.attachments import purge_document_uploads
+from app.services.soft_delete import hard_purge_entity
 
 
 logger = logging.getLogger(__name__)
@@ -41,14 +39,18 @@ logger = logging.getLogger(__name__)
 PURGE_POLL_SECONDS = 3600
 
 
-# Tables we can bulk-delete without per-row cleanup. Order matters only for
-# log readability; FK cascades handle child rows automatically.
-_BULK_PURGE_MODELS = (
-    Comment,
-    Task,
+# Top-of-cascade models, in dependency order. We iterate top-down so an
+# Initiative whose retention has elapsed takes its Project / Document /
+# Queue / CalendarEvent descendants with it via hard_purge_entity, leaving
+# the per-entity passes empty for those rows.
+_PURGE_TOP_DOWN = (
+    Initiative,
     Project,
+    Document,
+    Task,
     Queue,
     QueueItem,
+    Comment,
     Tag,
     CalendarEvent,
 )
@@ -56,67 +58,31 @@ _BULK_PURGE_MODELS = (
 
 async def process_trash_purges() -> None:
     """One pass of the auto-purge loop. Idempotent and safe to run on a
-    schedule even when nothing is due."""
+    schedule even when nothing is due.
+
+    Uses ``hard_purge_entity`` per row so that:
+    1. ``Document`` upload cleanup (blobs + Upload rows) runs before each
+       Document is deleted.
+    2. ORM-level cascades fire correctly — most FKs in this codebase are
+       not declared with DB-level ``ON DELETE CASCADE``, so a bulk
+       ``DELETE FROM <table> WHERE purge_at < now()`` would fail on FK
+       constraints. ``hard_purge_entity`` walks descendants explicitly.
+    """
     now = datetime.now(timezone.utc)
 
     async with AdminSessionLocal() as session:
-        # 1. Documents (and Initiatives that cascade to Documents) need
-        #    per-row upload cleanup before we DELETE them.
-        await _purge_documents_with_uploads(session, now=now)
-        await _purge_initiatives_with_descendant_uploads(session, now=now)
-
-        # 2. Bulk DELETE the remaining tables. Their descendants (subtasks,
-        #    permissions, junction rows) fall via FK CASCADE.
-        for model in _BULK_PURGE_MODELS:
-            stmt = sa_delete(model).where(
-                model.purge_at.is_not(None),
-                model.purge_at < now,
+        for model in _PURGE_TOP_DOWN:
+            stmt = (
+                select_including_deleted(model)
+                .where(model.purge_at.is_not(None))
+                .where(model.purge_at < now)
             )
-            await session.exec(stmt)
-
+            result = await session.exec(stmt)
+            rows = list(result.all())
+            for row in rows:
+                # Skip if a parent purge in an earlier iteration of this
+                # loop has already swept this row out from under us.
+                if row not in session:
+                    continue
+                await hard_purge_entity(session, row)
         await session.commit()
-
-
-async def _purge_documents_with_uploads(session, *, now: datetime) -> None:
-    """Hard-purge Documents whose retention window has elapsed, running
-    upload cleanup first. Documents that were cascaded under an Initiative
-    are handled by ``_purge_initiatives_with_descendant_uploads`` to keep
-    the Document row alive while we extract URL references."""
-    stmt = (
-        select_including_deleted(Document)
-        .where(Document.purge_at.is_not(None))
-        .where(Document.purge_at < now)
-    )
-    result = await session.exec(stmt)
-    docs = list(result.all())
-    if not docs:
-        return
-    await purge_document_uploads(session, docs)
-    for d in docs:
-        await session.delete(d)
-
-
-async def _purge_initiatives_with_descendant_uploads(session, *, now: datetime) -> None:
-    """Hard-purge Initiatives whose retention window has elapsed. Before
-    deleting the Initiative, run upload cleanup for every Document scoped
-    to it (the FK CASCADE would otherwise drop the Documents without
-    cleaning up their blobs)."""
-    stmt = (
-        select_including_deleted(Initiative)
-        .where(Initiative.purge_at.is_not(None))
-        .where(Initiative.purge_at < now)
-    )
-    result = await session.exec(stmt)
-    initiatives = list(result.all())
-    if not initiatives:
-        return
-    for initiative in initiatives:
-        doc_stmt = (
-            select_including_deleted(Document)
-            .where(Document.initiative_id == initiative.id)
-        )
-        doc_result = await session.exec(doc_stmt)
-        docs = list(doc_result.all())
-        if docs:
-            await purge_document_uploads(session, docs)
-        await session.delete(initiative)

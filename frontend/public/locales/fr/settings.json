@@ -9,6 +9,7 @@
       "ai": "IA",
       "import": "Importer",
       "security": "Sécurité",
+      "trash": "Corbeille",
       "danger": "Zone de danger"
     },
     "loginRequired": "Vous devez être connecté pour gérer votre profil.",
@@ -21,7 +22,8 @@
     "tabs": {
       "guild": "Groupe",
       "ai": "IA",
-      "users": "Utilisateurs"
+      "users": "Utilisateurs",
+      "trash": "Corbeille"
     }
   },
   "adminLayout": {

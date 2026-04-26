@@ -1056,6 +1056,7 @@ export interface GuildRead {
   position: number;
   created_at: string;
   updated_at: string;
+  retention_days: number | null;
 }
 
 export interface GuildSummary {
@@ -1080,6 +1081,7 @@ export interface GuildUpdate {
   name?: string | null;
   description?: string | null;
   icon_base64?: string | null;
+  retention_days?: number | null;
 }
 
 export interface ValidationError {
@@ -1932,6 +1934,10 @@ export interface ResolvedAISettingsResponse {
   source: string;
 }
 
+export interface RestoreRequest {
+  new_owner_id?: number | null;
+}
+
 export interface RoleLabelsResponse {
   admin: string;
   project_manager: string;
@@ -2511,6 +2517,36 @@ export interface TodoistParseResult {
 export interface Token {
   access_token: string;
   token_type?: string;
+}
+
+export type TrashItemEntityType = (typeof TrashItemEntityType)[keyof typeof TrashItemEntityType];
+
+export const TrashItemEntityType = {
+  project: "project",
+  task: "task",
+  document: "document",
+  comment: "comment",
+  initiative: "initiative",
+  tag: "tag",
+  queue: "queue",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+} as const;
+
+export interface TrashItem {
+  entity_type: TrashItemEntityType;
+  entity_id: number;
+  name: string;
+  deleted_at: string;
+  deleted_by_id: number | null;
+  deleted_by_display: string;
+  purge_at: string | null;
+}
+
+export interface TrashListResponse {
+  items: TrashItem[];
+  total: number;
+  retention_days: number | null;
 }
 
 export interface UserAISettingsResponse {
@@ -3182,3 +3218,15 @@ export type ListAutomationRunsApiV1AutomationsFlowIdRunsGetParams = {
    */
   page_size?: number;
 };
+
+export type ListTrashApiV1TrashGetParams = {
+  scope?: ListTrashApiV1TrashGetScope;
+};
+
+export type ListTrashApiV1TrashGetScope =
+  (typeof ListTrashApiV1TrashGetScope)[keyof typeof ListTrashApiV1TrashGetScope];
+
+export const ListTrashApiV1TrashGetScope = {
+  mine: "mine",
+  guild: "guild",
+} as const;

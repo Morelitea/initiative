@@ -18,10 +18,10 @@ deterministic and survives import-order shuffles in tests.
 
 from typing import Any, Sequence
 
-from sqlalchemy import event, select as sa_select
+from sqlalchemy import event
 from sqlalchemy.orm import Session, with_loader_criteria
 from sqlalchemy.orm.session import ORMExecuteState
-from sqlmodel import SQLModel
+from sqlmodel import SQLModel, select as sqlmodel_select
 
 from app.models.calendar_event import CalendarEvent
 from app.models.comment import Comment
@@ -80,4 +80,4 @@ def select_including_deleted(*entities: Any):
         stmt = select_including_deleted(Project).where(Project.deleted_at.isnot(None))
         result = await session.exec(stmt)
     """
-    return sa_select(*entities).execution_options(include_deleted=True)
+    return sqlmodel_select(*entities).execution_options(include_deleted=True)

@@ -208,5 +208,10 @@
   "QUERY_INVALID_CONDITIONS": "Conditions de filtre invalides",
   "QUERY_INVALID_SORT_FIELDS": "Champs de tri invalides",
   "RATE_LIMITED": "Trop de requêtes. Veuillez patienter un moment et réessayer.",
+  "TRASH_ITEM_NOT_FOUND": "Cet élément de la corbeille n'est plus disponible.",
+  "TRASH_NEEDS_REASSIGNMENT": "Choisissez un nouveau propriétaire avant de restaurer.",
+  "TRASH_INVALID_OWNER": "Cet utilisateur ne peut pas prendre la propriété.",
+  "TRASH_PURGE_REQUIRES_ADMIN": "Seuls les administrateurs de la guilde peuvent supprimer définitivement.",
+  "TRASH_UNKNOWN_ENTITY_TYPE": "Type d'élément de la corbeille inconnu.",
   "fallback": "Une erreur s'est produite. Veuillez réessayer."
 }
