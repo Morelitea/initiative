@@ -105,6 +105,17 @@ def upgrade() -> None:
         ),
     )
 
+    # 3. Backfill: every guild needs a guild_settings row so the trash
+    # retention setting is unambiguous. If the row is missing the LEFT JOIN
+    # in list_memberships would return retention_days=NULL — indistinguishable
+    # from "user explicitly chose never auto-purge". After this insert,
+    # NULL means "never" and a positive integer means "auto-purge after N days".
+    conn.execute(text(
+        "INSERT INTO guild_settings (guild_id, retention_days, created_at, updated_at) "
+        "SELECT g.id, 90, now(), now() FROM guilds g "
+        "WHERE NOT EXISTS (SELECT 1 FROM guild_settings gs WHERE gs.guild_id = g.id)"
+    ))
+
 
 def downgrade() -> None:
     conn = op.get_bind()

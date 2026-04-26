@@ -87,8 +87,8 @@ async def _set_guild_admin_rls(
 async def list_guilds(session: UserSessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> List[GuildRead]:
     memberships = await guilds_service.list_memberships(session, user_id=current_user.id)
     payloads: List[GuildRead] = []
-    for guild, membership in memberships:
-        payloads.append(_serialize_guild(guild, membership))
+    for guild, membership, retention_days in memberships:
+        payloads.append(_serialize_guild(guild, membership, retention_days=retention_days))
     return payloads
 
 

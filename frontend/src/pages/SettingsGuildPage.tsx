@@ -22,7 +22,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
 export const SettingsGuildPage = () => {
@@ -38,10 +37,6 @@ export const SettingsGuildPage = () => {
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const [retentionDays, setRetentionDays] = useState<number | null>(90);
-  const [retentionEnabled, setRetentionEnabled] = useState<boolean>(true);
-  const [retentionSaving, setRetentionSaving] = useState(false);
-  const [retentionMessage, setRetentionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeGuild) {
@@ -53,10 +48,6 @@ export const SettingsGuildPage = () => {
     setName(activeGuild.name);
     setDescription(activeGuild.description ?? "");
     setIconBase64(activeGuild.icon_base64 ?? null);
-    if (activeGuild.retention_days !== undefined) {
-      setRetentionDays(activeGuild.retention_days);
-      setRetentionEnabled(activeGuild.retention_days !== null);
-    }
   }, [activeGuild]);
 
   const handleIconInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -113,27 +104,6 @@ export const SettingsGuildPage = () => {
       setSaveError(getErrorMessage(err, "guilds:settings.unableToUpdate"));
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleSaveRetention = async () => {
-    if (!activeGuild) return;
-    setRetentionSaving(true);
-    setRetentionMessage(null);
-    setSaveError(null);
-    try {
-      const result = await (updateGuildApiV1GuildsGuildIdPatch(activeGuild.id, {
-        retention_days: retentionEnabled ? (retentionDays ?? 90) : null,
-      } as Parameters<
-        typeof updateGuildApiV1GuildsGuildIdPatch
-      >[1]) as unknown as Promise<GuildRead>);
-      updateGuildInState(result);
-      setRetentionMessage(t("settings.retentionUpdatedSuccessfully"));
-    } catch (err) {
-      console.error(err);
-      setSaveError(getErrorMessage(err, "guilds:settings.unableToUpdate"));
-    } finally {
-      setRetentionSaving(false);
     }
   };
 
@@ -231,41 +201,6 @@ export const SettingsGuildPage = () => {
               {saving ? t("settings.saving") : t("settings.saveChanges")}
             </Button>
           </form>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("settings.retentionTitle")}</CardTitle>
-          <CardDescription>{t("settings.retentionDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <Switch
-                id="retention-enabled"
-                checked={!retentionEnabled}
-                onCheckedChange={(checked) => setRetentionEnabled(!checked)}
-              />
-              <Label htmlFor="retention-enabled">{t("settings.retentionNeverLabel")}</Label>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="retention-days">{t("settings.retentionDaysLabel")}</Label>
-              <Input
-                id="retention-days"
-                type="number"
-                min={1}
-                max={3650}
-                value={retentionDays ?? 90}
-                disabled={!retentionEnabled}
-                onChange={(event) => setRetentionDays(Number(event.target.value) || 1)}
-                className="max-w-40"
-              />
-            </div>
-            {retentionMessage ? <p className="text-primary text-sm">{retentionMessage}</p> : null}
-            <Button onClick={handleSaveRetention} disabled={retentionSaving}>
-              {retentionSaving ? t("settings.saving") : t("settings.saveChanges")}
-            </Button>
-          </div>
         </CardContent>
       </Card>
       <Card className="border-destructive/40 bg-destructive/5">

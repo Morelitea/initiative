@@ -217,7 +217,7 @@ async def test_list_memberships(session: AsyncSession):
     memberships = await guild_service.list_memberships(session, user_id=user.id)
 
     assert len(memberships) == 2
-    guild_names = {guild.name for guild, _membership in memberships}
+    guild_names = {guild.name for guild, _membership, _retention in memberships}
     assert "Guild 1" in guild_names
     assert "Guild 2" in guild_names
 
@@ -244,7 +244,7 @@ async def test_reorder_memberships(session: AsyncSession):
 
     # Verify order
     memberships = await guild_service.list_memberships(session, user_id=user.id)
-    ordered_ids = [guild.id for guild, _membership in memberships]
+    ordered_ids = [guild.id for guild, _membership, _retention in memberships]
 
     assert ordered_ids == [guild3.id, guild1.id, guild2.id]
 

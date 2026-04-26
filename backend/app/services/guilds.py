@@ -188,10 +188,15 @@ async def list_memberships(
     session: AsyncSession,
     *,
     user_id: int,
-) -> list[tuple[Guild, GuildMembership]]:
+) -> list[tuple[Guild, GuildMembership, int | None]]:
+    """Return (guild, membership, retention_days) for each guild the user
+    belongs to. The LEFT JOIN to guild_settings keeps this a single query
+    so the guild list (rendered in the sidebar + every Settings page) doesn't
+    fan out into N+1 lookups."""
     stmt = (
-        select(Guild, GuildMembership)
+        select(Guild, GuildMembership, GuildSetting.retention_days)
         .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+        .join(GuildSetting, GuildSetting.guild_id == Guild.id, isouter=True)
         .where(GuildMembership.user_id == user_id)
         .order_by(
             GuildMembership.position.asc(),
@@ -221,6 +226,11 @@ async def create_guild(
         updated_at=now,
     )
     session.add(guild)
+    await session.flush()
+    # Always seed a guild_settings row so list_memberships's LEFT JOIN
+    # never returns retention_days=NULL ambiguously (NULL must mean "user
+    # explicitly chose never auto-purge", not "row missing").
+    session.add(GuildSetting(guild_id=guild.id, retention_days=90))
     await session.flush()
     if creator:
         await ensure_membership(
