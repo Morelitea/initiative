@@ -13,7 +13,6 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.core.config import settings as app_config
 from app.core.messages import AuthMessages, InitiativeMessages
 from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
@@ -454,8 +453,6 @@ async def get_my_initiative_permissions(
     """Get the current user's permissions for an initiative."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
-    automations_effective = initiative.automations_enabled and app_config.ENABLE_AUTOMATIONS
-
     # Guild admins have all permissions
     if rls_service.is_guild_admin(guild_context.role):
         return MyInitiativePermissions(
@@ -469,8 +466,6 @@ async def get_my_initiative_permissions(
                 "create_queues": initiative.queues_enabled,
                 "events_enabled": initiative.events_enabled,
                 "create_events": initiative.events_enabled,
-                "automations_enabled": automations_effective,
-                "create_automations": automations_effective,
             },
         )
 
@@ -500,11 +495,6 @@ async def get_my_initiative_permissions(
     if not initiative.events_enabled:
         permissions[PermissionKey.events_enabled] = False
         permissions[PermissionKey.create_events] = False
-
-    # Initiative-level + infra-level master switch for automations
-    if not automations_effective:
-        permissions[PermissionKey.automations_enabled] = False
-        permissions[PermissionKey.create_automations] = False
 
     return MyInitiativePermissions(
         role_id=role.id,

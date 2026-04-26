@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Automation engine.** Flow definitions, run history, and the in-app workflow editor have all been removed from this repo. The capability moves to a sibling `inititative_infra` service that consumes domain events from a Kinesis stream. Self-hosted users on the OSS image lose the in-app automation builder, which only ever shipped as a paid/infra preview. Anyone running the `-infra` variant will continue to see automation UI once their `inititative_infra` service is wired up; until then, the automation menu is hidden.
+- **Redis dependency.** Removed entirely. Initiative now has Postgres as its only runtime dependency. The Redis Streams event bus that previously fed the in-process automation engine is gone; events go to Kinesis instead (when `ENABLE_EVENT_PUBLISHING=true`).
+
+### Changed
+
+- **Infra image build now uses a separate `requirements-infra.txt`** so the OSS image stays slimmer (no `aioboto3`). The infra build arg is `INSTALL_INFRA_EXTRAS=true`; the existing `VITE_ENABLE_AUTOMATIONS=true` arg is still accepted as a backward-compat alias and will be removed once the workflow is updated.
+
 ### Added
 
 - Export users as CSV from **Settings → Users** (guild admins) and **Settings → Admin → Users** (platform admins). Each row gets an **Export** button, and the card header has **Export all as CSV**. Exports include ID, email, full name, role, status, and initiative roles — enough for HR or compliance teams to keep an offline record before an account is removed.

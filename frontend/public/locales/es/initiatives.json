@@ -142,8 +142,7 @@
       "documents": "Documentos",
       "projects": "Proyectos",
       "queues": "Colas",
-      "events": "Eventos",
-      "automations": "Automatizaciones"
+      "events": "Eventos"
     },
     "permissions": {
       "viewDocuments": "Ver documentos",
@@ -153,9 +152,7 @@
       "viewQueues": "Ver colas",
       "createQueues": "Crear colas",
       "viewEvents": "Ver eventos",
-      "createEvents": "Crear eventos",
-      "viewAutomations": "Ver automatizaciones",
-      "createAutomations": "Crear automatizaciones"
+      "createEvents": "Crear eventos"
     }
   },
   "advancedTools": "Herramientas avanzadas",
@@ -163,11 +160,5 @@
   "queuesFeature": "Colas",
   "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue.",
   "eventsFeature": "Calendario",
-  "eventsFeatureDescription": "Programa y gestiona eventos de calendario con asistentes y seguimiento de RSVP.",
-  "automationsFeature": "Automatizaciones",
-  "automationsFeatureDescription": "Crea flujos de trabajo automatizados y ejecuta acciones basadas en eventos.",
-  "automationsScoped": "Mostrando automatizaciones para esta iniciativa.",
-  "automationsComingSoon": "Pipeline de automatización",
-  "automationsComingSoonDescription": "Automatiza flujos de trabajo e integra con pipelines externos.",
-  "automationsPlaceholder": "La integración del pipeline de automatización se está configurando. Una vez configurado, podrás crear flujos de trabajo automatizados que ejecuten acciones basadas en eventos de tu iniciativa."
+  "eventsFeatureDescription": "Programa y gestiona eventos de calendario con asistentes y seguimiento de RSVP."
 }
