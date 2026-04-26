@@ -291,6 +291,8 @@ async def test_platform_role_change_rejected_on_inactive_users(
     # 3. Anonymized user — both directions rejected.
     anon = await create_user(session, email="anon-target@example.com")
     await users_service.soft_delete_user(session, anon.id)
+
+    # 3a. Promote attempt (member → admin).
     response = await client.patch(
         f"/api/v1/admin/users/{anon.id}/platform-role",
         headers=headers,
@@ -302,6 +304,25 @@ async def test_platform_role_change_rejected_on_inactive_users(
         await session.exec(select(User).where(User.id == anon.id))
     ).one()
     assert refreshed.role == UserRole.member
+
+    # 3b. Demote attempt (admin → member). soft_delete_user already
+    # demoted the row to member, so flip role back to admin directly
+    # in the DB (bypassing the endpoint, which would refuse) to set up
+    # the demote scenario.
+    refreshed.role = UserRole.admin
+    session.add(refreshed)
+    await session.commit()
+    response = await client.patch(
+        f"/api/v1/admin/users/{anon.id}/platform-role",
+        headers=headers,
+        json={"role": "member"},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
+    refreshed = (
+        await session.exec(select(User).where(User.id == anon.id))
+    ).one()
+    assert refreshed.role == UserRole.admin
 
 
 @pytest.mark.integration
