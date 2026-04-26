@@ -622,7 +622,7 @@
     "deleteGuildSuccess": "Guild deleted",
     "deleteGuildError": "Unable to delete guild",
     "deleteInitiative": "Delete initiative",
-    "deleteInitiativeConfirm": "Delete initiative \"{{initiativeName}}\"? Its projects, tasks, documents, and memberships will be permanently removed.",
+    "deleteInitiativeConfirm": "Delete initiative \"{{initiativeName}}\"? It and all its projects, tasks, documents, queues, and events will be sent to the trash. You can restore the whole tree from Settings → Trash before the retention period ends.",
     "deleteInitiativeSuccess": "Initiative deleted",
     "deleteInitiativeError": "Unable to delete initiative",
     "transferTitle": "Transfer owned projects",

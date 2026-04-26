@@ -109,7 +109,7 @@
     "deleted": "Initiative deleted.",
     "deleteError": "Unable to delete initiative right now.",
     "deleteConfirmTitle": "Delete initiative?",
-    "deleteConfirmDescription": "Deleting <bold>{{name}}</bold> will permanently remove all projects, tasks, and documents within it. This cannot be undone.",
+    "deleteConfirmDescription": "<bold>{{name}}</bold> and everything inside it (projects, tasks, documents, queues, events) will be sent to the trash. You can restore the whole tree from Settings → Trash before the retention period ends.",
     "deleteConfirmLabel": "Type <bold>{{name}}</bold> to confirm:",
     "createRoleTitle": "Create custom role",
     "createRoleDescription": "Add a new role with custom permissions for this initiative.",

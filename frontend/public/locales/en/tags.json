@@ -8,7 +8,7 @@
     "edit": "Edit",
     "delete": "Delete",
     "deleteTitle": "Delete tag?",
-    "deleteDescription": "This will remove the tag \"{{name}}\" from all tasks, projects, and documents. This action cannot be undone.",
+    "deleteDescription": "The tag \"{{name}}\" will be sent to the trash and hidden from all tasks, projects, and documents that use it. You can restore it from Settings → Trash before the retention period ends.",
     "deleted": "Tag deleted",
     "saving": "Saving\u2026",
     "save": "Save",

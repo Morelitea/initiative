@@ -98,7 +98,7 @@
     "deleting": "Deleting\u2026",
     "deleteTask": "Delete task",
     "deleteTitle": "Delete task?",
-    "deleteDescription": "This will permanently delete the task and all of its subtasks. This cannot be undone.",
+    "deleteDescription": "The task and its subtasks will be sent to the trash. You can restore it from Settings → Trash before the retention period ends.",
     "taskUpdated": "Task updated",
     "taskDuplicated": "Task duplicated",
     "taskDeleted": "Task deleted",
