@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.models._mixins import SoftDeleteMixin
 from app.models.user import User

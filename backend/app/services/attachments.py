@@ -123,7 +123,6 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
     ``RLSSessionDep`` for the manual "Delete Now" action. Caller commits.
     """
     from sqlalchemy import delete as sa_delete, or_, text
-    from sqlmodel import select
 
     from app.db.soft_delete_filter import select_including_deleted
     from app.models.document import Document, DocumentType

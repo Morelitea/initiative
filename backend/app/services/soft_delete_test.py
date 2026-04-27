@@ -10,13 +10,11 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.soft_delete_filter import select_including_deleted
-from app.models.comment import Comment
 from app.models.document import Document, DocumentType
 from app.models.project import Project
 from app.models.task import Task
 from app.models.upload import Upload
 from app.services.soft_delete import (
-    hard_purge_entity,
     restore_entity,
     soft_delete_entity,
 )
