@@ -15,7 +15,10 @@ export const RetentionSettingCard = () => {
   const { activeGuild, updateGuildInState } = useGuilds();
   const { t } = useTranslation(["guilds", "common"]);
   const [retentionDays, setRetentionDays] = useState<number>(90);
-  const [retentionEnabled, setRetentionEnabled] = useState<boolean>(true);
+  // Named for the switch's "Never auto-purge" label so checked={neverPurge}
+  // reads directly. true = retention disabled (PATCH sends null); false =
+  // auto-purge after retentionDays days.
+  const [neverPurge, setNeverPurge] = useState<boolean>(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -28,10 +31,10 @@ export const RetentionSettingCard = () => {
     // rows aren't a possibility here.
     if (typeof activeGuild.retention_days === "number" && activeGuild.retention_days > 0) {
       setRetentionDays(activeGuild.retention_days);
-      setRetentionEnabled(true);
+      setNeverPurge(false);
     } else if (activeGuild.retention_days === null) {
       setRetentionDays(90);
-      setRetentionEnabled(false);
+      setNeverPurge(true);
     }
   }, [activeGuild]);
 
@@ -42,7 +45,7 @@ export const RetentionSettingCard = () => {
     setError(null);
     try {
       const result = await (updateGuildApiV1GuildsGuildIdPatch(activeGuild.id, {
-        retention_days: retentionEnabled ? retentionDays : null,
+        retention_days: neverPurge ? null : retentionDays,
       } as Parameters<
         typeof updateGuildApiV1GuildsGuildIdPatch
       >[1]) as unknown as Promise<GuildRead>);
@@ -68,11 +71,11 @@ export const RetentionSettingCard = () => {
         <div className="space-y-4">
           <div className="flex items-center gap-3">
             <Switch
-              id="retention-enabled"
-              checked={!retentionEnabled}
-              onCheckedChange={(checked) => setRetentionEnabled(!checked)}
+              id="retention-never-purge"
+              checked={neverPurge}
+              onCheckedChange={setNeverPurge}
             />
-            <Label htmlFor="retention-enabled">{t("settings.retentionNeverLabel")}</Label>
+            <Label htmlFor="retention-never-purge">{t("settings.retentionNeverLabel")}</Label>
           </div>
           <div className="space-y-2">
             <Label htmlFor="retention-days">{t("settings.retentionDaysLabel")}</Label>
@@ -82,7 +85,7 @@ export const RetentionSettingCard = () => {
               min={1}
               max={3650}
               value={retentionDays}
-              disabled={!retentionEnabled}
+              disabled={neverPurge}
               onChange={(event) => setRetentionDays(Number(event.target.value) || 1)}
               className="max-w-40"
             />
