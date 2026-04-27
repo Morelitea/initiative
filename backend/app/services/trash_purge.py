@@ -20,6 +20,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from sqlalchemy import inspect as sa_inspect
+
 from app.db.session import AdminSessionLocal
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.calendar_event import CalendarEvent
@@ -56,6 +58,30 @@ _PURGE_TOP_DOWN = (
 )
 
 
+async def _run_purge_pass(session, *, now: datetime) -> None:
+    """Inner loop: walks _PURGE_TOP_DOWN once on the supplied session.
+    Caller commits. Factored out so tests can drive it with their own
+    session against the test DB."""
+    for model in _PURGE_TOP_DOWN:
+        stmt = (
+            select_including_deleted(model)
+            .where(model.purge_at.is_not(None))
+            .where(model.purge_at < now)
+        )
+        result = await session.exec(stmt)
+        rows = list(result.all())
+        for row in rows:
+            # Skip if a parent purge in an earlier iteration of this
+            # loop has already queued this row for deletion. Membership
+            # in `session` would still be True here — the identity map
+            # holds deleted-but-unflushed objects until commit. The
+            # "deleted" persistence state via sa_inspect is the right
+            # check.
+            if sa_inspect(row).deleted:
+                continue
+            await hard_purge_entity(session, row)
+
+
 async def process_trash_purges() -> None:
     """One pass of the auto-purge loop. Idempotent and safe to run on a
     schedule even when nothing is due.
@@ -69,20 +95,6 @@ async def process_trash_purges() -> None:
        constraints. ``hard_purge_entity`` walks descendants explicitly.
     """
     now = datetime.now(timezone.utc)
-
     async with AdminSessionLocal() as session:
-        for model in _PURGE_TOP_DOWN:
-            stmt = (
-                select_including_deleted(model)
-                .where(model.purge_at.is_not(None))
-                .where(model.purge_at < now)
-            )
-            result = await session.exec(stmt)
-            rows = list(result.all())
-            for row in rows:
-                # Skip if a parent purge in an earlier iteration of this
-                # loop has already swept this row out from under us.
-                if row not in session:
-                    continue
-                await hard_purge_entity(session, row)
+        await _run_purge_pass(session, now=now)
         await session.commit()
