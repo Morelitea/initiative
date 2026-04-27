@@ -207,7 +207,7 @@ export const ChesterMimic = ({ mood = "idle", size = 80 }: ChesterMimicProps) =>
         width={size}
         height={size}
         aria-hidden="true"
-        style={{ imageRendering: "pixelated" }}
+        shapeRendering="geometricPrecision"
       >
         {/* === CHEST BODY === */}
         <rect x="3" y="16" width="26" height="12" fill={wood} />

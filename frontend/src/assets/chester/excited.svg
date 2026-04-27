@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges" style="image-rendering: pixelated">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="geometricPrecision">
   <style>
     .body { animation: bounce-fast 0.6s ease-in-out infinite; transform-origin: 16px 16px; }
     .eye { animation: blink 4s ease-in-out infinite; }
