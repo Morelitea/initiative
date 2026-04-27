@@ -10,8 +10,8 @@ worker is unaffected.
 Also adds ``retention_days`` to ``guild_settings`` (default 90, NULL means
 "never auto-purge").
 
-Revision ID: 20260426_0077
-Revises: 20260424_0076
+Revision ID: 20260426_0078
+Revises: 20260426_0077
 Create Date: 2026-04-26
 """
 
@@ -20,8 +20,8 @@ from alembic import op
 from sqlalchemy import text
 
 
-revision = "20260426_0077"
-down_revision = "20260424_0076"
+revision = "20260426_0078"
+down_revision = "20260426_0077"
 branch_labels = None
 depends_on = None
 
