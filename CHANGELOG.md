@@ -7,15 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Removed
-
-- **Automation engine.** Flow definitions, run history, and the in-app workflow editor have all been removed from this repo. The capability moves to a sibling `inititative_infra` service that consumes domain events from a Kinesis stream. Self-hosted users on the OSS image lose the in-app automation builder, which only ever shipped as a paid/infra preview. Anyone running the `-infra` variant will continue to see automation UI once their `inititative_infra` service is wired up; until then, the automation menu is hidden.
-- **Redis dependency.** Removed entirely. Initiative now has Postgres as its only runtime dependency. The Redis Streams event bus that previously fed the in-process automation engine is gone; events go to Kinesis instead (when `ENABLE_EVENT_PUBLISHING=true`).
-
-### Changed
-
-- **Infra image build now uses a separate `requirements-infra.txt`** so the OSS image stays slimmer (no `aioboto3`). The infra build arg is `INSTALL_INFRA_EXTRAS=true`; the existing `VITE_ENABLE_AUTOMATIONS=true` arg is still accepted as a backward-compat alias and will be removed once the workflow is updated.
-
 ### Added
 
 - **Trash and Restore.** Deleting a project, task, document, comment, initiative, tag, queue, queue item, or calendar event now sends it to a trash can instead of permanently destroying it. Items stay there for the guild's retention period (default 90 days; admins can change it under **Settings → Guild → Trash retention** or set "Never" to keep things forever).
@@ -45,11 +36,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Anonymized users are filtered out of "add member" and @-mention pickers, so you can't accidentally assign or mention someone whose account no longer exists.
 
+- **Infra image build now uses a separate `requirements-infra.txt`** so the OSS image stays slimmer (no `aioboto3`). The infra build arg is `INSTALL_INFRA_EXTRAS=true`; the existing `VITE_ENABLE_AUTOMATIONS=true` arg is still accepted as a backward-compat alias and will be removed once the workflow is updated.
+
 ### Fixed
 
 - Documents owned by a departing user no longer become orphaned when the user leaves the initiative — whether they leave the guild, deactivate or delete their own account, get removed by an admin, or get unassigned via OIDC sync. The initiative's project managers automatically inherit ownership of those documents, so anyone who needs to find or clean up old work after a team move still can.
 
 - Custom properties UI is now translated to Spanish and French. Previously, users on those locales saw English labels throughout the properties picker, manager, and filters.
+
+### Removed
+
+- **Automation engine.** Flow definitions, run history, and the in-app workflow editor have all been removed from this repo. The capability moves to a sibling `inititative_infra` service that consumes domain events from a Kinesis stream. Self-hosted users on the OSS image lose the in-app automation builder, which only ever shipped as a paid/infra preview. Anyone running the `-infra` variant will continue to see automation UI once their `inititative_infra` service is wired up; until then, the automation menu is hidden.
+- **Redis dependency.** Removed entirely. Initiative now has Postgres as its only runtime dependency. The Redis Streams event bus that previously fed the in-process automation engine is gone; events go to Kinesis instead (when `ENABLE_EVENT_PUBLISHING=true`).
 
 ## [0.42.0] - 2026-04-23
 
