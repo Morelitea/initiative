@@ -9,6 +9,7 @@
       "ai": "IA",
       "import": "Importer",
       "security": "Sécurité",
+      "trash": "Corbeille",
       "danger": "Zone de danger"
     },
     "loginRequired": "Vous devez être connecté pour gérer votre profil.",
@@ -21,7 +22,8 @@
     "tabs": {
       "guild": "Groupe",
       "ai": "IA",
-      "users": "Utilisateurs"
+      "users": "Utilisateurs",
+      "trash": "Corbeille"
     }
   },
   "adminLayout": {
@@ -639,7 +641,7 @@
     "confirmDeactivateTitle": "Confirmer la désactivation",
     "confirmAnonymizeTitle": "Confirmer l'anonymisation",
     "deleteInitiative": "Supprimer l'initiative",
-    "deleteInitiativeConfirm": "Supprimer l'initiative \"{{initiativeName}}\" ? Ses projets, tâches, documents et adhésions seront supprimés définitivement.",
+    "deleteInitiativeConfirm": "Supprimer l'initiative \"{{initiativeName}}\" ? Elle et tous ses projets, tâches, documents, files d'attente et événements seront envoyés à la corbeille. Vous pouvez restaurer l'arborescence entière depuis Paramètres → Corbeille avant la fin de la période de rétention.",
     "deleteInitiativeSuccess": "Initiative supprimée",
     "deleteInitiativeError": "Impossible de supprimer l'initiative"
   }

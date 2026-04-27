@@ -924,6 +924,7 @@ export interface GuildRead {
   position: number;
   created_at: string;
   updated_at: string;
+  retention_days: number | null;
 }
 
 export interface GuildSummary {
@@ -948,6 +949,7 @@ export interface GuildUpdate {
   name?: string | null;
   description?: string | null;
   icon_base64?: string | null;
+  retention_days?: number | null;
 }
 
 export interface ValidationError {
@@ -1784,6 +1786,21 @@ export interface ResolvedAISettingsResponse {
   source: string;
 }
 
+/**
+ * 409 payload when the entity's owner is no longer an active member of
+the relevant initiative. The client opens a picker seeded with
+``valid_owner_ids`` and resubmits with the chosen one.
+ */
+export interface RestoreNeedsReassignmentResponse {
+  needs_reassignment?: true;
+  valid_owner_ids: number[];
+  detail?: string;
+}
+
+export interface RestoreRequest {
+  new_owner_id?: number | null;
+}
+
 export interface RoleLabelsResponse {
   admin: string;
   project_manager: string;
@@ -2363,6 +2380,36 @@ export interface TodoistParseResult {
 export interface Token {
   access_token: string;
   token_type?: string;
+}
+
+export type TrashItemEntityType = (typeof TrashItemEntityType)[keyof typeof TrashItemEntityType];
+
+export const TrashItemEntityType = {
+  project: "project",
+  task: "task",
+  document: "document",
+  comment: "comment",
+  initiative: "initiative",
+  tag: "tag",
+  queue: "queue",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+} as const;
+
+export interface TrashItem {
+  entity_type: TrashItemEntityType;
+  entity_id: number;
+  name: string;
+  deleted_at: string;
+  deleted_by_id: number | null;
+  deleted_by_display: string;
+  purge_at: string | null;
+}
+
+export interface TrashListResponse {
+  items: TrashItem[];
+  total: number;
+  retention_days: number | null;
 }
 
 export interface UserAISettingsResponse {
@@ -3006,3 +3053,15 @@ export type ListCalendarEventsApiV1CalendarEventsGetParams = {
 export type ListPropertyDefinitionsApiV1PropertyDefinitionsGetParams = {
   initiative_id?: number | null;
 };
+
+export type ListTrashApiV1TrashGetParams = {
+  scope?: ListTrashApiV1TrashGetScope;
+};
+
+export type ListTrashApiV1TrashGetScope =
+  (typeof ListTrashApiV1TrashGetScope)[keyof typeof ListTrashApiV1TrashGetScope];
+
+export const ListTrashApiV1TrashGetScope = {
+  mine: "mine",
+  guild: "guild",
+} as const;

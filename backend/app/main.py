@@ -257,6 +257,9 @@ app.openapi = custom_openapi
 @app.on_event("startup")
 async def on_startup() -> None:
     from app.db.init_db import check_pre_baseline_db
+    from app.db.soft_delete_filter import install_soft_delete_filter
+
+    install_soft_delete_filter()
     await check_pre_baseline_db()
     await run_migrations()
     async with AdminSessionLocal() as session:

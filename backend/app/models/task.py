@@ -5,6 +5,8 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Boolean, Column, DateTime, Float, Integer, JSON, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.models._mixins import SoftDeleteMixin
+
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.project import Project
     from app.models.user import User
@@ -95,8 +97,9 @@ class Subtask(SQLModel, table=True):
     task: Optional["Task"] = Relationship(back_populates="subtasks")
 
 
-class Task(SQLModel, table=True):
+class Task(SoftDeleteMixin, table=True):
     __tablename__ = "tasks"
+    _owner_field = "created_by_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)

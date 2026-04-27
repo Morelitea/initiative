@@ -21,6 +21,7 @@ import type settings from "../../public/locales/en/settings.json";
 import type stats from "../../public/locales/en/stats.json";
 import type tags from "../../public/locales/en/tags.json";
 import type tasks from "../../public/locales/en/tasks.json";
+import type trash from "../../public/locales/en/trash.json";
 
 declare module "i18next" {
   interface CustomTypeOptions {
@@ -50,6 +51,7 @@ declare module "i18next" {
       stats: typeof stats;
       tags: typeof tags;
       tasks: typeof tasks;
+      trash: typeof trash;
     };
   }
 }

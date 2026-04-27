@@ -9,6 +9,7 @@
       "ai": "IA",
       "import": "Importar",
       "security": "Seguridad",
+      "trash": "Papelera",
       "danger": "Zona de peligro"
     },
     "loginRequired": "Necesitas iniciar sesión para administrar tu perfil.",
@@ -21,7 +22,8 @@
     "tabs": {
       "guild": "Gremio",
       "ai": "IA",
-      "users": "Usuarios"
+      "users": "Usuarios",
+      "trash": "Papelera"
     }
   },
   "adminLayout": {
@@ -639,7 +641,7 @@
     "confirmDeactivateTitle": "Confirmar desactivación",
     "confirmAnonymizeTitle": "Confirmar anonimización",
     "deleteInitiative": "Eliminar iniciativa",
-    "deleteInitiativeConfirm": "¿Eliminar la iniciativa \"{{initiativeName}}\"? Sus proyectos, tareas, documentos y membresías se eliminarán permanentemente.",
+    "deleteInitiativeConfirm": "¿Eliminar la iniciativa \"{{initiativeName}}\"? Esta y todos sus proyectos, tareas, documentos, colas y eventos se enviarán a la papelera. Puedes restaurar todo el árbol desde Configuración → Papelera antes de que finalice el período de retención.",
     "deleteInitiativeSuccess": "Iniciativa eliminada",
     "deleteInitiativeError": "No se pudo eliminar la iniciativa"
   }

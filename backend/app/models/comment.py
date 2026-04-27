@@ -2,12 +2,13 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
+from app.models._mixins import SoftDeleteMixin
 from app.models.user import User
 
 
-class Comment(SQLModel, table=True):
+class Comment(SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     __table_args__ = (
         CheckConstraint(
@@ -15,6 +16,7 @@ class Comment(SQLModel, table=True):
             name="ck_comments_task_or_document",
         ),
     )
+    _owner_field = "author_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(

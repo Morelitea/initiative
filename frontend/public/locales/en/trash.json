@@ -1,0 +1,40 @@
+{
+  "title": "Trash",
+  "description": "Items here will be permanently deleted after the guild's retention period. Restore at any time before then.",
+  "scopeGuild": "All in guild",
+  "scopeMine": "Just mine",
+  "empty": "Trash is empty.",
+  "columnType": "Type",
+  "columnName": "Name",
+  "columnDeletedBy": "Deleted by",
+  "columnDeletedAt": "Deleted",
+  "columnPurgeAt": "Auto-purges",
+  "columnActions": "Actions",
+  "restoreButton": "Restore",
+  "deleteNowButton": "Delete now",
+  "neverPurges": "Never",
+  "deleteNowConfirmTitle": "Delete permanently?",
+  "deleteNowConfirmDescription": "This will hard-delete the {{type}} and everything inside it. This cannot be undone.",
+  "deleteNowConfirmAction": "Delete forever",
+  "restoreSuccess": "Restored.",
+  "restoreError": "Couldn't restore that item.",
+  "purgeSuccess": "Permanently deleted.",
+  "purgeError": "Couldn't permanently delete that item.",
+  "reassignDialog": {
+    "title": "Pick a new owner",
+    "description": "The original owner of this {{type}} is no longer a member of the initiative. Pick someone to take ownership before restoring.",
+    "ownerLabel": "New owner",
+    "confirm": "Restore with new owner"
+  },
+  "entityType": {
+    "project": "Project",
+    "task": "Task",
+    "document": "Document",
+    "comment": "Comment",
+    "initiative": "Initiative",
+    "tag": "Tag",
+    "queue": "Queue",
+    "queue_item": "Queue item",
+    "calendar_event": "Calendar event"
+  }
+}

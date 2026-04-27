@@ -98,7 +98,7 @@
     "deleting": "Suppression\u2026",
     "deleteTask": "Supprimer la tâche",
     "deleteTitle": "Supprimer la tâche ?",
-    "deleteDescription": "Cela supprimera définitivement la tâche et toutes ses sous-tâches. Cette action est irréversible.",
+    "deleteDescription": "La tâche et ses sous-tâches seront envoyées à la corbeille. Vous pouvez la restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
     "taskUpdated": "Tâche mise à jour",
     "taskDuplicated": "Tâche dupliquée",
     "taskDeleted": "Tâche supprimée",
