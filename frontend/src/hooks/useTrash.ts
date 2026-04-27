@@ -52,8 +52,8 @@ export type RestoreTrashVars = {
   body?: RestoreRequest;
 };
 
-// 200 "restored" or 200 "needs reassignment" — the dialog branches on
-// data.needs_reassignment.
+// 200 {restored: true} or — recovered from a 409 in mutationFn —
+// {needs_reassignment: true, ...}. The dialog branches on shape.
 export type RestoreTrashResponse =
   | { restored: true }
   | { needs_reassignment: true; valid_owner_ids: number[]; detail: string };
