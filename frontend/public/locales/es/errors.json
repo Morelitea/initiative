@@ -206,5 +206,10 @@
   "QUERY_INVALID_CONDITIONS": "Condiciones de filtro no válidas",
   "QUERY_INVALID_SORT_FIELDS": "Campos de ordenamiento no válidos",
   "RATE_LIMITED": "Demasiadas solicitudes. Por favor espera un momento e intenta de nuevo.",
+  "TRASH_ITEM_NOT_FOUND": "Ese elemento de la papelera ya no está disponible.",
+  "TRASH_NEEDS_REASSIGNMENT": "Elige un nuevo propietario antes de restaurar.",
+  "TRASH_INVALID_OWNER": "Ese usuario no puede asumir la propiedad.",
+  "TRASH_PURGE_REQUIRES_ADMIN": "Solo los administradores del gremio pueden eliminar permanentemente.",
+  "TRASH_UNKNOWN_ENTITY_TYPE": "Tipo de elemento de papelera desconocido.",
   "fallback": "Algo salió mal. Por favor intenta de nuevo."
 }

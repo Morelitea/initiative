@@ -6,6 +6,8 @@ from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Intege
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.models._mixins import SoftDeleteMixin
+
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative, InitiativeRoleModel
     from app.models.project import Project
@@ -23,8 +25,9 @@ class DocumentType(str, Enum):
     smart_link = "smart_link"  # URL-backed iframe embed (Figma, YouTube, …)
 
 
-class Document(SQLModel, table=True):
+class Document(SoftDeleteMixin, table=True):
     __tablename__ = "documents"
+    _owner_field = "created_by_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)

@@ -206,5 +206,10 @@
   "QUERY_INVALID_CONDITIONS": "Invalid filter conditions",
   "QUERY_INVALID_SORT_FIELDS": "Invalid sort fields",
   "RATE_LIMITED": "Too many requests. Please wait a moment and try again.",
+  "TRASH_ITEM_NOT_FOUND": "That trashed item is no longer available.",
+  "TRASH_NEEDS_REASSIGNMENT": "Pick a new owner before restoring.",
+  "TRASH_INVALID_OWNER": "That user can't take ownership.",
+  "TRASH_PURGE_REQUIRES_ADMIN": "Only guild admins can permanently delete items.",
+  "TRASH_UNKNOWN_ENTITY_TYPE": "Unknown trash item type.",
   "fallback": "Something went wrong. Please try again."
 }

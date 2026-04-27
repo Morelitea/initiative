@@ -98,8 +98,8 @@
   "initiative": "Initiative",
   "selectInitiative": "Select initiative",
 
-  "deleteEventConfirm": "Are you sure you want to delete this event? This action cannot be undone.",
-  "dangerZoneDescription": "Destructive actions that cannot be undone.",
+  "deleteEventConfirm": "The event will be sent to the trash. You can restore it from Settings → Trash before the retention period ends.",
+  "dangerZoneDescription": "Destructive actions. Deleted events go to the trash and can be restored before the retention period ends.",
   "settingsDescription": "Manage event details, access, and advanced options.",
   "rolePermissionsDescription": "Grant access to this event based on initiative roles.",
   "userPermissionsDescription": "Grant access to individual members.",

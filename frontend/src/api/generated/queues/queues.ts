@@ -491,7 +491,8 @@ export const useUpdateQueueApiV1QueuesQueueIdPatch = <
   return useMutation(getUpdateQueueApiV1QueuesQueueIdPatchMutationOptions(options), queryClient);
 };
 /**
- * Delete a queue. Requires owner permission or guild admin.
+ * Soft-delete a queue. Cascades to its items. Requires owner permission
+or guild admin.
  * @summary Delete Queue
  */
 export const deleteQueueApiV1QueuesQueueIdDelete = (
@@ -757,7 +758,7 @@ export const useUpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatch = <
   );
 };
 /**
- * Remove an item from a queue. Requires write access.
+ * Soft-delete a queue item. Requires write access on the parent queue.
  * @summary Delete Queue Item
  */
 export const deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete = (

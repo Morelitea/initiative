@@ -1870,6 +1870,9 @@ export const useUpdateProjectApiV1ProjectsProjectIdPatch = <
   );
 };
 /**
+ * Soft-delete a project. Tasks are stamped with the same deleted_at so
+they're hidden behind the parent. Restoring the project resurfaces all
+descendants automatically.
  * @summary Delete Project
  */
 export const deleteProjectApiV1ProjectsProjectIdDelete = (

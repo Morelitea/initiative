@@ -188,10 +188,15 @@ async def list_memberships(
     session: AsyncSession,
     *,
     user_id: int,
-) -> list[tuple[Guild, GuildMembership]]:
+) -> list[tuple[Guild, GuildMembership, int | None]]:
+    """Return (guild, membership, retention_days) for each guild the user
+    belongs to. The LEFT JOIN to guild_settings keeps this a single query
+    so the guild list (rendered in the sidebar + every Settings page) doesn't
+    fan out into N+1 lookups."""
     stmt = (
-        select(Guild, GuildMembership)
+        select(Guild, GuildMembership, GuildSetting.retention_days)
         .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+        .join(GuildSetting, GuildSetting.guild_id == Guild.id, isouter=True)
         .where(GuildMembership.user_id == user_id)
         .order_by(
             GuildMembership.position.asc(),
@@ -222,6 +227,11 @@ async def create_guild(
     )
     session.add(guild)
     await session.flush()
+    # Always seed a guild_settings row so list_memberships's LEFT JOIN
+    # never returns retention_days=NULL ambiguously (NULL must mean "user
+    # explicitly chose never auto-purge", not "row missing").
+    session.add(GuildSetting(guild_id=guild.id, retention_days=90))
+    await session.flush()
     if creator:
         await ensure_membership(
             session,
@@ -240,6 +250,8 @@ async def update_guild(
     description: str | None = None,
     icon_base64: str | None = None,
     icon_provided: bool = False,
+    retention_days: int | None = None,
+    retention_days_provided: bool = False,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -258,7 +270,34 @@ async def update_guild(
         guild.updated_at = datetime.now(timezone.utc)
         session.add(guild)
         await session.flush()
+    if retention_days_provided:
+        from app.services.app_settings import get_or_create_guild_settings
+
+        gs = await get_or_create_guild_settings(session, guild_id)
+        if gs.retention_days != retention_days:
+            gs.retention_days = retention_days
+            session.add(gs)
+            await session.flush()
     return guild
+
+
+async def get_guild_retention_days(session: AsyncSession, guild_id: int) -> int | None:
+    """Return the per-guild trash retention period in days, or None for
+    "never auto-purge".
+
+    Selecting the full row (not the column) is intentional: NULL in
+    ``retention_days`` is the user's explicit "never" choice, and we must
+    distinguish it from "no guild_settings row yet" (which would be a
+    setup gap, fall back to the 90-day default). A bare column select
+    collapses both to None and silently re-enables auto-purge for guilds
+    that opted out.
+    """
+    stmt = select(GuildSetting).where(GuildSetting.guild_id == guild_id)
+    result = await session.exec(stmt)
+    row = result.one_or_none()
+    if row is None:
+        return 90
+    return row.retention_days
 
 
 async def _invite_code_exists(session: AsyncSession, code: str) -> bool:

@@ -1247,7 +1247,7 @@ export const useUpdateCalendarEventApiV1CalendarEventsEventIdPatch = <
   );
 };
 /**
- * Delete a calendar event. Requires create_events permission or guild admin.
+ * Soft-delete a calendar event. Requires create_events permission or guild admin.
  * @summary Delete Calendar Event
  */
 export const deleteCalendarEventApiV1CalendarEventsEventIdDelete = (

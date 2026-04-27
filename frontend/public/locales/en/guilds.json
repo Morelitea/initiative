@@ -81,7 +81,12 @@
     "deleteConfirmTitle": "Delete guild?",
     "deleteConfirmDescription": "Deleting <bold>{{name}}</bold> will permanently remove all initiatives, projects, tasks, and documents within it. This cannot be undone.",
     "deleteConfirmLabel": "Type <bold>{{name}}</bold> to confirm:",
-    "unableToDelete": "Unable to delete guild."
+    "unableToDelete": "Unable to delete guild.",
+    "retentionTitle": "Trash retention",
+    "retentionDescription": "How long deleted items stay in the trash before they're permanently removed. Set to \"Never\" to keep them until an admin manually deletes them.",
+    "retentionDaysLabel": "Days",
+    "retentionNeverLabel": "Never auto-purge",
+    "retentionUpdatedSuccessfully": "Retention updated."
   },
   "users": {
     "adminRequired": "You need {{adminLabel}} permissions to view this page.",

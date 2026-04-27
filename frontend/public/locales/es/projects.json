@@ -362,10 +362,10 @@
     },
     "danger": {
       "title": "Zona de peligro",
-      "description": "Eliminar un proyecto elimina todas sus tareas permanentemente.",
+      "description": "Eliminar un proyecto lo envía a la papelera junto con sus tareas. Pueden restaurarse antes de que finalice el período de retención.",
       "deleteButton": "Eliminar proyecto",
       "deleteTitle": "¿Eliminar proyecto?",
-      "deleteDescription": "Esto eliminará permanentemente el proyecto y todas sus tareas. Esta acción no se puede deshacer.",
+      "deleteDescription": "El proyecto y sus tareas se enviarán a la papelera. Puedes restaurarlos desde Configuración → Papelera antes de que finalice el período de retención.",
       "deleteConfirm": "Eliminar"
     }
   },

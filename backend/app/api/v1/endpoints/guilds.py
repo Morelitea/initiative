@@ -32,7 +32,11 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 router = APIRouter()
 
 
-def _serialize_guild(guild: Guild, membership: GuildMembership) -> GuildRead:
+def _serialize_guild(
+    guild: Guild,
+    membership: GuildMembership,
+    retention_days: int | None = None,
+) -> GuildRead:
     return GuildRead(
         id=guild.id,
         name=guild.name,
@@ -42,6 +46,7 @@ def _serialize_guild(guild: Guild, membership: GuildMembership) -> GuildRead:
         updated_at=guild.updated_at,
         role=membership.role,
         position=membership.position,
+        retention_days=retention_days,
     )
 
 
@@ -82,8 +87,8 @@ async def _set_guild_admin_rls(
 async def list_guilds(session: UserSessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> List[GuildRead]:
     memberships = await guilds_service.list_memberships(session, user_id=current_user.id)
     payloads: List[GuildRead] = []
-    for guild, membership in memberships:
-        payloads.append(_serialize_guild(guild, membership))
+    for guild, membership, retention_days in memberships:
+        payloads.append(_serialize_guild(guild, membership, retention_days=retention_days))
     return payloads
 
 
@@ -172,6 +177,7 @@ async def update_guild(
     membership = await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id, is_superadmin=(current_user.role == UserRole.admin))
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     icon_provided = "icon_base64" in updates.model_fields_set
+    retention_days_provided = "retention_days" in updates.model_fields_set
     guild = await guilds_service.update_guild(
         session,
         guild_id=guild_id,
@@ -179,9 +185,12 @@ async def update_guild(
         description=updates.description,
         icon_base64=updates.icon_base64,
         icon_provided=icon_provided,
+        retention_days=updates.retention_days,
+        retention_days_provided=retention_days_provided,
     )
     await session.commit()
-    return _serialize_guild(guild, membership)
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
+    return _serialize_guild(guild, membership, retention_days=retention_days)
 
 
 @router.delete("/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

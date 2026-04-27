@@ -361,10 +361,10 @@
     },
     "danger": {
       "title": "Zone de danger",
-      "description": "Supprimer un projet supprime définitivement toutes ses tâches.",
+      "description": "Supprimer un projet l'envoie à la corbeille avec ses tâches. Ils peuvent être restaurés avant la fin de la période de rétention.",
       "deleteButton": "Supprimer le projet",
       "deleteTitle": "Supprimer le projet ?",
-      "deleteDescription": "Cela supprimera définitivement le projet et toutes ses tâches. Cette action est irréversible.",
+      "deleteDescription": "Le projet et ses tâches seront envoyés à la corbeille. Vous pouvez les restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
       "deleteConfirm": "Supprimer"
     }
   },
