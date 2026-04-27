@@ -23,6 +23,7 @@ import type {
 import type {
   HTTPValidationError,
   ListTrashApiV1TrashGetParams,
+  RestoreNeedsReassignmentResponse,
   RestoreRequest,
   TrashListResponse,
 } from "../initiativeAPI.schemas";
@@ -202,7 +203,7 @@ export const restoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePost = (
 };
 
 export const getRestoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<RestoreNeedsReassignmentResponse | HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -286,14 +287,15 @@ export type RestoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePostMutationRes
 >;
 export type RestoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePostMutationBody =
   BodyType<RestoreRequest>;
-export type RestoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePostMutationError =
-  ErrorType<HTTPValidationError>;
+export type RestoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePostMutationError = ErrorType<
+  RestoreNeedsReassignmentResponse | HTTPValidationError
+>;
 
 /**
  * @summary Restore Trash Entity
  */
 export const useRestoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePost = <
-  TError = ErrorType<HTTPValidationError>,
+  TError = ErrorType<RestoreNeedsReassignmentResponse | HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {

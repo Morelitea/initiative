@@ -16,6 +16,7 @@ from __future__ import annotations
 from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -219,7 +220,16 @@ async def _load_trash_entity(
     return entity
 
 
-@router.post("/{entity_type}/{entity_id}/restore", status_code=status.HTTP_200_OK)
+@router.post(
+    "/{entity_type}/{entity_id}/restore",
+    status_code=status.HTTP_200_OK,
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": RestoreNeedsReassignmentResponse,
+            "description": "The entity's recorded owner is no longer an active member of the relevant initiative; client must resubmit with a new_owner_id from valid_owner_ids.",
+        },
+    },
+)
 async def restore_trash_entity(
     entity_type: EntityType,
     entity_id: int,
@@ -255,7 +265,16 @@ async def restore_trash_entity(
 
     if result.needs_reassignment:
         # 409 — client opens picker seeded with valid_owner_ids and resubmits.
-        return RestoreNeedsReassignmentResponse(valid_owner_ids=result.valid_owner_ids or [])
+        # Returned as JSONResponse so the status code overrides the route's
+        # default 200; the response_model on the route still describes the
+        # body shape via the responses={} mapping above.
+        payload_body = RestoreNeedsReassignmentResponse(
+            valid_owner_ids=result.valid_owner_ids or []
+        )
+        return JSONResponse(
+            status_code=status.HTTP_409_CONFLICT,
+            content=payload_body.model_dump(),
+        )
 
     await session.commit()
     return {"restored": True}

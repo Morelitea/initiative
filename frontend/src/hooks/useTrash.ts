@@ -67,11 +67,30 @@ export const useRestoreTrashEntity = (
   return useMutation({
     ...rest,
     mutationFn: async ({ entityType, entityId, body }: RestoreTrashVars) => {
-      return restoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePost(
-        entityType,
-        entityId,
-        body ?? {}
-      ) as unknown as Promise<RestoreTrashResponse>;
+      try {
+        return (await restoreTrashEntityApiV1TrashEntityTypeEntityIdRestorePost(
+          entityType,
+          entityId,
+          body ?? {}
+        )) as unknown as RestoreTrashResponse;
+      } catch (err) {
+        // The needs-reassignment branch is a successful interaction shape
+        // (the user just needs to pick an owner) but the API correctly
+        // signals it as 409 so non-React-Query consumers don't mistake it
+        // for a happy path. Recover the body and let onSuccess handle it.
+        const status = (err as { response?: { status?: number; data?: unknown } })?.response
+          ?.status;
+        const data = (err as { response?: { status?: number; data?: unknown } })?.response?.data;
+        if (
+          status === 409 &&
+          data &&
+          typeof data === "object" &&
+          "needs_reassignment" in (data as object)
+        ) {
+          return data as RestoreTrashResponse;
+        }
+        throw err;
+      }
     },
     onSuccess: (...args) => {
       const [data, variables] = args;

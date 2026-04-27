@@ -96,7 +96,7 @@ describe("TrashTable", () => {
     await waitFor(() => expect(toast.success as ReturnType<typeof vi.fn>).toHaveBeenCalled());
   });
 
-  it("opens the reassignment dialog when restore returns 200 + needs_reassignment", async () => {
+  it("opens the reassignment dialog when restore returns 409 + needs_reassignment", async () => {
     server.use(
       http.get(trashEndpoint, () =>
         HttpResponse.json(
@@ -106,11 +106,14 @@ describe("TrashTable", () => {
         )
       ),
       http.post(restoreEndpoint, () =>
-        HttpResponse.json({
-          needs_reassignment: true,
-          valid_owner_ids: [11, 12],
-          detail: "TRASH_NEEDS_REASSIGNMENT",
-        })
+        HttpResponse.json(
+          {
+            needs_reassignment: true,
+            valid_owner_ids: [11, 12],
+            detail: "TRASH_NEEDS_REASSIGNMENT",
+          },
+          { status: 409 }
+        )
       ),
       // ReassignOwnerDialog uses useUsers() to populate the picker.
       http.get("/api/v1/users/", () =>

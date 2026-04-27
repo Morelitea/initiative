@@ -1934,6 +1934,17 @@ export interface ResolvedAISettingsResponse {
   source: string;
 }
 
+/**
+ * 409 payload when the entity's owner is no longer an active member of
+the relevant initiative. The client opens a picker seeded with
+``valid_owner_ids`` and resubmits with the chosen one.
+ */
+export interface RestoreNeedsReassignmentResponse {
+  needs_reassignment?: true;
+  valid_owner_ids: number[];
+  detail?: string;
+}
+
 export interface RestoreRequest {
   new_owner_id?: number | null;
 }
