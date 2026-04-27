@@ -142,8 +142,7 @@
       "documents": "Documents",
       "projects": "Projects",
       "queues": "Queues",
-      "events": "Events",
-      "automations": "Automations"
+      "events": "Events"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -153,9 +152,7 @@
       "viewQueues": "View Queues",
       "createQueues": "Create Queues",
       "viewEvents": "View Events",
-      "createEvents": "Create Events",
-      "viewAutomations": "View Automations",
-      "createAutomations": "Create Automations"
+      "createEvents": "Create Events"
     }
   },
   "advancedTools": "Advanced Tools",
@@ -163,11 +160,5 @@
   "queuesFeature": "Queues",
   "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next.",
   "eventsFeature": "Calendar",
-  "eventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking.",
-  "automationsFeature": "Automations",
-  "automationsFeatureDescription": "Create automated workflows and trigger actions based on events.",
-  "automationsScoped": "Showing automations for this initiative.",
-  "automationsComingSoon": "Automation Pipeline",
-  "automationsComingSoonDescription": "Automate workflows and integrate with external pipelines.",
-  "automationsPlaceholder": "Automation pipeline integration is being set up. Once configured, you'll be able to create automated workflows that trigger actions based on events in your initiative."
+  "eventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking."
 }

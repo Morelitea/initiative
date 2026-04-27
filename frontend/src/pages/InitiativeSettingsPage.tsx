@@ -157,13 +157,6 @@ export const InitiativeSettingsPage = () => {
     });
   };
 
-  const handleToggleAutomations = (value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { automations_enabled: value },
-    });
-  };
-
   const handleDeleteInitiative = () => {
     if (initiative?.is_default) {
       return;
@@ -258,8 +251,6 @@ export const InitiativeSettingsPage = () => {
           onToggleQueues={handleToggleQueues}
           eventsEnabled={initiative?.events_enabled ?? false}
           onToggleEvents={handleToggleEvents}
-          automationsEnabled={initiative?.automations_enabled ?? false}
-          onToggleAutomations={handleToggleAutomations}
           canManageMembers={canManageMembers}
           isSaving={updateInitiative.isPending}
           onSaveDetails={handleSaveDetails}

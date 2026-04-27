@@ -202,8 +202,6 @@
   "QUEUE_NO_ITEMS": "La cola no tiene elementos",
   "QUEUE_INVALID_TAG_IDS": "Uno o más IDs de etiqueta no son válidos",
   "QUEUES_NOT_ENABLED": "Las colas no están habilitadas para esta iniciativa",
-  "AUTOMATIONS_NOT_ENABLED": "Las automatizaciones no están habilitadas para esta iniciativa",
-  "AUTOMATIONS_INFRA_DISABLED": "Las automatizaciones no están disponibles en esta instancia",
   "NOTIFICATION_NOT_FOUND": "Notificación no encontrada",
   "QUERY_INVALID_CONDITIONS": "Condiciones de filtro no válidas",
   "QUERY_INVALID_SORT_FIELDS": "Campos de ordenamiento no válidos",

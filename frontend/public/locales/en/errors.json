@@ -202,8 +202,6 @@
   "QUEUE_NO_ITEMS": "Queue has no items",
   "QUEUE_INVALID_TAG_IDS": "One or more tag IDs are invalid",
   "QUEUES_NOT_ENABLED": "Queues are not enabled for this initiative",
-  "AUTOMATIONS_NOT_ENABLED": "Automations are not enabled for this initiative",
-  "AUTOMATIONS_INFRA_DISABLED": "Automations are not available on this instance",
   "NOTIFICATION_NOT_FOUND": "Notification not found",
   "QUERY_INVALID_CONDITIONS": "Invalid filter conditions",
   "QUERY_INVALID_SORT_FIELDS": "Invalid sort fields",

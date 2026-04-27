@@ -202,8 +202,6 @@
   "QUEUE_NO_ITEMS": "La file ne contient aucun élément",
   "QUEUE_INVALID_TAG_IDS": "Un ou plusieurs identifiants d'étiquettes sont invalides",
   "QUEUES_NOT_ENABLED": "Les files ne sont pas activées pour cette initiative",
-  "AUTOMATIONS_NOT_ENABLED": "Les automatisations ne sont pas activées pour cette initiative",
-  "AUTOMATIONS_INFRA_DISABLED": "Les automatisations ne sont pas disponibles sur cette instance",
   "NOTIFICATION_NOT_FOUND": "Notification introuvable",
   "QUERY_INVALID_CONDITIONS": "Conditions de filtre invalides",
   "QUERY_INVALID_SORT_FIELDS": "Champs de tri invalides",

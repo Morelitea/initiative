@@ -21,8 +21,6 @@ interface InitiativeSettingsDetailsTabProps {
   onToggleQueues: (value: boolean) => void;
   eventsEnabled: boolean;
   onToggleEvents: (value: boolean) => void;
-  automationsEnabled: boolean;
-  onToggleAutomations: (value: boolean) => void;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -39,8 +37,6 @@ export const InitiativeSettingsDetailsTab = ({
   onToggleQueues,
   eventsEnabled,
   onToggleEvents,
-  automationsEnabled,
-  onToggleAutomations,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -125,22 +121,6 @@ export const InitiativeSettingsDetailsTab = ({
                 disabled={!canManageMembers || isSaving}
               />
             </div>
-            {__ENABLE_AUTOMATIONS__ && (
-              <div className="flex items-center justify-between gap-4 rounded-md border p-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="settings-automations-toggle">{t("automationsFeature")}</Label>
-                  <p className="text-muted-foreground text-xs">
-                    {t("automationsFeatureDescription")}
-                  </p>
-                </div>
-                <Switch
-                  id="settings-automations-toggle"
-                  checked={automationsEnabled}
-                  onCheckedChange={onToggleAutomations}
-                  disabled={!canManageMembers || isSaving}
-                />
-              </div>
-            )}
             <div className="flex items-center justify-between gap-4 rounded-md border p-3">
               <div className="space-y-0.5">
                 <Label htmlFor="settings-queues-toggle">{t("queuesFeature")}</Label>

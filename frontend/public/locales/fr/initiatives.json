@@ -142,8 +142,7 @@
       "documents": "Documents",
       "projects": "Projets",
       "queues": "Files",
-      "events": "Événements",
-      "automations": "Automatisations"
+      "events": "Événements"
     },
     "permissions": {
       "viewDocuments": "Voir les documents",
@@ -153,9 +152,7 @@
       "viewQueues": "Voir les files",
       "createQueues": "Créer des files",
       "viewEvents": "Voir les événements",
-      "createEvents": "Créer des événements",
-      "viewAutomations": "Voir les automatisations",
-      "createAutomations": "Créer des automatisations"
+      "createEvents": "Créer des événements"
     }
   },
   "advancedTools": "Outils avancés",
@@ -163,11 +160,5 @@
   "queuesFeature": "Files",
   "queuesFeatureDescription": "Organisez les éléments par priorité, suivez l'ordre de passage et gérez qui passe ensuite.",
   "eventsFeature": "Calendrier",
-  "eventsFeatureDescription": "Planifiez et gérez des événements de calendrier avec des participants et le suivi des RSVP.",
-  "automationsFeature": "Automatisations",
-  "automationsFeatureDescription": "Créez des flux de travail automatisés et déclenchez des actions basées sur des événements.",
-  "automationsScoped": "Affichage des automatisations pour cette initiative.",
-  "automationsComingSoon": "Pipeline d'automatisation",
-  "automationsComingSoonDescription": "Automatisez les flux de travail et intégrez avec des pipelines externes.",
-  "automationsPlaceholder": "L'intégration du pipeline d'automatisation est en cours de configuration. Une fois configuré, vous pourrez créer des flux de travail automatisés qui déclenchent des actions basées sur les événements de votre initiative."
+  "eventsFeatureDescription": "Planifiez et gérez des événements de calendrier avec des participants et le suivi des RSVP."
 }

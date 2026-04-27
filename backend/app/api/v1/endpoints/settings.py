@@ -31,7 +31,6 @@ from app.schemas.settings import (
     RoleLabelsResponse,
     RoleLabelsUpdate,
 )
-from app.schemas.automations import AutomationsConfigResponse
 from app.schemas.push import FCMConfigResponse
 from app.core.messages import SettingsMessages
 from app.services import app_settings as app_settings_service
@@ -213,13 +212,6 @@ async def send_test_email(
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
     return {"status": "sent"}
-
-
-@router.get("/automations-config", response_model=AutomationsConfigResponse)
-@limiter.limit("20/minute")
-async def get_automations_config(request: Request) -> AutomationsConfigResponse:
-    """Get automations feature availability for this instance."""
-    return AutomationsConfigResponse(enabled=app_config.ENABLE_AUTOMATIONS)
 
 
 @router.get("/fcm-config", response_model=FCMConfigResponse)
