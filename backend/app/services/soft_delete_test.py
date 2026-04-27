@@ -314,3 +314,71 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
         await session.exec(select(Upload).where(Upload.filename == "abc123.png"))
     ).one_or_none()
     assert upload_row is not None
+
+
+async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSession):
+    """Filenames legitimately contain '_' (a LIKE metacharacter that means
+    'any single character'). The orphan check must escape it before
+    interpolating into the LIKE pattern, otherwise a doomed document
+    referencing /uploads/file_v2.png could appear pinned by an unrelated
+    document referencing /uploads/fileXv2.png — and we'd skip cleanup.
+
+    Regression: the previous implementation interpolated the URL directly
+    into the pattern without escaping, leaking blobs on disk."""
+    from sqlmodel import select
+
+    from app.services.attachments import purge_document_uploads
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+
+    upload = Upload(
+        filename="file_v2.png",
+        guild_id=guild.id,
+        uploader_user_id=user.id,
+        size_bytes=1234,
+    )
+    session.add(upload)
+    await session.commit()
+
+    # The doomed doc references /uploads/file_v2.png — pinned via
+    # featured_image_url so extract_upload_urls picks it up cleanly.
+    doomed = Document(
+        guild_id=guild.id,
+        initiative_id=initiative.id,
+        title="Doomed",
+        document_type=DocumentType.native,
+        content={},
+        featured_image_url="/uploads/file_v2.png",
+        created_by_id=user.id,
+        updated_by_id=user.id,
+    )
+    # The decoy uses /uploads/fileXv2.png embedded in content. Without
+    # escaping, the LIKE pattern '%/uploads/file_v2.png%' matches the
+    # decoy's content (since '_' is "any single char"), and the doomed
+    # doc's URL appears pinned by an unrelated document.
+    decoy = Document(
+        guild_id=guild.id,
+        initiative_id=initiative.id,
+        title="Decoy",
+        document_type=DocumentType.native,
+        content={"src": "/uploads/fileXv2.png"},
+        created_by_id=user.id,
+        updated_by_id=user.id,
+    )
+    session.add(doomed)
+    session.add(decoy)
+    await session.commit()
+    await session.refresh(doomed)
+
+    await purge_document_uploads(session, [doomed])
+    await session.commit()
+
+    # The Upload row backing /uploads/file_v2.png had no other reference,
+    # so it should be gone. With the bug, the decoy's URL would have
+    # matched and the Upload would have been left behind.
+    remaining = (
+        await session.exec(select(Upload).where(Upload.filename == "file_v2.png"))
+    ).one_or_none()
+    assert remaining is None

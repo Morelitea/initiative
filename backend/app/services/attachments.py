@@ -167,13 +167,21 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
             normalized = normalize_upload_url(url)
             if not normalized:
                 continue
+            # Escape LIKE wildcards in the URL before interpolating —
+            # filenames legitimately contain ``_`` (treated as "any single
+            # char" by LIKE) and could in theory contain ``%`` too. Without
+            # this, the orphan check matches unintended URLs and leaves
+            # blobs behind. ESCAPE '\\' opts in to backslash escaping.
+            safe = (
+                normalized.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            )
             stmt = (
                 select_including_deleted(Document.id)
                 .where(
                     or_(
                         text(
-                            "documents.content::text LIKE :pattern"
-                        ).bindparams(pattern=f"%{normalized}%"),
+                            "documents.content::text LIKE :pattern ESCAPE '\\'"
+                        ).bindparams(pattern=f"%{safe}%"),
                         Document.featured_image_url == normalized,
                     )
                 )
