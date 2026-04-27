@@ -380,3 +380,67 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
         await session.exec(select(Upload).where(Upload.filename == "file_v2.png"))
     ).one_or_none()
     assert remaining is None
+
+
+async def test_trash_listing_dedupes_nested_comment_replies(
+    session: AsyncSession, client
+):
+    """Soft-deleting a top-level comment cascade-stamps every reply with
+    the same deleted_at. The trash listing must hide the replies behind
+    their parent (Comment is its own dedup parent via parent_comment_id);
+    otherwise a user could click Restore on the reply, leaving its
+    parent_comment_id pointing at a still-trashed row.
+
+    Regression: _DEDUP_PARENTS[Comment] previously only checked Task and
+    Document parents, so replies appeared independently in trash.
+    """
+    from app.models.comment import Comment
+    from app.models.guild import GuildRole
+    from app.testing.factories import (
+        create_guild_membership,
+        get_guild_headers,
+    )
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, user)
+    project = await create_project(session, initiative, user)
+    task = await _create_task(session, project, title="Task with comments")
+
+    parent = Comment(
+        guild_id=guild.id,
+        task_id=task.id,
+        author_id=user.id,
+        content="Top-level",
+    )
+    session.add(parent)
+    await session.commit()
+    await session.refresh(parent)
+
+    reply = Comment(
+        guild_id=guild.id,
+        task_id=task.id,
+        author_id=user.id,
+        content="Reply",
+        parent_comment_id=parent.id,
+    )
+    session.add(reply)
+    await session.commit()
+
+    # Soft-delete the parent. _stamp_descendants stamps the reply too.
+    await soft_delete_entity(
+        session, parent, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    # Hit the listing endpoint and confirm only the parent appears.
+    headers = get_guild_headers(guild, user)
+    response = await client.get("/api/v1/trash/?scope=guild", headers=headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    comment_items = [
+        item for item in body["items"] if item["entity_type"] == "comment"
+    ]
+    ids = {item["entity_id"] for item in comment_items}
+    assert ids == {parent.id}, f"reply leaked into trash listing: {ids}"

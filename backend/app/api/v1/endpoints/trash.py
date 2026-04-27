@@ -17,6 +17,7 @@ from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import aliased
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -112,7 +113,15 @@ _DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
     Project: [(Initiative, "initiative_id")],
     Task: [(Project, "project_id")],
     Document: [(Initiative, "initiative_id")],
-    Comment: [(Task, "task_id"), (Document, "document_id")],
+    # Comment also self-references via parent_comment_id (threaded replies).
+    # Without that entry the trash listing shows nested replies independently
+    # and a user could restore a reply whose parent is still trashed,
+    # leaving Reply.parent_comment_id pointing at an invisible row.
+    Comment: [
+        (Task, "task_id"),
+        (Document, "document_id"),
+        (Comment, "parent_comment_id"),
+    ],
     Queue: [(Initiative, "initiative_id")],
     QueueItem: [(Queue, "queue_id")],
     CalendarEvent: [(Initiative, "initiative_id")],
@@ -135,13 +144,17 @@ async def _list_trashed_for_model(
         stmt = stmt.where(model.deleted_by == only_deleted_by)
 
     # Cascade dedup: exclude children whose parent (any of them) is also
-    # trashed at the same deleted_at.
+    # trashed at the same deleted_at. Alias the parent — required when the
+    # parent is the same table as the child (Comment threaded replies via
+    # parent_comment_id), otherwise unaliased ``Comment.id == Comment.parent_comment_id``
+    # references the same row in both clauses.
     for parent_model, fk_col in _DEDUP_PARENTS.get(model, []):
         fk = getattr(model, fk_col)
+        parent_alias = aliased(parent_model)
         sub = (
-            select_including_deleted(parent_model.id)
-            .where(parent_model.id == fk)
-            .where(parent_model.deleted_at == model.deleted_at)
+            select_including_deleted(parent_alias)
+            .where(parent_alias.id == fk)
+            .where(parent_alias.deleted_at == model.deleted_at)
         )
         stmt = stmt.where(~sub.exists())
 
