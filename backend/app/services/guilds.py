@@ -282,11 +282,22 @@ async def update_guild(
 
 
 async def get_guild_retention_days(session: AsyncSession, guild_id: int) -> int | None:
-    """Return the per-guild trash retention period in days (or None for never)."""
-    stmt = select(GuildSetting.retention_days).where(GuildSetting.guild_id == guild_id)
+    """Return the per-guild trash retention period in days, or None for
+    "never auto-purge".
+
+    Selecting the full row (not the column) is intentional: NULL in
+    ``retention_days`` is the user's explicit "never" choice, and we must
+    distinguish it from "no guild_settings row yet" (which would be a
+    setup gap, fall back to the 90-day default). A bare column select
+    collapses both to None and silently re-enables auto-purge for guilds
+    that opted out.
+    """
+    stmt = select(GuildSetting).where(GuildSetting.guild_id == guild_id)
     result = await session.exec(stmt)
     row = result.one_or_none()
-    return row if row is not None else 90
+    if row is None:
+        return 90
+    return row.retention_days
 
 
 async def _invite_code_exists(session: AsyncSession, code: str) -> bool:
