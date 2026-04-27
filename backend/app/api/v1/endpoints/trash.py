@@ -319,10 +319,14 @@ async def purge_trash_entity(
     )
     spec = ENTITY_REGISTRY[entity_type]
     model, _ = spec
+    # Re-load on the admin session and re-verify the row is still trashed.
+    # Without the deleted_at check there is a TOCTOU window: a concurrent
+    # restore between the RLS-session lookup above and this read could
+    # clear deleted_at, and we'd then permanently DELETE a live row.
     admin_stmt = select_including_deleted(model).where(model.id == entity.id)
     admin_result = await admin_session.exec(admin_stmt)
     admin_entity = admin_result.one_or_none()
-    if admin_entity is None:
+    if admin_entity is None or admin_entity.deleted_at is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TrashMessages.NOT_FOUND)
 
     await hard_purge_entity(admin_session, admin_entity)
