@@ -16,7 +16,11 @@ class Comment(SoftDeleteMixin, table=True):
             name="ck_comments_task_or_document",
         ),
     )
-    _owner_field = "author_id"
+    # Comment authorship is intentionally NOT reassignable on restore.
+    # Comments are first-person speech; transferring author_id to someone
+    # else would let admins put words in another user's mouth. If the
+    # original author has left, the restore goes through and the comment
+    # renders as "Deleted user #N" via the existing user-display helpers.
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(
