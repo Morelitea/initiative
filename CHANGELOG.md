@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-04-28
+
+### Fixed
+
+- The task edit page sometimes opened with the wrong status, priority, and recurrence shown until you nudged the page (added a tag, changed a property, etc.), then it would suddenly snap to the right values. All three fields now read from the task's own data on the first render instead of waiting for a delayed copy into local form state, so the form is correct the moment the task loads.
+
 ## [0.42.0] - 2026-04-23
 
 ### Added

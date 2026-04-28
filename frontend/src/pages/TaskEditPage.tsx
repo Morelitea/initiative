@@ -121,13 +121,21 @@ export const TaskEditPage = () => {
   const [description, setDescription] = useState("");
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [statusId, setStatusId] = useState<number | null>(null);
-  const [priority, setPriority] = useState<TaskPriority>("medium");
+  // null/undefined are "uninitialized" sentinels here — the useEffect that
+  // copies task.* into local state runs after the first render, so the
+  // form would otherwise flash the initial defaults ("medium" / no
+  // recurrence / "fixed") before snapping to the real values. Reading
+  // through effective* below falls back to the task data on the first
+  // render and uses local state once the user has interacted.
+  const [priority, setPriority] = useState<TaskPriority | null>(null);
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
-  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
+  // Recurrence uses ``undefined`` as the uninitialized sentinel because
+  // ``null`` is a legitimate user choice meaning "no recurrence".
+  const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null | undefined>(undefined);
   const [recurrenceStrategy, setRecurrenceStrategy] =
-    useState<TaskListReadRecurrenceStrategy>("fixed");
+    useState<TaskListReadRecurrenceStrategy | null>(null);
   const [tags, setTags] = useState<TagSummary[]>([]);
   // Locally-added property definitions that don't yet have a persisted value.
   // Rendered alongside `task.properties` as empty-valued stubs so the user
@@ -154,6 +162,21 @@ export const TaskEditPage = () => {
   });
 
   const setTaskTagsMutation = useSetTaskTags();
+
+  // Aliased early so handleSubmit / effective* derivations both see it.
+  // The duplicate declaration further down was kept until this fix; the
+  // late-render computations now read this single source of truth.
+  const task = taskQuery.data;
+
+  // Mirror the status fix for priority / recurrence / recurrenceStrategy:
+  // local state is the source of truth once the useEffect has copied it,
+  // otherwise read straight from task so the form doesn't flash a default
+  // before snapping to the real value.
+  const effectivePriority: TaskPriority = priority ?? task?.priority ?? "medium";
+  const effectiveRecurrence: TaskRecurrenceOutput | null =
+    recurrence !== undefined ? recurrence : (task?.recurrence ?? null);
+  const effectiveRecurrenceStrategy: TaskListReadRecurrenceStrategy =
+    recurrenceStrategy ?? task?.recurrence_strategy ?? "fixed";
 
   useEffect(() => {
     if (taskQuery.data) {
@@ -260,12 +283,12 @@ export const TaskEditPage = () => {
       title,
       description: description || null,
       task_status_id: statusId,
-      priority,
+      priority: effectivePriority,
       assignee_ids: assigneeIds,
       start_date: startDate ? new Date(startDate).toISOString() : null,
       due_date: dueDate ? new Date(dueDate).toISOString() : null,
-      recurrence,
-      recurrence_strategy: recurrence ? recurrenceStrategy : "fixed",
+      recurrence: effectiveRecurrence,
+      recurrence_strategy: effectiveRecurrence ? effectiveRecurrenceStrategy : "fixed",
     };
     updateTask.mutate({ taskId: parsedTaskId, data: payload as never });
   };
@@ -328,8 +351,6 @@ export const TaskEditPage = () => {
         label: user.full_name ?? user.email,
       }));
   }, [users, project]);
-
-  const task = taskQuery.data;
 
   // Combine server-attached properties with locally-added stubs (definitions
   // the user just picked but hasn't given a value yet). Drop any pending
@@ -513,7 +534,18 @@ export const TaskEditPage = () => {
   }
 
   const taskStatuses = taskStatusesQuery.data ?? [];
-  const currentStatus = taskStatuses.find((item) => item.id === statusId) ?? null;
+  // Use the local statusId once the useEffect has copied it out of the task,
+  // otherwise read straight from task.task_status_id so the first render has
+  // a value (the useEffect lag previously left the badge blank).
+  const effectiveStatusId = statusId ?? task?.task_status_id ?? null;
+  // Prefer the project's status list (authoritative; reflects renames/colors)
+  // but fall back to the task's own embedded ``task_status`` snapshot so the
+  // badge + select trigger render correctly during the window between
+  // "task loaded" and "project statuses loaded" — and as a safety net if
+  // the status was archived out of the list since the task was last saved.
+  const currentStatus =
+    taskStatuses.find((item) => item.id === effectiveStatusId) ??
+    (task && task.task_status_id === effectiveStatusId ? task.task_status : null);
   const statusSelectDisabled = isReadOnly || taskStatuses.length === 0;
 
   return (
@@ -636,7 +668,7 @@ export const TaskEditPage = () => {
                 <div className="space-y-2">
                   <Label>{t("edit.statusLabel")}</Label>
                   <Select
-                    value={statusId ? String(statusId) : undefined}
+                    value={effectiveStatusId ? String(effectiveStatusId) : undefined}
                     onValueChange={(value) => {
                       const parsed = Number(value);
                       if (Number.isFinite(parsed)) {
@@ -670,7 +702,7 @@ export const TaskEditPage = () => {
                 <div className="space-y-2">
                   <Label>{t("edit.priorityLabel")}</Label>
                   <Select
-                    value={priority}
+                    value={effectivePriority}
                     onValueChange={(value) => setPriority(value as TaskPriority)}
                     disabled={isReadOnly}
                   >
@@ -760,9 +792,9 @@ export const TaskEditPage = () => {
               </div>
 
               <TaskRecurrenceSelector
-                recurrence={recurrence}
+                recurrence={effectiveRecurrence}
                 onChange={setRecurrence}
-                strategy={recurrenceStrategy}
+                strategy={effectiveRecurrenceStrategy}
                 onStrategyChange={setRecurrenceStrategy}
                 disabled={isReadOnly}
                 referenceDate={dueDate || startDate || task?.due_date || task?.start_date}
