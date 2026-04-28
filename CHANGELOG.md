@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The task edit page sometimes opened with a blank status badge until you nudged the page (added a tag, changed a property, etc.), then it would suddenly show the right value. The page now uses the status that ships with the task itself instead of waiting for a second lookup, so the badge and status picker show the correct value the moment the task loads.
+
 ## [0.42.0] - 2026-04-23
 
 ### Added
