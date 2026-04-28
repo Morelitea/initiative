@@ -53,7 +53,13 @@ export function MarkdownTogglePlugin({ transformers }: { transformers: Array<Tra
         }
       }
     });
-  }, [editor, transformers]);
+    // transformers is intentionally omitted: both call sites pass an
+    // inline array literal so a new reference would arrive every parent
+    // render, defeating the memoization. The transformer set is
+    // effectively constant for the lifetime of the editor instance, so
+    // capturing the first value is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   return (
     <Button
