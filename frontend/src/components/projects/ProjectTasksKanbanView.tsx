@@ -213,6 +213,10 @@ const useHorizontalDragScroll = (ref: React.RefObject<HTMLDivElement | null>) =>
       scrollStart = container.scrollLeft;
       container.setPointerCapture(event.pointerId);
       container.style.cursor = "grabbing";
+      // Suppress the browser's native text-selection drag while we're
+      // pan-scrolling, otherwise the user smears a selection across every
+      // card their pointer moves over.
+      container.style.userSelect = "none";
     };
 
     const handlePointerMove = (event: PointerEvent) => {
@@ -237,6 +241,7 @@ const useHorizontalDragScroll = (ref: React.RefObject<HTMLDivElement | null>) =>
       }
       pointerId = null;
       container.style.cursor = "";
+      container.style.userSelect = "";
     };
 
     container.addEventListener("pointerdown", handlePointerDown);
