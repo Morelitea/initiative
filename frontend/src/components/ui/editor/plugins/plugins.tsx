@@ -279,7 +279,6 @@ export function Plugins() {
             <ShareContentPlugin />
             <ImportExportPlugin />
             <MarkdownTogglePlugin
-              shouldPreserveNewLinesInMarkdown={true}
               transformers={[
                 TABLE,
                 HR,

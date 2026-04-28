@@ -11,13 +11,21 @@ import { FileTextIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
-export function MarkdownTogglePlugin({
-  shouldPreserveNewLinesInMarkdown,
-  transformers,
-}: {
-  shouldPreserveNewLinesInMarkdown: boolean;
-  transformers: Array<Transformer>;
-}) {
+// Both directions use Lexical's CommonMark default (false). This is the
+// only configuration that round-trips:
+//   Lexical Para A + Para B  →  "A\n\nB"  →  Lexical Para A + Para B
+//   Lexical LineBreakNode    →  "\\\n"     →  Lexical LineBreakNode
+// With shouldPreserveNewLines=true on export, paragraphs collapse to a
+// single `\n` — indistinguishable from a soft break — and the round trip
+// loses paragraph structure. The cost of `false` is that LineBreakNode
+// serializes as the CommonMark hard-break (`\\\n`, a literal backslash
+// before the newline) rather than a bare `\n`. A bare `\n` for soft
+// breaks isn't viable here: on re-import CommonMark treats it as
+// whitespace and the break is lost entirely.
+const PRESERVE_NEWLINES_ON_IMPORT = false;
+const PRESERVE_NEWLINES_ON_EXPORT = false;
+
+export function MarkdownTogglePlugin({ transformers }: { transformers: Array<Transformer> }) {
   const [editor] = useLexicalComposerContext();
 
   const handleMarkdownToggle = useCallback(() => {
@@ -29,13 +37,13 @@ export function MarkdownTogglePlugin({
           firstChild.getTextContent(),
           transformers,
           undefined, // node
-          shouldPreserveNewLinesInMarkdown
+          PRESERVE_NEWLINES_ON_IMPORT
         );
       } else {
         const markdown = $convertToMarkdownString(
           transformers,
           undefined, //node
-          shouldPreserveNewLinesInMarkdown
+          PRESERVE_NEWLINES_ON_EXPORT
         );
         const codeNode = $createCodeNode("markdown");
         codeNode.append($createTextNode(markdown));
@@ -45,8 +53,7 @@ export function MarkdownTogglePlugin({
         }
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editor, shouldPreserveNewLinesInMarkdown]);
+  }, [editor, transformers]);
 
   return (
     <Button
