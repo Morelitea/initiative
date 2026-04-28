@@ -11,7 +11,6 @@
     "high": "Haute",
     "urgent": "Urgente"
   },
-
   "filters": {
     "heading": "Filtres",
     "show": "Afficher les filtres",
@@ -29,7 +28,6 @@
     "noGuilds": "Aucun groupe disponible",
     "filterPlaceholder": "Filtrer les tâches..."
   },
-
   "columns": {
     "done": "Terminé",
     "task": "Tâche",
@@ -43,25 +41,21 @@
     "tags": "Étiquettes",
     "status": "Statut"
   },
-
   "checkbox": {
     "markDone": "Marquer la tâche comme terminée",
     "markInProgress": "Marquer la tâche comme en cours"
   },
-
   "errors": {
     "guildContext": "Impossible de déterminer le contexte du groupe pour cette tâche.",
     "statusUpdate": "Impossible de mettre à jour le statut de la tâche.",
     "statusNoMatch": "Impossible de mettre à jour le statut de la tâche. Aucun statut correspondant trouvé."
   },
-
-  "updating": "Mise à jour…",
+  "updating": "Mise à jour\u2026",
   "projectFallback": "Projet #{{id}}",
-
   "edit": {
     "invalidTaskId": "Identifiant de tâche invalide.",
     "back": "← Retour",
-    "loadingTask": "Chargement de la tâche…",
+    "loadingTask": "Chargement de la tâche\u2026",
     "loadError": "Impossible de charger la tâche.",
     "notFound": "Tâche introuvable",
     "notFoundDescription": "Cette tâche a peut-être été supprimée ou vous avez suivi un lien invalide.",
@@ -92,19 +86,19 @@
     "assigneesEmptyMessage": "Aucun titulaire du rôle {{memberLabel}} disponible dans cette initiative.",
     "tagsLabel": "Étiquettes",
     "tagsPlaceholder": "Ajouter des étiquettes...",
-    "saving": "Enregistrement…",
+    "saving": "Enregistrement\u2026",
     "saveTask": "Enregistrer la tâche",
     "moveToProject": "Déplacer vers un projet",
-    "duplicating": "Duplication…",
+    "duplicating": "Duplication\u2026",
     "duplicateTask": "Dupliquer la tâche",
-    "unarchiving": "Désarchivage…",
+    "unarchiving": "Désarchivage\u2026",
     "unarchive": "Désarchiver",
-    "archiving": "Archivage…",
+    "archiving": "Archivage\u2026",
     "archive": "Archiver",
-    "deleting": "Suppression…",
+    "deleting": "Suppression\u2026",
     "deleteTask": "Supprimer la tâche",
     "deleteTitle": "Supprimer la tâche ?",
-    "deleteDescription": "Cela supprimera définitivement la tâche et toutes ses sous-tâches. Cette action est irréversible.",
+    "deleteDescription": "La tâche et ses sous-tâches seront envoyées à la corbeille. Vous pouvez la restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
     "taskUpdated": "Tâche mise à jour",
     "taskDuplicated": "Tâche dupliquée",
     "taskDeleted": "Tâche supprimée",
@@ -118,7 +112,6 @@
     "commentsError": "Impossible de charger les commentaires pour l'instant.",
     "taskStatusRequired": "Le statut de la tâche est requis"
   },
-
   "myTasks": {
     "title": "Mes tâches",
     "subtitle": "Tout ce qui vous est assigné dans tous les projets.",
@@ -128,7 +121,6 @@
     "groupByDate": "Date",
     "groupByGuild": "Groupe"
   },
-
   "myCalendar": {
     "title": "Mon calendrier",
     "subtitle": "Tâches et événements dans tous vos groupes.",
@@ -136,7 +128,6 @@
     "typeEvents": "Événements",
     "typeTasks": "Tâches"
   },
-
   "createdTasks": {
     "title": "Tâches que j'ai créées",
     "subtitle": "Les tâches que vous avez créées dans tous vos groupes.",
@@ -146,16 +137,14 @@
     "groupByDate": "Date",
     "groupByGuild": "Groupe"
   },
-
   "tagTasks": {
     "loadError": "Impossible de charger les tâches."
   },
-
   "checklist": {
     "title": "Sous-tâches",
     "progressLabel": "Progression de la checklist",
     "aiGenerate": "Génération IA",
-    "loading": "Chargement de la liste…",
+    "loading": "Chargement de la liste\u2026",
     "loadError": "Impossible de charger les éléments de la liste pour l'instant.",
     "empty": "Aucun élément dans la liste.",
     "emptyCanEdit": "Ajoutez votre première étape ci-dessous.",
@@ -183,29 +172,25 @@
     "progress": "{{completed}}/{{total}} sous-tâche",
     "progress_other": "{{completed}}/{{total}} sous-tâches"
   },
-
   "prioritySelector": {
     "ariaLabel": "Priorité : {{priority}}. Cliquer pour modifier.",
     "changed": "Priorité changée en {{priority}}",
     "updateError": "Impossible de mettre à jour la priorité."
   },
-
   "statusSelector": {
     "invalidStatus": "Statut sélectionné invalide."
   },
-
   "move": {
     "title": "Déplacer la tâche vers un autre projet",
     "description": "Sélectionnez un projet de destination dans le groupe actuel. Vous ne pouvez déplacer des tâches que vers des projets où vous avez la permission de créer du travail.",
     "loadError": "Impossible de charger les projets accessibles en écriture.",
-    "loading": "Chargement des projets disponibles…",
+    "loading": "Chargement des projets disponibles\u2026",
     "noProjects": "Vous n'avez pas encore d'autres projets accessibles en écriture.",
-    "searchPlaceholder": "Rechercher des projets…",
+    "searchPlaceholder": "Rechercher des projets\u2026",
     "statusResetWarning": "Le déplacement de cette tâche réinitialisera son statut à « Backlog ».",
-    "moving": "Déplacement…",
+    "moving": "Déplacement\u2026",
     "moveTask": "Déplacer la tâche"
   },
-
   "bulkEditTags": {
     "title": "Modifier les étiquettes",
     "descriptionAdd": "Ajouter des étiquettes à {{count}} tâche sélectionnée.",
@@ -217,7 +202,7 @@
     "addPlaceholder": "Sélectionner les étiquettes à ajouter...",
     "removePlaceholder": "Sélectionner les étiquettes à retirer...",
     "noTags": "Aucune étiquette sur les tâches sélectionnées.",
-    "applying": "Application…",
+    "applying": "Application\u2026",
     "apply": "Appliquer",
     "tagsAdded": "Étiquettes ajoutées à {{count}} tâche",
     "tagsAdded_other": "Étiquettes ajoutées à {{count}} tâches",
@@ -225,7 +210,6 @@
     "tagsRemoved_other": "Étiquettes retirées de {{count}} tâches",
     "updateError": "Impossible de mettre à jour les étiquettes pour l'instant."
   },
-
   "createWizard": {
     "title": "Ajouter une tâche",
     "description": "Sélectionnez un projet pour créer une nouvelle tâche.",
@@ -235,12 +219,11 @@
     "selectProject": "Sélectionnez un projet",
     "noInitiatives": "Aucune initiative trouvée dans ce groupe.",
     "noProjects": "Aucun projet trouvé dans cette initiative.",
-    "loading": "Chargement…",
+    "loading": "Chargement\u2026",
     "back": "Retour",
-    "searchProjects": "Rechercher des projets…",
+    "searchProjects": "Rechercher des projets\u2026",
     "loadMore": "Charger plus"
   },
-
   "bulkEdit": {
     "title": "Modifier les tâches",
     "description": "Appliquer les modifications à {{count}} tâche sélectionnée. Seuls les champs définis seront mis à jour.",
@@ -260,11 +243,11 @@
     "selectPriority": "Sélectionner une priorité",
     "recurrenceSection": "Récurrence",
     "recurringSchedule": "Planification récurrente",
-    "applying": "Application…",
+    "applying": "Application\u2026",
     "applyChanges": "Appliquer les modifications",
     "selected": "{{count}} tâche sélectionnée",
     "selected_other": "{{count}} tâches sélectionnées",
     "editTags": "Modifier les étiquettes",
-    "archiving": "Archivage…"
+    "archiving": "Archivage\u2026"
   }
 }

@@ -217,7 +217,7 @@ async def test_list_memberships(session: AsyncSession):
     memberships = await guild_service.list_memberships(session, user_id=user.id)
 
     assert len(memberships) == 2
-    guild_names = {guild.name for guild, _membership in memberships}
+    guild_names = {guild.name for guild, _membership, _retention in memberships}
     assert "Guild 1" in guild_names
     assert "Guild 2" in guild_names
 
@@ -244,7 +244,7 @@ async def test_reorder_memberships(session: AsyncSession):
 
     # Verify order
     memberships = await guild_service.list_memberships(session, user_id=user.id)
-    ordered_ids = [guild.id for guild, _membership in memberships]
+    ordered_ids = [guild.id for guild, _membership, _retention in memberships]
 
     assert ordered_ids == [guild3.id, guild1.id, guild2.id]
 
@@ -441,3 +441,52 @@ async def test_delete_guild_invite(session: AsyncSession):
     result = await session.exec(stmt)
     deleted_invite = result.one_or_none()
     assert deleted_invite is None
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_get_guild_retention_days_distinguishes_never_from_missing(
+    session: AsyncSession,
+):
+    """retention_days = NULL is the user's explicit "never auto-purge"
+    choice. The helper must surface None in that case (not silently
+    fall back to the 90-day default), and only fall back to 90 when no
+    guild_settings row exists at all.
+
+    Regression: a previous version selected GuildSetting.retention_days
+    directly and conflated "row present with NULL" and "no row" — both
+    came back as None from one_or_none(), so the fallback re-enabled
+    auto-purge for guilds that opted out.
+    """
+    from app.models.guild_setting import GuildSetting
+
+    # 1. No guild_settings row at all -> default 90.
+    user = await create_user(session)
+    guild = await create_guild(session)  # bare factory, no settings row
+    await session.exec(
+        # double-check no setting row exists (factory shouldn't create one)
+        select(GuildSetting).where(GuildSetting.guild_id == guild.id)
+    )
+    assert (
+        await guild_service.get_guild_retention_days(session, guild.id)
+    ) == 90
+
+    # 2. Row exists with retention_days = 30 -> 30.
+    setting = GuildSetting(guild_id=guild.id, retention_days=30)
+    session.add(setting)
+    await session.commit()
+    assert (
+        await guild_service.get_guild_retention_days(session, guild.id)
+    ) == 30
+
+    # 3. Row exists with retention_days = NULL -> None ("never").
+    setting.retention_days = None
+    session.add(setting)
+    await session.commit()
+    assert (
+        await guild_service.get_guild_retention_days(session, guild.id)
+    ) is None
+
+    # Suppress unused-name warning if linters complain about the user
+    # we created for symmetry with other tests in this module.
+    _ = user

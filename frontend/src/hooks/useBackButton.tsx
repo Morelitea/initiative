@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { App } from "@capacitor/app";
 import { Capacitor } from "@capacitor/core";
-import { toast } from "sonner";
+
+import { toast } from "@/lib/chesterToast";
 
 const EXIT_TIMEOUT_MS = 2000;
 

@@ -9,6 +9,7 @@
       "ai": "AI",
       "import": "Import",
       "security": "Security",
+      "trash": "Trash",
       "danger": "Danger Zone"
     },
     "loginRequired": "You need to be logged in to manage your profile.",
@@ -21,7 +22,8 @@
     "tabs": {
       "guild": "Guild",
       "ai": "AI",
-      "users": "Users"
+      "users": "Users",
+      "trash": "Trash"
     }
   },
   "adminLayout": {
@@ -310,10 +312,10 @@
     "checkBlockersDescription": "Checking if your account can be deleted",
     "transferProjectsDescription": "Transfer project ownership",
     "confirmDeletionDescription": "Confirm account deletion",
-    "softDeleteLabel": "Deactivate Account (Soft Delete)",
-    "softDeleteRadioDescription": "You cannot log in, but all data is preserved. An administrator can reactivate your account later.",
-    "hardDeleteLabel": "Delete Account Permanently (Hard Delete)",
-    "hardDeleteRadioDescription": "Most data will be removed from the system. Comments and documents will be kept but labeled as \"[Deleted User]\". This action cannot be undone.",
+    "deactivateLabel": "Deactivate my account (admins can activate it for you later)",
+    "deactivateRadioDescription": "You will not be able to log in. A platform admin can reactivate your account on request. Your name, email, and content remain intact.",
+    "softDeleteLabel": "Delete my account (remove my personal information)",
+    "softDeleteRadioDescription": "Your name, email, and avatar will be removed and you will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "cannotDelete": "Cannot delete account:",
     "resolveIssues": "Please resolve these issues before deleting your account.",
     "important": "Important:",
@@ -321,8 +323,8 @@
     "selectNewOwners": "Select new owners for your projects before proceeding with account deletion.",
     "selectNewOwnerPlaceholder": "Select new owner\u2026",
     "actionSerious": "This action is serious:",
-    "softConfirmDescription": "Your account will be deactivated. You will not be able to log in, but all your data will be preserved. An administrator can reactivate your account.",
-    "hardConfirmDescription": "Your account will be permanently deleted. Your projects will be transferred. Comments and documents will remain but will show \"[Deleted User]\" as the author. This action cannot be undone.",
+    "deactivateConfirmDescription": "Your account will be deactivated. You will not be able to log in until an administrator reactivates your account. Your name, email, and content remain intact.",
+    "softDeleteConfirmDescription": "Your name, email, and avatar will be removed. You will not be able to log in. Comments, tasks, and other content you authored will remain visible as \"Deleted user\". This cannot be undone.",
     "confirmPasswordLabel": "Confirm your password",
     "enterPassword": "Enter your password",
     "typeToConfirm": "Type <1>DELETE MY ACCOUNT</1> to confirm",
@@ -334,6 +336,7 @@
     "deleteAccountButton": "Delete Account",
     "checking": "Checking\u2026",
     "deactivateSuccess": "Account deactivated successfully",
+    "softDeleteSuccess": "Your account has been anonymized.",
     "deleteSuccess": "Account deleted permanently"
   },
   "branding": {
@@ -363,7 +366,62 @@
     "saveRoles": "Save role labels",
     "savingRoles": "Saving\u2026",
     "rolesSuccess": "Role labels updated",
-    "rolesUpdateError": "Unable to update role labels."
+    "rolesUpdateError": "Unable to update role labels.",
+    "chesterPlayground": {
+      "title": "Chester toast playground",
+      "description": "Trigger each toast type to preview its Chester variant and animation.",
+      "default": {
+        "label": "default (idle)",
+        "message": "Just a notification"
+      },
+      "success": {
+        "label": "success (proud)",
+        "message": "Saved successfully"
+      },
+      "error": {
+        "label": "error (excited)",
+        "message": "Something went wrong"
+      },
+      "warning": {
+        "label": "warning (thinking)",
+        "message": "Be careful"
+      },
+      "info": {
+        "label": "info (talking)",
+        "message": "Heads up"
+      },
+      "loading": {
+        "label": "loading (talking, sticky)",
+        "message": "Working on it\u2026"
+      },
+      "withDescription": {
+        "label": "with description",
+        "message": "Profile updated",
+        "detail": "Your changes are now live across all devices."
+      },
+      "withAction": {
+        "label": "with action",
+        "message": "Click undo to revert",
+        "actionLabel": "Undo",
+        "reverted": "Reverted"
+      },
+      "sticky": {
+        "label": "sticky (id-based)",
+        "message": "Sticky toast \u2014 dismiss me"
+      },
+      "dismissSticky": "dismiss sticky",
+      "promiseResolve": {
+        "label": "promise (resolve)",
+        "loading": "Doing something async\u2026",
+        "success": "It worked"
+      },
+      "promiseReject": {
+        "label": "promise (reject)",
+        "loading": "Doing something risky\u2026",
+        "errorPrefix": "It failed: {{message}}"
+      },
+      "dismissAll": "dismiss all"
+    }
   },
   "email": {
     "adminOnly": "Only platform admins can manage email settings.",
@@ -491,6 +549,7 @@
     "loading": "Loading users\u2026",
     "loadError": "Unable to load users.",
     "filterPlaceholder": "Filter by email\u2026",
+    "columnId": "User ID",
     "columnName": "Name",
     "columnEmail": "Email",
     "columnRole": "Role",
@@ -498,6 +557,8 @@
     "columnActions": "Actions",
     "active": "Active",
     "inactive": "Inactive",
+    "deactivated": "Deactivated",
+    "anonymized": "Anonymized",
     "admin": "Admin",
     "user": "User",
     "promoteToAdmin": "Promote to admin",
@@ -507,6 +568,9 @@
     "resetPassword": "Reset password",
     "resetDescription": "This will send a password reset email to {{email}}.",
     "reactivate": "Reactivate",
+    "exportUser": "Export",
+    "exportAll": "Export all as CSV",
+    "exportError": "Unable to export users.",
     "deleteUser": "Delete user",
     "promoteSuccess": "User promoted to admin",
     "demoteSuccess": "User demoted to member",
@@ -533,10 +597,12 @@
     "stepBlockers": "Resolve blockers",
     "stepTransfer": "Transfer projects",
     "stepConfirm": "Confirm deletion",
-    "softDeleteTitle": "Deactivate User",
-    "softDeleteDescription": "The user will be deactivated. They won't be able to log in, but their data will be preserved. You can reactivate their account later.",
-    "hardDeleteTitle": "Permanently Delete User",
-    "hardDeleteDescription": "The user will be permanently deleted. Their projects must be transferred. Comments will show \"[Deleted User]\".",
+    "deactivateTitle": "Deactivate",
+    "deactivateDescription": "User cannot log in. PII preserved. Reversible from the users page.",
+    "softDeleteTitle": "Anonymize (soft delete)",
+    "softDeleteDescription": "PII removed. User cannot log in. Content authorship is preserved as \"Deleted user\". Cannot be reversed.",
+    "hardDeleteTitle": "Hard delete (purge)",
+    "hardDeleteDescription": "All user data is removed from the database. Comments, tasks, and other content authored by this user are deleted via cascade. Cannot be reversed.",
     "choose": "Choose",
     "selected": "Selected",
     "blockersTitle": "Blockers",
@@ -555,15 +621,23 @@
     "deleteGuildConfirm": "Delete guild \"{{guildName}}\"? This will permanently delete all guild data.",
     "deleteGuildSuccess": "Guild deleted",
     "deleteGuildError": "Unable to delete guild",
+    "deleteInitiative": "Delete initiative",
+    "deleteInitiativeConfirm": "Delete initiative \"{{initiativeName}}\"? It and all its projects, tasks, documents, queues, and events will be sent to the trash. You can restore the whole tree from Settings → Trash before the retention period ends.",
+    "deleteInitiativeSuccess": "Initiative deleted",
+    "deleteInitiativeError": "Unable to delete initiative",
     "transferTitle": "Transfer owned projects",
     "transferDescription": "This user owns the following projects. Choose a new owner for each:",
     "transferSelectPlaceholder": "Select new owner",
     "noUsersAvailable": "No users available",
     "confirmTitle": "Confirm deletion",
+    "confirmDeactivateTitle": "Confirm deactivation",
+    "confirmAnonymizeTitle": "Confirm anonymization",
     "confirmDescription": "This action cannot be undone.",
-    "confirmHardDelete": "Permanently delete {{email}}",
-    "confirmSoftDelete": "Deactivate {{email}}",
-    "deleteButton": "Delete user",
+    "confirmDeactivate": "Deactivate {{email}} — they cannot log in but their data is preserved.",
+    "confirmSoftDelete": "Anonymize {{email}} — PII is removed. Comments and tasks they authored remain visible as \"Deleted user\". This cannot be reversed.",
+    "confirmHardDelete": "Permanently delete {{email}} — the row and all cascading data are removed. This cannot be reversed.",
+    "anonymizeButton": "Anonymize user",
+    "deleteButton": "Hard delete user",
     "deleting": "Deleting\u2026",
     "deactivateButton": "Deactivate user",
     "deactivating": "Deactivating\u2026",

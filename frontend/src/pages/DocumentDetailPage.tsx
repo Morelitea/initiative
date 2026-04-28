@@ -27,9 +27,9 @@ import {
   X,
 } from "lucide-react";
 import { StatusMessage } from "@/components/StatusMessage";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
+import { toast } from "@/lib/chesterToast";
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1DocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";

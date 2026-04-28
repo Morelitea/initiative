@@ -1,0 +1,5 @@
+# Extras for the infra image variant. Installed only when the Dockerfile
+# is built with --build-arg INSTALL_INFRA_EXTRAS=true. The OSS image never
+# includes these; event_publisher.py imports aioboto3 lazily inside
+# connect() so the module loads cleanly without it.
+aioboto3>=13.0.0  # Kinesis event publishing (gated by ENABLE_EVENT_PUBLISHING)

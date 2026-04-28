@@ -41,7 +41,7 @@ async def test_get_current_user(client: AsyncClient, session: AsyncSession):
     assert data["id"] == user.id
     assert data["email"] == "test@example.com"
     assert data["full_name"] == "Test User"
-    assert data["is_active"] is True
+    assert data["status"] == "active"
 
 
 @pytest.mark.integration
@@ -263,7 +263,7 @@ async def test_user_can_change_password(client: AsyncClient, session: AsyncSessi
 @pytest.mark.integration
 async def test_inactive_user_cannot_access_endpoints(client: AsyncClient, session: AsyncSession):
     """Test that inactive users cannot access protected endpoints."""
-    from app.models.user import User
+    from app.models.user import User, UserStatus
 
     # Create inactive user
     user = User(
@@ -271,7 +271,7 @@ async def test_inactive_user_cannot_access_endpoints(client: AsyncClient, sessio
         email_encrypted=encrypt_field("inactive@example.com", SALT_EMAIL),
         full_name="Inactive User",
         hashed_password="dummy",
-        is_active=False,
+        status=UserStatus.deactivated,
     )
     session.add(user)
     await session.commit()
@@ -406,3 +406,314 @@ async def test_list_users_only_shows_guild_members(client: AsyncClient, session:
     # Should only see user1, not user2
     assert len(data) == 1
     assert data[0]["email"] == "user1@example.com"
+
+
+def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:
+    """Strip the UTF-8 BOM and parse the CSV body into (headers, rows)."""
+    import csv
+    import io
+
+    text = body.decode("utf-8")
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    reader = csv.reader(io.StringIO(text))
+    rows = list(reader)
+    return rows[0], rows[1:]
+
+
+@pytest.mark.integration
+async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSession):
+    """Guild admin can export all members as CSV."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com", full_name="Ada Admin")
+    member = await create_user(session, email="member@example.com", full_name="Mel Member")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get("/api/v1/users/export.csv", headers=headers)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "attachment; filename=" in response.headers["content-disposition"]
+    assert response.content.startswith("\ufeff".encode("utf-8"))
+
+    header_row, data_rows = _parse_csv(response.content)
+    assert header_row == [
+        "user_id",
+        "email",
+        "full_name",
+        "guild_role",
+        "platform_role",
+        "oidc_managed",
+        "status",
+        "email_verified",
+        "created_at",
+        "initiative_roles",
+    ]
+    emails = {row[1] for row in data_rows}
+    assert emails == {"admin@example.com", "member@example.com"}
+
+
+@pytest.mark.integration
+async def test_export_users_csv_forbidden_for_member(client: AsyncClient, session: AsyncSession):
+    """A plain guild member cannot hit the export endpoint."""
+    guild = await create_guild(session)
+    member = await create_user(session, email="m@example.com")
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, member)
+    response = await client.get("/api/v1/users/export.csv", headers=headers)
+
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_export_users_csv_requires_guild_context(client: AsyncClient, session: AsyncSession):
+    """Without the guild header the export is rejected."""
+    user = await create_user(session)
+    headers = get_auth_headers(user)
+
+    response = await client.get("/api/v1/users/export.csv", headers=headers)
+    assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_export_users_csv_single_user_id(client: AsyncClient, session: AsyncSession):
+    """Passing one user_id returns exactly that row with a per-user filename."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    target = await create_user(session, email="target@example.com", full_name="Target User")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=target, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get(
+        f"/api/v1/users/export.csv?user_id={target.id}", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert f"user-{target.id}-" in response.headers["content-disposition"]
+    _, data_rows = _parse_csv(response.content)
+    assert len(data_rows) == 1
+    assert data_rows[0][0] == str(target.id)
+    assert data_rows[0][1] == "target@example.com"
+
+
+@pytest.mark.integration
+async def test_export_users_csv_multi_user_id(client: AsyncClient, session: AsyncSession):
+    """Two user_id values return two rows with a bulk-style filename."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    a = await create_user(session, email="a@example.com")
+    b = await create_user(session, email="b@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=a, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=b, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get(
+        f"/api/v1/users/export.csv?user_id={a.id}&user_id={b.id}", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert "-users-" in response.headers["content-disposition"]
+    _, data_rows = _parse_csv(response.content)
+    emails = {row[1] for row in data_rows}
+    assert emails == {"a@example.com", "b@example.com"}
+
+
+@pytest.mark.integration
+async def test_export_users_csv_partial_miss(client: AsyncClient, session: AsyncSession):
+    """Unknown ids are dropped silently; known ids are returned."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    target = await create_user(session, email="target@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=target, guild=guild, role=GuildRole.member)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get(
+        f"/api/v1/users/export.csv?user_id={target.id}&user_id=99999", headers=headers
+    )
+
+    assert response.status_code == 200
+    _, data_rows = _parse_csv(response.content)
+    assert len(data_rows) == 1
+    assert data_rows[0][0] == str(target.id)
+
+
+@pytest.mark.integration
+async def test_export_users_csv_no_matches_returns_404(client: AsyncClient, session: AsyncSession):
+    """All requested ids missing/invisible under RLS -> 404."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+
+    headers = get_guild_headers(guild, admin)
+    response = await client.get(
+        "/api/v1/users/export.csv?user_id=99998&user_id=99999", headers=headers
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_export_users_csv_user_outside_guild(client: AsyncClient, session: AsyncSession):
+    """A user who exists but isn't in the active guild is not visible."""
+    guild1 = await create_guild(session)
+    guild2 = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    outsider = await create_user(session, email="outsider@example.com")
+    await create_guild_membership(session, user=admin, guild=guild1, role=GuildRole.admin)
+    await create_guild_membership(session, user=outsider, guild=guild2, role=GuildRole.member)
+
+    headers = get_guild_headers(guild1, admin)
+    response = await client.get(
+        f"/api/v1/users/export.csv?user_id={outsider.id}", headers=headers
+    )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+async def test_oidc_user_can_self_delete_without_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """OIDC-provisioned users have no usable password (the random hash
+    set at SSO callback was never shown). The self-deletion endpoint
+    must skip the password gate for them, otherwise they'd be
+    permanently blocked from the "Delete account" flow.
+    """
+    user = await create_user(session, email="oidc-user@example.com")
+    user.oidc_sub = "oidc-subject-123"
+    session.add(user)
+    await session.commit()
+
+    headers = get_auth_headers(user)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["success"] is True
+    assert body["action"] == "soft_delete"
+
+
+@pytest.mark.integration
+async def test_password_user_cannot_skip_password_check(
+    client: AsyncClient, session: AsyncSession
+):
+    """A non-OIDC user still has to satisfy the password gate."""
+    from app.core.security import get_password_hash
+
+    user = await create_user(session, email="pwd-user@example.com")
+    user.hashed_password = get_password_hash("real-password")
+    session.add(user)
+    await session.commit()
+
+    headers = get_auth_headers(user)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "wrong-password",
+            "confirmation_text": "DELETE MY ACCOUNT",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_initiative_members_excludes_anonymized(
+    client: AsyncClient, session: AsyncSession
+):
+    """The transfer-target picker must not return anonymized rows.
+
+    Regression: without the status filter, an anonymized husk would
+    appear as a selectable project transfer target — and since the
+    backend transfer accepted any user id, a self-deleting user could
+    hand a live project to a non-person.
+    """
+    from app.services import users as users_service
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+    )
+
+    creator = await create_user(session, email="creator@example.com")
+    guild = await create_guild(session, creator=creator)
+    initiative = await create_initiative(session, guild=guild, creator=creator)
+
+    departing = await create_user(session, email="departing@example.com")
+    await create_initiative_member(session, initiative=initiative, user=departing)
+
+    survivor = await create_user(session, email="survivor@example.com")
+    await create_initiative_member(session, initiative=initiative, user=survivor)
+
+    # Anonymize the departing user — they should disappear from the picker.
+    await users_service.soft_delete_user(session, departing.id)
+
+    headers = get_auth_headers(creator)
+    response = await client.get(
+        f"/api/v1/users/me/initiative-members/{initiative.id}", headers=headers
+    )
+    assert response.status_code == 200
+    ids = {member["id"] for member in response.json()}
+    assert departing.id not in ids
+    assert survivor.id in ids
+
+
+@pytest.mark.integration
+async def test_self_delete_rejects_anonymized_transfer_target(
+    client: AsyncClient, session: AsyncSession
+):
+    """Even if the client crafts a request that targets an anonymized
+    user, ``transfer_project_ownership`` refuses and the endpoint
+    returns a 400 instead of stranding a project on a husk."""
+    from app.services import users as users_service
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    owner = await create_user(session, email="leaving@example.com")
+    co_admin = await create_user(session, email="co-admin@example.com")
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=co_admin, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild=guild, creator=owner)
+    # Add co_admin as another PM so the eligibility check passes.
+    await create_initiative_member(
+        session, initiative=initiative, user=co_admin, role_name="project_manager",
+    )
+
+    husk = await create_user(session, email="husk@example.com")
+    await create_initiative_member(session, initiative=initiative, user=husk)
+    await users_service.soft_delete_user(session, husk.id)
+
+    project = await create_project(session, initiative=initiative, owner=owner)
+
+    headers = get_auth_headers(owner)
+    response = await client.post(
+        "/api/v1/users/me/delete-account",
+        headers=headers,
+        json={
+            "action": "soft_delete",
+            "password": "testpassword123",
+            "confirmation_text": "DELETE MY ACCOUNT",
+            "project_transfers": {str(project.id): husk.id},
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_TRANSFER_RECIPIENT"

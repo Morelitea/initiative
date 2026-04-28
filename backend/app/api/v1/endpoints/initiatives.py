@@ -13,7 +13,6 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.core.config import settings as app_config
 from app.core.messages import AuthMessages, InitiativeMessages
 from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
@@ -265,15 +264,25 @@ async def delete_initiative(
     initiative_id: int,
     session: RLSSessionDep,
     guild_context: GuildAdminContext,
+    current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> None:
+    """Soft-delete an initiative. Cascades the same deleted_at to its
+    projects, documents, queues, and calendar events; their descendants
+    (tasks, comments, queue items) follow recursively. Restoring the
+    initiative resurfaces everything that was cascaded together."""
+    from app.services import guilds as guilds_service
+    from app.services.soft_delete import soft_delete_entity
+
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
     if initiative.is_default:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=InitiativeMessages.CANNOT_DELETE_DEFAULT)
-    project_stmt = await session.exec(select(Project).where(Project.initiative_id == initiative_id))
-    projects = project_stmt.all()
-    for project in projects:
-        await session.delete(project)
-    await session.delete(initiative)
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    await soft_delete_entity(
+        session,
+        initiative,
+        deleted_by_user_id=current_user.id,
+        retention_days=retention_days,
+    )
     await session.commit()
 
 
@@ -454,8 +463,6 @@ async def get_my_initiative_permissions(
     """Get the current user's permissions for an initiative."""
     initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
 
-    automations_effective = initiative.automations_enabled and app_config.ENABLE_AUTOMATIONS
-
     # Guild admins have all permissions
     if rls_service.is_guild_admin(guild_context.role):
         return MyInitiativePermissions(
@@ -469,8 +476,6 @@ async def get_my_initiative_permissions(
                 "create_queues": initiative.queues_enabled,
                 "events_enabled": initiative.events_enabled,
                 "create_events": initiative.events_enabled,
-                "automations_enabled": automations_effective,
-                "create_automations": automations_effective,
             },
         )
 
@@ -500,11 +505,6 @@ async def get_my_initiative_permissions(
     if not initiative.events_enabled:
         permissions[PermissionKey.events_enabled] = False
         permissions[PermissionKey.create_events] = False
-
-    # Initiative-level + infra-level master switch for automations
-    if not automations_effective:
-        permissions[PermissionKey.automations_enabled] = False
-        permissions[PermissionKey.create_automations] = False
 
     return MyInitiativePermissions(
         role_id=role.id,

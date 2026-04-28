@@ -14,7 +14,6 @@
     "hideFilters": "Hide filters",
     "updating": "Updating..."
   },
-
   "page": {
     "title": "Documents",
     "subtitle": "Keep initiative knowledge organized and attach docs to projects.",
@@ -209,7 +208,7 @@
     "duplicateDocument": "Duplicate document",
     "copyToInitiative": "Copy to initiative",
     "dangerTitle": "Danger zone",
-    "dangerDescription": "Deleting a document cannot be undone.",
+    "dangerDescription": "Deleted documents go to the trash and can be restored before the guild's retention period ends.",
     "deleteDocument": "Delete document",
     "duplicateDialogTitle": "Duplicate document",
     "duplicateDialogDescription": "Create a copy inside the same initiative.",
@@ -225,7 +224,7 @@
     "copying": "Copying\u2026",
     "copyDocument": "Copy document",
     "deleteDialogTitle": "Delete this document?",
-    "deleteDialogDescription": "This removes the document for everyone. All comments and attachments will be permanently deleted. This action cannot be undone.",
+    "deleteDialogDescription": "This sends the document and its comments to the trash. You can restore it from Settings → Trash before the retention period ends.",
     "deleting": "Deleting\u2026",
     "documentDuplicated": "Document duplicated",
     "documentCopied": "Document copied to {{initiative}}",
@@ -334,8 +333,8 @@
     "airtableEmbedHint": "This is an Airtable view URL. In Airtable, open Share view → enable 'Embed on your site'. Copy the airtable.com/embed/... URL and paste it here."
   },
   "whiteboard": {
-    "loading": "Loading whiteboard…",
-    "syncing": "Syncing whiteboard…",
+    "loading": "Loading whiteboard\u2026",
+    "syncing": "Syncing whiteboard\u2026",
     "readOnly": "You have read-only access to this whiteboard."
   },
   "sidePanel": {

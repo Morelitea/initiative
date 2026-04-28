@@ -1,7 +1,6 @@
 import "i18next";
 
 import type auth from "../../public/locales/en/auth.json";
-import type automations from "../../public/locales/en/automations.json";
 import type command from "../../public/locales/en/command.json";
 import type common from "../../public/locales/en/common.json";
 import type dashboard from "../../public/locales/en/dashboard.json";
@@ -22,6 +21,7 @@ import type settings from "../../public/locales/en/settings.json";
 import type stats from "../../public/locales/en/stats.json";
 import type tags from "../../public/locales/en/tags.json";
 import type tasks from "../../public/locales/en/tasks.json";
+import type trash from "../../public/locales/en/trash.json";
 
 declare module "i18next" {
   interface CustomTypeOptions {
@@ -31,7 +31,6 @@ declare module "i18next" {
     returnObjects: false;
     resources: {
       auth: typeof auth;
-      automations: typeof automations;
       command: typeof command;
       common: typeof common;
       dashboard: typeof dashboard;
@@ -52,6 +51,7 @@ declare module "i18next" {
       stats: typeof stats;
       tags: typeof tags;
       tasks: typeof tasks;
+      trash: typeof trash;
     };
   }
 }

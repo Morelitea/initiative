@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   listCalendarEventsApiV1CalendarEventsGet,
   getListCalendarEventsApiV1CalendarEventsGetQueryKey,

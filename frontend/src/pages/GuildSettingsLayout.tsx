@@ -35,6 +35,11 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
+      {
+        value: "trash",
+        label: t("guildLayout.tabs.trash"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
+      },
     ],
     [urlGuildId, t]
   );
@@ -62,6 +67,7 @@ export const GuildSettingsLayout = () => {
     { value: "guild", subPath: "/settings" },
     { value: "ai", subPath: "/settings/ai" },
     { value: "users", subPath: "/settings/users" },
+    { value: "trash", subPath: "/settings/trash" },
   ];
 
   const activeTab =

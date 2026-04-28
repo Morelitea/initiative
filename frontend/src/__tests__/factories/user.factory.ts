@@ -28,7 +28,7 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
     avatar_url: null,
     role: "member",
     can_create_guilds: true,
-    is_active: true,
+    status: "active",
     email_verified: true,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
@@ -38,9 +38,7 @@ export function buildUser(overrides: Partial<UserRead> = {}): UserRead {
   };
 }
 
-export function buildUserGuildMember(
-  overrides: Partial<UserGuildMember> = {}
-): UserGuildMember {
+export function buildUserGuildMember(overrides: Partial<UserGuildMember> = {}): UserGuildMember {
   counter++;
   return {
     id: counter,
@@ -51,7 +49,7 @@ export function buildUserGuildMember(
     role: "member",
     guild_role: "member",
     oidc_managed: false,
-    is_active: true,
+    status: "active",
     email_verified: true,
     created_at: "2026-01-15T00:00:00.000Z",
     initiative_roles: [],

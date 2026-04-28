@@ -1,13 +1,13 @@
-fastapi==0.111.0
+fastapi==0.136.1
 uvicorn[standard]==0.41.0
-sqlmodel==0.0.37
+sqlmodel==0.0.38
 sqlalchemy==2.0.30
 asyncpg==0.31.0
-PyJWT==2.12.0
+PyJWT==2.12.1
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 pydantic-settings==2.13.1
-python-multipart==0.0.22
+python-multipart==0.0.26
 email-validator==2.3.0
 httpx==0.27.0
 google-auth>=2.23.0
@@ -17,7 +17,6 @@ slowapi==0.1.9
 tzdata>=2024.1  # Required on Windows for timezone support
 python-magic>=0.4.27  # MIME type detection for file uploads
 icalendar>=6.0.0  # iCal import/export
-redis[hiredis]>=5.0.0  # Event publishing for automations (optional, only when ENABLE_AUTOMATIONS=true)
 
 # Collaboration (Yjs CRDT)
 pycrdt~=0.12.50

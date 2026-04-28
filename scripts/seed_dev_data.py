@@ -2698,6 +2698,26 @@ async def clean() -> None:
             await session.flush()
             print("  Removed tasks")
 
+            # Sweep any leftover tasks that still reference one of the
+            # seeded task statuses. Mirrors the projects-vs-initiatives
+            # case earlier in this cleanup: ``Task.task_status_id`` is
+            # NOT NULL, so the autoflush triggered by deleting the
+            # status would try to set it to NULL on any orphan task
+            # (e.g. one created during dev testing) and fail. Drop those
+            # tasks explicitly first.
+            if state.get("task_statuses", []):
+                leftover_result = await session.exec(
+                    select(Task).where(
+                        Task.task_status_id.in_(state["task_statuses"])
+                    )
+                )
+                leftover_tasks = leftover_result.all()
+                for task in leftover_tasks:
+                    await session.delete(task)
+                if leftover_tasks:
+                    await session.flush()
+                    print(f"  Removed {len(leftover_tasks)} untracked tasks")
+
             # Task statuses
             for sid in state.get("task_statuses", []):
                 obj = await session.get(TaskStatus, sid)
@@ -2800,6 +2820,25 @@ async def clean() -> None:
                     await session.delete(obj)
             await session.flush()
             print("  Removed initiative roles")
+
+            # Sweep any leftover projects that still reference one of the
+            # seeded initiatives. The script tracks projects it created in
+            # `state["projects"]`, but projects created outside that path
+            # (e.g. via the running app during dev) won't be in that list.
+            # `Initiative.projects` has no `delete-orphan` cascade, so when
+            # we delete the initiative below SQLAlchemy autoflush would try
+            # to NULL each leftover `Project.initiative_id` — which the
+            # NOT NULL constraint rejects. Delete them explicitly first.
+            if state.get("initiatives"):
+                leftover_result = await session.exec(
+                    select(Project).where(Project.initiative_id.in_(state["initiatives"]))
+                )
+                leftover_projects = leftover_result.all()
+                for project in leftover_projects:
+                    await session.delete(project)
+                if leftover_projects:
+                    await session.flush()
+                    print(f"  Removed {len(leftover_projects)} untracked projects")
 
             # Initiatives
             for iid in state.get("initiatives", []):

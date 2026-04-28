@@ -15,11 +15,12 @@ from app.core.config import settings
 #
 # To add a new encrypted field: pick a descriptive salt string, add it
 # here, and use encrypt_field / decrypt_field with that constant.
-SALT_OIDC_REFRESH_TOKEN = b"oidc-refresh-token"   # legacy name, do not rename
-SALT_OIDC_CLIENT_SECRET = b"oidc-client-secret"
-SALT_SMTP_PASSWORD      = b"smtp-password"
-SALT_AI_API_KEY         = b"ai-api-key"
-SALT_EMAIL              = b"email"
+SALT_OIDC_REFRESH_TOKEN     = b"oidc-refresh-token"   # legacy name, do not rename
+SALT_OIDC_CLIENT_SECRET     = b"oidc-client-secret"
+SALT_SMTP_PASSWORD          = b"smtp-password"
+SALT_AI_API_KEY             = b"ai-api-key"
+SALT_EMAIL                  = b"email"
+SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
 
 
 def _derive_fernet_key(salt: bytes) -> bytes:

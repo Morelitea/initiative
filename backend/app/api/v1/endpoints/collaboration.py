@@ -25,7 +25,7 @@ from app.db.session import AsyncSessionLocal, set_rls_context
 from app.models.document import Document, DocumentRolePermission
 from app.models.guild import GuildMembership
 from app.models.initiative import Initiative, InitiativeMember
-from app.models.user import User
+from app.models.user import User, UserStatus
 from app.schemas.token import TokenPayload
 from app.services.collaboration import (
     CollaboratorInfo,
@@ -57,7 +57,7 @@ async def _get_user_from_token(token: str, session) -> Optional[User]:
             statement = select(User).where(User.id == int(token_data.sub))
             result = await session.exec(statement)
             user = result.one_or_none()
-            if user and user.is_active:
+            if user and user.status == UserStatus.active:
                 return user
     except jwt.PyJWTError:
         pass
@@ -68,7 +68,7 @@ async def _get_user_from_token(token: str, session) -> Optional[User]:
         statement = select(User).where(User.id == device_token.user_id)
         result = await session.exec(statement)
         user = result.one_or_none()
-        if user and user.is_active:
+        if user and user.status == UserStatus.active:
             return user
 
     return None

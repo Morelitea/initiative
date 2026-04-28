@@ -11,8 +11,8 @@ import {
   Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   useCalendarEvent,
   useDeleteCalendarEvent,

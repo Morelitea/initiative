@@ -8,7 +8,7 @@
     "edit": "Editar",
     "delete": "Eliminar",
     "deleteTitle": "¿Eliminar etiqueta?",
-    "deleteDescription": "Esto eliminará la etiqueta \"{{name}}\" de todas las tareas, proyectos y documentos. Esta acción no se puede deshacer.",
+    "deleteDescription": "La etiqueta \"{{name}}\" se enviará a la papelera y se ocultará de todas las tareas, proyectos y documentos que la usen. Puedes restaurarla desde Configuración → Papelera antes de que finalice el período de retención.",
     "deleted": "Etiqueta eliminada",
     "saving": "Guardando\u2026",
     "save": "Guardar",

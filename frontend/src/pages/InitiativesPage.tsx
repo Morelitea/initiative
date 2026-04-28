@@ -2,8 +2,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { Link, useSearch } from "@tanstack/react-router";
 import { Loader2, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { invalidateAllInitiatives } from "@/api/query-keys";
 import { useInitiatives, useCreateInitiative } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";

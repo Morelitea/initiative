@@ -109,7 +109,7 @@
     "deleted": "Initiative deleted.",
     "deleteError": "Unable to delete initiative right now.",
     "deleteConfirmTitle": "Delete initiative?",
-    "deleteConfirmDescription": "Deleting <bold>{{name}}</bold> will permanently remove all projects, tasks, and documents within it. This cannot be undone.",
+    "deleteConfirmDescription": "<bold>{{name}}</bold> and everything inside it (projects, tasks, documents, queues, events) will be sent to the trash. You can restore the whole tree from Settings → Trash before the retention period ends.",
     "deleteConfirmLabel": "Type <bold>{{name}}</bold> to confirm:",
     "createRoleTitle": "Create custom role",
     "createRoleDescription": "Add a new role with custom permissions for this initiative.",
@@ -142,8 +142,7 @@
       "documents": "Documents",
       "projects": "Projects",
       "queues": "Queues",
-      "events": "Events",
-      "automations": "Automations"
+      "events": "Events"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -153,9 +152,7 @@
       "viewQueues": "View Queues",
       "createQueues": "Create Queues",
       "viewEvents": "View Events",
-      "createEvents": "Create Events",
-      "viewAutomations": "View Automations",
-      "createAutomations": "Create Automations"
+      "createEvents": "Create Events"
     }
   },
   "advancedTools": "Advanced Tools",
@@ -163,11 +160,5 @@
   "queuesFeature": "Queues",
   "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next.",
   "eventsFeature": "Calendar",
-  "eventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking.",
-  "automationsFeature": "Automations",
-  "automationsFeatureDescription": "Create automated workflows and trigger actions based on events.",
-  "automationsScoped": "Showing automations for this initiative.",
-  "automationsComingSoon": "Automation Pipeline",
-  "automationsComingSoonDescription": "Automate workflows and integrate with external pipelines.",
-  "automationsPlaceholder": "Automation pipeline integration is being set up. Once configured, you'll be able to create automated workflows that trigger actions based on events in your initiative."
+  "eventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking."
 }

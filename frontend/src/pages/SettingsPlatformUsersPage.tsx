@@ -1,17 +1,19 @@
 import { useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
+import { Download, Mail, Shield, ShieldOff, Trash2, UserCheck } from "lucide-react";
 
+import { toast } from "@/lib/chesterToast";
 import {
   usePlatformUsers,
   usePlatformAdminCount,
   useAdminTriggerPasswordReset,
   useAdminReactivateUser,
   useAdminUpdatePlatformRole,
+  useExportPlatformUsersCsv,
 } from "@/hooks/useAdmin";
 import { invalidateAdminUsers } from "@/api/query-keys";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { AdminDeleteUserDialog } from "@/components/admin/AdminDeleteUserDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -88,9 +90,14 @@ export const SettingsPlatformUsersPage = () => {
   };
 
   const updatePlatformRole = useAdminUpdatePlatformRole({
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Read the new role off the mutation variables, not off
+      // ``roleChangeConfirm``. The confirm dialog may have already
+      // closed (which calls setRoleChangeConfirm(null)) by the time
+      // this callback fires, so the closure could see ``null`` and
+      // pick the wrong toast.
       toast.success(
-        roleChangeConfirm?.newRole === "admin"
+        variables.role === "admin"
           ? t("platformUsers.promoteSuccess")
           : t("platformUsers.demoteSuccess")
       );
@@ -121,6 +128,28 @@ export const SettingsPlatformUsersPage = () => {
     }
   };
 
+  const exportPlatformUsers = useExportPlatformUsersCsv({
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:platformUsers.exportError"));
+    },
+  });
+
+  const exportUserCsv = (platformUser: UserRead) => {
+    const safeEmail = platformUser.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    exportPlatformUsers.mutate({
+      params: { user_id: [platformUser.id] },
+      filename: `user-${platformUser.id}-${safeEmail}.csv`,
+    });
+  };
+
+  const exportAllUsersCsv = () => {
+    const datestamp = new Date().toISOString().slice(0, 10);
+    exportPlatformUsers.mutate({
+      params: {},
+      filename: `platform-users-${datestamp}.csv`,
+    });
+  };
+
   if (!isAdmin) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -138,6 +167,13 @@ export const SettingsPlatformUsersPage = () => {
   }
 
   const userColumns: ColumnDef<UserRead>[] = [
+    {
+      accessorKey: "id",
+      header: t("platformUsers.columnId"),
+      cell: ({ row }) => (
+        <p className="text-muted-foreground font-mono text-sm">{row.original.id}</p>
+      ),
+    },
     {
       id: "name",
       header: t("platformUsers.columnName"),
@@ -196,17 +232,17 @@ export const SettingsPlatformUsersPage = () => {
       header: t("platformUsers.columnStatus"),
       cell: ({ row }) => {
         const platformUser = row.original;
-        return (
-          <span
-            className={
-              platformUser.is_active
-                ? "text-sm text-green-600 dark:text-green-400"
-                : "text-muted-foreground text-sm"
-            }
-          >
-            {platformUser.is_active ? t("platformUsers.active") : t("platformUsers.inactive")}
-          </span>
-        );
+        const labelKey =
+          platformUser.status === "active"
+            ? "platformUsers.active"
+            : platformUser.status === "anonymized"
+              ? "platformUsers.anonymized"
+              : "platformUsers.deactivated";
+        const className =
+          platformUser.status === "active"
+            ? "text-sm text-green-600 dark:text-green-400"
+            : "text-muted-foreground text-sm";
+        return <span className={className}>{t(labelKey)}</span>;
       },
     },
     {
@@ -218,10 +254,17 @@ export const SettingsPlatformUsersPage = () => {
         const isPlatformAdmin = platformUser.role === "admin";
         const isSelf = platformUser.id === user?.id;
         const isLastAdmin = isPlatformAdmin && (adminCountQuery.data?.count ?? 0) <= 1;
+        // Promote / Demote / Reset password are no-ops on non-active
+        // accounts (the backend rejects role changes with
+        // ADMIN_CANNOT_CHANGE_ROLE_INACTIVE and password reset with
+        // ADMIN_CANNOT_RESET_INACTIVE), so hide them here too. The
+        // Reactivate button is gated on status === "deactivated"
+        // separately below.
+        const isActive = platformUser.status === "active";
 
         return (
           <div className="flex flex-wrap gap-2">
-            {isPlatformAdmin && !isSelf && (
+            {isActive && isPlatformAdmin && !isSelf && (
               <Button
                 type="button"
                 variant="outline"
@@ -234,7 +277,7 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.demoteToUser")}
               </Button>
             )}
-            {!isPlatformAdmin && (
+            {isActive && !isPlatformAdmin && (
               <Button
                 type="button"
                 variant="outline"
@@ -246,7 +289,7 @@ export const SettingsPlatformUsersPage = () => {
                 {t("platformUsers.promoteToAdmin")}
               </Button>
             )}
-            {!platformUser.is_active ? (
+            {platformUser.status === "deactivated" && (
               <Button
                 type="button"
                 variant="outline"
@@ -257,7 +300,8 @@ export const SettingsPlatformUsersPage = () => {
                 <UserCheck className="h-4 w-4" />
                 {t("platformUsers.reactivate")}
               </Button>
-            ) : (
+            )}
+            {platformUser.status === "active" && (
               <Button
                 type="button"
                 variant="outline"
@@ -269,6 +313,16 @@ export const SettingsPlatformUsersPage = () => {
                 {isResetting ? t("common:submitting") : t("platformUsers.resetPassword")}
               </Button>
             )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => exportUserCsv(platformUser)}
+              title={t("platformUsers.exportUser")}
+            >
+              <Download className="h-4 w-4" />
+              {t("platformUsers.exportUser")}
+            </Button>
             {!isSelf && (
               <Button
                 type="button"
@@ -290,9 +344,21 @@ export const SettingsPlatformUsersPage = () => {
   return (
     <div className="space-y-6">
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("platformUsers.title")}</CardTitle>
-          <CardDescription>{t("platformUsers.description")}</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>{t("platformUsers.title")}</CardTitle>
+            <CardDescription>{t("platformUsers.description")}</CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={exportAllUsersCsv}
+            disabled={!usersQuery.data?.length}
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            {t("platformUsers.exportAll")}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <DataTable

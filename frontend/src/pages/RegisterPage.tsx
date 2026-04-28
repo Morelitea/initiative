@@ -130,10 +130,11 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         full_name: fullName,
         inviteCode,
       });
-      if (createdUser.is_active && createdUser.email_verified) {
+      const isActive = createdUser.status === "active";
+      if (isActive && createdUser.email_verified) {
         await login({ email: email.toLowerCase().trim(), password });
         router.navigate({ to: "/", replace: true });
-      } else if (createdUser.is_active && !createdUser.email_verified) {
+      } else if (isActive && !createdUser.email_verified) {
         setInfoMessage(t("register.verifyEmailMessage"));
         setPassword("");
         setConfirmPassword("");

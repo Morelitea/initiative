@@ -14,7 +14,6 @@
     "hideFilters": "Ocultar filtros",
     "updating": "Actualizando..."
   },
-
   "page": {
     "title": "Documentos",
     "subtitle": "Mantén el conocimiento de la iniciativa organizado y adjunta documentos a proyectos.",
@@ -209,7 +208,7 @@
     "duplicateDocument": "Duplicar documento",
     "copyToInitiative": "Copiar a iniciativa",
     "dangerTitle": "Zona de peligro",
-    "dangerDescription": "Eliminar un documento no se puede deshacer.",
+    "dangerDescription": "Los documentos eliminados van a la papelera y pueden restaurarse antes de que finalice el período de retención del gremio.",
     "deleteDocument": "Eliminar documento",
     "duplicateDialogTitle": "Duplicar documento",
     "duplicateDialogDescription": "Crear una copia dentro de la misma iniciativa.",
@@ -225,7 +224,7 @@
     "copying": "Copiando\u2026",
     "copyDocument": "Copiar documento",
     "deleteDialogTitle": "¿Eliminar este documento?",
-    "deleteDialogDescription": "Esto elimina el documento para todos. Todos los comentarios y adjuntos se eliminarán permanentemente. Esta acción no se puede deshacer.",
+    "deleteDialogDescription": "Esto envía el documento y sus comentarios a la papelera. Puedes restaurarlo desde Configuración → Papelera antes de que finalice el período de retención.",
     "deleting": "Eliminando\u2026",
     "documentDuplicated": "Documento duplicado",
     "documentCopied": "Documento copiado a {{initiative}}",
@@ -334,8 +333,8 @@
     "airtableEmbedHint": "Esta es una URL de vista de Airtable. En Airtable, abre 'Compartir vista' → activa 'Insertar en tu sitio'. Copia la URL airtable.com/embed/... y pégala aquí."
   },
   "whiteboard": {
-    "loading": "Cargando pizarra…",
-    "syncing": "Sincronizando pizarra…",
+    "loading": "Cargando pizarra\u2026",
+    "syncing": "Sincronizando pizarra\u2026",
     "readOnly": "Tienes acceso de solo lectura a esta pizarra."
   },
   "sidePanel": {

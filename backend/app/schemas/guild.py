@@ -26,6 +26,7 @@ class GuildRead(GuildBase):
     position: int
     created_at: datetime
     updated_at: datetime
+    retention_days: Optional[int] = None
 
 
 class GuildInviteCreate(BaseModel):
@@ -69,6 +70,10 @@ class GuildUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     icon_base64: Optional[str] = None
+    # Trash retention period in days. None means "never auto-purge".
+    # Sentinel "unset" semantics: explicitly omit the field to leave the
+    # current setting untouched; set null to switch to never-purge.
+    retention_days: Optional[int] = Field(default=None, ge=1, le=3650)
 
 
 class GuildOrderUpdate(BaseModel):

@@ -333,10 +333,12 @@ async def test_list_events_filter_is_empty_matches_unset(
 
 
 @pytest.mark.integration
-async def test_initiative_delete_cascades_event_property_values(
+async def test_initiative_purge_cascades_event_property_values(
     client: AsyncClient, session: AsyncSession
 ):
-    """Deleting an initiative should cascade-delete event property values."""
+    """Soft-deleting then hard-purging an initiative should cascade-delete
+    event property values via FK CASCADE. (Soft-delete alone keeps the
+    rows so a restore brings everything back.)"""
     user, guild, initiative, event = await _setup_event(session)
     defn = await create_property_definition(
         session, initiative, name="Topic", type=PropertyType.text
@@ -349,11 +351,25 @@ async def test_initiative_delete_cascades_event_property_values(
         json={"values": [{"property_id": defn.id, "value": "hold"}]},
     )
 
+    # 1. Soft-delete the initiative — property values must still exist so
+    # a restore brings them back.
     delete_resp = await client.delete(
         f"/api/v1/initiatives/{initiative.id}", headers=headers
     )
     assert delete_resp.status_code in (200, 204)
+    rows = await session.exec(
+        select(CalendarEventPropertyValue).where(
+            CalendarEventPropertyValue.property_id == defn.id
+        )
+    )
+    assert len(rows.all()) == 1
 
+    # 2. Hard-purge via the admin trash endpoint — FK CASCADE drops the
+    # event property values along with the initiative + descendants.
+    purge_resp = await client.delete(
+        f"/api/v1/trash/initiative/{initiative.id}/purge", headers=headers
+    )
+    assert purge_resp.status_code == 204
     rows = await session.exec(
         select(CalendarEventPropertyValue).where(
             CalendarEventPropertyValue.property_id == defn.id

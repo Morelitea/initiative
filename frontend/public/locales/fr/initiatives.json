@@ -4,7 +4,7 @@
   "newInitiative": "Nouvelle initiative",
   "selectGuild": "Sélectionner un groupe",
   "selectGuildDescription": "Passez dans un groupe pour voir ses initiatives et ses membres.",
-  "loading": "Chargement des initiatives…",
+  "loading": "Chargement des initiatives\u2026",
   "loadError": "Impossible de charger les initiatives pour l'instant.",
   "noDescription": "Aucune description pour l'instant.",
   "members": "Membres :",
@@ -23,7 +23,7 @@
     "descriptionPlaceholder": "Résumé optionnel (Markdown supporté)",
     "colorLabel": "Couleur",
     "colorHint": "Cette couleur d'accent apparaît sur les projets liés à l'initiative.",
-    "creating": "Création en cours…",
+    "creating": "Création en cours\u2026",
     "submit": "Créer l'initiative",
     "nameRequired": "Le nom de l'initiative est requis.",
     "created": "Initiative \"{{name}}\" créée.",
@@ -101,7 +101,7 @@
     "manager": "Gestionnaire",
     "membersCount": "Membres",
     "dangerTitle": "Zone de danger",
-    "dangerDescription": "Supprimer une initiative supprime tous ses projets, tâches et documents.",
+    "dangerDescription": "Supprimer une initiative l'envoie à la corbeille avec ses projets, tâches et documents. Ils peuvent être restaurés avant la fin de la période de rétention.",
     "deleteInitiative": "Supprimer l'initiative",
     "deletingInitiative": "Suppression en cours...",
     "defaultCannotDelete": "L'initiative par défaut ne peut pas être supprimée.",
@@ -109,7 +109,7 @@
     "deleted": "Initiative supprimée.",
     "deleteError": "Impossible de supprimer l'initiative pour l'instant.",
     "deleteConfirmTitle": "Supprimer l'initiative ?",
-    "deleteConfirmDescription": "Supprimer <bold>{{name}}</bold> supprimera définitivement tous les projets, tâches et documents qu'elle contient. Cette action est irréversible.",
+    "deleteConfirmDescription": "<bold>{{name}}</bold> et tout ce qu'elle contient (projets, tâches, documents, files d'attente, événements) sera envoyé à la corbeille. Vous pouvez restaurer l'arborescence entière depuis Paramètres → Corbeille avant la fin de la période de rétention.",
     "deleteConfirmLabel": "Tapez <bold>{{name}}</bold> pour confirmer :",
     "createRoleTitle": "Créer un rôle personnalisé",
     "createRoleDescription": "Ajoutez un nouveau rôle avec des permissions personnalisées pour cette initiative.",
@@ -142,8 +142,7 @@
       "documents": "Documents",
       "projects": "Projets",
       "queues": "Files",
-      "events": "Événements",
-      "automations": "Automatisations"
+      "events": "Événements"
     },
     "permissions": {
       "viewDocuments": "Voir les documents",
@@ -153,9 +152,7 @@
       "viewQueues": "Voir les files",
       "createQueues": "Créer des files",
       "viewEvents": "Voir les événements",
-      "createEvents": "Créer des événements",
-      "viewAutomations": "Voir les automatisations",
-      "createAutomations": "Créer des automatisations"
+      "createEvents": "Créer des événements"
     }
   },
   "advancedTools": "Outils avancés",
@@ -163,11 +160,5 @@
   "queuesFeature": "Files",
   "queuesFeatureDescription": "Organisez les éléments par priorité, suivez l'ordre de passage et gérez qui passe ensuite.",
   "eventsFeature": "Calendrier",
-  "eventsFeatureDescription": "Planifiez et gérez des événements de calendrier avec des participants et le suivi des RSVP.",
-  "automationsFeature": "Automatisations",
-  "automationsFeatureDescription": "Créez des flux de travail automatisés et déclenchez des actions basées sur des événements.",
-  "automationsScoped": "Affichage des automatisations pour cette initiative.",
-  "automationsComingSoon": "Pipeline d'automatisation",
-  "automationsComingSoonDescription": "Automatisez les flux de travail et intégrez avec des pipelines externes.",
-  "automationsPlaceholder": "L'intégration du pipeline d'automatisation est en cours de configuration. Une fois configuré, vous pourrez créer des flux de travail automatisés qui déclenchent des actions basées sur les événements de votre initiative."
+  "eventsFeatureDescription": "Planifiez et gérez des événements de calendrier avec des participants et le suivi des RSVP."
 }

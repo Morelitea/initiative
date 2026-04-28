@@ -1,0 +1,40 @@
+{
+  "title": "Corbeille",
+  "description": "Les éléments ici seront supprimés définitivement après la période de rétention de la guilde. Restaurez-les à tout moment avant cela.",
+  "scopeGuild": "Tout dans la guilde",
+  "scopeMine": "Seulement les miens",
+  "empty": "La corbeille est vide.",
+  "columnType": "Type",
+  "columnName": "Nom",
+  "columnDeletedBy": "Supprimé par",
+  "columnDeletedAt": "Supprimé",
+  "columnPurgeAt": "Purge auto",
+  "columnActions": "Actions",
+  "restoreButton": "Restaurer",
+  "deleteNowButton": "Supprimer maintenant",
+  "neverPurges": "Jamais",
+  "deleteNowConfirmTitle": "Supprimer définitivement ?",
+  "deleteNowConfirmDescription": "Ceci supprimera définitivement le {{type}} et tout son contenu. Cette action est irréversible.",
+  "deleteNowConfirmAction": "Supprimer définitivement",
+  "restoreSuccess": "Restauré.",
+  "restoreError": "Impossible de restaurer cet élément.",
+  "purgeSuccess": "Supprimé définitivement.",
+  "purgeError": "Impossible de supprimer définitivement cet élément.",
+  "reassignDialog": {
+    "title": "Choisissez un nouveau propriétaire",
+    "description": "Le propriétaire d'origine de ce {{type}} n'est plus membre de l'initiative. Choisissez quelqu'un pour en prendre la propriété avant de restaurer.",
+    "ownerLabel": "Nouveau propriétaire",
+    "confirm": "Restaurer avec un nouveau propriétaire"
+  },
+  "entityType": {
+    "project": "Projet",
+    "task": "Tâche",
+    "document": "Document",
+    "comment": "Commentaire",
+    "initiative": "Initiative",
+    "tag": "Étiquette",
+    "queue": "File d'attente",
+    "queue_item": "Élément de file",
+    "calendar_event": "Événement de calendrier"
+  }
+}

@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Trash and Restore.** Deleting a project, task, document, comment, initiative, tag, queue, queue item, or calendar event now sends it to a trash can instead of permanently destroying it. Items stay there for the guild's retention period (default 90 days; admins can change it under **Settings → Guild → Trash retention** or set "Never" to keep things forever).
+  - **Personal view** — every member sees a **Trash** tab under their profile listing the things they deleted, with a **Restore** button next to each.
+  - **Guild view** — guild admins also get a **Trash** tab under **Settings → Trash** that shows everything trashed in the guild plus an admin-only **Delete now** button for permanently purging an item before its retention timer is up.
+  - **Restore handles missing owners** — if you trashed a task and the owner has since left the initiative, restore opens a picker so you can hand ownership to someone else before bringing the row back.
+  - **Cascades preserved** — trashing a project hides its tasks too; restoring it brings them back together. The trash listing only shows the parent so you don't get drowned in 200 cascaded rows.
+  - **Auto-purge** runs hourly so expired items leave on their own.
+  - The Postgres layer now refuses raw `DELETE` from the application role on every soft-delete-capable table, so a stray query can't accidentally bypass the trash flow.
+
+- Export users as CSV from **Settings → Users** (guild admins) and **Settings → Admin → Users** (platform admins). Each row gets an **Export** button, and the card header has **Export all as CSV**. Exports include ID, email, full name, role, status, and initiative roles — enough for HR or compliance teams to keep an offline record before an account is removed.
+
+- **Chester the Mimic** — a pixel-art treasure chest mascot now greets you in toast notifications. Each toast type pairs with a Chester mood (success → proud sparkles, error → chomping, warning → thinking, info → talking, default → idle), and the seven mood SVGs ship as standalone animated assets. Platform admins can preview them all from the new "Chester toast playground" card in **Settings → Admin → Branding**.
+
+### Changed
+
+- **Account deletion now has three options instead of one.**
+  - **Deactivate** (new) — your account is locked but kept intact. An admin can reactivate it later. Pick this if you might come back.
+  - **Delete my account** (replaces the previous "soft delete") — your name, email, avatar, and login are wiped. The account row stays so the comments, tasks, and documents you authored remain visible (attributed to "Deleted user #{id}") instead of vanishing from your team's history. This is permanent.
+  - **Hard delete** (admin only) — completely removes the row and everything attributed to it. Hidden from the user-facing dialog; only platform admins can do this from the admin page.
+
+  All account-deletion paths now require you to transfer ownership of any projects you manage before submitting, so projects always have an active owner.
+
+- The platform users page status column shows **Active**, **Deactivated**, or **Anonymized** in place of the old Active/Inactive label, and the "Reactivate" button is hidden for anonymized accounts (their data is gone — there's nothing to bring back).
+
+- Anywhere a deleted user used to appear (comment authors, task assignees, mentions, calendar attendees, document collaborators), they now show as **Deleted user #{id}** with a neutral avatar instead of a stale name or email.
+
+- Anonymized users are filtered out of "add member" and @-mention pickers, so you can't accidentally assign or mention someone whose account no longer exists.
+
+- **Infra image build now uses a separate `requirements-infra.txt`** so the OSS image stays slimmer (no `aioboto3`). The infra build arg is `INSTALL_INFRA_EXTRAS=true`; the existing `VITE_ENABLE_AUTOMATIONS=true` arg is still accepted as a backward-compat alias and will be removed once the workflow is updated.
+
+- Bump lexical dependencies for a more stable document editor.
+
+### Fixed
+
+- Drag-scrolling a kanban board no longer smears a text selection across every card the pointer passes over.
+
+- The document markdown converter now round-trips paragraph structure correctly. Toggling **Convert from markdown** previously turned a `\n\n` paragraph break into two stacked soft line breaks; converting back then re-emitted single newlines, so paragraphs steadily collapsed each time you toggled. Paragraph breaks now serialize as `\n\n` in markdown and parse back as real paragraphs, and shift+return soft breaks survive the round trip via the standard CommonMark hard-break syntax.
+
+- The guild filter on **My Tasks** and **Created Tasks** silently ignored your selection — picking one or more guilds still showed tasks from every guild you belong to. The pages now narrow correctly.
+
+- Documents owned by a departing user no longer become orphaned when the user leaves the initiative — whether they leave the guild, deactivate or delete their own account, get removed by an admin, or get unassigned via OIDC sync. The initiative's project managers automatically inherit ownership of those documents, so anyone who needs to find or clean up old work after a team move still can.
+
+- Custom properties UI is now translated to Spanish and French. Previously, users on those locales saw English labels throughout the properties picker, manager, and filters.
+
+### Removed
+
+- **Automation engine.** Flow definitions, run history, and the in-app workflow editor have all been removed from this repo. The capability moves to a sibling `inititative_infra` service that consumes domain events from a Kinesis stream. Self-hosted users on the OSS image lose the in-app automation builder, which only ever shipped as a paid/infra preview. Anyone running the `-infra` variant will continue to see automation UI once their `inititative_infra` service is wired up; until then, the automation menu is hidden.
+- **Redis dependency.** Removed entirely. Initiative now has Postgres as its only runtime dependency. The Redis Streams event bus that previously fed the in-process automation engine is gone; events go to Kinesis instead (when `ENABLE_EVENT_PUBLISHING=true`).
+
 ## [0.42.1] - 2026-04-28
 
 ### Fixed

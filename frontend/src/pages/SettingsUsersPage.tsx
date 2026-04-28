@@ -1,13 +1,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   useUsers,
   useApproveUser,
   useUpdateGuildMembership,
   useRemoveGuildMember,
+  useExportGuildUsersCsv,
 } from "@/hooks/useUsers";
 import {
   listGuildInvitesApiV1GuildsGuildIdInvitesGet,
@@ -38,7 +39,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { Label } from "@/components/ui/label";
 import { useGuilds } from "@/hooks/useGuilds";
 import { formatDistanceToNow } from "date-fns";
-import { Copy, RefreshCcw, Trash2 } from "lucide-react";
+import { Copy, Download, RefreshCcw, Trash2 } from "lucide-react";
 
 const GUILD_ROLE_OPTIONS: GuildRole[] = ["admin", "member"];
 const inviteLinkForCode = (code: string) => {
@@ -122,6 +123,29 @@ export const SettingsUsersPage = () => {
     setDeleteUserConfirm({ userId, email });
   };
 
+  const exportGuildUsers = useExportGuildUsersCsv({
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "guilds:users.exportError"));
+    },
+  });
+
+  const exportUserCsv = (guildMember: UserGuildMember) => {
+    const safeEmail = guildMember.email.replace(/[^a-zA-Z0-9._-]+/g, "_");
+    exportGuildUsers.mutate({
+      params: { user_id: [guildMember.id] },
+      filename: `user-${guildMember.id}-${safeEmail}.csv`,
+    });
+  };
+
+  const exportAllUsersCsv = () => {
+    const safeGuildName = (activeGuild?.name ?? "guild").replace(/[^a-zA-Z0-9._-]+/g, "_");
+    const datestamp = new Date().toISOString().slice(0, 10);
+    exportGuildUsers.mutate({
+      params: {},
+      filename: `${safeGuildName}-users-${datestamp}.csv`,
+    });
+  };
+
   const confirmDeleteUser = () => {
     if (deleteUserConfirm) {
       deleteUser.mutate(deleteUserConfirm.userId);
@@ -144,6 +168,13 @@ export const SettingsUsersPage = () => {
   }
 
   const userColumns: ColumnDef<UserGuildMember>[] = [
+    {
+      accessorKey: "id",
+      header: t("users.userIdColumn"),
+      cell: ({ row }) => (
+        <p className="text-muted-foreground font-mono text-sm">{row.original.id}</p>
+      ),
+    },
     {
       id: "user",
       header: t("users.userColumn"),
@@ -215,7 +246,7 @@ export const SettingsUsersPage = () => {
         const isSelf = guildMember.id === user?.id;
         return (
           <div className="flex flex-wrap gap-2">
-            {!guildMember.is_active ? (
+            {guildMember.status === "deactivated" ? (
               <Button
                 type="button"
                 variant="secondary"
@@ -225,6 +256,15 @@ export const SettingsUsersPage = () => {
                 {t("users.reactivate")}
               </Button>
             ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => exportUserCsv(guildMember)}
+            >
+              <Download className="h-4 w-4" />
+              {t("users.exportUser")}
+            </Button>
             <Button
               type="button"
               variant="destructive"
@@ -385,9 +425,21 @@ export const SettingsUsersPage = () => {
         </CardContent>
       </Card>
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("users.usersTitle")}</CardTitle>
-          <CardDescription>{t("users.usersDescription")}</CardDescription>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle>{t("users.usersTitle")}</CardTitle>
+            <CardDescription>{t("users.usersDescription")}</CardDescription>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={exportAllUsersCsv}
+            disabled={!usersQuery.data?.length}
+          >
+            <Download className="mr-1.5 h-4 w-4" />
+            {t("users.exportAll")}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <DataTable

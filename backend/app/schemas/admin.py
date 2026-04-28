@@ -23,8 +23,8 @@ class PlatformAdminCountResponse(BaseModel):
 
 
 class AdminUserDeleteRequest(BaseModel):
-    """Request to delete a user as platform admin."""
-    deletion_type: Literal["soft", "hard"]
+    """Request to deactivate, anonymize (soft delete), or hard delete a user as platform admin."""
+    action: Literal["deactivate", "soft_delete", "hard_delete"]
     project_transfers: Optional[Dict[int, int]] = None  # {project_id: new_owner_id}
 
 

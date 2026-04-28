@@ -2,7 +2,7 @@
   "title": "Projets",
   "subtitle": "Suivez les initiatives et collaborez avec votre groupe.",
   "addProject": "Ajouter un projet",
-  "loading": "Chargement des projets…",
+  "loading": "Chargement des projets\u2026",
   "loadError": "Impossible de charger les projets.",
   "pinned": "Épinglé",
   "noProjects": "Aucun projet pour l'instant. Créez-en un pour commencer.",
@@ -10,7 +10,6 @@
   "onlyPinnedMatch": "Seuls les projets épinglés correspondent à vos filtres.",
   "accessRestricted": "Accès restreint",
   "accessRestrictedDescription": "Vous n'avez pas la permission de voir les projets dans cette initiative. Contactez un administrateur si vous pensez qu'il s'agit d'une erreur.",
-
   "myProjects": {
     "title": "Mes projets",
     "subtitle": "Projets auxquels vous avez accès dans tous vos groupes.",
@@ -31,18 +30,15 @@
     "tasksDone": "{{completed}}/{{total}} terminées",
     "noTasks": "Aucune tâche"
   },
-
   "tabs": {
     "active": "Projets actifs",
     "templates": "Modèles",
     "archive": "Archive"
   },
-
   "view": {
     "grid": "Grille",
     "list": "Liste"
   },
-
   "filters": {
     "heading": "Filtres",
     "show": "Afficher les filtres",
@@ -78,9 +74,8 @@
     "noStatusesAvailable": "Aucun statut disponible",
     "showArchived": "Afficher les archivés"
   },
-
   "templates": {
-    "loading": "Chargement des modèles…",
+    "loading": "Chargement des modèles\u2026",
     "loadError": "Impossible de charger les modèles.",
     "initiativeLabel": "Initiative : {{name}}",
     "lastUpdated": "Dernière mise à jour : {{date}}",
@@ -90,11 +85,10 @@
     "noTemplatesDescription": "Créez un modèle depuis n'importe quel projet dans les paramètres du projet.",
     "description": "Standardisez les meilleures pratiques et lancez rapidement de nouvelles initiatives grâce à des modèles réutilisables."
   },
-
   "archived": {
     "title": "Projets archivés",
     "subtitle": "Rouvrez une initiative quand le travail reprend.",
-    "loading": "Chargement des projets archivés…",
+    "loading": "Chargement des projets archivés\u2026",
     "loadError": "Impossible de charger les projets archivés.",
     "initiativeLabel": "Initiative : {{name}}",
     "archivedAt": "Archivé le : {{date}}",
@@ -105,7 +99,6 @@
     "noArchivedDescription": "Les projets actifs restent dans l'onglet Actifs.",
     "noArchivedDescriptionAlt": "Les projets actifs restent dans l'onglet principal des projets."
   },
-
   "createDialog": {
     "title": "Créer un projet",
     "description": "Donnez au projet un nom, une description optionnelle et une initiative propriétaire.",
@@ -115,12 +108,12 @@
     "descriptionLabel": "Description (Markdown supporté)",
     "descriptionPlaceholder": "Partagez du contexte pour aider l'initiative à prioriser.",
     "initiativeLabel": "Initiative",
-    "loadingInitiatives": "Chargement des initiatives…",
+    "loadingInitiatives": "Chargement des initiatives\u2026",
     "initiativeLoadError": "Impossible de charger les initiatives.",
     "selectInitiative": "Sélectionner une initiative",
     "noInitiatives": "Aucune initiative disponible.",
     "templateLabel": "Modèle (optionnel)",
-    "loadingTemplates": "Chargement des modèles…",
+    "loadingTemplates": "Chargement des modèles\u2026",
     "templateLoadError": "Impossible de charger les modèles.",
     "noTemplate": "Aucun modèle",
     "disableTemplateHint": "Désactivez « Enregistrer comme modèle » pour choisir un modèle.",
@@ -128,14 +121,13 @@
     "saveAsTemplateHint": "Les projets modèles apparaissent dans l'onglet Modèles et peuvent être réutilisés pour lancer de nouveaux travaux.",
     "createError": "Impossible de créer le projet.",
     "selectInitiativeError": "Sélectionnez une initiative avant de créer un projet",
-    "creating": "Création en cours…",
+    "creating": "Création en cours\u2026",
     "createProject": "Créer le projet"
   },
-
   "detail": {
     "invalidProjectId": "Identifiant de projet invalide.",
     "backToProjects": "← Retour aux projets",
-    "loading": "Chargement du projet…",
+    "loading": "Chargement du projet\u2026",
     "loadError": "Impossible de charger le projet.",
     "notFound": "Projet introuvable",
     "notFoundDescription": "Ce projet a peut-être été supprimé ou vous avez suivi un lien invalide.",
@@ -144,7 +136,6 @@
     "projectSettings": "Paramètres du projet",
     "openProjectSettings": "Ouvrir les paramètres du projet"
   },
-
   "overview": {
     "archived": "Archivé",
     "active": "Actif",
@@ -152,23 +143,19 @@
     "templateInfo": "Ce projet est un modèle. Utilisez-le pour créer de nouveaux projets depuis l'onglet Modèles.",
     "archivedInfo": "Ce projet est archivé. Désarchivez-le depuis les paramètres pour ajouter ou mettre à jour des tâches."
   },
-
   "tabsBar": {
-    "loadingRecent": "Chargement des projets récents…",
+    "loadingRecent": "Chargement des projets récents\u2026",
     "closeProject": "Fermer {{name}}"
   },
-
   "favorite": {
     "remove": "Retirer des favoris",
     "add": "Ajouter aux favoris"
   },
-
   "pin": {
     "pinned": "Projet épinglé",
     "unpin": "Désépingler le projet",
     "pin": "Épingler le projet"
   },
-
   "taskComposer": {
     "title": "Créer une tâche",
     "description": "Ajoutez du travail à faire.",
@@ -189,11 +176,10 @@
     "startDateLabel": "Date de début",
     "dueDateLabel": "Date d'échéance",
     "optional": "Optionnel",
-    "saving": "Enregistrement…",
+    "saving": "Enregistrement\u2026",
     "createTask": "Créer la tâche",
     "createError": "Impossible de créer la tâche."
   },
-
   "assignee": {
     "emptyMessage": "Invitez des membres ayant le rôle {{memberLabel}} dans l'initiative pour assigner des tâches.",
     "searchPlaceholder": "Rechercher {{memberLabel}}",
@@ -201,7 +187,6 @@
     "removeAssignee": "Retirer {{name}}",
     "clearAssignees": "Effacer les assignés"
   },
-
   "statuses": {
     "title": "Statuts des tâches",
     "description": "Réordonnez, renommez ou changez la catégorie des colonnes de tâches utilisées par ce projet.",
@@ -247,7 +232,6 @@
     "bulkUpdateError": "Échec de la mise à jour de « {{name}} » : {{error}}",
     "unknownError": "Erreur inconnue"
   },
-
   "settings": {
     "loading": "Chargement des paramètres du projet...",
     "loadError": "Impossible de charger le projet.",
@@ -261,7 +245,6 @@
     "tabAccess": "Accès",
     "tabTaskStatuses": "Statuts des tâches",
     "tabAdvanced": "Avancé",
-
     "details": {
       "title": "Détails du projet",
       "description": "Mettez à jour l'icône, le nom et la description affichés dans l'espace de travail.",
@@ -286,7 +269,6 @@
       "tagsDescription": "Ajoutez des étiquettes pour organiser et filtrer les projets.",
       "noWriteAccessTags": "Vous avez besoin d'un accès en écriture pour gérer les étiquettes."
     },
-
     "roleAccess": {
       "title": "Accès par rôle",
       "description": "Accorder l'accès à tous les membres ayant un rôle spécifique dans l'initiative.",
@@ -311,7 +293,6 @@
       "removed": "Accès par rôle supprimé",
       "removeError": "Impossible de supprimer l'accès par rôle"
     },
-
     "access": {
       "title": "Accès individuel",
       "description": "Contrôlez qui peut voir et modifier ce projet.",
@@ -349,7 +330,6 @@
       "bulkRemoved": "Accès supprimé pour les membres sélectionnés",
       "bulkRemoveError": "Impossible de supprimer l'accès pour les membres sélectionnés"
     },
-
     "templateStatus": {
       "title": "Statut de modèle",
       "description": "Convertissez ce projet en modèle réutilisable ou revenez à un projet standard.",
@@ -362,7 +342,6 @@
       "markedAsTemplate": "Projet marqué comme modèle",
       "removedFromTemplates": "Projet retiré des modèles"
     },
-
     "duplicate": {
       "title": "Dupliquer le projet",
       "description": "Clonez ce projet, y compris son initiative et ses tâches, pour démarrer rapidement de nouveaux travaux.",
@@ -372,7 +351,6 @@
       "duplicateButton": "Dupliquer le projet",
       "noWriteAccess": "Vous avez besoin d'un accès en écriture pour dupliquer ce projet."
     },
-
     "archiveStatus": {
       "title": "Statut d'archivage",
       "isArchived": "Ce projet est archivé.",
@@ -381,17 +359,15 @@
       "archive": "Archiver le projet",
       "noWriteAccess": "Vous avez besoin d'un accès en écriture pour changer le statut d'archivage."
     },
-
     "danger": {
       "title": "Zone de danger",
-      "description": "Supprimer un projet supprime définitivement toutes ses tâches.",
+      "description": "Supprimer un projet l'envoie à la corbeille avec ses tâches. Ils peuvent être restaurés avant la fin de la période de rétention.",
       "deleteButton": "Supprimer le projet",
       "deleteTitle": "Supprimer le projet ?",
-      "deleteDescription": "Cela supprimera définitivement le projet et toutes ses tâches. Cette action est irréversible.",
+      "deleteDescription": "Le projet et ses tâches seront envoyés à la corbeille. Vous pouvez les restaurer depuis Paramètres → Corbeille avant la fin de la période de rétention.",
       "deleteConfirm": "Supprimer"
     }
   },
-
   "documents": {
     "title": "Documents",
     "description": "Attachez des documents d'initiative pour garder le contexte proche du travail du projet.",
@@ -407,12 +383,12 @@
     "attachDialogDescription": "Seuls les documents créés dans cette initiative sont disponibles.",
     "selectDocument": "Sélectionner un document",
     "noAvailableDocuments": "Aucun document disponible",
-    "loadingDocuments": "Chargement des documents…",
+    "loadingDocuments": "Chargement des documents\u2026",
     "chooseDocument": "Choisir un document",
     "allAttached": "Tous les documents de l'initiative sont déjà attachés.",
     "noMatchesFound": "Aucune correspondance trouvée.",
     "attachHint": "Besoin d'un nouveau ? Ouvrez Mes initiatives et utilisez l'onglet Documents de l'initiative pour le créer, puis revenez ici pour l'attacher.",
-    "attaching": "Attachement en cours…",
+    "attaching": "Attachement en cours\u2026",
     "attach": "Attacher",
     "attached": "Document attaché.",
     "attachError": "Impossible d'attacher le document.",
@@ -424,7 +400,6 @@
     "updatedAgo": "Mis à jour il y a {{time}}",
     "attachedAgo": "Attaché il y a {{time}}"
   },
-
   "tasks": {
     "title": "Tâches",
     "projectTasks": "Tâches du projet",
@@ -452,7 +427,7 @@
     "archiveTitle_other": "Archiver {{count}} tâches ?",
     "archiveDescription": "Les tâches archivées seront masquées de la vue par défaut mais restent accessibles via les filtres.",
     "archiveConfirm": "Archiver",
-    "archiving": "Archivage en cours…",
+    "archiving": "Archivage en cours\u2026",
     "archivedSuccess": "{{count}} tâche archivée",
     "archivedSuccess_other": "{{count}} tâches archivées",
     "archiveError": "Impossible d'archiver les tâches.",
@@ -469,7 +444,6 @@
     "bulkDeleteConfirm": "Supprimer {{count}} tâche ?",
     "bulkDeleteConfirm_other": "Supprimer {{count}} tâches ?"
   },
-
   "table": {
     "reorder": "Réordonner",
     "dateWindow": "Fenêtre de dates",
@@ -491,14 +465,13 @@
     "noTasks": "Aucune tâche pour l'instant.",
     "manualSortDisabled": "Tri manuel désactivé, <1>réinitialisez le tri des colonnes et le regroupement des lignes</1> pour réordonner."
   },
-
   "kanban": {
     "priority": "Priorité : {{priority}}",
     "starts": "Début : {{date}}",
     "due": "Échéance : {{date}}",
     "dropHere": "Déposez les tâches ici",
     "noTasks": "Aucune tâche pour l'instant.",
-    "archiving": "Archivage en cours…",
+    "archiving": "Archivage en cours\u2026",
     "archiveDone": "Archiver les tâches terminées",
     "taskCount_one": "{{count}} tâche",
     "taskCount_other": "{{count}} tâches",
@@ -507,7 +480,6 @@
     "comments_one": "{{count}} commentaire",
     "comments_other": "{{count}} commentaires"
   },
-
   "recurrence": {
     "repeat": "Répéter",
     "doesNotRepeat": "Ne se répète pas",
@@ -516,7 +488,7 @@
     "weeklyOn": "Hebdomadaire le {{day}}",
     "monthlyOnDay": "Mensuel le jour {{day}}",
     "annuallyOn": "Annuellement le {{month}} {{day}}",
-    "custom": "Personnalisé…",
+    "custom": "Personnalisé\u2026",
     "frequency": "Fréquence",
     "frequencyDaily": "Quotidien",
     "frequencyWeekly": "Hebdomadaire",
@@ -574,7 +546,6 @@
       "everyNYears": "Tous les {{count}} ans le {{month}} {{day}}"
     }
   },
-
   "calendarView": {
     "subtitle": "Visualisez d'un coup d'œil les dates de début et d'échéance des tâches.",
     "previousMonth": "Mois précédent",
@@ -584,25 +555,21 @@
     "due": "Échéance",
     "more": "+{{count}} de plus"
   },
-
   "progressLabel": "Progression du projet",
-
   "preview": {
     "updated": "Mis à jour {{date}}",
     "tasksDone": "{{completed}}/{{total}} terminées"
   },
-
   "activitySidebar": {
     "title": "Activité du projet",
     "activity": "Activité",
     "expand": "Développer le panneau d'activité",
     "collapse": "Réduire le panneau d'activité",
-    "loading": "Chargement de l'activité…",
+    "loading": "Chargement de l'activité\u2026",
     "noComments": "Aucun commentaire pour l'instant.",
     "commentedOn": "a commenté sur",
     "loadMore": "Charger plus"
   },
-
   "ganttView": {
     "title": "Chronologie",
     "subtitle": "Planifiez les dates de début et d'échéance sur les prochaines semaines.",

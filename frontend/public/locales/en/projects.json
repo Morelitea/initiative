@@ -384,10 +384,10 @@
 
     "danger": {
       "title": "Danger zone",
-      "description": "Deleting a project removes all of its tasks permanently.",
+      "description": "Deleting a project sends it and its tasks to the trash. They can be restored before the retention period ends.",
       "deleteButton": "Delete project",
       "deleteTitle": "Delete project?",
-      "deleteDescription": "This will permanently delete the project and all of its tasks. This cannot be undone.",
+      "deleteDescription": "The project and its tasks will be sent to the trash. You can restore them from Settings → Trash before the retention period ends.",
       "deleteConfirm": "Delete"
     }
   },

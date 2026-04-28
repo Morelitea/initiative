@@ -6,7 +6,7 @@ import { Pencil, Reply, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { useDateLocale } from "@/hooks/useDateLocale";
-import { getInitials } from "@/lib/initials";
+import { getInitialsForUser, getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { CommentContent } from "./CommentContent";
 import { CommentInput } from "./CommentInput";
@@ -54,10 +54,13 @@ export const CommentThread = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
 
-  const displayName =
-    comment.author?.full_name?.trim() || comment.author?.email || `User #${comment.author_id}`;
-  const avatarSrc =
-    resolveUploadUrl(comment.author?.avatar_url) || comment.author?.avatar_base64 || undefined;
+  const anonymizedAuthor = isAnonymizedUser(comment.author);
+  const displayName = comment.author
+    ? getUserDisplayName(comment.author, `User #${comment.author_id}`)
+    : `User #${comment.author_id}`;
+  const avatarSrc = anonymizedAuthor
+    ? undefined
+    : resolveUploadUrl(comment.author?.avatar_url) || comment.author?.avatar_base64 || undefined;
 
   const canDelete = currentUserId === comment.author_id || canModerate;
   const canEdit = currentUserId === comment.author_id;
@@ -88,7 +91,9 @@ export const CommentThread = ({
         <div className="flex gap-3">
           <Avatar className="bg-background h-9 w-9 border">
             {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
-            <AvatarFallback userId={comment.author_id}>{getInitials(displayName)}</AvatarFallback>
+            <AvatarFallback userId={anonymizedAuthor ? null : comment.author_id}>
+              {getInitialsForUser(comment.author)}
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">

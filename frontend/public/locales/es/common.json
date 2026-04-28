@@ -96,5 +96,6 @@
     "addAllMembersHint": "Otorgar acceso de lectura a todos los miembros actuales",
     "noInitiative": "Seleccione una iniciativa primero",
     "remove": "Eliminar"
-  }
+  },
+  "deletedUserName": "Usuario eliminado #{{id}}"
 }

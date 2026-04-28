@@ -1,18 +1,11 @@
-from typing import Annotated
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from sqlmodel import select
-
-from app.api.deps import SessionDep, get_current_active_user, get_service_or_guild_membership, GuildContext
-from app.models.guild import GuildMembership
-from app.models.notification import NotificationType
+from app.api.deps import SessionDep, get_current_active_user
 from app.models.user import User
 from app.schemas.notification import (
     NotificationCountResponse,
     NotificationListResponse,
     NotificationRead,
-    NotificationSendRequest,
 )
 from app.core.messages import NotificationMessages
 from app.services import user_notifications as notifications_service
@@ -69,39 +62,3 @@ async def mark_all_notifications_read(
     return NotificationCountResponse(unread_count=count)
 
 
-@router.post("/send", response_model=list[NotificationRead])
-async def send_notifications(
-    body: NotificationSendRequest,
-    session: SessionDep,
-    guild_context: Annotated[GuildContext, Depends(get_service_or_guild_membership)],
-) -> list[NotificationRead]:
-    """Send notifications to specified users. Used by the automation engine.
-
-    Accepts a service token or normal admin auth via get_service_or_guild_membership.
-    Only users who are members of the scoped guild can receive notifications.
-    """
-    # Validate all user_ids belong to this guild
-    stmt = select(GuildMembership.user_id).where(
-        GuildMembership.guild_id == guild_context.guild_id,
-        GuildMembership.user_id.in_(body.user_ids),
-    )
-    result = await session.exec(stmt)
-    valid_user_ids = set(result.all())
-    invalid_ids = set(body.user_ids) - valid_user_ids
-    if invalid_ids:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Users not in guild: {sorted(invalid_ids)}",
-        )
-
-    results = []
-    for user_id in body.user_ids:
-        notification = await notifications_service.create_notification(
-            session,
-            user_id=user_id,
-            notification_type=NotificationType.automation,
-            data={"message": body.message, **body.data},
-        )
-        results.append(NotificationRead.model_validate(notification))
-    await session.commit()
-    return results

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SortingState } from "@tanstack/react-table";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
+import { toast } from "@/lib/chesterToast";
 import {
   listTasksApiV1TasksGet,
   getListTasksApiV1TasksGetQueryKey,
@@ -202,8 +202,11 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       ...(priorityFilters.length > 0
         ? [{ field: "priority", op: "in_" as const, value: priorityFilters }]
         : []),
+      // The global tasks endpoint extracts this as ``guild_ids`` (plural,
+      // matching ``initiative_ids``); sending the singular ``guild_id``
+      // silently no-ops because the extraction looks for the plural key.
       ...(guildFilters.length > 0
-        ? [{ field: "guild_id", op: "in_" as const, value: guildFilters }]
+        ? [{ field: "guild_ids", op: "in_" as const, value: guildFilters }]
         : []),
       ...propertyConditions,
     ];

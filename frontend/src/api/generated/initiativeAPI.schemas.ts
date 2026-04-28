@@ -37,32 +37,35 @@ export interface AITestConnectionResponse {
   available_models: string[] | null;
 }
 
-export type AccountDeletionRequestDeletionType =
-  (typeof AccountDeletionRequestDeletionType)[keyof typeof AccountDeletionRequestDeletionType];
+export type AccountDeletionRequestAction =
+  (typeof AccountDeletionRequestAction)[keyof typeof AccountDeletionRequestAction];
 
-export const AccountDeletionRequestDeletionType = {
-  soft: "soft",
-  hard: "hard",
+export const AccountDeletionRequestAction = {
+  deactivate: "deactivate",
+  soft_delete: "soft_delete",
 } as const;
 
 export type AccountDeletionRequestProjectTransfers = { [key: string]: number } | null;
 
 /**
- * Request to delete or deactivate a user account
+ * Request from a user to deactivate or anonymize (soft-delete) their own account.
+
+`hard_delete` is intentionally not allowed from this self-service endpoint;
+only platform admins can purge a row, and they do so via the admin endpoint.
  */
 export interface AccountDeletionRequest {
-  deletion_type: AccountDeletionRequestDeletionType;
+  action: AccountDeletionRequestAction;
   password: string;
   confirmation_text: string;
   project_transfers?: AccountDeletionRequestProjectTransfers;
 }
 
 /**
- * Response after account deletion attempt
+ * Response after a deactivate / anonymize / hard-delete action.
  */
 export interface AccountDeletionResponse {
   success: boolean;
-  deletion_type: string;
+  action: string;
   message: string;
 }
 
@@ -75,8 +78,20 @@ export interface ProjectBasic {
   initiative_id: number;
 }
 
+export type UserStatus = (typeof UserStatus)[keyof typeof UserStatus];
+
+export const UserStatus = {
+  active: "active",
+  deactivated: "deactivated",
+  anonymized: "anonymized",
+} as const;
+
 /**
- * Public user information exposed to other users
+ * Public user information exposed to other users.
+
+Includes ``status`` so the frontend can render the "Deleted user #{id}"
+placeholder for anonymized accounts wherever a person appears
+(comment authors, task assignees, mentions, calendar attendees).
  */
 export interface UserPublic {
   id: number;
@@ -84,6 +99,7 @@ export interface UserPublic {
   full_name: string | null;
   avatar_base64: string | null;
   avatar_url: string | null;
+  status: UserStatus;
 }
 
 /**
@@ -145,21 +161,22 @@ export interface AdminInitiativeRoleUpdate {
   role: InitiativeRole;
 }
 
-export type AdminUserDeleteRequestDeletionType =
-  (typeof AdminUserDeleteRequestDeletionType)[keyof typeof AdminUserDeleteRequestDeletionType];
+export type AdminUserDeleteRequestAction =
+  (typeof AdminUserDeleteRequestAction)[keyof typeof AdminUserDeleteRequestAction];
 
-export const AdminUserDeleteRequestDeletionType = {
-  soft: "soft",
-  hard: "hard",
+export const AdminUserDeleteRequestAction = {
+  deactivate: "deactivate",
+  soft_delete: "soft_delete",
+  hard_delete: "hard_delete",
 } as const;
 
 export type AdminUserDeleteRequestProjectTransfers = { [key: string]: number } | null;
 
 /**
- * Request to delete a user as platform admin.
+ * Request to deactivate, anonymize (soft delete), or hard delete a user as platform admin.
  */
 export interface AdminUserDeleteRequest {
-  deletion_type: AdminUserDeleteRequestDeletionType;
+  action: AdminUserDeleteRequestAction;
   project_transfers?: AdminUserDeleteRequestProjectTransfers;
 }
 
@@ -200,135 +217,6 @@ export interface AttachmentUploadResponse {
   url: string;
   content_type: string;
   size: number;
-}
-
-export type AutomationFlowCreateFlowData = { [key: string]: unknown };
-
-/**
- * Payload to create a new automation flow.
- */
-export interface AutomationFlowCreate {
-  /**
-   * @minLength 1
-   * @maxLength 255
-   */
-  name: string;
-  description?: string | null;
-  initiative_id: number;
-  flow_data: AutomationFlowCreateFlowData;
-  enabled?: boolean;
-}
-
-/**
- * List item — omits flow_data to keep list responses small.
- */
-export interface AutomationFlowListItem {
-  id: number;
-  name: string;
-  description: string | null;
-  enabled: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AutomationFlowListResponse {
-  items: AutomationFlowListItem[];
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-}
-
-export type AutomationFlowReadFlowData = { [key: string]: unknown };
-
-/**
- * Full flow detail including the graph payload.
- */
-export interface AutomationFlowRead {
-  id: number;
-  guild_id: number;
-  initiative_id: number;
-  name: string;
-  description: string | null;
-  flow_data: AutomationFlowReadFlowData;
-  enabled: boolean;
-  created_by_id: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export type AutomationFlowUpdateFlowData = { [key: string]: unknown } | null;
-
-/**
- * Partial update payload for an automation flow.
- */
-export interface AutomationFlowUpdate {
-  name?: string | null;
-  description?: string | null;
-  flow_data?: AutomationFlowUpdateFlowData;
-  enabled?: boolean | null;
-}
-
-export type AutomationRunDetailReadFlowSnapshot = { [key: string]: unknown };
-
-export type AutomationRunDetailReadTriggerEvent = { [key: string]: unknown };
-
-export type AutomationRunStepReadInputData = { [key: string]: unknown } | null;
-
-export type AutomationRunStepReadOutputData = { [key: string]: unknown } | null;
-
-export interface AutomationRunStepRead {
-  id: number;
-  node_id: string;
-  node_type: string;
-  status: string;
-  input_data: AutomationRunStepReadInputData;
-  output_data: AutomationRunStepReadOutputData;
-  error: string | null;
-  started_at: string;
-  completed_at: string | null;
-}
-
-/**
- * Run with nested step details.
- */
-export interface AutomationRunDetailRead {
-  id: number;
-  flow_id: number;
-  flow_snapshot: AutomationRunDetailReadFlowSnapshot;
-  trigger_event: AutomationRunDetailReadTriggerEvent;
-  status: string;
-  started_at: string;
-  completed_at: string | null;
-  error: string | null;
-  steps?: AutomationRunStepRead[];
-}
-
-export type AutomationRunReadFlowSnapshot = { [key: string]: unknown };
-
-export type AutomationRunReadTriggerEvent = { [key: string]: unknown };
-
-export interface AutomationRunRead {
-  id: number;
-  flow_id: number;
-  flow_snapshot: AutomationRunReadFlowSnapshot;
-  trigger_event: AutomationRunReadTriggerEvent;
-  status: string;
-  started_at: string;
-  completed_at: string | null;
-  error: string | null;
-}
-
-export interface AutomationRunListResponse {
-  items: AutomationRunRead[];
-  total_count: number;
-  page: number;
-  page_size: number;
-  has_next: boolean;
-}
-
-export interface AutomationsConfigResponse {
-  enabled: boolean;
 }
 
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
@@ -739,8 +627,6 @@ export interface InitiativeMemberRead {
   can_create_projects: boolean;
   can_create_queues: boolean;
   can_create_events: boolean;
-  can_view_automations: boolean;
-  can_create_automations: boolean;
 }
 
 export interface InitiativeRead {
@@ -749,7 +635,6 @@ export interface InitiativeRead {
   color: string | null;
   queues_enabled: boolean;
   events_enabled: boolean;
-  automations_enabled: boolean;
   id: number;
   guild_id: number;
   is_default: boolean;
@@ -1039,6 +924,7 @@ export interface GuildRead {
   position: number;
   created_at: string;
   updated_at: string;
+  retention_days: number | null;
 }
 
 export interface GuildSummary {
@@ -1063,6 +949,7 @@ export interface GuildUpdate {
   name?: string | null;
   description?: string | null;
   icon_base64?: string | null;
+  retention_days?: number | null;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -1140,7 +1027,6 @@ export interface InitiativeCreate {
   color?: string | null;
   queues_enabled?: boolean;
   events_enabled?: boolean;
-  automations_enabled?: boolean;
 }
 
 /**
@@ -1211,7 +1097,6 @@ export interface InitiativeUpdate {
   color?: string | null;
   queues_enabled?: boolean | null;
   events_enabled?: boolean | null;
-  automations_enabled?: boolean | null;
 }
 
 export interface InterfaceSettingsResponse {
@@ -1280,7 +1165,6 @@ export const NotificationType = {
   comment_on_task: "comment_on_task",
   comment_on_document: "comment_on_document",
   comment_reply: "comment_reply",
-  automation: "automation",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -1296,17 +1180,6 @@ export interface NotificationRead {
 export interface NotificationListResponse {
   notifications: NotificationRead[];
   unread_count: number;
-}
-
-export type NotificationSendRequestData = { [key: string]: unknown };
-
-/**
- * Request body for sending notifications (used by automation engine).
- */
-export interface NotificationSendRequest {
-  user_ids: number[];
-  message: string;
-  data?: NotificationSendRequestData;
 }
 
 export interface OIDCClaimMappingCreate {
@@ -1400,8 +1273,6 @@ export const PermissionKey = {
   create_queues: "create_queues",
   events_enabled: "events_enabled",
   create_events: "create_events",
-  automations_enabled: "automations_enabled",
-  create_automations: "create_automations",
 } as const;
 
 export interface PlatformAISettingsResponse {
@@ -1919,6 +1790,21 @@ export interface ResolvedAISettingsResponse {
   source: string;
 }
 
+/**
+ * 409 payload when the entity's owner is no longer an active member of
+the relevant initiative. The client opens a picker seeded with
+``valid_owner_ids`` and resubmits with the chosen one.
+ */
+export interface RestoreNeedsReassignmentResponse {
+  needs_reassignment?: true;
+  valid_owner_ids: number[];
+  detail?: string;
+}
+
+export interface RestoreRequest {
+  new_owner_id?: number | null;
+}
+
 export interface RoleLabelsResponse {
   admin: string;
   project_manager: string;
@@ -2031,13 +1917,17 @@ export interface TaggedEntitiesResponse {
 }
 
 /**
- * Minimal assignee data for task lists
+ * Minimal assignee data for task lists.
+
+Includes ``status`` so the frontend can render the "Deleted user
+#{id}" placeholder for anonymized assignees inline.
  */
 export interface TaskAssigneeSummary {
   id: number;
   full_name: string | null;
   avatar_url: string | null;
   avatar_base64: string | null;
+  status: UserStatus;
 }
 
 export type TaskCreateRecurrenceStrategy =
@@ -2496,6 +2386,36 @@ export interface Token {
   token_type?: string;
 }
 
+export type TrashItemEntityType = (typeof TrashItemEntityType)[keyof typeof TrashItemEntityType];
+
+export const TrashItemEntityType = {
+  project: "project",
+  task: "task",
+  document: "document",
+  comment: "comment",
+  initiative: "initiative",
+  tag: "tag",
+  queue: "queue",
+  queue_item: "queue_item",
+  calendar_event: "calendar_event",
+} as const;
+
+export interface TrashItem {
+  entity_type: TrashItemEntityType;
+  entity_id: number;
+  name: string;
+  deleted_at: string;
+  deleted_by_id: number | null;
+  deleted_by_display: string;
+  purge_at: string | null;
+}
+
+export interface TrashListResponse {
+  items: TrashItem[];
+  total: number;
+  retention_days: number | null;
+}
+
 export interface UserAISettingsResponse {
   enabled: boolean | null;
   provider: AIProvider | null;
@@ -2542,10 +2462,10 @@ export interface UserGuildMember {
   full_name: string | null;
   avatar_base64: string | null;
   avatar_url: string | null;
+  status: UserStatus;
   role: UserRole;
   guild_role: string | null;
   oidc_managed: boolean;
-  is_active: boolean;
   email_verified: boolean;
   created_at: string;
   initiative_roles: UserInitiativeRole[];
@@ -2556,7 +2476,7 @@ export interface UserRead {
   full_name: string | null;
   role: UserRole;
   id: number;
-  is_active: boolean;
+  status: UserStatus;
   email_verified: boolean;
   created_at: string;
   updated_at: string;
@@ -2582,6 +2502,7 @@ export interface UserRead {
   task_completion_audio_feedback: boolean;
   task_completion_haptic_feedback: boolean;
   locale: string;
+  oidc_sub: string | null;
   initiative_roles: UserInitiativeRole[];
   readonly can_create_guilds: boolean;
 }
@@ -2666,7 +2587,7 @@ export interface UserUpdate {
   full_name?: string | null;
   role?: UserRole | null;
   password?: string | null;
-  is_active?: boolean | null;
+  status?: UserStatus | null;
   avatar_base64?: string | null;
   avatar_url?: string | null;
   week_starts_on?: number | null;
@@ -2873,6 +2794,10 @@ export type OidcCallbackApiV1AuthOidcCallbackGetParams = {
   state?: string | null;
 };
 
+export type ExportPlatformUsersCsvApiV1AdminUsersExportCsvGetParams = {
+  user_id?: number[] | null;
+};
+
 export type GetUserStatsApiV1UsersMeStatsGetParams = {
   /**
    * Optional guild ID to filter stats
@@ -2884,6 +2809,10 @@ export type GetUserStatsApiV1UsersMeStatsGetParams = {
    * @maximum 365
    */
   days?: number;
+};
+
+export type ExportUsersCsvApiV1UsersExportCsvGetParams = {
+  user_id?: number[] | null;
 };
 
 export type ListProjectsApiV1ProjectsGetParams = {
@@ -3129,30 +3058,14 @@ export type ListPropertyDefinitionsApiV1PropertyDefinitionsGetParams = {
   initiative_id?: number | null;
 };
 
-export type ListAutomationsApiV1AutomationsGetParams = {
-  /**
-   * Initiative to list automations for
-   */
-  initiative_id: number;
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  page_size?: number;
+export type ListTrashApiV1TrashGetParams = {
+  scope?: ListTrashApiV1TrashGetScope;
 };
 
-export type ListAutomationRunsApiV1AutomationsFlowIdRunsGetParams = {
-  /**
-   * @minimum 1
-   */
-  page?: number;
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  page_size?: number;
-};
+export type ListTrashApiV1TrashGetScope =
+  (typeof ListTrashApiV1TrashGetScope)[keyof typeof ListTrashApiV1TrashGetScope];
+
+export const ListTrashApiV1TrashGetScope = {
+  mine: "mine",
+  guild: "guild",
+} as const;

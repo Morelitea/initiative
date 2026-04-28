@@ -458,7 +458,8 @@ export const useUpdateTagApiV1TagsTagIdPatch = <
   return useMutation(getUpdateTagApiV1TagsTagIdPatchMutationOptions(options), queryClient);
 };
 /**
- * Delete a tag. This cascades to remove the tag from all entities.
+ * Soft-delete a tag. The tag moves to the guild's trash; on hard-purge
+its junction rows fall via FK CASCADE.
  * @summary Delete Tag
  */
 export const deleteTagApiV1TagsTagIdDelete = (

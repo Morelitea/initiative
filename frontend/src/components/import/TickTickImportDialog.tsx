@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { Upload, FileText, CheckCircle2, AlertCircle } from "lucide-react";
 
+import { toast } from "@/lib/chesterToast";
 import { useAuth } from "@/hooks/useAuth";
 import { useParseTickTickCsv, useImportFromTickTick } from "@/hooks/useImports";
 import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";

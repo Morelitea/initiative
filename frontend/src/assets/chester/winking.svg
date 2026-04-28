@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="geometricPrecision">
+  <style>
+    .body { animation: tilt 2.5s ease-in-out infinite; transform-origin: 16px 16px; }
+    @keyframes tilt { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(-4deg); } }
+  </style>
+  <g class="body">
+    <rect x="3" y="16" width="26" height="12" fill="#8B5E3C"/>
+    <rect x="2" y="16" width="1" height="12" fill="#2A1A0A"/>
+    <rect x="29" y="16" width="1" height="12" fill="#2A1A0A"/>
+    <rect x="3" y="28" width="26" height="1" fill="#2A1A0A"/>
+    <rect x="3" y="16" width="2" height="12" fill="#A97B50"/>
+    <rect x="27" y="16" width="2" height="12" fill="#5C3A1E"/>
+    <rect x="5" y="19" width="22" height="1" fill="#5C3A1E" opacity="0.4"/>
+    <rect x="5" y="24" width="22" height="1" fill="#5C3A1E" opacity="0.4"/>
+    <rect x="2" y="21" width="28" height="3" fill="#C9A84C"/>
+    <rect x="2" y="21" width="28" height="1" fill="#E8D48B"/>
+    <rect x="2" y="23" width="28" height="1" fill="#9E7B2F"/>
+    <rect x="13" y="19" width="6" height="6" rx="1" fill="#C9A84C" stroke="#2A1A0A" stroke-width="0.5"/>
+    <rect x="13" y="19" width="6" height="2" fill="#E8D48B"/>
+    <rect x="15" y="22" width="2" height="2" rx="1" fill="#9E7B2F"/>
+    <rect x="3" y="28" width="3" height="2" fill="#9E7B2F"/>
+    <rect x="26" y="28" width="3" height="2" fill="#9E7B2F"/>
+    <g>
+      <rect x="3" y="7" width="26" height="9" rx="2" fill="#8B5E3C"/>
+      <rect x="2" y="7" width="1" height="9" fill="#2A1A0A"/>
+      <rect x="29" y="7" width="1" height="9" fill="#2A1A0A"/>
+      <rect x="3" y="6" width="26" height="1" fill="#2A1A0A"/>
+      <rect x="3" y="7" width="26" height="2" fill="#A97B50"/>
+      <rect x="3" y="14" width="26" height="2" fill="#5C3A1E"/>
+      <rect x="2" y="10" width="28" height="3" fill="#C9A84C"/>
+      <rect x="2" y="10" width="28" height="1" fill="#E8D48B"/>
+      <rect x="2" y="12" width="28" height="1" fill="#9E7B2F"/>
+      <circle cx="5" cy="11" r="1" fill="#E8D48B"/>
+      <circle cx="27" cy="11" r="1" fill="#E8D48B"/>
+    </g>
+    <g>
+      <ellipse cx="11" cy="11" rx="3" ry="3" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.8"/>
+      <circle cx="11.5" cy="11.5" r="1.5" fill="#1A0A00"/>
+      <rect x="12" y="10" width="1" height="1" fill="#FFFDE8"/>
+      <path d="M18 12 Q21 8.5 24 12" fill="none" stroke="#2A1A0A" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>
