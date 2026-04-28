@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Infra image build now uses a separate `requirements-infra.txt`** so the OSS image stays slimmer (no `aioboto3`). The infra build arg is `INSTALL_INFRA_EXTRAS=true`; the existing `VITE_ENABLE_AUTOMATIONS=true` arg is still accepted as a backward-compat alias and will be removed once the workflow is updated.
 
+- Bump lexical dependencies for a more stable document editor.
+
 ### Fixed
 
 - Drag-scrolling a kanban board no longer smears a text selection across every card the pointer passes over.
