@@ -513,7 +513,18 @@ export const TaskEditPage = () => {
   }
 
   const taskStatuses = taskStatusesQuery.data ?? [];
-  const currentStatus = taskStatuses.find((item) => item.id === statusId) ?? null;
+  // Use the local statusId once the useEffect has copied it out of the task,
+  // otherwise read straight from task.task_status_id so the first render has
+  // a value (the useEffect lag previously left the badge blank).
+  const effectiveStatusId = statusId ?? task?.task_status_id ?? null;
+  // Prefer the project's status list (authoritative; reflects renames/colors)
+  // but fall back to the task's own embedded ``task_status`` snapshot so the
+  // badge + select trigger render correctly during the window between
+  // "task loaded" and "project statuses loaded" — and as a safety net if
+  // the status was archived out of the list since the task was last saved.
+  const currentStatus =
+    taskStatuses.find((item) => item.id === effectiveStatusId) ??
+    (task && task.task_status_id === effectiveStatusId ? task.task_status : null);
   const statusSelectDisabled = isReadOnly || taskStatuses.length === 0;
 
   return (
@@ -636,7 +647,7 @@ export const TaskEditPage = () => {
                 <div className="space-y-2">
                   <Label>{t("edit.statusLabel")}</Label>
                   <Select
-                    value={statusId ? String(statusId) : undefined}
+                    value={effectiveStatusId ? String(effectiveStatusId) : undefined}
                     onValueChange={(value) => {
                       const parsed = Number(value);
                       if (Number.isFinite(parsed)) {
