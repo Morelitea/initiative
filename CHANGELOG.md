@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The guild filter on **My Tasks** and **Created Tasks** silently ignored your selection — picking one or more guilds still showed tasks from every guild you belong to. The pages now narrow correctly.
+
 - The task edit page sometimes opened with a blank status badge until you nudged the page (added a tag, changed a property, etc.), then it would suddenly show the right value. The page now uses the status that ships with the task itself instead of waiting for a second lookup, so the badge and status picker show the correct value the moment the task loads.
 
 - Documents owned by a departing user no longer become orphaned when the user leaves the initiative — whether they leave the guild, deactivate or delete their own account, get removed by an admin, or get unassigned via OIDC sync. The initiative's project managers automatically inherit ownership of those documents, so anyone who needs to find or clean up old work after a team move still can.
