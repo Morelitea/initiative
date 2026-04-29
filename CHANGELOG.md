@@ -46,6 +46,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Read-only members can now create new documents from a template they have access to. Previously the copy required write access to the template, which defeated the point of templates being shared starters. Copying a non-template document still requires write access on the source.
 
+- Deleting a document from the document settings page no longer fires two success toasts.
+
 - Drag-scrolling a kanban board no longer smears a text selection across every card the pointer passes over.
 
 - The document markdown converter now round-trips paragraph structure correctly. Toggling **Convert from markdown** previously turned a `\n\n` paragraph break into two stacked soft line breaks; converting back then re-emitted single newlines, so paragraphs steadily collapsed each time you toggled. Paragraph breaks now serialize as `\n\n` in markdown and parse back as real paragraphs, and shift+return soft breaks survive the round trip via the standard CommonMark hard-break syntax.
