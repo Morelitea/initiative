@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { useKeepScreenAwake } from "@/hooks/useKeepScreenAwake";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { getTheme, getThemeList } from "@/lib/themes";
 import type { ThemeColors } from "@/lib/themes";
@@ -178,6 +179,11 @@ export const UserSettingsInterfacePage = ({
   const [hapticFeedback, setHapticFeedback] = useState<boolean>(
     user.task_completion_haptic_feedback ?? true
   );
+  const {
+    enabled: keepAwake,
+    setEnabled: setKeepAwake,
+    supported: keepAwakeSupported,
+  } = useKeepScreenAwake();
 
   useEffect(() => {
     setWeekStartsOn(user.week_starts_on ?? 0);
@@ -417,6 +423,22 @@ export const UserSettingsInterfacePage = ({
                 {t("interface.taskCompletionHapticFeedback.preview")}
               </Button>
             </div>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">{t("interface.keepScreenAwake.label")}</p>
+              <p className="text-muted-foreground text-sm">
+                {keepAwakeSupported
+                  ? t("interface.keepScreenAwake.description")
+                  : t("interface.keepScreenAwake.unsupported")}
+              </p>
+            </div>
+            <Switch
+              checked={keepAwake}
+              onCheckedChange={setKeepAwake}
+              disabled={!keepAwakeSupported}
+              aria-label={t("interface.keepScreenAwake.label")}
+            />
           </div>
         </CardContent>
       </Card>

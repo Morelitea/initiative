@@ -10,6 +10,7 @@ import { Capacitor } from "@capacitor/core";
 
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
+import { KeepScreenAwakeProvider } from "@/hooks/useKeepScreenAwake";
 import { ServerProvider, useServer } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { TaskCompletionEffectHost } from "@/components/effects/TaskCompletionEffectHost";
@@ -62,15 +63,17 @@ async function bootstrap() {
     <React.StrictMode>
       <Suspense fallback={null}>
         <ThemeProvider>
-          <ServerProvider>
-            <QueryClientProvider client={queryClient}>
-              <AuthProvider>
-                <GuildProvider>
-                  <InnerApp />
-                </GuildProvider>
-              </AuthProvider>
-            </QueryClientProvider>
-          </ServerProvider>
+          <KeepScreenAwakeProvider>
+            <ServerProvider>
+              <QueryClientProvider client={queryClient}>
+                <AuthProvider>
+                  <GuildProvider>
+                    <InnerApp />
+                  </GuildProvider>
+                </AuthProvider>
+              </QueryClientProvider>
+            </ServerProvider>
+          </KeepScreenAwakeProvider>
         </ThemeProvider>
       </Suspense>
     </React.StrictMode>
