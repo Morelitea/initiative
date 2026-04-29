@@ -1,8 +1,5 @@
-import { JSX, useEffect } from "react";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import type { LexicalEditor } from "lexical";
+import { defineExtension } from "lexical";
 import { TextNode } from "lexical";
-// import { createPortal } from "react-dom";
 
 import { $createEmojiNode, EmojiNode } from "@/components/ui/editor/nodes/emoji-node";
 
@@ -50,18 +47,8 @@ function $textNodeTransform(node: TextNode): void {
   }
 }
 
-function useEmojis(editor: LexicalEditor): void {
-  useEffect(() => {
-    if (!editor.hasNodes([EmojiNode])) {
-      throw new Error("EmojisPlugin: EmojiNode not registered on editor");
-    }
-
-    return editor.registerNodeTransform(TextNode, $textNodeTransform);
-  }, [editor]);
-}
-
-export function EmojisPlugin(): JSX.Element | null {
-  const [editor] = useLexicalComposerContext();
-  useEmojis(editor);
-  return null;
-}
+export const EmojisExtension = defineExtension({
+  name: "@initiative/emojis",
+  nodes: [EmojiNode],
+  register: (editor) => editor.registerNodeTransform(TextNode, $textNodeTransform),
+});
