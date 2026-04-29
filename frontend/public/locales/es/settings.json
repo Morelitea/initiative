@@ -215,6 +215,11 @@
       "label": "Vibración al completar tarea",
       "description": "Vibra brevemente tu dispositivo al terminar cualquier tarea. Solo móvil / navegadores compatibles.",
       "preview": "Vista previa"
+    },
+    "keepScreenAwake": {
+      "label": "Mantener pantalla activa",
+      "description": "Evita que la pantalla de este dispositivo se atenúe o se bloquee mientras la aplicación está abierta. Esta preferencia se guarda solo en este dispositivo.",
+      "unsupported": "Tu navegador no admite mantener la pantalla activa."
     }
   },
   "notifications": {

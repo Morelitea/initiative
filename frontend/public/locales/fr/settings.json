@@ -215,6 +215,11 @@
       "label": "Vibration à la fin d'une tâche",
       "description": "Fait brièvement vibrer votre appareil quand vous terminez une tâche. Mobile / navigateurs pris en charge uniquement.",
       "preview": "Aperçu"
+    },
+    "keepScreenAwake": {
+      "label": "Garder l'écran allumé",
+      "description": "Empêche l'écran de cet appareil de s'atténuer ou de se verrouiller tant que l'application est ouverte. Ce paramètre est enregistré uniquement sur cet appareil.",
+      "unsupported": "Votre navigateur ne prend pas en charge le maintien de l'écran allumé."
     }
   },
   "notifications": {
