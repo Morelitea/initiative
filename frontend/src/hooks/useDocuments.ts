@@ -428,9 +428,14 @@ export const useUpdateDocument = (
   });
 };
 
-export const useDeleteDocument = (options?: MutationOpts<void, number[]>) => {
+export const useDeleteDocument = (
+  options?: MutationOpts<void, number[]> & {
+    /** If true, the default "X documents deleted" success toast is skipped so the caller can show its own. */
+    suppressSuccessToast?: boolean;
+  }
+) => {
   const { t } = useTranslation("documents");
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const { onSuccess, onError, onSettled, suppressSuccessToast, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
@@ -439,7 +444,9 @@ export const useDeleteDocument = (options?: MutationOpts<void, number[]>) => {
     },
     onSuccess: (...args) => {
       const documentIds = args[1];
-      toast.success(t("bulk.deleted", { count: documentIds.length }));
+      if (!suppressSuccessToast) {
+        toast.success(t("bulk.deleted", { count: documentIds.length }));
+      }
       void invalidateAllDocuments();
       onSuccess?.(...args);
     },

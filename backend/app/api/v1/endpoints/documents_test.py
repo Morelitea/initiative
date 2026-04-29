@@ -218,6 +218,142 @@ async def test_create_document_skips_owner_level_grants(
 
 
 # ---------------------------------------------------------------------------
+# Copy / create-from-template tests
+# ---------------------------------------------------------------------------
+
+
+async def _make_native_doc(
+    session: AsyncSession,
+    *,
+    initiative,
+    creator,
+    title: str,
+    is_template: bool,
+) -> Document:
+    """Create a native document with creator as owner, optionally a template."""
+    doc = Document(
+        title=title,
+        initiative_id=initiative.id,
+        guild_id=initiative.guild_id,
+        created_by_id=creator.id,
+        updated_by_id=creator.id,
+        document_type=DocumentType.native,
+        content={"root": {"type": "root", "children": []}},
+        is_template=is_template,
+    )
+    session.add(doc)
+    await session.flush()
+    session.add(
+        DocumentPermission(
+            document_id=doc.id,
+            user_id=creator.id,
+            level=DocumentPermissionLevel.owner,
+            guild_id=initiative.guild_id,
+        )
+    )
+    await session.commit()
+    return doc
+
+
+@pytest.mark.integration
+async def test_copy_template_with_read_only_access(
+    client: AsyncClient, session: AsyncSession
+):
+    """A user with only read on a template can still copy it into a new document."""
+    template_owner = await create_user(session, email="template-owner@example.com")
+    reader = await create_user(session, email="reader@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=template_owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=reader, guild=guild)
+
+    initiative = await create_initiative(session, guild, template_owner, name="Templates Initiative")
+    # Reader needs create_docs in the target initiative; PM role grants it by default.
+    await create_initiative_member(session, initiative, reader, role_name="project_manager")
+
+    template = await _make_native_doc(
+        session,
+        initiative=initiative,
+        creator=template_owner,
+        title="Project Kickoff Template",
+        is_template=True,
+    )
+    # Grant reader explicit read-only access on the template.
+    session.add(
+        DocumentPermission(
+            document_id=template.id,
+            user_id=reader.id,
+            level=DocumentPermissionLevel.read,
+            guild_id=guild.id,
+        )
+    )
+    await session.commit()
+
+    headers = get_guild_headers(guild, reader)
+    response = await client.post(
+        f"/api/v1/documents/{template.id}/copy",
+        headers=headers,
+        json={"target_initiative_id": initiative.id, "title": "My Kickoff"},
+    )
+
+    assert response.status_code == 201, response.text
+    data = response.json()
+    assert data["title"] == "My Kickoff"
+    assert data["is_template"] is False
+    assert data["created_by_id"] == reader.id
+
+    # Reader is owner of the new doc.
+    new_perm_levels = {p["user_id"]: p["level"] for p in data["permissions"]}
+    assert new_perm_levels.get(reader.id) == "owner"
+
+    # Source template is unchanged.
+    await session.refresh(template)
+    assert template.is_template is True
+    assert template.title == "Project Kickoff Template"
+
+
+@pytest.mark.integration
+async def test_copy_non_template_still_requires_write_access(
+    client: AsyncClient, session: AsyncSession
+):
+    """Read-only access on a non-template document is still rejected by /copy."""
+    owner = await create_user(session, email="doc-owner@example.com")
+    reader = await create_user(session, email="reader@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=reader, guild=guild)
+
+    initiative = await create_initiative(session, guild, owner, name="Docs Initiative")
+    await create_initiative_member(session, initiative, reader, role_name="project_manager")
+
+    doc = await _make_native_doc(
+        session,
+        initiative=initiative,
+        creator=owner,
+        title="Confidential Notes",
+        is_template=False,
+    )
+    session.add(
+        DocumentPermission(
+            document_id=doc.id,
+            user_id=reader.id,
+            level=DocumentPermissionLevel.read,
+            guild_id=guild.id,
+        )
+    )
+    await session.commit()
+
+    headers = get_guild_headers(guild, reader)
+    response = await client.post(
+        f"/api/v1/documents/{doc.id}/copy",
+        headers=headers,
+        json={"target_initiative_id": initiative.id, "title": "My Copy"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "DOCUMENT_WRITE_ACCESS_REQUIRED"
+
+
+# ---------------------------------------------------------------------------
 # Download endpoint tests
 # ---------------------------------------------------------------------------
 

@@ -1055,8 +1055,10 @@ async def copy_document(
     guild_context: GuildContextDep,
 ) -> DocumentRead:
     document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
-    # Copy requires write permission for source document
-    _require_document_access(document, current_user, access="write")
+    # Templates are starter content meant to be copied — read on the source is enough.
+    # Non-templates still require write to prevent silent fork-and-edit of someone else's work.
+    required_access = "read" if document.is_template else "write"
+    _require_document_access(document, current_user, access=required_access)
     target_initiative = await _get_initiative_or_404(
         session,
         initiative_id=payload.target_initiative_id,

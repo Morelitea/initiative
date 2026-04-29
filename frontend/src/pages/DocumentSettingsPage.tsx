@@ -169,6 +169,7 @@ export const DocumentSettingsPage = () => {
   });
 
   const deleteDocumentMutation = useDeleteDocument({
+    suppressSuccessToast: true,
     onSuccess: () => {
       toast.success(t("settings.documentDeleted"));
       setDeleteDialogOpen(false);
