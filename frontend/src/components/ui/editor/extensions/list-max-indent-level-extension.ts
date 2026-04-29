@@ -1,7 +1,5 @@
-import { useEffect } from "react";
+import { defineExtension } from "lexical";
 import { $getListDepth, $isListItemNode, $isListNode } from "@lexical/list";
-import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import type { ElementNode, RangeSelection } from "lexical";
 import {
   $getSelection,
   $isElementNode,
@@ -9,6 +7,9 @@ import {
   COMMAND_PRIORITY_CRITICAL,
   INDENT_CONTENT_COMMAND,
 } from "lexical";
+import type { ElementNode, RangeSelection } from "lexical";
+
+const MAX_DEPTH = 7;
 
 function getElementNodesInSelection(selection: RangeSelection): Set<ElementNode> {
   const nodesInSelection = selection.getNodes();
@@ -30,8 +31,7 @@ function $shouldPreventIndent(maxDepth: number): boolean {
     return false;
   }
 
-  const elementNodesInSelection: Set<ElementNode> = getElementNodesInSelection(selection);
-
+  const elementNodesInSelection = getElementNodesInSelection(selection);
   let totalDepth = 0;
 
   for (const elementNode of Array.from(elementNodesInSelection)) {
@@ -39,13 +39,11 @@ function $shouldPreventIndent(maxDepth: number): boolean {
       totalDepth = Math.max($getListDepth(elementNode) + 1, totalDepth);
     } else if ($isListItemNode(elementNode)) {
       const parent = elementNode.getParent();
-
       if (!$isListNode(parent)) {
         throw new Error(
-          "ListMaxIndentLevelPlugin: A ListItemNode must have a ListNode for a parent."
+          "ListMaxIndentLevelExtension: A ListItemNode must have a ListNode for a parent."
         );
       }
-
       totalDepth = Math.max($getListDepth(parent) + 1, totalDepth);
     }
   }
@@ -53,15 +51,12 @@ function $shouldPreventIndent(maxDepth: number): boolean {
   return totalDepth > maxDepth;
 }
 
-export function ListMaxIndentLevelPlugin({ maxDepth = 7 }: { maxDepth?: number }): null {
-  const [editor] = useLexicalComposerContext();
-
-  useEffect(() => {
-    return editor.registerCommand(
+export const ListMaxIndentLevelExtension = defineExtension({
+  name: "@initiative/list-max-indent-level",
+  register: (editor) =>
+    editor.registerCommand(
       INDENT_CONTENT_COMMAND,
-      () => $shouldPreventIndent(maxDepth),
+      () => $shouldPreventIndent(MAX_DEPTH),
       COMMAND_PRIORITY_CRITICAL
-    );
-  }, [editor, maxDepth]);
-  return null;
-}
+    ),
+});

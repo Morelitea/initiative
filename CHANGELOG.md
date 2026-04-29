@@ -40,6 +40,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bump lexical dependencies for a more stable document editor.
 
+- Migrated the document editor to Lexical 0.44's Extension API. No user-visible behavior change, but the editor now uses `LexicalExtensionComposer` with `defineExtension` instead of the legacy `LexicalComposer` + plugin-list pattern, which clears the deprecation warning around `CodeNode` and aligns the editor with the upstream shadcn-editor architecture so future Lexical updates are easier to absorb.
+
 ### Fixed
 
 - Drag-scrolling a kanban board no longer smears a text selection across every card the pointer passes over.
