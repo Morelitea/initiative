@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useRouter } from "@tanstack/react-router";
 
 import { useImportProjectApiV1ProjectsImportPost } from "@/api/generated/projects/projects";
+import { invalidateAllProjects } from "@/api/query-keys";
 import type {
   InitiativeRead,
   ProjectExportEnvelopeOutput,
@@ -103,6 +104,7 @@ export const ProjectImportDialog = ({
           initiative_id: Number(initiativeId),
         },
       });
+      void invalidateAllProjects();
       if (result.assignee_unmatched_emails && result.assignee_unmatched_emails.length > 0) {
         toast.warning(
           t("import.warningUnmatchedAssignees", {
