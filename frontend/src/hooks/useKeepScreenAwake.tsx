@@ -45,6 +45,13 @@ export const KeepScreenAwakeProvider = ({ children }: { children: ReactNode }) =
     let cancelled = false;
     const isNative = Capacitor.isNativePlatform();
 
+    // If the OS keeps revoking the wake lock (battery saver, thermal
+    // throttling, resource pressure), stop fighting it after a few
+    // rapid releases until the user toggles off and on again.
+    const RAPID_RELEASE_WINDOW_MS = 30_000;
+    const RAPID_RELEASE_LIMIT = 3;
+    const recentReleases: number[] = [];
+
     const acquire = async () => {
       if (cancelled) return;
       try {
@@ -64,7 +71,21 @@ export const KeepScreenAwakeProvider = ({ children }: { children: ReactNode }) =
             }
             // The OS can drop the sentinel for reasons other than tab-hide
             // (low-power mode, resource pressure). Reacquire while the tab
-            // is still visible and the user still wants the lock.
+            // is still visible and the user still wants the lock — but
+            // back off once the OS has revoked us repeatedly so we respect
+            // battery saver / thermal throttling instead of fighting it.
+            const now = Date.now();
+            while (recentReleases.length && now - recentReleases[0] >= RAPID_RELEASE_WINDOW_MS) {
+              recentReleases.shift();
+            }
+            recentReleases.push(now);
+            const backoff = recentReleases.length >= RAPID_RELEASE_LIMIT;
+            if (backoff) {
+              console.warn(
+                "Screen wake lock repeatedly revoked by the OS (likely battery saver); backing off."
+              );
+              return;
+            }
             if (!cancelled && document.visibilityState === "visible") {
               void acquire();
             }
