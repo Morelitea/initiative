@@ -234,9 +234,11 @@ async def test_schema_version_unsupported_rejected(session: AsyncSession):
         app_version="0.0.0",
         exported_at=datetime.now(timezone.utc),
         project=ProjectExportProject(name="X"),
+        tags=[],
         task_statuses=[
             ProjectExportTaskStatus(name="B", category=TaskStatusCategory.backlog, is_default=True)
         ],
+        property_definitions=[],
         tasks=[],
     )
 

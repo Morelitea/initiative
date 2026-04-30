@@ -32,7 +32,7 @@ from app.services import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services import task_statuses as task_statuses_service
-from app.core.messages import ProjectMessages
+from app.core.messages import ProjectExportMessages, ProjectMessages
 from app.core.config import settings as app_settings
 from app.services.realtime import broadcast_event
 from app.schemas.project import (
@@ -2301,9 +2301,16 @@ async def import_project(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=ProjectMessages.CREATE_PERMISSION_REQUIRED,
             )
+    try:
+        envelope = ProjectExportEnvelope.model_validate(payload.envelope)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ProjectExportMessages.INVALID_PAYLOAD,
+        ) from exc
     return await project_import_service.import_project(
         session,
-        envelope=payload.envelope,
+        envelope=envelope,
         target_initiative=initiative,
         importer=current_user,
     )

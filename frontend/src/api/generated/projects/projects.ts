@@ -28,7 +28,7 @@ import type {
   ProjectActivityResponse,
   ProjectCreate,
   ProjectDuplicateRequest,
-  ProjectExportEnvelopeOutput,
+  ProjectExportEnvelope,
   ProjectFavoriteStatus,
   ProjectImportRequest,
   ProjectImportResult,
@@ -3169,7 +3169,7 @@ export const exportProjectApiV1ProjectsProjectIdExportGet = (
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ProjectExportEnvelopeOutput>(
+  return apiMutator<ProjectExportEnvelope>(
     { url: `/api/v1/projects/${projectId}/export`, method: "GET", signal },
     options
   );

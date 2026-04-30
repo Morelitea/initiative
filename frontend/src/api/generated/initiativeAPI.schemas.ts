@@ -1455,78 +1455,47 @@ export interface ProjectExportPropertyValue {
   value_json?: unknown | null;
 }
 
-export type ProjectExportTaskInputRecurrence = { [key: string]: unknown } | null;
+export type ProjectExportTaskRecurrence = { [key: string]: unknown } | null;
 
-export interface ProjectExportTaskInput {
+export interface ProjectExportTask {
   title: string;
   description?: string | null;
   priority?: TaskPriority;
   start_date?: string | null;
   due_date?: string | null;
-  recurrence?: ProjectExportTaskInputRecurrence;
+  recurrence?: ProjectExportTaskRecurrence;
   recurrence_strategy?: string;
   recurrence_occurrence_count?: number;
   sort_order?: number;
   is_archived?: boolean;
   status_name: string;
-  tags?: ProjectExportTag[];
-  assignee_emails?: string[];
-  subtasks?: ProjectExportSubtask[];
-  property_values?: ProjectExportPropertyValue[];
+  tags: ProjectExportTag[];
+  assignee_emails: string[];
+  subtasks: ProjectExportSubtask[];
+  property_values: ProjectExportPropertyValue[];
 }
 
 /**
  * Top-level export document. Versioned so the importer can refuse
 or migrate older / unknown formats.
+
+All list fields are required (no ``default_factory``) so Pydantic
+doesn't split the OpenAPI schema into ``-Input``/``-Output`` shapes
+when this model is used as both a response (GET /export) and a
+nested request body (POST /import). The exporter always writes
+every list, so requiring them costs nothing at runtime.
  */
-export interface ProjectExportEnvelopeInput {
+export interface ProjectExportEnvelope {
   schema_version?: number;
   app_version: string;
   exported_at: string;
   exported_by_email?: string | null;
   source_instance_url?: string | null;
   project: ProjectExportProject;
-  tags?: ProjectExportTag[];
-  task_statuses?: ProjectExportTaskStatus[];
-  property_definitions?: ProjectExportPropertyDefinition[];
-  tasks?: ProjectExportTaskInput[];
-}
-
-export type ProjectExportTaskOutputRecurrence = { [key: string]: unknown } | null;
-
-export interface ProjectExportTaskOutput {
-  title: string;
-  description?: string | null;
-  priority?: TaskPriority;
-  start_date?: string | null;
-  due_date?: string | null;
-  recurrence?: ProjectExportTaskOutputRecurrence;
-  recurrence_strategy?: string;
-  recurrence_occurrence_count?: number;
-  sort_order?: number;
-  is_archived?: boolean;
-  status_name: string;
-  tags?: ProjectExportTag[];
-  assignee_emails?: string[];
-  subtasks?: ProjectExportSubtask[];
-  property_values?: ProjectExportPropertyValue[];
-}
-
-/**
- * Top-level export document. Versioned so the importer can refuse
-or migrate older / unknown formats.
- */
-export interface ProjectExportEnvelopeOutput {
-  schema_version: number;
-  app_version: string;
-  exported_at: string;
-  exported_by_email: string | null;
-  source_instance_url: string | null;
-  project: ProjectExportProject;
   tags: ProjectExportTag[];
   task_statuses: ProjectExportTaskStatus[];
   property_definitions: ProjectExportPropertyDefinition[];
-  tasks: ProjectExportTaskOutput[];
+  tasks: ProjectExportTask[];
 }
 
 export interface ProjectFavoriteStatus {
@@ -1534,16 +1503,25 @@ export interface ProjectFavoriteStatus {
   is_favorited: boolean;
 }
 
+export type ProjectImportRequestEnvelope = { [key: string]: unknown };
+
 /**
  * Body for ``POST /api/v1/projects/import``.
 
 The envelope is included inline rather than as multipart so the API
 stays JSON-only. The frontend reads the user's selected file and
 posts the parsed JSON back here.
+
+``envelope`` is typed as a free-form dict (rather than
+:class:`ProjectExportEnvelope`) deliberately: when the same model is
+used in a request body and a response, FastAPI / pydantic emit two
+OpenAPI schemas (``-Input`` / ``-Output``) that produce duplicate
+Orval types. Validation still happens — the import service calls
+``ProjectExportEnvelope.model_validate(envelope)``.
  */
 export interface ProjectImportRequest {
   initiative_id: number;
-  envelope: ProjectExportEnvelopeInput;
+  envelope: ProjectImportRequestEnvelope;
 }
 
 /**

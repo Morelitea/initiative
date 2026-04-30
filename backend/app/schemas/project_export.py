@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from app.models.property import PropertyType
 from app.models.task import TaskPriority, TaskStatusCategory
@@ -99,17 +99,27 @@ class ProjectExportTask(BaseModel):
     sort_order: float = 0.0
     is_archived: bool = False
     status_name: str
-    tags: List[ProjectExportTag] = Field(default_factory=list)
-    assignee_emails: List[str] = Field(default_factory=list)
-    subtasks: List[ProjectExportSubtask] = Field(default_factory=list)
-    property_values: List[ProjectExportPropertyValue] = Field(default_factory=list)
+    # Lists are required (no default_factory): pydantic 2.x splits the
+    # OpenAPI schema into ``-Input``/``-Output`` whenever a field has a
+    # different presence in validation vs serialization, and
+    # default_factory=list is the canonical trigger. The exporter always
+    # emits these, so the field is always present anyway.
+    tags: List[ProjectExportTag]
+    assignee_emails: List[str]
+    subtasks: List[ProjectExportSubtask]
+    property_values: List[ProjectExportPropertyValue]
 
 
 class ProjectExportEnvelope(BaseModel):
     """Top-level export document. Versioned so the importer can refuse
-    or migrate older / unknown formats."""
+    or migrate older / unknown formats.
 
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+    All list fields are required (no ``default_factory``) so Pydantic
+    doesn't split the OpenAPI schema into ``-Input``/``-Output`` shapes
+    when this model is used as both a response (GET /export) and a
+    nested request body (POST /import). The exporter always writes
+    every list, so requiring them costs nothing at runtime.
+    """
 
     schema_version: int = SCHEMA_VERSION
     app_version: str
@@ -118,10 +128,10 @@ class ProjectExportEnvelope(BaseModel):
     source_instance_url: Optional[str] = None
 
     project: ProjectExportProject
-    tags: List[ProjectExportTag] = Field(default_factory=list)
-    task_statuses: List[ProjectExportTaskStatus] = Field(default_factory=list)
-    property_definitions: List[ProjectExportPropertyDefinition] = Field(default_factory=list)
-    tasks: List[ProjectExportTask] = Field(default_factory=list)
+    tags: List[ProjectExportTag]
+    task_statuses: List[ProjectExportTaskStatus]
+    property_definitions: List[ProjectExportPropertyDefinition]
+    tasks: List[ProjectExportTask]
 
 
 class ProjectImportRequest(BaseModel):
@@ -130,10 +140,17 @@ class ProjectImportRequest(BaseModel):
     The envelope is included inline rather than as multipart so the API
     stays JSON-only. The frontend reads the user's selected file and
     posts the parsed JSON back here.
+
+    ``envelope`` is typed as a free-form dict (rather than
+    :class:`ProjectExportEnvelope`) deliberately: when the same model is
+    used in a request body and a response, FastAPI / pydantic emit two
+    OpenAPI schemas (``-Input`` / ``-Output``) that produce duplicate
+    Orval types. Validation still happens — the import service calls
+    ``ProjectExportEnvelope.model_validate(envelope)``.
     """
 
     initiative_id: int
-    envelope: ProjectExportEnvelope
+    envelope: dict
 
 
 class ProjectImportResult(BaseModel):

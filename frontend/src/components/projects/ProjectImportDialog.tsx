@@ -4,10 +4,7 @@ import { useRouter } from "@tanstack/react-router";
 
 import { useImportProjectApiV1ProjectsImportPost } from "@/api/generated/projects/projects";
 import { invalidateAllProjects } from "@/api/query-keys";
-import type {
-  InitiativeRead,
-  ProjectExportEnvelopeOutput,
-} from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, ProjectExportEnvelope } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -48,7 +45,7 @@ export const ProjectImportDialog = ({
   const router = useRouter();
   const gp = useGuildPath();
 
-  const [envelope, setEnvelope] = useState<ProjectExportEnvelopeOutput | null>(null);
+  const [envelope, setEnvelope] = useState<ProjectExportEnvelope | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [initiativeId, setInitiativeId] = useState<string | null>(defaultInitiativeId);
   const [fileName, setFileName] = useState<string>("");
@@ -76,7 +73,7 @@ export const ProjectImportDialog = ({
     setFileName(file.name);
     try {
       const text = await file.text();
-      const parsed = JSON.parse(text) as ProjectExportEnvelopeOutput;
+      const parsed = JSON.parse(text) as ProjectExportEnvelope;
       if (
         !parsed ||
         typeof parsed !== "object" ||
@@ -100,7 +97,10 @@ export const ProjectImportDialog = ({
     try {
       const result = await importMutation.mutateAsync({
         data: {
-          envelope,
+          // Backend types `envelope` as a free-form dict to keep the
+          // export schema from being split into Input/Output by Pydantic;
+          // we still serialize the strongly-typed parsed envelope.
+          envelope: envelope as unknown as Record<string, unknown>,
           initiative_id: Number(initiativeId),
         },
       });
