@@ -99,7 +99,7 @@ class ProjectExportTask(BaseModel):
     sort_order: float = 0.0
     is_archived: bool = False
     status_name: str
-    tag_names: List[str] = Field(default_factory=list)
+    tags: List[ProjectExportTag] = Field(default_factory=list)
     assignee_emails: List[str] = Field(default_factory=list)
     subtasks: List[ProjectExportSubtask] = Field(default_factory=list)
     property_values: List[ProjectExportPropertyValue] = Field(default_factory=list)

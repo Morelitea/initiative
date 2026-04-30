@@ -1469,7 +1469,7 @@ export interface ProjectExportTaskInput {
   sort_order?: number;
   is_archived?: boolean;
   status_name: string;
-  tag_names?: string[];
+  tags?: ProjectExportTag[];
   assignee_emails?: string[];
   subtasks?: ProjectExportSubtask[];
   property_values?: ProjectExportPropertyValue[];
@@ -1506,7 +1506,7 @@ export interface ProjectExportTaskOutput {
   sort_order?: number;
   is_archived?: boolean;
   status_name: string;
-  tag_names?: string[];
+  tags?: ProjectExportTag[];
   assignee_emails?: string[];
   subtasks?: ProjectExportSubtask[];
   property_values?: ProjectExportPropertyValue[];

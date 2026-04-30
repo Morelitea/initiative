@@ -104,7 +104,8 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert len(envelope.tasks) == 1
     exported_task = envelope.tasks[0]
     assert exported_task.title == "Fix the thing"
-    assert exported_task.tag_names == ["blocker"]
+    assert [t.name for t in exported_task.tags] == ["blocker"]
+    assert [t.color for t in exported_task.tags] == ["#FF0000"]
     assert exported_task.assignee_emails == ["alice@example.com"]
     assert {s.content for s in exported_task.subtasks} == {"step 1", "step 2"}
     assert exported_task.property_values[0].property_name == "Severity"

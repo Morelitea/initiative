@@ -371,11 +371,21 @@ async def _import_task(
             )
         )
 
-    # Tag links
-    for tag_name in envelope_task.tag_names:
-        tid = tag_name_to_id.get(tag_name)
-        if tid is not None:
-            session.add(TaskTag(task_id=task.id, tag_id=tid))
+    # Tag links — match-or-create against the target guild for any tag
+    # that wasn't already in the project-level set (tasks can have tags
+    # the project itself doesn't carry).
+    for task_tag in envelope_task.tags:
+        tid = tag_name_to_id.get(task_tag.name)
+        if tid is None:
+            resolved = await _ensure_tag(
+                session,
+                guild_id=guild_id,
+                name=task_tag.name,
+                color=task_tag.color,
+            )
+            tid = resolved.id
+            tag_name_to_id[task_tag.name] = tid
+        session.add(TaskTag(task_id=task.id, tag_id=tid))
 
     # Assignees: match by email against initiative members; drop misses
     seen_user_ids: set[int] = set()

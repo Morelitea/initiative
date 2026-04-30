@@ -120,12 +120,12 @@ async def build_project_export(
             for s in subtasks_sorted
         ]
 
-        tag_names = []
+        task_tags: list[ProjectExportTag] = []
         seen_task_tags: set[str] = set()
         for link in task.tag_links or []:
             if link.tag and link.tag.name not in seen_task_tags:
                 seen_task_tags.add(link.tag.name)
-                tag_names.append(link.tag.name)
+                task_tags.append(ProjectExportTag(name=link.tag.name, color=link.tag.color))
 
         assignee_emails = [u.email for u in (task.assignees or []) if u.email]
 
@@ -148,7 +148,7 @@ async def build_project_export(
                 sort_order=task.sort_order,
                 is_archived=task.is_archived,
                 status_name=status_name,
-                tag_names=tag_names,
+                tags=task_tags,
                 assignee_emails=assignee_emails,
                 subtasks=subtasks,
                 property_values=property_values,
