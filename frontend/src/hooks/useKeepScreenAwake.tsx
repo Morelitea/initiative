@@ -62,6 +62,12 @@ export const KeepScreenAwakeProvider = ({ children }: { children: ReactNode }) =
             if (sentinelRef.current === sentinel) {
               sentinelRef.current = null;
             }
+            // The OS can drop the sentinel for reasons other than tab-hide
+            // (low-power mode, resource pressure). Reacquire while the tab
+            // is still visible and the user still wants the lock.
+            if (!cancelled && document.visibilityState === "visible") {
+              void acquire();
+            }
           });
         }
       } catch (error) {
