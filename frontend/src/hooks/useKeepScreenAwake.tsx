@@ -1,14 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { KeepAwake } from "@capacitor-community/keep-awake";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { getItem, setItem } from "@/lib/storage";
 
@@ -32,13 +24,9 @@ const detectSupported = (): boolean => {
 const readStoredEnabled = (): boolean => getItem(STORAGE_KEY) === "1";
 
 export const KeepScreenAwakeProvider = ({ children }: { children: ReactNode }) => {
-  const [enabled, setEnabledState] = useState<boolean>(() => readStoredEnabled());
+  const [enabled, setEnabled] = useState<boolean>(() => readStoredEnabled());
   const supported = detectSupported();
   const sentinelRef = useRef<WakeLockSentinel | null>(null);
-
-  const setEnabled = useCallback((next: boolean) => {
-    setEnabledState(next);
-  }, []);
 
   useEffect(() => {
     setItem(STORAGE_KEY, enabled ? "1" : "0");
