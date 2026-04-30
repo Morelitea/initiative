@@ -215,6 +215,11 @@
       "label": "Vibration on task completion",
       "description": "Briefly vibrate your device when you finish any task. Mobile / supported browsers only.",
       "preview": "Preview"
+    },
+    "keepScreenAwake": {
+      "label": "Keep screen awake",
+      "description": "Prevent this device's screen from dimming or locking while the app is open. This setting is saved on this device only.",
+      "unsupported": "Your browser does not support keeping the screen awake."
     }
   },
   "notifications": {

@@ -20,6 +20,7 @@
     "prepare": "cd .. && husky ./frontend/.husky"
   },
   "dependencies": {
+    "@capacitor-community/keep-awake": "^8.0.1",
     "@capacitor-community/safe-area": "^8.0.1",
     "@capacitor/android": "^8.3.1",
     "@capacitor/app": "^8.1.0",

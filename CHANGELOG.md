@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Chester the Mimic** — a pixel-art treasure chest mascot now greets you in toast notifications. Each toast type pairs with a Chester mood (success → proud sparkles, error → chomping, warning → thinking, info → talking, default → idle), and the seven mood SVGs ship as standalone animated assets. Platform admins can preview them all from the new "Chester toast playground" card in **Settings → Admin → Branding**.
 
+- **Keep screen awake.** A new toggle under **Settings → Interface** prevents this device's screen from dimming or locking while the app is open. Useful for long planning or reading sessions on a tablet at the table. The setting is per-device — it's saved locally (localStorage on web, Capacitor Preferences on native) and never synced to the backend, so each device can opt in independently. Uses the Screen Wake Lock API on web and the native idle-timer/`FLAG_KEEP_SCREEN_ON` flag on Capacitor builds.
+
 ### Changed
 
 - **Account deletion now has three options instead of one.**
