@@ -72,6 +72,15 @@ async def import_project(
         session, initiative_id=target_initiative.id
     )
     target_guild_id = target_initiative.guild_id
+    if target_guild_id is None:
+        # Initiatives are created with a guild (services/initiatives.py
+        # requires it). Reaching here means data corruption, not user
+        # input — fail loudly rather than create guild-less tags that
+        # would silently leak across guilds.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=ProjectExportMessages.INITIATIVE_NOT_FOUND,
+        )
 
     # 1. Project row (rename on collision)
     project_name = await _unique_project_name(
@@ -239,11 +248,17 @@ class _TagResolved:
 async def _ensure_tag(
     session: AsyncSession,
     *,
-    guild_id: int | None,
+    guild_id: int,
     name: str,
     color: str,
 ) -> _TagResolved:
-    """Find a tag by ``(guild_id, name)`` or create it."""
+    """Find a tag by ``(guild_id, name)`` or create it.
+
+    ``guild_id`` is intentionally non-optional: a ``None`` here would
+    silently match guild-less tags (``WHERE guild_id IS NULL``) and
+    cross-pollinate across guilds. Callers must guarantee a real guild
+    before reaching this helper.
+    """
     stmt = select(Tag).where(Tag.guild_id == guild_id, Tag.name == name)
     existing = (await session.exec(stmt)).one_or_none()
     if existing is not None:
