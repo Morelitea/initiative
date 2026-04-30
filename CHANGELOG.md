@@ -9,8 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Keep screen awake.** A new toggle under **Settings → Interface** prevents this device's screen from dimming or locking while the app is open. Useful for long planning or reading sessions on a tablet at the table. The setting is per-device — it's saved locally (localStorage on web, Capacitor Preferences on native) and never synced to the backend, so each device can opt in independently. Uses the Screen Wake Lock API on web and the native idle-timer/`FLAG_KEEP_SCREEN_ON` flag on Capacitor builds.
-
 - **Trash and Restore.** Deleting a project, task, document, comment, initiative, tag, queue, queue item, or calendar event now sends it to a trash can instead of permanently destroying it. Items stay there for the guild's retention period (default 90 days; admins can change it under **Settings → Guild → Trash retention** or set "Never" to keep things forever).
   - **Personal view** — every member sees a **Trash** tab under their profile listing the things they deleted, with a **Restore** button next to each.
   - **Guild view** — guild admins also get a **Trash** tab under **Settings → Trash** that shows everything trashed in the guild plus an admin-only **Delete now** button for permanently purging an item before its retention timer is up.
@@ -22,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export users as CSV from **Settings → Users** (guild admins) and **Settings → Admin → Users** (platform admins). Each row gets an **Export** button, and the card header has **Export all as CSV**. Exports include ID, email, full name, role, status, and initiative roles — enough for HR or compliance teams to keep an offline record before an account is removed.
 
 - **Chester the Mimic** — a pixel-art treasure chest mascot now greets you in toast notifications. Each toast type pairs with a Chester mood (success → proud sparkles, error → chomping, warning → thinking, info → talking, default → idle), and the seven mood SVGs ship as standalone animated assets. Platform admins can preview them all from the new "Chester toast playground" card in **Settings → Admin → Branding**.
+
+- **Keep screen awake.** A new toggle under **Settings → Interface** prevents this device's screen from dimming or locking while the app is open. Useful for long planning or reading sessions on a tablet at the table. The setting is per-device — it's saved locally (localStorage on web, Capacitor Preferences on native) and never synced to the backend, so each device can opt in independently. Uses the Screen Wake Lock API on web and the native idle-timer/`FLAG_KEEP_SCREEN_ON` flag on Capacitor builds.
 
 ### Changed
 
