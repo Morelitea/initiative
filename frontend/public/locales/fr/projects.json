@@ -582,5 +582,34 @@
     "taskColumn": "Tâche",
     "noTasks": "Aucune tâche à afficher.",
     "outsideRange": "Hors de la plage actuelle"
+  },
+
+  "export": {
+    "title": "Exporter le projet",
+    "description": "Téléchargez un fichier JSON contenant ce projet, ses tâches, statuts, étiquettes et valeurs de propriétés personnalisées.",
+    "detail": "Le fichier est portable : il peut être réimporté sur cette instance ou sur toute autre installation Initiative. Les références entre lignes utilisent des noms et des adresses e-mail pour que les ID de cette base ne fuient pas.",
+    "exportButton": "Exporter en JSON",
+    "exporting": "Exportation…",
+    "noWriteAccess": "Vous devez avoir un accès en écriture sur ce projet pour l'exporter.",
+    "success": "Projet exporté",
+    "error": "Impossible d'exporter le projet. Veuillez réessayer."
+  },
+
+  "import": {
+    "title": "Importer un projet",
+    "description": "Créez un nouveau projet à partir d'un fichier JSON précédemment exporté.",
+    "importButton": "Importer",
+    "importing": "Importation…",
+    "selectFile": "Fichier JSON du projet",
+    "parseError": "Cela ne ressemble pas à une exportation de projet Initiative.",
+    "previewProject": "Projet",
+    "previewTaskCount": "Tâches",
+    "previewSchemaVersion": "Version du schéma",
+    "targetInitiative": "Importer dans l'initiative",
+    "selectInitiative": "Choisissez une initiative",
+    "success": "« {{name}} » importé",
+    "warningUnmatchedAssignees_one": "Importé, mais {{count}} responsable hors de cette initiative a été ignoré : {{emails}}",
+    "warningUnmatchedAssignees_other": "Importé, mais {{count}} responsables hors de cette initiative ont été ignorés : {{emails}}",
+    "error": "Impossible d'importer le projet. Veuillez réessayer."
   }
 }

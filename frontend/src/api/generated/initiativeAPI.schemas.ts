@@ -1372,9 +1372,195 @@ export interface ProjectDuplicateRequest {
   name?: string | null;
 }
 
+export interface ProjectExportProject {
+  name: string;
+  icon?: string | null;
+  description?: string | null;
+  is_template?: boolean;
+  is_archived?: boolean;
+}
+
+export interface ProjectExportTag {
+  name: string;
+  color: string;
+}
+
+export type TaskStatusCategory = (typeof TaskStatusCategory)[keyof typeof TaskStatusCategory];
+
+export const TaskStatusCategory = {
+  backlog: "backlog",
+  todo: "todo",
+  in_progress: "in_progress",
+  done: "done",
+} as const;
+
+export interface ProjectExportTaskStatus {
+  name: string;
+  category: TaskStatusCategory;
+  position?: number;
+  color?: string;
+  icon?: string;
+  is_default?: boolean;
+}
+
+export type ProjectExportPropertyDefinitionOptions = { [key: string]: unknown }[] | null;
+
+export interface ProjectExportPropertyDefinition {
+  name: string;
+  type: PropertyType;
+  position?: number;
+  color?: string | null;
+  options?: ProjectExportPropertyDefinitionOptions;
+}
+
+export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
+
+export const TaskPriority = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  urgent: "urgent",
+} as const;
+
+export interface ProjectExportSubtask {
+  content: string;
+  is_completed?: boolean;
+  position?: number;
+}
+
+/**
+ * Typed property value snapshot.
+
+``property_type`` is repeated alongside the value so the importer can
+validate against the target initiative's property *without* re-reading
+the definitions array, and so a property type collision rename can be
+routed to the correct renamed definition.
+
+Encoding per type (writes to one of these fields, others ``None``):
+- text/url/select       → ``value_text``
+- number                → ``value_number``
+- checkbox              → ``value_boolean``
+- date                  → ``value_text`` (ISO 8601 date)
+- datetime              → ``value_text`` (ISO 8601 datetime)
+- multi_select          → ``value_json`` (list[str])
+- user_reference        → ``value_email``
+ */
+export interface ProjectExportPropertyValue {
+  property_name: string;
+  property_type: PropertyType;
+  value_text?: string | null;
+  value_number?: number | null;
+  value_boolean?: boolean | null;
+  value_email?: string | null;
+  value_json?: unknown | null;
+}
+
+export type ProjectExportTaskInputRecurrence = { [key: string]: unknown } | null;
+
+export interface ProjectExportTaskInput {
+  title: string;
+  description?: string | null;
+  priority?: TaskPriority;
+  start_date?: string | null;
+  due_date?: string | null;
+  recurrence?: ProjectExportTaskInputRecurrence;
+  recurrence_strategy?: string;
+  recurrence_occurrence_count?: number;
+  sort_order?: number;
+  is_archived?: boolean;
+  status_name: string;
+  tag_names?: string[];
+  assignee_emails?: string[];
+  subtasks?: ProjectExportSubtask[];
+  property_values?: ProjectExportPropertyValue[];
+}
+
+/**
+ * Top-level export document. Versioned so the importer can refuse
+or migrate older / unknown formats.
+ */
+export interface ProjectExportEnvelopeInput {
+  schema_version?: number;
+  app_version: string;
+  exported_at: string;
+  exported_by_email?: string | null;
+  source_instance_url?: string | null;
+  project: ProjectExportProject;
+  tags?: ProjectExportTag[];
+  task_statuses?: ProjectExportTaskStatus[];
+  property_definitions?: ProjectExportPropertyDefinition[];
+  tasks?: ProjectExportTaskInput[];
+}
+
+export type ProjectExportTaskOutputRecurrence = { [key: string]: unknown } | null;
+
+export interface ProjectExportTaskOutput {
+  title: string;
+  description?: string | null;
+  priority?: TaskPriority;
+  start_date?: string | null;
+  due_date?: string | null;
+  recurrence?: ProjectExportTaskOutputRecurrence;
+  recurrence_strategy?: string;
+  recurrence_occurrence_count?: number;
+  sort_order?: number;
+  is_archived?: boolean;
+  status_name: string;
+  tag_names?: string[];
+  assignee_emails?: string[];
+  subtasks?: ProjectExportSubtask[];
+  property_values?: ProjectExportPropertyValue[];
+}
+
+/**
+ * Top-level export document. Versioned so the importer can refuse
+or migrate older / unknown formats.
+ */
+export interface ProjectExportEnvelopeOutput {
+  schema_version: number;
+  app_version: string;
+  exported_at: string;
+  exported_by_email: string | null;
+  source_instance_url: string | null;
+  project: ProjectExportProject;
+  tags: ProjectExportTag[];
+  task_statuses: ProjectExportTaskStatus[];
+  property_definitions: ProjectExportPropertyDefinition[];
+  tasks: ProjectExportTaskOutput[];
+}
+
 export interface ProjectFavoriteStatus {
   project_id: number;
   is_favorited: boolean;
+}
+
+/**
+ * Body for ``POST /api/v1/projects/import``.
+
+The envelope is included inline rather than as multipart so the API
+stays JSON-only. The frontend reads the user's selected file and
+posts the parsed JSON back here.
+ */
+export interface ProjectImportRequest {
+  initiative_id: number;
+  envelope: ProjectExportEnvelopeInput;
+}
+
+/**
+ * Summary of what happened during an import. Surfaced in the UI so
+the user can see how many references were dropped or remapped.
+ */
+export interface ProjectImportResult {
+  project_id: number;
+  project_name: string;
+  task_count: number;
+  tag_create_count?: number;
+  tag_match_count?: number;
+  property_create_count?: number;
+  property_match_count?: number;
+  property_rename_count?: number;
+  assignee_match_count?: number;
+  assignee_unmatched_emails?: string[];
 }
 
 export interface ProjectPermissionRead {
@@ -1938,15 +2124,6 @@ export const TaskCreateRecurrenceStrategy = {
   rolling: "rolling",
 } as const;
 
-export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
-
-export const TaskPriority = {
-  low: "low",
-  medium: "medium",
-  high: "high",
-  urgent: "urgent",
-} as const;
-
 export type TaskRecurrenceInputFrequency =
   (typeof TaskRecurrenceInputFrequency)[keyof typeof TaskRecurrenceInputFrequency];
 
@@ -2099,15 +2276,6 @@ export interface TaskRecurrenceOutput {
   end_after_occurrences: number | null;
   end_date: string | null;
 }
-
-export type TaskStatusCategory = (typeof TaskStatusCategory)[keyof typeof TaskStatusCategory];
-
-export const TaskStatusCategory = {
-  backlog: "backlog",
-  todo: "todo",
-  in_progress: "in_progress",
-  done: "done",
-} as const;
 
 export interface TaskStatusRead {
   /**

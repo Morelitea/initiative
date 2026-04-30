@@ -211,5 +211,9 @@
   "TRASH_INVALID_OWNER": "Cet utilisateur ne peut pas prendre la propriété.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Seuls les administrateurs de la guilde peuvent supprimer définitivement.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Type d'élément de la corbeille inconnu.",
+  "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED": "Cette exportation de projet a été créée par une version plus récente d'Initiative et ne peut pas être importée ici.",
+  "PROJECT_EXPORT_INVALID_PAYLOAD": "Le fichier d'exportation du projet est invalide ou endommagé.",
+  "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Initiative cible introuvable.",
+  "PROJECT_EXPORT_NO_TASK_STATUSES": "L'exportation du projet ne contient aucun statut de tâche, qui est obligatoire pour l'importer.",
   "fallback": "Une erreur s'est produite. Veuillez réessayer."
 }

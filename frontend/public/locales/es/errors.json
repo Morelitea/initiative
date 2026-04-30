@@ -211,5 +211,9 @@
   "TRASH_INVALID_OWNER": "Ese usuario no puede asumir la propiedad.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Solo los administradores del gremio pueden eliminar permanentemente.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Tipo de elemento de papelera desconocido.",
+  "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED": "Esta exportación de proyecto fue creada por una versión más nueva de Initiative y no se puede importar aquí.",
+  "PROJECT_EXPORT_INVALID_PAYLOAD": "El archivo de exportación del proyecto no es válido o está dañado.",
+  "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Iniciativa de destino no encontrada.",
+  "PROJECT_EXPORT_NO_TASK_STATUSES": "La exportación del proyecto no tiene estados de tarea, que son obligatorios para importar.",
   "fallback": "Algo salió mal. Por favor intenta de nuevo."
 }

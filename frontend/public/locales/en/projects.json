@@ -615,5 +615,34 @@
     "taskColumn": "Task",
     "noTasks": "No tasks to display.",
     "outsideRange": "Outside current range"
+  },
+
+  "export": {
+    "title": "Export project",
+    "description": "Download a JSON file containing this project, its tasks, statuses, tags, and custom property values.",
+    "detail": "The file is portable: it can be re-imported on this instance or any other Initiative installation. Cross-row references use names and emails so IDs from this database don't leak.",
+    "exportButton": "Export as JSON",
+    "exporting": "Exporting…",
+    "noWriteAccess": "You need write access on this project to export it.",
+    "success": "Project exported",
+    "error": "Could not export the project. Please try again."
+  },
+
+  "import": {
+    "title": "Import project",
+    "description": "Create a new project from a previously-exported JSON file.",
+    "importButton": "Import",
+    "importing": "Importing…",
+    "selectFile": "Project JSON file",
+    "parseError": "That doesn't look like an Initiative project export.",
+    "previewProject": "Project",
+    "previewTaskCount": "Tasks",
+    "previewSchemaVersion": "Schema version",
+    "targetInitiative": "Import into initiative",
+    "selectInitiative": "Choose an initiative",
+    "success": "Imported “{{name}}”",
+    "warningUnmatchedAssignees_one": "Imported, but {{count}} assignee not in this initiative was dropped: {{emails}}",
+    "warningUnmatchedAssignees_other": "Imported, but {{count}} assignees not in this initiative were dropped: {{emails}}",
+    "error": "Could not import the project. Please try again."
   }
 }

@@ -35,6 +35,7 @@ import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { ProjectImportDialog } from "@/components/projects/ProjectImportDialog";
 import { ProjectsFilterBar } from "@/components/projects/ProjectsFilterBar";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,6 +94,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const hasClaimedManagerRole = claimedManagedInitiatives.length > 0;
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const isClosingComposer = useRef(false);
 
   // Open create dialog when ?create=true is in URL
@@ -811,13 +813,22 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
         </Tabs>
 
         {canCreateProjects && (
-          <Button
-            className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
-            onClick={() => setIsComposerOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            {t("addProject")}
-          </Button>
+          <div className="fixed right-6 bottom-6 z-40 flex gap-2">
+            <Button
+              variant="outline"
+              className="h-12 rounded-full px-5 shadow-lg"
+              onClick={() => setIsImportOpen(true)}
+            >
+              {t("import.importButton")}
+            </Button>
+            <Button
+              className="shadow-primary/40 h-12 rounded-full px-6 shadow-lg"
+              onClick={() => setIsComposerOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              {t("addProject")}
+            </Button>
+          </div>
         )}
 
         {canCreateProjects && (
@@ -833,6 +844,15 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             }}
             defaultInitiativeId={initiativeId}
             onCreated={() => handleComposerOpenChange(false)}
+          />
+        )}
+
+        {canCreateProjects && (
+          <ProjectImportDialog
+            open={isImportOpen}
+            onOpenChange={setIsImportOpen}
+            creatableInitiatives={creatableInitiatives}
+            defaultInitiativeId={initiativeId}
           />
         )}
       </div>

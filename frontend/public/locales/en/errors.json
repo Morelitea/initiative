@@ -211,5 +211,9 @@
   "TRASH_INVALID_OWNER": "That user can't take ownership.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Only guild admins can permanently delete items.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Unknown trash item type.",
+  "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED": "This project export was created by a newer version of Initiative and can't be imported here.",
+  "PROJECT_EXPORT_INVALID_PAYLOAD": "The project export file is invalid or corrupted.",
+  "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Target initiative not found.",
+  "PROJECT_EXPORT_NO_TASK_STATUSES": "The project export has no task statuses, which is required for import.",
   "fallback": "Something went wrong. Please try again."
 }
