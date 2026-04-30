@@ -27,8 +27,13 @@ export const KeepScreenAwakeProvider = ({ children }: { children: ReactNode }) =
   const [enabled, setEnabled] = useState<boolean>(() => readStoredEnabled());
   const supported = detectSupported();
   const sentinelRef = useRef<WakeLockSentinel | null>(null);
+  const isInitialMount = useRef(true);
 
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     setItem(STORAGE_KEY, enabled ? "1" : "0");
   }, [enabled]);
 
