@@ -167,13 +167,20 @@ async def import_project(
     property_rename_count = 0
     for pd in envelope.property_definitions:
         match_existing = existing_props.get(pd.name)
-        if match_existing is not None and match_existing.type == pd.type:
+        if (
+            match_existing is not None
+            and match_existing.type == pd.type
+            and _options_compatible(pd.type, match_existing.options, pd.options)
+        ):
             prop_key_to_id[(pd.name, pd.type)] = match_existing.id
             property_match_count += 1
             continue
-        # Either no match, or name match with type mismatch → create new
+        # Name collision with a different type *or* an incompatible
+        # option list → rename. Reusing a select / multi_select
+        # definition with a different option set would silently store
+        # values that aren't valid options on the target side.
         target_name = pd.name
-        if match_existing is not None and match_existing.type != pd.type:
+        if match_existing is not None:
             target_name = await _unique_property_name(
                 session,
                 initiative_id=target_initiative.id,
@@ -243,6 +250,30 @@ class _TagResolved:
     def __init__(self, *, id: int, created: bool) -> None:
         self.id = id
         self.created = created
+
+
+_SELECT_TYPES = {PropertyType.select, PropertyType.multi_select}
+
+
+def _options_compatible(
+    prop_type: PropertyType,
+    target_options: list[dict] | None,
+    source_options: list[dict] | None,
+) -> bool:
+    """Return True when reusing the target's definition is safe.
+
+    For non-select types, options are irrelevant. For select /
+    multi_select, the *value* sets must match: stored values reference
+    the option's ``value`` field, so a target definition with a
+    different option list would silently break filtering and rendering
+    for imported tasks. Labels are cosmetic and ignored — same value,
+    different label is fine.
+    """
+    if prop_type not in _SELECT_TYPES:
+        return True
+    target_values = {o.get("value") for o in (target_options or []) if isinstance(o, dict)}
+    source_values = {o.get("value") for o in (source_options or []) if isinstance(o, dict)}
+    return target_values == source_values
 
 
 async def _ensure_tag(

@@ -197,6 +197,81 @@ async def test_property_type_collision_renames(session: AsyncSession):
 
 
 @pytest.mark.integration
+async def test_property_options_mismatch_renames(session: AsyncSession):
+    """Same name + type but different option values → treat as collision
+    and rename. Reusing the existing definition would silently store
+    values that aren't valid options on the target side."""
+    owner, assignee, guild, source_initiative, source_project = await _seed_populated_project(session)
+    envelope = await export_service.build_project_export(session, project_id=source_project.id)
+
+    target_initiative = await create_initiative(session, guild, owner, name="Target")
+    # Same name, same type (select), but completely different options
+    existing_prop = await create_property_definition(
+        session,
+        target_initiative,
+        name="Severity",
+        type=PropertyType.select,
+        options=[
+            {"value": "critical", "label": "Critical"},
+            {"value": "minor", "label": "Minor"},
+        ],
+    )
+
+    result = await import_service.import_project(
+        session,
+        envelope=envelope,
+        target_initiative=target_initiative,
+        importer=owner,
+    )
+    assert result.property_rename_count == 1
+
+    # Original target definition unchanged
+    refreshed = await session.get(PropertyDefinition, existing_prop.id)
+    assert refreshed.options == [
+        {"value": "critical", "label": "Critical"},
+        {"value": "minor", "label": "Minor"},
+    ]
+
+    # Renamed import lives alongside it with the source's options
+    stmt = select(PropertyDefinition).where(
+        PropertyDefinition.initiative_id == target_initiative.id,
+        PropertyDefinition.name == "Severity_select",
+    )
+    renamed = (await session.exec(stmt)).one_or_none()
+    assert renamed is not None
+    assert {o["value"] for o in (renamed.options or [])} == {"low", "high"}
+
+
+@pytest.mark.integration
+async def test_property_options_label_only_difference_matches(session: AsyncSession):
+    """Labels are cosmetic; same value set with different labels still
+    counts as a match (no rename, no new definition)."""
+    owner, assignee, guild, source_initiative, source_project = await _seed_populated_project(session)
+    envelope = await export_service.build_project_export(session, project_id=source_project.id)
+
+    target_initiative = await create_initiative(session, guild, owner, name="Target")
+    await create_property_definition(
+        session,
+        target_initiative,
+        name="Severity",
+        type=PropertyType.select,
+        options=[
+            {"value": "low", "label": "LOW PRIORITY"},
+            {"value": "high", "label": "HIGH PRIORITY"},
+        ],
+    )
+
+    result = await import_service.import_project(
+        session,
+        envelope=envelope,
+        target_initiative=target_initiative,
+        importer=owner,
+    )
+    assert result.property_rename_count == 0
+    assert result.property_match_count == 1
+
+
+@pytest.mark.integration
 async def test_unmatched_assignees_reported(session: AsyncSession):
     owner, assignee, guild, source_initiative, source_project = await _seed_populated_project(session)
     envelope = await export_service.build_project_export(session, project_id=source_project.id)
