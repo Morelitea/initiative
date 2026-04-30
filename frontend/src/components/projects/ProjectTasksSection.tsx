@@ -926,7 +926,6 @@ export const ProjectTasksSection = ({
           </div>
           <CollapsibleContent forceMount className="mt-2 data-[state=closed]:hidden sm:mt-0">
             <ProjectTasksFilters
-              viewMode={viewMode}
               taskStatuses={sortedTaskStatuses}
               userOptions={userOptions}
               tags={tags}

@@ -22,7 +22,6 @@ import type { TagRead, TagSummary, TaskStatusRead } from "@/api/generated/initia
 export type ListStatusFilter = "all" | "incomplete" | number;
 
 type ProjectTasksFiltersProps = {
-  viewMode: "kanban" | "table" | "calendar" | "gantt";
   userOptions: UserOption[];
   taskStatuses: TaskStatusRead[];
   tags: TagRead[];
@@ -41,7 +40,6 @@ type ProjectTasksFiltersProps = {
 };
 
 export const ProjectTasksFilters = ({
-  viewMode,
   taskStatuses,
   userOptions,
   tags,
@@ -113,29 +111,28 @@ export const ProjectTasksFilters = ({
             </SelectContent>
           </Select>
         </div>
-        {viewMode === "table" || viewMode === "calendar" || viewMode === "gantt" ? (
-          <div className="w-full space-y-2 sm:w-48">
-            <Label
-              htmlFor="status-filter"
-              className="text-muted-foreground block text-xs font-medium"
-            >
-              {t("filters.filterByStatus")}
-            </Label>
-            <MultiSelect
-              selectedValues={statusFilters.map(String)}
-              options={taskStatuses.map((status) => ({
-                value: String(status.id),
-                label: status.name,
-              }))}
-              onChange={(values) => {
-                const numericValues = values.map(Number).filter(Number.isFinite);
-                onStatusFiltersChange(numericValues);
-              }}
-              placeholder={t("filters.allStatuses")}
-              emptyMessage={t("filters.noStatusesAvailable")}
-            />
-          </div>
-        ) : null}
+        <div className="w-full space-y-2 sm:w-48">
+          <Label
+            htmlFor="status-filter"
+            className="text-muted-foreground block text-xs font-medium"
+          >
+            {t("filters.filterByStatus")}
+          </Label>
+          <MultiSelect
+            selectedValues={statusFilters.map(String)}
+            options={taskStatuses.map((status) => ({
+              value: String(status.id),
+              label: status.name,
+            }))}
+            onChange={(values) => {
+              const numericValues = values.map(Number).filter(Number.isFinite);
+              onStatusFiltersChange(numericValues);
+            }}
+            placeholder={t("filters.allStatuses")}
+            emptyMessage={t("filters.noStatusesAvailable")}
+          />
+        </div>
+
         <div className="w-full space-y-2 sm:w-48">
           <Label htmlFor="tag-filter" className="text-muted-foreground block text-xs font-medium">
             {t("filters.filterByTag")}
