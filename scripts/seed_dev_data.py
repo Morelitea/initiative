@@ -27,6 +27,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+from sqlalchemy import or_  # noqa: E402
 from sqlmodel import select  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
@@ -2891,6 +2892,30 @@ async def clean() -> None:
                     session.add(user)
             await session.flush()
             print("  Restored user settings")
+
+            # Sweep any untracked documents whose author is a seeded
+            # user. The script tracks documents it created in
+            # `state["documents"]`, but documents created outside that
+            # path (e.g. via the running app during dev) won't be in
+            # that list. ``documents.created_by_id`` / ``updated_by_id``
+            # have no ON DELETE CASCADE / SET NULL, so any leftover
+            # would block the user delete below with a FK violation.
+            if state.get("users"):
+                seeded_user_ids = state["users"]
+                leftover_doc_result = await session.exec(
+                    select(Document).where(
+                        or_(
+                            Document.created_by_id.in_(seeded_user_ids),
+                            Document.updated_by_id.in_(seeded_user_ids),
+                        )
+                    )
+                )
+                leftover_docs = leftover_doc_result.all()
+                for document in leftover_docs:
+                    await session.delete(document)
+                if leftover_docs:
+                    await session.flush()
+                    print(f"  Removed {len(leftover_docs)} untracked documents")
 
             # Users
             for uid in state.get("users", []):
