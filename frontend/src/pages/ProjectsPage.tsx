@@ -593,6 +593,16 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                   {t("addProject")}
                 </Button>
               )}
+              {canCreateProjects && (
+                <Button
+                  size="sm"
+                  variant="link"
+                  className="text-muted-foreground h-auto px-0"
+                  onClick={() => setIsImportOpen(true)}
+                >
+                  {t("import.importButton")}
+                </Button>
+              )}
             </div>
             <p className="text-muted-foreground">{t("subtitle")}</p>
           </div>
@@ -813,22 +823,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
         </Tabs>
 
         {canCreateProjects && (
-          <div className="fixed right-6 bottom-6 z-40 flex gap-2">
-            <Button
-              variant="outline"
-              className="h-12 rounded-full px-5 shadow-lg"
-              onClick={() => setIsImportOpen(true)}
-            >
-              {t("import.importButton")}
-            </Button>
-            <Button
-              className="shadow-primary/40 h-12 rounded-full px-6 shadow-lg"
-              onClick={() => setIsComposerOpen(true)}
-            >
-              <Plus className="h-4 w-4" />
-              {t("addProject")}
-            </Button>
-          </div>
+          <Button
+            className="shadow-primary/40 fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg"
+            onClick={() => setIsComposerOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            {t("addProject")}
+          </Button>
         )}
 
         {canCreateProjects && (
