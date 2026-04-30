@@ -619,9 +619,6 @@ type TaskCellProps = {
 };
 
 const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
-  // ``dates`` is required because summarizeRecurrence() resolves keys
-  // under the ``recurrenceSummary.*`` namespace; without it the cell
-  // shows the raw key string until another view loads ``dates``.
   const { t } = useTranslation(["projects", "dates"]);
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
