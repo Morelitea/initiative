@@ -70,6 +70,15 @@ export const ProjectImportDialog = ({
       setFileName("");
       return;
     }
+    // Guard against pathological / crafted files that would otherwise
+    // stall the tab during file.text() or JSON.parse. 50 MB is far
+    // larger than a real project export and small enough to abort fast.
+    const MAX_BYTES = 50 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      setFileName(file.name);
+      setParseError(t("import.fileTooLarge"));
+      return;
+    }
     setFileName(file.name);
     try {
       const text = await file.text();

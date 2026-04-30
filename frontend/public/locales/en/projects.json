@@ -635,6 +635,7 @@
     "importing": "Importing…",
     "selectFile": "Project JSON file",
     "parseError": "That doesn't look like an Initiative project export.",
+    "fileTooLarge": "That file is unusually large. Pick a smaller export (≤50 MB).",
     "previewProject": "Project",
     "previewTaskCount": "Tasks",
     "previewSchemaVersion": "Schema version",

@@ -608,6 +608,7 @@
     "importing": "Importando…",
     "selectFile": "Archivo JSON del proyecto",
     "parseError": "Eso no parece una exportación de proyecto de Initiative.",
+    "fileTooLarge": "Ese archivo es inusualmente grande. Elige una exportación más pequeña (≤50 MB).",
     "previewProject": "Proyecto",
     "previewTaskCount": "Tareas",
     "previewSchemaVersion": "Versión del esquema",
