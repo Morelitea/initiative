@@ -105,6 +105,7 @@ export const ProjectImportDialog = ({
         },
       });
       void invalidateAllProjects();
+      toast.success(t("import.success", { name: result.project_name }));
       if (result.assignee_unmatched_emails && result.assignee_unmatched_emails.length > 0) {
         toast.warning(
           t("import.warningUnmatchedAssignees", {
@@ -112,8 +113,6 @@ export const ProjectImportDialog = ({
             emails: result.assignee_unmatched_emails.join(", "),
           })
         );
-      } else {
-        toast.success(t("import.success", { name: result.project_name }));
       }
       onOpenChange(false);
       onImported?.();
