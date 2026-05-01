@@ -19,6 +19,21 @@ from app.services.webhook_target_url import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _force_prod_flag(monkeypatch):
+    """Pin the dev flag to False by default so the production semantics
+    are what gets tested. Local devs may have ``WEBHOOK_ALLOW_PRIVATE_TARGETS=true``
+    in their ``.env`` for round-tripping with auto, which would otherwise
+    leak into the test session and silently break the strict-mode
+    assertions. Tests that *do* exercise the flag-on branch override
+    this with an explicit ``monkeypatch.setattr``."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(
+        config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False
+    )
+
+
 @pytest.mark.unit
 def test_accepts_public_https_literal():
     """An IPv4 literal in public unicast space is fine."""
@@ -143,14 +158,36 @@ async def test_async_variant_rejects_private_literal():
 @pytest.mark.unit
 def test_dev_flag_allows_loopback(monkeypatch):
     """``WEBHOOK_ALLOW_PRIVATE_TARGETS=true`` is the documented local-
-    dev path. With it set, loopback / RFC1918 are accepted and so is
-    plain http (because a localhost target has no TLS cert)."""
+    dev path. With it set, loopback / RFC1918 are accepted, and plain
+    http is also accepted *for those targets* (a localhost target has
+    no TLS cert)."""
     from app.core import config as config_module
 
     monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", True)
     assert_target_url_is_public("http://localhost:9002/api/v1/webhooks/initiative")
     assert_target_url_is_public("http://127.0.0.1:9002/hook")
     assert_target_url_is_public("http://10.0.0.5/hook")
+    # https-private also fine when the flag is on.
+    assert_target_url_is_public("https://127.0.0.1/hook")
+
+
+@pytest.mark.unit
+def test_dev_flag_does_not_allow_http_to_public_hosts(monkeypatch):
+    """The flag's name says ``ALLOW_PRIVATE_TARGETS`` — its scope is
+    private targets only. Plain http to a public host MUST still be
+    rejected even with the flag on, because a MITM there would strip
+    the signature header and forge payloads. Catches a regression where
+    the scheme bypass spills over to public targets."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", True)
+    fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo",
+        return_value=fake_infos,
+    ):
+        with pytest.raises(WebhookTargetUrlError):
+            assert_target_url_is_public("http://hooks.example.com/in")
 
 
 @pytest.mark.unit

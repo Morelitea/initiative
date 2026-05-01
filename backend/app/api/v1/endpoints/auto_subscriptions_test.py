@@ -22,6 +22,17 @@ from app.testing.factories import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _force_prod_flag(monkeypatch):
+    """Pin the SSRF dev flag to False so tests assert on production
+    semantics regardless of local ``.env``."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(
+        config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False
+    )
+
+
 async def _authed_post(
     client: AsyncClient, *, headers: dict[str, str], body: dict
 ):
