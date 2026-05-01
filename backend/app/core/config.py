@@ -63,15 +63,31 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_FULL_NAME: str | None = None
     DISABLE_GUILD_CREATION: bool = False
     ENABLE_PUBLIC_REGISTRATION: bool = True  # When False, requires invite code to register
-    # Domain event publishing to AWS Kinesis (infra variant only).
-    # When True, mutations on tasks/projects/etc. emit encrypted envelopes to
-    # KINESIS_STREAM_NAME for the inititative_infra automation engine to consume.
-    # Set to False on the OSS image; aioboto3 is imported lazily so it isn't a
-    # hard dependency.
-    ENABLE_EVENT_PUBLISHING: bool = False
-    AWS_REGION: str | None = None
-    KINESIS_STREAM_NAME: str = "initiative.events.v1"
-    AWS_ENDPOINT_URL: str | None = None  # LocalStack override; unset uses real AWS
+
+    # Optional advanced tool plug-in: when ADVANCED_TOOL_URL is set, the SPA
+    # surfaces a per-initiative toggle that, when enabled, embeds the URL as
+    # an iframe sub-page under the initiative. Both unset on the default OSS
+    # image — the toggle and panel are then fully hidden.
+    ADVANCED_TOOL_NAME: str | None = None
+    ADVANCED_TOOL_URL: str | None = None
+    # Comma-separated origin allowlist for postMessage handoff to the
+    # advanced tool iframe. The frontend only accepts messages from these
+    # origins, and only sends messages to the iframe origin derived from
+    # ADVANCED_TOOL_URL. Defaults to the ADVANCED_TOOL_URL origin if unset.
+    ADVANCED_TOOL_ALLOWED_ORIGINS: list[str] | str | None = None
+
+    # Optional asymmetric key material for signing advanced-tool handoff
+    # JWTs with RS256 instead of HS256. When set, the proprietary embed
+    # backend verifies tokens using the matching public key only — no
+    # secret has to be shared between FOSS and the embed service. Falls
+    # back to HS256 with SECRET_KEY when unset, so OSS deployments work
+    # out of the box. Generate a 2048-bit RSA keypair with
+    # ``openssl genrsa -out private.pem 2048`` and feed the PEM here.
+    HANDOFF_SIGNING_PRIVATE_KEY_PEM: str | None = None
+    # Key id stamped on the JWT header. The proprietary side reads ``kid``
+    # to pick the right verifying key — useful when rotating.
+    HANDOFF_SIGNING_KEY_ID: str | None = None
+
     BEHIND_PROXY: bool = False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
 
     @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")
@@ -86,6 +102,19 @@ class Settings(BaseSettings):
         else:
             items = value
         return [item.strip().lower() for item in items if item and item.strip()]
+
+    @field_validator("ADVANCED_TOOL_ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_advanced_tool_origins(cls, value: str | list[str] | None) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            if not value.strip():
+                return []
+            items = value.split(",")
+        else:
+            items = value
+        return [item.strip() for item in items if item and item.strip()]
 
     @field_validator("OIDC_SCOPES", mode="before")
     @classmethod

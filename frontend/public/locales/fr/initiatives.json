@@ -142,7 +142,8 @@
       "documents": "Documents",
       "projects": "Projets",
       "queues": "Files",
-      "events": "Événements"
+      "events": "Événements",
+      "advancedTool": "Outil avancé"
     },
     "permissions": {
       "viewDocuments": "Voir les documents",
@@ -152,7 +153,9 @@
       "viewQueues": "Voir les files",
       "createQueues": "Créer des files",
       "viewEvents": "Voir les événements",
-      "createEvents": "Créer des événements"
+      "createEvents": "Créer des événements",
+      "viewAdvancedTool": "Ouvrir l’outil avancé",
+      "createAdvancedTool": "Créer dans l’outil avancé"
     }
   },
   "advancedTools": "Outils avancés",
@@ -160,5 +163,18 @@
   "queuesFeature": "Files",
   "queuesFeatureDescription": "Organisez les éléments par priorité, suivez l'ordre de passage et gérez qui passe ensuite.",
   "eventsFeature": "Calendrier",
-  "eventsFeatureDescription": "Planifiez et gérez des événements de calendrier avec des participants et le suivi des RSVP."
+  "eventsFeatureDescription": "Planifiez et gérez des événements de calendrier avec des participants et le suivi des RSVP.",
+  "advancedToolFeatureDescription": "Intégrez le panneau {{name}} à cette initiative.",
+  "advancedTool": {
+    "connecting": "Connexion…",
+    "handoffFailed": "Impossible d’établir une session sécurisée avec l’outil intégré.",
+    "iframeError": "L’outil intégré n’a pas pu se charger.",
+    "unavailableTitle": "Non configuré",
+    "unavailableDescription": "Cette installation n’a pas d’outil avancé configuré.",
+    "disabledTitle": "{{name}} est désactivé pour cette initiative",
+    "disabledDescription": "Activez-le depuis les paramètres de l’initiative pour charger le panneau.",
+    "openSettings": "Ouvrir les paramètres",
+    "guildAdminOnlyTitle": "Réservé aux administrateurs",
+    "guildAdminOnlyDescription": "Seuls les administrateurs du guild peuvent gérer les automatisations à l’échelle du guild."
+  }
 }

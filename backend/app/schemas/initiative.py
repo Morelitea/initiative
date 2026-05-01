@@ -19,6 +19,7 @@ class InitiativeBase(BaseModel):
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     queues_enabled: bool = False
     events_enabled: bool = False
+    advanced_tool_enabled: bool = False
 
 
 class InitiativeCreate(InitiativeBase):
@@ -31,6 +32,7 @@ class InitiativeUpdate(BaseModel):
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
     queues_enabled: Optional[bool] = None
     events_enabled: Optional[bool] = None
+    advanced_tool_enabled: Optional[bool] = None
 
 
 # Role schemas
@@ -71,6 +73,27 @@ class InitiativeRoleUpdate(BaseModel):
     permissions: Optional[Dict[PermissionKey, bool]] = None
 
 
+class AdvancedToolHandoffResponse(BaseModel):
+    """Short-lived bootstrap token for the embedded advanced-tool iframe.
+
+    The SPA passes this to the iframe via postMessage. The iframe's backend
+    validates the JWT (same SECRET_KEY, audience claim) and exchanges it
+    for its own session — never used directly as long-lived auth.
+
+    ``scope`` distinguishes "initiative" vs "guild" embeds. The receiving
+    iframe MUST treat the URL query param as a hint only and trust the
+    JWT's own ``scope`` claim — the param isn't enough to authorize.
+    For initiative scope, ``initiative_id`` is set; for guild scope it's
+    None and only ``guild_id`` (in the JWT) identifies the tenant.
+    """
+
+    handoff_token: str
+    expires_in_seconds: int
+    iframe_url: str
+    scope: str
+    initiative_id: Optional[int] = None
+
+
 class MyInitiativePermissions(BaseModel):
     """Current user's permissions for an initiative."""
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -80,6 +103,10 @@ class MyInitiativePermissions(BaseModel):
     role_display_name: Optional[str] = None
     is_manager: bool = False
     permissions: Dict[PermissionKey, bool] = Field(default_factory=dict)
+    # Flat initiative-level master switch for the optional embedded
+    # advanced tool. Mirrored here so the proprietary embed backend can
+    # gate access in a single permissions call.
+    advanced_tool_enabled: bool = False
 
 
 # Member schemas - updated to work with role_id
@@ -119,10 +146,12 @@ class InitiativeMemberRead(BaseModel):
     can_view_projects: bool = True
     can_view_queues: bool = False
     can_view_events: bool = False
+    can_view_advanced_tool: bool = False
     can_create_docs: bool = False
     can_create_projects: bool = False
     can_create_queues: bool = False
     can_create_events: bool = False
+    can_create_advanced_tool: bool = False
 
 
 class InitiativeRead(InitiativeBase):
@@ -157,6 +186,7 @@ def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> Initia
 def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
     initiative_queues_enabled = getattr(initiative, "queues_enabled", False)
     initiative_events_enabled = getattr(initiative, "events_enabled", False)
+    initiative_advanced_tool_enabled = getattr(initiative, "advanced_tool_enabled", False)
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
@@ -172,10 +202,12 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         can_view_projects = True
         can_view_queues = False
         can_view_events = False
+        can_view_advanced_tool = False
         can_create_docs = False
         can_create_projects = False
         can_create_queues = False
         can_create_events = False
+        can_create_advanced_tool = False
         if is_manager:
             # Managers have all permissions
             can_create_docs = True
@@ -184,6 +216,8 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
             can_create_queues = True
             can_view_events = True
             can_create_events = True
+            can_view_advanced_tool = True
+            can_create_advanced_tool = True
         elif role_ref:
             # Check role permissions (use getattr to avoid lazy loading)
             role_permissions = getattr(role_ref, "permissions", None) or []
@@ -204,6 +238,10 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                     can_view_events = perm.enabled
                 elif perm.permission_key == PermissionKey.create_events and perm.enabled:
                     can_create_events = True
+                elif perm.permission_key == PermissionKey.advanced_tool_enabled:
+                    can_view_advanced_tool = perm.enabled
+                elif perm.permission_key == PermissionKey.create_advanced_tool and perm.enabled:
+                    can_create_advanced_tool = True
 
         # Initiative-level master switch overrides role-level queue permissions
         if not initiative_queues_enabled:
@@ -214,6 +252,11 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         if not initiative_events_enabled:
             can_view_events = False
             can_create_events = False
+
+        # Initiative-level master switch overrides role-level advanced tool perms
+        if not initiative_advanced_tool_enabled:
+            can_view_advanced_tool = False
+            can_create_advanced_tool = False
 
         # Determine legacy role for backward compatibility
         legacy_role = (
@@ -236,10 +279,12 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 can_view_projects=can_view_projects,
                 can_view_queues=can_view_queues,
                 can_view_events=can_view_events,
+                can_view_advanced_tool=can_view_advanced_tool,
                 can_create_docs=can_create_docs,
                 can_create_projects=can_create_projects,
                 can_create_queues=can_create_queues,
                 can_create_events=can_create_events,
+                can_create_advanced_tool=can_create_advanced_tool,
             )
         )
     return InitiativeRead(
@@ -251,6 +296,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         is_default=initiative.is_default,
         queues_enabled=initiative_queues_enabled,
         events_enabled=initiative_events_enabled,
+        advanced_tool_enabled=initiative_advanced_tool_enabled,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,

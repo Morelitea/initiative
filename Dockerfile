@@ -1,9 +1,3 @@
-# Two image variants are built from this Dockerfile:
-#   Public (default):  docker build .
-#   Infra (paid):      docker build --build-arg INSTALL_INFRA_EXTRAS=true .
-# The infra image installs aioboto3 so the Kinesis event publisher works
-# when ENABLE_EVENT_PUBLISHING=true is set in the container environment.
-# The OSS image never installs aioboto3.
 FROM node:20-alpine AS frontend-build
 WORKDIR /frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
@@ -18,19 +12,14 @@ RUN pnpm run build
 
 FROM python:3.12-slim AS backend-runtime
 ARG VERSION=0.1.0
-ARG INSTALL_INFRA_EXTRAS=
 LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.title="Initiative"
 LABEL org.opencontainers.image.description="Initiative project management application"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY backend/requirements.txt ./requirements.txt
-COPY backend/requirements-infra.txt ./requirements-infra.txt
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && if [ "$INSTALL_INFRA_EXTRAS" = "true" ]; then \
-         pip install --no-cache-dir -r requirements-infra.txt; \
-       fi
+    && pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 COPY VERSION ./VERSION
 COPY CHANGELOG.md ./CHANGELOG.md

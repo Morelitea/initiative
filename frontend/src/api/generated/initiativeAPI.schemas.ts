@@ -180,6 +180,47 @@ export interface AdminUserDeleteRequest {
   project_transfers?: AdminUserDeleteRequestProjectTransfers;
 }
 
+/**
+ * Plug-in slot for an externally-deployed companion app.
+
+When ``ADVANCED_TOOL_URL`` is unset on the backend, this whole field is
+``None`` and the SPA hides the per-initiative toggle and panel entirely.
+
+``allowed_origins`` is the SPA's inbound postMessage allowlist.
+Defaults to the single origin derived from ``url`` so deployments
+work without extra config. Operators can override via
+``ADVANCED_TOOL_ALLOWED_ORIGINS`` when the embed sits behind a CDN
+that surfaces multiple origins (e.g. region-sharded subdomains).
+Outbound postMessage is always scoped to the iframe's actual origin
+(derived from ``url``), never to anything in this list.
+ */
+export interface AdvancedToolConfig {
+  name: string;
+  url: string;
+  allowed_origins: string[];
+}
+
+/**
+ * Short-lived bootstrap token for the embedded advanced-tool iframe.
+
+The SPA passes this to the iframe via postMessage. The iframe's backend
+validates the JWT (same SECRET_KEY, audience claim) and exchanges it
+for its own session — never used directly as long-lived auth.
+
+``scope`` distinguishes "initiative" vs "guild" embeds. The receiving
+iframe MUST treat the URL query param as a hint only and trust the
+JWT's own ``scope`` claim — the param isn't enough to authorize.
+For initiative scope, ``initiative_id`` is set; for guild scope it's
+None and only ``guild_id`` (in the JWT) identifies the tenant.
+ */
+export interface AdvancedToolHandoffResponse {
+  handoff_token: string;
+  expires_in_seconds: number;
+  iframe_url: string;
+  scope: string;
+  initiative_id?: number | null;
+}
+
 export interface ApiKeyCreateRequest {
   /**
    * @minLength 1
@@ -206,6 +247,13 @@ export interface ApiKeyCreateResponse {
 
 export interface ApiKeyListResponse {
   keys: ApiKeyMetadata[];
+}
+
+/**
+ * Public, runtime-injected configuration consumed by the SPA at boot.
+ */
+export interface AppConfig {
+  advanced_tool?: AdvancedToolConfig | null;
 }
 
 export interface ArchiveDoneResponse {
@@ -623,10 +671,12 @@ export interface InitiativeMemberRead {
   can_view_projects: boolean;
   can_view_queues: boolean;
   can_view_events: boolean;
+  can_view_advanced_tool: boolean;
   can_create_docs: boolean;
   can_create_projects: boolean;
   can_create_queues: boolean;
   can_create_events: boolean;
+  can_create_advanced_tool: boolean;
 }
 
 export interface InitiativeRead {
@@ -635,6 +685,7 @@ export interface InitiativeRead {
   color: string | null;
   queues_enabled: boolean;
   events_enabled: boolean;
+  advanced_tool_enabled: boolean;
   id: number;
   guild_id: number;
   is_default: boolean;
@@ -1027,6 +1078,7 @@ export interface InitiativeCreate {
   color?: string | null;
   queues_enabled?: boolean;
   events_enabled?: boolean;
+  advanced_tool_enabled?: boolean;
 }
 
 /**
@@ -1097,6 +1149,7 @@ export interface InitiativeUpdate {
   color?: string | null;
   queues_enabled?: boolean | null;
   events_enabled?: boolean | null;
+  advanced_tool_enabled?: boolean | null;
 }
 
 export interface InterfaceSettingsResponse {
@@ -1148,6 +1201,7 @@ export interface MyInitiativePermissions {
   role_display_name: string | null;
   is_manager: boolean;
   permissions: MyInitiativePermissionsPermissions;
+  advanced_tool_enabled: boolean;
 }
 
 export interface NotificationCountResponse {
@@ -1273,6 +1327,8 @@ export const PermissionKey = {
   create_queues: "create_queues",
   events_enabled: "events_enabled",
   create_events: "create_events",
+  advanced_tool_enabled: "advanced_tool_enabled",
+  create_advanced_tool: "create_advanced_tool",
 } as const;
 
 export interface PlatformAISettingsResponse {

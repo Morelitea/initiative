@@ -162,6 +162,8 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   create_queues: "Create Queues",
   events_enabled: "View Events",
   create_events: "Create Events",
+  advanced_tool_enabled: "View Advanced Tool",
+  create_advanced_tool: "Create in Advanced Tool",
 };
 
 // i18n-based permission label keys (use with t())
@@ -174,6 +176,8 @@ export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = {
   create_queues: "settings.permissions.createQueues",
   events_enabled: "settings.permissions.viewEvents",
   create_events: "settings.permissions.createEvents",
+  advanced_tool_enabled: "settings.permissions.viewAdvancedTool",
+  create_advanced_tool: "settings.permissions.createAdvancedTool",
 };
 
 // All permission keys in display order
@@ -186,6 +190,8 @@ export const ALL_PERMISSION_KEYS: PermissionKey[] = [
   "create_queues",
   "events_enabled",
   "create_events",
+  "advanced_tool_enabled",
+  "create_advanced_tool",
 ];
 
 // Permission groups for card-based layout
@@ -205,6 +211,14 @@ export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = [
   { labelKey: "settings.permissionGroups.queues", keys: ["queues_enabled", "create_queues"] },
   { labelKey: "settings.permissionGroups.events", keys: ["events_enabled", "create_events"] },
 ];
+
+// Permission group for the optional embedded advanced tool. Only included
+// in the role-permissions UI when the deployment has an advanced tool URL
+// configured at runtime — see InitiativeSettingsRolesTab for the gating.
+export const ADVANCED_TOOL_PERMISSION_GROUP: PermissionGroup = {
+  labelKey: "settings.permissionGroups.advancedTool",
+  keys: ["advanced_tool_enabled", "create_advanced_tool"],
+};
 
 // All groups combined (for backward compat)
 export const PERMISSION_GROUPS: PermissionGroup[] = [

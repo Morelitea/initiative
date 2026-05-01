@@ -171,19 +171,22 @@ export const AppSidebar = () => {
           canViewProjects: true,
           canViewQueues: false,
           canViewEvents: false,
+          canViewAdvancedTool: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
           canCreateEvents: false,
         };
       }
-      // Guild admins have all permissions (queues/events gated by initiative flag)
+      // Guild admins have all permissions (queues/events/advanced-tool gated
+      // by initiative flag — they pass the role check by definition).
       if (isGuildAdmin) {
         return {
           canViewDocs: true,
           canViewProjects: true,
           canViewQueues: initiative.queues_enabled ?? false,
           canViewEvents: initiative.events_enabled ?? false,
+          canViewAdvancedTool: initiative.advanced_tool_enabled ?? false,
           canCreateDocs: true,
           canCreateProjects: true,
           canCreateQueues: initiative.queues_enabled ?? false,
@@ -197,6 +200,7 @@ export const AppSidebar = () => {
           canViewProjects: true,
           canViewQueues: false,
           canViewEvents: false,
+          canViewAdvancedTool: false,
           canCreateDocs: false,
           canCreateProjects: false,
           canCreateQueues: false,
@@ -208,6 +212,7 @@ export const AppSidebar = () => {
         canViewProjects: membership.can_view_projects ?? true,
         canViewQueues: membership.can_view_queues ?? false,
         canViewEvents: membership.can_view_events ?? false,
+        canViewAdvancedTool: membership.can_view_advanced_tool ?? false,
         canCreateDocs: membership.can_create_docs ?? false,
         canCreateProjects: membership.can_create_projects ?? false,
         canCreateQueues: membership.can_create_queues ?? false,
@@ -465,6 +470,7 @@ export const AppSidebar = () => {
                                     canViewProjects={permissions.canViewProjects}
                                     canViewQueues={permissions.canViewQueues}
                                     canViewEvents={permissions.canViewEvents}
+                                    canViewAdvancedTool={permissions.canViewAdvancedTool}
                                     canCreateDocs={permissions.canCreateDocs}
                                     canCreateProjects={permissions.canCreateProjects}
                                     canCreateQueues={permissions.canCreateQueues}

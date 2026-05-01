@@ -215,5 +215,7 @@
   "PROJECT_EXPORT_INVALID_PAYLOAD": "El archivo de exportación del proyecto no es válido o está dañado.",
   "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Iniciativa de destino no encontrada.",
   "PROJECT_EXPORT_NO_TASK_STATUSES": "La exportación del proyecto no tiene estados de tarea, que son obligatorios para importar.",
+  "ADVANCED_TOOL_NOT_CONFIGURED": "La herramienta avanzada no está configurada en esta instalación.",
+  "ADVANCED_TOOL_NOT_ENABLED": "La herramienta avanzada no está activada para esta iniciativa.",
   "fallback": "Algo salió mal. Por favor intenta de nuevo."
 }

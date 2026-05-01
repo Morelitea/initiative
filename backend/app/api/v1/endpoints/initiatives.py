@@ -13,7 +13,9 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.core.messages import AuthMessages, InitiativeMessages
+from app.core.messages import AdvancedToolMessages, AuthMessages, InitiativeMessages
+from app.core.security import create_advanced_tool_handoff_token
+from app.core.config import settings
 from app.db.session import reapply_rls_context
 from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
@@ -21,6 +23,7 @@ from app.models.guild import GuildRole
 from app.models.task import Task, TaskAssignee
 from app.models.user import User, UserRole
 from app.schemas.initiative import (
+    AdvancedToolHandoffResponse,
     InitiativeCreate,
     InitiativeMemberAdd,
     InitiativeMemberUpdate,
@@ -204,6 +207,7 @@ async def create_initiative(
         guild_id=guild_id,
         queues_enabled=initiative_in.queues_enabled,
         events_enabled=initiative_in.events_enabled,
+        advanced_tool_enabled=initiative_in.advanced_tool_enabled,
     )
     if initiative_in.color:
         initiative.color = initiative_in.color
@@ -476,7 +480,10 @@ async def get_my_initiative_permissions(
                 "create_queues": initiative.queues_enabled,
                 "events_enabled": initiative.events_enabled,
                 "create_events": initiative.events_enabled,
+                "advanced_tool_enabled": initiative.advanced_tool_enabled,
+                "create_advanced_tool": initiative.advanced_tool_enabled,
             },
+            advanced_tool_enabled=initiative.advanced_tool_enabled,
         )
 
     membership = await initiatives_service.get_initiative_membership_with_role(
@@ -506,12 +513,115 @@ async def get_my_initiative_permissions(
         permissions[PermissionKey.events_enabled] = False
         permissions[PermissionKey.create_events] = False
 
+    # Same pattern for advanced tool: master switch overrides per-role keys
+    # so members of an initiative whose toggle is off never see the panel
+    # regardless of what their role permits.
+    if not initiative.advanced_tool_enabled:
+        permissions[PermissionKey.advanced_tool_enabled] = False
+        permissions[PermissionKey.create_advanced_tool] = False
+    advanced_tool_enabled = initiative.advanced_tool_enabled
+
     return MyInitiativePermissions(
         role_id=role.id,
         role_name=role.name,
         role_display_name=role.display_name,
         is_manager=role.is_manager,
         permissions=permissions,
+        advanced_tool_enabled=advanced_tool_enabled,
+    )
+
+
+# ============================================================================
+# Advanced tool handoff (embedded iframe)
+# ============================================================================
+
+
+@router.post(
+    "/{initiative_id}/advanced-tool/handoff",
+    response_model=AdvancedToolHandoffResponse,
+)
+async def create_advanced_tool_handoff(
+    initiative_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
+) -> AdvancedToolHandoffResponse:
+    """Mint a short-lived JWT for the embedded advanced-tool iframe.
+
+    Authorization checks happen here (not in the receiving iframe backend)
+    so the proprietary embed never has to make access decisions on its own:
+
+      1. The deployment must have ADVANCED_TOOL_URL configured.
+      2. The initiative must exist in the active guild.
+      3. The user must be a guild admin OR an initiative member.
+      4. The initiative must have advanced_tool_enabled=true.
+      5. The user's initiative role must include the
+         ``advanced_tool_enabled`` permission key. Guild admins and
+         initiative managers bypass step 5 since they're trusted by
+         construction.
+
+    The returned token has audience=initiative:advanced-tool and a 60s
+    expiry. The SPA passes it via postMessage (never URL/query string).
+    The ``can_create`` claim forwards the create_advanced_tool permission
+    so the proprietary backend can hide create UI for view-only members.
+    """
+    if not settings.ADVANCED_TOOL_URL:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdvancedToolMessages.NOT_CONFIGURED)
+
+    initiative = await _get_initiative_or_404(initiative_id, session, guild_context.guild_id)
+
+    # Master switch: per-initiative toggle owned by an initiative manager.
+    # If off, even a guild admin can't open the panel — the data plane on
+    # the proprietary side may not even know this initiative exists yet.
+    if not initiative.advanced_tool_enabled:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AdvancedToolMessages.NOT_ENABLED)
+
+    # Membership check. Guild admins always pass; everyone else must be an
+    # initiative member.
+    is_guild_admin = rls_service.is_guild_admin(guild_context.role)
+    membership = next(
+        (m for m in initiative.memberships if m.user_id == current_user.id),
+        None,
+    )
+    if not (is_guild_admin or membership):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=InitiativeMessages.NOT_A_MEMBER)
+
+    # Resolve role + per-role advanced-tool permissions. Guild admins and
+    # initiative managers get full perms regardless of role config.
+    role_ref = membership.role_ref if membership else None
+    is_manager = is_guild_admin or bool(role_ref and role_ref.is_manager)
+
+    can_view = is_manager
+    can_create = is_manager
+    if not is_manager and role_ref:
+        for perm in (role_ref.permissions or []):
+            if perm.permission_key == PermissionKey.advanced_tool_enabled and perm.enabled:
+                can_view = True
+            elif perm.permission_key == PermissionKey.create_advanced_tool and perm.enabled:
+                can_create = True
+
+    # If the role doesn't grant view access, refuse to mint a token —
+    # this prevents the iframe from even being loaded by an unauthorized
+    # user, and means the proprietary backend never sees their request.
+    if not can_view:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AdvancedToolMessages.NOT_ENABLED)
+
+    token, expires_in_seconds = create_advanced_tool_handoff_token(
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        initiative_id=initiative_id,
+        guild_role=guild_context.role.value if hasattr(guild_context.role, "value") else str(guild_context.role),
+        is_manager=is_manager,
+        can_create=can_create,
+        scope="initiative",
+    )
+
+    return AdvancedToolHandoffResponse(
+        handoff_token=token,
+        expires_in_seconds=expires_in_seconds,
+        iframe_url=settings.ADVANCED_TOOL_URL,
+        scope="initiative",
+        initiative_id=initiative_id,
     )
 
 

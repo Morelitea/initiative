@@ -50,7 +50,6 @@ from app.schemas.ai_generation import GenerateSubtasksResponse, GenerateDescript
 from app.schemas.tag import TagSummary, TagSetRequest
 from app.schemas.property import PropertyValuesSetRequest
 from app.services.realtime import broadcast_event
-from app.services import event_publisher
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.recurrence import get_next_due_date
@@ -1170,13 +1169,6 @@ async def create_task(
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_CREATE)
     await broadcast_event("task", "created", _task_payload(task))
-    if task.project:
-        await event_publisher.publish_event(
-            event_type="task_created",
-            payload=_task_payload(task),
-            guild_id=guild_context.guild_id,
-            initiative_id=task.project.initiative_id,
-        )
     return task
 
 
@@ -1287,13 +1279,6 @@ async def update_task(
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
     await broadcast_event("task", "updated", _task_payload(task))
-    if task.project:
-        await event_publisher.publish_event(
-            event_type="task_updated",
-            payload=_task_payload(task),
-            guild_id=guild_context.guild_id,
-            initiative_id=task.project.initiative_id,
-        )
     return task
 
 

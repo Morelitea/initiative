@@ -21,6 +21,7 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AdvancedToolHandoffResponse,
   HTTPValidationError,
   InitiativeCreate,
   InitiativeMemberAdd,
@@ -1255,6 +1256,137 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
+/**
+ * Mint a short-lived JWT for the embedded advanced-tool iframe.
+
+Authorization checks happen here (not in the receiving iframe backend)
+so the proprietary embed never has to make access decisions on its own:
+
+  1. The deployment must have ADVANCED_TOOL_URL configured.
+  2. The initiative must exist in the active guild.
+  3. The user must be a guild admin OR an initiative member.
+  4. The initiative must have advanced_tool_enabled=true.
+  5. The user's initiative role must include the
+     ``advanced_tool_enabled`` permission key. Guild admins and
+     initiative managers bypass step 5 since they're trusted by
+     construction.
+
+The returned token has audience=initiative:advanced-tool and a 60s
+expiry. The SPA passes it via postMessage (never URL/query string).
+The ``can_create`` claim forwards the create_advanced_tool permission
+so the proprietary backend can hide create UI for view-only members.
+ * @summary Create Advanced Tool Handoff
+ */
+export const createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost = (
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<AdvancedToolHandoffResponse>(
+    { url: `/api/v1/initiatives/${initiativeId}/advanced-tool/handoff`, method: "POST", signal },
+    options
+  );
+};
+
+export const getCreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+        >
+      >,
+      TError,
+      { initiativeId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+      >
+    >,
+    TError,
+    { initiativeId: number },
+    TContext
+  > => {
+    const mutationKey = [
+      "createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+        >
+      >,
+      { initiativeId: number }
+    > = (props) => {
+      const { initiativeId } = props ?? {};
+
+      return createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost(
+        initiativeId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type CreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPostMutationResult =
+  NonNullable<
+    Awaited<
+      ReturnType<
+        typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+      >
+    >
+  >;
+
+export type CreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Create Advanced Tool Handoff
+ */
+export const useCreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+        >
+      >,
+      TError,
+      { initiativeId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<
+    ReturnType<typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost>
+  >,
+  TError,
+  { initiativeId: number },
+  TContext
+> => {
+  return useMutation(
+    getCreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPostMutationOptions(
+      options
+    ),
+    queryClient
+  );
+};
 /**
  * Get all members of an initiative.
  * @summary Get Initiative Members

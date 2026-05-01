@@ -215,5 +215,7 @@
   "PROJECT_EXPORT_INVALID_PAYLOAD": "The project export file is invalid or corrupted.",
   "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Target initiative not found.",
   "PROJECT_EXPORT_NO_TASK_STATUSES": "The project export has no task statuses, which is required for import.",
+  "ADVANCED_TOOL_NOT_CONFIGURED": "The advanced tool is not configured for this deployment.",
+  "ADVANCED_TOOL_NOT_ENABLED": "The advanced tool is not enabled for this initiative.",
   "fallback": "Something went wrong. Please try again."
 }
