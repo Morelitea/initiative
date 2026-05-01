@@ -151,16 +151,26 @@ export const SpreadsheetDocumentEditor = ({
   // existing autosave hook can PATCH ``document.content``. This
   // closes the loop for non-collab readers (they'll see a snapshot
   // taken within the autosave debounce window).
+  //
+  // ``onContentChange`` is captured in a ref so callers can pass an
+  // inline arrow without thrashing this effect. Including it in the
+  // dep array would mean every parent re-render fires the effect →
+  // calls onContentChange → parent setState → parent re-render →
+  // loop (max-update-depth crash).
+  const onContentChangeRef = useRef(onContentChange);
+  useEffect(() => {
+    onContentChangeRef.current = onContentChange;
+  }, [onContentChange]);
   useEffect(() => {
     const cellsObj: Record<string, CellValue> = {};
     for (const [key, value] of cells) cellsObj[key] = value;
-    onContentChange({
+    onContentChangeRef.current({
       schema_version: 1,
       kind: "spreadsheet",
       dimensions,
       cells: cellsObj,
     });
-  }, [cells, dimensions, onContentChange]);
+  }, [cells, dimensions]);
 
   const rowVirtualizer = useVirtualizer({
     count: dimensions.rows,
