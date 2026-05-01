@@ -48,7 +48,17 @@ class WebhookTargetUrlPrivateError(ValueError):
     layer can return a more specific error code."""
 
 
-_ALLOWED_SCHEMES = frozenset({"https"})
+_ACCEPTED_SCHEMES = frozenset({"https", "http"})
+
+
+def _allow_private_targets() -> bool:
+    """Resolve the dev escape hatch lazily so monkeypatching ``settings``
+    in tests works. Reading at call time also lets a deployed-process
+    config-reload effort pick up the new value (we don't reload yet, but
+    nothing here forecloses it)."""
+    from app.core.config import settings
+
+    return settings.WEBHOOK_ALLOW_PRIVATE_TARGETS
 
 
 def _is_public_address(ip: ipaddress._BaseAddress) -> bool:
@@ -66,12 +76,23 @@ def _is_public_address(ip: ipaddress._BaseAddress) -> bool:
 
 
 def _parse_and_check_scheme(url: str) -> tuple[str, str]:
-    """Parse the URL and validate scheme + presence of hostname. Returns
-    ``(host, scheme)``."""
+    """Parse the URL and validate scheme + presence of hostname.
+
+    With the dev flag off (production), reject anything other than
+    ``https`` immediately — this preserves the structural-invalid
+    error type for ``http://private-ip`` URLs (a plain ``http`` target
+    is structurally wrong regardless of where it points). With the
+    flag on, both ``http`` and ``https`` are tentatively accepted; the
+    final scheme + address combination is decided in
+    :func:`_enforce_address_policy` after DNS resolves, so we can bind
+    the ``http`` allowance to private targets specifically.
+    """
     parsed = urlparse(url)
-    if parsed.scheme not in _ALLOWED_SCHEMES:
+    allowed = _ACCEPTED_SCHEMES if _allow_private_targets() else frozenset({"https"})
+    if parsed.scheme not in allowed:
+        allowed_desc = "https or http" if _allow_private_targets() else "https"
         raise WebhookTargetUrlError(
-            f"unsupported scheme: {parsed.scheme!r} (https required)"
+            f"unsupported scheme: {parsed.scheme!r} ({allowed_desc} required)"
         )
     if not parsed.hostname:
         raise WebhookTargetUrlError("missing hostname")
@@ -97,18 +118,54 @@ def _addresses_from_getaddrinfo_results(
     return addresses
 
 
-def _check_addresses_all_public(
-    host: str, addresses: list[ipaddress._BaseAddress]
+def _enforce_address_policy(
+    host: str,
+    scheme: str,
+    addresses: list[ipaddress._BaseAddress],
 ) -> None:
-    """Raise :class:`WebhookTargetUrlPrivateError` if *any* of the
-    resolved addresses lands in non-public space. Partial coverage isn't
-    enough — an attacker could publish ``[1.1.1.1, 10.0.0.1]`` and roll
-    the dice on which one httpx picks."""
-    for addr in addresses:
-        if not _is_public_address(addr):
+    """Apply the combined scheme + address policy to a resolved target.
+
+    Two rules combine here:
+
+    * **No private addresses** unless the dev escape hatch is on. The
+      "any private blocks all" rule still applies — an attacker who
+      publishes ``[1.1.1.1, 10.0.0.1]`` shouldn't roll the dice on
+      whichever one httpx picks.
+    * **No plain http to public hosts, ever.** A MITM on the way to a
+      public webhook target can strip the signature and forge payloads.
+      The dev flag deliberately doesn't relax this — its scope is local
+      / private targets only, where there's no useful TLS to be
+      between Initiative and auto.
+
+    The matrix:
+
+    | flag | scheme | resolves to | result |
+    |------|--------|-------------|--------|
+    | off  | https  | public      | accept |
+    | off  | https  | private     | reject (private) |
+    | off  | http   | any         | reject (http) |
+    | on   | https  | public      | accept |
+    | on   | https  | private     | accept |
+    | on   | http   | public      | reject (http to public is forbidden) |
+    | on   | http   | private     | accept (the dev case) |
+    """
+    has_private = any(not _is_public_address(a) for a in addresses)
+
+    if has_private:
+        if not _allow_private_targets():
+            offending = next(a for a in addresses if not _is_public_address(a))
             raise WebhookTargetUrlPrivateError(
-                f"host {host!r} resolves to non-public address {addr}"
+                f"host {host!r} resolves to non-public address {offending}"
             )
+        # dev flag is on — http or https are both fine for private targets.
+        return
+
+    # All addresses are public.
+    if scheme != "https":
+        raise WebhookTargetUrlError(
+            f"plain http to public host {host!r} is not permitted "
+            f"(MITM would strip the signature)"
+        )
 
 
 def _resolve_literal_or_none(
@@ -125,11 +182,13 @@ def _resolve_literal_or_none(
 def assert_target_url_is_public(url: str) -> None:
     """Synchronous SSRF guard. Use only outside the event loop.
 
-    Raises :class:`WebhookTargetUrlError` for malformed input,
-    :class:`WebhookTargetUrlPrivateError` when the host resolves into
-    private/loopback/link-local space.
+    Raises :class:`WebhookTargetUrlError` for malformed input or a
+    scheme/address combination that can't be permitted (e.g. plain
+    http to a public host), :class:`WebhookTargetUrlPrivateError` when
+    the host resolves into private/loopback/link-local space and the
+    dev flag isn't set.
     """
-    host, _ = _parse_and_check_scheme(url)
+    host, scheme = _parse_and_check_scheme(url)
     addresses = _resolve_literal_or_none(host)
     if addresses is None:
         try:
@@ -139,7 +198,7 @@ def assert_target_url_is_public(url: str) -> None:
                 f"could not resolve host {host!r}: {exc}"
             ) from exc
         addresses = _addresses_from_getaddrinfo_results(infos, host)
-    _check_addresses_all_public(host, addresses)
+    _enforce_address_policy(host, scheme, addresses)
 
 
 async def assert_target_url_is_public_async(url: str) -> None:
@@ -148,7 +207,7 @@ async def assert_target_url_is_public_async(url: str) -> None:
     DNS resolution runs in a thread executor so the event loop stays
     free. Behaviour and exceptions match :func:`assert_target_url_is_public`.
     """
-    host, _ = _parse_and_check_scheme(url)
+    host, scheme = _parse_and_check_scheme(url)
     addresses = _resolve_literal_or_none(host)
     if addresses is None:
         try:
@@ -158,4 +217,4 @@ async def assert_target_url_is_public_async(url: str) -> None:
                 f"could not resolve host {host!r}: {exc}"
             ) from exc
         addresses = _addresses_from_getaddrinfo_results(infos, host)
-    _check_addresses_all_public(host, addresses)
+    _enforce_address_policy(host, scheme, addresses)
