@@ -157,6 +157,13 @@ export const InitiativeSettingsPage = () => {
     });
   };
 
+  const handleToggleAdvancedTool = (value: boolean) => {
+    updateInitiative.mutate({
+      initiativeId,
+      data: { advanced_tool_enabled: value },
+    });
+  };
+
   const handleDeleteInitiative = () => {
     if (initiative?.is_default) {
       return;
@@ -251,6 +258,8 @@ export const InitiativeSettingsPage = () => {
           onToggleQueues={handleToggleQueues}
           eventsEnabled={initiative?.events_enabled ?? false}
           onToggleEvents={handleToggleEvents}
+          advancedToolEnabled={initiative?.advanced_tool_enabled ?? false}
+          onToggleAdvancedTool={handleToggleAdvancedTool}
           canManageMembers={canManageMembers}
           isSaving={updateInitiative.isPending}
           onSaveDetails={handleSaveDetails}

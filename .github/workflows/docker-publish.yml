@@ -179,81 +179,8 @@ jobs:
           cache-to: type=gha,scope=docker-build,mode=max
           platforms: linux/amd64,linux/arm64
 
-  build-docker-infra:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Check for required secrets
-        run: |
-          if [ -z "${{ secrets.DOCKERHUB_USERNAME }}" ] || [ -z "${{ secrets.DOCKERHUB_TOKEN }}" ]; then
-            echo "::error::Required secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN are not set"
-            echo "::error::Please configure these secrets in your repository settings"
-            echo "::error::See .github/DOCKER_SETUP.md for instructions"
-            exit 1
-          fi
-          echo "Required secrets are configured"
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          if [[ -n "${{ inputs.version }}" ]]; then
-            VERSION="${{ inputs.version }}"
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "Version from input: $VERSION"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION=${GITHUB_REF#refs/tags/v}
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "Version from tag: $VERSION"
-          else
-            VERSION=$(cat VERSION)
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
-            echo "Version from file: $VERSION"
-          fi
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v4
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract infra metadata (tags, labels) for Docker
-        id: meta-infra
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE_NAME }}-infra
-          tags: |
-            type=semver,pattern={{version}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=raw,value=latest
-
-      - name: Build and push Docker image (infra)
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta-infra.outputs.tags }}
-          labels: ${{ steps.meta-infra.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.version.outputs.version }}
-            VITE_API_URL=/api/v1
-            INSTALL_INFRA_EXTRAS=true
-          cache-from: type=gha,scope=docker-build-infra
-          cache-to: type=gha,scope=docker-build-infra,mode=max
-          platforms: linux/amd64,linux/arm64
-
   release:
-    needs: [build-android, build-docker-public, build-docker-infra]
+    needs: [build-android, build-docker-public]
     runs-on: ubuntu-latest
     permissions:
       contents: write

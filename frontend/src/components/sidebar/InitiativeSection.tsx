@@ -10,6 +10,7 @@ import {
   MoreVertical,
   GalleryHorizontalEnd,
   CalendarDays,
+  Sparkles,
 } from "lucide-react";
 
 import { getItem, setItem } from "@/lib/storage";
@@ -25,6 +26,7 @@ import { SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { guildPath } from "@/lib/guildUrl";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import type { InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
 
 export interface InitiativeSectionProps {
@@ -38,6 +40,7 @@ export interface InitiativeSectionProps {
   canViewProjects: boolean;
   canViewQueues: boolean;
   canViewEvents: boolean;
+  canViewAdvancedTool: boolean;
   canCreateDocs: boolean;
   canCreateProjects: boolean;
   canCreateQueues: boolean;
@@ -60,6 +63,7 @@ export const InitiativeSection = memo(
     canViewProjects,
     canViewQueues,
     canViewEvents,
+    canViewAdvancedTool,
     canCreateDocs,
     canCreateProjects,
     canCreateQueues,
@@ -69,6 +73,15 @@ export const InitiativeSection = memo(
     collapseKey,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
+    const { advancedTool } = useAppConfig();
+    // The sidebar entry is triply-gated:
+    //   1. Runtime config must expose an advanced tool (deployment-level).
+    //   2. The initiative manager must have enabled it (per-initiative).
+    //   3. The user's role must include the advanced_tool_enabled key
+    //      — non-managers can be denied even when (1) and (2) pass.
+    const showAdvancedTool = Boolean(
+      advancedTool && initiative.advanced_tool_enabled && canViewAdvancedTool
+    );
     // Helper to create guild-scoped paths
     const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
     // Pure DAC: check if user has write access to a specific project
@@ -241,6 +254,23 @@ export const InitiativeSection = memo(
             forceMount
           >
             <SidebarMenu>
+              {/* Advanced Tool Link — pinned to the top of the initiative
+                  so it's the first thing a user sees when the integration
+                  is on. */}
+              {showAdvancedTool && advancedTool && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
+                    <Link
+                      to={gp(`/initiatives/${initiative.id}/advanced-tool`)}
+                      className="flex items-center gap-2"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      <span className="min-w-0 flex-1 truncate">{advancedTool.name}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+
               {/* Events Link */}
               {canViewEvents && (
                 <SidebarMenuItem>

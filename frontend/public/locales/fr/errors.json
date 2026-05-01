@@ -215,5 +215,7 @@
   "PROJECT_EXPORT_INVALID_PAYLOAD": "Le fichier d'exportation du projet est invalide ou endommagé.",
   "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Initiative cible introuvable.",
   "PROJECT_EXPORT_NO_TASK_STATUSES": "L'exportation du projet ne contient aucun statut de tâche, qui est obligatoire pour l'importer.",
+  "ADVANCED_TOOL_NOT_CONFIGURED": "L’outil avancé n’est pas configuré sur cette installation.",
+  "ADVANCED_TOOL_NOT_ENABLED": "L’outil avancé n’est pas activé pour cette initiative.",
   "fallback": "Une erreur s'est produite. Veuillez réessayer."
 }
