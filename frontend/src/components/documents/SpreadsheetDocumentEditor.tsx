@@ -241,13 +241,18 @@ export const SpreadsheetDocumentEditor = ({
     setEditing(null);
   }, []);
 
-  // Focus the inline input when entering edit mode.
+  // Focus the inline input when entering edit mode. Keyed on the cell
+  // coordinates, NOT the full ``editing`` object — including ``draft``
+  // in the dependency would re-run the effect on every keystroke,
+  // call ``.select()``, and let the next character overwrite the
+  // selection (i.e. typing only ever shows the most recent char).
+  const editingCellKey = editing ? `${editing.row}:${editing.col}` : null;
   useEffect(() => {
-    if (editing && editingInputRef.current) {
+    if (editingCellKey && editingInputRef.current) {
       editingInputRef.current.focus();
       editingInputRef.current.select();
     }
-  }, [editing]);
+  }, [editingCellKey]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
