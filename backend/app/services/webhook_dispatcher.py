@@ -99,7 +99,7 @@ async def _deliver(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             response = await client.post(target_url, content=body, headers=headers)
             if response.status_code >= 400:
                 logger.warning(
