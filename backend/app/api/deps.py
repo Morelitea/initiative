@@ -10,6 +10,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.messages import AuthMessages, GuildMessages
+from app.core.security import (
+    AutoDelegationVerificationError,
+    verify_auto_delegation_token,
+)
 from app.db.session import get_session, set_rls_context
 from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.user import User, UserRole, UserStatus
@@ -31,6 +35,42 @@ async def _authenticate_device_token(session: AsyncSession, token: str) -> Optio
     statement = select(User).where(User.id == device_token.user_id)
     result = await session.exec(statement)
     return result.one_or_none()
+
+
+async def _authenticate_auto_delegation(
+    session: AsyncSession, token: str
+) -> Optional[User]:
+    """Try to interpret ``token`` as a delegation JWT from initiative-auto.
+
+    Returns the named user when the token verifies; ``None`` otherwise so
+    the caller can fall through to other auth methods (regular JWT, API
+    key, etc.) without 401-ing on what's actually a session-token-shaped
+    bearer arriving at the same header.
+
+    Authorization beyond authentication still happens downstream — this
+    function only resolves identity. RLS, role-permission checks, and
+    master switches gate the actual operation as if the user were
+    calling directly.
+    """
+    if not settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
+        return None  # delegation disabled — let other auth paths run
+
+    try:
+        claims = verify_auto_delegation_token(token)
+    except AutoDelegationVerificationError:
+        # Could be a session JWT or API key arriving on the same header.
+        # Returning None lets the caller try those instead of failing.
+        return None
+
+    statement = select(User).where(User.id == claims.user_id)
+    result = await session.exec(statement)
+    user = result.one_or_none()
+    if user is None or user.status != UserStatus.active:
+        # The user the token names doesn't exist or has been deactivated
+        # since the token was minted. Auto can't impersonate non-active
+        # accounts — workflows die when their owner leaves, by design.
+        return None
+    return user
 
 
 async def get_current_user(
@@ -65,6 +105,14 @@ async def get_current_user(
 
     # Try API key authentication first
     user = await api_keys_service.authenticate_api_key(session, token)
+    if user:
+        return user
+
+    # Try delegation JWT from initiative-auto (RS256, distinct audience).
+    # Returns None on shape/algorithm mismatch so a regular HS256 session
+    # JWT carrying through this header gracefully falls through to the
+    # next branch.
+    user = await _authenticate_auto_delegation(session, token)
     if user:
         return user
 

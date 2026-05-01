@@ -88,6 +88,17 @@ class Settings(BaseSettings):
     # to pick the right verifying key — useful when rotating.
     HANDOFF_SIGNING_KEY_ID: str | None = None
 
+    # Inbound delegation from the advanced-tool service (initiative-auto).
+    # When auto needs to call Initiative on behalf of a user — either
+    # because the user is in the iframe right now, or because a workflow
+    # they own is firing — it presents a JWT signed with RS256 by its
+    # own private key. This is the matching public key. When unset,
+    # delegation auth is disabled and Initiative only accepts its own
+    # session tokens / API keys.
+    AUTO_DELEGATION_PUBLIC_KEY_PEM: str | None = None
+    AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
+    AUTO_DELEGATION_ISSUER: str = "initiative-auto"
+
     BEHIND_PROXY: bool = False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
 
     @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")
