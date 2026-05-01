@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import Cookie, Depends, Header, HTTPException, Query, Request, status
@@ -11,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.messages import AuthMessages, GuildMessages
 from app.core.security import (
+    AutoDelegationClaims,
     AutoDelegationVerificationError,
     verify_auto_delegation_token,
 )
@@ -19,6 +21,7 @@ from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.token import TokenPayload
 from app.services import api_keys as api_keys_service
+from app.services import auto_delegation_blocklist
 from app.services import guilds as guilds_service
 from app.services import user_tokens
 
@@ -37,8 +40,32 @@ async def _authenticate_device_token(session: AsyncSession, token: str) -> Optio
     return result.one_or_none()
 
 
+def _delegation_guild_matches_header(
+    request: Request, claims: AutoDelegationClaims
+) -> bool:
+    """Reject delegation tokens whose ``guild_id`` claim contradicts the
+    request's ``X-Guild-ID`` header.
+
+    The header is what RLS will use to scope the query; if the token was
+    issued for guild 42 and the request asks for guild 99, that's a
+    cross-guild attempt — a user who's a member of both guilds shouldn't
+    be able to use a token issued in one to access the other. When the
+    header is absent (cross-guild endpoints like ``/users/me``) we allow,
+    relying on the endpoint itself to scope appropriately.
+    """
+    raw = request.headers.get("X-Guild-ID")
+    if not raw:
+        return True
+    try:
+        return int(raw) == claims.guild_id
+    except (TypeError, ValueError):
+        return False
+
+
 async def _authenticate_auto_delegation(
-    session: AsyncSession, token: str
+    request: Request,
+    session: AsyncSession,
+    token: str,
 ) -> Optional[User]:
     """Try to interpret ``token`` as a delegation JWT from initiative-auto.
 
@@ -51,6 +78,11 @@ async def _authenticate_auto_delegation(
     function only resolves identity. RLS, role-permission checks, and
     master switches gate the actual operation as if the user were
     calling directly.
+
+    Three security checks fire here in order:
+      1. Token verifies (signature, audience, issuer, required claims).
+      2. ``jti`` is not in the blocklist — first presentation only.
+      3. ``guild_id`` claim matches ``X-Guild-ID`` header when present.
     """
     if not settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
         return None  # delegation disabled — let other auth paths run
@@ -62,6 +94,17 @@ async def _authenticate_auto_delegation(
         # Returning None lets the caller try those instead of failing.
         return None
 
+    if not _delegation_guild_matches_header(request, claims):
+        return None
+
+    # Replay guard: a delegation JWT is one-shot. Even though the JWT is
+    # technically valid for 15 minutes, a captured token must not be
+    # usable a second time. The pre-flight ``is_jti_redeemed`` is a fast
+    # path; the ``record_jti`` insert below is the actual race-safe
+    # guarantee (unique-violation on the PK).
+    if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
+        return None
+
     statement = select(User).where(User.id == claims.user_id)
     result = await session.exec(statement)
     user = result.one_or_none()
@@ -70,7 +113,30 @@ async def _authenticate_auto_delegation(
         # since the token was minted. Auto can't impersonate non-active
         # accounts — workflows die when their owner leaves, by design.
         return None
+
+    # Burn the jti now. Two requests racing past the pre-flight check
+    # collide on the PK and the loser's ``record_jti`` raises
+    # ``DelegationReplayError``, which we convert to the same None
+    # signal — the request will be re-authenticated by another path or
+    # rejected by the standard 401.
+    try:
+        await auto_delegation_blocklist.record_jti(
+            session, jti=claims.jti, expires_at=_delegation_exp_from_jwt(token)
+        )
+    except auto_delegation_blocklist.DelegationReplayError:
+        return None
+
     return user
+
+
+def _delegation_exp_from_jwt(token: str) -> datetime:
+    """Pull the ``exp`` timestamp out of a delegation JWT without
+    re-verifying. Caller has already verified — we just need the value
+    for the blocklist row's ``expires_at`` column so the cleanup job
+    can prune expired entries.
+    """
+    payload = jwt.decode(token, options={"verify_signature": False})
+    return datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
 
 
 async def get_current_user(
@@ -112,7 +178,7 @@ async def get_current_user(
     # Returns None on shape/algorithm mismatch so a regular HS256 session
     # JWT carrying through this header gracefully falls through to the
     # next branch.
-    user = await _authenticate_auto_delegation(session, token)
+    user = await _authenticate_auto_delegation(request, session, token)
     if user:
         return user
 
@@ -327,6 +393,18 @@ async def get_upload_user(
     if user:
         if user.status != UserStatus.active:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        return user
+
+    # Try delegation JWT from initiative-auto. Same chain placement as
+    # ``get_current_user`` so /uploads/* accepts auto-driven workflow
+    # downloads without per-route changes. Falls through on shape /
+    # algorithm / audience mismatch so a regular HS256 session JWT
+    # arriving on the same header still hits the standard JWT branch
+    # below.
+    user = await _authenticate_auto_delegation(request, session, token)
+    if user:
+        # Delegation already enforces ``user.status == active``;
+        # ``_authenticate_auto_delegation`` returned None otherwise.
         return user
 
     # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
