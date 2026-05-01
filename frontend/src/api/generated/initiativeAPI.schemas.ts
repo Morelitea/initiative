@@ -619,6 +619,7 @@ export const DocumentCreateDocumentType = {
   file: "file",
   whiteboard: "whiteboard",
   smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
 } as const;
 
 export type DocumentPermissionLevel =
@@ -723,6 +724,7 @@ export const DocumentSummaryDocumentType = {
   file: "file",
   whiteboard: "whiteboard",
   smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
 } as const;
 
 export interface DocumentSummary {
@@ -783,6 +785,7 @@ export const DocumentReadDocumentType = {
   file: "file",
   whiteboard: "whiteboard",
   smart_link: "smart_link",
+  spreadsheet: "spreadsheet",
 } as const;
 
 export type DocumentReadContent = { [key: string]: unknown };
