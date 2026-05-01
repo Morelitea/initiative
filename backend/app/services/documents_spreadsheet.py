@@ -42,10 +42,19 @@ def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
         return _empty_snapshot()
 
     schema_version = payload.get("schema_version", SCHEMA_VERSION)
-    if not isinstance(schema_version, int) or schema_version != SCHEMA_VERSION:
+    # ``isinstance(True, int)`` is ``True`` in Python — exclude bools so
+    # ``"schema_version": true`` doesn't silently pass the version guard.
+    if (
+        not isinstance(schema_version, int)
+        or isinstance(schema_version, bool)
+        or schema_version != SCHEMA_VERSION
+    ):
         raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
 
-    cells_in = payload.get("cells") or {}
+    # Use ``.get(...)`` directly (no ``or {}`` shortcut) so falsy non-dict
+    # values like ``[]``, ``""``, or ``False`` reach the isinstance guard
+    # below instead of being silently coerced to an empty cell map.
+    cells_in = payload.get("cells", {})
     if not isinstance(cells_in, dict):
         raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
 
@@ -76,7 +85,7 @@ def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
         if col > max_col:
             max_col = col
 
-    dims_in = payload.get("dimensions") or {}
+    dims_in = payload.get("dimensions", {})
     if not isinstance(dims_in, dict):
         raise DocumentContentError(DocumentMessages.SPREADSHEET_INVALID_PAYLOAD)
     rows = _coerce_dim(dims_in.get("rows"), default=max(max_row + 1, 100), cap=MAX_ROWS)
