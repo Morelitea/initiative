@@ -46,7 +46,7 @@ from app.services.webhook_target_url import (
 logger = logging.getLogger(__name__)
 
 
-_TIMEOUT_SECONDS = 5.0
+_TIMEOUT = httpx.Timeout(connect=3.0, read=5.0, write=5.0, pool=5.0)
 
 
 def _sign(secret: str, timestamp: str, body: bytes) -> str:
