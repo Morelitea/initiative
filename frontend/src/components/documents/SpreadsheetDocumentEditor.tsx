@@ -14,6 +14,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
@@ -529,6 +530,7 @@ export const SpreadsheetDocumentEditor = ({
               const isEditing = editing?.row === row.index && editing?.col === col.index;
               const value = cells.get(keyOf(row.index, col.index));
               const display = value == null ? "" : String(value);
+              const isBoolean = typeof value === "boolean";
               const cellStyle: CSSProperties = {
                 left: ROW_HEADER_WIDTH + col.start,
                 top: COL_HEADER_HEIGHT + row.start,
@@ -542,6 +544,8 @@ export const SpreadsheetDocumentEditor = ({
                   isSelected={isSelected}
                   isEditing={Boolean(isEditing)}
                   display={display}
+                  booleanValue={isBoolean ? (value as boolean) : null}
+                  readOnly={readOnly}
                   draft={isEditing ? editing!.draft : ""}
                   inputRef={isEditing ? editingInputRef : null}
                   onClick={() => {
@@ -549,6 +553,11 @@ export const SpreadsheetDocumentEditor = ({
                     setSelected({ row: row.index, col: col.index });
                   }}
                   onDoubleClick={() => beginEdit(row.index, col.index)}
+                  onToggleBoolean={() => {
+                    if (readOnly || !isBoolean) return;
+                    setSelected({ row: row.index, col: col.index });
+                    setCell(row.index, col.index, !(value as boolean));
+                  }}
                   onDraftChange={(draft) => setEditing({ row: row.index, col: col.index, draft })}
                   onEditingKeyDown={handleEditingKeyDown}
                   onEditingBlur={() => commitEdit()}
@@ -579,10 +588,16 @@ interface CellViewProps {
   isSelected: boolean;
   isEditing: boolean;
   display: string;
+  /** When the cell value is a boolean, the actual ``true`` / ``false`` so
+   *  we can render an interactive checkbox instead of "true" / "false"
+   *  text. ``null`` for any non-boolean cell. */
+  booleanValue: boolean | null;
+  readOnly: boolean;
   draft: string;
   inputRef: React.RefObject<HTMLInputElement | null> | null;
   onClick: () => void;
   onDoubleClick: () => void;
+  onToggleBoolean: () => void;
   onDraftChange: (draft: string) => void;
   onEditingKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
   onEditingBlur: () => void;
@@ -593,10 +608,13 @@ const CellView = ({
   isSelected,
   isEditing,
   display,
+  booleanValue,
+  readOnly,
   draft,
   inputRef,
   onClick,
   onDoubleClick,
+  onToggleBoolean,
   onDraftChange,
   onEditingKeyDown,
   onEditingBlur,
@@ -621,6 +639,31 @@ const CellView = ({
           onKeyDown={onEditingKeyDown}
           onBlur={onEditingBlur}
           className="bg-background h-full w-full px-1.5 outline-none"
+        />
+      </div>
+    );
+  }
+
+  if (booleanValue !== null) {
+    return (
+      <div
+        className={cn(baseClass, "flex cursor-cell items-center px-1.5")}
+        style={style}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+      >
+        <Checkbox
+          checked={booleanValue}
+          disabled={readOnly}
+          onClick={(e) => {
+            // Stop the wrapper's onClick from firing twice (it would
+            // also call onToggleBoolean via setCell). The wrapper still
+            // sees the click for selection through the synthetic event
+            // bubble — we just want the toggle to happen exactly once.
+            e.stopPropagation();
+            onToggleBoolean();
+          }}
+          aria-label={booleanValue ? "true" : "false"}
         />
       </div>
     );
