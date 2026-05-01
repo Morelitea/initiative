@@ -51,17 +51,21 @@ from app.services.webhook_subscriptions import (
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
-    assert_target_url_is_public,
+    assert_target_url_is_public_async,
 )
 
 router = APIRouter()
 
 
-def _validate_target_url(url: str) -> None:
+async def _validate_target_url(url: str) -> None:
     """Reject URLs that resolve into private/loopback/link-local space.
-    Raises HTTPException with codes the frontend can localize."""
+
+    Async because DNS resolution can block; we don't want to stall the
+    event loop on a slow resolver. Raises HTTPException with codes the
+    frontend can localize.
+    """
     try:
-        assert_target_url_is_public(url)
+        await assert_target_url_is_public_async(url)
     except WebhookTargetUrlPrivateError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -101,7 +105,7 @@ async def create_subscription(
     rejected so a guild member can't aim deliveries at internal services
     or cloud-metadata endpoints.
     """
-    _validate_target_url(str(payload.target_url))
+    await _validate_target_url(str(payload.target_url))
 
     subscription, secret = await subscriptions_service.create_subscription(
         session,
@@ -156,7 +160,7 @@ async def update_subscription(
     provided) is re-validated against the SSRF allowlist.
     """
     if payload.target_url is not None:
-        _validate_target_url(str(payload.target_url))
+        await _validate_target_url(str(payload.target_url))
 
     is_admin = guild_context.role == GuildRole.admin
     try:

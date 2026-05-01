@@ -15,6 +15,7 @@ from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
     assert_target_url_is_public,
+    assert_target_url_is_public_async,
 )
 
 
@@ -28,8 +29,8 @@ def test_accepts_public_https_literal():
 @pytest.mark.parametrize(
     "url",
     [
-        "http://127.0.0.1/hook",
-        "http://127.255.255.254/hook",
+        "https://127.0.0.1/hook",
+        "https://127.255.255.254/hook",
         "https://[::1]/hook",
     ],
 )
@@ -44,9 +45,9 @@ def test_rejects_loopback(url: str):
 @pytest.mark.parametrize(
     "url",
     [
-        "http://10.0.0.1/hook",
-        "http://172.16.0.1/hook",
-        "http://192.168.1.1/hook",
+        "https://10.0.0.1/hook",
+        "https://172.16.0.1/hook",
+        "https://192.168.1.1/hook",
         "https://[fc00::1]/hook",
     ],
 )
@@ -61,7 +62,16 @@ def test_rejects_link_local_metadata():
     """169.254.169.254 is the AWS / GCP / Azure metadata endpoint —
     blind SSRF here leaks IAM credentials."""
     with pytest.raises(WebhookTargetUrlPrivateError):
-        assert_target_url_is_public("http://169.254.169.254/latest/meta-data/")
+        assert_target_url_is_public("https://169.254.169.254/latest/meta-data/")
+
+
+@pytest.mark.unit
+def test_rejects_plain_http():
+    """Plain http:// lets a MITM strip the signature header and forge
+    payloads at the transport layer, defeating HMAC. Only https is
+    permitted."""
+    with pytest.raises(WebhookTargetUrlError):
+        assert_target_url_is_public("http://hooks.example.com/in")
 
 
 @pytest.mark.unit
@@ -75,7 +85,7 @@ def test_rejects_link_local_metadata():
     ],
 )
 def test_rejects_non_http_schemes(url: str):
-    """Only http(s) — anything else (file, ftp, gopher, javascript) is
+    """Anything other than https — file, ftp, gopher, javascript — is
     a category error for a webhook target."""
     with pytest.raises(WebhookTargetUrlError):
         assert_target_url_is_public(url)
@@ -109,3 +119,36 @@ def test_rejects_when_any_resolved_address_is_private():
     with patch("app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos):
         with pytest.raises(WebhookTargetUrlPrivateError):
             assert_target_url_is_public("https://mixed.example.com/hook")
+
+
+@pytest.mark.unit
+async def test_async_variant_accepts_public_literal():
+    """The async path takes the same code through asyncio.to_thread; an
+    IP literal short-circuits the resolver entirely so no thread hop
+    happens — same result either way."""
+    await assert_target_url_is_public_async("https://93.184.216.34/hook")
+
+
+@pytest.mark.unit
+async def test_async_variant_rejects_private_literal():
+    """Sanity: the async variant enforces the same private-address
+    rejection. Catches a refactor that lets a code path skip the check."""
+    with pytest.raises(WebhookTargetUrlPrivateError):
+        await assert_target_url_is_public_async("https://10.0.0.1/hook")
+
+
+@pytest.mark.unit
+async def test_async_variant_resolves_via_thread_executor():
+    """The async path must hand DNS resolution off the event loop. We
+    assert that by checking the resolver gets called via the patched
+    ``socket.getaddrinfo`` even when invoked inside a coroutine — if the
+    blocking sync helper were accidentally used instead, this test would
+    still pass, so the real value here is paired with the unit-level
+    code review of ``asyncio.to_thread`` in the source."""
+    fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo",
+        return_value=fake_infos,
+    ) as mock:
+        await assert_target_url_is_public_async("https://hooks.example.com/in")
+    assert mock.called

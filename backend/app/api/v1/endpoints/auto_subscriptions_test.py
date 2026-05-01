@@ -41,7 +41,7 @@ async def test_create_rejects_loopback_target_url(client: AsyncClient, session):
         client,
         headers=get_guild_headers(guild, user),
         body={
-            "target_url": "http://127.0.0.1/hook",
+            "target_url": "https://127.0.0.1/hook",
             "event_types": ["task.created"],
         },
     )
@@ -61,12 +61,32 @@ async def test_create_rejects_metadata_endpoint(client: AsyncClient, session):
         client,
         headers=get_guild_headers(guild, user),
         body={
-            "target_url": "http://169.254.169.254/latest/meta-data/iam/",
+            "target_url": "https://169.254.169.254/latest/meta-data/iam/",
             "event_types": ["task.created"],
         },
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "WEBHOOK_PRIVATE_TARGET_URL"
+
+
+@pytest.mark.integration
+async def test_create_rejects_plain_http(client: AsyncClient, session):
+    """Plain http:// is rejected with the structural-invalid code so
+    the operator sees a different error than for a private-IP target."""
+    user = await create_user(session, email="hook-http@example.com")
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    response = await _authed_post(
+        client,
+        headers=get_guild_headers(guild, user),
+        body={
+            "target_url": "http://hooks.example.com/in",
+            "event_types": ["task.created"],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "WEBHOOK_INVALID_TARGET_URL"
 
 
 @pytest.mark.integration

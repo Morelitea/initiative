@@ -231,6 +231,40 @@ async def test_dispatch_initiative_scope_matches_correctly(session):
 
 
 @pytest.mark.integration
+async def test_each_subscription_gets_unique_event_id(session):
+    """A single dispatch fan-out must give each subscriber its own
+    ``event_id``. If they all shared one, a receiver dedup-ing on the
+    header (which is the documented pattern) would silently drop
+    legitimate deliveries fanned out to multiple subscribers, and any
+    future per-target retry would collide across subscriptions."""
+    from app.testing.factories import create_guild, create_user
+
+    user = await create_user(session, email="dispatcher-eventid@example.com")
+    guild = await create_guild(session, creator=user)
+    await _make_subscription(
+        session, guild=guild, user=user,
+        target_url="https://a.example.com", event_types=["task.created"],
+    )
+    await _make_subscription(
+        session, guild=guild, user=user,
+        target_url="https://b.example.com", event_types=["task.created"],
+    )
+
+    seen_event_ids: list[str] = []
+
+    async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
+        seen_event_ids.append(envelope["event_id"])
+
+    with patch("app.services.webhook_dispatcher._deliver", new=fake_deliver):
+        await dispatch_event(
+            session, event_type="task.created", guild_id=guild.id, payload={"id": 1},
+        )
+
+    assert len(seen_event_ids) == 2
+    assert len(set(seen_event_ids)) == 2, "event_id must differ per delivery"
+
+
+@pytest.mark.integration
 async def test_dispatch_does_not_cross_guilds(session):
     """A subscription in guild B must NOT receive events in guild A —
     tenant isolation, the most load-bearing property."""

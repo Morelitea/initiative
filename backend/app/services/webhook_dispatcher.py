@@ -40,7 +40,7 @@ from app.models.webhook_subscription import WebhookSubscription
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,
-    assert_target_url_is_public,
+    assert_target_url_is_public_async,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ async def _deliver(
     window.
     """
     try:
-        assert_target_url_is_public(target_url)
+        await assert_target_url_is_public_async(target_url)
     except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
         logger.warning(
             "webhook delivery skipped — target failed pre-flight check: target=%s err=%s",
@@ -163,7 +163,6 @@ async def dispatch_event(
         return
 
     envelope_base = {
-        "event_id": str(uuid.uuid4()),
         "event_type": event_type,
         "occurred_at": datetime.now(timezone.utc).isoformat(),
         "guild_id": guild_id,
@@ -171,13 +170,17 @@ async def dispatch_event(
         "payload": payload,
     }
 
-    # Per-subscription envelope copies so we can include the
-    # ``subscription_id`` and ``workflow_id`` for the receiver's routing
-    # without mutating the shared dict.
+    # Per-subscription envelope copies. Each delivery gets a fresh
+    # ``event_id`` so a receiver dedup-ing on that header doesn't drop
+    # legitimate fan-out to multiple subscriptions of the same logical
+    # event, and so future per-target retry logic can dedup retries
+    # without colliding across subscriptions. ``subscription_id`` and
+    # ``workflow_id`` are included for the receiver's routing.
     deliveries: list[asyncio.Task] = []
     for sub in rows:
         envelope = {
             **envelope_base,
+            "event_id": str(uuid.uuid4()),
             "subscription_id": sub.id,
             "workflow_id": sub.workflow_id,
         }
