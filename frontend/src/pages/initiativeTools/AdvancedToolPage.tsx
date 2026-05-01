@@ -49,10 +49,10 @@ export const AdvancedToolPage = () => {
     [initiativesQuery.data, initiativeId]
   );
 
-  // Pre-compute the iframe origin from the configured URL so we can use it
-  // as the postMessage targetOrigin and as the inbound origin allowlist.
-  // If the URL is malformed we surface an error instead of silently using
-  // "*" which would leak the handoff token.
+  // Outbound postMessage targetOrigin = the iframe's own origin (derived
+  // from the configured URL). We never broadcast to "*" — that would leak
+  // the handoff token to whatever origin happens to be loaded in the
+  // iframe's window slot.
   const iframeOrigin = useMemo(() => {
     if (!advancedTool?.url) return null;
     try {
@@ -61,6 +61,16 @@ export const AdvancedToolPage = () => {
       return null;
     }
   }, [advancedTool?.url]);
+
+  // Inbound postMessage allowlist comes from the runtime config (operator
+  // can extend it via ADVANCED_TOOL_ALLOWED_ORIGINS). Backend always
+  // includes the iframe URL's origin as the first entry, so the strict
+  // ``Set`` lookup matches today's behavior when nothing extra is
+  // configured.
+  const allowedOrigins = useMemo(
+    () => new Set(advancedTool?.allowed_origins ?? []),
+    [advancedTool?.allowed_origins]
+  );
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
@@ -105,7 +115,7 @@ export const AdvancedToolPage = () => {
     if (!iframeOrigin) return;
 
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== iframeOrigin) return;
+      if (!allowedOrigins.has(event.origin)) return;
       const data = event.data;
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
 
@@ -136,7 +146,7 @@ export const AdvancedToolPage = () => {
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [iframeOrigin, t, i18n.language]);
+  }, [iframeOrigin, allowedOrigins, t, i18n.language]);
 
   // If the user switches language while the iframe is open, push the new
   // locale into the embed so it can re-render. The iframe is free to debounce

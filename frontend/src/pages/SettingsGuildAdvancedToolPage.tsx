@@ -29,6 +29,9 @@ export const SettingsGuildAdvancedToolPage = () => {
 
   const { advancedTool, isLoading: configLoading } = useAppConfig();
 
+  // Outbound postMessage target = iframe's own origin (from configured URL).
+  // Inbound allowlist = the operator-configured set from runtime config,
+  // which always includes the iframe URL origin as the first entry.
   const iframeOrigin = useMemo(() => {
     if (!advancedTool?.url) return null;
     try {
@@ -37,6 +40,11 @@ export const SettingsGuildAdvancedToolPage = () => {
       return null;
     }
   }, [advancedTool?.url]);
+
+  const allowedOrigins = useMemo(
+    () => new Set(advancedTool?.allowed_origins ?? []),
+    [advancedTool?.allowed_origins]
+  );
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
@@ -78,7 +86,7 @@ export const SettingsGuildAdvancedToolPage = () => {
     if (!iframeOrigin) return;
 
     const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== iframeOrigin) return;
+      if (!allowedOrigins.has(event.origin)) return;
       const data = event.data;
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
 
@@ -104,7 +112,7 @@ export const SettingsGuildAdvancedToolPage = () => {
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [iframeOrigin, t, i18n.language]);
+  }, [iframeOrigin, allowedOrigins, t, i18n.language]);
 
   // Push locale changes through to the embed (matches the initiative-scoped
   // page). Embed is free to ignore.

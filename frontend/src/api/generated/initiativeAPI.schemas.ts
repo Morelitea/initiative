@@ -185,10 +185,19 @@ export interface AdminUserDeleteRequest {
 
 When ``ADVANCED_TOOL_URL`` is unset on the backend, this whole field is
 ``None`` and the SPA hides the per-initiative toggle and panel entirely.
+
+``allowed_origins`` is the SPA's inbound postMessage allowlist.
+Defaults to the single origin derived from ``url`` so deployments
+work without extra config. Operators can override via
+``ADVANCED_TOOL_ALLOWED_ORIGINS`` when the embed sits behind a CDN
+that surfaces multiple origins (e.g. region-sharded subdomains).
+Outbound postMessage is always scoped to the iframe's actual origin
+(derived from ``url``), never to anything in this list.
  */
 export interface AdvancedToolConfig {
   name: string;
   url: string;
+  allowed_origins: string[];
 }
 
 /**
