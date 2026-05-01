@@ -243,14 +243,16 @@ export const SpreadsheetDocumentEditor = ({
 
   // Focus the inline input when entering edit mode. Keyed on the cell
   // coordinates, NOT the full ``editing`` object — including ``draft``
-  // in the dependency would re-run the effect on every keystroke,
-  // call ``.select()``, and let the next character overwrite the
-  // selection (i.e. typing only ever shows the most recent char).
+  // in the dependency would re-run the effect on every keystroke. We
+  // intentionally don't ``.select()`` the input: when edit mode is
+  // entered by typing a character, the draft is already that one
+  // character, and selecting it would let the next keystroke overwrite
+  // it. ``focus()`` alone leaves the cursor at the end of the existing
+  // value, which matches Numbers / Excel / Sheets behavior.
   const editingCellKey = editing ? `${editing.row}:${editing.col}` : null;
   useEffect(() => {
     if (editingCellKey && editingInputRef.current) {
       editingInputRef.current.focus();
-      editingInputRef.current.select();
     }
   }, [editingCellKey]);
 
