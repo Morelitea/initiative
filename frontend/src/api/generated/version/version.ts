@@ -306,7 +306,6 @@ export function useGetLatestDockerhubVersionApiV1VersionLatestGet<
 
 If version is provided, returns changes for that specific version.
 If not provided, returns the most recent N versions (default 1).
-Limit parameter controls how many recent versions to return (max 10).
  * @summary Get Changelog
  */
 export const getChangelogApiV1ChangelogGet = (
