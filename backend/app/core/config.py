@@ -99,6 +99,15 @@ class Settings(BaseSettings):
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
 
+    # Local-dev escape hatch for the webhook SSRF guard. When TRUE, the
+    # dispatcher accepts ``http://`` and private/loopback/link-local
+    # targets — needed only for round-tripping with auto running on
+    # ``http://localhost:9002`` where there's no TLS cert and the
+    # address is non-public by definition. Default FALSE; production
+    # deployments MUST NOT enable this — plain http lets a MITM strip
+    # the signature header and forge payloads.
+    WEBHOOK_ALLOW_PRIVATE_TARGETS: bool = False
+
     BEHIND_PROXY: bool = False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
 
     @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")

@@ -137,6 +137,36 @@ async def test_async_variant_rejects_private_literal():
         await assert_target_url_is_public_async("https://10.0.0.1/hook")
 
 
+# ── Dev escape hatch ──────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_dev_flag_allows_loopback(monkeypatch):
+    """``WEBHOOK_ALLOW_PRIVATE_TARGETS=true`` is the documented local-
+    dev path. With it set, loopback / RFC1918 are accepted and so is
+    plain http (because a localhost target has no TLS cert)."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", True)
+    assert_target_url_is_public("http://localhost:9002/api/v1/webhooks/initiative")
+    assert_target_url_is_public("http://127.0.0.1:9002/hook")
+    assert_target_url_is_public("http://10.0.0.5/hook")
+
+
+@pytest.mark.unit
+def test_dev_flag_default_is_off(monkeypatch):
+    """Sanity: with the flag at its default, the production behaviour
+    still rejects loopback. Catches a regression where the flag's
+    default flipped to True."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False)
+    with pytest.raises(WebhookTargetUrlPrivateError):
+        assert_target_url_is_public("https://127.0.0.1/hook")
+    with pytest.raises(WebhookTargetUrlError):
+        assert_target_url_is_public("http://hooks.example.com/in")
+
+
 @pytest.mark.unit
 async def test_async_variant_resolves_via_thread_executor():
     """The async path must hand DNS resolution off the event loop. We

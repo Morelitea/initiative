@@ -48,7 +48,18 @@ class WebhookTargetUrlPrivateError(ValueError):
     layer can return a more specific error code."""
 
 
-_ALLOWED_SCHEMES = frozenset({"https"})
+_PROD_SCHEMES = frozenset({"https"})
+_DEV_SCHEMES = frozenset({"https", "http"})
+
+
+def _allow_private_targets() -> bool:
+    """Resolve the dev escape hatch lazily so monkeypatching ``settings``
+    in tests works. Reading at call time also lets a deployed-process
+    config-reload effort pick up the new value (we don't reload yet, but
+    nothing here forecloses it)."""
+    from app.core.config import settings
+
+    return settings.WEBHOOK_ALLOW_PRIVATE_TARGETS
 
 
 def _is_public_address(ip: ipaddress._BaseAddress) -> bool:
@@ -67,9 +78,11 @@ def _is_public_address(ip: ipaddress._BaseAddress) -> bool:
 
 def _parse_and_check_scheme(url: str) -> tuple[str, str]:
     """Parse the URL and validate scheme + presence of hostname. Returns
-    ``(host, scheme)``."""
+    ``(host, scheme)``. Plain http is rejected unless the dev flag is
+    set (because a localhost dev target has no TLS cert to use)."""
     parsed = urlparse(url)
-    if parsed.scheme not in _ALLOWED_SCHEMES:
+    allowed = _DEV_SCHEMES if _allow_private_targets() else _PROD_SCHEMES
+    if parsed.scheme not in allowed:
         raise WebhookTargetUrlError(
             f"unsupported scheme: {parsed.scheme!r} (https required)"
         )
@@ -103,7 +116,10 @@ def _check_addresses_all_public(
     """Raise :class:`WebhookTargetUrlPrivateError` if *any* of the
     resolved addresses lands in non-public space. Partial coverage isn't
     enough — an attacker could publish ``[1.1.1.1, 10.0.0.1]`` and roll
-    the dice on which one httpx picks."""
+    the dice on which one httpx picks. Skipped entirely when the dev
+    escape hatch is set."""
+    if _allow_private_targets():
+        return
     for addr in addresses:
         if not _is_public_address(addr):
             raise WebhookTargetUrlPrivateError(
