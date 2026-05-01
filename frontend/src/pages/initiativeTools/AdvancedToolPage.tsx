@@ -74,13 +74,23 @@ export const AdvancedToolPage = () => {
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
-  // Hold the latest ``t`` in a ref so the handoff effect can localize an
-  // error without listing ``t`` in its deps. Without this, ``t`` changes
-  // identity on every language switch (react-i18next behavior), which
-  // would otherwise cancel the in-flight handoff fetch and re-mint a
-  // fresh token even though the token itself has no locale dependency.
+  // Tracks whether the cached handoff token has already been forwarded
+  // to the iframe. The first ``advanced-tool:ready`` uses the cached
+  // token from the initial mint; any subsequent ``ready`` (e.g. the
+  // embed reloaded itself due to internal session expiry or nav) means
+  // the cached token has been consumed and ``jti``-blocklisted, so we
+  // mint a fresh one before forwarding. Without this, a re-ready leaves
+  // the embed permanently broken until the parent page reloads.
+  const handoffSentRef = useRef(false);
+  // Hold the latest ``t`` and locale in refs so the message handler can
+  // localize errors and forward the current locale without listing them
+  // as effect deps. Without this, ``t`` changes identity on every
+  // language switch (react-i18next behavior), which would re-attach
+  // the listener and cancel any in-flight re-mint mid-flight.
   const tRef = useRef(t);
   tRef.current = t;
+  const localeRef = useRef(i18n.language);
+  localeRef.current = i18n.language;
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
 
@@ -92,6 +102,7 @@ export const AdvancedToolPage = () => {
 
     setError(null);
     setIsReady(false);
+    handoffSentRef.current = false;
 
     void (async () => {
       try {
@@ -119,7 +130,26 @@ export const AdvancedToolPage = () => {
   // every inbound message — missing this check is the canonical
   // iframe-token-leak vulnerability.
   useEffect(() => {
-    if (!iframeOrigin) return;
+    if (!iframeOrigin || initiativeId === null) return;
+
+    // Forward a handoff to the iframe with the canonical envelope. Used
+    // both for the cached-token first-ready path and the freshly-minted
+    // re-ready path so the message shape can't drift between them.
+    // initiative_id is always present (null at guild scope) so the embed
+    // never has to decode the JWT to learn which view to render.
+    const postHandoff = (target: Window, handoff: AdvancedToolHandoffResponse) => {
+      target.postMessage(
+        {
+          type: "advanced-tool:handoff",
+          handoff_token: handoff.handoff_token,
+          expires_in_seconds: handoff.expires_in_seconds,
+          scope: handoff.scope,
+          initiative_id: handoff.initiative_id,
+          locale: localeRef.current,
+        },
+        iframeOrigin
+      );
+    };
 
     const handleMessage = (event: MessageEvent) => {
       if (!allowedOrigins.has(event.origin)) return;
@@ -127,39 +157,44 @@ export const AdvancedToolPage = () => {
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
 
       if (data.type === "advanced-tool:ready") {
-        // The iframe is listening — hand the token over, scoped strictly
-        // to the iframe's origin (never "*"). Locale is included so the
-        // embedded app renders in the same language as the parent without
-        // forcing the user to set it twice; the embed is free to ignore
-        // it or let the user override later.
-        const handoff = handoffRef.current;
         const target = iframeRef.current?.contentWindow;
-        if (handoff && target) {
-          // Envelope mirrors SettingsGuildAdvancedToolPage so the embed
-          // can rely on a single message shape across scopes — scope and
-          // initiative_id are always present (initiative_id is null at
-          // guild scope), so the embed never has to decode the JWT just
-          // to learn which view to render.
-          target.postMessage(
-            {
-              type: "advanced-tool:handoff",
-              handoff_token: handoff.handoff_token,
-              expires_in_seconds: handoff.expires_in_seconds,
-              scope: handoff.scope,
-              initiative_id: handoff.initiative_id,
-              locale: i18n.language,
-            },
-            iframeOrigin
-          );
+        if (!target) return;
+
+        // First ready after mount: forward the cached token from the
+        // initial mint. Subsequent ready events (the embed reloaded
+        // itself due to internal session expiry, internal nav, or a
+        // forced refresh) mean the cached token has already been
+        // redeemed and the embed will jti-reject a re-presentation —
+        // mint fresh before forwarding so the user has a recovery path
+        // without needing to refresh the parent page.
+        if (!handoffSentRef.current && handoffRef.current) {
+          postHandoff(target, handoffRef.current);
+          handoffSentRef.current = true;
+          return;
         }
+
+        void (async () => {
+          try {
+            const fresh =
+              (await createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost(
+                initiativeId
+              )) as unknown as AdvancedToolHandoffResponse;
+            handoffRef.current = fresh;
+            postHandoff(target, fresh);
+          } catch {
+            setError(tRef.current("advancedTool.handoffFailed"));
+          }
+        })();
       } else if (data.type === "advanced-tool:error") {
-        setError(typeof data.message === "string" ? data.message : t("advancedTool.iframeError"));
+        setError(
+          typeof data.message === "string" ? data.message : tRef.current("advancedTool.iframeError")
+        );
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [iframeOrigin, allowedOrigins, t, i18n.language]);
+  }, [iframeOrigin, allowedOrigins, initiativeId]);
 
   // If the user switches language while the iframe is open, push the new
   // locale into the embed so it can re-render. The iframe is free to debounce

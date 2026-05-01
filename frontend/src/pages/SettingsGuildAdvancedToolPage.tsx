@@ -48,10 +48,17 @@ export const SettingsGuildAdvancedToolPage = () => {
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
-  // See AdvancedToolPage: hold the latest ``t`` in a ref so the handoff
-  // effect can localize errors without re-firing on every language change.
+  // See AdvancedToolPage for the rationale on these refs:
+  // - handoffSentRef: tracks first-vs-subsequent ``advanced-tool:ready`` so
+  //   we mint a fresh token if the embed reloads itself (cached token
+  //   would already be jti-blocklisted on the embed side).
+  // - tRef / localeRef: hold the latest values without re-attaching the
+  //   listener, which would cancel any in-flight re-mint.
+  const handoffSentRef = useRef(false);
   const tRef = useRef(t);
   tRef.current = t;
+  const localeRef = useRef(i18n.language);
+  localeRef.current = i18n.language;
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
 
@@ -63,6 +70,7 @@ export const SettingsGuildAdvancedToolPage = () => {
 
     setError(null);
     setIsReady(false);
+    handoffSentRef.current = false;
 
     void (async () => {
       try {
@@ -87,7 +95,24 @@ export const SettingsGuildAdvancedToolPage = () => {
 
   // postMessage bridge — strict origin check on every inbound message.
   useEffect(() => {
-    if (!iframeOrigin) return;
+    if (!iframeOrigin || activeGuildId === null) return;
+
+    // initiative_id is forwarded as null at guild scope so the envelope
+    // shape stays identical to the initiative-scoped handoff and the
+    // embed can dispatch on a single message type.
+    const postHandoff = (target: Window, handoff: AdvancedToolHandoffResponse) => {
+      target.postMessage(
+        {
+          type: "advanced-tool:handoff",
+          handoff_token: handoff.handoff_token,
+          expires_in_seconds: handoff.expires_in_seconds,
+          scope: handoff.scope,
+          initiative_id: handoff.initiative_id,
+          locale: localeRef.current,
+        },
+        iframeOrigin
+      );
+    };
 
     const handleMessage = (event: MessageEvent) => {
       if (!allowedOrigins.has(event.origin)) return;
@@ -95,32 +120,41 @@ export const SettingsGuildAdvancedToolPage = () => {
       if (!data || typeof data !== "object" || typeof data.type !== "string") return;
 
       if (data.type === "advanced-tool:ready") {
-        const handoff = handoffRef.current;
         const target = iframeRef.current?.contentWindow;
-        if (handoff && target) {
-          // initiative_id is forwarded as null at guild scope so the
-          // envelope shape stays identical to the initiative-scoped
-          // handoff and the embed can dispatch on a single message type.
-          target.postMessage(
-            {
-              type: "advanced-tool:handoff",
-              handoff_token: handoff.handoff_token,
-              expires_in_seconds: handoff.expires_in_seconds,
-              scope: handoff.scope,
-              initiative_id: handoff.initiative_id,
-              locale: i18n.language,
-            },
-            iframeOrigin
-          );
+        if (!target) return;
+
+        // First ready: cached token from initial mint. Subsequent ready
+        // events imply the embed reloaded itself; the cached token's
+        // jti has been redeemed already, so mint fresh before forwarding
+        // so the user has a recovery path without refreshing the parent.
+        if (!handoffSentRef.current && handoffRef.current) {
+          postHandoff(target, handoffRef.current);
+          handoffSentRef.current = true;
+          return;
         }
+
+        void (async () => {
+          try {
+            const fresh =
+              (await createGuildAdvancedToolHandoffApiV1GuildsGuildIdAdvancedToolHandoffPost(
+                activeGuildId
+              )) as unknown as AdvancedToolHandoffResponse;
+            handoffRef.current = fresh;
+            postHandoff(target, fresh);
+          } catch {
+            setError(tRef.current("advancedTool.handoffFailed"));
+          }
+        })();
       } else if (data.type === "advanced-tool:error") {
-        setError(typeof data.message === "string" ? data.message : t("advancedTool.iframeError"));
+        setError(
+          typeof data.message === "string" ? data.message : tRef.current("advancedTool.iframeError")
+        );
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [iframeOrigin, allowedOrigins, t, i18n.language]);
+  }, [iframeOrigin, allowedOrigins, activeGuildId]);
 
   // Push locale changes through to the embed (matches the initiative-scoped
   // page). Embed is free to ignore.
