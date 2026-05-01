@@ -58,7 +58,7 @@ export const Markdown = ({ content, className }: MarkdownProps) => {
   return (
     <div
       className={cn(
-        "text-muted-foreground [&_a]:text-primary wrap-break-words space-y-3 text-sm **:leading-relaxed [&_a]:break-all [&_a:hover]:underline [&_h1]:mt-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-semibold [&_h4]:mt-2 [&_h4]:text-sm [&_h4]:font-semibold [&_h5]:mt-2 [&_h5]:text-sm [&_h5]:font-medium [&_h6]:mt-2 [&_h6]:text-xs [&_h6]:font-semibold [&_li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-6",
+        "text-muted-foreground [&_a]:text-primary space-y-3 text-sm wrap-break-word **:leading-relaxed [&_a]:break-all [&_a:hover]:underline [&_h1]:mt-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mt-3 [&_h3]:text-base [&_h3]:font-semibold [&_h4]:mt-2 [&_h4]:text-sm [&_h4]:font-semibold [&_h5]:mt-2 [&_h5]:text-sm [&_h5]:font-medium [&_h6]:mt-2 [&_h6]:text-xs [&_h6]:font-semibold [&_li]:mt-1 [&_ol]:list-decimal [&_ol]:pl-6 [&_strong]:font-semibold [&_ul]:list-disc [&_ul]:pl-6",
         className
       )}
     >
