@@ -99,6 +99,12 @@ def normalize_document_content(
             raise DocumentContentError(DocumentMessages.SMART_LINK_URL_INVALID)
         return {"url": url}
 
+    if document_type == DocumentType.spreadsheet:
+        # Imported lazily to avoid a circular import: documents_spreadsheet
+        # imports DocumentContentError from this module.
+        from app.services.documents_spreadsheet import normalize_spreadsheet_content
+        return normalize_spreadsheet_content(payload)
+
     # native (default)
     if not isinstance(payload, dict):
         return deepcopy(EMPTY_LEXICAL_STATE)
