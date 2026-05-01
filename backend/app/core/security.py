@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -122,3 +123,81 @@ def create_advanced_tool_handoff_token(
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
     token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
     return token, int(expires_in.total_seconds())
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Inbound delegation from initiative-auto
+#
+# When auto calls our API on behalf of a user, it presents a JWT signed
+# with its private key (RS256). We verify here using the public half
+# configured at AUTO_DELEGATION_PUBLIC_KEY_PEM and resolve the JWT to a
+# user_id that the auth dependency then loads as a User. From that
+# point on the request runs through our normal RLS + role-permission
+# stack — the delegation just answers "who is acting", not "what can
+# they do".
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class AutoDelegationClaims:
+    """Validated payload of a delegation JWT minted by initiative-auto."""
+
+    jti: str
+    user_id: int
+    guild_id: int
+    initiative_id: int | None
+    workflow_id: int | None
+
+
+class AutoDelegationVerificationError(Exception):
+    """Raised when the inbound delegation JWT fails any check."""
+
+
+def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:
+    """Verify a delegation JWT minted by initiative-auto.
+
+    Disabled when ``AUTO_DELEGATION_PUBLIC_KEY_PEM`` is unset — that
+    config gap surfaces as a verification error so the auth dep can
+    fall through to its other token paths instead of 500'ing.
+    """
+    if not settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
+        raise AutoDelegationVerificationError("delegation auth not configured")
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.AUTO_DELEGATION_PUBLIC_KEY_PEM,
+            algorithms=["RS256"],
+            audience=settings.AUTO_DELEGATION_AUDIENCE,
+            issuer=settings.AUTO_DELEGATION_ISSUER,
+            options={"require": ["exp", "iat", "iss", "aud", "sub", "jti"]},
+        )
+    except jwt.PyJWTError as e:
+        raise AutoDelegationVerificationError(f"jwt verification failed: {e}") from e
+
+    try:
+        user_id = int(payload["sub"])
+    except (KeyError, TypeError, ValueError) as e:
+        raise AutoDelegationVerificationError(
+            f"sub must be a numeric user id: {e}"
+        ) from e
+
+    guild_id = payload.get("guild_id")
+    if not isinstance(guild_id, int):
+        raise AutoDelegationVerificationError("guild_id must be an int")
+
+    initiative_id = payload.get("initiative_id")
+    if initiative_id is not None and not isinstance(initiative_id, int):
+        raise AutoDelegationVerificationError("initiative_id must be an int when present")
+
+    workflow_id = payload.get("workflow_id")
+    if workflow_id is not None and not isinstance(workflow_id, int):
+        raise AutoDelegationVerificationError("workflow_id must be an int when present")
+
+    return AutoDelegationClaims(
+        jti=str(payload["jti"]),
+        user_id=user_id,
+        guild_id=guild_id,
+        initiative_id=initiative_id,
+        workflow_id=workflow_id,
+    )
