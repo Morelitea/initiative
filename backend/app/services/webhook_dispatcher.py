@@ -37,6 +37,11 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.webhook_subscription import WebhookSubscription
+from app.services.webhook_target_url import (
+    WebhookTargetUrlError,
+    WebhookTargetUrlPrivateError,
+    assert_target_url_is_public,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +68,24 @@ async def _deliver(
     envelope: dict[str, Any],
 ) -> None:
     """POST one envelope to one target. Logs and swallows any error so
-    one bad subscriber can't break the rest of the dispatch."""
+    one bad subscriber can't break the rest of the dispatch.
+
+    The ``target_url`` is re-validated here even though the API layer
+    already checked at create/update time. DNS can change underneath us,
+    so a previously-public hostname could now point at internal space —
+    re-resolving immediately before the request closes the rebinding
+    window.
+    """
+    try:
+        assert_target_url_is_public(target_url)
+    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
+        logger.warning(
+            "webhook delivery skipped — target failed pre-flight check: target=%s err=%s",
+            target_url,
+            exc,
+        )
+        return
+
     body = json.dumps(envelope, default=str, separators=(",", ":")).encode("utf-8")
     timestamp = str(int(datetime.now(timezone.utc).timestamp()))
     signature = _sign(secret, timestamp, body)

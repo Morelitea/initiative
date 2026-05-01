@@ -20,6 +20,13 @@ class WebhookSubscriptionNotFoundError(Exception):
     caller's scope."""
 
 
+class WebhookSubscriptionOwnershipError(Exception):
+    """Raised when a non-creator non-admin tries to mutate or delete a
+    subscription owned by another guild member. We surface this as 403
+    rather than 404 because the caller already knows the row exists in
+    their guild — only their *authority* is the question."""
+
+
 def _generate_hmac_secret() -> str:
     """Random opaque secret. 64 url-safe chars ≈ 384 bits of entropy —
     well above the 256 we need to make brute-forcing infeasible."""
@@ -102,17 +109,41 @@ async def create_subscription(
     return subscription, secret
 
 
+def _assert_can_mutate(
+    subscription: WebhookSubscription,
+    *,
+    acting_user_id: int,
+    is_guild_admin: bool,
+) -> None:
+    """Only the creator or a guild admin may mutate or delete a
+    subscription. Without this, any guild member could quietly redirect
+    or disable another member's webhook target — an authorization gap,
+    even when RLS already keeps things inside the guild boundary."""
+    if is_guild_admin or subscription.created_by_user_id == acting_user_id:
+        return
+    raise WebhookSubscriptionOwnershipError(
+        f"user {acting_user_id} cannot mutate subscription {subscription.id}"
+    )
+
+
 async def update_subscription(
     session: AsyncSession,
     *,
     subscription_id: int,
     guild_id: int,
+    acting_user_id: int,
+    is_guild_admin: bool,
     payload: WebhookSubscriptionUpdate,
 ) -> WebhookSubscription:
     """Apply partial update to an existing subscription. Raises
-    :class:`WebhookSubscriptionNotFoundError` on cross-guild lookups."""
+    :class:`WebhookSubscriptionNotFoundError` on cross-guild lookups and
+    :class:`WebhookSubscriptionOwnershipError` when a non-owner non-admin
+    tries to mutate."""
     subscription = await get_subscription(
         session, subscription_id=subscription_id, guild_id=guild_id
+    )
+    _assert_can_mutate(
+        subscription, acting_user_id=acting_user_id, is_guild_admin=is_guild_admin
     )
 
     data = payload.model_dump(exclude_unset=True)
@@ -134,10 +165,16 @@ async def delete_subscription(
     *,
     subscription_id: int,
     guild_id: int,
+    acting_user_id: int,
+    is_guild_admin: bool,
 ) -> None:
-    """Hard-delete a subscription. Cross-guild lookups raise."""
+    """Hard-delete a subscription. Cross-guild lookups raise; non-owner
+    non-admin attempts raise :class:`WebhookSubscriptionOwnershipError`."""
     subscription = await get_subscription(
         session, subscription_id=subscription_id, guild_id=guild_id
+    )
+    _assert_can_mutate(
+        subscription, acting_user_id=acting_user_id, is_guild_admin=is_guild_admin
     )
     await session.delete(subscription)
     await session.commit()

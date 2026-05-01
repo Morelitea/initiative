@@ -16,6 +16,10 @@ Auto's flow:
   PATCH  /api/v1/auto/subscriptions/{id}
 
 All four are guild-scoped via the active session's ``guild_id``.
+Mutation routes (PATCH/DELETE) additionally require the caller to be
+either the subscription's creator or a guild admin — RLS keeps things
+inside the guild boundary, but it doesn't say *which* member can rewrite
+*another* member's webhook target.
 """
 
 from __future__ import annotations
@@ -30,6 +34,8 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.messages import WebhookSubscriptionMessages
+from app.models.guild import GuildRole
 from app.models.user import User
 from app.schemas.webhook_subscription import (
     WebhookSubscriptionCreate,
@@ -38,9 +44,34 @@ from app.schemas.webhook_subscription import (
     WebhookSubscriptionUpdate,
 )
 from app.services import webhook_subscriptions as subscriptions_service
-from app.services.webhook_subscriptions import WebhookSubscriptionNotFoundError
+from app.services.webhook_subscriptions import (
+    WebhookSubscriptionNotFoundError,
+    WebhookSubscriptionOwnershipError,
+)
+from app.services.webhook_target_url import (
+    WebhookTargetUrlError,
+    WebhookTargetUrlPrivateError,
+    assert_target_url_is_public,
+)
 
 router = APIRouter()
+
+
+def _validate_target_url(url: str) -> None:
+    """Reject URLs that resolve into private/loopback/link-local space.
+    Raises HTTPException with codes the frontend can localize."""
+    try:
+        assert_target_url_is_public(url)
+    except WebhookTargetUrlPrivateError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=WebhookSubscriptionMessages.PRIVATE_TARGET_URL,
+        ) from exc
+    except WebhookTargetUrlError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=WebhookSubscriptionMessages.INVALID_TARGET_URL,
+        ) from exc
 
 
 @router.post(
@@ -64,7 +95,14 @@ async def create_subscription(
     policy (``guild_isolation``) plus the explicit ``guild_id`` filter
     in the service layer. The caller's guild comes from
     ``GuildContext`` — the body never carries it.
+
+    SSRF guard: ``target_url`` must resolve to a public unicast address.
+    Hostnames pointing at private / loopback / link-local space are
+    rejected so a guild member can't aim deliveries at internal services
+    or cloud-metadata endpoints.
     """
+    _validate_target_url(str(payload.target_url))
+
     subscription, secret = await subscriptions_service.create_subscription(
         session,
         payload=payload,
@@ -112,18 +150,33 @@ async def update_subscription(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> WebhookSubscriptionRead:
-    """Partial-update a subscription's target_url, event_types, or active flag."""
+    """Partial-update target_url, event_types, or active flag.
+
+    Only the creator or a guild admin may mutate. ``target_url`` (when
+    provided) is re-validated against the SSRF allowlist.
+    """
+    if payload.target_url is not None:
+        _validate_target_url(str(payload.target_url))
+
+    is_admin = guild_context.role == GuildRole.admin
     try:
         row = await subscriptions_service.update_subscription(
             session,
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
+            acting_user_id=current_user.id,
+            is_guild_admin=is_admin,
             payload=payload,
         )
     except WebhookSubscriptionNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="WEBHOOK_SUBSCRIPTION_NOT_FOUND",
+            detail=WebhookSubscriptionMessages.NOT_FOUND,
+        ) from exc
+    except WebhookSubscriptionOwnershipError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=WebhookSubscriptionMessages.NOT_OWNER,
         ) from exc
     return WebhookSubscriptionRead.model_validate(row)
 
@@ -139,15 +192,24 @@ async def delete_subscription(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> None:
-    """Hard-delete a subscription. Cross-guild lookups 404."""
+    """Hard-delete a subscription. Cross-guild lookups 404; non-owner
+    non-admin attempts 403."""
+    is_admin = guild_context.role == GuildRole.admin
     try:
         await subscriptions_service.delete_subscription(
             session,
             subscription_id=subscription_id,
             guild_id=guild_context.guild_id,
+            acting_user_id=current_user.id,
+            is_guild_admin=is_admin,
         )
     except WebhookSubscriptionNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="WEBHOOK_SUBSCRIPTION_NOT_FOUND",
+            detail=WebhookSubscriptionMessages.NOT_FOUND,
+        ) from exc
+    except WebhookSubscriptionOwnershipError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=WebhookSubscriptionMessages.NOT_OWNER,
         ) from exc
