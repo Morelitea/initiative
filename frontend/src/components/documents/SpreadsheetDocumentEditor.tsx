@@ -1,3 +1,4 @@
+import type { ProviderAwareness } from "@lexical/yjs";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Download, Upload } from "lucide-react";
 import {
@@ -12,7 +13,10 @@ import {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import * as Y from "yjs";
 
+import { useSpreadsheetAwareness } from "@/components/documents/spreadsheet/useSpreadsheetAwareness";
+import { useSpreadsheetCells } from "@/components/documents/spreadsheet/useSpreadsheetCells";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -41,6 +45,16 @@ interface SpreadsheetDocumentEditorProps {
   documentTitle: string;
   readOnly: boolean;
   className?: string;
+  /** When non-null, cells live in ``yDoc.getMap("cells")`` and edits
+   *  broadcast to peers in real time. When null (collab disabled or
+   *  not yet ready), the editor falls back to local component state
+   *  with the same UX. */
+  yDoc?: Y.Doc | null;
+  /** Awareness handle from the same provider as ``yDoc``. Used to
+   *  publish / observe selected-cell presence rings. */
+  awareness?: ProviderAwareness | null;
+  /** Local user (id + display name) for awareness state. */
+  currentUser?: { id: number; name: string } | null;
 }
 
 const ROW_HEIGHT = 28;
@@ -83,16 +97,22 @@ export const SpreadsheetDocumentEditor = ({
   documentTitle,
   readOnly,
   className,
+  yDoc = null,
+  awareness = null,
+  currentUser = null,
 }: SpreadsheetDocumentEditorProps) => {
   const { t } = useTranslation(["documents", "common"]);
 
-  const [cells, setCells] = useState<Map<string, CellValue>>(() => {
-    const sanitized = sanitizeContent(initialContent);
-    return new Map(Object.entries(sanitized.cells));
+  const sanitizedInitial = useMemo(() => sanitizeContent(initialContent), [initialContent]);
+
+  const { cells, setCell, bulkUpdate, replaceAll } = useSpreadsheetCells({
+    yDoc,
+    initialCells: sanitizedInitial.cells,
   });
-  const [dimensions, setDimensions] = useState<{ rows: number; cols: number }>(() => {
-    return sanitizeContent(initialContent).dimensions;
-  });
+
+  const [dimensions, setDimensions] = useState<{ rows: number; cols: number }>(
+    sanitizedInitial.dimensions
+  );
   const [selected, setSelected] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
   const [editing, setEditing] = useState<{ row: number; col: number; draft: string } | null>(null);
   const [pendingImport, setPendingImport] = useState<{
@@ -105,68 +125,42 @@ export const SpreadsheetDocumentEditor = ({
   const editingInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Keep parent in sync. Wrapped so callers don't have to think about
-  // building the snapshot shape.
-  const emitContent = useCallback(
-    (nextCells: Map<string, CellValue>, nextDims: { rows: number; cols: number }) => {
-      const cellsObj: Record<string, CellValue> = {};
-      for (const [key, value] of nextCells) cellsObj[key] = value;
-      onContentChange({
-        schema_version: 1,
-        kind: "spreadsheet",
-        dimensions: nextDims,
-        cells: cellsObj,
-      });
-    },
-    [onContentChange]
-  );
+  // Auto-grow dimensions when the cell map (local or remote) writes
+  // past the current canvas. Reactive via effect so we don't have to
+  // tangle this into the cells hook itself.
+  useEffect(() => {
+    let maxRow = -1;
+    let maxCol = -1;
+    for (const key of cells.keys()) {
+      const colon = key.indexOf(":");
+      if (colon < 0) continue;
+      const r = Number(key.slice(0, colon));
+      const c = Number(key.slice(colon + 1));
+      if (r > maxRow) maxRow = r;
+      if (c > maxCol) maxCol = c;
+    }
+    setDimensions((prev) => {
+      const nextRows = Math.min(Math.max(maxRow + 1, prev.rows), MAX_ROWS);
+      const nextCols = Math.min(Math.max(maxCol + 1, prev.cols), MAX_COLS);
+      if (nextRows === prev.rows && nextCols === prev.cols) return prev;
+      return { rows: nextRows, cols: nextCols };
+    });
+  }, [cells]);
 
-  const updateCells = useCallback(
-    (mutator: (draft: Map<string, CellValue>) => void) => {
-      // Build the next cell map and dimensions OUTSIDE any state
-      // updater so we don't run side effects (setDimensions,
-      // emitContent) inside one. React's Strict Mode invokes updaters
-      // twice in development to surface impurity; doing the side
-      // effects here means each user edit emits onContentChange exactly
-      // once and the autosave only PATCHes once.
-      const next = new Map(cells);
-      mutator(next);
-      let maxRow = dimensions.rows - 1;
-      let maxCol = dimensions.cols - 1;
-      for (const key of next.keys()) {
-        const colon = key.indexOf(":");
-        if (colon < 0) continue;
-        const r = Number(key.slice(0, colon));
-        const c = Number(key.slice(colon + 1));
-        if (r > maxRow) maxRow = r;
-        if (c > maxCol) maxCol = c;
-      }
-      const nextDims = {
-        rows: Math.min(Math.max(maxRow + 1, dimensions.rows), MAX_ROWS),
-        cols: Math.min(Math.max(maxCol + 1, dimensions.cols), MAX_COLS),
-      };
-      setCells(next);
-      if (nextDims.rows !== dimensions.rows || nextDims.cols !== dimensions.cols) {
-        setDimensions(nextDims);
-      }
-      emitContent(next, nextDims);
-    },
-    [cells, dimensions, emitContent]
-  );
-
-  const setCell = useCallback(
-    (row: number, col: number, value: CellValue) => {
-      const key = keyOf(row, col);
-      updateCells((draft) => {
-        if (value === null || value === "") {
-          draft.delete(key);
-        } else {
-          draft.set(key, value);
-        }
-      });
-    },
-    [updateCells]
-  );
+  // Emit the JSON snapshot to the parent on every change so the
+  // existing autosave hook can PATCH ``document.content``. This
+  // closes the loop for non-collab readers (they'll see a snapshot
+  // taken within the autosave debounce window).
+  useEffect(() => {
+    const cellsObj: Record<string, CellValue> = {};
+    for (const [key, value] of cells) cellsObj[key] = value;
+    onContentChange({
+      schema_version: 1,
+      kind: "spreadsheet",
+      dimensions,
+      cells: cellsObj,
+    });
+  }, [cells, dimensions, onContentChange]);
 
   const rowVirtualizer = useVirtualizer({
     count: dimensions.rows,
@@ -215,6 +209,16 @@ export const SpreadsheetDocumentEditor = ({
       return { row, col };
     });
   }, []);
+
+  // Selection-presence awareness: publish our selected cell so peers
+  // can render a colored ring on it, and subscribe to theirs.
+  const { peerSelectionsByCell } = useSpreadsheetAwareness({
+    awareness,
+    clientId: yDoc?.clientID ?? null,
+    user: currentUser,
+    selected,
+    enabled: Boolean(awareness && yDoc && currentUser),
+  });
 
   const beginEdit = useCallback(
     (row: number, col: number, initialDraft?: string) => {
@@ -344,11 +348,11 @@ export const SpreadsheetDocumentEditor = ({
       const delimiter = detectClipboardDelimiter(text);
       const parsed = csvToCells(text, { delimiter });
       const offset = offsetCells(parsed.cells, row, col);
-      updateCells((draft) => {
+      bulkUpdate((draft) => {
         for (const [key, value] of Object.entries(offset)) draft.set(key, value);
       });
     },
-    [editing, readOnly, selected, setCell, updateCells]
+    [editing, readOnly, selected, setCell, bulkUpdate]
   );
 
   const handleCopy = useCallback(
@@ -405,19 +409,14 @@ export const SpreadsheetDocumentEditor = ({
 
   const confirmImport = useCallback(() => {
     if (!pendingImport) return;
-    // Build outside any state updater — see `updateCells` comment.
-    const next = new Map<string, CellValue>();
-    for (const [key, value] of Object.entries(pendingImport.cells)) next.set(key, value);
-    const nextDims = {
+    replaceAll(pendingImport.cells);
+    setDimensions({
       rows: Math.min(Math.max(pendingImport.rows, DEFAULT_ROWS), MAX_ROWS),
       cols: Math.min(Math.max(pendingImport.cols, DEFAULT_COLS), MAX_COLS),
-    };
-    setCells(next);
-    setDimensions(nextDims);
-    emitContent(next, nextDims);
+    });
     setPendingImport(null);
     toast.success(t("documents:spreadsheet.importSuccess"));
-  }, [pendingImport, emitContent, t]);
+  }, [pendingImport, replaceAll, t]);
 
   const totalGridWidth = colVirtualizer.getTotalSize();
   const totalGridHeight = rowVirtualizer.getTotalSize();
@@ -565,6 +564,7 @@ export const SpreadsheetDocumentEditor = ({
               const value = cells.get(keyOf(row.index, col.index));
               const display = value == null ? "" : String(value);
               const isBoolean = typeof value === "boolean";
+              const peer = peerSelectionsByCell.get(keyOf(row.index, col.index));
               const cellStyle: CSSProperties = {
                 left: ROW_HEADER_WIDTH + col.start,
                 top: COL_HEADER_HEIGHT + row.start,
@@ -582,6 +582,8 @@ export const SpreadsheetDocumentEditor = ({
                   readOnly={readOnly}
                   draft={isEditing ? editing!.draft : ""}
                   inputRef={isEditing ? editingInputRef : null}
+                  peerColor={peer?.selection.color ?? null}
+                  peerName={peer?.user.name ?? null}
                   onClick={() => {
                     if (isEditing) return;
                     setSelected({ row: row.index, col: col.index });
@@ -629,6 +631,10 @@ interface CellViewProps {
   readOnly: boolean;
   draft: string;
   inputRef: React.RefObject<HTMLInputElement | null> | null;
+  /** When non-null, a peer has this cell selected — render a colored
+   *  ring in their assigned color plus a name-label tab. */
+  peerColor: string | null;
+  peerName: string | null;
   onClick: () => void;
   onDoubleClick: () => void;
   onToggleBoolean: () => void;
@@ -646,6 +652,8 @@ const CellView = ({
   readOnly,
   draft,
   inputRef,
+  peerColor,
+  peerName,
   onClick,
   onDoubleClick,
   onToggleBoolean,
@@ -663,6 +671,24 @@ const CellView = ({
     [isSelected, isEditing]
   );
 
+  // Peer overlay: 2px ring in their color over the cell, with their
+  // name in a small tab on the top-right corner. Rendered as a
+  // pointer-events-none sibling so the cell still receives clicks.
+  const peerOverlay =
+    peerColor && peerName ? (
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ boxShadow: `inset 0 0 0 2px ${peerColor}` }}
+      >
+        <div
+          className="absolute -top-4 right-0 max-w-full truncate rounded-t px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm"
+          style={{ backgroundColor: peerColor }}
+        >
+          {peerName}
+        </div>
+      </div>
+    ) : null;
+
   if (isEditing) {
     return (
       <div className={baseClass} style={style}>
@@ -674,6 +700,7 @@ const CellView = ({
           onBlur={onEditingBlur}
           className="bg-background h-full w-full px-1.5 outline-none"
         />
+        {peerOverlay}
       </div>
     );
   }
@@ -699,6 +726,7 @@ const CellView = ({
           }}
           aria-label={booleanValue ? "true" : "false"}
         />
+        {peerOverlay}
       </div>
     );
   }
@@ -711,6 +739,7 @@ const CellView = ({
       onDoubleClick={onDoubleClick}
     >
       <span className="truncate">{display}</span>
+      {peerOverlay}
     </div>
   );
 };
