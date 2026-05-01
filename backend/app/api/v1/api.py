@@ -1,10 +1,11 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import admin, ai_settings, attachments, auth, calendar_events, collaboration, comments, config, documents, events, guilds, imports, initiatives, notifications, projects, property_definitions, push, queues, settings, tags, task_statuses, tasks, trash, users, version
+from app.api.v1.endpoints import admin, ai_settings, attachments, auth, auto_subscriptions, calendar_events, collaboration, comments, config, documents, events, guilds, imports, initiatives, notifications, projects, property_definitions, push, queues, settings, tags, task_statuses, tasks, trash, users, version
 
 api_router = APIRouter()
 api_router.include_router(version.router, tags=["version"])
 api_router.include_router(config.router, tags=["config"])
+api_router.include_router(auto_subscriptions.router, prefix="/auto", tags=["auto"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(guilds.router, prefix="/guilds", tags=["guilds"])
