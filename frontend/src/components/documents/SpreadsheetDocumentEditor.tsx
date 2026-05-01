@@ -480,48 +480,73 @@ export const SpreadsheetDocumentEditor = ({
             position: "relative",
           }}
         >
-          {/* Top-left corner cap */}
+          {/* Column-header strip — ``position: sticky; top: 0`` keeps
+              column letters glued to the top of the scroll container as
+              the user scrolls vertically. The strip is the full canvas
+              width so its absolutely-positioned children line up with
+              the cell columns horizontally. */}
           <div
-            className="border-border bg-muted absolute z-20 border-r border-b"
+            className="bg-muted sticky top-0 z-20"
             style={{
               left: 0,
-              top: 0,
-              width: ROW_HEADER_WIDTH,
               height: COL_HEADER_HEIGHT,
+              width: ROW_HEADER_WIDTH + totalGridWidth,
             }}
-          />
-
-          {/* Column headers (A, B, C, …) */}
-          {virtualCols.map((col) => (
+          >
+            {/* Top-left corner cap. Nested ``position: sticky; left: 0``
+                inside the sticky-top strip pins it to both edges. */}
             <div
-              key={`colh-${col.index}`}
-              className="border-border bg-muted text-muted-foreground absolute z-10 flex items-center justify-center border-r border-b font-mono text-xs"
+              className="border-border bg-muted sticky top-0 left-0 z-30 border-r border-b"
               style={{
-                left: ROW_HEADER_WIDTH + col.start,
-                top: 0,
-                width: col.size,
+                width: ROW_HEADER_WIDTH,
                 height: COL_HEADER_HEIGHT,
               }}
-            >
-              {colIndexToLetter(col.index)}
-            </div>
-          ))}
+            />
+            {virtualCols.map((col) => (
+              <div
+                key={`colh-${col.index}`}
+                className="border-border bg-muted text-muted-foreground absolute flex items-center justify-center border-r border-b font-mono text-xs"
+                style={{
+                  left: ROW_HEADER_WIDTH + col.start,
+                  top: 0,
+                  width: col.size,
+                  height: COL_HEADER_HEIGHT,
+                }}
+              >
+                {colIndexToLetter(col.index)}
+              </div>
+            ))}
+          </div>
 
-          {/* Row headers (1, 2, 3, …) */}
-          {virtualRows.map((row) => (
-            <div
-              key={`rowh-${row.index}`}
-              className="border-border bg-muted text-muted-foreground absolute z-10 flex items-center justify-center border-r border-b font-mono text-xs"
-              style={{
-                left: 0,
-                top: COL_HEADER_HEIGHT + row.start,
-                width: ROW_HEADER_WIDTH,
-                height: row.size,
-              }}
-            >
-              {row.index + 1}
-            </div>
-          ))}
+          {/* Row-header strip — ``position: sticky; left: 0`` keeps row
+              numbers glued to the left of the scroll container as the
+              user scrolls horizontally. The strip is the full canvas
+              height (minus the column-header strip rendered above)
+              so its absolutely-positioned children line up with cell
+              rows vertically. */}
+          <div
+            className="sticky left-0 z-10"
+            style={{
+              top: 0,
+              width: ROW_HEADER_WIDTH,
+              height: totalGridHeight,
+            }}
+          >
+            {virtualRows.map((row) => (
+              <div
+                key={`rowh-${row.index}`}
+                className="border-border bg-muted text-muted-foreground absolute flex items-center justify-center border-r border-b font-mono text-xs"
+                style={{
+                  left: 0,
+                  top: row.start,
+                  width: ROW_HEADER_WIDTH,
+                  height: row.size,
+                }}
+              >
+                {row.index + 1}
+              </div>
+            ))}
+          </div>
 
           {/* Cells */}
           {virtualRows.map((row) =>
