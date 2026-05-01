@@ -214,6 +214,41 @@ async def test_create_spreadsheet_rejects_non_dict_dimensions(
 
 
 @pytest.mark.integration
+async def test_create_spreadsheet_canonicalizes_cell_keys(
+    client: AsyncClient, env: _SpreadsheetEnv
+):
+    """Non-canonical numeric keys ("01:2", "0001:0002") round-trip as
+    canonical "r:c" — JS emits ``String(number)`` form when the snapshot
+    is hydrated into a Y.Map, so any leading-zero form stored verbatim
+    would silently disappear after a collaboration round-trip."""
+    response = await client.post(
+        "/api/v1/documents/",
+        headers=env.headers,
+        json={
+            "title": "Sheet",
+            "initiative_id": env.initiative.id,
+            "document_type": "spreadsheet",
+            "content": {
+                "cells": {
+                    "01:2": "padded row",
+                    "3:04": "padded col",
+                    "0005:0006": "padded both",
+                    "7:8": "canonical",
+                }
+            },
+        },
+    )
+    assert response.status_code == 201, response.text
+    cells = response.json()["content"]["cells"]
+    assert cells == {
+        "1:2": "padded row",
+        "3:4": "padded col",
+        "5:6": "padded both",
+        "7:8": "canonical",
+    }
+
+
+@pytest.mark.integration
 async def test_create_spreadsheet_with_empty_content(
     client: AsyncClient, env: _SpreadsheetEnv
 ):

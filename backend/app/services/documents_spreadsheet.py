@@ -79,7 +79,13 @@ def normalize_spreadsheet_content(payload: Any) -> dict[str, Any]:
         # snapshot so the storage stays sparse.
         if value is None or value == "":
             continue
-        cells_out[key] = value
+        # Re-emit the key from the parsed integers so non-canonical
+        # forms ("01:2", "1:02", "00001:2", …) all collapse to "1:2".
+        # JS produces canonical keys via ``String(number)``, so when
+        # PR 3 hydrates this snapshot into a Y.Map and edits round-trip
+        # back through the JS layer, mismatched stored / canonical keys
+        # would silently lose cells.
+        cells_out[f"{row}:{col}"] = value
         if row > max_row:
             max_row = row
         if col > max_col:
