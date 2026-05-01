@@ -59,6 +59,12 @@ describe("coerceScalar", () => {
     expect(coerceScalar("00")).toBe("00");
   });
 
+  it("trims surrounding whitespace from leading-zero strings", () => {
+    expect(coerceScalar(" 0123")).toBe("0123");
+    expect(coerceScalar("0123 ")).toBe("0123");
+    expect(coerceScalar("\t00\n")).toBe("00");
+  });
+
   it("coerces true / false case-insensitively", () => {
     expect(coerceScalar("true")).toBe(true);
     expect(coerceScalar("FALSE")).toBe(false);

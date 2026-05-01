@@ -90,7 +90,10 @@ export const coerceScalar = (raw: string): CellValue => {
   // numbers — preserving the leading zero matters.
   if (/^-?\d+(\.\d+)?([eE][-+]?\d+)?$/.test(trimmed)) {
     if (trimmed.startsWith("0") && !trimmed.startsWith("0.") && trimmed !== "0") {
-      return raw;
+      // Return the trimmed form so leading/trailing whitespace from a
+      // clipboard paste (" 0123") doesn't get persisted with padding
+      // intact.
+      return trimmed;
     }
     const num = Number(trimmed);
     if (Number.isFinite(num)) return num;

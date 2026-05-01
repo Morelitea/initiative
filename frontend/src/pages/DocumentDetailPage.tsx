@@ -320,6 +320,14 @@ export const DocumentDetailPage = () => {
     if (document?.document_type === "whiteboard") {
       return JSON.stringify(document?.content ?? {});
     }
+    if (document?.document_type === "spreadsheet") {
+      // Spreadsheet content has no Lexical ``root``, so passing it through
+      // ``normalizeEditorState`` would produce an empty Lexical tree — and
+      // the dirty check would compare that against the actual cell map,
+      // making isDirty=true on first render and firing a spurious
+      // autosave PATCH on every open.
+      return JSON.stringify(document?.content ?? {});
+    }
     return JSON.stringify(normalizedDocumentContent);
   }, [document?.document_type, document?.content, normalizedDocumentContent]);
 

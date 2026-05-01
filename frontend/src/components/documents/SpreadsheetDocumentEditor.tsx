@@ -122,33 +122,35 @@ export const SpreadsheetDocumentEditor = ({
 
   const updateCells = useCallback(
     (mutator: (draft: Map<string, CellValue>) => void) => {
-      setCells((prev) => {
-        const next = new Map(prev);
-        mutator(next);
-        // Compute auto-grown dimensions in case the mutator wrote past
-        // the current canvas (e.g. paste / CSV import).
-        let maxRow = dimensions.rows - 1;
-        let maxCol = dimensions.cols - 1;
-        for (const key of next.keys()) {
-          const colon = key.indexOf(":");
-          if (colon < 0) continue;
-          const r = Number(key.slice(0, colon));
-          const c = Number(key.slice(colon + 1));
-          if (r > maxRow) maxRow = r;
-          if (c > maxCol) maxCol = c;
-        }
-        const nextDims = {
-          rows: Math.min(Math.max(maxRow + 1, dimensions.rows), MAX_ROWS),
-          cols: Math.min(Math.max(maxCol + 1, dimensions.cols), MAX_COLS),
-        };
-        if (nextDims.rows !== dimensions.rows || nextDims.cols !== dimensions.cols) {
-          setDimensions(nextDims);
-        }
-        emitContent(next, nextDims);
-        return next;
-      });
+      // Build the next cell map and dimensions OUTSIDE any state
+      // updater so we don't run side effects (setDimensions,
+      // emitContent) inside one. React's Strict Mode invokes updaters
+      // twice in development to surface impurity; doing the side
+      // effects here means each user edit emits onContentChange exactly
+      // once and the autosave only PATCHes once.
+      const next = new Map(cells);
+      mutator(next);
+      let maxRow = dimensions.rows - 1;
+      let maxCol = dimensions.cols - 1;
+      for (const key of next.keys()) {
+        const colon = key.indexOf(":");
+        if (colon < 0) continue;
+        const r = Number(key.slice(0, colon));
+        const c = Number(key.slice(colon + 1));
+        if (r > maxRow) maxRow = r;
+        if (c > maxCol) maxCol = c;
+      }
+      const nextDims = {
+        rows: Math.min(Math.max(maxRow + 1, dimensions.rows), MAX_ROWS),
+        cols: Math.min(Math.max(maxCol + 1, dimensions.cols), MAX_COLS),
+      };
+      setCells(next);
+      if (nextDims.rows !== dimensions.rows || nextDims.cols !== dimensions.cols) {
+        setDimensions(nextDims);
+      }
+      emitContent(next, nextDims);
     },
-    [dimensions, emitContent]
+    [cells, dimensions, emitContent]
   );
 
   const setCell = useCallback(
@@ -309,7 +311,9 @@ export const SpreadsheetDocumentEditor = ({
           e.preventDefault();
           commitEdit({
             row: editing.row,
-            col: e.shiftKey ? Math.max(0, editing.col - 1) : editing.col + 1,
+            col: e.shiftKey
+              ? Math.max(0, editing.col - 1)
+              : Math.min(editing.col + 1, MAX_COLS - 1),
           });
           return;
       }
@@ -393,17 +397,16 @@ export const SpreadsheetDocumentEditor = ({
 
   const confirmImport = useCallback(() => {
     if (!pendingImport) return;
-    setCells(() => {
-      const next = new Map<string, CellValue>();
-      for (const [key, value] of Object.entries(pendingImport.cells)) next.set(key, value);
-      const nextDims = {
-        rows: Math.min(Math.max(pendingImport.rows, DEFAULT_ROWS), MAX_ROWS),
-        cols: Math.min(Math.max(pendingImport.cols, DEFAULT_COLS), MAX_COLS),
-      };
-      setDimensions(nextDims);
-      emitContent(next, nextDims);
-      return next;
-    });
+    // Build outside any state updater — see `updateCells` comment.
+    const next = new Map<string, CellValue>();
+    for (const [key, value] of Object.entries(pendingImport.cells)) next.set(key, value);
+    const nextDims = {
+      rows: Math.min(Math.max(pendingImport.rows, DEFAULT_ROWS), MAX_ROWS),
+      cols: Math.min(Math.max(pendingImport.cols, DEFAULT_COLS), MAX_COLS),
+    };
+    setCells(next);
+    setDimensions(nextDims);
+    emitContent(next, nextDims);
     setPendingImport(null);
     toast.success(t("documents:spreadsheet.importSuccess"));
   }, [pendingImport, emitContent, t]);
