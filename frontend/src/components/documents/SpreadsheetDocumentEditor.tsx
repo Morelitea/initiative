@@ -691,7 +691,11 @@ const CellView = ({
         style={{ boxShadow: `inset 0 0 0 2px ${peerColor}` }}
       >
         <div
-          className="absolute -top-4 right-0 max-w-full truncate rounded-t px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm"
+          // ``getUserColorHsl`` produces pastels at lightness 83%, so
+          // they take dark foregrounds — slate-900 matches what
+          // ``CollaboratorAvatar`` and ``getUserColorStyle`` already
+          // pair with these backgrounds.
+          className="absolute -top-4 right-0 max-w-full truncate rounded-t px-1.5 py-0.5 text-[10px] font-medium text-slate-900 shadow-sm"
           style={{ backgroundColor: peerColor }}
         >
           {peerName}
