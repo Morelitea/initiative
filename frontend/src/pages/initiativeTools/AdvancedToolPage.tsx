@@ -74,6 +74,13 @@ export const AdvancedToolPage = () => {
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
+  // Hold the latest ``t`` in a ref so the handoff effect can localize an
+  // error without listing ``t`` in its deps. Without this, ``t`` changes
+  // identity on every language switch (react-i18next behavior), which
+  // would otherwise cancel the in-flight handoff fetch and re-mint a
+  // fresh token even though the token itself has no locale dependency.
+  const tRef = useRef(t);
+  tRef.current = t;
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
 
@@ -97,7 +104,7 @@ export const AdvancedToolPage = () => {
         setIsReady(true);
       } catch {
         if (!cancelled) {
-          setError(t("advancedTool.handoffFailed"));
+          setError(tRef.current("advancedTool.handoffFailed"));
         }
       }
     })();
@@ -105,7 +112,7 @@ export const AdvancedToolPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [initiativeId, advancedTool, iframeOrigin, t]);
+  }, [initiativeId, advancedTool, iframeOrigin]);
 
   // postMessage bridge: the iframe sends `ready` when it's listening, and
   // `error` if its own bootstrap fails. We strictly verify event.origin on

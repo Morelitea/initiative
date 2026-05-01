@@ -199,10 +199,6 @@ async def update_guild(
 # Advanced tool handoff (guild scope) — admin-only embed.
 # ---------------------------------------------------------------------------
 
-# Same lifetime as the initiative-scoped token; long enough for a slow iframe
-# cold-start, short enough to make a leak inconsequential.
-_ADVANCED_TOOL_HANDOFF_LIFETIME_SECONDS = 60
-
 
 @router.post(
     "/{guild_id}/advanced-tool/handoff",
@@ -236,7 +232,7 @@ async def create_guild_advanced_tool_handoff(
         is_superadmin=is_superadmin,
     )
 
-    token = create_advanced_tool_handoff_token(
+    token, expires_in_seconds = create_advanced_tool_handoff_token(
         user_id=current_user.id,
         guild_id=guild_id,
         guild_role=GuildRole.admin.value,
@@ -249,7 +245,7 @@ async def create_guild_advanced_tool_handoff(
 
     return AdvancedToolHandoffResponse(
         handoff_token=token,
-        expires_in_seconds=_ADVANCED_TOOL_HANDOFF_LIFETIME_SECONDS,
+        expires_in_seconds=expires_in_seconds,
         iframe_url=settings.ADVANCED_TOOL_URL,
         scope="guild",
         initiative_id=None,

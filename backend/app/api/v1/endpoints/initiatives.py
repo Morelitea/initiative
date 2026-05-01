@@ -535,11 +535,6 @@ async def get_my_initiative_permissions(
 # Advanced tool handoff (embedded iframe)
 # ============================================================================
 
-# Token lifetime tuned to be long enough to survive a slow iframe cold-start
-# but short enough that an accidental log capture is functionally useless.
-# 60s is the standard for one-shot handoff tokens.
-_ADVANCED_TOOL_HANDOFF_LIFETIME_SECONDS = 60
-
 
 @router.post(
     "/{initiative_id}/advanced-tool/handoff",
@@ -611,7 +606,7 @@ async def create_advanced_tool_handoff(
     if not can_view:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AdvancedToolMessages.NOT_ENABLED)
 
-    token = create_advanced_tool_handoff_token(
+    token, expires_in_seconds = create_advanced_tool_handoff_token(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         initiative_id=initiative_id,
@@ -623,7 +618,7 @@ async def create_advanced_tool_handoff(
 
     return AdvancedToolHandoffResponse(
         handoff_token=token,
-        expires_in_seconds=_ADVANCED_TOOL_HANDOFF_LIFETIME_SECONDS,
+        expires_in_seconds=expires_in_seconds,
         iframe_url=settings.ADVANCED_TOOL_URL,
         scope="initiative",
         initiative_id=initiative_id,

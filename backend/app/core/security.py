@@ -30,6 +30,12 @@ def create_access_token(subject: str, *, token_version: int, expires_delta: time
 # tokens against the iframe backend, and vice versa.
 ADVANCED_TOOL_AUDIENCE = "initiative:advanced-tool"
 
+# Single source of truth for the handoff token's lifetime. Used both as
+# the default ``expires_in`` and as the value the function reports back
+# to callers, so ``AdvancedToolHandoffResponse.expires_in_seconds`` and
+# the JWT's ``exp`` claim can never disagree.
+ADVANCED_TOOL_HANDOFF_LIFETIME = timedelta(seconds=60)
+
 
 def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
     """Pick (key, algorithm, kid) for signing advanced-tool handoff JWTs.
@@ -59,8 +65,8 @@ def create_advanced_tool_handoff_token(
     can_create: bool,
     scope: str,
     initiative_id: int | None = None,
-    expires_in: timedelta = timedelta(seconds=60),
-) -> str:
+    expires_in: timedelta = ADVANCED_TOOL_HANDOFF_LIFETIME,
+) -> tuple[str, int]:
     """Mint a short-lived JWT used by the SPA to bootstrap the embedded
     advanced-tool iframe.
 
@@ -83,6 +89,10 @@ def create_advanced_tool_handoff_token(
     The token is intentionally short-lived so a leak (browser history,
     accidental log capture) has minimal blast radius. Long-lived auth
     lives in the iframe's own session, not in this handoff.
+
+    Returns the encoded JWT plus the integer seconds until expiry, so the
+    handoff response can advertise the same lifetime that's encoded in
+    the token's ``exp`` claim.
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
@@ -110,4 +120,5 @@ def create_advanced_tool_handoff_token(
 
     key, algorithm, kid = _resolve_handoff_signing_material()
     headers: dict[str, Any] | None = {"kid": kid} if kid else None
-    return jwt.encode(payload, key, algorithm=algorithm, headers=headers)
+    token = jwt.encode(payload, key, algorithm=algorithm, headers=headers)
+    return token, int(expires_in.total_seconds())

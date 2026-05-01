@@ -48,6 +48,10 @@ export const SettingsGuildAdvancedToolPage = () => {
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const handoffRef = useRef<AdvancedToolHandoffResponse | null>(null);
+  // See AdvancedToolPage: hold the latest ``t`` in a ref so the handoff
+  // effect can localize errors without re-firing on every language change.
+  const tRef = useRef(t);
+  tRef.current = t;
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
 
@@ -71,7 +75,7 @@ export const SettingsGuildAdvancedToolPage = () => {
         setIsReady(true);
       } catch {
         if (!cancelled) {
-          setError(t("advancedTool.handoffFailed"));
+          setError(tRef.current("advancedTool.handoffFailed"));
         }
       }
     })();
@@ -79,7 +83,7 @@ export const SettingsGuildAdvancedToolPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [activeGuildId, advancedTool, iframeOrigin, isGuildAdmin, t]);
+  }, [activeGuildId, advancedTool, iframeOrigin, isGuildAdmin]);
 
   // postMessage bridge — strict origin check on every inbound message.
   useEffect(() => {
