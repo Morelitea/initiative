@@ -87,6 +87,7 @@
     "updated": "Actualizado {{date}}",
     "template": "Plantilla",
     "whiteboardLabel": "Pizarra",
+    "spreadsheetLabel": "Hoja de cálculo",
     "projects_one": "{{count}} proyecto",
     "projects_other": "{{count}} proyectos",
     "comments_one": "{{count}} comentario",
