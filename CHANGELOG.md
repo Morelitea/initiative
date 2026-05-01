@@ -58,10 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Migrated the document editor to Lexical 0.44's Extension API. No user-visible behavior change, but the editor now uses `LexicalExtensionComposer` with `defineExtension` instead of the legacy `LexicalComposer` + plugin-list pattern, which clears the deprecation warning around `CodeNode` and aligns the editor with the upstream shadcn-editor architecture so future Lexical updates are easier to absorb.
 
-### Removed
-
-- **Automation engine, event publisher, and `aioboto3` dependency.** Domain-event fan-out for automation now lives entirely in the separately-deployed advanced tool service rather than in the FOSS backend. The bundled Kinesis publisher, the in-process automation engine, the Redis dependency, and the `automations_enabled` initiative flag (replaced by the generic `advanced_tool_enabled` slot) are all gone from the FOSS image. Fresh installs are unaffected; existing databases get a clean migration path.
-
 ### Fixed
 
 - Read-only members can now create new documents from a template they have access to. Previously the copy required write access to the template, which defeated the point of templates being shared starters. Copying a non-template document still requires write access on the source.
@@ -80,8 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- **Automation engine.** Flow definitions, run history, and the in-app workflow editor have all been removed from this repo. The capability moves to a sibling `inititative_infra` service that consumes domain events from a Kinesis stream. Self-hosted users on the OSS image lose the in-app automation builder, which only ever shipped as a paid/infra preview. Anyone running the `-infra` variant will continue to see automation UI once their `inititative_infra` service is wired up; until then, the automation menu is hidden.
-- **Redis dependency.** Removed entirely. Initiative now has Postgres as its only runtime dependency. The Redis Streams event bus that previously fed the in-process automation engine is gone; events go to Kinesis instead (when `ENABLE_EVENT_PUBLISHING=true`).
+- **Automation engine, event publisher, and `aioboto3` dependency.** Domain-event fan-out for automation now lives entirely in the separately-deployed advanced tool service rather than in the FOSS backend. The bundled Kinesis publisher, the in-process automation engine, the Redis dependency, and the `automations_enabled` initiative flag (replaced by the generic `advanced_tool_enabled` slot) are all gone from the FOSS image. Fresh installs are unaffected; existing databases get a clean migration path.
 
 ## [0.42.1] - 2026-04-28
 
