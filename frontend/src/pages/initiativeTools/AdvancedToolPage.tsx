@@ -135,11 +135,17 @@ export const AdvancedToolPage = () => {
         const handoff = handoffRef.current;
         const target = iframeRef.current?.contentWindow;
         if (handoff && target) {
+          // Envelope mirrors SettingsGuildAdvancedToolPage so the embed
+          // can rely on a single message shape across scopes — scope and
+          // initiative_id are always present (initiative_id is null at
+          // guild scope), so the embed never has to decode the JWT just
+          // to learn which view to render.
           target.postMessage(
             {
               type: "advanced-tool:handoff",
               handoff_token: handoff.handoff_token,
               expires_in_seconds: handoff.expires_in_seconds,
+              scope: handoff.scope,
               initiative_id: handoff.initiative_id,
               locale: i18n.language,
             },

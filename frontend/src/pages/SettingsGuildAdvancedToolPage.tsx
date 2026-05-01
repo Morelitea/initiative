@@ -98,12 +98,16 @@ export const SettingsGuildAdvancedToolPage = () => {
         const handoff = handoffRef.current;
         const target = iframeRef.current?.contentWindow;
         if (handoff && target) {
+          // initiative_id is forwarded as null at guild scope so the
+          // envelope shape stays identical to the initiative-scoped
+          // handoff and the embed can dispatch on a single message type.
           target.postMessage(
             {
               type: "advanced-tool:handoff",
               handoff_token: handoff.handoff_token,
               expires_in_seconds: handoff.expires_in_seconds,
               scope: handoff.scope,
+              initiative_id: handoff.initiative_id,
               locale: i18n.language,
             },
             iframeOrigin
