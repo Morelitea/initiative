@@ -471,7 +471,7 @@ export const SpreadsheetDocumentEditor = ({
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
         onCopy={handleCopy}
-        className="focus-visible:outline-primary relative max-h-[70vh] flex-1 overflow-auto focus:outline-none focus-visible:outline focus-visible:outline-2"
+        className="focus-visible:outline-primary relative min-h-0 flex-1 overflow-auto focus:outline-none focus-visible:outline focus-visible:outline-2"
       >
         <div
           style={{

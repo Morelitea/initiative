@@ -1329,7 +1329,7 @@ export const DocumentDetailPage = () => {
                   }
                   documentTitle={title || document.title}
                   readOnly={!canEditDocument}
-                  className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                  className={cn("max-h-[70vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
                 />
               ) : (
                 <Editor
