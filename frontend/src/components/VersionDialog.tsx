@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Markdown } from "@/components/Markdown";
 import { useChangelog } from "@/hooks/useSettings";
 import { cn } from "@/lib/utils";
 
@@ -62,63 +63,6 @@ export const VersionDialog = ({
 
   const handleReload = () => {
     window.location.reload();
-  };
-
-  interface ChangelogItem {
-    text: string;
-    children: string[];
-  }
-
-  // Parse changelog markdown into sections with nested items
-  const parseChangelog = (text: string) => {
-    const sections: { title: string; items: ChangelogItem[] }[] = [];
-    const lines = text.split("\n");
-
-    let currentSection: { title: string; items: ChangelogItem[] } | null = null;
-    let currentItem: ChangelogItem | null = null;
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      // Section headers like "### Added"
-      if (trimmed.startsWith("### ")) {
-        if (currentSection) {
-          if (currentItem) {
-            currentSection.items.push(currentItem);
-            currentItem = null;
-          }
-          sections.push(currentSection);
-        }
-        currentSection = {
-          title: trimmed.replace("### ", ""),
-          items: [],
-        };
-      }
-      // Nested list items (indented with spaces before "- ")
-      else if (line.match(/^\s{2,}- /) && currentItem && currentSection) {
-        currentItem.children.push(trimmed.replace("- ", ""));
-      }
-      // Top-level list items
-      else if (trimmed.startsWith("- ") && currentSection) {
-        if (currentItem) {
-          currentSection.items.push(currentItem);
-        }
-        currentItem = {
-          text: trimmed.replace("- ", ""),
-          children: [],
-        };
-      }
-    }
-
-    // Don't forget the last item and section
-    if (currentSection) {
-      if (currentItem) {
-        currentSection.items.push(currentItem);
-      }
-      sections.push(currentSection);
-    }
-
-    return sections;
   };
 
   const dialogContent = (
@@ -206,60 +150,27 @@ export const VersionDialog = ({
           ) : data?.entries && data.entries.length > 0 ? (
             <ScrollArea className="flex-1">
               <div className="space-y-6 pr-6">
-                {data.entries.map((entry, entryIdx) => {
-                  const sections = parseChangelog(entry.changes);
-                  return (
-                    <div key={entry.version} className={entryIdx > 0 ? "border-t pt-6" : ""}>
-                      <div className="mb-4 border-b pb-2">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-base font-semibold">
-                            {t("version.version", { version: entry.version })}
-                          </h4>
-                          <Badge variant="outline" className="text-xs">
-                            {entry.date}
-                          </Badge>
-                        </div>
+                {data.entries.map((entry, entryIdx) => (
+                  <div key={entry.version} className={entryIdx > 0 ? "border-t pt-6" : ""}>
+                    <div className="mb-4 border-b pb-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-semibold">
+                          {t("version.version", { version: entry.version })}
+                        </h4>
+                        <Badge variant="outline" className="text-xs">
+                          {entry.date}
+                        </Badge>
                       </div>
-
-                      {sections.length > 0 ? (
-                        <div className="space-y-4">
-                          {sections.map((section, idx) => (
-                            <div key={idx}>
-                              <h5 className="mb-2 text-sm font-semibold">{section.title}</h5>
-                              <ul className="text-muted-foreground space-y-1 text-sm">
-                                {section.items.map((item, itemIdx) => (
-                                  <li key={itemIdx}>
-                                    <div className="flex gap-2">
-                                      <span className="text-primary shrink-0">•</span>
-                                      <span>{item.text}</span>
-                                    </div>
-                                    {item.children.length > 0 && (
-                                      <ul className="mt-1 ml-4 space-y-1">
-                                        {item.children.map((child, childIdx) => (
-                                          <li key={childIdx} className="flex gap-2">
-                                            {/* eslint-disable-next-line i18next/no-literal-string */}
-                                            <span className="text-muted-foreground shrink-0">
-                                              ◦
-                                            </span>
-                                            <span>{child}</span>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground text-sm">
-                          {t("version.noDetailedChanges")}
-                        </p>
-                      )}
                     </div>
-                  );
-                })}
+                    {entry.changes.trim() ? (
+                      <Markdown content={entry.changes} />
+                    ) : (
+                      <p className="text-muted-foreground text-sm">
+                        {t("version.noDetailedChanges")}
+                      </p>
+                    )}
+                  </div>
+                ))}
               </div>
             </ScrollArea>
           ) : (
