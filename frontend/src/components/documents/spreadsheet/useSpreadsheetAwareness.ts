@@ -121,9 +121,19 @@ export const useSpreadsheetAwareness = ({
   }, [enabled, awareness, clientId]);
 
   const peerSelectionsByCell = useMemo(() => {
+    // When two or more peers have the same cell selected, pick the
+    // most-recently-updated one so the overlay is deterministic
+    // instead of "last-seen-by-Map.set wins". v1 only renders one
+    // ring per cell; if multi-peer overlap becomes common we'd swap
+    // this for a stacked-rings UI, but losing one indicator silently
+    // is the bug to avoid right now.
     const m = new Map<string, SpreadsheetPeer>();
     for (const peer of peers) {
-      m.set(`${peer.selection.row}:${peer.selection.col}`, peer);
+      const key = `${peer.selection.row}:${peer.selection.col}`;
+      const existing = m.get(key);
+      if (!existing || peer.selection.updatedAt > existing.selection.updatedAt) {
+        m.set(key, peer);
+      }
     }
     return m;
   }, [peers]);

@@ -163,6 +163,14 @@ export const DocumentDetailPage = () => {
   const [whiteboardAwareness, setWhiteboardAwareness] = useState<ProviderAwareness | null>(null);
   const [spreadsheetYDoc, setSpreadsheetYDoc] = useState<Y.Doc | null>(null);
   const [spreadsheetAwareness, setSpreadsheetAwareness] = useState<ProviderAwareness | null>(null);
+  // Memoized so the spreadsheet editor's awareness effects key on the
+  // user identity rather than the inline-object reference, which would
+  // change every parent render and broadcast spurious presence
+  // updates.
+  const spreadsheetCurrentUser = useMemo(
+    () => (user ? { id: user.id, name: user.full_name || user.email || "Anonymous" } : null),
+    [user]
+  );
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -1364,9 +1372,7 @@ export const DocumentDetailPage = () => {
                   awareness={
                     collaborationEnabled && collaboration.isReady ? spreadsheetAwareness : null
                   }
-                  currentUser={
-                    user ? { id: user.id, name: user.full_name || user.email || "Anonymous" } : null
-                  }
+                  currentUser={spreadsheetCurrentUser}
                   className={cn("max-h-[70vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
                 />
               ) : (

@@ -161,7 +161,17 @@ export const SpreadsheetDocumentEditor = ({
   useEffect(() => {
     onContentChangeRef.current = onContentChange;
   }, [onContentChange]);
+  // Skip the on-mount run. Without this guard, opening a doc would
+  // immediately emit a snapshot, flip ``isDirty`` (the parent's dirty
+  // check sees a fresh-reference content object), and trigger the
+  // autosave 10s timer despite no user interaction. Only edits and
+  // remote yjs events should drive an emit.
+  const skipFirstEmitRef = useRef(true);
   useEffect(() => {
+    if (skipFirstEmitRef.current) {
+      skipFirstEmitRef.current = false;
+      return;
+    }
     const cellsObj: Record<string, CellValue> = {};
     for (const [key, value] of cells) cellsObj[key] = value;
     onContentChangeRef.current({
