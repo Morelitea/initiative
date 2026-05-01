@@ -994,10 +994,14 @@ export interface GuildUpdate {
   retention_days?: number | null;
 }
 
+export type ValidationErrorCtx = { [key: string]: unknown };
+
 export interface ValidationError {
   loc: (string | number)[];
   msg: string;
   type: string;
+  input?: unknown;
+  ctx?: ValidationErrorCtx;
 }
 
 export interface HTTPValidationError {
