@@ -172,6 +172,38 @@ def test_dev_flag_allows_loopback(monkeypatch):
 
 
 @pytest.mark.unit
+def test_http_to_private_with_flag_off_raises_invalid_not_private(monkeypatch):
+    """The error TYPE matters: the API endpoint maps
+    ``WebhookTargetUrlError`` to ``WEBHOOK_INVALID_TARGET_URL`` and
+    ``WebhookTargetUrlPrivateError`` to ``WEBHOOK_PRIVATE_TARGET_URL``,
+    so a flip changes the response code consumers see. With the flag
+    off, ``http://10.0.0.1`` is INVALID (the URL is structurally wrong
+    — http is forbidden in prod regardless of where it points), not
+    PRIVATE. Pinning this so a refactor can't silently change the
+    contract."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False)
+    with pytest.raises(WebhookTargetUrlError) as exc_info:
+        assert_target_url_is_public("http://10.0.0.1/hook")
+    # The PrivateError subclasses ValueError too, so an `isinstance`
+    # check would pass even if the type flipped — assert on the exact
+    # type to be precise.
+    assert type(exc_info.value) is WebhookTargetUrlError
+
+
+@pytest.mark.unit
+def test_https_to_private_with_flag_off_raises_private_not_invalid(monkeypatch):
+    """Symmetric: ``https://10.0.0.1`` should raise PRIVATE (the URL
+    is structurally fine, the address is the problem). Flag off."""
+    from app.core import config as config_module
+
+    monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False)
+    with pytest.raises(WebhookTargetUrlPrivateError):
+        assert_target_url_is_public("https://10.0.0.1/hook")
+
+
+@pytest.mark.unit
 def test_dev_flag_does_not_allow_http_to_public_hosts(monkeypatch):
     """The flag's name says ``ALLOW_PRIVATE_TARGETS`` — its scope is
     private targets only. Plain http to a public host MUST still be

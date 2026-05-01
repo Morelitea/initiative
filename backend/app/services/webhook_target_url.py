@@ -78,17 +78,18 @@ def _is_public_address(ip: ipaddress._BaseAddress) -> bool:
 def _parse_and_check_scheme(url: str) -> tuple[str, str]:
     """Parse the URL and validate scheme + presence of hostname.
 
-    Returns ``(host, scheme)`` for either ``http`` or ``https``. The
-    *scope* of which scheme is acceptable depends on the resolved
-    addresses too — that decision happens later in
-    :func:`_enforce_address_policy`. Doing it here would either reject
-    legitimate localhost dev (when the dev flag is on) or accept
-    ``http://attacker.com`` (when it shouldn't be) — the only way to
-    bind the relaxation to private targets specifically is to defer
-    until we've resolved.
+    With the dev flag off (production), reject anything other than
+    ``https`` immediately — this preserves the structural-invalid
+    error type for ``http://private-ip`` URLs (a plain ``http`` target
+    is structurally wrong regardless of where it points). With the
+    flag on, both ``http`` and ``https`` are tentatively accepted; the
+    final scheme + address combination is decided in
+    :func:`_enforce_address_policy` after DNS resolves, so we can bind
+    the ``http`` allowance to private targets specifically.
     """
     parsed = urlparse(url)
-    if parsed.scheme not in _ACCEPTED_SCHEMES:
+    allowed = _ACCEPTED_SCHEMES if _allow_private_targets() else frozenset({"https"})
+    if parsed.scheme not in allowed:
         allowed_desc = "https or http" if _allow_private_targets() else "https"
         raise WebhookTargetUrlError(
             f"unsupported scheme: {parsed.scheme!r} ({allowed_desc} required)"
