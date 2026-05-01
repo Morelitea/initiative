@@ -83,7 +83,9 @@ export const CreateDocumentDialog = ({
   );
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [isTemplateDocument, setIsTemplateDocument] = useState(false);
-  const [newDocumentType, setNewDocumentType] = useState<"native" | "whiteboard">("native");
+  const [newDocumentType, setNewDocumentType] = useState<"native" | "whiteboard" | "spreadsheet">(
+    "native"
+  );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [smartLinkUrl, setSmartLinkUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -283,7 +285,9 @@ export const CreateDocumentDialog = ({
               <Label htmlFor="create-doc-type">{t("create.documentTypeLabel")}</Label>
               <Select
                 value={newDocumentType}
-                onValueChange={(value) => setNewDocumentType(value as "native" | "whiteboard")}
+                onValueChange={(value) =>
+                  setNewDocumentType(value as "native" | "whiteboard" | "spreadsheet")
+                }
               >
                 <SelectTrigger id="create-doc-type">
                   <SelectValue />
@@ -291,6 +295,7 @@ export const CreateDocumentDialog = ({
                 <SelectContent>
                   <SelectItem value="native">{t("create.documentTypeText")}</SelectItem>
                   <SelectItem value="whiteboard">{t("create.documentTypeWhiteboard")}</SelectItem>
+                  <SelectItem value="spreadsheet">{t("create.documentTypeSpreadsheet")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>

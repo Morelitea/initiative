@@ -247,6 +247,7 @@
     "documentTypeLabel": "Tipo de documento",
     "documentTypeText": "Documento de texto",
     "documentTypeWhiteboard": "Pizarra",
+    "documentTypeSpreadsheet": "Hoja de cálculo",
     "documentTypeSmartLink": "Enlace inteligente",
     "smartLinkUrlLabel": "URL",
     "smartLinkUrlPlaceholder": "Pega un enlace",
@@ -336,6 +337,19 @@
     "loading": "Cargando pizarra\u2026",
     "syncing": "Sincronizando pizarra\u2026",
     "readOnly": "Tienes acceso de solo lectura a esta pizarra."
+  },
+  "spreadsheet": {
+    "exportCsv": "Exportar CSV",
+    "importCsv": "Importar CSV",
+    "exportSuccess": "Hoja de c\u00e1lculo exportada",
+    "exportError": "No se pudo exportar la hoja de c\u00e1lculo. Int\u00e9ntalo de nuevo.",
+    "fileTooLarge": "Ese archivo es inusualmente grande. Elige una exportaci\u00f3n m\u00e1s peque\u00f1a (\u226450 MB).",
+    "importEmpty": "Ese CSV est\u00e1 vac\u00edo.",
+    "importParseError": "No se pudo analizar ese archivo como CSV.",
+    "importConfirmTitle": "\u00bfReemplazar el contenido de la hoja de c\u00e1lculo?",
+    "importConfirmDescription": "Importar un CSV sobrescribir\u00e1 todas las celdas de esta hoja de c\u00e1lculo. Esto no se puede deshacer.",
+    "importConfirmAction": "Importar y reemplazar",
+    "importSuccess": "Hoja de c\u00e1lculo importada"
   },
   "sidePanel": {
     "title": "Panel del documento",

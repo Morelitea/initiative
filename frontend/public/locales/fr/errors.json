@@ -128,6 +128,7 @@
   "DOCUMENT_AI_NATIVE_ONLY": "La synthèse IA est uniquement disponible pour les documents natifs",
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Une URL est requise pour les documents de lien intelligent",
   "DOCUMENT_SMART_LINK_URL_INVALID": "Les URLs de lien intelligent doivent commencer par http:// ou https://",
+  "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "Le contenu de la feuille de calcul est invalide ou dans un format non pris en charge.",
   "DOCUMENT_INVALID_TAG_IDS": "Un ou plusieurs identifiants d'étiquettes sont invalides",
   "COMMENT_NOT_FOUND": "Commentaire introuvable",
   "COMMENT_PERMISSION_DENIED": "Non autorisé à commenter",

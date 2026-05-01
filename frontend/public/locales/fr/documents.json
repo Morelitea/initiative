@@ -247,6 +247,7 @@
     "documentTypeLabel": "Type de document",
     "documentTypeText": "Document texte",
     "documentTypeWhiteboard": "Tableau blanc",
+    "documentTypeSpreadsheet": "Feuille de calcul",
     "documentTypeSmartLink": "Lien intelligent",
     "smartLinkUrlLabel": "URL",
     "smartLinkUrlPlaceholder": "Collez un lien",
@@ -336,6 +337,19 @@
     "loading": "Chargement du tableau blanc\u2026",
     "syncing": "Synchronisation du tableau blanc\u2026",
     "readOnly": "Vous avez accès en lecture seule à ce tableau blanc."
+  },
+  "spreadsheet": {
+    "exportCsv": "Exporter en CSV",
+    "importCsv": "Importer un CSV",
+    "exportSuccess": "Feuille de calcul exportée",
+    "exportError": "Impossible d'exporter la feuille de calcul. Veuillez réessayer.",
+    "fileTooLarge": "Ce fichier est anormalement volumineux. Choisissez une exportation plus petite (≤50 Mo).",
+    "importEmpty": "Ce CSV est vide.",
+    "importParseError": "Impossible d'analyser ce fichier en CSV.",
+    "importConfirmTitle": "Remplacer le contenu de la feuille de calcul ?",
+    "importConfirmDescription": "L'importation d'un CSV écrasera toutes les cellules de cette feuille de calcul. Cette action est irréversible.",
+    "importConfirmAction": "Importer et remplacer",
+    "importSuccess": "Feuille de calcul importée"
   },
   "sidePanel": {
     "title": "Panneau du document",

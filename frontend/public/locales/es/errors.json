@@ -128,6 +128,7 @@
   "DOCUMENT_AI_NATIVE_ONLY": "La generación de resúmenes con IA solo está disponible para documentos nativos",
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Se requiere una URL para los documentos de enlace inteligente",
   "DOCUMENT_SMART_LINK_URL_INVALID": "Las URL de enlace inteligente deben comenzar con http:// o https://",
+  "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "El contenido de la hoja de cálculo no es válido o tiene un formato no compatible.",
   "DOCUMENT_INVALID_TAG_IDS": "Uno o más IDs de etiqueta no son válidos",
   "COMMENT_NOT_FOUND": "Comentario no encontrado",
   "COMMENT_PERMISSION_DENIED": "No autorizado para comentar",

@@ -56,6 +56,11 @@ const FileDocumentViewer = lazy(() =>
     default: m.FileDocumentViewer,
   }))
 );
+const SpreadsheetDocumentEditor = lazy(() =>
+  import("@/components/documents/SpreadsheetDocumentEditor").then((m) => ({
+    default: m.SpreadsheetDocumentEditor,
+  }))
+);
 const WhiteboardDocumentEditor = lazy(() =>
   import("@/components/documents/WhiteboardDocumentEditor").then((m) => ({
     default: m.WhiteboardDocumentEditor,
@@ -67,6 +72,7 @@ const SmartLinkDocumentViewer = lazy(() =>
   }))
 );
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
+import type { SpreadsheetContent } from "@/components/documents/SpreadsheetDocumentEditor";
 import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
 import type * as Y from "yjs";
 import type { ProviderAwareness } from "@lexical/yjs";
@@ -299,6 +305,10 @@ export const DocumentDetailPage = () => {
       setWhiteboardScene(scene);
       setWhiteboardSceneFromCache(fromCache);
       setWhiteboardSceneReady(true);
+    } else if (document.document_type === "spreadsheet") {
+      // Spreadsheet content is a sparse cell map dict, not a Lexical
+      // tree — bypass the Lexical normalizer and load the raw snapshot.
+      setContentState((document.content ?? {}) as unknown as SerializedEditorState);
     } else {
       setContentState(normalizedDocumentContent);
     }
@@ -1300,6 +1310,17 @@ export const DocumentDetailPage = () => {
                 <SmartLinkDocumentViewer
                   key={parsedId}
                   content={document.content as unknown as SmartLinkContent | null}
+                  className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                />
+              ) : document.document_type === "spreadsheet" ? (
+                <SpreadsheetDocumentEditor
+                  key={parsedId}
+                  initialContent={(document.content ?? {}) as unknown as SpreadsheetContent}
+                  onContentChange={(content) =>
+                    handleContentChange(content as unknown as SerializedEditorState)
+                  }
+                  documentTitle={title || document.title}
+                  readOnly={!canEditDocument}
                   className={cn(isFullscreen && "h-full min-h-0 flex-1")}
                 />
               ) : (
