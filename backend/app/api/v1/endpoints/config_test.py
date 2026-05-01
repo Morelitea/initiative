@@ -97,6 +97,50 @@ async def test_config_extends_allowed_origins_with_operator_list(
 
 
 @pytest.mark.integration
+async def test_config_strips_default_ports_to_match_browser_origin(
+    client: AsyncClient, monkeypatch
+):
+    """``new URL(url).origin`` in browsers strips the port if it's the
+    scheme default (443 for https, 80 for http). The backend must do the
+    same when computing the iframe origin, otherwise an operator who
+    explicitly writes ``https://embed.example.com:443`` ends up with an
+    allowlist entry that never matches the browser's normalized
+    ``event.origin``. Non-default ports are preserved as-is."""
+    monkeypatch.setattr(
+        settings, "ADVANCED_TOOL_URL", "https://embed.example.com:443"
+    )
+    monkeypatch.setattr(settings, "ADVANCED_TOOL_NAME", "Automations")
+    monkeypatch.setattr(settings, "ADVANCED_TOOL_ALLOWED_ORIGINS", [])
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    body = response.json()
+    # Default port stripped — matches what the browser produces
+    assert body["advanced_tool"]["allowed_origins"] == [
+        "https://embed.example.com"
+    ]
+
+
+@pytest.mark.integration
+async def test_config_preserves_non_default_ports(
+    client: AsyncClient, monkeypatch
+):
+    """Non-default ports must round-trip — a localhost-with-port deploy
+    (e.g. dev) breaks if the port disappears."""
+    monkeypatch.setattr(settings, "ADVANCED_TOOL_URL", "http://localhost:9001")
+    monkeypatch.setattr(settings, "ADVANCED_TOOL_NAME", "Automations")
+    monkeypatch.setattr(settings, "ADVANCED_TOOL_ALLOWED_ORIGINS", [])
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["advanced_tool"]["allowed_origins"] == [
+        "http://localhost:9001"
+    ]
+
+
+@pytest.mark.integration
 async def test_config_dedupes_iframe_origin_in_allowlist(
     client: AsyncClient, monkeypatch
 ):

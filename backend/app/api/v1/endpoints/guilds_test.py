@@ -666,7 +666,10 @@ async def test_guild_advanced_tool_handoff_succeeds_for_admin(
     payload = jwt.decode(
         body["handoff_token"],
         app_settings.SECRET_KEY,
-        algorithms=[app_settings.ALGORITHM],
+        # Hardcoded HS256 — the handoff signing path uses HS256 in its
+        # no-private-key fallback regardless of settings.ALGORITHM. See
+        # initiatives_test.py for the same rationale.
+        algorithms=["HS256"],
         audience=ADVANCED_TOOL_AUDIENCE,
     )
     assert payload["sub"] == str(admin.id)

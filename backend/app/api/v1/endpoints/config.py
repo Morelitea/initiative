@@ -45,14 +45,28 @@ class AppConfig(BaseModel):
     advanced_tool: Optional[AdvancedToolConfig] = None
 
 
+# Default ports the WHATWG URL spec strips from origin strings. If the
+# operator includes ``:443`` or ``:80`` explicitly in ADVANCED_TOOL_URL,
+# we drop it here so the allowlist matches what the browser will compare
+# ``event.origin`` against (browsers normalize default ports out).
+_DEFAULT_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
+
+
 def _origin_from_url(url: str) -> str:
     """Extract the ``scheme://host[:port]`` origin from a full URL.
 
-    Mirrors what ``new URL(url).origin`` returns in the browser, so the
-    default allowlist matches the SPA's existing inbound check.
+    Mirrors what ``new URL(url).origin`` returns in the browser, including
+    the WHATWG default-port normalization (``:443`` for ``https`` and
+    ``:80`` for ``http`` are stripped from the origin), so the allowlist
+    we hand to the SPA always matches the values the browser will produce
+    for inbound postMessage events.
     """
     parts = urlsplit(url)
-    return f"{parts.scheme}://{parts.netloc}"
+    host = parts.hostname or ""
+    port = parts.port
+    if port is not None and port != _DEFAULT_PORTS.get(parts.scheme):
+        return f"{parts.scheme}://{host}:{port}"
+    return f"{parts.scheme}://{host}"
 
 
 @router.get("/config", response_model=AppConfig)
