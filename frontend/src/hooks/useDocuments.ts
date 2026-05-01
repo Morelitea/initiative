@@ -249,7 +249,7 @@ export type CreateDocumentInput = {
   template_id?: number;
   project_id?: number;
   /** Omit for native (text) documents; file uploads go through useUploadDocument instead. */
-  document_type?: "native" | "whiteboard" | "smart_link";
+  document_type?: "native" | "whiteboard" | "smart_link" | "spreadsheet";
   /** Required for smart_link ({ url: "..." }). Optional/unused for other types. */
   content?: Record<string, unknown>;
   role_grants?: DocumentRolePermissionCreate[];

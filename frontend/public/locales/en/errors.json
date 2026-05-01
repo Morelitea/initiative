@@ -128,6 +128,7 @@
   "DOCUMENT_AI_NATIVE_ONLY": "AI summarization is only available for native documents",
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "A URL is required for smart-link documents",
   "DOCUMENT_SMART_LINK_URL_INVALID": "Smart-link URLs must start with http:// or https://",
+  "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "The spreadsheet content is invalid or in an unsupported format.",
   "DOCUMENT_INVALID_TAG_IDS": "One or more tag IDs are invalid",
   "COMMENT_NOT_FOUND": "Comment not found",
   "COMMENT_PERMISSION_DENIED": "Not authorized to comment",

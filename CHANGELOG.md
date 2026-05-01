@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Spreadsheet documents.** Pick **Spreadsheet** from the document-type dropdown when creating a new document to get a virtualized cell grid that scrolls horizontally and vertically without bound. Edit cells with click + type / Enter / Tab / arrow keys; copy and paste between cells (and from Numbers / Excel / Sheets — multi-row / multi-column blocks expand into the grid). Toolbar buttons export the sheet as CSV or import a CSV file. Cells store strings, numbers, booleans, or blanks; numeric- and boolean-looking inputs get auto-coerced to the right type. Real-time collaboration (other users' selected cells visible, edits sync over the existing whiteboard collab infrastructure) lands in a follow-up.
+
 - **Webhook subscriptions for the advanced-tool service.** Outbound HMAC-signed event delivery (sha256 over `timestamp + "." + body`) so the embed can react to writes (e.g. `task.created`) without polling. Subscriptions are guild-scoped, RLS-protected, and the HMAC secret is returned only at create time. _Note: likely temporary scaffolding for testing the embed integration; expect the contract to shift as it shakes out._
 
 - **Delegation auth for the advanced-tool service.** Accept short-lived RS256-signed JWTs from the embed's backend so it can call Initiative on a user's behalf. Existing RLS + role-permission checks still gate every action — delegation answers only "who is acting." Deactivated users can't be impersonated. Disabled by default; opt in with `AUTO_DELEGATION_PUBLIC_KEY_PEM`.
