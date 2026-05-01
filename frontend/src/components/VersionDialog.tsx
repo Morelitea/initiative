@@ -47,7 +47,7 @@ export const VersionDialog = ({
   // In update mode, show the new version's changelog only
   // In info mode, show last 5 versions
   const versionToShow = mode === "update" && newVersion ? newVersion : undefined;
-  const limit = mode === "update" ? 1 : 5;
+  const limit = mode === "update" ? 1 : 20;
 
   const changelogParams: { version?: string; limit?: number } = {};
   if (versionToShow) {
