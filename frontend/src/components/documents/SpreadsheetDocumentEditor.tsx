@@ -527,7 +527,16 @@ export const SpreadsheetDocumentEditor = ({
           <div
             className="sticky left-0 z-10"
             style={{
-              top: 0,
+              // No ``top``: setting one on a position:sticky element
+              // makes it stick vertically too (pinning to viewport-top
+              // when its natural position would scroll above the
+              // threshold), which would freeze the strip in place
+              // while the absolutely-positioned row labels inside —
+              // at ``top: row.start`` relative to the strip — slide
+              // off-screen as scrollTop grows. Letting the strip flow
+              // naturally below the column-header strip keeps row
+              // labels aligned with the cells they describe and lets
+              // the strip scroll vertically with the canvas.
               width: ROW_HEADER_WIDTH,
               height: totalGridHeight,
             }}
