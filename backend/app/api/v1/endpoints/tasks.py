@@ -50,6 +50,7 @@ from app.schemas.ai_generation import GenerateSubtasksResponse, GenerateDescript
 from app.schemas.tag import TagSummary, TagSetRequest
 from app.schemas.property import PropertyValuesSetRequest
 from app.services.realtime import broadcast_event
+from app.services import webhook_dispatcher
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
 from app.services.recurrence import get_next_due_date
@@ -1169,6 +1170,17 @@ async def create_task(
     if task is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_CREATE)
     await broadcast_event("task", "created", _task_payload(task))
+    # Outbound webhook dispatch — fire-and-log; failures don't block the
+    # user's write. Only one event source for now (PR2.2 scope); other
+    # mutators get the same one-liner in follow-up PRs once the contract
+    # has shaken out under real load.
+    await webhook_dispatcher.dispatch_event(
+        session,
+        event_type="task.created",
+        guild_id=guild_context.guild_id,
+        initiative_id=task.project.initiative_id if task.project else None,
+        payload=_task_payload(task),
+    )
     return task
 
 

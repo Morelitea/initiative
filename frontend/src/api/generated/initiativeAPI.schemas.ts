@@ -2870,6 +2870,68 @@ export interface VikunjaParseResult {
 }
 
 /**
+ * Body for ``POST /api/v1/auto/subscriptions``.
+
+Initiative-id and guild-id are NOT taken from the body — they
+come from the caller's delegation token (guild) and an optional
+delegation initiative_id claim. ``workflow_id`` is opaque to us;
+we just store it so dispatched events can reference it.
+ */
+export interface WebhookSubscriptionCreate {
+  /**
+   * @minLength 1
+   * @maxLength 2083
+   */
+  target_url: string;
+  /** @minItems 1 */
+  event_types: string[];
+  initiative_id?: number | null;
+  workflow_id?: number | null;
+}
+
+/**
+ * One-time create response — includes the freshly-minted HMAC secret
+so the receiver can record it. Never re-emitted on subsequent reads.
+ */
+export interface WebhookSubscriptionCreated {
+  id: number;
+  guild_id: number;
+  initiative_id: number | null;
+  workflow_id: number | null;
+  created_by_user_id: number;
+  target_url: string;
+  event_types: string[];
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  hmac_secret: string;
+}
+
+/**
+ * Public view. Notably ``hmac_secret`` is NOT in here — once minted
+on create it never leaves the DB again. Receivers either store the
+secret from the create response or rotate the subscription.
+ */
+export interface WebhookSubscriptionRead {
+  id: number;
+  guild_id: number;
+  initiative_id: number | null;
+  workflow_id: number | null;
+  created_by_user_id: number;
+  target_url: string;
+  event_types: string[];
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebhookSubscriptionUpdate {
+  target_url?: string | null;
+  event_types?: string[] | null;
+  active?: boolean | null;
+}
+
+/**
  * Comparison operators for filter conditions.
 
 Negation is handled by the ``negate`` flag on FilterCondition,
