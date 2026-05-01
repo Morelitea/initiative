@@ -89,8 +89,9 @@ def _parse_and_check_scheme(url: str) -> tuple[str, str]:
     """
     parsed = urlparse(url)
     if parsed.scheme not in _ACCEPTED_SCHEMES:
+        allowed_desc = "https or http" if _allow_private_targets() else "https"
         raise WebhookTargetUrlError(
-            f"unsupported scheme: {parsed.scheme!r} (only http/https accepted)"
+            f"unsupported scheme: {parsed.scheme!r} ({allowed_desc} required)"
         )
     if not parsed.hostname:
         raise WebhookTargetUrlError("missing hostname")
