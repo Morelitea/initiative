@@ -105,13 +105,12 @@ export const SpreadsheetDocumentEditor = ({
 
   const sanitizedInitial = useMemo(() => sanitizeContent(initialContent), [initialContent]);
 
-  const { cells, setCell, bulkUpdate, replaceAll } = useSpreadsheetCells({
-    yDoc,
-    initialCells: sanitizedInitial.cells,
-  });
-
-  const [dimensions, setDimensions] = useState<{ rows: number; cols: number }>(
-    sanitizedInitial.dimensions
+  const { cells, dimensions, setCell, setDimensions, bulkUpdate, replaceAll } = useSpreadsheetCells(
+    {
+      yDoc,
+      initialCells: sanitizedInitial.cells,
+      initialDimensions: sanitizedInitial.dimensions,
+    }
   );
   const [selected, setSelected] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
   const [editing, setEditing] = useState<{ row: number; col: number; draft: string } | null>(null);
@@ -126,8 +125,9 @@ export const SpreadsheetDocumentEditor = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-grow dimensions when the cell map (local or remote) writes
-  // past the current canvas. Reactive via effect so we don't have to
-  // tangle this into the cells hook itself.
+  // past the current canvas. Routed through the hook's
+  // ``setDimensions`` so collab peers see the new size — the hook
+  // writes to ``Y.Map<"meta">`` when ``yDoc`` is non-null.
   useEffect(() => {
     let maxRow = -1;
     let maxCol = -1;
@@ -139,13 +139,12 @@ export const SpreadsheetDocumentEditor = ({
       if (r > maxRow) maxRow = r;
       if (c > maxCol) maxCol = c;
     }
-    setDimensions((prev) => {
-      const nextRows = Math.min(Math.max(maxRow + 1, prev.rows), MAX_ROWS);
-      const nextCols = Math.min(Math.max(maxCol + 1, prev.cols), MAX_COLS);
-      if (nextRows === prev.rows && nextCols === prev.cols) return prev;
-      return { rows: nextRows, cols: nextCols };
-    });
-  }, [cells]);
+    const nextRows = Math.min(Math.max(maxRow + 1, dimensions.rows), MAX_ROWS);
+    const nextCols = Math.min(Math.max(maxCol + 1, dimensions.cols), MAX_COLS);
+    if (nextRows !== dimensions.rows || nextCols !== dimensions.cols) {
+      setDimensions({ rows: nextRows, cols: nextCols });
+    }
+  }, [cells, dimensions, setDimensions]);
 
   // Emit the JSON snapshot to the parent on every change so the
   // existing autosave hook can PATCH ``document.content``. This
@@ -198,29 +197,31 @@ export const SpreadsheetDocumentEditor = ({
   });
 
   // Auto-grow the canvas when scrolling near the edge so the grid feels
-  // unbounded. We never shrink — empty rows / cols are cheap.
+  // unbounded. We never shrink — empty rows / cols are cheap. Routed
+  // through the hook's setDimensions so peers see the same canvas
+  // size (one source of truth in ``Y.Map<"meta">``).
   const virtualRows = rowVirtualizer.getVirtualItems();
   const virtualCols = colVirtualizer.getVirtualItems();
   useEffect(() => {
     if (virtualRows.length === 0) return;
     const lastRow = virtualRows[virtualRows.length - 1].index;
     if (lastRow >= dimensions.rows - GROW_THRESHOLD && dimensions.rows < MAX_ROWS) {
-      setDimensions((d) => ({
-        ...d,
-        rows: Math.min(d.rows + ROW_GROWTH_STEP, MAX_ROWS),
-      }));
+      setDimensions({
+        rows: Math.min(dimensions.rows + ROW_GROWTH_STEP, MAX_ROWS),
+        cols: dimensions.cols,
+      });
     }
-  }, [virtualRows, dimensions.rows]);
+  }, [virtualRows, dimensions, setDimensions]);
   useEffect(() => {
     if (virtualCols.length === 0) return;
     const lastCol = virtualCols[virtualCols.length - 1].index;
     if (lastCol >= dimensions.cols - GROW_THRESHOLD && dimensions.cols < MAX_COLS) {
-      setDimensions((d) => ({
-        ...d,
-        cols: Math.min(d.cols + COL_GROWTH_STEP, MAX_COLS),
-      }));
+      setDimensions({
+        rows: dimensions.rows,
+        cols: Math.min(dimensions.cols + COL_GROWTH_STEP, MAX_COLS),
+      });
     }
-  }, [virtualCols, dimensions.cols]);
+  }, [virtualCols, dimensions, setDimensions]);
 
   const moveSelection = useCallback((dRow: number, dCol: number) => {
     setSelected((prev) => {
@@ -432,8 +433,7 @@ export const SpreadsheetDocumentEditor = ({
 
   const confirmImport = useCallback(() => {
     if (!pendingImport) return;
-    replaceAll(pendingImport.cells);
-    setDimensions({
+    replaceAll(pendingImport.cells, {
       rows: Math.min(Math.max(pendingImport.rows, DEFAULT_ROWS), MAX_ROWS),
       cols: Math.min(Math.max(pendingImport.cols, DEFAULT_COLS), MAX_COLS),
     });
