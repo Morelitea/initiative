@@ -186,6 +186,50 @@ class DeletionEligibilityResponse(BaseModel):
     last_admin_guilds: List[str] = Field(default_factory=list)
 
 
+class GuildRemovalProjectInfo(BaseModel):
+    """Per-project payload on ``GuildRemovalEligibilityResponse``.
+
+    Bundles the candidate transfer recipients next to the project so
+    the SPA can render the picker without a second round-trip. The
+    leave-guild path uses ``GET /users/me/initiative-members/...``
+    instead — but a guild admin removing someone may not themselves
+    be a member of every initiative the target user belongs to, so
+    that endpoint isn't always callable from this flow.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    initiative_id: int
+    candidates: List[UserPublic] = Field(default_factory=list)
+
+
+class GuildRemovalEligibilityResponse(BaseModel):
+    """Pre-flight info for ``DELETE /users/{user_id}`` (guild admin
+    removes a member from their guild).
+
+    Mirrors the leave-guild eligibility shape for the same reason: the
+    SPA needs to know up-front whether the admin will be prompted to
+    pick replacement owners for projects the target user owns. Without
+    this, the existing one-click "remove member" path silently
+    orphaned every project where the leaving user was sole owner.
+    """
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    can_remove: bool
+    sole_pm_initiatives: List[str] = Field(default_factory=list)
+    owned_projects: List[GuildRemovalProjectInfo] = Field(default_factory=list)
+
+
+class GuildRemovalRequest(BaseModel):
+    """Body for ``DELETE /users/{user_id}``. ``project_transfers`` keys
+    must cover every project ``user_id`` owns in the active guild and
+    each value must be an active member that can take ownership."""
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    project_transfers: Dict[int, int] = Field(default_factory=dict)
+
+
 class AccountDeletionResponse(BaseModel):
     """Response after a deactivate / anonymize / hard-delete action."""
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)

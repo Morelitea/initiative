@@ -28,6 +28,7 @@
   "CANNOT_LEAVE_LAST_ADMIN": "Cannot leave guild: you are the last admin. Promote another user to admin first.",
   "CANNOT_LEAVE_SOLE_PM": "Cannot leave guild: you are the sole project manager. Promote another member first.",
   "CANNOT_LEAVE_OWNS_PROJECTS": "Cannot leave guild: you still own projects in it. Pick a new owner for each before leaving.",
+  "CANNOT_REMOVE_OWNS_PROJECTS": "Cannot remove member: they still own projects in this guild. Pick a new owner for each before removing them.",
   "PROJECT_TRANSFER_RECIPIENT_INVALID": "Project transfer target isn't a valid active member.",
   "INVITE_NOT_FOUND": "Invite code not found",
   "INVITE_EXPIRED_OR_USED": "Invite has expired or has already been used",

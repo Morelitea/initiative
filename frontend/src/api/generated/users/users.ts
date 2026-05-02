@@ -29,6 +29,8 @@ import type {
   DeletionEligibilityResponse,
   ExportUsersCsvApiV1UsersExportCsvGetParams,
   GetUserStatsApiV1UsersMeStatsGetParams,
+  GuildRemovalEligibilityResponse,
+  GuildRemovalRequest,
   HTTPValidationError,
   UserCreate,
   UserGuildMember,
@@ -841,10 +843,20 @@ export const useUpdateUserApiV1UsersUserIdPatch = <
  */
 export const deleteUserApiV1UsersUserIdDelete = (
   userId: number,
+  guildRemovalRequestNull: BodyType<GuildRemovalRequest | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>({ url: `/api/v1/users/${userId}`, method: "DELETE", signal }, options);
+  return apiMutator<void>(
+    {
+      url: `/api/v1/users/${userId}`,
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      data: guildRemovalRequestNull,
+      signal,
+    },
+    options
+  );
 };
 
 export const getDeleteUserApiV1UsersUserIdDeleteMutationOptions = <
@@ -854,14 +866,14 @@ export const getDeleteUserApiV1UsersUserIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
     TError,
-    { userId: number },
+    { userId: number; data: BodyType<GuildRemovalRequest | null> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
   TError,
-  { userId: number },
+  { userId: number; data: BodyType<GuildRemovalRequest | null> },
   TContext
 > => {
   const mutationKey = ["deleteUserApiV1UsersUserIdDelete"];
@@ -873,11 +885,11 @@ export const getDeleteUserApiV1UsersUserIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
-    { userId: number }
+    { userId: number; data: BodyType<GuildRemovalRequest | null> }
   > = (props) => {
-    const { userId } = props ?? {};
+    const { userId, data } = props ?? {};
 
-    return deleteUserApiV1UsersUserIdDelete(userId, requestOptions);
+    return deleteUserApiV1UsersUserIdDelete(userId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -886,7 +898,7 @@ export const getDeleteUserApiV1UsersUserIdDeleteMutationOptions = <
 export type DeleteUserApiV1UsersUserIdDeleteMutationResult = NonNullable<
   Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>
 >;
-
+export type DeleteUserApiV1UsersUserIdDeleteMutationBody = BodyType<GuildRemovalRequest | null>;
 export type DeleteUserApiV1UsersUserIdDeleteMutationError = ErrorType<HTTPValidationError>;
 
 /**
@@ -900,7 +912,7 @@ export const useDeleteUserApiV1UsersUserIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
       TError,
-      { userId: number },
+      { userId: number; data: BodyType<GuildRemovalRequest | null> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -909,7 +921,7 @@ export const useDeleteUserApiV1UsersUserIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof deleteUserApiV1UsersUserIdDelete>>,
   TError,
-  { userId: number },
+  { userId: number; data: BodyType<GuildRemovalRequest | null> },
   TContext
 > => {
   return useMutation(getDeleteUserApiV1UsersUserIdDeleteMutationOptions(options), queryClient);
@@ -1752,3 +1764,219 @@ export const useDeleteMyApiKeyApiV1UsersMeApiKeysApiKeyIdDelete = <
     queryClient
   );
 };
+/**
+ * Pre-flight info for the guild admin's remove-member action.
+
+The SPA calls this before opening the confirm dialog so it knows
+whether to prompt for project-ownership transfers (the same way
+self-leave does). Without this, the user table's "Remove" button
+would silently orphan every project the target user owned.
+ * @summary Check Guild Removal Eligibility
+ */
+export const checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet = (
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<GuildRemovalEligibilityResponse>(
+    { url: `/api/v1/users/${userId}/guild-removal-eligibility`, method: "GET", signal },
+    options
+  );
+};
+
+export const getCheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGetQueryKey = (
+  userId: number
+) => {
+  return [`/api/v1/users/${userId}/guild-removal-eligibility`] as const;
+};
+
+export const getCheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGetQueryOptions =
+  <
+    TData = Awaited<
+      ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+    >,
+    TError = ErrorType<HTTPValidationError>,
+  >(
+    userId: number,
+    options?: {
+      query?: Partial<
+        UseQueryOptions<
+          Awaited<
+            ReturnType<
+              typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet
+            >
+          >,
+          TError,
+          TData
+        >
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    }
+  ) => {
+    const { query: queryOptions, request: requestOptions } = options ?? {};
+
+    const queryKey =
+      queryOptions?.queryKey ??
+      getCheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGetQueryKey(userId);
+
+    const queryFn: QueryFunction<
+      Awaited<
+        ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+      >
+    > = ({ signal }) =>
+      checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet(
+        userId,
+        requestOptions,
+        signal
+      );
+
+    return { queryKey, queryFn, enabled: !!userId, ...queryOptions } as UseQueryOptions<
+      Awaited<
+        ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+      >,
+      TError,
+      TData
+    > & { queryKey: DataTag<QueryKey, TData, TError> };
+  };
+
+export type CheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGetQueryResult =
+  NonNullable<
+    Awaited<
+      ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+    >
+  >;
+export type CheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useCheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet<
+  TData = Awaited<
+    ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet<
+  TData = Awaited<
+    ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+        >,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<
+              typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet
+            >
+          >,
+          TError,
+          Awaited<
+            ReturnType<
+              typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet
+            >
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useCheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet<
+  TData = Awaited<
+    ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Check Guild Removal Eligibility
+ */
+
+export function useCheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet<
+  TData = Awaited<
+    ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  userId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<
+          ReturnType<typeof checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet>
+        >,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getCheckGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGetQueryOptions(
+      userId,
+      options
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

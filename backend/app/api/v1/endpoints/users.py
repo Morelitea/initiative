@@ -32,6 +32,9 @@ from app.schemas.user import (
     AccountDeletionRequest,
     AccountDeletionResponse,
     DeletionEligibilityResponse,
+    GuildRemovalEligibilityResponse,
+    GuildRemovalProjectInfo,
+    GuildRemovalRequest,
     ProjectBasic,
     UserPublic,
 )
@@ -41,7 +44,7 @@ from app.schemas.api_key import (
     ApiKeyListResponse,
 )
 from app.schemas.stats import UserStatsResponse
-from app.core.messages import AuthMessages, UserMessages
+from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
@@ -712,12 +715,88 @@ async def delete_my_api_key(
 
 
 
+@router.get(
+    "/{user_id}/guild-removal-eligibility",
+    response_model=GuildRemovalEligibilityResponse,
+)
+async def check_guild_removal_eligibility(
+    user_id: int,
+    session: SessionDep,
+    current_admin: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> GuildRemovalEligibilityResponse:
+    """Pre-flight info for the guild admin's remove-member action.
+
+    The SPA calls this before opening the confirm dialog so it knows
+    whether to prompt for project-ownership transfers (the same way
+    self-leave does). Without this, the user table's "Remove" button
+    would silently orphan every project the target user owned.
+    """
+    await set_rls_context(
+        session,
+        user_id=current_admin.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_admin.role == UserRole.admin),
+    )
+
+    sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
+        session, user_id, guild_id=guild_context.guild_id
+    )
+    sole_pm_names = [initiative.name for initiative in sole_pm_initiatives]
+
+    owned_projects = await users_service.get_owned_projects_in_guild(
+        session, user_id, guild_context.guild_id
+    )
+    # Bundle transfer candidates per-project so the SPA can render the
+    # picker in one round trip. We can't reuse
+    # ``GET /users/me/initiative-members`` because the admin doing the
+    # removal isn't required to be a member of every initiative the
+    # target user belongs to.
+    owned_project_infos: list[GuildRemovalProjectInfo] = []
+    candidate_cache: dict[int, list[UserPublic]] = {}
+    for project in owned_projects:
+        candidates = candidate_cache.get(project.initiative_id)
+        if candidates is None:
+            candidate_users = (
+                await session.exec(
+                    select(User)
+                    .join(InitiativeMember, InitiativeMember.user_id == User.id)
+                    .where(
+                        InitiativeMember.initiative_id == project.initiative_id,
+                        User.status == UserStatus.active,
+                        User.id != user_id,
+                    )
+                    .order_by(User.full_name, User.id)
+                )
+            ).all()
+            candidates = [UserPublic.model_validate(u) for u in candidate_users]
+            candidate_cache[project.initiative_id] = candidates
+        owned_project_infos.append(
+            GuildRemovalProjectInfo(
+                id=project.id,
+                name=project.name,
+                initiative_id=project.initiative_id,
+                candidates=candidates,
+            )
+        )
+
+    can_remove = len(sole_pm_names) == 0 and len(owned_project_infos) == 0
+
+    return GuildRemovalEligibilityResponse(
+        can_remove=can_remove,
+        sole_pm_initiatives=sole_pm_names,
+        owned_projects=owned_project_infos,
+    )
+
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
     session: SessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
+    body: GuildRemovalRequest | None = None,
 ) -> None:
     await set_rls_context(
         session,
@@ -753,6 +832,37 @@ async def delete_user(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    # Block the admin from orphaning projects: every project the target
+    # user owns in this guild needs an explicit transfer recipient. We
+    # apply the transfers before ``remove_user_from_guild_initiatives``
+    # drops their membership rows so the new owner is in place by the
+    # time RLS evaluates against the guild's surviving members.
+    owned_projects = await users_service.get_owned_projects_in_guild(
+        session, user_id, guild_context.guild_id
+    )
+    if owned_projects:
+        transfers = body.project_transfers if body is not None else {}
+        owned_ids = {project.id for project in owned_projects}
+        transfer_ids = set(transfers.keys())
+        if owned_ids != transfer_ids:
+            # Distinct from the self-leave code so SPA copy can speak in
+            # the right voice ("they own projects" vs "you own
+            # projects"); the validation rule is the same shape though.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.CANNOT_REMOVE_OWNS_PROJECTS,
+            )
+        for project_id, new_owner_id in transfers.items():
+            try:
+                await users_service.transfer_project_ownership(
+                    session, project_id, new_owner_id
+                )
+            except users_service.InvalidTransferRecipient:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=GuildMessages.PROJECT_TRANSFER_RECIPIENT_INVALID,
+                )
 
     await initiatives_service.remove_user_from_guild_initiatives(
         session,

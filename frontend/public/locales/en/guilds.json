@@ -35,6 +35,20 @@
     "selectNewOwnerPlaceholder": "Select new owner…",
     "noTransferCandidates": "No eligible members are available in this initiative — add another member to the initiative before leaving."
   },
+  "removeMember": {
+    "title": "Remove member from guild",
+    "description": "Remove {{email}} from this guild? They'll lose access to every initiative and project in it.",
+    "cannotRemoveTitle": "Cannot remove member",
+    "solePmWarning": "They are the sole project manager of: {{initiatives}}. Promote another member to project manager first.",
+    "transferDescription": "Removing {{email}} would orphan the projects they own in this guild. Pick a new owner for each before continuing.",
+    "selectNewOwnerPlaceholder": "Select new owner…",
+    "noTransferCandidates": "No eligible members are available in this initiative — add another member before removing this user.",
+    "removeButton": "Remove from guild",
+    "removing": "Removing…",
+    "removed": "Removed {{email}}",
+    "failedToRemove": "Failed to remove member. Please try again.",
+    "failedToCheckEligibility": "Failed to check removal eligibility. Please try again."
+  },
   "invite": {
     "title": "Join {{guildName}}",
     "titleDefault": "Guild invite",

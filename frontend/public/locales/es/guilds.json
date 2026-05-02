@@ -35,6 +35,20 @@
     "selectNewOwnerPlaceholder": "Seleccionar nuevo propietario…",
     "noTransferCandidates": "No hay miembros elegibles disponibles en esta iniciativa — agrega otro miembro a la iniciativa antes de salir."
   },
+  "removeMember": {
+    "title": "Eliminar miembro del gremio",
+    "description": "¿Eliminar a {{email}} de este gremio? Perderá acceso a todas las iniciativas y proyectos en él.",
+    "cannotRemoveTitle": "No se puede eliminar al miembro",
+    "solePmWarning": "Es el único gerente de proyecto de: {{initiatives}}. Primero promueve a otro miembro como gerente de proyecto.",
+    "transferDescription": "Eliminar a {{email}} dejaría huérfanos los proyectos que posee en este gremio. Elige un nuevo propietario para cada uno antes de continuar.",
+    "selectNewOwnerPlaceholder": "Seleccionar nuevo propietario…",
+    "noTransferCandidates": "No hay miembros elegibles disponibles en esta iniciativa — agrega otro miembro antes de eliminar a este usuario.",
+    "removeButton": "Eliminar del gremio",
+    "removing": "Eliminando…",
+    "removed": "{{email}} eliminado",
+    "failedToRemove": "No se pudo eliminar al miembro. Inténtalo de nuevo.",
+    "failedToCheckEligibility": "No se pudo verificar la elegibilidad de eliminación. Inténtalo de nuevo."
+  },
   "invite": {
     "title": "Unirse a {{guildName}}",
     "titleDefault": "Invitación al gremio",

@@ -6,7 +6,6 @@ import {
   updateUsersMeApiV1UsersMePatch,
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
   approveUserApiV1UsersUserIdApprovePost,
-  deleteUserApiV1UsersUserIdDelete,
   exportUsersCsvApiV1UsersExportCsvGet,
 } from "@/api/generated/users/users";
 import { updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch } from "@/api/generated/guilds/guilds";
@@ -110,25 +109,6 @@ export const useUpdateGuildMembership = (
       await updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch(data.guildId, data.userId, {
         role: data.role,
       } as Parameters<typeof updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch>[2]);
-    },
-    onSuccess: (...args) => {
-      void invalidateUsersList();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useRemoveGuildMember = (options?: MutationOpts<void, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (userId: number) => {
-      await deleteUserApiV1UsersUserIdDelete(userId);
     },
     onSuccess: (...args) => {
       void invalidateUsersList();

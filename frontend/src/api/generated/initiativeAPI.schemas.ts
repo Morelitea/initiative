@@ -981,6 +981,50 @@ export interface GuildRead {
   retention_days: number | null;
 }
 
+/**
+ * Per-project payload on ``GuildRemovalEligibilityResponse``.
+
+Bundles the candidate transfer recipients next to the project so
+the SPA can render the picker without a second round-trip. The
+leave-guild path uses ``GET /users/me/initiative-members/...``
+instead — but a guild admin removing someone may not themselves
+be a member of every initiative the target user belongs to, so
+that endpoint isn't always callable from this flow.
+ */
+export interface GuildRemovalProjectInfo {
+  id: number;
+  name: string;
+  initiative_id: number;
+  candidates?: UserPublic[];
+}
+
+/**
+ * Pre-flight info for ``DELETE /users/{user_id}`` (guild admin
+removes a member from their guild).
+
+Mirrors the leave-guild eligibility shape for the same reason: the
+SPA needs to know up-front whether the admin will be prompted to
+pick replacement owners for projects the target user owns. Without
+this, the existing one-click "remove member" path silently
+orphaned every project where the leaving user was sole owner.
+ */
+export interface GuildRemovalEligibilityResponse {
+  can_remove: boolean;
+  sole_pm_initiatives: string[];
+  owned_projects: GuildRemovalProjectInfo[];
+}
+
+export type GuildRemovalRequestProjectTransfers = { [key: string]: number };
+
+/**
+ * Body for ``DELETE /users/{user_id}``. ``project_transfers`` keys
+must cover every project ``user_id`` owns in the active guild and
+each value must be an active member that can take ownership.
+ */
+export interface GuildRemovalRequest {
+  project_transfers?: GuildRemovalRequestProjectTransfers;
+}
+
 export interface GuildSummary {
   id: number;
   name: string;

@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Orphaned projects when leaving a guild.** Leaving a guild while owning projects in it would silently strand the rows: the user's initiative membership got dropped, no DAC permission survived, and guild admins (who have no implicit project bypass) couldn't reach them. Leaving now requires nominating a new owner per project — the leave dialog lists every project you own in the guild and a Select to pick a new owner, the eligibility endpoint surfaces the same list so the SPA can pre-flight the prompt, and the backend rejects a leave with a missing or surplus transfer map. The OIDC group-sync removal path, which has no UI to ask, auto-transfers ownership to an active initiative manager (falling back to a guild admin) before dropping the user, and logs a warning when neither exists.
 
+- **Orphaned projects when a guild admin removes a member.** The user-management table's "Remove from guild" button shared the same orphan hazard as self-leave: the backend just dropped initiative memberships and walked away. The remove dialog now pre-flights `GET /users/{user_id}/guild-removal-eligibility` and renders a Select per orphan-prone project so the admin nominates a new owner before the `DELETE` request fires. The eligibility response bundles candidate transfer recipients per-project, so the picker works even for initiatives the admin doesn't belong to.
+
 ## [0.43.0] - 2026-05-01
 
 ### Added

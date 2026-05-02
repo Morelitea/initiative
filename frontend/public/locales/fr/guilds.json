@@ -35,6 +35,20 @@
     "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
     "noTransferCandidates": "Aucun membre éligible n'est disponible dans cette initiative — ajoutez un autre membre à l'initiative avant de partir."
   },
+  "removeMember": {
+    "title": "Retirer le membre du groupe",
+    "description": "Retirer {{email}} de ce groupe ? Il perdra l'accès à toutes les initiatives et projets qu'il contient.",
+    "cannotRemoveTitle": "Impossible de retirer le membre",
+    "solePmWarning": "Il est le seul chef de projet de : {{initiatives}}. Promouvez d'abord un autre membre en chef de projet.",
+    "transferDescription": "Retirer {{email}} laisserait orphelins les projets qu'il possède dans ce groupe. Choisissez un nouveau propriétaire pour chacun avant de continuer.",
+    "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
+    "noTransferCandidates": "Aucun membre éligible n'est disponible dans cette initiative — ajoutez un autre membre avant de retirer cet utilisateur.",
+    "removeButton": "Retirer du groupe",
+    "removing": "Retrait en cours…",
+    "removed": "{{email}} retiré",
+    "failedToRemove": "Échec du retrait du membre. Veuillez réessayer.",
+    "failedToCheckEligibility": "Échec de la vérification de l'éligibilité au retrait. Veuillez réessayer."
+  },
   "invite": {
     "title": "Rejoindre {{guildName}}",
     "titleDefault": "Invitation au groupe",
