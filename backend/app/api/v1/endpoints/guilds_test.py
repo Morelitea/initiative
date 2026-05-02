@@ -811,6 +811,57 @@ async def test_leave_with_transfers_reassigns_and_succeeds(
 
 
 @pytest.mark.integration
+async def test_leave_eligibility_filters_candidates_to_pms(
+    client: AsyncClient, session: AsyncSession
+):
+    """The transfer-recipient picker should only show initiative
+    managers — they're the role that actually administers projects.
+    Non-manager members shouldn't appear even though they're active
+    members of the same initiative."""
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    admin = await create_user(session, email="admin@example.com")
+    pm = await create_user(session, email="pm@example.com")
+    member = await create_user(session, email="member@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(
+        session, initiative=initiative, user=pm, role_name="project_manager"
+    )
+    await create_initiative_member(
+        session, initiative=initiative, user=member, role_name="member"
+    )
+    await create_initiative_member(session, initiative=initiative, user=leaver)
+    await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(leaver),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    project = data["owned_projects"][0]
+    candidate_ids = {c["id"] for c in project["candidates"]}
+    # Initiative creator (admin) is auto-promoted to PM by the
+    # initiative factory; pm explicitly added. Both should appear.
+    assert admin.id in candidate_ids
+    assert pm.id in candidate_ids
+    # The non-manager member must NOT appear, and neither should the
+    # leaving user themselves.
+    assert member.id not in candidate_ids
+    assert leaver.id not in candidate_ids
+
+
+@pytest.mark.integration
 async def test_leave_with_deletion_soft_deletes_project(
     client: AsyncClient, session: AsyncSession
 ):

@@ -20,7 +20,7 @@ from app.core.security import get_password_hash, verify_password
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
-from app.models.initiative import InitiativeMember
+from app.models.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.user import User, UserRole, UserStatus
 from app.models.user_token import UserToken, UserTokenPurpose
 from app.schemas.user import (
@@ -752,7 +752,10 @@ async def check_guild_removal_eligibility(
     # picker in one round trip. We can't reuse
     # ``GET /users/me/initiative-members`` because the admin doing the
     # removal isn't required to be a member of every initiative the
-    # target user belongs to.
+    # target user belongs to. Filter to initiative *managers* — they're
+    # the role that actually administers projects, so handing them
+    # ownership matches the user's intent and keeps them empowered to
+    # make follow-up changes.
     owned_project_infos: list[GuildRemovalProjectInfo] = []
     candidate_cache: dict[int, list[UserPublic]] = {}
     for project in owned_projects:
@@ -762,8 +765,13 @@ async def check_guild_removal_eligibility(
                 await session.exec(
                     select(User)
                     .join(InitiativeMember, InitiativeMember.user_id == User.id)
+                    .join(
+                        InitiativeRoleModel,
+                        InitiativeRoleModel.id == InitiativeMember.role_id,
+                    )
                     .where(
                         InitiativeMember.initiative_id == project.initiative_id,
+                        InitiativeRoleModel.is_manager.is_(True),
                         User.status == UserStatus.active,
                         User.id != user_id,
                     )

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { Loader2, AlertTriangle } from "lucide-react";
 
@@ -27,11 +27,9 @@ import {
   checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet,
   leaveGuildApiV1GuildsGuildIdLeaveDelete,
 } from "@/api/generated/guilds/guilds";
-import { getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet } from "@/api/generated/users/users";
 import type {
   GuildRead,
   LeaveGuildEligibilityResponse,
-  UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import { useGuilds } from "@/hooks/useGuilds";
 import type { DialogProps } from "@/types/dialog";
@@ -56,29 +54,6 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
   // Per-project: id of the user the leaver is handing the project to.
   // Only meaningful for projects whose disposition is "transfer".
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
-  // Per-initiative cache of candidate transfer recipients. The leave
-  // path only renders Selects for projects in initiatives where the
-  // user has visibility; the helper endpoint filters to active members
-  // (excluding the current user).
-  const [initiativeMembers, setInitiativeMembers] = useState<Record<number, UserRead[]>>({});
-
-  const fetchInitiativeMembers = useCallback(async (initiativeId: number) => {
-    setInitiativeMembers((prev) => {
-      // Skip refetch if we've already loaded this initiative.
-      if (prev[initiativeId]) return prev;
-      return prev;
-    });
-    try {
-      const data = (await getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet(
-        initiativeId
-      )) as unknown as UserRead[];
-      setInitiativeMembers((prev) =>
-        prev[initiativeId] ? prev : { ...prev, [initiativeId]: data }
-      );
-    } catch (err) {
-      console.error("Failed to fetch initiative members", err);
-    }
-  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -87,7 +62,6 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       setLoading(true);
       setProjectDispositions({});
       setProjectTransfers({});
-      setInitiativeMembers({});
       return;
     }
 
@@ -99,19 +73,18 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
           guild.id
         )) as unknown as LeaveGuildEligibilityResponse;
         setEligibility(data);
-        // Default every owned project to "transfer". The user can flip
-        // each row to "delete" if there's no obvious successor — that
-        // sends the project to the guild's trash retention bucket.
+        // Default each owned project to "transfer" when there's a PM
+        // candidate available, otherwise "delete" (since transfer with
+        // no candidate would just stall the dialog). The user can
+        // still flip the radio either way.
         setProjectDispositions(
-          Object.fromEntries(data.owned_projects.map((p) => [p.id, "transfer" as const]))
+          Object.fromEntries(
+            data.owned_projects.map((p) => [
+              p.id,
+              (p.candidates?.length ?? 0) > 0 ? ("transfer" as const) : ("delete" as const),
+            ])
+          )
         );
-        // Pre-load member lists for any initiative whose project
-        // we'll render a Select for, so the dropdown is populated by
-        // the time the user opens it.
-        const uniqueInitiativeIds = Array.from(
-          new Set(data.owned_projects.map((p) => p.initiative_id))
-        );
-        await Promise.all(uniqueInitiativeIds.map(fetchInitiativeMembers));
       } catch (err) {
         console.error("Failed to check leave eligibility", err);
         setError(t("leave.failedToCheckEligibility"));
@@ -121,7 +94,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
     };
 
     void checkEligibility();
-  }, [open, guild.id, t, fetchInitiativeMembers]);
+  }, [open, guild.id, t]);
 
   const ownedProjects = eligibility?.owned_projects ?? [];
   const hasOwnedProjects = ownedProjects.length > 0;
@@ -237,7 +210,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
             />
           </AlertDialogDescription>
           {ownedProjects.map((project) => {
-            const candidates = initiativeMembers[project.initiative_id] ?? [];
+            const candidates = project.candidates ?? [];
             const disposition = projectDispositions[project.id] ?? "transfer";
             const transferValue = projectTransfers[project.id]?.toString() ?? "";
             const noCandidates = candidates.length === 0;

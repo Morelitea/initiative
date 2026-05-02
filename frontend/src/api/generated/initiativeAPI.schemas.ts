@@ -1213,17 +1213,19 @@ export interface InterfaceSettingsUpdate {
  * Response for checking if a user can leave a guild.
 
 ``owned_projects`` lists projects in this guild whose ``owner_id``
-is the current user. Leaving the guild without re-assigning these
-would orphan them — the user's ``InitiativeMember`` row is dropped
-on leave, RLS gates the project, and there's no DAC bypass for
-guild admins. The leave endpoint requires a transfer for each
-entry on this list before it will proceed.
+is the current user, with the project-manager candidates the
+leaving user can hand each project to. Leaving without
+re-assigning would orphan the project — the user's
+``InitiativeMember`` row is dropped on leave, RLS gates the
+project, and there's no DAC bypass for guild admins. The leave
+endpoint requires a transfer-or-delete disposition for each entry
+on this list before it will proceed.
  */
 export interface LeaveGuildEligibilityResponse {
   can_leave: boolean;
   is_last_admin: boolean;
   sole_pm_initiatives: string[];
-  owned_projects: ProjectBasic[];
+  owned_projects: GuildRemovalProjectInfo[];
 }
 
 export type LeaveGuildRequestProjectTransfers = { [key: string]: number };

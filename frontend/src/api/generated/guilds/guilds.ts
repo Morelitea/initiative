@@ -1309,10 +1309,11 @@ Returns information about blockers:
 - is_last_admin: User is the last admin of the guild
 - sole_pm_initiatives: Initiatives in this guild where the user is the sole PM
 - owned_projects: Projects in this guild whose ``owner_id`` is the
-  user. The leave endpoint requires a transfer for each — without
-  one, the project's RLS gate (``InitiativeMember``) no longer
-  matches for any user on leave, and there's no DAC bypass for
-  guild admins, so the row would be unreachable.
+  user, with project-manager candidates per project. The leave
+  endpoint requires a transfer-or-delete disposition for each —
+  without one, the project's RLS gate (``InitiativeMember``) no
+  longer matches on leave, and there's no DAC bypass for guild
+  admins, so the row would be unreachable.
  * @summary Check Leave Eligibility
  */
 export const checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet = (
