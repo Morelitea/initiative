@@ -96,26 +96,32 @@ export const useSpreadsheetCells = ({
   // Y.Map that's empty (no peers have written yet, no persisted yjs
   // snapshot), seed it with the JSON-snapshot cells so the local
   // editor and peers start from the same content.
-  const bootstrappedRef = useRef(false);
+  //
+  // The ref tracks *which* Y.Doc was bootstrapped against, not just
+  // whether we've ever bootstrapped. A boolean would persist across a
+  // provider reconnect that swaps in a new Y.Doc — the new (empty) Map
+  // would never get seeded from initialCells and the spreadsheet would
+  // render blank until a peer wrote or yjs_state was restored.
+  const bootstrappedDocRef = useRef<Y.Doc | null>(null);
   useEffect(() => {
     if (!yDoc || !yMap) return;
-    if (bootstrappedRef.current) return;
+    if (bootstrappedDocRef.current === yDoc) return;
     if (yMap.size > 0) {
       // Y.Map already has content (from yjs_state load or another
       // peer) — adopt it and skip the seed.
       setCells(yMapToCellsMap(yMap));
-      bootstrappedRef.current = true;
+      bootstrappedDocRef.current = yDoc;
       return;
     }
     const seed = Object.entries(initialCells);
     if (seed.length === 0) {
-      bootstrappedRef.current = true;
+      bootstrappedDocRef.current = yDoc;
       return;
     }
     yDoc.transact(() => {
       for (const [key, value] of seed) yMap.set(key, value);
     }, "spreadsheet-bootstrap");
-    bootstrappedRef.current = true;
+    bootstrappedDocRef.current = yDoc;
   }, [yDoc, yMap, initialCells]);
 
   // Subscribe to remote changes. ``transaction.local`` is true for
