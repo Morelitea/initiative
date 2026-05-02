@@ -31,9 +31,12 @@
     "leftGuild": "Left {{name}}",
     "failedToLeave": "Failed to leave guild. Please try again.",
     "failedToCheckEligibility": "Failed to check eligibility. Please try again.",
-    "transferDescription": "Before leaving <bold>{{name}}</bold>, transfer ownership of every project you own. Otherwise the project would be left with no member who can access it.",
+    "transferDescription": "Before leaving <bold>{{name}}</bold>, decide what happens to each project you own — hand it off to another member, or delete it. Otherwise the project would be left with no member who can access it.",
     "selectNewOwnerPlaceholder": "Select new owner…",
-    "noTransferCandidates": "No eligible members are available in this initiative — add another member to the initiative before leaving."
+    "noTransferCandidates": "No eligible members are available in this initiative.",
+    "dispositionTransferLabel": "Transfer ownership",
+    "dispositionDeleteLabel": "Delete this project",
+    "dispositionDeleteHelper": "Sends the project to this guild's trash. Guild admins can restore it before the retention window passes."
   },
   "removeMember": {
     "title": "Remove member from guild",

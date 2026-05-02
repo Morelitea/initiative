@@ -464,16 +464,18 @@ async def leave_guild(
     owned_projects = await get_owned_projects_in_guild(session, current_user.id, guild_id)
     if owned_projects:
         transfers = body.project_transfers if body is not None else {}
+        deletions = set(body.project_deletions) if body is not None else set()
         owned_ids = {project.id for project in owned_projects}
         transfer_ids = set(transfers.keys())
 
-        missing = owned_ids - transfer_ids
-        extra = transfer_ids - owned_ids
-        if missing or extra:
-            # Single error code for "the transfer map doesn't match the
-            # set of projects you actually own in this guild." The
-            # response body still carries the details for client UX,
-            # but the code stays stable for translation lookup.
+        # Every owned project needs exactly one disposition (transfer
+        # OR delete) and the union must cover them all. Any missing,
+        # surplus, or overlapping ids → reject with one stable code so
+        # the SPA can map a single translation string.
+        missing = owned_ids - transfer_ids - deletions
+        extra = (transfer_ids - owned_ids) | (deletions - owned_ids)
+        overlap = transfer_ids & deletions
+        if missing or extra or overlap:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.CANNOT_LEAVE_OWNS_PROJECTS,
@@ -488,6 +490,26 @@ async def leave_guild(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=GuildMessages.PROJECT_TRANSFER_RECIPIENT_INVALID,
+                )
+
+        if deletions:
+            # Soft-delete (send to trash) the projects the user opted to
+            # discard rather than transfer. Uses the guild's configured
+            # retention so the trash auto-purge job picks them up just
+            # like a normal in-app project deletion.
+            from app.services import soft_delete as soft_delete_service
+
+            retention_days = await guilds_service.get_guild_retention_days(
+                session, guild_id
+            )
+            projects_by_id = {project.id: project for project in owned_projects}
+            for project_id in deletions:
+                project = projects_by_id[project_id]
+                await soft_delete_service.soft_delete_entity(
+                    session,
+                    project,
+                    deleted_by_user_id=current_user.id,
+                    retention_days=retention_days,
                 )
 
     await guilds_service.remove_user_from_guild(session, guild_id=guild_id, user_id=current_user.id)

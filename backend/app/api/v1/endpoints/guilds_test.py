@@ -811,6 +811,85 @@ async def test_leave_with_transfers_reassigns_and_succeeds(
 
 
 @pytest.mark.integration
+async def test_leave_with_deletion_soft_deletes_project(
+    client: AsyncClient, session: AsyncSession
+):
+    """Per-project ``project_deletions`` is the alternative to
+    ``project_transfers`` — it sends the row to trash instead of
+    handing it off, so a user with no obvious successor can still
+    leave without orphaning the project."""
+    from app.models.project import Project
+    from app.testing.factories import create_initiative, create_project
+
+    admin = await create_user(session, email="admin@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    project = await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}/leave",
+        headers=get_auth_headers(leaver),
+        json={"project_deletions": [project.id]},
+    )
+    assert response.status_code == 204
+
+    # Soft-deleted rows are hidden by the default global filter, so
+    # read with the bypass helper used elsewhere in the soft-delete
+    # service.
+    from app.db.soft_delete_filter import select_including_deleted
+
+    refreshed = (
+        await session.exec(
+            select_including_deleted(Project).where(Project.id == project.id)
+        )
+    ).one()
+    assert refreshed.deleted_at is not None
+    assert refreshed.deleted_by == leaver.id
+
+
+@pytest.mark.integration
+async def test_leave_rejects_overlap_between_transfer_and_delete(
+    client: AsyncClient, session: AsyncSession
+):
+    """A project listed in both ``project_transfers`` and
+    ``project_deletions`` is ambiguous — the endpoint refuses rather
+    than picking one silently."""
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    admin = await create_user(session, email="admin@example.com")
+    successor = await create_user(session, email="successor@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=successor, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=successor)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
+    project = await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}/leave",
+        headers=get_auth_headers(leaver),
+        json={
+            "project_transfers": {str(project.id): successor.id},
+            "project_deletions": [project.id],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CANNOT_LEAVE_OWNS_PROJECTS"
+
+
+@pytest.mark.integration
 async def test_leave_rejects_partial_transfer_map(
     client: AsyncClient, session: AsyncSession
 ):

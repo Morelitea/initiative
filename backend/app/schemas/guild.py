@@ -116,12 +116,15 @@ class LeaveGuildEligibilityResponse(BaseModel):
 class LeaveGuildRequest(BaseModel):
     """Body for ``DELETE /guilds/{id}/leave``.
 
-    Empty body is equivalent to ``{ "project_transfers": {} }``. When
-    the user owns projects in the guild (``owned_projects`` on the
-    eligibility response is non-empty), the keys must cover every
-    owned project id and each value must be a guild member that's a
-    member of the project's initiative.
+    Every project the leaving user owns in this guild must appear in
+    exactly one of ``project_transfers`` (hand it to another active
+    member of the project's initiative) or ``project_deletions`` (send
+    it to trash so the guild's retention window can purge it later).
+    Empty body is equivalent to ``{}`` — fine when the user owns
+    nothing; rejected by the endpoint with
+    ``CANNOT_LEAVE_OWNS_PROJECTS`` otherwise.
     """
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     project_transfers: dict[int, int] = Field(default_factory=dict)
+    project_deletions: list[int] = Field(default_factory=list)

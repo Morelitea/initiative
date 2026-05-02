@@ -31,9 +31,12 @@
     "leftGuild": "{{name}} quitté",
     "failedToLeave": "Échec du départ du groupe. Veuillez réessayer.",
     "failedToCheckEligibility": "Échec de la vérification de l'éligibilité. Veuillez réessayer.",
-    "transferDescription": "Avant de quitter <bold>{{name}}</bold>, transférez la propriété de chaque projet que vous possédez. Sinon, le projet resterait sans aucun membre pouvant y accéder.",
+    "transferDescription": "Avant de quitter <bold>{{name}}</bold>, décidez de ce qui doit arriver à chaque projet que vous possédez — le transférer à un autre membre, ou le supprimer. Sinon, le projet resterait sans aucun membre pouvant y accéder.",
     "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
-    "noTransferCandidates": "Aucun membre éligible n'est disponible dans cette initiative — ajoutez un autre membre à l'initiative avant de partir."
+    "noTransferCandidates": "Aucun membre éligible n'est disponible dans cette initiative.",
+    "dispositionTransferLabel": "Transférer la propriété",
+    "dispositionDeleteLabel": "Supprimer ce projet",
+    "dispositionDeleteHelper": "Envoie le projet à la corbeille de ce groupe. Les administrateurs du groupe peuvent le restaurer avant la fin de la période de rétention."
   },
   "removeMember": {
     "title": "Retirer le membre du groupe",
