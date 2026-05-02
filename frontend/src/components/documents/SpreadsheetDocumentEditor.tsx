@@ -238,6 +238,9 @@ export const SpreadsheetDocumentEditor = ({
     user: currentUser,
     selected,
     enabled: Boolean(awareness && yDoc && currentUser),
+    // Read-only viewers still subscribe (so they see peers' rings),
+    // they just don't broadcast their own selection.
+    publishLocal: !readOnly,
   });
 
   const beginEdit = useCallback(

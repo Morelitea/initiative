@@ -39,7 +39,13 @@ interface UseSpreadsheetAwarenessArgs {
   clientId: number | null;
   user: { id: number; name: string } | null;
   selected: { row: number; col: number };
+  /** Master switch: when false, the hook neither publishes nor
+   *  subscribes (collab disabled or provider not yet ready). */
   enabled: boolean;
+  /** When false, the hook still subscribes to peers' selections (so
+   *  e.g. read-only viewers see other users' rings) but does not
+   *  publish the local user's own selection. */
+  publishLocal: boolean;
 }
 
 interface UseSpreadsheetAwarenessResult {
@@ -58,20 +64,24 @@ export const useSpreadsheetAwareness = ({
   user,
   selected,
   enabled,
+  publishLocal,
 }: UseSpreadsheetAwarenessArgs): UseSpreadsheetAwarenessResult => {
   const [peers, setPeers] = useState<SpreadsheetPeer[]>([]);
+  const canPublish = enabled && publishLocal;
 
-  // Publish the local selection. Throttled to once per requestAnimation
-  // frame would be overkill — selection changes are rare (clicks /
-  // arrow keys) so a plain effect suffices.
+  // Publish the local selection. Read-only viewers skip the publish
+  // path (``canPublish === false``) but still subscribe below — they
+  // see peer rings, just don't broadcast their own. Throttled to once
+  // per requestAnimationFrame would be overkill: selection changes are
+  // rare (clicks / arrow keys) so a plain effect suffices.
   const lastPublishedRef = useRef<{ row: number; col: number } | null>(null);
   useEffect(() => {
-    if (!enabled || !awareness || !user) return;
+    if (!canPublish || !awareness || !user) return;
     awareness.setLocalStateField(USER_KEY, { id: user.id, name: user.name });
-  }, [enabled, awareness, user]);
+  }, [canPublish, awareness, user]);
 
   useEffect(() => {
-    if (!enabled || !awareness || !user) return;
+    if (!canPublish || !awareness || !user) return;
     const last = lastPublishedRef.current;
     if (last && last.row === selected.row && last.col === selected.col) return;
     lastPublishedRef.current = { row: selected.row, col: selected.col };
@@ -81,15 +91,16 @@ export const useSpreadsheetAwareness = ({
       color: getUserColorHsl(user.id),
       updatedAt: Date.now(),
     });
-  }, [enabled, awareness, user, selected.row, selected.col]);
+  }, [canPublish, awareness, user, selected.row, selected.col]);
 
-  // Clear selection on unmount so peers don't see a ghost cursor.
+  // Clear selection on unmount / when publish toggles off so peers
+  // don't see a ghost cursor.
   useEffect(() => {
-    if (!enabled || !awareness) return;
+    if (!canPublish || !awareness) return;
     return () => {
       awareness.setLocalStateField(SELECTION_KEY, null);
     };
-  }, [enabled, awareness]);
+  }, [canPublish, awareness]);
 
   // Subscribe to peer state.
   useEffect(() => {
