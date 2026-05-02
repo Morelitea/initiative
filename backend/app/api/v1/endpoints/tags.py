@@ -15,6 +15,8 @@ from app.models.project import Project
 from app.models.document import Document
 from app.models.user import User
 from app.services import permissions as permissions_service
+from app.services import guilds as guilds_service
+from app.services.soft_delete import soft_delete_entity
 from app.schemas.tag import (
     TagCreate,
     TagRead,
@@ -149,9 +151,16 @@ async def delete_tag(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    """Delete a tag. This cascades to remove the tag from all entities."""
+    """Soft-delete a tag. The tag moves to the guild's trash; on hard-purge
+    its junction rows fall via FK CASCADE."""
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
-    await session.delete(tag)
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    await soft_delete_entity(
+        session,
+        tag,
+        deleted_by_user_id=current_user.id,
+        retention_days=retention_days,
+    )
     await session.commit()
 
 

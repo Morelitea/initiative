@@ -14,7 +14,6 @@
     "hideFilters": "Hide filters",
     "updating": "Updating..."
   },
-
   "page": {
     "title": "Documents",
     "subtitle": "Keep initiative knowledge organized and attach docs to projects.",
@@ -88,6 +87,7 @@
     "updated": "Updated {{date}}",
     "template": "Template",
     "whiteboardLabel": "Whiteboard",
+    "spreadsheetLabel": "Spreadsheet",
     "projects_one": "{{count}} project",
     "projects_other": "{{count}} projects",
     "comments_one": "{{count}} comment",
@@ -209,7 +209,7 @@
     "duplicateDocument": "Duplicate document",
     "copyToInitiative": "Copy to initiative",
     "dangerTitle": "Danger zone",
-    "dangerDescription": "Deleting a document cannot be undone.",
+    "dangerDescription": "Deleted documents go to the trash and can be restored before the guild's retention period ends.",
     "deleteDocument": "Delete document",
     "duplicateDialogTitle": "Duplicate document",
     "duplicateDialogDescription": "Create a copy inside the same initiative.",
@@ -225,7 +225,7 @@
     "copying": "Copying\u2026",
     "copyDocument": "Copy document",
     "deleteDialogTitle": "Delete this document?",
-    "deleteDialogDescription": "This removes the document for everyone. All comments and attachments will be permanently deleted. This action cannot be undone.",
+    "deleteDialogDescription": "This sends the document and its comments to the trash. You can restore it from Settings → Trash before the retention period ends.",
     "deleting": "Deleting\u2026",
     "documentDuplicated": "Document duplicated",
     "documentCopied": "Document copied to {{initiative}}",
@@ -248,6 +248,7 @@
     "documentTypeLabel": "Document type",
     "documentTypeText": "Text document",
     "documentTypeWhiteboard": "Whiteboard",
+    "documentTypeSpreadsheet": "Spreadsheet",
     "documentTypeSmartLink": "Smart link",
     "smartLinkUrlLabel": "URL",
     "smartLinkUrlPlaceholder": "Paste a link",
@@ -334,9 +335,22 @@
     "airtableEmbedHint": "This is an Airtable view URL. In Airtable, open Share view → enable 'Embed on your site'. Copy the airtable.com/embed/... URL and paste it here."
   },
   "whiteboard": {
-    "loading": "Loading whiteboard…",
-    "syncing": "Syncing whiteboard…",
+    "loading": "Loading whiteboard\u2026",
+    "syncing": "Syncing whiteboard\u2026",
     "readOnly": "You have read-only access to this whiteboard."
+  },
+  "spreadsheet": {
+    "exportCsv": "Export CSV",
+    "importCsv": "Import CSV",
+    "exportSuccess": "Spreadsheet exported",
+    "exportError": "Could not export the spreadsheet. Please try again.",
+    "fileTooLarge": "That file is unusually large. Pick a smaller export (\u226450 MB).",
+    "importEmpty": "That CSV is empty.",
+    "importParseError": "Could not parse that file as CSV.",
+    "importConfirmTitle": "Replace spreadsheet contents?",
+    "importConfirmDescription": "Importing a CSV will overwrite every cell in this spreadsheet. This cannot be undone.",
+    "importConfirmAction": "Import and replace",
+    "importSuccess": "Spreadsheet imported"
   },
   "sidePanel": {
     "title": "Document Panel",

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useRouter, useParams } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
+
+import { toast } from "@/lib/chesterToast";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -168,6 +169,7 @@ export const DocumentSettingsPage = () => {
   });
 
   const deleteDocumentMutation = useDeleteDocument({
+    suppressSuccessToast: true,
     onSuccess: () => {
       toast.success(t("settings.documentDeleted"));
       setDeleteDialogOpen(false);

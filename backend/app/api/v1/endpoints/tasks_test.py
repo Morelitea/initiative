@@ -567,6 +567,50 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
+async def test_list_global_tasks_guild_ids_filter(
+    client: AsyncClient, session: AsyncSession
+):
+    """scope=global with the guild_ids filter must restrict to the named
+    guilds. Regression: the frontend previously sent ``field: "guild_id"``
+    (singular) but the endpoint extracts ``guild_ids`` (plural, mirroring
+    initiative_ids); the singular silently no-op'd and tasks from every
+    guild leaked into the listing."""
+    from app.models.task import TaskAssignee
+
+    user = await create_user(session, email="user@example.com")
+
+    guild1 = await create_guild(session, name="Guild 1")
+    await create_guild_membership(session, user=user, guild=guild1)
+    initiative1 = await _create_initiative(session, guild1, user)
+    project1 = await _create_project(session, initiative1, user)
+    task_in_guild1 = await _create_task(session, project1, "Task in Guild 1")
+
+    guild2 = await create_guild(session, name="Guild 2")
+    await create_guild_membership(session, user=user, guild=guild2)
+    initiative2 = await _create_initiative(session, guild2, user)
+    project2 = await _create_project(session, initiative2, user)
+    task_in_guild2 = await _create_task(session, project2, "Task in Guild 2")
+
+    # User is the assignee on both tasks, so both would surface in
+    # scope=global without a filter.
+    session.add(TaskAssignee(task_id=task_in_guild1.id, user_id=user.id))
+    session.add(TaskAssignee(task_id=task_in_guild2.id, user_id=user.id))
+    await session.commit()
+
+    headers = get_guild_headers(guild1, user)
+    conditions = json.dumps([{"field": "guild_ids", "op": "in_", "value": [guild1.id]}])
+    response = await client.get(
+        f"/api/v1/tasks/?scope=global&conditions={conditions}",
+        headers=headers,
+    )
+
+    assert response.status_code == 200, response.text
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert task_in_guild1.id in task_ids
+    assert task_in_guild2.id not in task_ids
+
+
+@pytest.mark.integration
 async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession):
     """Test filtering tasks by status."""
     from app.services import task_statuses as task_statuses_service

@@ -6,6 +6,8 @@ from pydantic import ConfigDict
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.models._mixins import SoftDeleteMixin
+
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative, InitiativeRoleModel
     from app.models.user import User
@@ -14,9 +16,10 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.task import Task
 
 
-class Queue(SQLModel, table=True):
+class Queue(SoftDeleteMixin, table=True):
     """Initiative-scoped queue for turn/priority tracking."""
     __tablename__ = "queues"
+    _owner_field = "created_by_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
@@ -67,7 +70,7 @@ class Queue(SQLModel, table=True):
     )
 
 
-class QueueItem(SQLModel, table=True):
+class QueueItem(SoftDeleteMixin, table=True):
     """Standalone entry in a queue (character, creature, etc.)."""
     __tablename__ = "queue_items"
 

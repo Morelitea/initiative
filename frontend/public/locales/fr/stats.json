@@ -4,7 +4,7 @@
     "subtitle": "Suivez votre productivité et vos indicateurs de complétion des tâches",
     "guildFilterPlaceholder": "Sélectionner un groupe",
     "allGuilds": "Tous les groupes",
-    "loading": "Chargement des statistiques…",
+    "loading": "Chargement des statistiques\u2026",
     "error": "Échec du chargement des statistiques. Veuillez réessayer plus tard."
   },
   "metrics": {

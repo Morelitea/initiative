@@ -1,6 +1,6 @@
-import secrets
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Annotated, Optional
 
 from fastapi import Cookie, Depends, Header, HTTPException, Query, Request, status
@@ -11,11 +11,17 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.messages import AuthMessages, GuildMessages
+from app.core.security import (
+    AutoDelegationClaims,
+    AutoDelegationVerificationError,
+    verify_auto_delegation_token,
+)
 from app.db.session import get_session, set_rls_context
 from app.models.guild import Guild, GuildMembership, GuildRole
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserStatus
 from app.schemas.token import TokenPayload
 from app.services import api_keys as api_keys_service
+from app.services import auto_delegation_blocklist
 from app.services import guilds as guilds_service
 from app.services import user_tokens
 
@@ -34,21 +40,113 @@ async def _authenticate_device_token(session: AsyncSession, token: str) -> Optio
     return result.one_or_none()
 
 
+def _delegation_guild_matches_header(
+    request: Request, claims: AutoDelegationClaims
+) -> bool:
+    """Reject delegation tokens whose ``guild_id`` claim contradicts the
+    request's ``X-Guild-ID`` header.
+
+    The header is what RLS will use to scope the query; if the token was
+    issued for guild 42 and the request asks for guild 99, that's a
+    cross-guild attempt — a user who's a member of both guilds shouldn't
+    be able to use a token issued in one to access the other. When the
+    header is absent (cross-guild endpoints like ``/users/me``) we allow,
+    relying on the endpoint itself to scope appropriately.
+    """
+    raw = request.headers.get("X-Guild-ID")
+    if not raw:
+        return True
+    try:
+        return int(raw) == claims.guild_id
+    except (TypeError, ValueError):
+        return False
+
+
+async def _authenticate_auto_delegation(
+    request: Request,
+    session: AsyncSession,
+    token: str,
+) -> Optional[User]:
+    """Try to interpret ``token`` as a delegation JWT from initiative-auto.
+
+    Returns the named user when the token verifies; ``None`` otherwise so
+    the caller can fall through to other auth methods (regular JWT, API
+    key, etc.) without 401-ing on what's actually a session-token-shaped
+    bearer arriving at the same header.
+
+    Authorization beyond authentication still happens downstream — this
+    function only resolves identity. RLS, role-permission checks, and
+    master switches gate the actual operation as if the user were
+    calling directly.
+
+    Three security checks fire here in order:
+      1. Token verifies (signature, audience, issuer, required claims).
+      2. ``jti`` is not in the blocklist — first presentation only.
+      3. ``guild_id`` claim matches ``X-Guild-ID`` header when present.
+    """
+    if not settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
+        return None  # delegation disabled — let other auth paths run
+
+    try:
+        claims = verify_auto_delegation_token(token)
+    except AutoDelegationVerificationError:
+        # Could be a session JWT or API key arriving on the same header.
+        # Returning None lets the caller try those instead of failing.
+        return None
+
+    if not _delegation_guild_matches_header(request, claims):
+        return None
+
+    # Replay guard: a delegation JWT is one-shot. Even though the JWT is
+    # technically valid for 15 minutes, a captured token must not be
+    # usable a second time. The pre-flight ``is_jti_redeemed`` is a fast
+    # path; the ``record_jti`` insert below is the actual race-safe
+    # guarantee (unique-violation on the PK).
+    if await auto_delegation_blocklist.is_jti_redeemed(session, claims.jti):
+        return None
+
+    statement = select(User).where(User.id == claims.user_id)
+    result = await session.exec(statement)
+    user = result.one_or_none()
+    if user is None or user.status != UserStatus.active:
+        # The user the token names doesn't exist or has been deactivated
+        # since the token was minted. Auto can't impersonate non-active
+        # accounts — workflows die when their owner leaves, by design.
+        return None
+
+    # Burn the jti now. Two requests racing past the pre-flight check
+    # collide on the PK and the loser's ``record_jti`` raises
+    # ``DelegationReplayError``, which we convert to the same None
+    # signal — the request will be re-authenticated by another path or
+    # rejected by the standard 401.
+    try:
+        await auto_delegation_blocklist.record_jti(
+            session, jti=claims.jti, expires_at=_delegation_exp_from_jwt(token)
+        )
+    except auto_delegation_blocklist.DelegationReplayError:
+        return None
+
+    return user
+
+
+def _delegation_exp_from_jwt(token: str) -> datetime:
+    """Pull the ``exp`` timestamp out of a delegation JWT without
+    re-verifying. Caller has already verified — we just need the value
+    for the blocklist row's ``expires_at`` column so the cleanup job
+    can prune expired entries.
+    """
+    payload = jwt.decode(token, options={"verify_signature": False})
+    return datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
+
+
 async def get_current_user(
     request: Request,
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
 ) -> User:
-    # Check for Authorization header - could be Bearer, DeviceToken, API key, or service token
+    # Check for Authorization header - could be Bearer, DeviceToken, or API key
     auth_header = request.headers.get("Authorization", "")
-
-    # Handle automation engine service token — return a synthetic service user
-    if auth_header.startswith("Bearer ") and settings.AUTOMATION_SERVICE_TOKEN:
-        candidate = auth_header[7:]
-        if secrets.compare_digest(candidate, settings.AUTOMATION_SERVICE_TOKEN):
-            # Return a synthetic user object for the service account
-            return User(id=-1, email="automation-engine@internal", full_name="Automation Engine", is_active=True)
 
     # Handle DeviceToken scheme
     if auth_header.startswith("DeviceToken "):
@@ -73,6 +171,14 @@ async def get_current_user(
 
     # Try API key authentication first
     user = await api_keys_service.authenticate_api_key(session, token)
+    if user:
+        return user
+
+    # Try delegation JWT from initiative-auto (RS256, distinct audience).
+    # Returns None on shape/algorithm mismatch so a regular HS256 session
+    # JWT carrying through this header gracefully falls through to the
+    # next branch.
+    user = await _authenticate_auto_delegation(request, session, token)
     if user:
         return user
 
@@ -123,7 +229,7 @@ async def get_current_user_optional(
 async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> User:
-    if not current_user.is_active:
+    if current_user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
     return current_user
 
@@ -194,66 +300,6 @@ def require_guild_roles(*roles: GuildRole) -> Callable:
     return dependency
 
 
-def _is_service_token(request: Request) -> bool:
-    """Check if the request uses the automation engine service token."""
-    if not settings.AUTOMATION_SERVICE_TOKEN:
-        return False
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return False
-    token = auth_header[7:]
-    return secrets.compare_digest(token, settings.AUTOMATION_SERVICE_TOKEN)
-
-
-async def get_service_or_guild_membership(
-    request: Request,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    requested_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
-) -> GuildContext:
-    """Get guild context, supporting both user JWT and engine service token auth.
-
-    For normal users, delegates to get_guild_membership. For the automation
-    engine's service token, creates a synthetic admin membership scoped to
-    the guild specified by X-Guild-ID.
-
-    get_current_user already recognises the service token and returns a
-    synthetic User(id=-1), so the dependency chain resolves without error.
-    """
-    # Service token path
-    if _is_service_token(request):
-        if not requested_guild_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Service token requires X-Guild-ID header",
-            )
-        statement = select(Guild).where(Guild.id == requested_guild_id)
-        result = await session.exec(statement)
-        guild = result.one_or_none()
-        if not guild:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=GuildMessages.GUILD_NOT_FOUND,
-            )
-        synthetic_membership = GuildMembership(
-            user_id=-1,
-            guild_id=requested_guild_id,
-            role=GuildRole.admin,
-        )
-        # Scope RLS to this guild — NOT cross-guild superadmin
-        await set_rls_context(
-            session,
-            user_id=-1,
-            guild_id=requested_guild_id,
-            guild_role=GuildRole.admin.value,
-            is_superadmin=False,
-        )
-        return GuildContext(guild=guild, membership=synthetic_membership)
-
-    # Normal user path
-    return await get_guild_membership(session, current_user, requested_guild_id)
-
-
 async def get_guild_session(
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -282,31 +328,6 @@ async def get_guild_session(
 
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
-
-
-async def get_service_guild_session(
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_service_or_guild_membership)],
-) -> AsyncSession:
-    """Like get_guild_session but uses the service-token-aware guild resolver.
-
-    Used on endpoints that the automation engine calls back to (tasks, tags, etc.).
-    For normal users, behaves identically to get_guild_session.
-    """
-    is_service = current_user.id == -1
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        guild_role=guild_context.role.value,
-        is_superadmin=(not is_service) and (current_user.role == UserRole.admin),
-    )
-    return session
-
-
-# RLS session that supports both normal users and engine service token
-ServiceRLSSessionDep = Annotated[AsyncSession, Depends(get_service_guild_session)]
 
 
 async def get_user_session(
@@ -349,7 +370,7 @@ async def get_upload_user(
         device_token = auth_header[12:]  # len("DeviceToken ") = 12
         user = await _authenticate_device_token(session, device_token)
         if user:
-            if not user.is_active:
+            if user.status != UserStatus.active:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
             return user
         raise HTTPException(
@@ -370,8 +391,20 @@ async def get_upload_user(
     # Try API key authentication first
     user = await api_keys_service.authenticate_api_key(session, token)
     if user:
-        if not user.is_active:
+        if user.status != UserStatus.active:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        return user
+
+    # Try delegation JWT from initiative-auto. Same chain placement as
+    # ``get_current_user`` so /uploads/* accepts auto-driven workflow
+    # downloads without per-route changes. Falls through on shape /
+    # algorithm / audience mismatch so a regular HS256 session JWT
+    # arriving on the same header still hits the standard JWT branch
+    # below.
+    user = await _authenticate_auto_delegation(request, session, token)
+    if user:
+        # Delegation already enforces ``user.status == active``;
+        # ``_authenticate_auto_delegation`` returned None otherwise.
         return user
 
     # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
@@ -385,7 +418,7 @@ async def get_upload_user(
         if token_param and not bearer_token:
             user = await _authenticate_device_token(session, token_param)
             if user:
-                if not user.is_active:
+                if user.status != UserStatus.active:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
                 return user
         raise HTTPException(
@@ -408,7 +441,7 @@ async def get_upload_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
     if token_data.ver is None or token_data.ver != user.token_version:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN)
-    if not user.is_active:
+    if user.status != UserStatus.active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
     return user
 

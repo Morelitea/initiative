@@ -23,7 +23,6 @@ from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.user import User
 from app.services import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
-from app.services import event_publisher
 
 logger = logging.getLogger(__name__)
 
@@ -257,17 +256,18 @@ app.openapi = custom_openapi
 @app.on_event("startup")
 async def on_startup() -> None:
     from app.db.init_db import check_pre_baseline_db
+    from app.db.soft_delete_filter import install_soft_delete_filter
+
+    install_soft_delete_filter()
     await check_pre_baseline_db()
     await run_migrations()
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
-    await event_publisher.connect()
 
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:
-    await event_publisher.close()
     tasks = getattr(app.state, "notification_tasks", [])
     for task in tasks:
         task.cancel()

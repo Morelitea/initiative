@@ -3,8 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { addYears, endOfYear, startOfYear, subYears } from "date-fns";
 import { ChevronDown, Download, Filter, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { invalidateAllTasks, invalidateAllCalendarEvents } from "@/api/query-keys";
 import type {
   ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams,

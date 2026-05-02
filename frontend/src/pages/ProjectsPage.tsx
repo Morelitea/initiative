@@ -35,6 +35,7 @@ import { Markdown } from "@/components/Markdown";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { ProjectCardLink, ProjectRowLink } from "@/components/projects/ProjectPreview";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
+import { ProjectImportDialog } from "@/components/projects/ProjectImportDialog";
 import { ProjectsFilterBar } from "@/components/projects/ProjectsFilterBar";
 import { Button } from "@/components/ui/button";
 import {
@@ -93,6 +94,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const hasClaimedManagerRole = claimedManagedInitiatives.length > 0;
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
   const isClosingComposer = useRef(false);
 
   // Open create dialog when ?create=true is in URL
@@ -591,6 +593,16 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                   {t("addProject")}
                 </Button>
               )}
+              {canCreateProjects && (
+                <Button
+                  size="sm"
+                  variant="link"
+                  className="text-muted-foreground h-auto px-0"
+                  onClick={() => setIsImportOpen(true)}
+                >
+                  {t("import.importButton")}
+                </Button>
+              )}
             </div>
             <p className="text-muted-foreground">{t("subtitle")}</p>
           </div>
@@ -833,6 +845,15 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             }}
             defaultInitiativeId={initiativeId}
             onCreated={() => handleComposerOpenChange(false)}
+          />
+        )}
+
+        {canCreateProjects && (
+          <ProjectImportDialog
+            open={isImportOpen}
+            onOpenChange={setIsImportOpen}
+            creatableInitiatives={creatableInitiatives}
+            defaultInitiativeId={initiativeId}
           />
         )}
       </div>

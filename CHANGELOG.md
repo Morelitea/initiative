@@ -7,6 +7,85 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-05-01
+
+### Added
+
+- **Spreadsheet documents.** Pick **Spreadsheet** from the document-type dropdown when creating a new document to get a virtualized cell grid that scrolls horizontally and vertically without bound. Edit cells with click + type / Enter / Tab / arrow keys; copy and paste between cells (and from Numbers / Excel / Sheets — multi-row / multi-column blocks expand into the grid). Toolbar buttons export the sheet as CSV or import a CSV file. Cells store strings, numbers, booleans, or blanks; numeric- and boolean-looking inputs get auto-coerced to the right type, and booleans render as interactive checkboxes. Edits sync in real time between users on the same document over the existing yjs collaboration infrastructure, and each user's currently-selected cell shows up to peers as a colored ring with their name.
+
+- **Webhook subscriptions for the advanced-tool service.** Outbound HMAC-signed event delivery (sha256 over `timestamp + "." + body`) so the embed can react to writes (e.g. `task.created`) without polling. Subscriptions are guild-scoped, RLS-protected, and the HMAC secret is returned only at create time. _Note: likely temporary scaffolding for testing the embed integration; expect the contract to shift as it shakes out._
+
+- **Delegation auth for the advanced-tool service.** Accept short-lived RS256-signed JWTs from the embed's backend so it can call Initiative on a user's behalf. Existing RLS + role-permission checks still gate every action — delegation answers only "who is acting." Deactivated users can't be impersonated. Disabled by default; opt in with `AUTO_DELEGATION_PUBLIC_KEY_PEM`.
+
+- **Embedded advanced tool integration.** Initiative now supports plugging in an externally-deployed companion app as an iframe panel under specific initiatives or as a dedicated guild settings tab. Operators set `ADVANCED_TOOL_NAME` and `ADVANCED_TOOL_URL` on the backend; without those, the entire feature stays fully hidden — no UI surface, no per-initiative toggle, and the API endpoints return 404.
+  - **Per-initiative panel** — initiative managers turn it on under Initiative settings → Details → Advanced Tools. Once enabled, the panel becomes the first item in the initiative's sidebar group for any user whose role grants the new `advanced_tool_enabled` permission.
+  - **Per-guild panel** — guild admins get a dedicated tab in guild settings for cross-initiative or admin-only views. The tab only appears when the deployment has an advanced tool URL configured AND the user is a guild admin.
+  - **Role-based access control** — two new initiative-level permission keys (`advanced_tool_enabled`, `create_advanced_tool`) gate visibility and creation rights at the role level. Built-in managers get both by default; members get neither.
+  - **Security model** — embedding uses a 60-second audience-scoped JWT delivered to the iframe via postMessage (never the URL). Strict origin checks on every postMessage; iframe is sandboxed (`allow-scripts allow-same-origin allow-forms allow-downloads`); locale forwarded so the embed picks up the user's language without re-prompting. JWT can be signed with RS256 via `HANDOFF_SIGNING_PRIVATE_KEY_PEM` so the embed verifies with a public key only — no shared secret. Falls back to HS256 with `SECRET_KEY` for OSS deployments. Tokens carry a `jti` so the embed can refuse repeat redemption within the validity window. The handoff endpoint authorizes membership + role + master-switch + URL-configured before issuing a token, so the embed never has to make access decisions on its own.
+  - **Runtime config endpoint** — `GET /api/v1/config` exposes the deployment's advanced-tool config (URL + name) so the SPA discovers it at boot without rebuilding the bundle.
+
+- **Project export & import.** Settings → Advanced now offers an **Export as JSON** button that downloads a self-contained JSON file with the project's metadata, task statuses, project tags, tasks (with subtasks, recurrence, priorities, dates, and custom property values), and the property *definitions* those tasks reference. From the projects page, an **Import** button next to **New project** accepts a JSON export and recreates the project under any initiative you can create projects in — including across separate Initiative installations. References are name- and email-based so IDs from one database don't leak into another:
+  - **Tags** are matched against the target guild by name; new tags are created if they don't exist.
+  - **Task statuses** are recreated per-project from the export.
+  - **Custom properties** are matched by name in the target initiative. If the target already has a property with the same name but a different type, the imported one is renamed `<name>_<type>` (e.g. `Severity_select`) so the existing property is never mutated.
+  - **Assignees** are matched by email against the target initiative's members. Unmatched emails are reported in a toast warning and silently dropped — the importer becomes the project owner and `created_by` for every task.
+  - The format is **versioned** (`schema_version`) so future format changes can refuse stale exports cleanly.
+
+- **Trash and Restore.** Deleting a project, task, document, comment, initiative, tag, queue, queue item, or calendar event now sends it to a trash can instead of permanently destroying it. Items stay there for the guild's retention period (default 90 days; admins can change it under **Settings → Guild → Trash retention** or set "Never" to keep things forever).
+  - **Personal view** — every member sees a **Trash** tab under their profile listing the things they deleted, with a **Restore** button next to each.
+  - **Guild view** — guild admins also get a **Trash** tab under **Settings → Trash** that shows everything trashed in the guild plus an admin-only **Delete now** button for permanently purging an item before its retention timer is up.
+  - **Restore handles missing owners** — if you trashed a task and the owner has since left the initiative, restore opens a picker so you can hand ownership to someone else before bringing the row back.
+  - **Cascades preserved** — trashing a project hides its tasks too; restoring it brings them back together. The trash listing only shows the parent so you don't get drowned in 200 cascaded rows.
+  - **Auto-purge** runs hourly so expired items leave on their own.
+  - The Postgres layer now refuses raw `DELETE` from the application role on every soft-delete-capable table, so a stray query can't accidentally bypass the trash flow.
+
+- Export users as CSV from **Settings → Users** (guild admins) and **Settings → Admin → Users** (platform admins). Each row gets an **Export** button, and the card header has **Export all as CSV**. Exports include ID, email, full name, role, status, and initiative roles — enough for HR or compliance teams to keep an offline record before an account is removed.
+
+- **Chester the Mimic** — a pixel-art treasure chest mascot now greets you in toast notifications. Each toast type pairs with a Chester mood (success → proud sparkles, error → chomping, warning → thinking, info → talking, default → idle), and the seven mood SVGs ship as standalone animated assets. Platform admins can preview them all from the new "Chester toast playground" card in **Settings → Admin → Branding**.
+
+- **Keep screen awake.** A new toggle under **Settings → Interface** prevents this device's screen from dimming or locking while the app is open. Useful for long planning or reading sessions on a tablet at the table. The setting is per-device — it's saved locally (localStorage on web, Capacitor Preferences on native) and never synced to the backend, so each device can opt in independently. Uses the Screen Wake Lock API on web and the native idle-timer/`FLAG_KEEP_SCREEN_ON` flag on Capacitor builds.
+
+### Changed
+
+- **Account deletion now has three options instead of one.**
+  - **Deactivate** (new) — your account is locked but kept intact. An admin can reactivate it later. Pick this if you might come back.
+  - **Delete my account** (replaces the previous "soft delete") — your name, email, avatar, and login are wiped. The account row stays so the comments, tasks, and documents you authored remain visible (attributed to "Deleted user #{id}") instead of vanishing from your team's history. This is permanent.
+  - **Hard delete** (admin only) — completely removes the row and everything attributed to it. Hidden from the user-facing dialog; only platform admins can do this from the admin page.
+
+  All account-deletion paths now require you to transfer ownership of any projects you manage before submitting, so projects always have an active owner.
+
+- The platform users page status column shows **Active**, **Deactivated**, or **Anonymized** in place of the old Active/Inactive label, and the "Reactivate" button is hidden for anonymized accounts (their data is gone — there's nothing to bring back).
+
+- Anywhere a deleted user used to appear (comment authors, task assignees, mentions, calendar attendees, document collaborators), they now show as **Deleted user #{id}** with a neutral avatar instead of a stale name or email.
+
+- Anonymized users are filtered out of "add member" and @-mention pickers, so you can't accidentally assign or mention someone whose account no longer exists.
+
+- **Single Docker image for OSS and hosted deployments.** The dual-build setup (separate `*-infra` image with `INSTALL_INFRA_EXTRAS=true`) is gone — one image now serves every deployment, with the advanced tool integration enabled at runtime via env vars instead of at build time. The `INSTALL_INFRA_EXTRAS` build arg, the `requirements-infra.txt` extras file, and the `build-docker-infra` GitHub Actions job have been removed. Self-hosters get the same image we run; auditors can verify by inspection that the public image has no automation/event-publishing code paths.
+
+- Bump lexical dependencies for a more stable document editor.
+
+- Migrated the document editor to Lexical 0.44's Extension API. No user-visible behavior change, but the editor now uses `LexicalExtensionComposer` with `defineExtension` instead of the legacy `LexicalComposer` + plugin-list pattern, which clears the deprecation warning around `CodeNode` and aligns the editor with the upstream shadcn-editor architecture so future Lexical updates are easier to absorb.
+
+### Fixed
+
+- Read-only members can now create new documents from a template they have access to. Previously the copy required write access to the template, which defeated the point of templates being shared starters. Copying a non-template document still requires write access on the source.
+
+- Deleting a document from the document settings page no longer fires two success toasts.
+
+- Drag-scrolling a kanban board no longer smears a text selection across every card the pointer passes over.
+
+- The document markdown converter now round-trips paragraph structure correctly. Toggling **Convert from markdown** previously turned a `\n\n` paragraph break into two stacked soft line breaks; converting back then re-emitted single newlines, so paragraphs steadily collapsed each time you toggled. Paragraph breaks now serialize as `\n\n` in markdown and parse back as real paragraphs, and shift+return soft breaks survive the round trip via the standard CommonMark hard-break syntax.
+
+- The guild filter on **My Tasks** and **Created Tasks** silently ignored your selection — picking one or more guilds still showed tasks from every guild you belong to. The pages now narrow correctly.
+
+- Documents owned by a departing user no longer become orphaned when the user leaves the initiative — whether they leave the guild, deactivate or delete their own account, get removed by an admin, or get unassigned via OIDC sync. The initiative's project managers automatically inherit ownership of those documents, so anyone who needs to find or clean up old work after a team move still can.
+
+- Custom properties UI is now translated to Spanish and French. Previously, users on those locales saw English labels throughout the properties picker, manager, and filters.
+
+### Removed
+
+- **Automation engine, event publisher, and `aioboto3` dependency.** Domain-event fan-out for automation now lives entirely in the separately-deployed advanced tool service rather than in the FOSS backend. The bundled Kinesis publisher, the in-process automation engine, the Redis dependency, and the `automations_enabled` initiative flag (replaced by the generic `advanced_tool_enabled` slot) are all gone from the FOSS image. Fresh installs are unaffected; existing databases get a clean migration path.
+
 ## [0.42.1] - 2026-04-28
 
 ### Fixed

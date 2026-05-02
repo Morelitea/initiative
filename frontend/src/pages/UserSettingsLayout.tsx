@@ -12,6 +12,7 @@ const userSettingsTabs = [
   { value: "ai", labelKey: "layout.tabs.ai", path: "/profile/ai" },
   { value: "import", labelKey: "layout.tabs.import", path: "/profile/import" },
   { value: "security", labelKey: "layout.tabs.security", path: "/profile/security" },
+  { value: "trash", labelKey: "layout.tabs.trash", path: "/profile/trash" },
   { value: "danger", labelKey: "layout.tabs.danger", path: "/profile/danger" },
 ] as const;
 

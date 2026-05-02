@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   listDocumentsApiV1DocumentsGet,
   getListDocumentsApiV1DocumentsGetQueryKey,
@@ -249,7 +249,7 @@ export type CreateDocumentInput = {
   template_id?: number;
   project_id?: number;
   /** Omit for native (text) documents; file uploads go through useUploadDocument instead. */
-  document_type?: "native" | "whiteboard" | "smart_link";
+  document_type?: "native" | "whiteboard" | "smart_link" | "spreadsheet";
   /** Required for smart_link ({ url: "..." }). Optional/unused for other types. */
   content?: Record<string, unknown>;
   role_grants?: DocumentRolePermissionCreate[];
@@ -428,9 +428,14 @@ export const useUpdateDocument = (
   });
 };
 
-export const useDeleteDocument = (options?: MutationOpts<void, number[]>) => {
+export const useDeleteDocument = (
+  options?: MutationOpts<void, number[]> & {
+    /** If true, the default "X documents deleted" success toast is skipped so the caller can show its own. */
+    suppressSuccessToast?: boolean;
+  }
+) => {
   const { t } = useTranslation("documents");
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const { onSuccess, onError, onSettled, suppressSuccessToast, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
@@ -439,7 +444,9 @@ export const useDeleteDocument = (options?: MutationOpts<void, number[]>) => {
     },
     onSuccess: (...args) => {
       const documentIds = args[1];
-      toast.success(t("bulk.deleted", { count: documentIds.length }));
+      if (!suppressSuccessToast) {
+        toast.success(t("bulk.deleted", { count: documentIds.length }));
+      }
       void invalidateAllDocuments();
       onSuccess?.(...args);
     },

@@ -4,6 +4,7 @@ import { Outlet, useLocation, useRouter, useParams } from "@tanstack/react-route
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { guildPath, extractSubPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 export const GuildSettingsLayout = () => {
@@ -13,13 +14,17 @@ export const GuildSettingsLayout = () => {
   const location = useLocation();
   const router = useRouter();
   const params = useParams({ strict: false }) as { guildId?: string };
+  // Surface the Automations tab only when the deployment has an advanced
+  // tool URL configured; OSS instances without it never see this tab even
+  // if a user is a guild admin.
+  const { advancedTool } = useAppConfig();
 
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
 
   // Define tabs with guild-scoped paths
-  const guildSettingsTabs = useMemo(
-    () => [
+  const guildSettingsTabs = useMemo(() => {
+    const tabs = [
       {
         value: "guild",
         label: t("guildLayout.tabs.guild"),
@@ -35,9 +40,26 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
-    ],
-    [urlGuildId, t]
-  );
+      {
+        value: "trash",
+        label: t("guildLayout.tabs.trash"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
+      },
+    ];
+    if (advancedTool) {
+      tabs.push({
+        value: "advanced-tool",
+        // The configured runtime name (e.g. "Automations") is what the
+        // user actually sees — keeps wording consistent with the
+        // initiative sidebar entry and panel header.
+        label: advancedTool.name,
+        path: urlGuildId
+          ? guildPath(urlGuildId, "/settings/advanced-tool")
+          : "/settings/advanced-tool",
+      });
+    }
+    return tabs;
+  }, [urlGuildId, t, advancedTool]);
 
   const canViewSettings = isGuildAdmin;
   const availableTabs = isGuildAdmin ? guildSettingsTabs : [];
@@ -62,6 +84,8 @@ export const GuildSettingsLayout = () => {
     { value: "guild", subPath: "/settings" },
     { value: "ai", subPath: "/settings/ai" },
     { value: "users", subPath: "/settings/users" },
+    { value: "trash", subPath: "/settings/trash" },
+    { value: "advanced-tool", subPath: "/settings/advanced-tool" },
   ];
 
   const activeTab =

@@ -32,7 +32,8 @@ from app.services import documents as documents_service
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services import task_statuses as task_statuses_service
-from app.core.messages import ProjectMessages
+from app.core.messages import ProjectExportMessages, ProjectMessages
+from app.core.config import settings as app_settings
 from app.services.realtime import broadcast_event
 from app.schemas.project import (
     ProjectCreate,
@@ -58,7 +59,14 @@ from app.schemas.project import (
 from app.schemas.comment import CommentAuthor
 from app.schemas.initiative import serialize_initiative
 from app.schemas.document import ProjectDocumentSummary, serialize_project_document_link
+from app.schemas.project_export import (
+    ProjectExportEnvelope,
+    ProjectImportRequest,
+    ProjectImportResult,
+)
 from app.schemas.tag import TagSetRequest, TagSummary
+from app.services import project_export as project_export_service
+from app.services import project_import as project_import_service
 
 router = APIRouter()
 
@@ -2011,6 +2019,12 @@ async def delete_project(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
+    """Soft-delete a project. Tasks are stamped with the same deleted_at so
+    they're hidden behind the parent. Restoring the project resurfaces all
+    descendants automatically."""
+    from app.services import guilds as guilds_service
+    from app.services.soft_delete import soft_delete_entity
+
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _require_project_membership(
         project,
@@ -2018,8 +2032,14 @@ async def delete_project(
         session,
         access="write",
         require_manager=True,
-            )
-    await session.delete(project)
+    )
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    await soft_delete_entity(
+        session,
+        project,
+        deleted_by_user_id=current_user.id,
+        retention_days=retention_days,
+    )
     await session.commit()
     await broadcast_event("project", "deleted", {"id": project_id})
 
@@ -2220,3 +2240,77 @@ async def remove_project_role_permission(
         return
     await session.delete(role_perm)
     await session.commit()
+
+
+# ── Export / Import ──────────────────────────────────────────────
+
+
+@router.get("/{project_id}/export", response_model=ProjectExportEnvelope)
+async def export_project(
+    project_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ProjectExportEnvelope:
+    """Serialize a project to a self-contained JSON envelope.
+
+    Cross-row references (tags, statuses, properties, assignees) are
+    encoded by string keys (name / email) so the file imports cleanly on
+    a different Initiative instance. Requires write access on the
+    project — read-only members can't take backups.
+    """
+    project = await _get_project_or_404(project_id, session, guild_context.guild_id)
+    await _require_project_membership(project, current_user, session, access="write")
+    return await project_export_service.build_project_export(
+        session,
+        project_id=project.id,
+        exported_by_email=current_user.email,
+        source_instance_url=app_settings.APP_URL,
+    )
+
+
+@router.post("/import", response_model=ProjectImportResult, status_code=status.HTTP_201_CREATED)
+async def import_project(
+    payload: ProjectImportRequest,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> ProjectImportResult:
+    """Create a new project from a previously-exported envelope.
+
+    The importer becomes the owner and ``created_by`` for every task.
+    Tags, statuses, and properties are matched by name and created if
+    missing. Property type collisions are resolved by renaming the
+    imported one (never by mutating the target's existing definition).
+    Assignees are matched by email against the *target initiative's*
+    members; unmatched emails are reported in the response so the UI
+    can surface them.
+    """
+    initiative = await _get_initiative_or_404(
+        payload.initiative_id, session, guild_context.guild_id
+    )
+    if not rls_service.is_guild_admin(guild_context.role):
+        has_perm = await rls_service.check_initiative_permission(
+            session,
+            initiative_id=initiative.id,
+            user=current_user,
+            permission_key=PermissionKey.create_projects,
+        )
+        if not has_perm:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=ProjectMessages.CREATE_PERMISSION_REQUIRED,
+            )
+    try:
+        envelope = ProjectExportEnvelope.model_validate(payload.envelope)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ProjectExportMessages.INVALID_PAYLOAD,
+        ) from exc
+    return await project_import_service.import_project(
+        session,
+        envelope=envelope,
+        target_initiative=initiative,
+        importer=current_user,
+    )

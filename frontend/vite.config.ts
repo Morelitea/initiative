@@ -40,9 +40,6 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(getVersion()),
     __IS_CAPACITOR__: JSON.stringify(isCapacitorBuild),
-    __ENABLE_AUTOMATIONS__: JSON.stringify(
-      (env.VITE_ENABLE_AUTOMATIONS || process.env.VITE_ENABLE_AUTOMATIONS) === "true"
-    ),
   },
   plugins: [tanstackRouter(), react(), tailwindcss()],
   resolve: {

@@ -9,6 +9,7 @@
       "ai": "IA",
       "import": "Importar",
       "security": "Seguridad",
+      "trash": "Papelera",
       "danger": "Zona de peligro"
     },
     "loginRequired": "Necesitas iniciar sesión para administrar tu perfil.",
@@ -21,7 +22,8 @@
     "tabs": {
       "guild": "Gremio",
       "ai": "IA",
-      "users": "Usuarios"
+      "users": "Usuarios",
+      "trash": "Papelera"
     }
   },
   "adminLayout": {
@@ -213,6 +215,11 @@
       "label": "Vibración al completar tarea",
       "description": "Vibra brevemente tu dispositivo al terminar cualquier tarea. Solo móvil / navegadores compatibles.",
       "preview": "Vista previa"
+    },
+    "keepScreenAwake": {
+      "label": "Mantener pantalla activa",
+      "description": "Evita que la pantalla de este dispositivo se atenúe o se bloquee mientras la aplicación está abierta. Esta preferencia se guarda solo en este dispositivo.",
+      "unsupported": "Tu navegador no admite mantener la pantalla activa."
     }
   },
   "notifications": {
@@ -312,8 +319,6 @@
     "confirmDeletionDescription": "Confirmar eliminación de la cuenta",
     "softDeleteLabel": "Desactivar cuenta (eliminación temporal)",
     "softDeleteRadioDescription": "No podrás iniciar sesión, pero todos los datos se conservarán. Un administrador puede reactivar tu cuenta más tarde.",
-    "hardDeleteLabel": "Eliminar cuenta permanentemente (eliminación definitiva)",
-    "hardDeleteRadioDescription": "La mayoría de los datos serán eliminados del sistema. Los comentarios y documentos se conservarán pero se etiquetarán como \"[Usuario eliminado]\". Esta acción no se puede deshacer.",
     "cannotDelete": "No se puede eliminar la cuenta:",
     "resolveIssues": "Por favor resuelve estos problemas antes de eliminar tu cuenta.",
     "important": "Importante:",
@@ -321,8 +326,6 @@
     "selectNewOwners": "Selecciona nuevos propietarios para tus proyectos antes de proceder con la eliminación de la cuenta.",
     "selectNewOwnerPlaceholder": "Seleccionar nuevo propietario\u2026",
     "actionSerious": "Esta acción es seria:",
-    "softConfirmDescription": "Tu cuenta será desactivada. No podrás iniciar sesión, pero todos tus datos se conservarán. Un administrador puede reactivar tu cuenta.",
-    "hardConfirmDescription": "Tu cuenta será eliminada permanentemente. Tus proyectos serán transferidos. Los comentarios y documentos permanecerán pero mostrarán \"[Usuario eliminado]\" como autor. Esta acción no se puede deshacer.",
     "confirmPasswordLabel": "Confirma tu contraseña",
     "enterPassword": "Ingresa tu contraseña",
     "typeToConfirm": "Escribe <1>ELIMINAR MI CUENTA</1> para confirmar",
@@ -334,7 +337,12 @@
     "deleteAccountButton": "Eliminar cuenta",
     "checking": "Verificando\u2026",
     "deactivateSuccess": "Cuenta desactivada exitosamente",
-    "deleteSuccess": "Cuenta eliminada permanentemente"
+    "deleteSuccess": "Cuenta eliminada permanentemente",
+    "deactivateLabel": "Desactivar mi cuenta (los administradores podrán activarla más tarde)",
+    "deactivateRadioDescription": "No podrás iniciar sesión. Un administrador puede reactivar tu cuenta cuando lo solicites. Tu nombre, email y contenido permanecen intactos.",
+    "deactivateConfirmDescription": "Tu cuenta será desactivada. No podrás iniciar sesión hasta que un administrador la reactive. Tu nombre, email y contenido permanecen intactos.",
+    "softDeleteConfirmDescription": "Tu nombre, email y avatar se eliminarán. No podrás iniciar sesión. Los comentarios, tareas y otro contenido que hayas creado seguirán visibles como \"Usuario eliminado\". Esta acción no se puede deshacer.",
+    "softDeleteSuccess": "Tu cuenta ha sido anonimizada."
   },
   "branding": {
     "adminOnly": "Solo los administradores de la plataforma pueden gestionar la configuración de personalización.",
@@ -357,13 +365,68 @@
     "adminLabel": "Etiqueta de administrador",
     "adminHelper": "Se muestra donde aparezca el rol de administrador.",
     "projectManagerLabel": "Etiqueta de gerente de proyecto",
-    "projectManagerHelper": "Usada para el rol de project_manager (ej. \u201cLíder de equipo\u201d).",
+    "projectManagerHelper": "Usada para el rol de project_manager (ej. “Líder de equipo”).",
     "memberLabel": "Etiqueta de miembro",
     "memberHelper": "Se muestra para los miembros estándar del proyecto.",
     "saveRoles": "Guardar etiquetas de roles",
     "savingRoles": "Guardando\u2026",
     "rolesSuccess": "Etiquetas de roles actualizadas",
-    "rolesUpdateError": "No se pudieron actualizar las etiquetas de roles."
+    "rolesUpdateError": "No se pudieron actualizar las etiquetas de roles.",
+    "chesterPlayground": {
+      "title": "Banco de pruebas de Chester",
+      "description": "Activa cada tipo de notificación para previsualizar la variante de Chester y su animación.",
+      "default": {
+        "label": "predeterminado (inactivo)",
+        "message": "Solo una notificación"
+      },
+      "success": {
+        "label": "éxito (orgulloso)",
+        "message": "Guardado correctamente"
+      },
+      "error": {
+        "label": "error (alterado)",
+        "message": "Algo salió mal"
+      },
+      "warning": {
+        "label": "advertencia (pensativo)",
+        "message": "Ten cuidado"
+      },
+      "info": {
+        "label": "información (hablando)",
+        "message": "Atención"
+      },
+      "loading": {
+        "label": "cargando (hablando, fijo)",
+        "message": "Trabajando en ello…"
+      },
+      "withDescription": {
+        "label": "con descripción",
+        "message": "Perfil actualizado",
+        "detail": "Tus cambios ya están activos en todos los dispositivos."
+      },
+      "withAction": {
+        "label": "con acción",
+        "message": "Haz clic en deshacer para revertir",
+        "actionLabel": "Deshacer",
+        "reverted": "Revertido"
+      },
+      "sticky": {
+        "label": "fijo (con id)",
+        "message": "Notificación fija — descártame"
+      },
+      "dismissSticky": "descartar fijo",
+      "promiseResolve": {
+        "label": "promesa (resuelta)",
+        "loading": "Haciendo algo asíncrono…",
+        "success": "Funcionó"
+      },
+      "promiseReject": {
+        "label": "promesa (rechazada)",
+        "loading": "Haciendo algo arriesgado…",
+        "errorPrefix": "Falló: {{message}}"
+      },
+      "dismissAll": "descartar todo"
+    }
   },
   "email": {
     "adminOnly": "Solo los administradores de la plataforma pueden gestionar la configuración de email.",
@@ -491,6 +554,7 @@
     "loading": "Cargando usuarios\u2026",
     "loadError": "No se pudieron cargar los usuarios.",
     "filterPlaceholder": "Filtrar por email\u2026",
+    "columnId": "ID de usuario",
     "columnName": "Nombre",
     "columnEmail": "Email",
     "columnRole": "Rol",
@@ -507,6 +571,9 @@
     "resetPassword": "Restablecer contraseña",
     "resetDescription": "Esto enviará un email de restablecimiento de contraseña a {{email}}.",
     "reactivate": "Reactivar",
+    "exportUser": "Exportar",
+    "exportAll": "Exportar todo como CSV",
+    "exportError": "No se pudo exportar los usuarios.",
     "deleteUser": "Eliminar usuario",
     "promoteSuccess": "Usuario promovido a administrador",
     "demoteSuccess": "Usuario degradado a miembro",
@@ -517,7 +584,9 @@
     "reactivateError": "No se pudo reactivar al usuario",
     "cannotDemoteLastAdmin": "No se puede degradar al último administrador de la plataforma",
     "cannotChangeOwnRole": "No puedes cambiar tu propio rol",
-    "permissionRequired": "Necesitas permisos de {{adminLabel}} para ver esta página."
+    "permissionRequired": "Necesitas permisos de {{adminLabel}} para ver esta página.",
+    "deactivated": "Desactivada",
+    "anonymized": "Anonimizada"
   },
   "adminDeleteUser": {
     "title": "Eliminar usuario",
@@ -569,6 +638,16 @@
     "deactivating": "Desactivando\u2026",
     "deleteSuccess": "Usuario eliminado",
     "deactivateSuccess": "Usuario desactivado",
-    "deleteError": "No se pudo eliminar al usuario"
+    "deleteError": "No se pudo eliminar al usuario",
+    "deactivateTitle": "Desactivar",
+    "deactivateDescription": "El usuario no podrá iniciar sesión. La PII se conserva. Reversible desde la página de usuarios.",
+    "anonymizeButton": "Anonimizar usuario",
+    "confirmDeactivate": "Desactivar a {{email}} — no podrá iniciar sesión pero sus datos se conservan.",
+    "confirmDeactivateTitle": "Confirmar desactivación",
+    "confirmAnonymizeTitle": "Confirmar anonimización",
+    "deleteInitiative": "Eliminar iniciativa",
+    "deleteInitiativeConfirm": "¿Eliminar la iniciativa \"{{initiativeName}}\"? Esta y todos sus proyectos, tareas, documentos, colas y eventos se enviarán a la papelera. Puedes restaurar todo el árbol desde Configuración → Papelera antes de que finalice el período de retención.",
+    "deleteInitiativeSuccess": "Iniciativa eliminada",
+    "deleteInitiativeError": "No se pudo eliminar la iniciativa"
   }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { useUpdateNotificationPreferences } from "@/hooks/useUsers";
 import { useFcmConfig } from "@/hooks/useSettings";
 import { Button } from "@/components/ui/button";

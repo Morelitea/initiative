@@ -81,7 +81,12 @@
     "deleteConfirmTitle": "¿Eliminar gremio?",
     "deleteConfirmDescription": "Eliminar <bold>{{name}}</bold> eliminará permanentemente todas las iniciativas, proyectos, tareas y documentos dentro de él. Esta acción no se puede deshacer.",
     "deleteConfirmLabel": "Escribe <bold>{{name}}</bold> para confirmar:",
-    "unableToDelete": "No se pudo eliminar el gremio."
+    "unableToDelete": "No se pudo eliminar el gremio.",
+    "retentionTitle": "Retención de la papelera",
+    "retentionDescription": "Cuánto tiempo permanecen los elementos eliminados en la papelera antes de ser borrados permanentemente. Selecciona \"Nunca\" para conservarlos hasta que un administrador los elimine manualmente.",
+    "retentionDaysLabel": "Días",
+    "retentionNeverLabel": "Nunca purgar automáticamente",
+    "retentionUpdatedSuccessfully": "Retención actualizada."
   },
   "users": {
     "adminRequired": "Necesitas permisos de {{adminLabel}} para ver esta página.",
@@ -107,6 +112,7 @@
     "usersTitle": "Usuarios del gremio",
     "usersDescription": "Actualiza roles o elimina cuentas.",
     "filterByEmail": "Filtrar por email...",
+    "userIdColumn": "ID de usuario",
     "userColumn": "Usuario",
     "emailColumn": "Email",
     "guildRoleColumn": "Rol en el gremio",
@@ -115,6 +121,9 @@
     "sourceOidc": "OIDC",
     "sourceManual": "Manual",
     "reactivate": "Reactivar",
+    "exportUser": "Exportar",
+    "exportAll": "Exportar todo como CSV",
+    "exportError": "No se pudo exportar los usuarios.",
     "removeFromGuild": "Eliminar del gremio",
     "removeUserTitle": "¿Eliminar usuario del gremio?",
     "removeUserDescription": "Esto eliminará a {{email}} del gremio. Esta acción no se puede deshacer.",

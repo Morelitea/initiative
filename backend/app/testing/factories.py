@@ -26,7 +26,7 @@ from app.models.property import (
 )
 from app.models.queue import Queue, QueueItem
 from app.models.task import Task
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserStatus
 from app.services.initiatives import create_builtin_roles
 
 
@@ -60,7 +60,7 @@ async def create_user(
         "full_name": "Test User",
         "hashed_password": get_password_hash("testpassword123"),
         "role": UserRole.member,
-        "is_active": True,
+        "status": UserStatus.active,
         "email_verified": True,
         "week_starts_on": 0,
         "timezone": "UTC",

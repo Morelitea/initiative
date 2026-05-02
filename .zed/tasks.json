@@ -1,0 +1,66 @@
+[
+  {
+    "label": "dev:db-start",
+    "command": "docker-compose up db -d --wait",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "never"
+  },
+  {
+    "label": "dev:migrate",
+    "command": "bash scripts/dev-migrate.sh",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "never"
+  },
+  {
+    "label": "dev:seed",
+    "command": "bash scripts/dev-seed.sh",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "never"
+  },
+  {
+    "label": "dev:backend",
+    "command": "bash scripts/dev-backend.sh",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "dev:frontend",
+    "command": "bash scripts/dev-frontend.sh",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "dev:open-browser",
+    "command": "bash scripts/dev-open-browser.sh",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": true,
+    "reveal": "never"
+  },
+  {
+    "label": "Dev Environment",
+    "command": "bash scripts/dev-pre-launch.sh",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  },
+  {
+    "label": "dev:cleanup",
+    "command": "bash scripts/dev-cleanup.sh",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always"
+  }
+]

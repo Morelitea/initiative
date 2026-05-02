@@ -107,7 +107,7 @@ jobs:
           name: android-apk
           path: artifacts/*.apk
 
-  build-docker:
+  build-docker-public:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -179,38 +179,8 @@ jobs:
           cache-to: type=gha,scope=docker-build,mode=max
           platforms: linux/amd64,linux/arm64
 
-      - name: Image digest
-        run: echo "Image pushed with digest ${{ steps.build.outputs.digest }}"
-
-      - name: Extract infra metadata (tags, labels) for Docker
-        id: meta-infra
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE_NAME }}-infra
-          tags: |
-            type=semver,pattern={{version}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=semver,pattern={{major}}.{{minor}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=semver,pattern={{major}}${{ inputs.version && format(',value=v{0}', inputs.version) || '' }}
-            type=raw,value=latest
-
-      - name: Build and push Docker image (infra)
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta-infra.outputs.tags }}
-          labels: ${{ steps.meta-infra.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.version.outputs.version }}
-            VITE_API_URL=/api/v1
-            VITE_ENABLE_AUTOMATIONS=true
-          cache-from: type=gha,scope=docker-build-infra
-          cache-to: type=gha,scope=docker-build-infra,mode=max
-          platforms: linux/amd64,linux/arm64
-
   release:
-    needs: [build-android, build-docker]
+    needs: [build-android, build-docker-public]
     runs-on: ubuntu-latest
     permissions:
       contents: write

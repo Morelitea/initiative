@@ -593,7 +593,10 @@ async def delete_calendar_event(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> None:
-    """Delete a calendar event. Requires create_events permission or guild admin."""
+    """Soft-delete a calendar event. Requires create_events permission or guild admin."""
+    from app.services import guilds as guilds_service
+    from app.services.soft_delete import soft_delete_entity
+
     event = await _get_event_or_404(session, event_id)
     await _check_initiative_permission(
         session,
@@ -602,7 +605,13 @@ async def delete_calendar_event(
         guild_context,
         PermissionKey.create_events,
     )
-    await session.delete(event)
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    await soft_delete_entity(
+        session,
+        event,
+        deleted_by_user_id=current_user.id,
+        retention_days=retention_days,
+    )
     await session.commit()
 
 

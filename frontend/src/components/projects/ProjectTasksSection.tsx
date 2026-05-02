@@ -21,8 +21,8 @@ import {
   Archive,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import type {
   FilterCondition,
   ListTasksApiV1TasksGetParams,
@@ -926,7 +926,6 @@ export const ProjectTasksSection = ({
           </div>
           <CollapsibleContent forceMount className="mt-2 data-[state=closed]:hidden sm:mt-0">
             <ProjectTasksFilters
-              viewMode={viewMode}
               taskStatuses={sortedTaskStatuses}
               userOptions={userOptions}
               tags={tags}

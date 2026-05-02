@@ -7,6 +7,7 @@ import {
   PenTool,
   Presentation,
   ScrollText,
+  Sheet,
 } from "lucide-react";
 
 /**
@@ -110,6 +111,7 @@ export function getDocumentIconColor(
   filename: string | null | undefined
 ): string {
   if (documentType === "whiteboard") return "text-purple-500";
+  if (documentType === "spreadsheet") return "text-emerald-500";
   if (documentType !== "file") return "text-muted-foreground";
   const label = getFileTypeLabel(mimeType, filename);
   switch (label) {
@@ -144,6 +146,7 @@ export function getDocumentIcon(
   filename: string | null | undefined
 ): LucideIcon {
   if (documentType === "whiteboard") return PenTool;
+  if (documentType === "spreadsheet") return Sheet;
   if (documentType !== "file") return ScrollText;
   const label = getFileTypeLabel(mimeType, filename);
   if (label === "Image") return ImageIcon;

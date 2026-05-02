@@ -2,8 +2,8 @@ import { useState, type ReactNode } from "react";
 import { useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Settings, Plus, Copy, LogOut, UserPlus, Users, FolderOpen } from "lucide-react";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import { createGuildInviteApiV1GuildsGuildIdInvitesPost } from "@/api/generated/guilds/guilds";
 import type { GuildInviteRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 

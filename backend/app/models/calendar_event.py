@@ -6,6 +6,8 @@ from pydantic import ConfigDict
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.models._mixins import SoftDeleteMixin
+
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative
     from app.models.property import CalendarEventPropertyValue
@@ -14,7 +16,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.document import Document
 
 
-class CalendarEvent(SQLModel, table=True):
+class CalendarEvent(SoftDeleteMixin, table=True):
     """Initiative-scoped calendar event (Google Calendar-like).
 
     Access is controlled at the initiative level — any initiative member
@@ -22,6 +24,7 @@ class CalendarEvent(SQLModel, table=True):
     No per-event DAC.
     """
     __tablename__ = "calendar_events"
+    _owner_field = "created_by_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)

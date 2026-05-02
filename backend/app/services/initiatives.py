@@ -379,7 +379,17 @@ async def remove_user_from_guild_initiatives(
     guild_id: int,
     user_id: int,
 ) -> None:
-    """Remove a user from all initiatives in a guild, clearing task assignments."""
+    """Remove a user from all initiatives in a guild, clearing task assignments
+    and handing any documents they owned over to the initiatives' PMs.
+
+    Used by every "user leaves the guild for any reason" path: leave-guild,
+    deactivate, soft-delete, hard-delete, OIDC-sync revocation, and the
+    guild-admin Remove-from-guild action. The document-ownership transfer
+    mirrors what ``remove_initiative_member`` does for a single-initiative
+    removal, so document orphaning is handled uniformly.
+    """
+    from app.services import documents as documents_service
+
     # Find initiatives in this guild where the user is a member
     initiative_ids_result = await session.exec(
         select(InitiativeMember.initiative_id).where(
@@ -391,9 +401,13 @@ async def remove_user_from_guild_initiatives(
     )
     initiative_ids = list(initiative_ids_result.all())
 
-    # Clear task assignments for each initiative
+    # Clear task assignments and re-home owned documents per initiative
+    # before dropping the membership rows.
     for init_id in initiative_ids:
         await clear_user_task_assignments_for_initiative(
+            session, initiative_id=init_id, user_id=user_id,
+        )
+        await documents_service.handle_owner_removal(
             session, initiative_id=init_id, user_id=user_id,
         )
 

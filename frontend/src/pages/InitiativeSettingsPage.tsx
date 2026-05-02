@@ -3,7 +3,8 @@ import { Link, Navigate, useParams, useRouter } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Loader2 } from "lucide-react";
-import { toast } from "sonner";
+
+import { toast } from "@/lib/chesterToast";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -156,10 +157,10 @@ export const InitiativeSettingsPage = () => {
     });
   };
 
-  const handleToggleAutomations = (value: boolean) => {
+  const handleToggleAdvancedTool = (value: boolean) => {
     updateInitiative.mutate({
       initiativeId,
-      data: { automations_enabled: value },
+      data: { advanced_tool_enabled: value },
     });
   };
 
@@ -257,8 +258,8 @@ export const InitiativeSettingsPage = () => {
           onToggleQueues={handleToggleQueues}
           eventsEnabled={initiative?.events_enabled ?? false}
           onToggleEvents={handleToggleEvents}
-          automationsEnabled={initiative?.automations_enabled ?? false}
-          onToggleAutomations={handleToggleAutomations}
+          advancedToolEnabled={initiative?.advanced_tool_enabled ?? false}
+          onToggleAdvancedTool={handleToggleAdvancedTool}
           canManageMembers={canManageMembers}
           isSaving={updateInitiative.isPending}
           onSaveDetails={handleSaveDetails}

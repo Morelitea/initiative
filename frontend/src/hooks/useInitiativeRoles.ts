@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet,
   getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey,
@@ -125,23 +125,22 @@ export const hasPermission = (
 // on is_manager here.
 export const isFeatureEnabled = (
   permissions: MyInitiativePermissions | undefined,
-  feature: "docs" | "projects" | "queues" | "automations"
+  feature: "docs" | "projects" | "queues"
 ): boolean => {
   if (!permissions) return false;
   const keyMap: Record<typeof feature, PermissionKey> = {
     docs: "docs_enabled",
     projects: "projects_enabled",
     queues: "queues_enabled",
-    automations: "automations_enabled",
   };
   return permissions.permissions[keyMap[feature]] ?? false;
 };
 
-// Helper to check if user can create (docs, projects, or queues).
+// Helper to check if user can create (docs, projects, queues, or events).
 // Same as isFeatureEnabled — reads backend value directly.
 export const canCreate = (
   permissions: MyInitiativePermissions | undefined,
-  entity: "docs" | "projects" | "queues" | "events" | "automations"
+  entity: "docs" | "projects" | "queues" | "events"
 ): boolean => {
   if (!permissions) return false;
   const keyMap: Record<typeof entity, PermissionKey> = {
@@ -149,7 +148,6 @@ export const canCreate = (
     projects: "create_projects",
     queues: "create_queues",
     events: "create_events",
-    automations: "create_automations",
   };
   return permissions.permissions[keyMap[entity]] ?? false;
 };
@@ -164,8 +162,8 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   create_queues: "Create Queues",
   events_enabled: "View Events",
   create_events: "Create Events",
-  automations_enabled: "View Automations",
-  create_automations: "Create Automations",
+  advanced_tool_enabled: "View Advanced Tool",
+  create_advanced_tool: "Create in Advanced Tool",
 };
 
 // i18n-based permission label keys (use with t())
@@ -178,8 +176,8 @@ export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = {
   create_queues: "settings.permissions.createQueues",
   events_enabled: "settings.permissions.viewEvents",
   create_events: "settings.permissions.createEvents",
-  automations_enabled: "settings.permissions.viewAutomations",
-  create_automations: "settings.permissions.createAutomations",
+  advanced_tool_enabled: "settings.permissions.viewAdvancedTool",
+  create_advanced_tool: "settings.permissions.createAdvancedTool",
 };
 
 // All permission keys in display order
@@ -192,9 +190,8 @@ export const ALL_PERMISSION_KEYS: PermissionKey[] = [
   "create_queues",
   "events_enabled",
   "create_events",
-  ...(__ENABLE_AUTOMATIONS__
-    ? (["automations_enabled", "create_automations"] as PermissionKey[])
-    : []),
+  "advanced_tool_enabled",
+  "create_advanced_tool",
 ];
 
 // Permission groups for card-based layout
@@ -213,15 +210,15 @@ export const CORE_PERMISSION_GROUPS: PermissionGroup[] = [
 export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = [
   { labelKey: "settings.permissionGroups.queues", keys: ["queues_enabled", "create_queues"] },
   { labelKey: "settings.permissionGroups.events", keys: ["events_enabled", "create_events"] },
-  ...(__ENABLE_AUTOMATIONS__
-    ? [
-        {
-          labelKey: "settings.permissionGroups.automations",
-          keys: ["automations_enabled", "create_automations"] as PermissionKey[],
-        },
-      ]
-    : []),
 ];
+
+// Permission group for the optional embedded advanced tool. Only included
+// in the role-permissions UI when the deployment has an advanced tool URL
+// configured at runtime — see InitiativeSettingsRolesTab for the gating.
+export const ADVANCED_TOOL_PERMISSION_GROUP: PermissionGroup = {
+  labelKey: "settings.permissionGroups.advancedTool",
+  keys: ["advanced_tool_enabled", "create_advanced_tool"],
+};
 
 // All groups combined (for backward compat)
 export const PERMISSION_GROUPS: PermissionGroup[] = [

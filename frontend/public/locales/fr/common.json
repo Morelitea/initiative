@@ -6,7 +6,7 @@
   "create": "Créer",
   "close": "Fermer",
   "confirm": "Confirmer",
-  "loading": "Chargement…",
+  "loading": "Chargement\u2026",
   "search": "Rechercher",
   "back": "Retour",
   "next": "Suivant",
@@ -40,7 +40,7 @@
   "untitled": "Sans titre",
   "appName": "initiative",
   "send": "Envoyer",
-  "submitting": "Envoi en cours…",
+  "submitting": "Envoi en cours\u2026",
   "clear": "Effacer",
   "pickEmoji": "Choisir un emoji",
   "previous": "Précédent",
@@ -61,7 +61,7 @@
   "noResultsDot": "Aucun résultat.",
   "allSelected": "Tout sélectionné",
   "countSelected": "{{count}} sélectionné(s)",
-  "selectEllipsis": "Sélectionner…",
+  "selectEllipsis": "Sélectionner\u2026",
   "noOptionsAvailable": "Aucune option disponible",
   "clearAll": "Tout effacer",
   "calendar": {
@@ -82,10 +82,10 @@
     "roleAccessHint": "Accorder l'accès aux membres selon leur rôle dans l'initiative",
     "userAccess": "Accès par utilisateur",
     "userAccessHint": "Accorder l'accès à des membres spécifiques",
-    "selectRoles": "Sélectionner des rôles…",
-    "selectMembers": "Sélectionner des membres…",
-    "searchRoles": "Rechercher des rôles…",
-    "searchMembers": "Rechercher des membres…",
+    "selectRoles": "Sélectionner des rôles\u2026",
+    "selectMembers": "Sélectionner des membres\u2026",
+    "searchRoles": "Rechercher des rôles\u2026",
+    "searchMembers": "Rechercher des membres\u2026",
     "noRoles": "Aucun rôle trouvé",
     "noMembers": "Aucun membre trouvé",
     "level": "Niveau d'accès",
@@ -96,5 +96,6 @@
     "addAllMembersHint": "Accorder l'accès en lecture à tous les membres actuels",
     "noInitiative": "Sélectionnez d'abord une initiative",
     "remove": "Retirer"
-  }
+  },
+  "deletedUserName": "Utilisateur supprimé #{{id}}"
 }

@@ -5,6 +5,8 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, DateTime, ForeignKey, Integer
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
+from app.models._mixins import SoftDeleteMixin
+
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.project_order import ProjectOrder
@@ -17,8 +19,9 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.tag import ProjectTag
 
 
-class Project(SQLModel, table=True):
+class Project(SoftDeleteMixin, table=True):
     __tablename__ = "projects"
+    _owner_field = "owner_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)

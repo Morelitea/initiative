@@ -2,8 +2,8 @@ import { useCallback, useMemo, useState } from "react";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/chesterToast";
 import {
   addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost,
   addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost,

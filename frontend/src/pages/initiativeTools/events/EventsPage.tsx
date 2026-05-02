@@ -3,9 +3,9 @@ import { useRouter, useSearch } from "@tanstack/react-router";
 import { addYears, endOfYear, format, startOfYear, subYears } from "date-fns";
 import { ChevronDown, Download, Filter, Loader2, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { keepPreviousData } from "@tanstack/react-query";
 
+import { toast } from "@/lib/chesterToast";
 import { CalendarView, type CalendarEntry, type CalendarViewMode } from "@/components/calendar";
 import { useCalendarEventsList } from "@/hooks/useCalendarEvents";
 import { useTasks } from "@/hooks/useTasks";

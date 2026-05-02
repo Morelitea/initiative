@@ -99,6 +99,12 @@ def normalize_document_content(
             raise DocumentContentError(DocumentMessages.SMART_LINK_URL_INVALID)
         return {"url": url}
 
+    if document_type == DocumentType.spreadsheet:
+        # Imported lazily to avoid a circular import: documents_spreadsheet
+        # imports DocumentContentError from this module.
+        from app.services.documents_spreadsheet import normalize_spreadsheet_content
+        return normalize_spreadsheet_content(payload)
+
     # native (default)
     if not isinstance(payload, dict):
         return deepcopy(EMPTY_LEXICAL_STATE)
@@ -357,18 +363,28 @@ async def handle_owner_removal(
         if owner_permission:
             await session.delete(owner_permission)
 
-        # Grant owner access to all PMs who don't already have permission
-        # so they can manage (including delete) the orphaned document
-        existing_user_ids = {p.user_id for p in doc.permissions}
+        # Grant owner access to every PM. PMs who already have a row
+        # (e.g. as "write" / "read") get upgraded — without that, an
+        # initiative where every PM was previously listed at a lower
+        # level would end up with no owner at all once the original
+        # owner's row is dropped.
+        existing_by_user = {p.user_id: p for p in doc.permissions if p.user_id != user_id}
         for pm_user_id in pm_user_ids:
-            if pm_user_id not in existing_user_ids and pm_user_id != user_id:
-                pm_permission = DocumentPermission(
-                    document_id=doc.id,
-                    user_id=pm_user_id,
-                    level=DocumentPermissionLevel.owner,
-                    guild_id=doc.guild_id,
+            if pm_user_id == user_id:
+                continue
+            existing = existing_by_user.get(pm_user_id)
+            if existing is None:
+                session.add(
+                    DocumentPermission(
+                        document_id=doc.id,
+                        user_id=pm_user_id,
+                        level=DocumentPermissionLevel.owner,
+                        guild_id=doc.guild_id,
+                    )
                 )
-                session.add(pm_permission)
+            elif existing.level != DocumentPermissionLevel.owner:
+                existing.level = DocumentPermissionLevel.owner
+                session.add(existing)
 
     await session.flush()
 

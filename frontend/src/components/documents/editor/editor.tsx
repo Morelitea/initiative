@@ -1,11 +1,37 @@
 "use client";
 
-import { useRef } from "react";
-import { InitialConfigType, LexicalComposer } from "@lexical/react/LexicalComposer";
-import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
-import { CollaborationPlugin } from "@lexical/react/LexicalCollaborationPlugin";
+import { useMemo, useRef } from "react";
+import { CodeExtension } from "@lexical/code";
+import { CodePrismExtension } from "@lexical/code-prism";
+import {
+  AutoFocusExtension,
+  ClearEditorExtension,
+  DecoratorTextExtension,
+  HorizontalRuleExtension,
+  SelectionAlwaysOnDisplayExtension,
+} from "@lexical/extension";
+import { HashtagExtension } from "@lexical/hashtag";
+import { HistoryExtension } from "@lexical/history";
+import {
+  AutoLinkExtension,
+  ClickableLinkExtension,
+  createLinkMatcherWithRegExp,
+  LinkExtension,
+} from "@lexical/link";
+import { CheckListExtension, ListExtension } from "@lexical/list";
+import { OverflowNode } from "@lexical/overflow";
 import { LexicalCollaboration } from "@lexical/react/LexicalCollaborationContext";
-import { EditorState, SerializedEditorState } from "lexical";
+import { CollaborationPlugin } from "@lexical/react/LexicalCollaborationPlugin";
+import { LexicalExtensionComposer } from "@lexical/react/LexicalExtensionComposer";
+import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import { RichTextExtension } from "@lexical/rich-text";
+import { TableCellNode, TableNode, TableRowNode } from "@lexical/table";
+import {
+  configExtension,
+  defineExtension,
+  type EditorState,
+  type SerializedEditorState,
+} from "lexical";
 import * as Y from "yjs";
 
 import { Loader2 } from "lucide-react";
@@ -13,7 +39,21 @@ import { Loader2 } from "lucide-react";
 import { editorTheme } from "@/components/ui/editor/themes/editor-theme";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
-import { nodes } from "./nodes";
+import { EmbedNode } from "@/components/ui/editor/nodes/embed-node";
+import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
+import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
+import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
+import { WikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
+
+import { EmojisExtension } from "@/components/ui/editor/extensions/emojis-extension";
+import { HeadingAnchorExtension } from "@/components/ui/editor/extensions/heading-anchor-extension";
+import { ImagesExtension } from "@/components/ui/editor/extensions/images-extension";
+import { KeywordsExtension } from "@/components/ui/editor/extensions/keywords-extension";
+import { LayoutExtension } from "@/components/ui/editor/extensions/layout-extension";
+import { ListMaxIndentLevelExtension } from "@/components/ui/editor/extensions/list-max-indent-level-extension";
+import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
+
+import { validateUrl } from "@/components/ui/editor/utils/url";
 import { Plugins } from "./plugins";
 import { cn } from "@/lib/utils";
 import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
@@ -21,14 +61,18 @@ import type { CollaborationProvider } from "@/lib/yjs/CollaborationProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserColorHsl } from "@/lib/userColor";
 
-const editorConfig: InitialConfigType = {
-  namespace: "Editor",
-  theme: editorTheme,
-  nodes,
-  onError: (error: Error) => {
-    console.error(error);
-  },
-};
+const URL_REGEX =
+  /((https?:\/\/(www\.)?)|(www\.))[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_+.~#?&//=]*)(?<![-.+():%])/;
+
+const EMAIL_REGEX =
+  /(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))/;
+
+const AUTO_LINK_MATCHERS = [
+  createLinkMatcherWithRegExp(URL_REGEX, (text) =>
+    text.startsWith("http") ? text : `https://${text}`
+  ),
+  createLinkMatcherWithRegExp(EMAIL_REGEX, (text) => `mailto:${text}`),
+];
 
 export interface EditorProps {
   editorState?: EditorState;
@@ -40,39 +84,12 @@ export interface EditorProps {
   className?: string;
   mentionableUsers?: UserPublic[];
   documentName?: string;
-  // Collaboration props
   collaborative?: boolean;
-  /**
-   * Factory function for creating the collaboration provider.
-   * Passed to Lexical's CollaborationPlugin.
-   */
   providerFactory?: ((id: string, yjsDocMap: Map<string, Y.Doc>) => CollaborationProvider) | null;
-  /**
-   * Whether to track changes via OnChangePlugin.
-   * Set to true when not actively collaborating to enable autosave.
-   * Defaults to true when not in collaborative mode.
-   */
   trackChanges?: boolean;
-  /**
-   * Whether the collaboration provider has synced with the server.
-   * Used to show a loading overlay while syncing.
-   */
   isSynced?: boolean;
-  // Wikilinks props
-  /**
-   * Initiative ID for wikilink document search.
-   * Wikilinks only work within the same initiative.
-   */
   initiativeId?: number | null;
-  /**
-   * Callback when a resolved wikilink is clicked.
-   * Called with the document ID to navigate to.
-   */
   onWikilinkNavigate?: (documentId: number) => void;
-  /**
-   * Callback when an unresolved wikilink is clicked.
-   * Called with the document title and a callback to update the wikilink with the new document ID.
-   */
   onWikilinkCreate?: (title: string, onCreated: (documentId: number) => void) => void;
 }
 
@@ -95,35 +112,91 @@ export function Editor({
   onWikilinkCreate,
 }: EditorProps) {
   const { user } = useAuth();
-  // Per-user deterministic cursor color — matches the user's avatar in the
-  // collaboration status badge and their cursor on whiteboards.
   const userColor = useRef(user ? getUserColorHsl(user.id) : "hsl(0, 0%, 70%)");
   const userName = user?.full_name || user?.email || "Anonymous";
-  // Ref for the collaboration cursors container - must be inside the scrolling editor content
   const cursorsContainerRef = useRef<HTMLDivElement>(null!);
 
-  // Collaborative mode is active when we have a provider factory
   const useCollaborativeMode = Boolean(collaborative && providerFactory);
 
-  // When in collaborative mode, we must set editorState to null
-  // and let CollaborationPlugin manage the state
-  const initialEditorState = useCollaborativeMode
-    ? null
-    : editorState
-      ? editorState
-      : editorSerializedState
-        ? JSON.stringify(editorSerializedState)
-        : undefined;
-
-  // Initial editor state for bootstrapping when Yjs is empty
-  // Must be a string (not a function returning string) for CollaborationPlugin
   const initialEditorStateForCollab =
     useCollaborativeMode && editorSerializedState
       ? JSON.stringify(editorSerializedState)
       : undefined;
 
-  // Show syncing overlay when collaborative mode is active but not yet synced
   const showSyncingOverlay = useCollaborativeMode && !isSynced;
+
+  // Capture initial editor configuration at first mount. LexicalExtensionComposer
+  // recreates (and disposes) the editor whenever the `extension` prop reference
+  // changes, so the AppExtension must be stable across re-renders. Subsequent
+  // changes to readOnly are applied via editor.setEditable() inside Plugins;
+  // editorState / editorSerializedState are only consulted by $initialEditorState
+  // which runs once at editor creation, so refs are sufficient.
+  const initialReadOnlyRef = useRef(readOnly);
+  const initialCollabRef = useRef(useCollaborativeMode);
+  const initialEditorStateRef = useRef(editorState);
+  const initialEditorSerializedStateRef = useRef(editorSerializedState);
+
+  const appExtension = useMemo(() => {
+    const wasCollaborative = initialCollabRef.current;
+    const initState = initialEditorStateRef.current;
+    const initSerialized = initialEditorSerializedStateRef.current;
+
+    return defineExtension({
+      name: "@initiative/document-editor",
+      namespace: "Editor",
+      nodes: [
+        OverflowNode,
+        TableNode,
+        TableCellNode,
+        TableRowNode,
+        MentionNode,
+        TweetNode,
+        YouTubeNode,
+        EmbedNode,
+        WikilinkNode,
+      ],
+      theme: editorTheme,
+      editable: !initialReadOnlyRef.current,
+      onError: (error) => console.error(error),
+      // In collaborative mode, leave the initial state empty.
+      // CollaborationPlugin owns the initial state via its initialEditorState prop.
+      $initialEditorState: wasCollaborative
+        ? null
+        : initState
+          ? initState
+          : initSerialized
+            ? JSON.stringify(initSerialized)
+            : null,
+      dependencies: [
+        RichTextExtension,
+        AutoFocusExtension,
+        SelectionAlwaysOnDisplayExtension,
+        // History is owned by Yjs in collaborative mode; only register HistoryExtension otherwise.
+        ...(wasCollaborative ? [] : [HistoryExtension]),
+        configExtension(LinkExtension, {
+          validateUrl,
+          attributes: { rel: "noopener noreferrer", target: "_blank" },
+        }),
+        configExtension(AutoLinkExtension, { matchers: AUTO_LINK_MATCHERS }),
+        ClickableLinkExtension,
+        ListExtension,
+        CheckListExtension,
+        HorizontalRuleExtension,
+        ClearEditorExtension,
+        DecoratorTextExtension,
+        HashtagExtension,
+        CodeExtension,
+        CodePrismExtension,
+        EmojisExtension,
+        ImagesExtension,
+        KeywordsExtension,
+        LayoutExtension,
+        HeadingAnchorExtension,
+        ListMaxIndentLevelExtension,
+        MarkdownShortcutsExtension,
+      ],
+    });
+  }, []);
 
   return (
     <div
@@ -140,15 +213,7 @@ export function Editor({
           </div>
         </div>
       )}
-      <LexicalComposer
-        initialConfig={{
-          ...editorConfig,
-          editable: !readOnly,
-          // In collaborative mode, editorState must be null
-          // CollaborationPlugin will handle initialization
-          editorState: initialEditorState,
-        }}
-      >
+      <LexicalExtensionComposer extension={appExtension} contentEditable={null}>
         <TooltipProvider>
           <Plugins
             showToolbar={showToolbar}
@@ -162,7 +227,6 @@ export function Editor({
             onWikilinkCreate={onWikilinkCreate}
           />
 
-          {/* Official Lexical CollaborationPlugin for real-time editing */}
           {useCollaborativeMode && providerFactory && (
             <LexicalCollaboration>
               <CollaborationPlugin
@@ -177,7 +241,6 @@ export function Editor({
             </LexicalCollaboration>
           )}
 
-          {/* Standard onChange - enabled when trackChanges is true or when not in collaborative mode */}
           {!readOnly && (trackChanges ?? !useCollaborativeMode) && (
             <OnChangePlugin
               ignoreSelectionChange={true}
@@ -188,7 +251,7 @@ export function Editor({
             />
           )}
         </TooltipProvider>
-      </LexicalComposer>
+      </LexicalExtensionComposer>
     </div>
   );
 }

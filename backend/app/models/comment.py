@@ -2,12 +2,13 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, Integer, Text
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
+from app.models._mixins import SoftDeleteMixin
 from app.models.user import User
 
 
-class Comment(SQLModel, table=True):
+class Comment(SoftDeleteMixin, table=True):
     __tablename__ = "comments"
     __table_args__ = (
         CheckConstraint(
@@ -15,6 +16,11 @@ class Comment(SQLModel, table=True):
             name="ck_comments_task_or_document",
         ),
     )
+    # Comment authorship is intentionally NOT reassignable on restore.
+    # Comments are first-person speech; transferring author_id to someone
+    # else would let admins put words in another user's mouth. If the
+    # original author has left, the restore goes through and the comment
+    # renders as "Deleted user #N" via the existing user-display helpers.
 
     id: Optional[int] = Field(default=None, primary_key=True)
     guild_id: Optional[int] = Field(

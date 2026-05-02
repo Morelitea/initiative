@@ -98,7 +98,7 @@
     "deleting": "Eliminando\u2026",
     "deleteTask": "Eliminar tarea",
     "deleteTitle": "¿Eliminar tarea?",
-    "deleteDescription": "Esto eliminará permanentemente la tarea y todas sus subtareas. Esta acción no se puede deshacer.",
+    "deleteDescription": "La tarea y sus subtareas se enviarán a la papelera. Puedes restaurarla desde Configuración → Papelera antes de que finalice el período de retención.",
     "taskUpdated": "Tarea actualizada",
     "taskDuplicated": "Tarea duplicada",
     "taskDeleted": "Tarea eliminada",
@@ -121,7 +121,6 @@
     "groupByDate": "Fecha",
     "groupByGuild": "Gremio"
   },
-
   "myCalendar": {
     "title": "Mi calendario",
     "subtitle": "Tareas y eventos en todos tus gremios.",
@@ -129,7 +128,6 @@
     "typeEvents": "Eventos",
     "typeTasks": "Tareas"
   },
-
   "createdTasks": {
     "title": "Tareas que creé",
     "subtitle": "Tareas que has creado en todos tus gremios.",
@@ -221,12 +219,11 @@
     "selectProject": "Selecciona un proyecto",
     "noInitiatives": "No se encontraron iniciativas en este gremio.",
     "noProjects": "No se encontraron proyectos en esta iniciativa.",
-    "loading": "Cargando…",
+    "loading": "Cargando\u2026",
     "back": "Atrás",
-    "searchProjects": "Buscar proyectos…",
+    "searchProjects": "Buscar proyectos\u2026",
     "loadMore": "Cargar más"
   },
-
   "bulkEdit": {
     "title": "Editar tareas",
     "description": "Aplicar cambios a {{count}} tarea seleccionada. Solo los campos que establezcas serán actualizados.",

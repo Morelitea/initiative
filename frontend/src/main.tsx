@@ -5,12 +5,12 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import React, { Suspense } from "react";
 import ReactDOM from "react-dom/client";
-import { Toaster } from "sonner";
 
 import { Capacitor } from "@capacitor/core";
 
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { GuildProvider, useGuilds } from "@/hooks/useGuilds";
+import { KeepScreenAwakeProvider } from "@/hooks/useKeepScreenAwake";
 import { ServerProvider, useServer } from "@/hooks/useServer";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { TaskCompletionEffectHost } from "@/components/effects/TaskCompletionEffectHost";
@@ -41,7 +41,6 @@ const InnerApp = () => {
           server,
         }}
       />
-      <Toaster position="bottom-center" />
       <TaskCompletionEffectHost />
     </>
   );
@@ -64,15 +63,17 @@ async function bootstrap() {
     <React.StrictMode>
       <Suspense fallback={null}>
         <ThemeProvider>
-          <ServerProvider>
-            <QueryClientProvider client={queryClient}>
-              <AuthProvider>
-                <GuildProvider>
-                  <InnerApp />
-                </GuildProvider>
-              </AuthProvider>
-            </QueryClientProvider>
-          </ServerProvider>
+          <KeepScreenAwakeProvider>
+            <ServerProvider>
+              <QueryClientProvider client={queryClient}>
+                <AuthProvider>
+                  <GuildProvider>
+                    <InnerApp />
+                  </GuildProvider>
+                </AuthProvider>
+              </QueryClientProvider>
+            </ServerProvider>
+          </KeepScreenAwakeProvider>
         </ThemeProvider>
       </Suspense>
     </React.StrictMode>

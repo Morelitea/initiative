@@ -7,9 +7,7 @@ export const authHandlers = [
   }),
 
   http.post("/api/v1/auth/register", () => {
-    return HttpResponse.json(
-      buildUser({ is_active: true, email_verified: true }),
-    );
+    return HttpResponse.json(buildUser({ status: "active", email_verified: true }));
   }),
 
   http.get("/api/v1/auth/bootstrap", () => {

@@ -27,9 +27,9 @@ import {
   X,
 } from "lucide-react";
 import { StatusMessage } from "@/components/StatusMessage";
-import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
+import { toast } from "@/lib/chesterToast";
 import { API_BASE_URL } from "@/api/client";
 import { notifyMentionsApiV1DocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
@@ -56,6 +56,11 @@ const FileDocumentViewer = lazy(() =>
     default: m.FileDocumentViewer,
   }))
 );
+const SpreadsheetDocumentEditor = lazy(() =>
+  import("@/components/documents/SpreadsheetDocumentEditor").then((m) => ({
+    default: m.SpreadsheetDocumentEditor,
+  }))
+);
 const WhiteboardDocumentEditor = lazy(() =>
   import("@/components/documents/WhiteboardDocumentEditor").then((m) => ({
     default: m.WhiteboardDocumentEditor,
@@ -67,6 +72,7 @@ const SmartLinkDocumentViewer = lazy(() =>
   }))
 );
 import type { WhiteboardScene } from "@/components/documents/WhiteboardDocumentEditor";
+import type { SpreadsheetContent } from "@/components/documents/SpreadsheetDocumentEditor";
 import type { SmartLinkContent } from "@/components/documents/SmartLinkDocumentViewer";
 import type * as Y from "yjs";
 import type { ProviderAwareness } from "@lexical/yjs";
@@ -155,6 +161,16 @@ export const DocumentDetailPage = () => {
   const [whiteboardSceneFromCache, setWhiteboardSceneFromCache] = useState(false);
   const [whiteboardYDoc, setWhiteboardYDoc] = useState<Y.Doc | null>(null);
   const [whiteboardAwareness, setWhiteboardAwareness] = useState<ProviderAwareness | null>(null);
+  const [spreadsheetYDoc, setSpreadsheetYDoc] = useState<Y.Doc | null>(null);
+  const [spreadsheetAwareness, setSpreadsheetAwareness] = useState<ProviderAwareness | null>(null);
+  // Memoized so the spreadsheet editor's awareness effects key on the
+  // user identity rather than the inline-object reference, which would
+  // change every parent render and broadcast spurious presence
+  // updates.
+  const spreadsheetCurrentUser = useMemo(
+    () => (user ? { id: user.id, name: user.full_name || user.email || "Anonymous" } : null),
+    [user]
+  );
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
   const [collaborationEnabled, setCollaborationEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -299,6 +315,10 @@ export const DocumentDetailPage = () => {
       setWhiteboardScene(scene);
       setWhiteboardSceneFromCache(fromCache);
       setWhiteboardSceneReady(true);
+    } else if (document.document_type === "spreadsheet") {
+      // Spreadsheet content is a sparse cell map dict, not a Lexical
+      // tree — bypass the Lexical normalizer and load the raw snapshot.
+      setContentState((document.content ?? {}) as unknown as SerializedEditorState);
     } else {
       setContentState(normalizedDocumentContent);
     }
@@ -308,6 +328,14 @@ export const DocumentDetailPage = () => {
 
   const documentContentJson = useMemo(() => {
     if (document?.document_type === "whiteboard") {
+      return JSON.stringify(document?.content ?? {});
+    }
+    if (document?.document_type === "spreadsheet") {
+      // Spreadsheet content has no Lexical ``root``, so passing it through
+      // ``normalizeEditorState`` would produce an empty Lexical tree — and
+      // the dirty check would compare that against the actual cell map,
+      // making isDirty=true on first render and firing a spurious
+      // autosave PATCH on every open.
       return JSON.stringify(document?.content ?? {});
     }
     return JSON.stringify(normalizedDocumentContent);
@@ -518,6 +546,35 @@ export const DocumentDetailPage = () => {
     setWhiteboardYDoc(provider.doc);
     setWhiteboardAwareness(provider.awareness);
     // No cleanup — useCollaboration owns the provider lifecycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    document?.document_type,
+    collaborationEnabled,
+    collaboration.providerFactory,
+    collaboration.isReady,
+    parsedId,
+  ]);
+
+  // Same pattern for spreadsheets — separate state so we don't conflate
+  // doc-type-specific bookkeeping. The provider is cached by document
+  // ID, so calling providerFactory here returns the same instance the
+  // whiteboard branch would (when it applied). Doc-types are mutually
+  // exclusive at any given time anyway.
+  useEffect(() => {
+    if (document?.document_type !== "spreadsheet") {
+      setSpreadsheetYDoc(null);
+      setSpreadsheetAwareness(null);
+      return;
+    }
+    if (!collaborationEnabled || !collaboration.providerFactory || !collaboration.isReady) {
+      setSpreadsheetYDoc(null);
+      setSpreadsheetAwareness(null);
+      return;
+    }
+    const yjsDocMap = new Map<string, import("yjs").Doc>();
+    const provider = collaboration.providerFactory("main", yjsDocMap);
+    setSpreadsheetYDoc(provider.doc);
+    setSpreadsheetAwareness(provider.awareness);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     document?.document_type,
@@ -1301,6 +1358,22 @@ export const DocumentDetailPage = () => {
                   key={parsedId}
                   content={document.content as unknown as SmartLinkContent | null}
                   className={cn(isFullscreen && "h-full min-h-0 flex-1")}
+                />
+              ) : document.document_type === "spreadsheet" ? (
+                <SpreadsheetDocumentEditor
+                  key={parsedId}
+                  initialContent={(document.content ?? {}) as unknown as SpreadsheetContent}
+                  onContentChange={(content) =>
+                    handleContentChange(content as unknown as SerializedEditorState)
+                  }
+                  documentTitle={title || document.title}
+                  readOnly={!canEditDocument}
+                  yDoc={collaborationEnabled && collaboration.isReady ? spreadsheetYDoc : null}
+                  awareness={
+                    collaborationEnabled && collaboration.isReady ? spreadsheetAwareness : null
+                  }
+                  currentUser={spreadsheetCurrentUser}
+                  className={cn("max-h-[70vh]", isFullscreen && "h-full max-h-none min-h-0 flex-1")}
                 />
               ) : (
                 <Editor

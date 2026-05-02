@@ -27,6 +27,7 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
+from sqlalchemy import or_  # noqa: E402
 from sqlmodel import select  # noqa: E402
 from sqlmodel.ext.asyncio.session import AsyncSession  # noqa: E402
 
@@ -2698,6 +2699,26 @@ async def clean() -> None:
             await session.flush()
             print("  Removed tasks")
 
+            # Sweep any leftover tasks that still reference one of the
+            # seeded task statuses. Mirrors the projects-vs-initiatives
+            # case earlier in this cleanup: ``Task.task_status_id`` is
+            # NOT NULL, so the autoflush triggered by deleting the
+            # status would try to set it to NULL on any orphan task
+            # (e.g. one created during dev testing) and fail. Drop those
+            # tasks explicitly first.
+            if state.get("task_statuses", []):
+                leftover_result = await session.exec(
+                    select(Task).where(
+                        Task.task_status_id.in_(state["task_statuses"])
+                    )
+                )
+                leftover_tasks = leftover_result.all()
+                for task in leftover_tasks:
+                    await session.delete(task)
+                if leftover_tasks:
+                    await session.flush()
+                    print(f"  Removed {len(leftover_tasks)} untracked tasks")
+
             # Task statuses
             for sid in state.get("task_statuses", []):
                 obj = await session.get(TaskStatus, sid)
@@ -2801,6 +2822,25 @@ async def clean() -> None:
             await session.flush()
             print("  Removed initiative roles")
 
+            # Sweep any leftover projects that still reference one of the
+            # seeded initiatives. The script tracks projects it created in
+            # `state["projects"]`, but projects created outside that path
+            # (e.g. via the running app during dev) won't be in that list.
+            # `Initiative.projects` has no `delete-orphan` cascade, so when
+            # we delete the initiative below SQLAlchemy autoflush would try
+            # to NULL each leftover `Project.initiative_id` — which the
+            # NOT NULL constraint rejects. Delete them explicitly first.
+            if state.get("initiatives"):
+                leftover_result = await session.exec(
+                    select(Project).where(Project.initiative_id.in_(state["initiatives"]))
+                )
+                leftover_projects = leftover_result.all()
+                for project in leftover_projects:
+                    await session.delete(project)
+                if leftover_projects:
+                    await session.flush()
+                    print(f"  Removed {len(leftover_projects)} untracked projects")
+
             # Initiatives
             for iid in state.get("initiatives", []):
                 obj = await session.get(Initiative, iid)
@@ -2852,6 +2892,30 @@ async def clean() -> None:
                     session.add(user)
             await session.flush()
             print("  Restored user settings")
+
+            # Sweep any untracked documents whose author is a seeded
+            # user. The script tracks documents it created in
+            # `state["documents"]`, but documents created outside that
+            # path (e.g. via the running app during dev) won't be in
+            # that list. ``documents.created_by_id`` / ``updated_by_id``
+            # have no ON DELETE CASCADE / SET NULL, so any leftover
+            # would block the user delete below with a FK violation.
+            if state.get("users"):
+                seeded_user_ids = state["users"]
+                leftover_doc_result = await session.exec(
+                    select(Document).where(
+                        or_(
+                            Document.created_by_id.in_(seeded_user_ids),
+                            Document.updated_by_id.in_(seeded_user_ids),
+                        )
+                    )
+                )
+                leftover_docs = leftover_doc_result.all()
+                for document in leftover_docs:
+                    await session.delete(document)
+                if leftover_docs:
+                    await session.flush()
+                    print(f"  Removed {len(leftover_docs)} untracked documents")
 
             # Users
             for uid in state.get("users", []):

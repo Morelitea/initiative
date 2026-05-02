@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="geometricPrecision">
+  <style>
+    .body { animation: wave 1s ease-in-out infinite; transform-origin: 16px 16px; }
+    .eye { animation: blink 4s ease-in-out infinite; }
+    .eye-l { transform-origin: 11px 11px; }
+    .eye-r { transform-origin: 21px 11px; }
+    .tongue { animation: tongue 0.4s ease-in-out infinite; transform-origin: 16px 17px; }
+    @keyframes wave { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
+    @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.15); } }
+    @keyframes tongue { 0%, 100% { transform: rotate(0deg); } 30% { transform: rotate(3deg); } 70% { transform: rotate(-3deg); } }
+  </style>
+  <g class="body">
+    <rect x="3" y="16" width="26" height="12" fill="#8B5E3C"/>
+    <rect x="2" y="16" width="1" height="12" fill="#2A1A0A"/>
+    <rect x="29" y="16" width="1" height="12" fill="#2A1A0A"/>
+    <rect x="3" y="28" width="26" height="1" fill="#2A1A0A"/>
+    <rect x="3" y="16" width="2" height="12" fill="#A97B50"/>
+    <rect x="27" y="16" width="2" height="12" fill="#5C3A1E"/>
+    <rect x="5" y="19" width="22" height="1" fill="#5C3A1E" opacity="0.4"/>
+    <rect x="5" y="24" width="22" height="1" fill="#5C3A1E" opacity="0.4"/>
+    <rect x="2" y="21" width="28" height="3" fill="#C9A84C"/>
+    <rect x="2" y="21" width="28" height="1" fill="#E8D48B"/>
+    <rect x="2" y="23" width="28" height="1" fill="#9E7B2F"/>
+    <rect x="13" y="19" width="6" height="6" rx="1" fill="#C9A84C" stroke="#2A1A0A" stroke-width="0.5"/>
+    <rect x="13" y="19" width="6" height="2" fill="#E8D48B"/>
+    <rect x="15" y="22" width="2" height="2" rx="1" fill="#9E7B2F"/>
+    <rect x="3" y="28" width="3" height="2" fill="#9E7B2F"/>
+    <rect x="26" y="28" width="3" height="2" fill="#9E7B2F"/>
+    <rect x="4" y="12" width="24" height="6" fill="#3A1F0F"/>
+    <g transform="rotate(-20 16 14)">
+      <rect x="3" y="7" width="26" height="9" rx="2" fill="#8B5E3C"/>
+      <rect x="2" y="7" width="1" height="9" fill="#2A1A0A"/>
+      <rect x="29" y="7" width="1" height="9" fill="#2A1A0A"/>
+      <rect x="3" y="6" width="26" height="1" fill="#2A1A0A"/>
+      <rect x="3" y="7" width="26" height="2" fill="#A97B50"/>
+      <rect x="3" y="14" width="26" height="2" fill="#5C3A1E"/>
+      <rect x="2" y="10" width="28" height="3" fill="#C9A84C"/>
+      <rect x="2" y="10" width="28" height="1" fill="#E8D48B"/>
+      <rect x="2" y="12" width="28" height="1" fill="#9E7B2F"/>
+      <circle cx="5" cy="11" r="1" fill="#E8D48B"/>
+      <circle cx="27" cy="11" r="1" fill="#E8D48B"/>
+    </g>
+    <g class="eye eye-l">
+      <ellipse cx="11" cy="11" rx="3" ry="3" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.8"/>
+      <circle cx="11.5" cy="11.5" r="1.5" fill="#1A0A00"/>
+      <rect x="12" y="10" width="1" height="1" fill="#FFFDE8"/>
+    </g>
+    <g class="eye eye-r">
+      <ellipse cx="21" cy="11" rx="3" ry="3" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.8"/>
+      <circle cx="21.5" cy="11.5" r="1.5" fill="#1A0A00"/>
+      <rect x="22" y="10" width="1" height="1" fill="#FFFDE8"/>
+    </g>
+    <g>
+      <polygon points="6,16 8,16 7,19" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="9,16 11,16 10,19" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="12,16 14,16 13,19" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="15,16 17,16 16,19" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="18,16 20,16 19,19" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="21,16 23,16 22,19" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="24,16 26,16 25,19" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="7,18 9,18 8,15.5" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="10,18 12,18 11,15.5" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="13,18 15,18 14,15.5" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="16,18 18,18 17,15.5" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="19,18 21,18 20,15.5" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+      <polygon points="22,18 24,18 23,15.5" fill="#FFFDE8" stroke="#2A1A0A" stroke-width="0.3"/>
+    </g>
+    <g class="tongue">
+      <path d="M16 17 Q14.5 20.5 13.5 23.5 Q13 25 12.5 25.5" fill="none" stroke="#1A0A0A" stroke-width="3.5" stroke-linecap="round" opacity="0.3"/>
+      <path d="M12.5 25.5 L10.5 27.5" fill="none" stroke="#1A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+      <path d="M12.5 25.5 L13 27.5" fill="none" stroke="#1A0A0A" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
+      <path d="M16 17 Q14.5 20.5 13.5 23.5 Q13 25 12.5 25.5" fill="none" stroke="#D45B5B" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M12.5 25.5 L10.5 27.5" fill="none" stroke="#D45B5B" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M12.5 25.5 L13 27.5" fill="none" stroke="#D45B5B" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

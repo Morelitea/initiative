@@ -11,7 +11,6 @@
     "high": "High",
     "urgent": "Urgent"
   },
-
   "filters": {
     "heading": "Filters",
     "show": "Show filters",
@@ -29,7 +28,6 @@
     "noGuilds": "No guilds available",
     "filterPlaceholder": "Filter tasks..."
   },
-
   "columns": {
     "done": "Done",
     "task": "Task",
@@ -43,21 +41,17 @@
     "tags": "Tags",
     "status": "Status"
   },
-
   "checkbox": {
     "markDone": "Mark task as done",
     "markInProgress": "Mark task as in progress"
   },
-
   "errors": {
     "guildContext": "Unable to determine guild context for this task.",
     "statusUpdate": "Unable to update task status.",
     "statusNoMatch": "Unable to update task status. No matching status found."
   },
-
   "updating": "Updating\u2026",
   "projectFallback": "Project #{{id}}",
-
   "edit": {
     "invalidTaskId": "Invalid task id.",
     "back": "\u2190 Back",
@@ -104,7 +98,7 @@
     "deleting": "Deleting\u2026",
     "deleteTask": "Delete task",
     "deleteTitle": "Delete task?",
-    "deleteDescription": "This will permanently delete the task and all of its subtasks. This cannot be undone.",
+    "deleteDescription": "The task and its subtasks will be sent to the trash. You can restore it from Settings → Trash before the retention period ends.",
     "taskUpdated": "Task updated",
     "taskDuplicated": "Task duplicated",
     "taskDeleted": "Task deleted",
@@ -118,7 +112,6 @@
     "commentsError": "Unable to load comments right now.",
     "taskStatusRequired": "Task status is required"
   },
-
   "myTasks": {
     "title": "My Tasks",
     "subtitle": "Everything assigned to you across all projects.",
@@ -128,7 +121,6 @@
     "groupByDate": "Date",
     "groupByGuild": "Guild"
   },
-
   "myCalendar": {
     "title": "My Calendar",
     "subtitle": "Tasks and events across all your guilds.",
@@ -136,7 +128,6 @@
     "typeEvents": "Events",
     "typeTasks": "Tasks"
   },
-
   "createdTasks": {
     "title": "Tasks I Created",
     "subtitle": "Tasks you've created across all your guilds.",
@@ -146,11 +137,9 @@
     "groupByDate": "Date",
     "groupByGuild": "Guild"
   },
-
   "tagTasks": {
     "loadError": "Unable to load tasks."
   },
-
   "checklist": {
     "title": "Subtasks",
     "progressLabel": "Checklist progress",
@@ -183,17 +172,14 @@
     "progress": "{{completed}}/{{total}} subtask",
     "progress_other": "{{completed}}/{{total}} subtasks"
   },
-
   "prioritySelector": {
     "ariaLabel": "Priority: {{priority}}. Click to change.",
     "changed": "Priority changed to {{priority}}",
     "updateError": "Unable to update priority."
   },
-
   "statusSelector": {
     "invalidStatus": "Invalid status selected."
   },
-
   "move": {
     "title": "Move task to another project",
     "description": "Select a destination project within the current guild. You can only move tasks to projects where you have permission to create new work.",
@@ -205,7 +191,6 @@
     "moving": "Moving\u2026",
     "moveTask": "Move task"
   },
-
   "bulkEditTags": {
     "title": "Edit Tags",
     "descriptionAdd": "Add tags to {{count}} selected task.",
@@ -225,7 +210,6 @@
     "tagsRemoved_other": "Tags removed from {{count}} tasks",
     "updateError": "Unable to update tags right now."
   },
-
   "createWizard": {
     "title": "Add Task",
     "description": "Select a project to create a new task.",
@@ -235,12 +219,11 @@
     "selectProject": "Select a project",
     "noInitiatives": "No initiatives found in this guild.",
     "noProjects": "No projects found in this initiative.",
-    "loading": "Loading…",
+    "loading": "Loading\u2026",
     "back": "Back",
-    "searchProjects": "Search projects…",
+    "searchProjects": "Search projects\u2026",
     "loadMore": "Load more"
   },
-
   "bulkEdit": {
     "title": "Edit tasks",
     "description": "Apply changes to {{count}} selected task. Only fields you set will be updated.",
