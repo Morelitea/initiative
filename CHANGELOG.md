@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Project access dropdown blank for a reactivated former owner.** If a project owner self-deactivated (which forced an ownership transfer to another member) and was later reactivated and re-added to the initiative, the project's individual-access list showed them at the old `level=owner` but the access dropdown was blank because two users now had owner-level rows pointing at the same project. `transfer_project_ownership` now drops the departing owner's `ProjectPermission` row as part of the transfer — every call site is a "user is leaving" path so the row was already stale.
 
+- **Wrong password on the deactivate / delete form signed you out.** The self-deletion endpoint returned `401 UNAUTHORIZED` for a password mismatch, which the SPA's global axios interceptor treats as a session-expiry signal and force-logs-out from. The user was kicked back to the login screen instead of seeing "wrong password" inline. The endpoint now returns `400` for that specific case (the user *is* authenticated — they just typed the wrong confirmation password), so the error stays scoped to the form.
+
 ## [0.43.0] - 2026-05-01
 
 ### Added

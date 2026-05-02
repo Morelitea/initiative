@@ -723,7 +723,11 @@ async def test_password_user_cannot_skip_password_check(
         },
     )
 
-    assert response.status_code == 401
+    # 400 (not 401): the user IS authenticated; a 401 here would
+    # cascade through the SPA's global axios interceptor and force a
+    # logout, which is the original bug this status code change fixed.
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_PASSWORD"
 
 
 @pytest.mark.integration

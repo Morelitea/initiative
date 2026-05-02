@@ -590,8 +590,15 @@ async def delete_own_account(
     # removed by an admin.
     if current_user.oidc_sub is None:
         if not verify_password(request.password, current_user.hashed_password):
+            # 400 (not 401): the user IS authenticated — they passed
+            # ``get_current_active_user`` to reach this endpoint. The
+            # global axios interceptor treats every 401 as a session
+            # expiry and force-logs-out the SPA, so a wrong-password
+            # response on this form would knock the user out of the
+            # session they were trying to confirm into. 400 keeps the
+            # error scoped to the form's onError handler.
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=UserMessages.INVALID_PASSWORD,
             )
 
