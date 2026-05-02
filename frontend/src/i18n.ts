@@ -66,7 +66,13 @@ void i18n
     fallbackLng: "en",
     defaultNS,
     fallbackNS: "common",
-    ns: ["common"],
+    // ``errors`` is preloaded alongside ``common`` because
+    // ``getErrorMessage`` (in ``@/lib/errorMessage``) is invoked from
+    // toast call sites in components whose own ``useTranslation`` may
+    // not list ``errors``. Without this, a lookup on a backend code
+    // like ``USER_INVALID_PASSWORD`` falls back to the raw key string
+    // because the namespace bundle hasn't been fetched yet.
+    ns: ["common", "errors"],
     partialBundledLanguages: true,
     interpolation: {
       escapeValue: false,
