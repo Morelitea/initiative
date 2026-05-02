@@ -213,21 +213,29 @@ export const useSpreadsheetCells = ({
     [yDoc, yMap]
   );
 
-  const setDimensions = useCallback(
-    (next: { rows: number; cols: number }) => {
-      if (yMeta && yDoc) {
-        yDoc.transact(() => {
-          yMeta.set(META_ROWS, next.rows);
-          yMeta.set(META_COLS, next.cols);
-        }, "spreadsheet-dimensions");
-        return;
-      }
-      setDimensionsState((prev) =>
-        prev.rows === next.rows && prev.cols === next.cols ? prev : next
-      );
-    },
-    [yDoc, yMeta]
-  );
+  const setDimensions = useCallback((next: { rows: number; cols: number }) => {
+    // Always local-only — never writes to ``yMeta``. The auto-grow
+    // effects in the editor call this on every scroll-near-edge event
+    // and on every cell write that pushes past the canvas. Broadcasting
+    // those would be wrong on two counts:
+    //
+    //   1. Scroll-driven growth is a personal UX concern. If A scrolls
+    //      to row 200 and we wrote ``rows: 200`` to yMeta, B's emit
+    //      effect would fire and restart B's autosave debounce — a
+    //      remote scroll thrashing a local timer.
+    //   2. Cell-driven growth converges naturally without broadcast:
+    //      every peer's cells observer fires for the same cell write,
+    //      so every peer's auto-grow effect sees the new max row/col
+    //      and arrives at the same canvas size on its own.
+    //
+    // The one path that DOES need to broadcast dimensions is
+    // ``replaceAll`` (CSV import / shrink) — and it writes yMeta
+    // directly, atomically with the cells, so peers never observe a
+    // mid-shrink (new cells, old dimensions) state.
+    setDimensionsState((prev) =>
+      prev.rows === next.rows && prev.cols === next.cols ? prev : next
+    );
+  }, []);
 
   const bulkUpdate = useCallback(
     (mutator: (draft: Map<string, CellValue>) => void) => {

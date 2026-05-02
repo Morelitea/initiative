@@ -125,9 +125,10 @@ export const SpreadsheetDocumentEditor = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-grow dimensions when the cell map (local or remote) writes
-  // past the current canvas. Routed through the hook's
-  // ``setDimensions`` so collab peers see the new size — the hook
-  // writes to ``Y.Map<"meta">`` when ``yDoc`` is non-null.
+  // past the current canvas. Local-only — the hook's setDimensions
+  // doesn't broadcast. Each peer runs this same effect against the
+  // shared cells map so every client converges on the same canvas
+  // size without a Y.Map round-trip per cell write.
   useEffect(() => {
     let maxRow = -1;
     let maxCol = -1;
@@ -197,9 +198,10 @@ export const SpreadsheetDocumentEditor = ({
   });
 
   // Auto-grow the canvas when scrolling near the edge so the grid feels
-  // unbounded. We never shrink — empty rows / cols are cheap. Routed
-  // through the hook's setDimensions so peers see the same canvas
-  // size (one source of truth in ``Y.Map<"meta">``).
+  // unbounded. We never shrink — empty rows / cols are cheap. Purely
+  // local: scroll position is a personal UX concern, not shared state.
+  // If we broadcast it through Y.Map every peer's autosave debounce
+  // would restart whenever any client scrolled.
   const virtualRows = rowVirtualizer.getVirtualItems();
   const virtualCols = colVirtualizer.getVirtualItems();
   useEffect(() => {
