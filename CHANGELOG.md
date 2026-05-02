@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Self-deactivation / deletion UX.** Settings → Danger Zone now exposes **Deactivate Account** and **Delete Account** as two separate buttons next to their descriptions, instead of a single ambiguous opener that landed on a radio chooser. Each button takes you straight to the eligibility check for that action, the dialog title and step descriptions match the action you picked, and the deactivate copy now spells out that you'll be removed from every guild you're in (rejoining requires a fresh invite).
 
+### Fixed
+
+- **Orphaned projects when leaving a guild.** Leaving a guild while owning projects in it would silently strand the rows: the user's initiative membership got dropped, no DAC permission survived, and guild admins (who have no implicit project bypass) couldn't reach them. Leaving now requires nominating a new owner per project — the leave dialog lists every project you own in the guild and a Select to pick a new owner, the eligibility endpoint surfaces the same list so the SPA can pre-flight the prompt, and the backend rejects a leave with a missing or surplus transfer map. The OIDC group-sync removal path, which has no UI to ask, auto-transfers ownership to an active initiative manager (falling back to a guild admin) before dropping the user, and logs a warning when neither exists.
+
 ## [0.43.0] - 2026-05-01
 
 ### Added

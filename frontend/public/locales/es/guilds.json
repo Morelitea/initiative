@@ -30,7 +30,10 @@
     "leaveButton": "Salir del gremio",
     "leftGuild": "Saliste de {{name}}",
     "failedToLeave": "No se pudo salir del gremio. Inténtalo de nuevo.",
-    "failedToCheckEligibility": "No se pudo verificar la elegibilidad. Inténtalo de nuevo."
+    "failedToCheckEligibility": "No se pudo verificar la elegibilidad. Inténtalo de nuevo.",
+    "transferDescription": "Antes de salir de <bold>{{name}}</bold>, transfiere la propiedad de todos los proyectos que posees. De lo contrario, el proyecto quedaría sin ningún miembro que pueda acceder a él.",
+    "selectNewOwnerPlaceholder": "Seleccionar nuevo propietario…",
+    "noTransferCandidates": "No hay miembros elegibles disponibles en esta iniciativa — agrega otro miembro a la iniciativa antes de salir."
   },
   "invite": {
     "title": "Unirse a {{guildName}}",

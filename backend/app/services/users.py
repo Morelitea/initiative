@@ -299,6 +299,27 @@ async def get_owned_projects(session: AsyncSession, user_id: int) -> List[Projec
     return list(result.all())
 
 
+async def get_owned_projects_in_guild(
+    session: AsyncSession, user_id: int, guild_id: int
+) -> List[Project]:
+    """Projects in a single guild whose ``owner_id`` is the user.
+
+    Used by the leave-guild flow: if the user leaves without
+    transferring these, the project's RLS guard (``InitiativeMember``)
+    no longer matches for them, and there's no guild-admin DAC bypass,
+    so the row becomes unreachable.
+    """
+    from app.models.initiative import Initiative
+
+    stmt = (
+        select(Project)
+        .join(Initiative, Initiative.id == Project.initiative_id)
+        .where(Project.owner_id == user_id, Initiative.guild_id == guild_id)
+    )
+    result = await session.exec(stmt)
+    return list(result.all())
+
+
 async def check_deletion_eligibility(
     session: AsyncSession,
     user_id: int,

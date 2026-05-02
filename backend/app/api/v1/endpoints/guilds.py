@@ -22,7 +22,9 @@ from app.schemas.guild import (
     GuildOrderUpdate,
     GuildUpdate,
     LeaveGuildEligibilityResponse,
+    LeaveGuildRequest,
 )
+from app.schemas.user import ProjectBasic
 from app.schemas.initiative import AdvancedToolHandoffResponse
 from app.services import guilds as guilds_service
 from app.services import initiatives as initiatives_service
@@ -377,13 +379,18 @@ async def check_leave_eligibility(
 
     Returns information about blockers:
     - is_last_admin: User is the last admin of the guild
-    - sole_pm_initiatives: List of initiative names where user is the sole PM
+    - sole_pm_initiatives: Initiatives in this guild where the user is the sole PM
+    - owned_projects: Projects in this guild whose ``owner_id`` is the
+      user. The leave endpoint requires a transfer for each — without
+      one, the project's RLS gate (``InitiativeMember``) no longer
+      matches for any user on leave, and there's no DAC bypass for
+      guild admins, so the row would be unreachable.
     """
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
     if membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER)
 
-    from app.services.users import is_last_admin_of_guild
+    from app.services.users import get_owned_projects_in_guild, is_last_admin_of_guild
 
     is_last_admin = await is_last_admin_of_guild(session, guild_id, current_user.id)
 
@@ -392,12 +399,24 @@ async def check_leave_eligibility(
     )
     sole_pm_names = [initiative.name for initiative in sole_pm_initiatives]
 
-    can_leave = not is_last_admin and len(sole_pm_names) == 0
+    owned_projects = await get_owned_projects_in_guild(session, current_user.id, guild_id)
+    owned_project_summaries = [ProjectBasic.model_validate(p) for p in owned_projects]
+
+    can_leave = (
+        not is_last_admin
+        and len(sole_pm_names) == 0
+        # ``owned_projects`` is not itself a hard blocker — leave can
+        # proceed if the client supplies ``project_transfers`` covering
+        # every entry. ``can_leave`` here reflects "can leave with no
+        # extra input"; the leave endpoint enforces the transfer rules.
+        and len(owned_project_summaries) == 0
+    )
 
     return LeaveGuildEligibilityResponse(
         can_leave=can_leave,
         is_last_admin=is_last_admin,
         sole_pm_initiatives=sole_pm_names,
+        owned_projects=owned_project_summaries,
     )
 
 
@@ -406,18 +425,26 @@ async def leave_guild(
     guild_id: int,
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    body: LeaveGuildRequest | None = None,
 ) -> Response:
     """Leave a guild.
 
     Restrictions:
     - Cannot leave if you are the last admin of the guild
     - Cannot leave if you are the sole PM of any initiative in the guild
+    - Cannot leave while you own projects in the guild unless the body
+      supplies ``project_transfers`` covering every owned project.
     """
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
     if membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER)
 
-    from app.services.users import is_last_admin_of_guild
+    from app.services import users as users_service
+    from app.services.users import (
+        InvalidTransferRecipient,
+        get_owned_projects_in_guild,
+        is_last_admin_of_guild,
+    )
 
     if await is_last_admin_of_guild(session, guild_id, current_user.id, for_update=True):
         raise HTTPException(
@@ -433,6 +460,35 @@ async def leave_guild(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.CANNOT_LEAVE_SOLE_PM,
         )
+
+    owned_projects = await get_owned_projects_in_guild(session, current_user.id, guild_id)
+    if owned_projects:
+        transfers = body.project_transfers if body is not None else {}
+        owned_ids = {project.id for project in owned_projects}
+        transfer_ids = set(transfers.keys())
+
+        missing = owned_ids - transfer_ids
+        extra = transfer_ids - owned_ids
+        if missing or extra:
+            # Single error code for "the transfer map doesn't match the
+            # set of projects you actually own in this guild." The
+            # response body still carries the details for client UX,
+            # but the code stays stable for translation lookup.
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.CANNOT_LEAVE_OWNS_PROJECTS,
+            )
+
+        for project_id, new_owner_id in transfers.items():
+            try:
+                await users_service.transfer_project_ownership(
+                    session, project_id, new_owner_id
+                )
+            except InvalidTransferRecipient:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=GuildMessages.PROJECT_TRANSFER_RECIPIENT_INVALID,
+                )
 
     await guilds_service.remove_user_from_guild(session, guild_id=guild_id, user_id=current_user.id)
 

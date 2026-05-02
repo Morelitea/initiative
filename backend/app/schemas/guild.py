@@ -6,6 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.guild import GuildRole
+from app.schemas.user import ProjectBasic
 
 
 class GuildBase(BaseModel):
@@ -95,9 +96,32 @@ class GuildMembershipUpdate(BaseModel):
 
 
 class LeaveGuildEligibilityResponse(BaseModel):
-    """Response for checking if a user can leave a guild."""
+    """Response for checking if a user can leave a guild.
+
+    ``owned_projects`` lists projects in this guild whose ``owner_id``
+    is the current user. Leaving the guild without re-assigning these
+    would orphan them — the user's ``InitiativeMember`` row is dropped
+    on leave, RLS gates the project, and there's no DAC bypass for
+    guild admins. The leave endpoint requires a transfer for each
+    entry on this list before it will proceed.
+    """
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
     is_last_admin: bool
     sole_pm_initiatives: list[str] = []
+    owned_projects: list[ProjectBasic] = Field(default_factory=list)
+
+
+class LeaveGuildRequest(BaseModel):
+    """Body for ``DELETE /guilds/{id}/leave``.
+
+    Empty body is equivalent to ``{ "project_transfers": {} }``. When
+    the user owns projects in the guild (``owned_projects`` on the
+    eligibility response is non-empty), the keys must cover every
+    owned project id and each value must be a guild member that's a
+    member of the project's initiative.
+    """
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    project_transfers: dict[int, int] = Field(default_factory=dict)

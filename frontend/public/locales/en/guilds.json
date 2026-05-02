@@ -30,7 +30,10 @@
     "leaveButton": "Leave Guild",
     "leftGuild": "Left {{name}}",
     "failedToLeave": "Failed to leave guild. Please try again.",
-    "failedToCheckEligibility": "Failed to check eligibility. Please try again."
+    "failedToCheckEligibility": "Failed to check eligibility. Please try again.",
+    "transferDescription": "Before leaving <bold>{{name}}</bold>, transfer ownership of every project you own. Otherwise the project would be left with no member who can access it.",
+    "selectNewOwnerPlaceholder": "Select new owner…",
+    "noTransferCandidates": "No eligible members are available in this initiative — add another member to the initiative before leaving."
   },
   "invite": {
     "title": "Join {{guildName}}",
