@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle, ChevronLeft, Loader2, Trash2 } from "lucide-react";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   useUserDeletionEligibility,
   useAdminDeleteUser,
@@ -169,10 +170,7 @@ export function AdminDeleteUserDialog({
       await refreshEligibility();
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("adminDeleteUser.promoteError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:adminDeleteUser.promoteError"));
     },
     onSettled: () => setIsResolvingBlocker(false),
   });
@@ -184,10 +182,7 @@ export function AdminDeleteUserDialog({
       await refreshEligibility();
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("adminDeleteUser.deleteGuildError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:adminDeleteUser.deleteGuildError"));
     },
     onSettled: () => setIsResolvingBlocker(false),
   });
@@ -199,10 +194,7 @@ export function AdminDeleteUserDialog({
       await refreshEligibility();
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("adminDeleteUser.deleteInitiativeError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:adminDeleteUser.deleteInitiativeError"));
     },
     onSettled: () => setIsResolvingBlocker(false),
   });
@@ -213,10 +205,7 @@ export function AdminDeleteUserDialog({
       await refreshEligibility();
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("adminDeleteUser.promoteError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:adminDeleteUser.promoteError"));
     },
     onSettled: () => setIsResolvingBlocker(false),
   });
@@ -229,10 +218,7 @@ export function AdminDeleteUserDialog({
       onOpenChange(false);
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("adminDeleteUser.deleteError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:adminDeleteUser.deleteError"));
     },
   });
 

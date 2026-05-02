@@ -4,6 +4,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost,
   addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost,
@@ -306,8 +307,7 @@ export function BulkEditAccessDialog({
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("bulkAccess.updateError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "documents:bulkAccess.updateError"));
     } finally {
       setIsPending(false);
     }
@@ -385,8 +385,7 @@ export function BulkEditAccessDialog({
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      const message = error instanceof Error ? error.message : t("bulkAccess.roleUpdateError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "documents:bulkAccess.roleUpdateError"));
     } finally {
       setIsPending(false);
     }

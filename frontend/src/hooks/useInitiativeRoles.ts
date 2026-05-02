@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet,
   getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey,
@@ -61,8 +62,7 @@ export const useCreateRole = (initiativeId: number) => {
       void invalidateInitiativeRoles(initiativeId);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.roleCreateError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "initiatives:settings.roleCreateError"));
     },
   });
 };
@@ -84,8 +84,7 @@ export const useUpdateRole = (initiativeId: number) => {
       void invalidateMyPermissions(initiativeId);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.roleUpdateError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "initiatives:settings.roleUpdateError"));
     },
   });
 };
@@ -102,8 +101,7 @@ export const useDeleteRole = (initiativeId: number) => {
       void invalidateInitiativeRoles(initiativeId);
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.roleDeleteError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "initiatives:settings.roleDeleteError"));
     },
   });
 };

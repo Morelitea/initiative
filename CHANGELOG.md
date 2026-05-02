@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Wrong password on the deactivate / delete form signed you out.** The self-deletion endpoint returned `401 UNAUTHORIZED` for a password mismatch, which the SPA's global axios interceptor treats as a session-expiry signal and force-logs-out from. The user was kicked back to the login screen instead of seeing "wrong password" inline. The endpoint now returns `400` for that specific case (the user *is* authenticated — they just typed the wrong confirmation password), so the error stays scoped to the form.
 
+- **Error toasts no longer leak raw backend codes.** A class of `toast.error(...)` call sites was passing through the raw `error.message` or `response.data.detail` string as a fallback, which surfaced backend constants like `USER_INVALID_PASSWORD` to users when there was no client-side mapping. All of those now route through the existing `getErrorMessage(error, "namespace:fallbackKey")` helper, which looks up the code in the `errors` translation namespace before falling through to a localized fallback.
+
 ## [0.43.0] - 2026-05-01
 
 ### Added

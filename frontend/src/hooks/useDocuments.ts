@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   listDocumentsApiV1DocumentsGet,
   getListDocumentsApiV1DocumentsGetQueryKey,
@@ -321,8 +322,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("create.createError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "documents:create.createError"));
       onError?.(...args);
     },
     onSettled,
@@ -381,8 +381,7 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("create.uploadError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "documents:create.uploadError"));
       onError?.(...args);
     },
     onSettled,
@@ -395,7 +394,6 @@ export const useUpdateDocument = (
     suppressErrorToast?: (error: unknown) => boolean;
   }
 ) => {
-  const { t } = useTranslation("documents");
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, suppressErrorToast, ...rest } = options ?? {};
 
@@ -419,8 +417,7 @@ export const useUpdateDocument = (
     onError: (...args) => {
       const error = args[0];
       if (!suppressErrorToast?.(error)) {
-        const message = error instanceof Error ? error.message : t("detail.saveError");
-        toast.error(message);
+        toast.error(getErrorMessage(error, "documents:detail.saveError"));
       }
       onError?.(...args);
     },
@@ -451,8 +448,7 @@ export const useDeleteDocument = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("bulk.deleteError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "documents:bulk.deleteError"));
       onError?.(...args);
     },
     onSettled,
@@ -485,8 +481,7 @@ export const useCopyDocument = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("bulk.duplicateError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "documents:bulk.duplicateError"));
       onError?.(...args);
     },
     onSettled,

@@ -330,7 +330,12 @@ export const ProjectTaskStatusesManager = ({
 
     if (failed.length > 0) {
       failed.forEach(({ statusName, error }) => {
-        toast.error(t("statuses.bulkUpdateError", { name: statusName, error }));
+        // ``error`` interpolated into the message — run it through the
+        // shared resolver so a backend error code becomes a localized
+        // string instead of "[object Object]" or a raw key.
+        toast.error(
+          t("statuses.bulkUpdateError", { name: statusName, error: getErrorMessage(error) })
+        );
       });
     }
 

@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   listTagsApiV1TagsGet,
   getListTagsApiV1TagsGetQueryKey,
@@ -51,7 +52,6 @@ export const useTag = (tagId: number | null) => {
 };
 
 export const useCreateTag = (options?: MutationOpts<TagRead, TagCreate>) => {
-  const { t } = useTranslation("tags");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -64,8 +64,7 @@ export const useCreateTag = (options?: MutationOpts<TagRead, TagCreate>) => {
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("createError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "tags:createError"));
       onError?.(...args);
     },
     onSettled,
@@ -89,8 +88,7 @@ export const useUpdateTag = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("updateError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "tags:updateError"));
       onError?.(...args);
     },
     onSettled,
@@ -113,8 +111,7 @@ export const useDeleteTag = (options?: MutationOpts<void, number>) => {
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("deleteError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "tags:deleteError"));
       onError?.(...args);
     },
     onSettled,
@@ -124,7 +121,6 @@ export const useDeleteTag = (options?: MutationOpts<void, number>) => {
 export const useSetTaskTags = (
   options?: MutationOpts<TaskListRead, { taskId: number; tagIds: number[] }>
 ) => {
-  const { t } = useTranslation("tags");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -139,8 +135,7 @@ export const useSetTaskTags = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("taskTagsError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "tags:taskTagsError"));
       onError?.(...args);
     },
     onSettled,
@@ -160,7 +155,6 @@ export const useTagEntities = (tagId: number | null) => {
 export const useSetProjectTags = (
   options?: MutationOpts<ProjectRead, { projectId: number; tagIds: number[] }>
 ) => {
-  const { t } = useTranslation("tags");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -175,8 +169,7 @@ export const useSetProjectTags = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("projectTagsError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "tags:projectTagsError"));
       onError?.(...args);
     },
     onSettled,
@@ -186,7 +179,6 @@ export const useSetProjectTags = (
 export const useSetDocumentTags = (
   options?: MutationOpts<DocumentRead, { documentId: number; tagIds: number[] }>
 ) => {
-  const { t } = useTranslation("tags");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -201,8 +193,7 @@ export const useSetDocumentTags = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("documentTagsError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "tags:documentTagsError"));
       onError?.(...args);
     },
     onSettled,

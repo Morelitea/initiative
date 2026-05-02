@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { useDeleteOwnAccount } from "@/hooks/useUsers";
 import { useMyDeletionEligibility } from "@/hooks/useAdmin";
 import { getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet } from "@/api/generated/users/users";
@@ -140,10 +141,7 @@ export function DeleteAccountDialog({
       onSuccess();
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("deleteAccount.deleteError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:deleteAccount.deleteError"));
     },
   });
 
