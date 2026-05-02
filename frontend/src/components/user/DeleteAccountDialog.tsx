@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, ChevronLeft, Loader2 } from "lucide-react";
 
@@ -55,6 +55,11 @@ interface DeletionEligibilityResponse {
 
 interface DeleteAccountDialogProps extends DialogWithSuccessProps {
   user: UserRead;
+  /** When provided, the dialog skips the choose-type step and starts
+   *  directly on the eligibility check for that action. This lets the
+   *  Danger Zone page surface "Deactivate" and "Delete" as separate
+   *  buttons instead of a single ambiguous opener. */
+  initialAction?: SelfAction;
 }
 
 const CONFIRMATION_PHRASES: Record<SelfAction, string> = {
@@ -67,26 +72,38 @@ export function DeleteAccountDialog({
   onOpenChange,
   onSuccess,
   user,
+  initialAction,
 }: DeleteAccountDialogProps) {
   const { t } = useTranslation("settings");
-  const [step, setStep] = useState<DeletionStep>("choose-type");
-  const [action, setAction] = useState<SelfAction>("deactivate");
+  const [step, setStep] = useState<DeletionStep>(initialAction ? "check-blockers" : "choose-type");
+  const [action, setAction] = useState<SelfAction>(initialAction ?? "deactivate");
   const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
   const [password, setPassword] = useState("");
   const [confirmationText, setConfirmationText] = useState("");
 
-  // Reset state when dialog opens/closes
+  // Sync internal state to ``open`` / ``initialAction``. The dialog
+  // stays mounted across openings (the parent only flips ``open``), so
+  // ``useState`` initial values run once and would never honor a new
+  // ``initialAction`` on a subsequent open. We reset on every
+  // transition so:
+  //   - On open: ``step`` and ``action`` reflect this open's
+  //     ``initialAction``. Without this, clicking "Delete Account"
+  //     would still show ``action === "deactivate"`` from the initial
+  //     mount.
+  //   - On close: per-attempt fields (eligibility, password,
+  //     confirmation text, project transfers) are cleared so the next
+  //     open is a clean slate.
   useEffect(() => {
+    setStep(initialAction ? "check-blockers" : "choose-type");
+    setAction(initialAction ?? "deactivate");
     if (!open) {
-      setStep("choose-type");
-      setAction("deactivate");
       setEligibility(null);
       setProjectTransfers({});
       setPassword("");
       setConfirmationText("");
     }
-  }, [open]);
+  }, [open, initialAction]);
 
   // Fetch deletion eligibility
   const { refetch: checkEligibility, isFetching: isCheckingEligibility } =
@@ -130,30 +147,51 @@ export function DeleteAccountDialog({
     },
   });
 
+  // Run the eligibility check and advance past ``check-blockers`` when
+  // the user is eligible. Shared between the explicit "Next" press
+  // from the chooser step and the auto-fire on dialog open when
+  // ``initialAction`` skipped the chooser.
+  const runEligibilityCheck = useCallback(async () => {
+    const result = await checkEligibility();
+    if (!result.data) return;
+    setEligibility(result.data);
+
+    // Load initiative members for any projects we'd need to transfer.
+    for (const project of result.data.owned_projects) {
+      await fetchInitiativeMembers(project.initiative_id);
+    }
+
+    // Project transfers are required for both actions when the user
+    // owns projects — only owners hold certain permissions, and a
+    // deactivated/anonymized owner row can't act on them.
+    if (result.data.can_delete) {
+      if (result.data.owned_projects.length > 0) {
+        setStep("transfer-projects");
+      } else {
+        setStep("confirm");
+      }
+    }
+  }, [checkEligibility, fetchInitiativeMembers]);
+
+  // When opened with ``initialAction``, the chooser step is bypassed
+  // and we land directly on ``check-blockers`` — kick off the check.
+  // Guard with a ref so a re-render doesn't refetch.
+  const eligibilityFiredRef = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      eligibilityFiredRef.current = false;
+      return;
+    }
+    if (!initialAction || eligibilityFiredRef.current) return;
+    eligibilityFiredRef.current = true;
+    void runEligibilityCheck();
+  }, [open, initialAction, runEligibilityCheck]);
+
   // Step navigation handlers
   const handleNext = async () => {
     if (step === "choose-type") {
       setStep("check-blockers");
-      const result = await checkEligibility();
-      if (result.data) {
-        setEligibility(result.data);
-
-        // Load initiative members for any projects we'd need to transfer.
-        for (const project of result.data.owned_projects) {
-          await fetchInitiativeMembers(project.initiative_id);
-        }
-
-        // Project transfers are required for both actions when the user
-        // owns projects — only owners hold certain permissions, and a
-        // deactivated/anonymized owner row can't act on them.
-        if (result.data.can_delete) {
-          if (result.data.owned_projects.length > 0) {
-            setStep("transfer-projects");
-          } else {
-            setStep("confirm");
-          }
-        }
-      }
+      await runEligibilityCheck();
     } else if (step === "check-blockers") {
       if (eligibility?.can_delete) {
         if (eligibility.owned_projects.length > 0) {
@@ -176,7 +214,10 @@ export function DeleteAccountDialog({
       }
     } else if (step === "transfer-projects") {
       setStep("check-blockers");
-    } else if (step === "check-blockers") {
+    } else if (step === "check-blockers" && !initialAction) {
+      // Only step back to the chooser if it exists — when the dialog
+      // was opened from a per-action button, ``check-blockers`` is the
+      // first step and Back is disabled.
       setStep("choose-type");
     }
   };
@@ -210,12 +251,30 @@ export function DeleteAccountDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{t("deleteAccount.title")}</DialogTitle>
+          <DialogTitle>
+            {/* When the dialog was opened with a specific action (the
+                Danger Zone's per-action buttons), reflect that in the
+                title — the user already chose, no point still calling
+                it "Delete Account" while they're deactivating. */}
+            {initialAction === "deactivate"
+              ? t("deleteAccount.deactivateTitle")
+              : t("deleteAccount.title")}
+          </DialogTitle>
           <DialogDescription>
             {step === "choose-type" && t("deleteAccount.chooseTypeDescription")}
-            {step === "check-blockers" && t("deleteAccount.checkBlockersDescription")}
+            {step === "check-blockers" &&
+              t(
+                action === "deactivate"
+                  ? "deleteAccount.checkBlockersDeactivateDescription"
+                  : "deleteAccount.checkBlockersDescription"
+              )}
             {step === "transfer-projects" && t("deleteAccount.transferProjectsDescription")}
-            {step === "confirm" && t("deleteAccount.confirmDeletionDescription")}
+            {step === "confirm" &&
+              t(
+                action === "deactivate"
+                  ? "deleteAccount.confirmDeactivationDescription"
+                  : "deleteAccount.confirmDeletionDescription"
+              )}
           </DialogDescription>
         </DialogHeader>
 
@@ -267,13 +326,25 @@ export function DeleteAccountDialog({
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <div className="mb-2 font-semibold">{t("deleteAccount.cannotDelete")}</div>
+                    <div className="mb-2 font-semibold">
+                      {t(
+                        action === "deactivate"
+                          ? "deleteAccount.cannotDeactivate"
+                          : "deleteAccount.cannotDelete"
+                      )}
+                    </div>
                     <ul className="list-inside list-disc space-y-1">
                       {eligibility.blockers.map((blocker, idx) => (
                         <li key={idx}>{blocker}</li>
                       ))}
                     </ul>
-                    <p className="mt-2 text-sm">{t("deleteAccount.resolveIssues")}</p>
+                    <p className="mt-2 text-sm">
+                      {t(
+                        action === "deactivate"
+                          ? "deleteAccount.resolveIssuesDeactivate"
+                          : "deleteAccount.resolveIssues"
+                      )}
+                    </p>
                   </AlertDescription>
                 </Alert>
               )}
@@ -295,7 +366,13 @@ export function DeleteAccountDialog({
                   )}
 
                   <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950">
-                    <AlertDescription>{t("deleteAccount.eligible")}</AlertDescription>
+                    <AlertDescription>
+                      {t(
+                        action === "deactivate"
+                          ? "deleteAccount.eligibleDeactivate"
+                          : "deleteAccount.eligible"
+                      )}
+                    </AlertDescription>
                   </Alert>
                 </>
               )}
@@ -305,7 +382,13 @@ export function DeleteAccountDialog({
           {/* Step 3: Transfer Projects */}
           {step === "transfer-projects" && eligibility && (
             <div className="space-y-4">
-              <p className="text-muted-foreground text-sm">{t("deleteAccount.selectNewOwners")}</p>
+              <p className="text-muted-foreground text-sm">
+                {t(
+                  action === "deactivate"
+                    ? "deleteAccount.selectNewOwnersDeactivate"
+                    : "deleteAccount.selectNewOwners"
+                )}
+              </p>
 
               {eligibility.owned_projects.map((project) => (
                 <div key={project.id} className="space-y-2 rounded-lg border p-4">
@@ -389,7 +472,11 @@ export function DeleteAccountDialog({
             <Button
               variant="outline"
               onClick={handleBack}
-              disabled={step === "choose-type" || deleteAccount.isPending}
+              disabled={
+                step === "choose-type" ||
+                (step === "check-blockers" && !!initialAction) ||
+                deleteAccount.isPending
+              }
             >
               <ChevronLeft className="mr-1 h-4 w-4" />
               {t("deleteAccount.back")}
