@@ -537,6 +537,15 @@ async def transfer_project_ownership(
     users out (``GET /users/me/initiative-members`` and
     ``GET /admin/initiatives/.../members``); this is the server-side
     safety net for clients that bypass those endpoints.
+
+    Drops the previous owner's ``ProjectPermission`` row as part of
+    the transfer. Every call site is a "user is leaving" path
+    (self-deactivation, leave-guild, admin-removal, OIDC sync), so
+    the departing user shouldn't retain access — and leaving the
+    stale ``level=owner`` row behind has bitten us before: if that
+    user is later reactivated and re-added, the project shows two
+    owner-level permissions and the access dropdown can't reconcile
+    the value.
     """
     project = (await session.exec(select(Project).where(Project.id == project_id))).one()
 
@@ -548,10 +557,23 @@ async def transfer_project_ownership(
             f"Project {project_id} transfer target {new_owner_id} is not an active user"
         )
 
+    previous_owner_id = project.owner_id
     project.owner_id = new_owner_id
     project.updated_at = datetime.now(timezone.utc)
     session.add(project)
     await session.flush()
+
+    # Drop the previous owner's per-user permission row (if any) before
+    # creating / upgrading the new owner's. Skipped when transferring
+    # to oneself (no-op) or when the previous owner happens to be the
+    # new owner — ``previous_owner_id != new_owner_id`` covers both.
+    if previous_owner_id is not None and previous_owner_id != new_owner_id:
+        await session.exec(
+            delete(ProjectPermission).where(
+                ProjectPermission.project_id == project_id,
+                ProjectPermission.user_id == previous_owner_id,
+            )
+        )
 
     # Ensure new owner has owner permission
     perm_stmt = select(ProjectPermission).where(
