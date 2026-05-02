@@ -222,12 +222,21 @@ class GuildRemovalEligibilityResponse(BaseModel):
 
 
 class GuildRemovalRequest(BaseModel):
-    """Body for ``DELETE /users/{user_id}``. ``project_transfers`` keys
-    must cover every project ``user_id`` owns in the active guild and
-    each value must be an active member that can take ownership."""
+    """Body for ``DELETE /users/{user_id}``.
+
+    Every project the target user owns in the active guild must
+    appear in exactly one of ``project_transfers`` (hand it to
+    another active project manager) or ``project_deletions`` (send
+    it to trash so the guild's retention window can purge it). The
+    delete branch exists so an admin can still remove a user from a
+    guild where no other project manager is available — without it,
+    a sole-PM situation would leave the admin with a forever-disabled
+    Remove button.
+    """
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     project_transfers: Dict[int, int] = Field(default_factory=dict)
+    project_deletions: List[int] = Field(default_factory=list)
 
 
 class AccountDeletionResponse(BaseModel):

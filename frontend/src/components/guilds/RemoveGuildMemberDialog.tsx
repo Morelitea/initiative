@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -68,6 +69,13 @@ export const RemoveGuildMemberDialog = ({
   const [removing, setRemoving] = useState(false);
   const [eligibility, setEligibility] = useState<GuildRemovalEligibilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Per-project disposition: "transfer" (hand off to a PM) or
+  // "delete" (send to trash). Default is "transfer" when there's a
+  // candidate, "delete" otherwise — without that fallback an admin
+  // would be stuck on a sole-PM project with no successor available.
+  const [projectDispositions, setProjectDispositions] = useState<
+    Record<number, "transfer" | "delete">
+  >({});
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
 
   useEffect(() => {
@@ -75,6 +83,7 @@ export const RemoveGuildMemberDialog = ({
       setEligibility(null);
       setError(null);
       setLoading(true);
+      setProjectDispositions({});
       setProjectTransfers({});
       return;
     }
@@ -87,6 +96,14 @@ export const RemoveGuildMemberDialog = ({
           userId
         )) as unknown as GuildRemovalEligibilityResponse;
         setEligibility(data);
+        setProjectDispositions(
+          Object.fromEntries(
+            data.owned_projects.map((p) => [
+              p.id,
+              (p.candidates?.length ?? 0) > 0 ? ("transfer" as const) : ("delete" as const),
+            ])
+          )
+        );
       } catch (err) {
         console.error("Failed to check removal eligibility", err);
         setError(t("removeMember.failedToCheckEligibility"));
@@ -100,16 +117,32 @@ export const RemoveGuildMemberDialog = ({
 
   const ownedProjects = eligibility?.owned_projects ?? [];
   const hasOwnedProjects = ownedProjects.length > 0;
-  const allTransfersPicked =
-    !hasOwnedProjects || ownedProjects.every((project) => !!projectTransfers[project.id]);
+  const allDispositionsReady =
+    !hasOwnedProjects ||
+    ownedProjects.every((project) => {
+      const disposition = projectDispositions[project.id];
+      if (disposition === "delete") return true;
+      if (disposition === "transfer") return !!projectTransfers[project.id];
+      return false;
+    });
   const hasHardBlocker = !!eligibility && eligibility.sole_pm_initiatives.length > 0;
 
   const handleRemove = async () => {
     if (userId === null) return;
     setRemoving(true);
     try {
+      const transfers: Record<number, number> = {};
+      const deletions: number[] = [];
+      for (const project of ownedProjects) {
+        if (projectDispositions[project.id] === "delete") {
+          deletions.push(project.id);
+        } else if (projectTransfers[project.id]) {
+          transfers[project.id] = projectTransfers[project.id];
+        }
+      }
       await deleteUserApiV1UsersUserIdDelete(userId, {
-        project_transfers: projectTransfers,
+        project_transfers: transfers,
+        project_deletions: deletions,
       });
       void invalidateUsersList();
       toast.success(t("removeMember.removed", { email }));
@@ -174,38 +207,83 @@ export const RemoveGuildMemberDialog = ({
           </AlertDialogDescription>
           {ownedProjects.map((project) => {
             const candidates = project.candidates ?? [];
-            const value = projectTransfers[project.id]?.toString() ?? "";
+            const disposition = projectDispositions[project.id] ?? "transfer";
+            const transferValue = projectTransfers[project.id]?.toString() ?? "";
+            const noCandidates = candidates.length === 0;
             return (
-              <div key={project.id} className="space-y-2 rounded-md border p-3">
-                <Label htmlFor={`transfer-${project.id}`} className="font-medium">
-                  {project.name}
-                </Label>
-                {candidates.length === 0 ? (
-                  <p className="text-muted-foreground text-sm">
-                    {t("removeMember.noTransferCandidates")}
-                  </p>
-                ) : (
-                  <Select
-                    value={value}
-                    onValueChange={(next) =>
-                      setProjectTransfers((prev) => ({
-                        ...prev,
-                        [project.id]: Number(next),
-                      }))
-                    }
-                  >
-                    <SelectTrigger id={`transfer-${project.id}`}>
-                      <SelectValue placeholder={t("removeMember.selectNewOwnerPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {candidates.map((member) => (
-                        <SelectItem key={member.id} value={member.id.toString()}>
-                          {member.full_name || member.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+              <div key={project.id} className="space-y-3 rounded-md border p-3">
+                <p className="font-medium">{project.name}</p>
+                <RadioGroup
+                  value={disposition}
+                  onValueChange={(next) =>
+                    setProjectDispositions((prev) => ({
+                      ...prev,
+                      [project.id]: next as "transfer" | "delete",
+                    }))
+                  }
+                  className="space-y-2"
+                >
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem
+                      value="transfer"
+                      id={`disposition-${project.id}-transfer`}
+                      disabled={noCandidates}
+                      className="mt-1"
+                    />
+                    <div className="flex-1 space-y-2">
+                      <Label
+                        htmlFor={`disposition-${project.id}-transfer`}
+                        className="cursor-pointer font-normal"
+                      >
+                        {t("removeMember.dispositionTransferLabel")}
+                      </Label>
+                      {noCandidates ? (
+                        <p className="text-muted-foreground text-sm">
+                          {t("removeMember.noTransferCandidates")}
+                        </p>
+                      ) : disposition === "transfer" ? (
+                        <Select
+                          value={transferValue}
+                          onValueChange={(next) =>
+                            setProjectTransfers((prev) => ({
+                              ...prev,
+                              [project.id]: Number(next),
+                            }))
+                          }
+                        >
+                          <SelectTrigger id={`transfer-${project.id}`}>
+                            <SelectValue
+                              placeholder={t("removeMember.selectNewOwnerPlaceholder")}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {candidates.map((member) => (
+                              <SelectItem key={member.id} value={member.id.toString()}>
+                                {member.full_name || member.email}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem
+                      value="delete"
+                      id={`disposition-${project.id}-delete`}
+                      className="mt-1"
+                    />
+                    <Label
+                      htmlFor={`disposition-${project.id}-delete`}
+                      className="flex-1 cursor-pointer font-normal"
+                    >
+                      {t("removeMember.dispositionDeleteLabel")}
+                      <span className="text-muted-foreground mt-1 block text-xs font-normal">
+                        {t("removeMember.dispositionDeleteHelper")}
+                      </span>
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
             );
           })}
@@ -219,7 +297,7 @@ export const RemoveGuildMemberDialog = ({
   };
 
   const canShowRemoveButton = !loading && !error && eligibility && !hasHardBlocker;
-  const removeDisabled = removing || !allTransfersPicked;
+  const removeDisabled = removing || !allDispositionsReady;
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>

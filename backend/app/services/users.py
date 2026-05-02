@@ -320,6 +320,46 @@ async def get_owned_projects_in_guild(
     return list(result.all())
 
 
+async def fetch_pm_candidates(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    excluded_user_id: int,
+) -> List["UserPublic"]:  # noqa: F821 — forward ref to avoid circular import
+    """Active project-manager candidates for ``initiative_id``, with
+    ``excluded_user_id`` filtered out.
+
+    Project ownership only requires initiative membership in principle,
+    but for transfer-on-departure UX we restrict the picker to
+    initiative managers — they're the role that actually administers
+    the project, so handing them the row matches the user's intent and
+    keeps them empowered to make further changes (reassign, rename,
+    archive). Non-manager members can still appear via direct
+    ``ProjectPermission`` rows; this helper just narrows the picker.
+
+    Shared between the leave-eligibility (``guilds.py``) and admin
+    remove-eligibility (``users.py``) endpoints so the rules don't
+    drift between the two flows.
+    """
+    from app.models.initiative import InitiativeMember, InitiativeRoleModel
+    from app.schemas.user import UserPublic
+
+    stmt = (
+        select(User)
+        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeRoleModel.is_manager.is_(True),
+            User.status == UserStatus.active,
+            User.id != excluded_user_id,
+        )
+        .order_by(User.full_name, User.id)
+    )
+    result = await session.exec(stmt)
+    return [UserPublic.model_validate(u) for u in result.all()]
+
+
 async def check_deletion_eligibility(
     session: AsyncSession,
     user_id: int,

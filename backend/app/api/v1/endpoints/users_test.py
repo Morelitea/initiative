@@ -323,6 +323,40 @@ async def test_delete_user_with_transfers_reassigns_and_succeeds(
 
 
 @pytest.mark.integration
+async def test_delete_user_with_deletion_soft_deletes_project(
+    client: AsyncClient, session: AsyncSession
+):
+    """``project_deletions`` is the admin's escape hatch when no PM
+    candidate is available to take over. The project is soft-deleted
+    rather than orphaned."""
+    from app.db.soft_delete_filter import select_including_deleted
+    from app.models.project import Project
+    from app.testing.factories import create_initiative, create_project
+
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    project = await create_project(session, initiative=initiative, owner=member)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/users/{member.id}",
+        headers=get_guild_headers(guild, admin),
+        json={"project_deletions": [project.id]},
+    )
+    assert response.status_code == 204
+
+    refreshed = (
+        await session.exec(select_including_deleted(Project).where(Project.id == project.id))
+    ).one()
+    assert refreshed.deleted_at is not None
+    assert refreshed.deleted_by == admin.id
+
+
+@pytest.mark.integration
 async def test_user_cannot_update_email_via_patch(client: AsyncClient, session: AsyncSession):
     """Test that users cannot change their email via PATCH /me."""
     user = await create_user(session, email="original@example.com")

@@ -20,7 +20,7 @@ from app.core.security import get_password_hash, verify_password
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
-from app.models.initiative import InitiativeMember, InitiativeRoleModel
+from app.models.initiative import InitiativeMember
 from app.models.user import User, UserRole, UserStatus
 from app.models.user_token import UserToken, UserTokenPurpose
 from app.schemas.user import (
@@ -759,33 +759,19 @@ async def check_guild_removal_eligibility(
     # picker in one round trip. We can't reuse
     # ``GET /users/me/initiative-members`` because the admin doing the
     # removal isn't required to be a member of every initiative the
-    # target user belongs to. Filter to initiative *managers* — they're
-    # the role that actually administers projects, so handing them
-    # ownership matches the user's intent and keeps them empowered to
-    # make follow-up changes.
+    # target user belongs to. The candidate query lives in
+    # ``services/users.py`` so the leave-eligibility endpoint can share
+    # the same rules.
     owned_project_infos: list[GuildRemovalProjectInfo] = []
     candidate_cache: dict[int, list[UserPublic]] = {}
     for project in owned_projects:
         candidates = candidate_cache.get(project.initiative_id)
         if candidates is None:
-            candidate_users = (
-                await session.exec(
-                    select(User)
-                    .join(InitiativeMember, InitiativeMember.user_id == User.id)
-                    .join(
-                        InitiativeRoleModel,
-                        InitiativeRoleModel.id == InitiativeMember.role_id,
-                    )
-                    .where(
-                        InitiativeMember.initiative_id == project.initiative_id,
-                        InitiativeRoleModel.is_manager.is_(True),
-                        User.status == UserStatus.active,
-                        User.id != user_id,
-                    )
-                    .order_by(User.full_name, User.id)
-                )
-            ).all()
-            candidates = [UserPublic.model_validate(u) for u in candidate_users]
+            candidates = await users_service.fetch_pm_candidates(
+                session,
+                initiative_id=project.initiative_id,
+                excluded_user_id=user_id,
+            )
             candidate_cache[project.initiative_id] = candidates
         owned_project_infos.append(
             GuildRemovalProjectInfo(
@@ -849,21 +835,28 @@ async def delete_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     # Block the admin from orphaning projects: every project the target
-    # user owns in this guild needs an explicit transfer recipient. We
-    # apply the transfers before ``remove_user_from_guild_initiatives``
-    # drops their membership rows so the new owner is in place by the
-    # time RLS evaluates against the guild's surviving members.
+    # user owns in this guild needs an explicit disposition (transfer
+    # to a project manager, or delete). We apply the transfers /
+    # deletions before ``remove_user_from_guild_initiatives`` drops
+    # their membership rows so the new state is in place by the time
+    # RLS evaluates against the guild's surviving members.
     owned_projects = await users_service.get_owned_projects_in_guild(
         session, user_id, guild_context.guild_id
     )
     if owned_projects:
         transfers = body.project_transfers if body is not None else {}
+        deletions = set(body.project_deletions) if body is not None else set()
         owned_ids = {project.id for project in owned_projects}
         transfer_ids = set(transfers.keys())
-        if owned_ids != transfer_ids:
-            # Distinct from the self-leave code so SPA copy can speak in
-            # the right voice ("they own projects" vs "you own
-            # projects"); the validation rule is the same shape though.
+
+        # Every owned project needs exactly one disposition; reject
+        # missing, surplus, or overlapping ids with one stable code so
+        # the SPA can map a single translation string. Distinct from
+        # the self-leave code so the copy can speak in the right voice.
+        missing = owned_ids - transfer_ids - deletions
+        extra = (transfer_ids - owned_ids) | (deletions - owned_ids)
+        overlap = transfer_ids & deletions
+        if missing or extra or overlap:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=GuildMessages.CANNOT_REMOVE_OWNS_PROJECTS,
@@ -877,6 +870,26 @@ async def delete_user(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=GuildMessages.PROJECT_TRANSFER_RECIPIENT_INVALID,
+                )
+
+        if deletions:
+            # Soft-delete (send to trash) the projects the admin opted
+            # to discard rather than transfer — the escape hatch for
+            # the "no eligible project manager left" case.
+            from app.services import soft_delete as soft_delete_service
+            from app.services import guilds as guilds_service
+
+            retention_days = await guilds_service.get_guild_retention_days(
+                session, guild_context.guild_id
+            )
+            projects_by_id = {project.id: project for project in owned_projects}
+            for project_id in deletions:
+                project = projects_by_id[project_id]
+                await soft_delete_service.soft_delete_entity(
+                    session,
+                    project,
+                    deleted_by_user_id=current_admin.id,
+                    retention_days=retention_days,
                 )
 
     await initiatives_service.remove_user_from_guild_initiatives(

@@ -366,6 +366,9 @@ async def _auto_transfer_owned_projects(
     ``leave_guild`` endpoint requires explicit transfers instead;
     this helper is the automated equivalent.
     """
+    from sqlmodel import delete as sql_delete
+
+    from app.models.project import ProjectPermission
     from app.services.users import get_owned_projects_in_guild, transfer_project_ownership
 
     owned = await get_owned_projects_in_guild(session, user_id, guild_id)
@@ -385,6 +388,20 @@ async def _auto_transfer_owned_projects(
                 project.initiative_id,
                 guild_id,
                 user_id,
+            )
+            # Even when no fallback exists we drop the departing user's
+            # ``ProjectPermission`` row, matching the cleanup that
+            # ``transfer_project_ownership`` does on the success path.
+            # The row is already unreachable (the user's
+            # ``InitiativeMember`` is being deleted right after this
+            # helper returns), but a re-sync that adds the user back
+            # would otherwise resurrect a stale ``level=owner`` entry
+            # — the same regression Bug 5 fixed for the transfer path.
+            await session.exec(
+                sql_delete(ProjectPermission).where(
+                    ProjectPermission.project_id == project.id,
+                    ProjectPermission.user_id == user_id,
+                )
             )
             continue
         await transfer_project_ownership(session, project.id, new_owner_id)

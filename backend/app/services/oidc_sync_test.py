@@ -158,6 +158,8 @@ async def test_auto_transfer_leaves_orphan_when_no_fallback(session: AsyncSessio
     # the sole manager of the initiative, and the project owner. With
     # the leaver excluded, no other candidate is available — neither a
     # different initiative manager nor a guild admin.
+    from app.models.project import ProjectPermission
+
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=leaver)
     await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
@@ -172,3 +174,19 @@ async def test_auto_transfer_leaves_orphan_when_no_fallback(session: AsyncSessio
     ).one()
     assert refreshed.owner_id == leaver.id
     assert any("no fallback owner" in rec.message for rec in caplog.records)
+
+    # The departing user's per-user ``ProjectPermission`` row is dropped
+    # even on the skip path, mirroring the cleanup that
+    # ``transfer_project_ownership`` does on the success path. Otherwise
+    # a re-sync that adds the user back to the guild would resurrect a
+    # stale ``level=owner`` row (the regression Bug 5 fixed for the
+    # transfer flow).
+    perm = (
+        await session.exec(
+            select(ProjectPermission).where(
+                ProjectPermission.project_id == project.id,
+                ProjectPermission.user_id == leaver.id,
+            )
+        )
+    ).one_or_none()
+    assert perm is None
