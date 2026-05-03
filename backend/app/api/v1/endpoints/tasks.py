@@ -581,12 +581,25 @@ async def _advance_recurrence_if_needed(
         zone = _resolve_user_zone(user_timezone)
         now_local = now.astimezone(zone)
         due_local = task.due_date.astimezone(zone)
+        # ``replace()`` doesn't consult the zone's transition table on
+        # its own, so a gap-time result (e.g. 2:30 AM on a spring-
+        # forward day) is left labelled with the surrounding offset.
+        # The trailing ``astimezone(zone)`` is defensive — when the
+        # source and target tzinfo are the same ZoneInfo instance
+        # CPython short-circuits to ``return self``, so this is a
+        # no-op in that case, but it documents the intent and makes
+        # the call site safe if a future change resolves ``zone``
+        # from a different cache. The downstream ``+ timedelta``
+        # advance preserves wall-clock time across DST, which is the
+        # behaviour we want for daily recurrence: an "every day at
+        # 2:30 AM" task continues to fire at 2:30 AM after DST kicks
+        # in, the same way an alarm clock would.
         base_local = now_local.replace(
             hour=due_local.hour,
             minute=due_local.minute,
             second=due_local.second,
             microsecond=due_local.microsecond,
-        )
+        ).astimezone(zone)
         # ``get_next_due_date`` is timezone-naive about its frequency
         # math (adds ``timedelta(days=...)`` directly), so keep the
         # base in local time for the duration of the calculation and

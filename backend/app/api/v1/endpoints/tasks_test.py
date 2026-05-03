@@ -965,3 +965,94 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
     assert new_due_local.month == 5
     assert new_due_local.day == 6
     assert new_due_local.hour == 17
+
+
+@pytest.mark.integration
+async def test_rolling_recurrence_spring_forward_normalises_dst(
+    session: AsyncSession,
+):
+    """When the original due time falls in the clocked-forward gap on a
+    spring-forward night, the rolling-base composition has to round-trip
+    through the zone so the resulting UTC instant matches the user's
+    next wall-clock occurrence — not the non-existent local time
+    ``replace()`` would otherwise produce.
+    """
+    from datetime import datetime, timezone
+    from app.api.v1.endpoints.tasks import _advance_recurrence_if_needed
+    from app.models.task import Task, TaskStatusCategory
+    from app.services import task_statuses as task_statuses_service
+
+    user = await create_user(
+        session, email="dst-user@example.com", timezone="America/Los_Angeles"
+    )
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild)
+    initiative = await _create_initiative(session, guild, user)
+    project = await _create_project(session, initiative, user)
+
+    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    todo_status = next(s for s in statuses if s.is_default)
+    done_status = next(s for s in statuses if s.name == "Done")
+    await session.commit()
+
+    # Original due: 2:30 AM Los Angeles. On a normal day that's 09:30
+    # (PST) or 10:30 (PDT) UTC; we just pick a non-DST date so the
+    # field value is unambiguous in storage.
+    original_due = datetime(2026, 1, 15, 10, 30, 0, tzinfo=timezone.utc)
+    task = Task(
+        title="DST gap task",
+        project_id=project.id,
+        task_status_id=todo_status.id,
+        guild_id=guild.id,
+        due_date=original_due,
+        recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
+        recurrence_strategy="rolling",
+    )
+    session.add(task)
+    await session.commit()
+    await session.refresh(
+        task, attribute_names=["task_status", "assignees", "tag_links"]
+    )
+
+    # Complete on Sunday 2026-03-08 (US spring-forward day), late
+    # morning LA so ``now_local`` is firmly in PDT. The composed
+    # rolling base — ``now_local.replace(hour=2, minute=30)`` — lands
+    # in the clock-forward gap that doesn't exist locally (the clock
+    # jumped 2:00 → 3:00 earlier that morning). The
+    # ``.astimezone(zone)`` pass re-normalises the gap value through
+    # the transition table, so the stored UTC instant corresponds to
+    # 3:30 AM PDT on the next day rather than a stale offset.
+    completion_now = datetime(2026, 3, 8, 18, 0, 0, tzinfo=timezone.utc)
+    task.task_status_id = done_status.id
+    task.task_status = done_status
+
+    advanced = await _advance_recurrence_if_needed(
+        session,
+        task,
+        previous_status_category=TaskStatusCategory.todo,
+        now=completion_now,
+        user_timezone=user.timezone,
+    )
+    assert advanced is True
+    await session.commit()
+
+    from sqlmodel import select as _select
+
+    new_task = (
+        await session.exec(
+            _select(Task).where(Task.project_id == project.id, Task.id != task.id)
+        )
+    ).first()
+    assert new_task is not None
+    assert new_task.due_date is not None
+    new_due_la = new_task.due_date.astimezone(ZoneInfo("America/Los_Angeles"))
+    # Daily +1 from completion (Mar 8) → Mar 9, fully in PDT. The
+    # important property: the wall-clock 2:30 AM of the original task
+    # is preserved on the next valid day, so the user's "every day at
+    # 2:30 AM" intent survives the DST transition. Strict UTC pin:
+    # 2026-03-09 09:30 UTC = 2026-03-09 02:30 PDT.
+    assert new_due_la.day == 9
+    assert new_due_la.hour == 2
+    assert new_due_la.minute == 30
+    new_due_utc = new_task.due_date.astimezone(timezone.utc)
+    assert new_due_utc == datetime(2026, 3, 9, 9, 30, 0, tzinfo=timezone.utc)
