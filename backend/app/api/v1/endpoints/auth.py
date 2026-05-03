@@ -91,7 +91,16 @@ async def register_user(
         else:
             user_role = UserRole.admin if is_first_user else UserRole.member
 
-        user = User(
+        # Validate the optional browser-supplied IANA timezone via the
+        # same helper used by self-update / admin-update. Returns
+        # ``None`` when the field is omitted or blank, in which case
+        # we simply don't pass ``timezone`` to the model and the
+        # column default ``"UTC"`` applies.
+        from app.api.v1.endpoints.users import _normalize_timezone
+
+        normalized_timezone = _normalize_timezone(user_in.timezone)
+
+        user_kwargs: dict[str, Any] = dict(
             email_hash=hash_email(normalized_email),
             email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
             full_name=user_in.full_name,
@@ -100,6 +109,9 @@ async def register_user(
             status=UserStatus.active,
             email_verified=is_first_user or not smtp_configured,
         )
+        if normalized_timezone is not None:
+            user_kwargs["timezone"] = normalized_timezone
+        user = User(**user_kwargs)
         session.add(user)
         await session.flush()
 

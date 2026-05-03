@@ -25,6 +25,10 @@ interface RegisterPayload {
   password: string;
   full_name?: string;
   inviteCode?: string;
+  /** Optional IANA timezone name resolved from the browser at submit
+   *  time. Forwarded so a new account starts at the user's wall clock
+   *  instead of the backend default of "UTC". */
+  timezone?: string;
 }
 
 interface AuthContextValue {
@@ -150,10 +154,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const register = async ({ email, password, full_name, inviteCode }: RegisterPayload) => {
+  const register = async ({
+    email,
+    password,
+    full_name,
+    inviteCode,
+    timezone,
+  }: RegisterPayload) => {
     const response = await apiClient.post<UserRead>(
       "/auth/register",
-      { email, password, full_name },
+      { email, password, full_name, timezone },
       inviteCode
         ? {
             params: { invite_code: inviteCode },

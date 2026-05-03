@@ -16,6 +16,11 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    # Optional IANA timezone forwarded by the SPA on registration so a
+    # new account starts at the user's wall clock instead of the model
+    # default ``"UTC"``. Validated server-side by ``_normalize_timezone``;
+    # omitted by non-SPA callers, in which case the model default applies.
+    timezone: Optional[str] = None
 
 
 class UserUpdate(BaseModel):

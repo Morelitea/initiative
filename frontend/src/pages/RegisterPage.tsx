@@ -124,11 +124,20 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         setError(inviteStatus.reason ?? t("register.inviteInvalid"));
         return;
       }
+      // Resolve the browser's IANA timezone (e.g. "America/Los_Angeles")
+      // so the new account starts on the user's wall clock instead of
+      // the backend's "UTC" default. ``Intl.DateTimeFormat`` is
+      // available everywhere this SPA already supports; the optional
+      // chain + ``|| undefined`` guard handles the unusual case where
+      // the resolved name comes back falsy, in which case we just
+      // omit the field and let the backend default apply.
+      const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
       const createdUser = await register({
         email: email.toLowerCase().trim(),
         password,
         full_name: fullName,
         inviteCode,
+        timezone: browserTimezone,
       });
       const isActive = createdUser.status === "active";
       if (isActive && createdUser.email_verified) {
