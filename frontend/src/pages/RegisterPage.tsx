@@ -48,6 +48,17 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   // skip rule and never renders the widget.
   const { captcha } = useAppConfig();
   const [captchaToken, setCaptchaToken] = useState<string>("");
+  // Captcha tokens are single-use: once the backend forwards one to
+  // the provider's siteverify endpoint, replaying it returns a
+  // "timeout-or-duplicate" error and the SPA surfaces it as
+  // ``CAPTCHA_INVALID``. So whenever a submit attempt completes —
+  // whether the registration succeeded, failed for a non-captcha
+  // reason, or failed for a captcha reason — we bump this key to
+  // remount ``<CaptchaWidget>``, which clears the consumed token and
+  // re-renders a fresh challenge. Without this, any post-verify
+  // failure (DB blip, email send error, etc.) traps the user in a
+  // CAPTCHA_INVALID loop with no exit short of a page reload.
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const captchaRequired = !bootstrapMode && captcha !== null;
   const inviteCode = useMemo(() => {
     const code = searchParams.invite_code;
@@ -172,6 +183,15 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       setError(getErrorMessage(err, "auth:register.defaultError"));
     } finally {
       setSubmitting(false);
+      // Always reset the captcha after a submit attempt — see the
+      // ``captchaResetKey`` declaration above. Cheap to bump even
+      // when no widget is rendered (no captcha configured /
+      // bootstrap mode), since ``<CaptchaWidget>`` only mounts when
+      // ``captchaRequired`` is true.
+      if (captchaRequired) {
+        setCaptchaToken("");
+        setCaptchaResetKey((k) => k + 1);
+      }
     }
   };
 
@@ -297,7 +317,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                 </p>
               ) : null}
               {captchaRequired && captcha ? (
-                <CaptchaWidget config={captcha} onToken={setCaptchaToken} />
+                <CaptchaWidget key={captchaResetKey} config={captcha} onToken={setCaptchaToken} />
               ) : null}
               <Button
                 className="w-full"
