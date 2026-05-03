@@ -23,6 +23,7 @@ import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySid
 import { VersionDialog } from "@/components/VersionDialog";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
 import { useGuilds } from "@/hooks/useGuilds";
+import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
@@ -112,35 +113,35 @@ function AppLayout() {
     return <Navigate to={redirectTo} replace />;
   }
 
-  // Show no-guild empty state if user has no guild memberships.
-  //
-  // Exception: user-scoped settings (``/profile/*``) and platform-admin
-  // settings (``/settings/admin/*``) don't need guild context — the
-  // user-scoped APIs the SPA calls from those pages don't require an
-  // ``X-Guild-ID`` header — and a user with zero memberships otherwise
-  // has no path to delete their account or, for platform admins, to
-  // configure system-wide settings. In that case render the outlet
-  // inside a minimal "no-guild settings shell" (header-only chrome
-  // with a Back-to-start link + logout) instead of the standard
-  // sidebar layout.
-  if (guilds.length === 0 && user) {
-    const path = location.pathname;
-    const isUserSettingsRoute = path === "/profile" || path.startsWith("/profile/");
-    const isAdminSettingsRoute = path === "/settings/admin" || path.startsWith("/settings/admin/");
+  // No-guild empty-state branch. The user-scoped settings routes
+  // (``/profile/*``) and platform-admin settings (``/settings/admin/*``
+  // for an admin) don't need guild context — the APIs they call don't
+  // require an ``X-Guild-ID`` header — and a user with zero
+  // memberships would otherwise have no path to delete their account
+  // or, for platform admins, configure system-wide settings. The
+  // path-based decision lives in ``chooseNoGuildLayout`` so it can be
+  // unit-tested without a router; see ``noGuildLayout.test.ts``.
+  if (user) {
     const isPlatformAdmin = user.role === "admin";
-
-    if (isUserSettingsRoute || (isAdminSettingsRoute && isPlatformAdmin)) {
+    const layout = chooseNoGuildLayout({
+      hasGuilds: guilds.length > 0,
+      pathname: location.pathname,
+      isPlatformAdmin,
+    });
+    if (layout === "shell") {
       return <NoGuildSettingsShell logout={logout} />;
     }
-
-    return (
-      <NoGuildState
-        canCreateGuilds={canCreateGuilds}
-        createGuild={createGuild}
-        logout={logout}
-        isPlatformAdmin={isPlatformAdmin}
-      />
-    );
+    if (layout === "empty") {
+      return (
+        <NoGuildState
+          canCreateGuilds={canCreateGuilds}
+          createGuild={createGuild}
+          logout={logout}
+          isPlatformAdmin={isPlatformAdmin}
+        />
+      );
+    }
+    // layout === "main" → fall through to the standard sidebar layout.
   }
 
   const handleClearRecent = (projectId: number) => {
