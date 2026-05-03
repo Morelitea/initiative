@@ -2730,6 +2730,7 @@ export interface UserCreate {
   full_name?: string | null;
   role?: UserRole;
   password: string;
+  timezone?: string | null;
 }
 
 export interface UserInitiativeRole {

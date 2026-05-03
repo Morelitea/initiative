@@ -104,6 +104,79 @@ async def test_register_normalizes_email(client: AsyncClient):
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_register_persists_browser_timezone(
+    client: AsyncClient, session: AsyncSession
+):
+    """The SPA forwards ``Intl.DateTimeFormat().resolvedOptions().timeZone``
+    on registration so the new account's wall clock matches the user's
+    actual zone instead of the model default ``"UTC"``."""
+    from sqlmodel import select
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "tz-user@example.com",
+            "full_name": "TZ User",
+            "password": "password123",
+            "timezone": "America/Los_Angeles",
+        },
+    )
+    assert response.status_code == 201
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("tz-user@example.com"))
+        )
+    ).one()
+    assert user.timezone == "America/Los_Angeles"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_rejects_invalid_timezone(client: AsyncClient):
+    """Bogus IANA names from a hand-crafted request are rejected with the
+    same error code the self-update path uses, so the SPA's existing
+    ``getErrorMessage`` mapping picks it up."""
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "bad-tz@example.com",
+            "full_name": "Bad TZ",
+            "password": "password123",
+            "timezone": "Mars/Olympus_Mons",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_TIMEZONE"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_without_timezone_keeps_utc_default(
+    client: AsyncClient, session: AsyncSession
+):
+    """Non-SPA callers (curl, integration scripts) that omit the field
+    still hit the model default — keeps the change non-breaking."""
+    from sqlmodel import select
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "no-tz@example.com",
+            "full_name": "No TZ",
+            "password": "password123",
+        },
+    )
+    assert response.status_code == 201
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("no-tz@example.com"))
+        )
+    ).one()
+    assert user.timezone == "UTC"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_login_success(client: AsyncClient, session: AsyncSession):
     """Test successful login returns access token."""
     # Create user with known password

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Auto-detect timezone on registration.** The register form now forwards the browser's resolved IANA timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) so a new account's wall clock matches where the user actually is, instead of starting at the model default of `"UTC"`. Time-of-day features (rolling recurrence, due-date display, daily digests) read the stored zone, so the new default removes a step from the "why is my task scheduled at 5 AM?" loop. Non-SPA callers (curl, integration scripts) that omit the field still get the `"UTC"` default — no breaking change. OIDC sign-in still picks `"UTC"` until the user updates it in settings; that flow has no SPA form to attach the value to.
+
+- **Timezone editor on the Profile tab.** Settings → Profile now exposes the same timezone picker that's been on Settings → Notifications, so a wrong default surfaces and is fixable on the first profile pass instead of requiring users to find the notifications tab. The picker, fallback list, and `Intl.supportedValuesOf("timeZone")` resolution moved to a shared `lib/timezones.ts` so both pages stay in sync.
+
 ### Fixed
 
 - **Rolling recurrence off-by-one across the UTC date boundary.** A task set to repeat "every N days after completion" anchored its next due date on the UTC calendar day, not the user's local one. For tasks whose local time crossed midnight UTC (e.g. 5pm Los Angeles is 00:00 UTC the next day), completing the task one local day earlier than the UTC day produced a next occurrence one day too soon — `every 3 days` ended up scheduling 2 days out. The advance step now converts both `now` and the original due time into the user's stored timezone before doing the date math, so the new occurrence lands on the user-intuitive calendar day.

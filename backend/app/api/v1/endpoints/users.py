@@ -1,7 +1,5 @@
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
-import re
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel import select, update as sql_update
@@ -17,6 +15,11 @@ from app.api.deps import (
 )
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash, verify_password
+from app.core.user_input_validators import (
+    normalize_notification_time,
+    normalize_timezone,
+    normalize_week_starts_on,
+)
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
@@ -66,49 +69,6 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
-TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
-
-
-def _normalize_timezone(value: str | None) -> str | None:
-    if value is None:
-        return None
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    try:
-        ZoneInfo(cleaned)
-    except ZoneInfoNotFoundError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.INVALID_TIMEZONE)
-    return cleaned
-
-
-def _normalize_notification_time(value: str | None) -> str | None:
-    if value is None:
-        return None
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    if not TIME_PATTERN.match(cleaned):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.INVALID_TIME_FORMAT)
-    return cleaned
-
-
-def _normalize_week_starts_on(value: int | str | None) -> int | None:
-    if value is None:
-        return None
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.INVALID_WEEK_START,
-        )
-    if number < 0 or number > 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.INVALID_WEEK_START,
-        )
-    return number
 
 
 @router.get("/me", response_model=UserRead)
@@ -327,15 +287,15 @@ async def update_users_me(
         else:
             current_user.avatar_url = None
     if "week_starts_on" in update_data:
-        normalized_week_start = _normalize_week_starts_on(update_data["week_starts_on"])
+        normalized_week_start = normalize_week_starts_on(update_data["week_starts_on"])
         if normalized_week_start is not None:
             current_user.week_starts_on = normalized_week_start
     if "timezone" in update_data:
-        normalized_timezone = _normalize_timezone(update_data["timezone"])
+        normalized_timezone = normalize_timezone(update_data["timezone"])
         if normalized_timezone:
             current_user.timezone = normalized_timezone
     if "overdue_notification_time" in update_data:
-        normalized_time = _normalize_notification_time(update_data["overdue_notification_time"])
+        normalized_time = normalize_notification_time(update_data["overdue_notification_time"])
         if normalized_time:
             current_user.overdue_notification_time = normalized_time
     for field in [
@@ -433,17 +393,17 @@ async def update_user(
             user.avatar_base64 = None
     for field, value in update_data.items():
         if field == "timezone":
-            normalized_timezone = _normalize_timezone(value)
+            normalized_timezone = normalize_timezone(value)
             if normalized_timezone:
                 setattr(user, field, normalized_timezone)
             continue
         if field == "overdue_notification_time":
-            normalized_time = _normalize_notification_time(value)
+            normalized_time = normalize_notification_time(value)
             if normalized_time:
                 setattr(user, field, normalized_time)
             continue
         if field == "week_starts_on":
-            normalized_week_start = _normalize_week_starts_on(value)
+            normalized_week_start = normalize_week_starts_on(value)
             if normalized_week_start is not None:
                 setattr(user, field, normalized_week_start)
             continue
