@@ -99,16 +99,18 @@ export const CaptchaWidget = ({ config, onToken }: CaptchaWidgetProps) => {
 
     loadScript(scriptUrl)
       .then(() => {
-        // The SDK script loads asynchronously; poll briefly for the
-        // global to appear. All three providers attach their global
-        // synchronously when the script body finishes executing, but
-        // ``script.onload`` can fire a tick before the global is
-        // observable.
+        // Poll for the SDK to finish initialising. ``script.onload``
+        // can fire a tick before the global is observable, and for
+        // Google reCAPTCHA there's a longer gap: ``window.grecaptcha``
+        // is set to a small bootstrap object with only ``.ready``
+        // before the rest of the SDK loads, and ``.render`` only
+        // attaches once initialisation finishes. Wait for ``.render``
+        // specifically so we don't race that gap.
         const start = Date.now();
         const poll = () => {
           if (cancelled) return;
           const api = getProviderApi(config.provider);
-          if (api) {
+          if (api && typeof api.render === "function") {
             if (!containerRef.current) return;
             try {
               widgetIdRef.current = api.render(containerRef.current, {
