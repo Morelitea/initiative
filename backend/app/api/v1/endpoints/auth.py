@@ -92,12 +92,17 @@ async def register_user(
         # first-user path because there's no bot economics on a fresh
         # deployment with zero users — and operators shouldn't be
         # locked out by a captcha they haven't fully wired up yet.
+        # ``get_real_client_ip`` honours ``X-Forwarded-For`` only when
+        # ``BEHIND_PROXY`` is on, so when the API sits behind nginx /
+        # ALB / Cloudflare the captcha provider sees the real client IP
+        # for its anti-abuse heuristics — not the proxy's.
         if not is_first_user:
+            from app.core.rate_limit import get_real_client_ip
             from app.services import captcha as captcha_service
 
             await captcha_service.verify_or_raise(
                 user_in.captcha_token,
-                remote_ip=request.client.host if request.client else None,
+                remote_ip=get_real_client_ip(request),
             )
 
         if normalized_invite:

@@ -77,7 +77,12 @@ async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
         )
 
     provider = settings.CAPTCHA_PROVIDER
-    assert provider is not None  # narrowed by ``is_configured``
+    # ``is_configured`` already checked this, but ``assert`` would be
+    # stripped under ``python -O`` (some production images run that
+    # way). Re-check explicitly so a config that drifts between the
+    # two reads doesn't surface as a 500 from a ``KeyError`` lookup.
+    if provider is None or provider not in _VERIFY_URLS:
+        return
     verify_url = _VERIFY_URLS[provider]
 
     payload: dict[str, str] = {

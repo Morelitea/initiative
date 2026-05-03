@@ -65,7 +65,14 @@ const getProviderApi = (provider: string): ProviderRenderApi | undefined => {
 };
 
 /** Inject the provider script once per page-load. Subsequent calls
- *  resolve immediately if the SDK global is already present. */
+ *  resolve immediately if the SDK global is already present.
+ *
+ *  On a network failure we remove the failed ``<script>`` element so
+ *  a re-mount (e.g. after the user navigates away and back, or
+ *  after a CDN blip clears) re-attempts the fetch. Without that
+ *  cleanup the dedup check below would short-circuit and the poll
+ *  loop would spend its 5 s window waiting for a global that's
+ *  never going to attach. */
 const loadScript = (url: string): Promise<void> =>
   new Promise((resolve, reject) => {
     if (document.querySelector(`script[data-captcha-src="${url}"]`)) {
@@ -78,7 +85,10 @@ const loadScript = (url: string): Promise<void> =>
     el.defer = true;
     el.dataset.captchaSrc = url;
     el.onload = () => resolve();
-    el.onerror = () => reject(new Error(`Failed to load captcha script: ${url}`));
+    el.onerror = () => {
+      el.remove();
+      reject(new Error(`Failed to load captcha script: ${url}`));
+    };
     document.head.appendChild(el);
   });
 
