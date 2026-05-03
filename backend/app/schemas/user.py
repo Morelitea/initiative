@@ -16,6 +16,16 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    # Optional IANA timezone forwarded by the SPA on registration so a
+    # new account starts at the user's wall clock instead of the model
+    # default ``"UTC"``. Validated server-side by ``_normalize_timezone``;
+    # omitted by non-SPA callers, in which case the model default applies.
+    timezone: Optional[str] = None
+    # Optional captcha token supplied by the SPA's widget when the
+    # deployment has ``CAPTCHA_PROVIDER`` configured. Verified
+    # server-side via ``app.services.captcha`` before the row is
+    # written. Ignored when captcha isn't configured.
+    captcha_token: Optional[str] = None
 
 
 class UserUpdate(BaseModel):

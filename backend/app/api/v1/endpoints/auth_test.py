@@ -104,6 +104,193 @@ async def test_register_normalizes_email(client: AsyncClient):
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_register_persists_browser_timezone(
+    client: AsyncClient, session: AsyncSession
+):
+    """The SPA forwards ``Intl.DateTimeFormat().resolvedOptions().timeZone``
+    on registration so the new account's wall clock matches the user's
+    actual zone instead of the model default ``"UTC"``."""
+    from sqlmodel import select
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "tz-user@example.com",
+            "full_name": "TZ User",
+            "password": "password123",
+            "timezone": "America/Los_Angeles",
+        },
+    )
+    assert response.status_code == 201
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("tz-user@example.com"))
+        )
+    ).one()
+    assert user.timezone == "America/Los_Angeles"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_rejects_invalid_timezone(client: AsyncClient):
+    """Bogus IANA names from a hand-crafted request are rejected with the
+    same error code the self-update path uses, so the SPA's existing
+    ``getErrorMessage`` mapping picks it up."""
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "bad-tz@example.com",
+            "full_name": "Bad TZ",
+            "password": "password123",
+            "timezone": "Mars/Olympus_Mons",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_TIMEZONE"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_without_timezone_keeps_utc_default(
+    client: AsyncClient, session: AsyncSession
+):
+    """Non-SPA callers (curl, integration scripts) that omit the field
+    still hit the model default — keeps the change non-breaking."""
+    from sqlmodel import select
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "no-tz@example.com",
+            "full_name": "No TZ",
+            "password": "password123",
+        },
+    )
+    assert response.status_code == 201
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("no-tz@example.com"))
+        )
+    ).one()
+    assert user.timezone == "UTC"
+
+
+# --- Captcha gate ----------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_requires_captcha_token_when_configured(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """When the deployment has CAPTCHA_PROVIDER set, the second-and-later
+    user must include a token — bot signups can't slip through by just
+    omitting the field. The bootstrap user already exists in this test
+    so the first-user skip doesn't apply."""
+    from app.core.config import settings as app_settings
+
+    await create_user(session)  # exhaust the bootstrap-first-user skip
+    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
+    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
+    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "needs-captcha@example.com",
+            "full_name": "Needs Captcha",
+            "password": "password123",
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CAPTCHA_REQUIRED"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_skips_captcha_for_bootstrap_first_user(
+    client: AsyncClient, monkeypatch
+):
+    """Fresh deployments shouldn't be locked out by a captcha config
+    the operator may not have wired up yet — the first user always
+    bypasses the check."""
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
+    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
+    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "bootstrap@example.com",
+            "full_name": "Bootstrap",
+            "password": "password123",
+        },
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_no_captcha_required_when_provider_unset(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """OSS deployments leave the captcha vars unset — registration must
+    work as before, with no field required."""
+    from app.core.config import settings as app_settings
+
+    await create_user(session)  # second-user path
+    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", None)
+    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", None)
+    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", None)
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "no-captcha@example.com",
+            "full_name": "No Captcha",
+            "password": "password123",
+        },
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_with_valid_captcha_token_succeeds(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Happy path: valid token from the provider → registration completes.
+    The provider call is stubbed at the verifier-service layer so this
+    test doesn't need network access."""
+    from app.core.config import settings as app_settings
+    from app.services import captcha as captcha_service
+
+    await create_user(session)  # second-user path
+    monkeypatch.setattr(app_settings, "CAPTCHA_PROVIDER", "hcaptcha")
+    monkeypatch.setattr(app_settings, "CAPTCHA_SITE_KEY", "site")
+    monkeypatch.setattr(app_settings, "CAPTCHA_SECRET_KEY", "secret")
+
+    async def _ok(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(captcha_service, "verify_or_raise", _ok)
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "good-token@example.com",
+            "full_name": "Good Token",
+            "password": "password123",
+            "captcha_token": "stub-valid-token",
+        },
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_login_success(client: AsyncClient, session: AsyncSession):
     """Test successful login returns access token."""
     # Create user with known password

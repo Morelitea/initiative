@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.2] - 2026-05-03
+
+### Added
+
+- **Optional captcha gate on registration.** Set `CAPTCHA_PROVIDER` (one of `hcaptcha`, `turnstile`, or `recaptcha` — v2 only for reCAPTCHA, since the gate uses the rendered checkbox widget rather than v3's score flow), `CAPTCHA_SITE_KEY`, and `CAPTCHA_SECRET_KEY` and the public registration endpoint will require a solved widget before creating an account. The SPA picks the right widget at runtime based on `GET /api/v1/config`. Bootstrap-first-user registrations (no users yet) and the OSS default (no env vars set) are silently skipped — registrations work exactly as before. The verifier fails closed on provider network errors, so a transient outage rejects registrations rather than letting them through unchecked.
+
+### Changed
+
+- **Auto-detect timezone on registration.** The register form now forwards the browser's resolved IANA timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) so a new account's wall clock matches where the user actually is, instead of starting at the model default of `"UTC"`. Time-of-day features (rolling recurrence, due-date display, daily digests) read the stored zone, so the new default removes a step from the "why is my task scheduled at 5 AM?" loop. Non-SPA callers (curl, integration scripts) that omit the field still get the `"UTC"` default — no breaking change. OIDC sign-in still picks `"UTC"` until the user updates it in settings; that flow has no SPA form to attach the value to.
+
+- **Timezone editor on the Profile tab.** Settings → Profile now exposes the same timezone picker that's been on Settings → Notifications, so a wrong default surfaces and is fixable on the first profile pass instead of requiring users to find the notifications tab. The picker, fallback list, and `Intl.supportedValuesOf("timeZone")` resolution moved to a shared `lib/timezones.ts` so both pages stay in sync.
+
+### Fixed
+
+- **Rolling recurrence off-by-one across the UTC date boundary.** A task set to repeat "every N days after completion" anchored its next due date on the UTC calendar day, not the user's local one. For tasks whose local time crossed midnight UTC (e.g. 5pm Los Angeles is 00:00 UTC the next day), completing the task one local day earlier than the UTC day produced a next occurrence one day too soon — `every 3 days` ended up scheduling 2 days out. The advance step now converts both `now` and the original due time into the user's stored timezone before doing the date math, so the new occurrence lands on the user-intuitive calendar day.
+
+- **Settings unreachable when you have no guild memberships.** A user with zero memberships used to see only the "no guild" screen with create/join/logout — no path to user settings (so no way to delete their own account) and no path to platform-admin settings either. The empty-state screen now exposes **Account settings** (always) and **Platform settings** (when `user.role === "admin"`) buttons, and the `/profile/*` and `/settings/admin/*` routes render in a minimal Back-to-start shell instead of bouncing back to the empty state.
+
 ## [0.43.1] - 2026-05-02
 
 ### Changed

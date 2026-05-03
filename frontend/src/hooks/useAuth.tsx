@@ -25,6 +25,15 @@ interface RegisterPayload {
   password: string;
   full_name?: string;
   inviteCode?: string;
+  /** Optional IANA timezone name resolved from the browser at submit
+   *  time. Forwarded so a new account starts at the user's wall clock
+   *  instead of the backend default of "UTC". */
+  timezone?: string;
+  /** Optional captcha token from the rendered widget when the
+   *  deployment has CAPTCHA_PROVIDER configured (see
+   *  ``GET /api/v1/config``). Backend validates server-side; missing
+   *  when the deployment has no captcha. */
+  captcha_token?: string;
 }
 
 interface AuthContextValue {
@@ -150,10 +159,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const register = async ({ email, password, full_name, inviteCode }: RegisterPayload) => {
+  const register = async ({
+    email,
+    password,
+    full_name,
+    inviteCode,
+    timezone,
+    captcha_token,
+  }: RegisterPayload) => {
     const response = await apiClient.post<UserRead>(
       "/auth/register",
-      { email, password, full_name },
+      { email, password, full_name, timezone, captcha_token },
       inviteCode
         ? {
             params: { invite_code: inviteCode },

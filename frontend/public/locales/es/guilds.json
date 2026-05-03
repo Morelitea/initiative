@@ -165,6 +165,9 @@
     "create": "Crear",
     "inviteCodePlaceholder": "Código de invitación",
     "redeem": "Canjear",
+    "accountSettings": "Configuración de la cuenta",
+    "platformSettings": "Configuración de la plataforma",
+    "shellBackToStart": "Volver al inicio",
     "logOut": "Cerrar sesión"
   },
   "notifications": {

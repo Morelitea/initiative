@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getInitials } from "@/lib/initials";
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
 
 const dataUrl = (value?: string | null) => {
@@ -37,6 +39,11 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   );
   const [avatarUrl, setAvatarUrl] = useState(user.avatar_url ?? "");
   const [avatarBase64, setAvatarBase64] = useState(user.avatar_base64 ?? "");
+  // The same field is also editable on Settings → Notifications (the
+  // overdue-reminder time uses it). Surfacing it here too means a new
+  // user can fix a wrong default during their first profile pass
+  // without having to discover the notifications tab.
+  const [timezone, setTimezone] = useState(user.timezone ?? "UTC");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,6 +51,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
     setAvatarUrl(user.avatar_url ?? "");
     setAvatarBase64(user.avatar_base64 ?? "");
     setAvatarMode(user.avatar_url ? "url" : "upload");
+    setTimezone(user.timezone ?? "UTC");
   }, [user]);
 
   const avatarPreview = useMemo(() => {
@@ -124,6 +132,9 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 payload.avatar_url = avatarUrl || null;
                 payload.avatar_base64 = null;
               }
+              if (timezone !== (user.timezone ?? "UTC")) {
+                payload.timezone = timezone;
+              }
               updateProfile.mutate(payload as UserSelfUpdate);
             }}
           >
@@ -164,6 +175,18 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                   placeholder={t("profile.passwordPlaceholder")}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>{t("profile.timezoneLabel")}</Label>
+              <SearchableCombobox
+                items={TIMEZONE_OPTIONS.map((tz) => ({ value: tz, label: tz }))}
+                value={timezone}
+                onValueChange={setTimezone}
+                placeholder={t("profile.timezonePlaceholder")}
+                emptyMessage={t("profile.timezoneEmpty")}
+              />
+              <p className="text-muted-foreground text-xs">{t("profile.timezoneHelp")}</p>
             </div>
 
             <div className="space-y-3">
@@ -227,6 +250,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                   setAvatarUrl(user.avatar_url ?? "");
                   setAvatarBase64(user.avatar_base64 ?? "");
                   setAvatarMode(user.avatar_url ? "url" : "upload");
+                  setTimezone(user.timezone ?? "UTC");
                   setError(null);
                 }}
               >
