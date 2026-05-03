@@ -968,14 +968,21 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
 
 
 @pytest.mark.integration
-async def test_rolling_recurrence_spring_forward_normalises_dst(
+async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
     session: AsyncSession,
 ):
-    """When the original due time falls in the clocked-forward gap on a
-    spring-forward night, the rolling-base composition has to round-trip
-    through the zone so the resulting UTC instant matches the user's
-    next wall-clock occurrence — not the non-existent local time
-    ``replace()`` would otherwise produce.
+    """When the original due time would land in the clocked-forward gap
+    on a spring-forward night, rolling recurrence preserves the
+    original *wall-clock* time on the next calendar day rather than
+    normalising into the gap. This is alarm-clock semantics: "every
+    day at 2:30 AM" continues to fire at 2:30 AM after DST, even
+    though 2:30 AM does not exist on the spring-forward night itself.
+
+    Concretely: completing on 2026-03-08 (US spring-forward day) with
+    an original 2:30 AM due time produces a next occurrence of
+    2026-03-09 at 02:30 PDT = 09:30 UTC. The gap on Mar 8 is
+    irrelevant because the new occurrence lands on Mar 9, where 2:30
+    AM is a valid local time.
     """
     from datetime import datetime, timezone
     from app.api.v1.endpoints.tasks import _advance_recurrence_if_needed
@@ -1016,12 +1023,12 @@ async def test_rolling_recurrence_spring_forward_normalises_dst(
 
     # Complete on Sunday 2026-03-08 (US spring-forward day), late
     # morning LA so ``now_local`` is firmly in PDT. The composed
-    # rolling base — ``now_local.replace(hour=2, minute=30)`` — lands
-    # in the clock-forward gap that doesn't exist locally (the clock
-    # jumped 2:00 → 3:00 earlier that morning). The
-    # ``.astimezone(zone)`` pass re-normalises the gap value through
-    # the transition table, so the stored UTC instant corresponds to
-    # 3:30 AM PDT on the next day rather than a stale offset.
+    # rolling base — ``now_local.replace(hour=2, minute=30)`` —
+    # references a local time that does not exist on Mar 8 (the
+    # clock jumped 2:00 → 3:00 earlier that morning). Adding one
+    # day before the stored conversion lands the new occurrence on
+    # Mar 9 at 02:30 PDT, which is a valid local time and matches
+    # the user's "every day at 2:30 AM" intent.
     completion_now = datetime(2026, 3, 8, 18, 0, 0, tzinfo=timezone.utc)
     task.task_status_id = done_status.id
     task.task_status = done_status
