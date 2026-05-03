@@ -5,6 +5,7 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { Loader2 } from "lucide-react";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -110,8 +111,7 @@ export const InitiativeSettingsPage = () => {
       toast.success(t("settings.updated"));
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.updateError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "initiatives:settings.updateError"));
     },
   });
 
@@ -121,8 +121,7 @@ export const InitiativeSettingsPage = () => {
       router.navigate({ to: gp("/initiatives") });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.deleteError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "initiatives:settings.deleteError"));
     },
   });
 

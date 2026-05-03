@@ -30,7 +30,30 @@
     "leaveButton": "Salir del gremio",
     "leftGuild": "Saliste de {{name}}",
     "failedToLeave": "No se pudo salir del gremio. Inténtalo de nuevo.",
-    "failedToCheckEligibility": "No se pudo verificar la elegibilidad. Inténtalo de nuevo."
+    "failedToCheckEligibility": "No se pudo verificar la elegibilidad. Inténtalo de nuevo.",
+    "transferDescription": "Antes de salir de <bold>{{name}}</bold>, decide qué hacer con cada proyecto que posees: pásaselo a otro miembro o elimínalo. De lo contrario, el proyecto quedaría sin ningún miembro que pueda acceder a él.",
+    "selectNewOwnerPlaceholder": "Seleccionar nuevo propietario…",
+    "noTransferCandidates": "No hay miembros elegibles disponibles en esta iniciativa.",
+    "dispositionTransferLabel": "Transferir la propiedad",
+    "dispositionDeleteLabel": "Eliminar este proyecto",
+    "dispositionDeleteHelper": "Envía el proyecto a la papelera del gremio. Los administradores del gremio pueden restaurarlo antes de que termine el período de retención."
+  },
+  "removeMember": {
+    "title": "Eliminar miembro del gremio",
+    "description": "¿Eliminar a {{email}} de este gremio? Perderá acceso a todas las iniciativas y proyectos en él.",
+    "cannotRemoveTitle": "No se puede eliminar al miembro",
+    "solePmWarning": "Es el único gerente de proyecto de: {{initiatives}}. Primero promueve a otro miembro como gerente de proyecto.",
+    "transferDescription": "Eliminar a {{email}} dejaría huérfanos los proyectos que posee en este gremio. Decide qué hacer con cada uno: pasárselo a otro gerente de proyecto o eliminarlo.",
+    "selectNewOwnerPlaceholder": "Seleccionar nuevo propietario…",
+    "noTransferCandidates": "No hay gerentes de proyecto elegibles disponibles en esta iniciativa.",
+    "dispositionTransferLabel": "Transferir la propiedad",
+    "dispositionDeleteLabel": "Eliminar este proyecto",
+    "dispositionDeleteHelper": "Envía el proyecto a la papelera del gremio. Los administradores del gremio pueden restaurarlo antes de que termine el período de retención.",
+    "removeButton": "Eliminar del gremio",
+    "removing": "Eliminando…",
+    "removed": "{{email}} eliminado",
+    "failedToRemove": "No se pudo eliminar al miembro. Inténtalo de nuevo.",
+    "failedToCheckEligibility": "No se pudo verificar la elegibilidad de eliminación. Inténtalo de nuevo."
   },
   "invite": {
     "title": "Unirse a {{guildName}}",

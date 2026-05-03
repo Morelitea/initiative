@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   listPropertyDefinitionsApiV1PropertyDefinitionsGet,
   getListPropertyDefinitionsApiV1PropertyDefinitionsGetQueryKey,
@@ -99,7 +100,6 @@ export const usePropertyEntities = (propertyId: number | null) => {
 export const useCreateProperty = (
   options?: MutationOpts<PropertyDefinitionRead, PropertyDefinitionCreate>
 ) => {
-  const { t } = useTranslation("properties");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -114,8 +114,7 @@ export const useCreateProperty = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("manager.createError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "properties:manager.createError"));
       onError?.(...args);
     },
     onSettled,
@@ -128,7 +127,6 @@ export const useUpdateProperty = (
     { propertyId: number; data: PropertyDefinitionUpdate }
   >
 ) => {
-  const { t } = useTranslation("properties");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -155,8 +153,7 @@ export const useUpdateProperty = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("manager.updateError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "properties:manager.updateError"));
       onError?.(...args);
     },
     onSettled,
@@ -164,7 +161,6 @@ export const useUpdateProperty = (
 };
 
 export const useDeleteProperty = (options?: MutationOpts<void, number>) => {
-  const { t } = useTranslation("properties");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -180,8 +176,7 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) => {
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("manager.deleteError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "properties:manager.deleteError"));
       onError?.(...args);
     },
     onSettled,
@@ -249,7 +244,6 @@ export const useAppendPropertyOption = () => {
 export const useSetDocumentProperties = (
   options?: MutationOpts<DocumentRead, { documentId: number; values: PropertyValuesSetRequest }>
 ) => {
-  const { t } = useTranslation("properties");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -272,8 +266,7 @@ export const useSetDocumentProperties = (
       onSuccess?.(data, variables, ...rest2);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("manager.setValuesError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "properties:manager.setValuesError"));
       onError?.(...args);
     },
     onSettled,
@@ -283,7 +276,6 @@ export const useSetDocumentProperties = (
 export const useSetTaskProperties = (
   options?: MutationOpts<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>
 ) => {
-  const { t } = useTranslation("properties");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -306,8 +298,7 @@ export const useSetTaskProperties = (
       onSuccess?.(data, variables, ...rest2);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("manager.setValuesError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "properties:manager.setValuesError"));
       onError?.(...args);
     },
     onSettled,
@@ -317,7 +308,6 @@ export const useSetTaskProperties = (
 export const useSetEventProperties = (
   options?: MutationOpts<CalendarEventRead, { eventId: number; values: PropertyValuesSetRequest }>
 ) => {
-  const { t } = useTranslation("properties");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -340,8 +330,7 @@ export const useSetEventProperties = (
       onSuccess?.(data, variables, ...rest2);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("manager.setValuesError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "properties:manager.setValuesError"));
       onError?.(...args);
     },
     onSettled,

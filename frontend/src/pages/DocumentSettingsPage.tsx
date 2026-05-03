@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -146,8 +147,7 @@ export const DocumentSettingsPage = () => {
       });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.duplicateError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "documents:settings.duplicateError"));
     },
   });
 
@@ -163,8 +163,7 @@ export const DocumentSettingsPage = () => {
       router.navigate({ to: gp(`/documents/${copied.id}`) });
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.copyError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "documents:settings.copyError"));
     },
   });
 

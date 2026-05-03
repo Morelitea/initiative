@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   listCommentsApiV1CommentsGet,
   getListCommentsApiV1CommentsGetQueryKey,
@@ -104,7 +104,6 @@ export const useCommentsCache = (params: ListCommentsApiV1CommentsGetParams) => 
 export const useCreateComment = (
   options?: MutationOpts<CommentRead, Parameters<typeof createCommentApiV1CommentsPost>[0]>
 ) => {
-  const { t } = useTranslation("common");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -117,8 +116,7 @@ export const useCreateComment = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("error");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "common:error"));
       onError?.(...args);
     },
     onSettled,
@@ -131,7 +129,6 @@ export const useUpdateComment = (
     { commentId: number; data: Parameters<typeof updateCommentApiV1CommentsCommentIdPatch>[1] }
   >
 ) => {
-  const { t } = useTranslation("common");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -153,8 +150,7 @@ export const useUpdateComment = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("error");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "common:error"));
       onError?.(...args);
     },
     onSettled,
@@ -162,7 +158,6 @@ export const useUpdateComment = (
 };
 
 export const useDeleteComment = (options?: MutationOpts<void, number>) => {
-  const { t } = useTranslation("common");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -175,8 +170,7 @@ export const useDeleteComment = (options?: MutationOpts<void, number>) => {
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("error");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "common:error"));
       onError?.(...args);
     },
     onSettled,

@@ -56,10 +56,7 @@ export const SettingsPlatformUsersPage = () => {
       setResettingUserId(null);
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("platformUsers.resetError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:platformUsers.resetError"));
       setResettingUserId(null);
     },
   });
@@ -70,10 +67,7 @@ export const SettingsPlatformUsersPage = () => {
       toast.success(t("platformUsers.reactivateSuccess", { email: userEmail }));
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("platformUsers.reactivateError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:platformUsers.reactivateError"));
     },
   });
 
@@ -104,10 +98,7 @@ export const SettingsPlatformUsersPage = () => {
       setRoleChangeConfirm(null);
     },
     onError: (error: unknown) => {
-      const message =
-        (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
-        t("platformUsers.roleChangeError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "settings:platformUsers.roleChangeError"));
     },
   });
 

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-05-02
+
+### Changed
+
+- **Self-deactivation / deletion UX.** Settings → Danger Zone now exposes **Deactivate Account** and **Delete Account** as two separate buttons next to their descriptions, instead of a single ambiguous opener that landed on a radio chooser. Each button takes you straight to the eligibility check for that action, the dialog title and step descriptions match the action you picked, and the deactivate copy now spells out that you'll be removed from every guild you're in (rejoining requires a fresh invite).
+
+### Fixed
+
+- **Orphaned projects when leaving a guild.** Leaving a guild while owning projects in it would silently strand the rows: the user's initiative membership got dropped, no DAC permission survived, and guild admins (who have no implicit project bypass) couldn't reach them. Leaving now forces a per-project decision — for each project you own in the guild, the dialog asks whether to transfer ownership to a project manager or delete the project (which sends it to the guild's trash retention bucket). The transfer-recipient picker is filtered to initiative managers since they're the role that actually administers projects. The eligibility endpoint surfaces the project list so the SPA can pre-flight the prompt, and the backend rejects a leave whose disposition map doesn't cover every owned project exactly once. The OIDC group-sync removal path, which has no UI to ask, auto-transfers ownership to an active initiative manager (falling back to a guild admin) before dropping the user, and logs a warning when neither exists.
+
+- **Orphaned projects when a guild admin removes a member.** The user-management table's "Remove from guild" button shared the same orphan hazard as self-leave: the backend just dropped initiative memberships and walked away. The remove dialog now pre-flights `GET /users/{user_id}/guild-removal-eligibility` and renders a per-project radio (transfer to a project manager, or delete) so the admin always has an escape hatch — including for projects in initiatives where no other PM is available. The eligibility response bundles candidate transfer recipients per-project, so the picker works even for initiatives the admin doesn't belong to.
+
+- **Project access dropdown blank for a reactivated former owner.** If a project owner self-deactivated (which forced an ownership transfer to another member) and was later reactivated and re-added to the initiative, the project's individual-access list showed them at the old `level=owner` but the access dropdown was blank because two users now had owner-level rows pointing at the same project. `transfer_project_ownership` now drops the departing owner's `ProjectPermission` row as part of the transfer — every call site is a "user is leaving" path so the row was already stale.
+
+- **Wrong password on the deactivate / delete form signed you out.** The self-deletion endpoint returned `401 UNAUTHORIZED` for a password mismatch, which the SPA's global axios interceptor treats as a session-expiry signal and force-logs-out from. The user was kicked back to the login screen instead of seeing "wrong password" inline. The endpoint now returns `400` for that specific case (the user *is* authenticated — they just typed the wrong confirmation password), so the error stays scoped to the form.
+
+- **Error toasts no longer leak raw backend codes.** A class of `toast.error(...)` call sites was passing through the raw `error.message` or `response.data.detail` string as a fallback, which surfaced backend constants like `USER_INVALID_PASSWORD` to users when there was no client-side mapping. All of those now route through the existing `getErrorMessage(error, "namespace:fallbackKey")` helper, which looks up the code in the `errors` translation namespace before falling through to a localized fallback. The `errors` namespace is also now preloaded with `common` so the lookup works on any page (previously, only pages whose `useTranslation` happened to include `errors` resolved codes correctly).
+
 ## [0.43.0] - 2026-05-01
 
 ### Added
