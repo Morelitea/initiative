@@ -16,8 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { LogoIcon } from "@/components/LogoIcon";
+import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 
 interface RegisterPageProps {
   bootstrapMode?: boolean;
@@ -39,6 +41,14 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const [inviteStatusError, setInviteStatusError] = useState<string | null>(null);
   const [inviteStatusLoading, setInviteStatusLoading] = useState(false);
   const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
+  // Captcha state. ``captcha`` is the runtime config from
+  // ``GET /api/v1/config`` (null on deployments without captcha
+  // configured); ``captchaToken`` is the value the widget hands us
+  // after a solve. Bootstrap-first-user mode mirrors the backend's
+  // skip rule and never renders the widget.
+  const { captcha } = useAppConfig();
+  const [captchaToken, setCaptchaToken] = useState<string>("");
+  const captchaRequired = !bootstrapMode && captcha !== null;
   const inviteCode = useMemo(() => {
     const code = searchParams.invite_code;
     return code && code.trim().length > 0 ? code.trim() : undefined;
@@ -124,6 +134,10 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         setError(inviteStatus.reason ?? t("register.inviteInvalid"));
         return;
       }
+      if (captchaRequired && !captchaToken) {
+        setError(t("register.captchaRequired"));
+        return;
+      }
       // Resolve the browser's IANA timezone (e.g. "America/Los_Angeles")
       // so the new account starts on the user's wall clock instead of
       // the backend's "UTC" default. ``Intl.DateTimeFormat`` is
@@ -138,6 +152,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         full_name: fullName,
         inviteCode,
         timezone: browserTimezone,
+        captcha_token: captchaRequired ? captchaToken : undefined,
       });
       const isActive = createdUser.status === "active";
       if (isActive && createdUser.email_verified) {
@@ -281,11 +296,15 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                   ) : null}
                 </p>
               ) : null}
+              {captchaRequired && captcha ? (
+                <CaptchaWidget config={captcha} onToken={setCaptchaToken} />
+              ) : null}
               <Button
                 className="w-full"
                 type="submit"
                 disabled={
                   submitting ||
+                  (captchaRequired && !captchaToken) ||
                   (inviteCode
                     ? inviteStatusLoading || (inviteStatus ? !inviteStatus.is_valid : false)
                     : false)

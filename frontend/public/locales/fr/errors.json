@@ -1,6 +1,8 @@
 {
   "EMAIL_ALREADY_REGISTERED": "Adresse e-mail déjà enregistrée",
   "REGISTRATION_REQUIRES_INVITE": "L'inscription nécessite un code d'invitation",
+  "CAPTCHA_REQUIRED": "Veuillez compléter le captcha et réessayer.",
+  "CAPTCHA_INVALID": "La vérification du captcha a échoué. Veuillez réessayer.",
   "UNABLE_TO_CREATE_USER": "Impossible de créer l'utilisateur",
   "INCORRECT_CREDENTIALS": "Adresse e-mail ou mot de passe incorrect",
   "INACTIVE_USER": "Utilisateur inactif",

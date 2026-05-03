@@ -32,5 +32,8 @@ export const useAppConfig = () => {
     isLoading: query.isLoading,
     /** Convenience: when this is null, the toggle and panel must be fully hidden. */
     advancedTool: query.data?.advanced_tool ?? null,
+    /** When this is null the deployment has no captcha configured —
+     *  the SPA must skip the widget on registration. */
+    captcha: query.data?.captcha ?? null,
   };
 };

@@ -87,6 +87,19 @@ async def register_user(
         if (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION) and not normalized_invite and not is_first_user:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.REGISTRATION_REQUIRES_INVITE)
 
+        # Captcha gate (no-op when ``CAPTCHA_PROVIDER`` isn't configured;
+        # see ``app.services.captcha``). Skipped on the bootstrap
+        # first-user path because there's no bot economics on a fresh
+        # deployment with zero users — and operators shouldn't be
+        # locked out by a captcha they haven't fully wired up yet.
+        if not is_first_user:
+            from app.services import captcha as captcha_service
+
+            await captcha_service.verify_or_raise(
+                user_in.captcha_token,
+                remote_ip=request.client.host if request.client else None,
+            )
+
         if normalized_invite:
             user_role = UserRole.member
         else:
