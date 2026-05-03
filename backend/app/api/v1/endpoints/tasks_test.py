@@ -13,6 +13,7 @@ Tests the task API endpoints at /api/v1/tasks including:
 """
 
 import json
+from zoneinfo import ZoneInfo
 
 import pytest
 from httpx import AsyncClient
@@ -878,3 +879,89 @@ async def test_rolling_recurrence_with_midnight_time(
     assert new_due_date.hour == 0
     assert new_due_date.minute == 0
     assert new_due_date.second == 0
+
+
+@pytest.mark.integration
+async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
+    session: AsyncSession,
+):
+    """The completion-date anchor for rolling recurrence is the user's
+    *local* calendar day, not the UTC day.
+
+    Repro: a 5pm-LA task is stored as 00:00 UTC the next day. Anchoring
+    a "+3 days" advance off the UTC date produced one local day too
+    early — completing on Sunday May 3 (LA) gave a next due of Tuesday
+    May 5 (LA) instead of Wednesday May 6 (LA).
+    """
+    from datetime import datetime, timezone
+    from app.api.v1.endpoints.tasks import _advance_recurrence_if_needed
+    from app.models.task import Task, TaskStatusCategory
+    from app.services import task_statuses as task_statuses_service
+
+    user = await create_user(
+        session, email="la-user@example.com", timezone="America/Los_Angeles"
+    )
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=user, guild=guild)
+    initiative = await _create_initiative(session, guild, user)
+    project = await _create_project(session, initiative, user)
+
+    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    todo_status = next(s for s in statuses if s.is_default)
+    done_status = next(s for s in statuses if s.name == "Done")
+    await session.commit()
+
+    # Original due: 5pm Los Angeles on Sunday 2026-05-03 → 00:00 UTC
+    # Monday 2026-05-04. The UTC representation has already crossed
+    # midnight; this is what makes the math go wrong if anchored in UTC.
+    original_due = datetime(2026, 5, 4, 0, 0, 0, tzinfo=timezone.utc)
+    task = Task(
+        title="Feed frogs",
+        project_id=project.id,
+        task_status_id=todo_status.id,
+        guild_id=guild.id,
+        due_date=original_due,
+        recurrence={"frequency": "daily", "interval": 3, "ends": "never"},
+        recurrence_strategy="rolling",
+    )
+    session.add(task)
+    await session.commit()
+    # Eager-load every relationship the helper touches so the
+    # subsequent ``_advance_recurrence_if_needed`` call doesn't trip
+    # SQLAlchemy's async-greenlet guard on a lazy load.
+    await session.refresh(
+        task, attribute_names=["task_status", "assignees", "tag_links"]
+    )
+
+    # Simulate the user completing the task at ~9pm Los Angeles on the
+    # same Sunday (2026-05-03). In UTC that's 04:00 Monday 2026-05-04.
+    completion_now = datetime(2026, 5, 4, 4, 0, 0, tzinfo=timezone.utc)
+    task.task_status_id = done_status.id
+    task.task_status = done_status
+
+    advanced = await _advance_recurrence_if_needed(
+        session,
+        task,
+        previous_status_category=TaskStatusCategory.todo,
+        now=completion_now,
+        user_timezone=user.timezone,
+    )
+    assert advanced is True
+    await session.commit()
+
+    from sqlmodel import select as _select
+
+    new_task = (
+        await session.exec(
+            _select(Task).where(Task.project_id == project.id, Task.id != task.id)
+        )
+    ).first()
+    assert new_task is not None
+    assert new_task.due_date is not None
+    # Expected: 5pm Los Angeles on Wednesday 2026-05-06 → 00:00 UTC
+    # Thursday 2026-05-07 (DST: PDT is UTC-7 on this date).
+    new_due_local = new_task.due_date.astimezone(ZoneInfo("America/Los_Angeles"))
+    assert new_due_local.year == 2026
+    assert new_due_local.month == 5
+    assert new_due_local.day == 6
+    assert new_due_local.hour == 17
