@@ -5,6 +5,7 @@ import type { SortingState } from "@tanstack/react-table";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import {
   listTasksApiV1TasksGet,
   getListTasksApiV1TasksGetQueryKey,
@@ -374,8 +375,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
         });
       } catch (error) {
         console.error(error);
-        const message = error instanceof Error ? error.message : t("errors.statusUpdate");
-        toast.error(message);
+        toast.error(getErrorMessage(error, "tasks:errors.statusUpdate"));
       }
     },
     [activeGuildId, updateTaskStatusMutate, t]

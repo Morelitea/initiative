@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 import { Loader2, AlertTriangle } from "lucide-react";
 
 import { toast } from "@/lib/chesterToast";
@@ -24,39 +24,62 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet,
-  leaveGuildApiV1GuildsGuildIdLeaveDelete,
-} from "@/api/generated/guilds/guilds";
-import type {
-  GuildRead,
-  LeaveGuildEligibilityResponse,
-} from "@/api/generated/initiativeAPI.schemas";
-import { useGuilds } from "@/hooks/useGuilds";
-import type { DialogProps } from "@/types/dialog";
+  checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet,
+  deleteUserApiV1UsersUserIdDelete,
+} from "@/api/generated/users/users";
+import type { GuildRemovalEligibilityResponse } from "@/api/generated/initiativeAPI.schemas";
+import { getErrorMessage } from "@/lib/errorMessage";
+import { invalidateUsersList } from "@/api/query-keys";
 
-interface LeaveGuildDialogProps extends DialogProps {
-  guild: GuildRead;
+interface RemoveGuildMemberDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  userId: number | null;
+  email: string;
+  onSuccess?: () => void;
 }
 
-export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialogProps) => {
+/**
+ * Guild-admin counterpart to ``LeaveGuildDialog``. The simple
+ * "are you sure?" confirm we used to ship here would silently orphan
+ * any project owned by the target user — guild admins have no DAC
+ * bypass on projects, so a project owned by a sole-member becomes
+ * unreachable once their initiative membership is dropped.
+ *
+ * The dialog now pre-flights a ``GET .../guild-removal-eligibility``
+ * request: when the target user owns projects in the active guild,
+ * it shows a Select per project so the admin nominates a new owner,
+ * and the underlying ``DELETE`` only fires once every nominee is set.
+ *
+ * Eligibility carries the candidate transfer recipients per-project,
+ * so the dialog renders the picker without a second round trip — the
+ * leave-guild path can reuse ``/users/me/initiative-members`` because
+ * it's the same user, but a guild admin removing someone may not
+ * themselves belong to every initiative involved.
+ */
+export const RemoveGuildMemberDialog = ({
+  open,
+  onOpenChange,
+  userId,
+  email,
+  onSuccess,
+}: RemoveGuildMemberDialogProps) => {
   const { t } = useTranslation(["guilds", "common"]);
-  const { guilds, refreshGuilds, switchGuild, activeGuildId } = useGuilds();
   const [loading, setLoading] = useState(true);
-  const [leaving, setLeaving] = useState(false);
-  const [eligibility, setEligibility] = useState<LeaveGuildEligibilityResponse | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const [eligibility, setEligibility] = useState<GuildRemovalEligibilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Per-project disposition: "transfer" or "delete". Default
-  // "transfer" because handing the project to a successor preserves
-  // history; "delete" sends it to the guild's trash retention bucket.
+  // Per-project disposition: "transfer" (hand off to a PM) or
+  // "delete" (send to trash). Default is "transfer" when there's a
+  // candidate, "delete" otherwise — without that fallback an admin
+  // would be stuck on a sole-PM project with no successor available.
   const [projectDispositions, setProjectDispositions] = useState<
     Record<number, "transfer" | "delete">
   >({});
-  // Per-project: id of the user the leaver is handing the project to.
-  // Only meaningful for projects whose disposition is "transfer".
   const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
 
   useEffect(() => {
-    if (!open) {
+    if (!open || userId === null) {
       setEligibility(null);
       setError(null);
       setLoading(true);
@@ -69,14 +92,10 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       setLoading(true);
       setError(null);
       try {
-        const data = (await checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet(
-          guild.id
-        )) as unknown as LeaveGuildEligibilityResponse;
+        const data = (await checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet(
+          userId
+        )) as unknown as GuildRemovalEligibilityResponse;
         setEligibility(data);
-        // Default each owned project to "transfer" when there's a PM
-        // candidate available, otherwise "delete" (since transfer with
-        // no candidate would just stall the dialog). The user can
-        // still flip the radio either way.
         setProjectDispositions(
           Object.fromEntries(
             data.owned_projects.map((p) => [
@@ -86,20 +105,18 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
           )
         );
       } catch (err) {
-        console.error("Failed to check leave eligibility", err);
-        setError(t("leave.failedToCheckEligibility"));
+        console.error("Failed to check removal eligibility", err);
+        setError(t("removeMember.failedToCheckEligibility"));
       } finally {
         setLoading(false);
       }
     };
 
     void checkEligibility();
-  }, [open, guild.id, t]);
+  }, [open, userId, t]);
 
   const ownedProjects = eligibility?.owned_projects ?? [];
   const hasOwnedProjects = ownedProjects.length > 0;
-  // A project's disposition is "ready" when the user has either
-  // chosen "delete" OR chosen "transfer" and picked a recipient.
   const allDispositionsReady =
     !hasOwnedProjects ||
     ownedProjects.every((project) => {
@@ -108,16 +125,12 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       if (disposition === "transfer") return !!projectTransfers[project.id];
       return false;
     });
-  const hasHardBlocker =
-    !!eligibility && (eligibility.is_last_admin || eligibility.sole_pm_initiatives.length > 0);
+  const hasHardBlocker = !!eligibility && eligibility.sole_pm_initiatives.length > 0;
 
-  const handleLeave = async () => {
-    setLeaving(true);
+  const handleRemove = async () => {
+    if (userId === null) return;
+    setRemoving(true);
     try {
-      // Split the dispositions into the two arrays the backend
-      // expects. ``transfers`` only includes projects the user actually
-      // routed to a successor (the disposition gate above won't let an
-      // unfilled "transfer" through anyway, but be defensive).
       const transfers: Record<number, number> = {};
       const deletions: number[] = [];
       for (const project of ownedProjects) {
@@ -127,27 +140,19 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
           transfers[project.id] = projectTransfers[project.id];
         }
       }
-      await leaveGuildApiV1GuildsGuildIdLeaveDelete(guild.id, {
+      await deleteUserApiV1UsersUserIdDelete(userId, {
         project_transfers: transfers,
         project_deletions: deletions,
       });
-
-      // Switch to another guild if leaving the active one
-      if (activeGuildId === guild.id) {
-        const otherGuild = guilds.find((g) => g.id !== guild.id);
-        if (otherGuild) {
-          await switchGuild(otherGuild.id);
-        }
-      }
-
-      await refreshGuilds();
-      toast.success(t("leave.leftGuild", { name: guild.name }));
+      void invalidateUsersList();
+      toast.success(t("removeMember.removed", { email }));
+      onSuccess?.();
       onOpenChange(false);
     } catch (err) {
-      console.error("Failed to leave guild", err);
-      toast.error(t("leave.failedToLeave"));
+      console.error("Failed to remove member", err);
+      toast.error(getErrorMessage(err, "guilds:removeMember.failedToRemove"));
     } finally {
-      setLeaving(false);
+      setRemoving(false);
     }
   };
 
@@ -178,18 +183,14 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       return (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>{t("leave.cannotLeaveTitle")}</AlertTitle>
+          <AlertTitle>{t("removeMember.cannotRemoveTitle")}</AlertTitle>
           <AlertDescription>
             <ul className="mt-2 list-inside list-disc space-y-1">
-              {eligibility.is_last_admin && <li>{t("leave.lastAdminWarning")}</li>}
               {eligibility.sole_pm_initiatives.length > 0 && (
                 <li>
-                  <Trans
-                    i18nKey="leave.solePmWarning"
-                    ns="guilds"
-                    values={{ initiatives: eligibility.sole_pm_initiatives.join(", ") }}
-                    components={{ bold: <strong /> }}
-                  />
+                  {t("removeMember.solePmWarning", {
+                    initiatives: eligibility.sole_pm_initiatives.join(", "),
+                  })}
                 </li>
               )}
             </ul>
@@ -202,12 +203,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       return (
         <div className="space-y-4">
           <AlertDialogDescription>
-            <Trans
-              i18nKey="leave.transferDescription"
-              ns="guilds"
-              values={{ name: guild.name }}
-              components={{ bold: <strong /> }}
-            />
+            {t("removeMember.transferDescription", { email })}
           </AlertDialogDescription>
           {ownedProjects.map((project) => {
             const candidates = project.candidates ?? [];
@@ -239,11 +235,11 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
                         htmlFor={`disposition-${project.id}-transfer`}
                         className="cursor-pointer font-normal"
                       >
-                        {t("leave.dispositionTransferLabel")}
+                        {t("removeMember.dispositionTransferLabel")}
                       </Label>
                       {noCandidates ? (
                         <p className="text-muted-foreground text-sm">
-                          {t("leave.noTransferCandidates")}
+                          {t("removeMember.noTransferCandidates")}
                         </p>
                       ) : disposition === "transfer" ? (
                         <Select
@@ -256,7 +252,9 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
                           }
                         >
                           <SelectTrigger id={`transfer-${project.id}`}>
-                            <SelectValue placeholder={t("leave.selectNewOwnerPlaceholder")} />
+                            <SelectValue
+                              placeholder={t("removeMember.selectNewOwnerPlaceholder")}
+                            />
                           </SelectTrigger>
                           <SelectContent>
                             {candidates.map((member) => (
@@ -279,9 +277,9 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
                       htmlFor={`disposition-${project.id}-delete`}
                       className="flex-1 cursor-pointer font-normal"
                     >
-                      {t("leave.dispositionDeleteLabel")}
+                      {t("removeMember.dispositionDeleteLabel")}
                       <span className="text-muted-foreground mt-1 block text-xs font-normal">
-                        {t("leave.dispositionDeleteHelper")}
+                        {t("removeMember.dispositionDeleteHelper")}
                       </span>
                     </Label>
                   </div>
@@ -294,48 +292,35 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
     }
 
     return (
-      <AlertDialogDescription>
-        <Trans
-          i18nKey="leave.description"
-          ns="guilds"
-          values={{ name: guild.name }}
-          components={{ bold: <strong /> }}
-        />
-      </AlertDialogDescription>
+      <AlertDialogDescription>{t("removeMember.description", { email })}</AlertDialogDescription>
     );
   };
 
-  // The button is shown for every non-blocked, non-error state. The
-  // disabled state additionally requires every owned-project to have a
-  // ready disposition (a "delete" or a "transfer" with a recipient) —
-  // clicking with a half-filled map would just bounce off the backend's
-  // CANNOT_LEAVE_OWNS_PROJECTS guard, so we gate it here for a faster
-  // signal.
-  const canShowLeaveButton = !loading && !error && eligibility && !hasHardBlocker;
-  const leaveDisabled = leaving || !allDispositionsReady;
+  const canShowRemoveButton = !loading && !error && eligibility && !hasHardBlocker;
+  const removeDisabled = removing || !allDispositionsReady;
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t("leave.title", { name: guild.name })}</AlertDialogTitle>
+          <AlertDialogTitle>{t("removeMember.title")}</AlertDialogTitle>
         </AlertDialogHeader>
         {renderContent()}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={leaving}>{t("common:cancel")}</AlertDialogCancel>
-          {canShowLeaveButton && (
+          <AlertDialogCancel disabled={removing}>{t("common:cancel")}</AlertDialogCancel>
+          {canShowRemoveButton && (
             <AlertDialogAction
-              onClick={handleLeave}
-              disabled={leaveDisabled}
+              onClick={handleRemove}
+              disabled={removeDisabled}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {leaving ? (
+              {removing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t("leave.leaving")}
+                  {t("removeMember.removing")}
                 </>
               ) : (
-                t("leave.leaveButton")
+                t("removeMember.removeButton")
               )}
             </AlertDialogAction>
           )}

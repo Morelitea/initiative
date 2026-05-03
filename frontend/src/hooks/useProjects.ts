@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
 import {
@@ -208,7 +207,6 @@ export const usePrefetchGlobalProjects = () => {
 export const useCreateProject = (
   options?: MutationOpts<ProjectRead, Parameters<typeof createProjectApiV1ProjectsPost>[0]>
 ) => {
-  const { t } = useTranslation("projects");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -221,8 +219,7 @@ export const useCreateProject = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      const message = args[0] instanceof Error ? args[0].message : t("createDialog.createError");
-      toast.error(message);
+      toast.error(getErrorMessage(args[0], "projects:createDialog.createError"));
       onError?.(...args);
     },
     onSettled,

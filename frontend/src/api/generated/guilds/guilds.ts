@@ -33,6 +33,7 @@ import type {
   GuildUpdate,
   HTTPValidationError,
   LeaveGuildEligibilityResponse,
+  LeaveGuildRequest,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -1306,7 +1307,13 @@ export const useUpdateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch = <
 
 Returns information about blockers:
 - is_last_admin: User is the last admin of the guild
-- sole_pm_initiatives: List of initiative names where user is the sole PM
+- sole_pm_initiatives: Initiatives in this guild where the user is the sole PM
+- owned_projects: Projects in this guild whose ``owner_id`` is the
+  user, with project-manager candidates per project. The leave
+  endpoint requires a transfer-or-delete disposition for each —
+  without one, the project's RLS gate (``InitiativeMember``) no
+  longer matches on leave, and there's no DAC bypass for guild
+  admins, so the row would be unreachable.
  * @summary Check Leave Eligibility
  */
 export const checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet = (
@@ -1472,15 +1479,24 @@ export function useCheckLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet<
 Restrictions:
 - Cannot leave if you are the last admin of the guild
 - Cannot leave if you are the sole PM of any initiative in the guild
+- Cannot leave while you own projects in the guild unless the body
+  supplies ``project_transfers`` covering every owned project.
  * @summary Leave Guild
  */
 export const leaveGuildApiV1GuildsGuildIdLeaveDelete = (
   guildId: number,
+  leaveGuildRequestNull: BodyType<LeaveGuildRequest | null> | null,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/guilds/${guildId}/leave`, method: "DELETE", signal },
+    {
+      url: `/api/v1/guilds/${guildId}/leave`,
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      data: leaveGuildRequestNull,
+      signal,
+    },
     options
   );
 };
@@ -1492,14 +1508,14 @@ export const getLeaveGuildApiV1GuildsGuildIdLeaveDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof leaveGuildApiV1GuildsGuildIdLeaveDelete>>,
     TError,
-    { guildId: number },
+    { guildId: number; data: BodyType<LeaveGuildRequest | null> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof leaveGuildApiV1GuildsGuildIdLeaveDelete>>,
   TError,
-  { guildId: number },
+  { guildId: number; data: BodyType<LeaveGuildRequest | null> },
   TContext
 > => {
   const mutationKey = ["leaveGuildApiV1GuildsGuildIdLeaveDelete"];
@@ -1511,11 +1527,11 @@ export const getLeaveGuildApiV1GuildsGuildIdLeaveDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof leaveGuildApiV1GuildsGuildIdLeaveDelete>>,
-    { guildId: number }
+    { guildId: number; data: BodyType<LeaveGuildRequest | null> }
   > = (props) => {
-    const { guildId } = props ?? {};
+    const { guildId, data } = props ?? {};
 
-    return leaveGuildApiV1GuildsGuildIdLeaveDelete(guildId, requestOptions);
+    return leaveGuildApiV1GuildsGuildIdLeaveDelete(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1524,7 +1540,8 @@ export const getLeaveGuildApiV1GuildsGuildIdLeaveDeleteMutationOptions = <
 export type LeaveGuildApiV1GuildsGuildIdLeaveDeleteMutationResult = NonNullable<
   Awaited<ReturnType<typeof leaveGuildApiV1GuildsGuildIdLeaveDelete>>
 >;
-
+export type LeaveGuildApiV1GuildsGuildIdLeaveDeleteMutationBody =
+  BodyType<LeaveGuildRequest | null>;
 export type LeaveGuildApiV1GuildsGuildIdLeaveDeleteMutationError = ErrorType<HTTPValidationError>;
 
 /**
@@ -1538,7 +1555,7 @@ export const useLeaveGuildApiV1GuildsGuildIdLeaveDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof leaveGuildApiV1GuildsGuildIdLeaveDelete>>,
       TError,
-      { guildId: number },
+      { guildId: number; data: BodyType<LeaveGuildRequest | null> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1547,7 +1564,7 @@ export const useLeaveGuildApiV1GuildsGuildIdLeaveDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof leaveGuildApiV1GuildsGuildIdLeaveDelete>>,
   TError,
-  { guildId: number },
+  { guildId: number; data: BodyType<LeaveGuildRequest | null> },
   TContext
 > => {
   return useMutation(

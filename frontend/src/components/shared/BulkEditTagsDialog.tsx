@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -122,8 +123,12 @@ export function BulkEditTagsDialog<T extends TaggableItem>({
       onOpenChange(false);
       onSuccess();
     } catch (error) {
-      const message = error instanceof Error ? error.message : labels.updateError;
-      toast.error(message);
+      // ``labels`` is the per-dialog i18n bundle the caller passes in
+      // (already localized), so we use it as the fallback when there's
+      // no backend ``detail`` to localize through ``errors.json``.
+      const detail = (error as { response?: { data?: { detail?: string } } })?.response?.data
+        ?.detail;
+      toast.error(detail ? getErrorMessage(error) : labels.updateError);
     } finally {
       setIsPending(false);
     }

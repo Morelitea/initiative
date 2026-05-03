@@ -6,6 +6,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.guild import GuildRole
+from app.schemas.user import GuildRemovalProjectInfo
 
 
 class GuildBase(BaseModel):
@@ -95,9 +96,37 @@ class GuildMembershipUpdate(BaseModel):
 
 
 class LeaveGuildEligibilityResponse(BaseModel):
-    """Response for checking if a user can leave a guild."""
+    """Response for checking if a user can leave a guild.
+
+    ``owned_projects`` lists projects in this guild whose ``owner_id``
+    is the current user, with the project-manager candidates the
+    leaving user can hand each project to. Leaving without
+    re-assigning would orphan the project — the user's
+    ``InitiativeMember`` row is dropped on leave, RLS gates the
+    project, and there's no DAC bypass for guild admins. The leave
+    endpoint requires a transfer-or-delete disposition for each entry
+    on this list before it will proceed.
+    """
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
     is_last_admin: bool
     sole_pm_initiatives: list[str] = []
+    owned_projects: list[GuildRemovalProjectInfo] = Field(default_factory=list)
+
+
+class LeaveGuildRequest(BaseModel):
+    """Body for ``DELETE /guilds/{id}/leave``.
+
+    Every project the leaving user owns in this guild must appear in
+    exactly one of ``project_transfers`` (hand it to another active
+    member of the project's initiative) or ``project_deletions`` (send
+    it to trash so the guild's retention window can purge it later).
+    Empty body is equivalent to ``{}`` — fine when the user owns
+    nothing; rejected by the endpoint with
+    ``CANNOT_LEAVE_OWNS_PROJECTS`` otherwise.
+    """
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    project_transfers: dict[int, int] = Field(default_factory=dict)
+    project_deletions: list[int] = Field(default_factory=list)

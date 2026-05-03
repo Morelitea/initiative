@@ -30,7 +30,30 @@
     "leaveButton": "Quitter le groupe",
     "leftGuild": "{{name}} quitté",
     "failedToLeave": "Échec du départ du groupe. Veuillez réessayer.",
-    "failedToCheckEligibility": "Échec de la vérification de l'éligibilité. Veuillez réessayer."
+    "failedToCheckEligibility": "Échec de la vérification de l'éligibilité. Veuillez réessayer.",
+    "transferDescription": "Avant de quitter <bold>{{name}}</bold>, décidez de ce qui doit arriver à chaque projet que vous possédez — le transférer à un autre membre, ou le supprimer. Sinon, le projet resterait sans aucun membre pouvant y accéder.",
+    "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
+    "noTransferCandidates": "Aucun membre éligible n'est disponible dans cette initiative.",
+    "dispositionTransferLabel": "Transférer la propriété",
+    "dispositionDeleteLabel": "Supprimer ce projet",
+    "dispositionDeleteHelper": "Envoie le projet à la corbeille de ce groupe. Les administrateurs du groupe peuvent le restaurer avant la fin de la période de rétention."
+  },
+  "removeMember": {
+    "title": "Retirer le membre du groupe",
+    "description": "Retirer {{email}} de ce groupe ? Il perdra l'accès à toutes les initiatives et projets qu'il contient.",
+    "cannotRemoveTitle": "Impossible de retirer le membre",
+    "solePmWarning": "Il est le seul chef de projet de : {{initiatives}}. Promouvez d'abord un autre membre en chef de projet.",
+    "transferDescription": "Retirer {{email}} laisserait orphelins les projets qu'il possède dans ce groupe. Décidez de ce qui doit arriver à chacun — le transférer à un autre chef de projet, ou le supprimer.",
+    "selectNewOwnerPlaceholder": "Sélectionner le nouveau propriétaire…",
+    "noTransferCandidates": "Aucun chef de projet éligible n'est disponible dans cette initiative.",
+    "dispositionTransferLabel": "Transférer la propriété",
+    "dispositionDeleteLabel": "Supprimer ce projet",
+    "dispositionDeleteHelper": "Envoie le projet à la corbeille de ce groupe. Les administrateurs du groupe peuvent le restaurer avant la fin de la période de rétention.",
+    "removeButton": "Retirer du groupe",
+    "removing": "Retrait en cours…",
+    "removed": "{{email}} retiré",
+    "failedToRemove": "Échec du retrait du membre. Veuillez réessayer.",
+    "failedToCheckEligibility": "Échec de la vérification de l'éligibilité au retrait. Veuillez réessayer."
   },
   "invite": {
     "title": "Rejoindre {{guildName}}",

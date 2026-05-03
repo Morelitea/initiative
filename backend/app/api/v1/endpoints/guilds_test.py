@@ -693,3 +693,291 @@ async def test_guild_advanced_tool_handoff_requires_authentication(
     response = await client.post("/api/v1/guilds/1/advanced-tool/handoff")
 
     assert response.status_code == 401
+
+
+# --- Leave guild: project-orphan protection -------------------------------
+
+
+@pytest.mark.integration
+async def test_leave_eligibility_lists_owned_projects(
+    client: AsyncClient, session: AsyncSession
+):
+    """Eligibility surfaces projects owned by the user in this guild.
+
+    Without this list the SPA has no way to prompt for transfers
+    before calling the leave endpoint, so we'd silently regress to
+    the orphan-project bug.
+    """
+    from app.testing.factories import create_initiative, create_project
+
+    admin = await create_user(session, email="admin@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    project = await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(leaver),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["can_leave"] is False
+    assert len(data["owned_projects"]) == 1
+    assert data["owned_projects"][0]["id"] == project.id
+    assert data["owned_projects"][0]["initiative_id"] == initiative.id
+
+
+@pytest.mark.integration
+async def test_leave_blocks_when_owned_projects_lack_transfer(
+    client: AsyncClient, session: AsyncSession
+):
+    """Without ``project_transfers``, leaving with owned projects is rejected
+    rather than silently orphaning them."""
+    from app.testing.factories import create_initiative, create_project
+
+    admin = await create_user(session, email="admin@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}/leave",
+        headers=get_auth_headers(leaver),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CANNOT_LEAVE_OWNS_PROJECTS"
+
+
+@pytest.mark.integration
+async def test_leave_with_transfers_reassigns_and_succeeds(
+    client: AsyncClient, session: AsyncSession
+):
+    """Supplying transfers for every owned project lets the leave proceed
+    and updates ``owner_id`` before the membership row is dropped."""
+    from app.models.project import Project
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    admin = await create_user(session, email="admin@example.com")
+    successor = await create_user(session, email="successor@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=successor, guild=guild, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=successor)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
+    project = await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}/leave",
+        headers=get_auth_headers(leaver),
+        json={"project_transfers": {str(project.id): successor.id}},
+    )
+    assert response.status_code == 204
+
+    refreshed = (
+        await session.exec(
+            __import__("sqlmodel").select(Project).where(Project.id == project.id)
+        )
+    ).one()
+    assert refreshed.owner_id == successor.id
+
+
+@pytest.mark.integration
+async def test_leave_eligibility_filters_candidates_to_pms(
+    client: AsyncClient, session: AsyncSession
+):
+    """The transfer-recipient picker should only show initiative
+    managers — they're the role that actually administers projects.
+    Non-manager members shouldn't appear even though they're active
+    members of the same initiative."""
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    admin = await create_user(session, email="admin@example.com")
+    pm = await create_user(session, email="pm@example.com")
+    member = await create_user(session, email="member@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(
+        session, initiative=initiative, user=pm, role_name="project_manager"
+    )
+    await create_initiative_member(
+        session, initiative=initiative, user=member, role_name="member"
+    )
+    await create_initiative_member(session, initiative=initiative, user=leaver)
+    await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.get(
+        f"/api/v1/guilds/{guild.id}/leave/eligibility",
+        headers=get_auth_headers(leaver),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    project = data["owned_projects"][0]
+    candidate_ids = {c["id"] for c in project["candidates"]}
+    # Initiative creator (admin) is auto-promoted to PM by the
+    # initiative factory; pm explicitly added. Both should appear.
+    assert admin.id in candidate_ids
+    assert pm.id in candidate_ids
+    # The non-manager member must NOT appear, and neither should the
+    # leaving user themselves.
+    assert member.id not in candidate_ids
+    assert leaver.id not in candidate_ids
+
+
+@pytest.mark.integration
+async def test_leave_with_deletion_soft_deletes_project(
+    client: AsyncClient, session: AsyncSession
+):
+    """Per-project ``project_deletions`` is the alternative to
+    ``project_transfers`` — it sends the row to trash instead of
+    handing it off, so a user with no obvious successor can still
+    leave without orphaning the project."""
+    from app.models.project import Project
+    from app.testing.factories import create_initiative, create_project
+
+    admin = await create_user(session, email="admin@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    project = await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}/leave",
+        headers=get_auth_headers(leaver),
+        json={"project_deletions": [project.id]},
+    )
+    assert response.status_code == 204
+
+    # Soft-deleted rows are hidden by the default global filter, so
+    # read with the bypass helper used elsewhere in the soft-delete
+    # service.
+    from app.db.soft_delete_filter import select_including_deleted
+
+    refreshed = (
+        await session.exec(
+            select_including_deleted(Project).where(Project.id == project.id)
+        )
+    ).one()
+    assert refreshed.deleted_at is not None
+    assert refreshed.deleted_by == leaver.id
+
+
+@pytest.mark.integration
+async def test_leave_rejects_overlap_between_transfer_and_delete(
+    client: AsyncClient, session: AsyncSession
+):
+    """A project listed in both ``project_transfers`` and
+    ``project_deletions`` is ambiguous — the endpoint refuses rather
+    than picking one silently."""
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    admin = await create_user(session, email="admin@example.com")
+    successor = await create_user(session, email="successor@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=successor, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=successor)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
+    project = await create_project(session, initiative=initiative, owner=leaver)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}/leave",
+        headers=get_auth_headers(leaver),
+        json={
+            "project_transfers": {str(project.id): successor.id},
+            "project_deletions": [project.id],
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CANNOT_LEAVE_OWNS_PROJECTS"
+
+
+@pytest.mark.integration
+async def test_leave_rejects_partial_transfer_map(
+    client: AsyncClient, session: AsyncSession
+):
+    """Missing or surplus entries in ``project_transfers`` are rejected so
+    a bad client can't accidentally orphan some projects or transfer
+    rows it doesn't own."""
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    admin = await create_user(session, email="admin@example.com")
+    successor = await create_user(session, email="successor@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=successor, guild=guild, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=successor)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
+    project_a = await create_project(session, initiative=initiative, owner=leaver)
+    await create_project(session, initiative=initiative, owner=leaver)
+
+    # Only one of two projects covered.
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/guilds/{guild.id}/leave",
+        headers=get_auth_headers(leaver),
+        json={"project_transfers": {str(project_a.id): successor.id}},
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CANNOT_LEAVE_OWNS_PROJECTS"

@@ -981,6 +981,58 @@ export interface GuildRead {
   retention_days: number | null;
 }
 
+/**
+ * Per-project payload on ``GuildRemovalEligibilityResponse``.
+
+Bundles the candidate transfer recipients next to the project so
+the SPA can render the picker without a second round-trip. The
+leave-guild path uses ``GET /users/me/initiative-members/...``
+instead — but a guild admin removing someone may not themselves
+be a member of every initiative the target user belongs to, so
+that endpoint isn't always callable from this flow.
+ */
+export interface GuildRemovalProjectInfo {
+  id: number;
+  name: string;
+  initiative_id: number;
+  candidates?: UserPublic[];
+}
+
+/**
+ * Pre-flight info for ``DELETE /users/{user_id}`` (guild admin
+removes a member from their guild).
+
+Mirrors the leave-guild eligibility shape for the same reason: the
+SPA needs to know up-front whether the admin will be prompted to
+pick replacement owners for projects the target user owns. Without
+this, the existing one-click "remove member" path silently
+orphaned every project where the leaving user was sole owner.
+ */
+export interface GuildRemovalEligibilityResponse {
+  can_remove: boolean;
+  sole_pm_initiatives: string[];
+  owned_projects: GuildRemovalProjectInfo[];
+}
+
+export type GuildRemovalRequestProjectTransfers = { [key: string]: number };
+
+/**
+ * Body for ``DELETE /users/{user_id}``.
+
+Every project the target user owns in the active guild must
+appear in exactly one of ``project_transfers`` (hand it to
+another active project manager) or ``project_deletions`` (send
+it to trash so the guild's retention window can purge it). The
+delete branch exists so an admin can still remove a user from a
+guild where no other project manager is available — without it,
+a sole-PM situation would leave the admin with a forever-disabled
+Remove button.
+ */
+export interface GuildRemovalRequest {
+  project_transfers?: GuildRemovalRequestProjectTransfers;
+  project_deletions?: number[];
+}
+
 export interface GuildSummary {
   id: number;
   name: string;
@@ -1167,11 +1219,39 @@ export interface InterfaceSettingsUpdate {
 
 /**
  * Response for checking if a user can leave a guild.
+
+``owned_projects`` lists projects in this guild whose ``owner_id``
+is the current user, with the project-manager candidates the
+leaving user can hand each project to. Leaving without
+re-assigning would orphan the project — the user's
+``InitiativeMember`` row is dropped on leave, RLS gates the
+project, and there's no DAC bypass for guild admins. The leave
+endpoint requires a transfer-or-delete disposition for each entry
+on this list before it will proceed.
  */
 export interface LeaveGuildEligibilityResponse {
   can_leave: boolean;
   is_last_admin: boolean;
   sole_pm_initiatives: string[];
+  owned_projects: GuildRemovalProjectInfo[];
+}
+
+export type LeaveGuildRequestProjectTransfers = { [key: string]: number };
+
+/**
+ * Body for ``DELETE /guilds/{id}/leave``.
+
+Every project the leaving user owns in this guild must appear in
+exactly one of ``project_transfers`` (hand it to another active
+member of the project's initiative) or ``project_deletions`` (send
+it to trash so the guild's retention window can purge it later).
+Empty body is equivalent to ``{}`` — fine when the user owns
+nothing; rejected by the endpoint with
+``CANNOT_LEAVE_OWNS_PROJECTS`` otherwise.
+ */
+export interface LeaveGuildRequest {
+  project_transfers?: LeaveGuildRequestProjectTransfers;
+  project_deletions?: number[];
 }
 
 export type MentionEntityType = (typeof MentionEntityType)[keyof typeof MentionEntityType];
