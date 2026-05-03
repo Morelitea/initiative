@@ -369,7 +369,25 @@ async def _auto_transfer_owned_projects(
     from sqlmodel import delete as sql_delete
 
     from app.models.project import ProjectPermission
-    from app.services.users import get_owned_projects_in_guild, transfer_project_ownership
+    from app.services.users import (
+        InvalidTransferRecipient,
+        get_owned_projects_in_guild,
+        transfer_project_ownership,
+    )
+
+    async def _drop_departing_permission(project_id: int) -> None:
+        # Mirror the ``ProjectPermission`` cleanup that
+        # ``transfer_project_ownership`` does on its success path. The
+        # row is already unreachable (the user's ``InitiativeMember``
+        # is about to be deleted), but a re-sync that adds the user
+        # back would otherwise resurrect a stale ``level=owner`` entry
+        # — the same regression Bug 5 fixed for the transfer path.
+        await session.exec(
+            sql_delete(ProjectPermission).where(
+                ProjectPermission.project_id == project_id,
+                ProjectPermission.user_id == user_id,
+            )
+        )
 
     owned = await get_owned_projects_in_guild(session, user_id, guild_id)
     for project in owned:
@@ -389,19 +407,26 @@ async def _auto_transfer_owned_projects(
                 guild_id,
                 user_id,
             )
-            # Even when no fallback exists we drop the departing user's
-            # ``ProjectPermission`` row, matching the cleanup that
-            # ``transfer_project_ownership`` does on the success path.
-            # The row is already unreachable (the user's
-            # ``InitiativeMember`` is being deleted right after this
-            # helper returns), but a re-sync that adds the user back
-            # would otherwise resurrect a stale ``level=owner`` entry
-            # — the same regression Bug 5 fixed for the transfer path.
-            await session.exec(
-                sql_delete(ProjectPermission).where(
-                    ProjectPermission.project_id == project.id,
-                    ProjectPermission.user_id == user_id,
-                )
-            )
+            await _drop_departing_permission(project.id)
             continue
-        await transfer_project_ownership(session, project.id, new_owner_id)
+        try:
+            await transfer_project_ownership(session, project.id, new_owner_id)
+        except InvalidTransferRecipient:
+            # ``_pick_fallback_owner`` already filtered for active
+            # users, so this is a TOCTOU race: the chosen candidate
+            # was deactivated between the picker query and the
+            # transfer's re-validation. Treat it the same as
+            # "no fallback available" so the rest of the sync keeps
+            # going — otherwise the exception would propagate up
+            # through ``_auto_transfer_owned_projects`` and abort the
+            # ``stale_guilds`` loop in ``sync_oidc_assignments``,
+            # leaving later guild removals partially applied.
+            logger.warning(
+                "OIDC sync: fallback owner %s for project %s became "
+                "inactive between selection and transfer; leaving "
+                "owner_id pointing to removed user %s",
+                new_owner_id,
+                project.id,
+                user_id,
+            )
+            await _drop_departing_permission(project.id)

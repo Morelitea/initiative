@@ -190,3 +190,75 @@ async def test_auto_transfer_leaves_orphan_when_no_fallback(session: AsyncSessio
         )
     ).one_or_none()
     assert perm is None
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_auto_transfer_handles_inactive_fallback_race(
+    session: AsyncSession, caplog, monkeypatch
+):
+    """``_pick_fallback_owner`` filters to active users, but
+    ``transfer_project_ownership`` re-validates inside the call. If
+    the chosen candidate is deactivated between those two reads, the
+    transfer raises ``InvalidTransferRecipient`` — which used to
+    propagate up through ``_auto_transfer_owned_projects`` and abort
+    the surrounding ``stale_guilds`` loop in
+    ``sync_oidc_assignments``, leaving later guild removals
+    half-applied. Now caught and treated like the no-fallback path."""
+    from app.models.project import ProjectPermission
+    from app.models.user import User
+    from app.services import oidc_sync as oidc_sync_module
+
+    admin = await create_user(session, email="admin@example.com")
+    leaver = await create_user(session, email="leaver@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    project = await create_project(session, initiative=initiative, owner=leaver)
+
+    # Reproduce the race deterministically: shim the picker so it
+    # returns the admin's id (as the live code would), then deactivate
+    # the admin before the transfer call. The real
+    # ``transfer_project_ownership`` re-reads the candidate's status
+    # and rejects with ``InvalidTransferRecipient``.
+    real_picker = oidc_sync_module._pick_fallback_owner
+
+    async def _racy_picker(s, *, excluded_user_id, guild_id, initiative_id):
+        chosen = await real_picker(
+            s,
+            excluded_user_id=excluded_user_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
+        )
+        if chosen is not None:
+            target = (await s.exec(select(User).where(User.id == chosen))).one()
+            target.status = UserStatus.deactivated
+            s.add(target)
+            await s.flush()
+        return chosen
+
+    monkeypatch.setattr(oidc_sync_module, "_pick_fallback_owner", _racy_picker)
+
+    with caplog.at_level("WARNING"):
+        # Must not raise — the helper has to keep the surrounding
+        # ``stale_guilds`` loop alive.
+        await _auto_transfer_owned_projects(
+            session, user_id=leaver.id, guild_id=guild.id
+        )
+
+    refreshed = (
+        await session.exec(select(Project).where(Project.id == project.id))
+    ).one()
+    assert refreshed.owner_id == leaver.id
+    assert (
+        await session.exec(
+            select(ProjectPermission).where(
+                ProjectPermission.project_id == project.id,
+                ProjectPermission.user_id == leaver.id,
+            )
+        )
+    ).one_or_none() is None
+    assert any(
+        "became inactive" in rec.message for rec in caplog.records
+    )
