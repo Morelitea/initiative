@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Optional captcha gate on registration.** Set `CAPTCHA_PROVIDER` (one of `hcaptcha`, `turnstile`, `recaptcha`), `CAPTCHA_SITE_KEY`, and `CAPTCHA_SECRET_KEY` and the public registration endpoint will require a solved widget before creating an account. The SPA picks the right widget at runtime based on `GET /api/v1/config`. Bootstrap-first-user registrations (no users yet) and the OSS default (no env vars set) are silently skipped — registrations work exactly as before. The verifier fails closed on provider network errors, so a transient outage rejects registrations rather than letting them through unchecked.
+- **Optional captcha gate on registration.** Set `CAPTCHA_PROVIDER` (one of `hcaptcha`, `turnstile`, or `recaptcha` — v2 only for reCAPTCHA, since the gate uses the rendered checkbox widget rather than v3's score flow), `CAPTCHA_SITE_KEY`, and `CAPTCHA_SECRET_KEY` and the public registration endpoint will require a solved widget before creating an account. The SPA picks the right widget at runtime based on `GET /api/v1/config`. Bootstrap-first-user registrations (no users yet) and the OSS default (no env vars set) are silently skipped — registrations work exactly as before. The verifier fails closed on provider network errors, so a transient outage rejects registrations rather than letting them through unchecked.
 
 ### Changed
 

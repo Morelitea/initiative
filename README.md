@@ -178,7 +178,7 @@ Images support `linux/amd64` and `linux/arm64` architectures.
 | `APP_URL` | Public base URL (required for OIDC callbacks) | - |
 | `DISABLE_GUILD_CREATION` | Restrict guild creation to super admin | `false` |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without invite link | `true` |
-| `CAPTCHA_PROVIDER` | Captcha vendor for registration: `hcaptcha`, `turnstile`, or `recaptcha`. Unset / unrecognised disables the gate | - |
+| `CAPTCHA_PROVIDER` | Captcha vendor for registration: `hcaptcha`, `turnstile`, or `recaptcha` (v2 only). Unset / unrecognised disables the gate | - |
 | `CAPTCHA_SITE_KEY` | Public key sent to the SPA to render the widget | - |
 | `CAPTCHA_SECRET_KEY` | Server-side key for the provider's siteverify endpoint | - |
 | `BEHIND_PROXY` | Trust `X-Forwarded-For` headers | `false` |
