@@ -70,6 +70,21 @@ class Settings(BaseSettings):
     # image — the toggle and panel are then fully hidden.
     ADVANCED_TOOL_NAME: str | None = None
     ADVANCED_TOOL_URL: str | None = None
+
+    # Optional captcha gate on the public registration endpoint to push
+    # back on bot signups. ``CAPTCHA_PROVIDER`` selects the vendor —
+    # ``"hcaptcha"`` / ``"turnstile"`` / ``"recaptcha"`` — and the SPA
+    # picks the matching widget at runtime via ``GET /api/v1/config``.
+    # ``CAPTCHA_SITE_KEY`` is the public key embedded in the widget;
+    # ``CAPTCHA_SECRET_KEY`` is the server-side key used to call the
+    # provider's siteverify endpoint. When any of the three is unset
+    # (or ``CAPTCHA_PROVIDER`` is unrecognised) the check is silently
+    # disabled — registrations work as before, no error, no widget.
+    # The bootstrap first-user path skips the gate regardless (no bot
+    # economics before any users exist).
+    CAPTCHA_PROVIDER: str | None = None
+    CAPTCHA_SITE_KEY: str | None = None
+    CAPTCHA_SECRET_KEY: str | None = None
     # Comma-separated origin allowlist for postMessage handoff to the
     # advanced tool iframe. The frontend only accepts messages from these
     # origins, and only sends messages to the iframe origin derived from

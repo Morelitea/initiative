@@ -24,11 +24,14 @@ async def test_config_returns_no_advanced_tool_when_url_unset(
     monkeypatch.setattr(settings, "ADVANCED_TOOL_URL", None)
     monkeypatch.setattr(settings, "ADVANCED_TOOL_NAME", None)
     monkeypatch.setattr(settings, "ADVANCED_TOOL_ALLOWED_ORIGINS", [])
+    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", None)
+    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", None)
+    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", None)
 
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
-    assert response.json() == {"advanced_tool": None}
+    assert response.json() == {"advanced_tool": None, "captcha": None}
 
 
 @pytest.mark.integration
@@ -177,3 +180,76 @@ async def test_config_endpoint_is_unauthenticated(
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
+
+
+# --- Captcha exposure -----------------------------------------------------
+
+
+@pytest.mark.integration
+async def test_config_captcha_null_when_provider_unset(
+    client: AsyncClient, monkeypatch
+):
+    """No provider env var → SPA gets ``captcha: null`` and skips the
+    widget, matching the verifier's silent-disable behaviour."""
+    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", None)
+    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "site-key")
+    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "secret-key")
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["captcha"] is None
+
+
+@pytest.mark.integration
+async def test_config_captcha_null_when_secret_missing(
+    client: AsyncClient, monkeypatch
+):
+    """Provider + site key without a secret is half-configured — the
+    verifier can't actually validate tokens. Treat as disabled instead
+    of pretending it works."""
+    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", "hcaptcha")
+    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "site-key")
+    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", None)
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["captcha"] is None
+
+
+@pytest.mark.integration
+async def test_config_captcha_null_when_provider_unrecognised(
+    client: AsyncClient, monkeypatch
+):
+    """Typos in CAPTCHA_PROVIDER (e.g. ``"hcaptcha-v2"``) shouldn't
+    silently render an unknown widget — bail out safely instead."""
+    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", "definitely-not-real")
+    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "site-key")
+    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "secret-key")
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["captcha"] is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("provider", ["hcaptcha", "turnstile", "recaptcha"])
+async def test_config_captcha_exposes_provider_and_site_key(
+    client: AsyncClient, monkeypatch, provider: str
+):
+    """All three supported providers round-trip through the config
+    endpoint with their public site key. The secret key never appears
+    in the response."""
+    monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", provider)
+    monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", "public-site-key")
+    monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", "very-private-secret")
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["captcha"] == {"provider": provider, "site_key": "public-site-key"}
+    # Belt-and-braces: the secret must never appear in the public payload.
+    assert "very-private-secret" not in response.text

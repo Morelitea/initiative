@@ -39,10 +39,26 @@ class AdvancedToolConfig(BaseModel):
     allowed_origins: List[str]
 
 
+class CaptchaConfig(BaseModel):
+    """Public-safe captcha settings the SPA needs to render a widget.
+
+    Only the provider name and the (public) site key are exposed —
+    the secret key stays server-side. ``None`` (i.e. the surrounding
+    ``AppConfig.captcha`` field is null) means the deployment has no
+    captcha configured and the SPA shouldn't render a widget at all.
+    Mirrors the silent-disable behaviour of the verifier in
+    ``app.services.captcha``.
+    """
+
+    provider: str  # "hcaptcha" | "turnstile" | "recaptcha"
+    site_key: str
+
+
 class AppConfig(BaseModel):
     """Public, runtime-injected configuration consumed by the SPA at boot."""
 
     advanced_tool: Optional[AdvancedToolConfig] = None
+    captcha: Optional[CaptchaConfig] = None
 
 
 # Default ports the WHATWG URL spec strips from origin strings. If the
@@ -69,6 +85,9 @@ def _origin_from_url(url: str) -> str:
     return f"{parts.scheme}://{host}"
 
 
+_SUPPORTED_CAPTCHA_PROVIDERS = {"hcaptcha", "turnstile", "recaptcha"}
+
+
 @router.get("/config", response_model=AppConfig)
 def get_app_config() -> AppConfig:
     advanced_tool: Optional[AdvancedToolConfig] = None
@@ -83,4 +102,20 @@ def get_app_config() -> AppConfig:
             url=settings.ADVANCED_TOOL_URL,
             allowed_origins=allowed,
         )
-    return AppConfig(advanced_tool=advanced_tool)
+
+    # Captcha: only expose when all three of provider / site key / secret
+    # are present and the provider name is one we recognise. The SPA
+    # treats a missing ``captcha`` field as "no captcha for this
+    # deployment" and skips the widget. Mirrors the verifier's
+    # ``is_configured`` predicate in ``app.services.captcha``.
+    captcha: Optional[CaptchaConfig] = None
+    provider = settings.CAPTCHA_PROVIDER
+    if (
+        provider
+        and provider in _SUPPORTED_CAPTCHA_PROVIDERS
+        and settings.CAPTCHA_SITE_KEY
+        and settings.CAPTCHA_SECRET_KEY
+    ):
+        captcha = CaptchaConfig(provider=provider, site_key=settings.CAPTCHA_SITE_KEY)
+
+    return AppConfig(advanced_tool=advanced_tool, captcha=captcha)

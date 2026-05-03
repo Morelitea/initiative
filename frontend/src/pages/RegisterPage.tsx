@@ -16,8 +16,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import type { GuildInviteStatus } from "@/api/generated/initiativeAPI.schemas";
 import { LogoIcon } from "@/components/LogoIcon";
+import { CaptchaWidget } from "@/components/auth/CaptchaWidget";
 
 interface RegisterPageProps {
   bootstrapMode?: boolean;
@@ -39,6 +41,25 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
   const [inviteStatusError, setInviteStatusError] = useState<string | null>(null);
   const [inviteStatusLoading, setInviteStatusLoading] = useState(false);
   const [publicRegistrationEnabled, setPublicRegistrationEnabled] = useState<boolean | null>(null);
+  // Captcha state. ``captcha`` is the runtime config from
+  // ``GET /api/v1/config`` (null on deployments without captcha
+  // configured); ``captchaToken`` is the value the widget hands us
+  // after a solve. Bootstrap-first-user mode mirrors the backend's
+  // skip rule and never renders the widget.
+  const { captcha } = useAppConfig();
+  const [captchaToken, setCaptchaToken] = useState<string>("");
+  // Captcha tokens are single-use: once the backend forwards one to
+  // the provider's siteverify endpoint, replaying it returns a
+  // "timeout-or-duplicate" error and the SPA surfaces it as
+  // ``CAPTCHA_INVALID``. So whenever a submit attempt completes —
+  // whether the registration succeeded, failed for a non-captcha
+  // reason, or failed for a captcha reason — we bump this key to
+  // remount ``<CaptchaWidget>``, which clears the consumed token and
+  // re-renders a fresh challenge. Without this, any post-verify
+  // failure (DB blip, email send error, etc.) traps the user in a
+  // CAPTCHA_INVALID loop with no exit short of a page reload.
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
+  const captchaRequired = !bootstrapMode && captcha !== null;
   const inviteCode = useMemo(() => {
     const code = searchParams.invite_code;
     return code && code.trim().length > 0 ? code.trim() : undefined;
@@ -124,6 +145,10 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         setError(inviteStatus.reason ?? t("register.inviteInvalid"));
         return;
       }
+      if (captchaRequired && !captchaToken) {
+        setError(t("register.captchaRequired"));
+        return;
+      }
       // Resolve the browser's IANA timezone (e.g. "America/Los_Angeles")
       // so the new account starts on the user's wall clock instead of
       // the backend's "UTC" default. ``Intl.DateTimeFormat`` is
@@ -138,6 +163,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         full_name: fullName,
         inviteCode,
         timezone: browserTimezone,
+        captcha_token: captchaRequired ? captchaToken : undefined,
       });
       const isActive = createdUser.status === "active";
       if (isActive && createdUser.email_verified) {
@@ -157,6 +183,15 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
       setError(getErrorMessage(err, "auth:register.defaultError"));
     } finally {
       setSubmitting(false);
+      // Always reset the captcha after a submit attempt — see the
+      // ``captchaResetKey`` declaration above. Cheap to bump even
+      // when no widget is rendered (no captcha configured /
+      // bootstrap mode), since ``<CaptchaWidget>`` only mounts when
+      // ``captchaRequired`` is true.
+      if (captchaRequired) {
+        setCaptchaToken("");
+        setCaptchaResetKey((k) => k + 1);
+      }
     }
   };
 
@@ -281,11 +316,15 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                   ) : null}
                 </p>
               ) : null}
+              {captchaRequired && captcha ? (
+                <CaptchaWidget key={captchaResetKey} config={captcha} onToken={setCaptchaToken} />
+              ) : null}
               <Button
                 className="w-full"
                 type="submit"
                 disabled={
                   submitting ||
+                  (captchaRequired && !captchaToken) ||
                   (inviteCode
                     ? inviteStatusLoading || (inviteStatus ? !inviteStatus.is_valid : false)
                     : false)

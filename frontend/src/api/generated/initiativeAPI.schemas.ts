@@ -250,10 +250,26 @@ export interface ApiKeyListResponse {
 }
 
 /**
+ * Public-safe captcha settings the SPA needs to render a widget.
+
+Only the provider name and the (public) site key are exposed —
+the secret key stays server-side. ``None`` (i.e. the surrounding
+``AppConfig.captcha`` field is null) means the deployment has no
+captcha configured and the SPA shouldn't render a widget at all.
+Mirrors the silent-disable behaviour of the verifier in
+``app.services.captcha``.
+ */
+export interface CaptchaConfig {
+  provider: string;
+  site_key: string;
+}
+
+/**
  * Public, runtime-injected configuration consumed by the SPA at boot.
  */
 export interface AppConfig {
   advanced_tool?: AdvancedToolConfig | null;
+  captcha?: CaptchaConfig | null;
 }
 
 export interface ArchiveDoneResponse {
@@ -2731,6 +2747,7 @@ export interface UserCreate {
   role?: UserRole;
   password: string;
   timezone?: string | null;
+  captcha_token?: string | null;
 }
 
 export interface UserInitiativeRole {
