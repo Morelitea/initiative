@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Rolling recurrence off-by-one across the UTC date boundary.** A task set to repeat "every N days after completion" anchored its next due date on the UTC calendar day, not the user's local one. For tasks whose local time crossed midnight UTC (e.g. 5pm Los Angeles is 00:00 UTC the next day), completing the task one local day earlier than the UTC day produced a next occurrence one day too soon — `every 3 days` ended up scheduling 2 days out. The advance step now converts both `now` and the original due time into the user's stored timezone before doing the date math, so the new occurrence lands on the user-intuitive calendar day.
 
+- **Settings unreachable when you have no guild memberships.** A user with zero memberships used to see only the "no guild" screen with create/join/logout — no path to user settings (so no way to delete their own account) and no path to platform-admin settings either. The empty-state screen now exposes **Account settings** (always) and **Platform settings** (when `user.role === "admin"`) buttons, and the `/profile/*` and `/settings/admin/*` routes render in a minimal Back-to-start shell instead of bouncing back to the empty state.
+
 ## [0.43.1] - 2026-05-02
 
 ### Changed
