@@ -24,6 +24,7 @@ from app.core.rate_limit import limiter
 from app.core.encryption import decrypt_field, encrypt_field, encrypt_token, hash_email, SALT_EMAIL, SALT_OIDC_CLIENT_SECRET
 from app.core.messages import AuthMessages, OidcMessages
 from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.user_input_validators import normalize_timezone
 from app.models.user import User, UserRole, UserStatus
 from app.models.guild import GuildRole
 from app.schemas.token import Token
@@ -96,9 +97,7 @@ async def register_user(
         # ``None`` when the field is omitted or blank, in which case
         # we simply don't pass ``timezone`` to the model and the
         # column default ``"UTC"`` applies.
-        from app.api.v1.endpoints.users import _normalize_timezone
-
-        normalized_timezone = _normalize_timezone(user_in.timezone)
+        normalized_timezone = normalize_timezone(user_in.timezone)
 
         user_kwargs: dict[str, Any] = dict(
             email_hash=hash_email(normalized_email),
