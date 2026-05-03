@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Rolling recurrence off-by-one across the UTC date boundary.** A task set to repeat "every N days after completion" anchored its next due date on the UTC calendar day, not the user's local one. For tasks whose local time crossed midnight UTC (e.g. 5pm Los Angeles is 00:00 UTC the next day), completing the task one local day earlier than the UTC day produced a next occurrence one day too soon — `every 3 days` ended up scheduling 2 days out. The advance step now converts both `now` and the original due time into the user's stored timezone before doing the date math, so the new occurrence lands on the user-intuitive calendar day.
+
 ## [0.43.1] - 2026-05-02
 
 ### Changed

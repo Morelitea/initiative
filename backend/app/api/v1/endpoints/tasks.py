@@ -3,7 +3,7 @@ from typing import Annotated, List, Optional, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import selectinload
-from zoneinfo import available_timezones
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from sqlalchemy import case, func, literal, text
 from sqlmodel import select, delete
@@ -530,12 +530,30 @@ async def _set_task_assignees(session: SessionDep, task: Task, assignee_ids: lis
     await session.refresh(task, attribute_names=["assignees"])
 
 
+def _resolve_user_zone(user_tz: str | None) -> ZoneInfo:
+    """Resolve a user's stored ``timezone`` string to a ``ZoneInfo``,
+    falling back to UTC if the value is missing or unrecognised.
+
+    The user model defaults to ``"UTC"`` so this is mostly a guard
+    against bad data — but we treat an unknown zone as UTC rather than
+    erroring, since recurrence-on-completion shouldn't fail just
+    because a profile field drifted.
+    """
+    if not user_tz:
+        return ZoneInfo("UTC")
+    try:
+        return ZoneInfo(user_tz)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
+
+
 async def _advance_recurrence_if_needed(
     session: SessionDep,
     task: Task,
     *,
     previous_status_category: TaskStatusCategory | None,
     now: datetime,
+    user_timezone: str | None,
 ) -> bool:
     current_category = task.task_status.category if task.task_status else None
     if (
@@ -553,13 +571,41 @@ async def _advance_recurrence_if_needed(
 
     strategy = task.recurrence_strategy or "fixed"
     if strategy == "rolling":
-        # For rolling: use completion DATE but preserve original TIME
-        base_date = now.replace(
-            hour=task.due_date.hour,
-            minute=task.due_date.minute,
-            second=task.due_date.second,
-            microsecond=task.due_date.microsecond,
-        )
+        # For rolling: use the user's local *calendar day* of completion
+        # but preserve the task's original *local* time-of-day. Doing
+        # this math in UTC produced an off-by-one when the task's
+        # local time crossed UTC midnight: e.g. a 5pm LA task is
+        # midnight UTC the next day, so a UTC-anchored
+        # ``now.replace(hour=0)`` landed the new occurrence one local
+        # day earlier than the user's "complete + 3 days" intuition.
+        zone = _resolve_user_zone(user_timezone)
+        now_local = now.astimezone(zone)
+        due_local = task.due_date.astimezone(zone)
+        # ``replace()`` doesn't consult the zone's transition table on
+        # its own, so a gap-time result (e.g. 2:30 AM on a spring-
+        # forward day) is left labelled with the surrounding offset.
+        # The trailing ``astimezone(zone)`` is defensive — when the
+        # source and target tzinfo are the same ZoneInfo instance
+        # CPython short-circuits to ``return self``, so this is a
+        # no-op in that case, but it documents the intent and makes
+        # the call site safe if a future change resolves ``zone``
+        # from a different cache. The downstream ``+ timedelta``
+        # advance preserves wall-clock time across DST, which is the
+        # behaviour we want for daily recurrence: an "every day at
+        # 2:30 AM" task continues to fire at 2:30 AM after DST kicks
+        # in, the same way an alarm clock would.
+        base_local = now_local.replace(
+            hour=due_local.hour,
+            minute=due_local.minute,
+            second=due_local.second,
+            microsecond=due_local.microsecond,
+        ).astimezone(zone)
+        # ``get_next_due_date`` is timezone-naive about its frequency
+        # math (adds ``timedelta(days=...)`` directly), so keep the
+        # base in local time for the duration of the calculation and
+        # let the caller convert back to UTC if needed. Storing a
+        # timezone-aware value preserves the right instant either way.
+        base_date = base_local
     else:
         base_date = task.due_date
     next_due = get_next_due_date(
@@ -1271,6 +1317,7 @@ async def update_task(
         task,
         previous_status_category=previous_status_category,
         now=now,
+        user_timezone=current_user.timezone,
     )
 
     if new_assignees and project:
@@ -1586,6 +1633,7 @@ async def reorder_tasks(
             task,
             previous_status_category=previous_status_category,
             now=now,
+            user_timezone=current_user.timezone,
         )
 
     await _touch_project(session, reorder_in.project_id, timestamp=now)
