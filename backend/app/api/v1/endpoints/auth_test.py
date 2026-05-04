@@ -640,7 +640,7 @@ async def test_oidc_callback_blocks_new_user_when_registration_disabled(
     async def _fake_runtime_config(s):
         settings_obj = type("S", (), {
             "oidc_enabled": True, "oidc_issuer": "https://id.example.com",
-            "oidc_client_id": "cid", "oidc_client_secret_encrypted": "enc",
+            "oidc_client_id": "cid", "oidc_client_secret_encrypted": None,
             "oidc_scopes": ["openid"], "oidc_provider_name": "Test",
             "oidc_role_claim_path": None,
         })()
