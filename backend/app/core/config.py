@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
     APP_URL: str = "http://localhost:5173"
+    CORS_ALLOWED_ORIGINS: list[str] = Field(default_factory=lambda: ["*"])
     OIDC_ENABLED: bool = False
     OIDC_ISSUER: str | None = None
     OIDC_CLIENT_ID: str | None = None
@@ -137,6 +138,19 @@ class Settings(BaseSettings):
         else:
             items = value
         return [item.strip().lower() for item in items if item and item.strip()]
+
+    @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_allowed_origins(cls, value: str | list[str] | None) -> list[str]:
+        if value is None:
+            return ["*"]
+        if isinstance(value, str):
+            if not value.strip():
+                return ["*"]
+            items = value.split(",")
+        else:
+            items = value
+        return [item.strip() for item in items if item and item.strip()] or ["*"]
 
     @field_validator("ADVANCED_TOOL_ALLOWED_ORIGINS", mode="before")
     @classmethod

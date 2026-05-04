@@ -11,9 +11,11 @@ Settings cascade: Platform -> Guild -> User
 from __future__ import annotations
 
 import httpx
+from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import decrypt_field, encrypt_field, SALT_AI_API_KEY
+from app.core.messages import AIMessages
 from app.db.session import reapply_rls_context
 
 from app.models.user import User
@@ -31,6 +33,11 @@ from app.schemas.ai_settings import (
     UserAISettingsUpdate,
 )
 from app.services.app_settings import get_app_settings, get_or_create_guild_settings
+from app.services.webhook_target_url import (
+    WebhookTargetUrlError,
+    WebhookTargetUrlPrivateError,
+    assert_target_url_is_public_async,
+)
 
 
 def _normalize_optional_string(value: str | None) -> str | None:
@@ -160,6 +167,12 @@ async def update_guild_ai_settings(
 
     if not platform_settings.ai_allow_guild_override:
         raise PermissionError("Guild AI settings override is disabled by platform administrator")
+
+    if not payload.clear_settings and payload.base_url:
+        try:
+            await assert_target_url_is_public_async(payload.base_url)
+        except (WebhookTargetUrlError, WebhookTargetUrlPrivateError):
+            raise HTTPException(status_code=400, detail=AIMessages.INVALID_BASE_URL)
 
     guild_settings = await get_or_create_guild_settings(session, guild_id)
 
@@ -293,6 +306,12 @@ async def update_user_ai_settings(
 
     if not can_override:
         raise PermissionError("User AI settings override is disabled by administrator")
+
+    if not payload.clear_settings and payload.base_url:
+        try:
+            await assert_target_url_is_public_async(payload.base_url)
+        except (WebhookTargetUrlError, WebhookTargetUrlPrivateError):
+            raise HTTPException(status_code=400, detail=AIMessages.INVALID_BASE_URL)
 
     if payload.clear_settings:
         # Clear all AI settings to inherit from guild/platform
@@ -594,6 +613,11 @@ async def _test_ollama_connection(
     model: str | None,
 ) -> AITestConnectionResponse:
     """Test Ollama connection."""
+    if base_url:
+        try:
+            await assert_target_url_is_public_async(base_url)
+        except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as e:
+            return AITestConnectionResponse(success=False, message=f"Invalid base URL: {e}")
     url = (base_url or "http://localhost:11434").rstrip("/")
 
     try:
@@ -655,6 +679,10 @@ async def _test_custom_connection(
             message="Base URL is required for custom provider",
         )
 
+    try:
+        await assert_target_url_is_public_async(base_url)
+    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as e:
+        return AITestConnectionResponse(success=False, message=f"Invalid base URL: {e}")
     url = base_url.rstrip("/")
     headers = {}
     if api_key:
@@ -798,6 +826,11 @@ async def _fetch_anthropic_models(api_key: str | None) -> tuple[list[str], str |
 
 async def _fetch_ollama_models(base_url: str | None) -> tuple[list[str], str | None]:
     """Fetch available models from Ollama."""
+    if base_url:
+        try:
+            await assert_target_url_is_public_async(base_url)
+        except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as e:
+            return [], f"Invalid base URL: {e}"
     url = (base_url or "http://localhost:11434").rstrip("/")
 
     try:
@@ -826,6 +859,10 @@ async def _fetch_custom_models(
     if not base_url:
         return [], "Base URL required"
 
+    try:
+        await assert_target_url_is_public_async(base_url)
+    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as e:
+        return [], f"Invalid base URL: {e}"
     url = base_url.rstrip("/")
     headers = {}
     if api_key:

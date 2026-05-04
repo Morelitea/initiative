@@ -50,3 +50,6 @@ history/
 
 # Docker
 docker-compose.yml
+
+# Git worktrees
+.worktrees/

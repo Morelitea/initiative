@@ -1,5 +1,6 @@
 """API endpoints for importing tasks from external platforms."""
 
+import logging
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
@@ -29,6 +30,8 @@ from app.core.messages import ImportMessages
 from app.services import import_service
 from app.services import permissions as permissions_service
 from app.services import task_statuses as task_statuses_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -87,10 +90,11 @@ async def parse_todoist_csv(
     try:
         parse_result, _ = import_service.parse_todoist_csv(csv_content)
         return parse_result
-    except Exception as e:
+    except Exception:
+        logger.warning("import parse failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to parse CSV: {str(e)}",
+            detail=ImportMessages.PARSE_FAILED,
         )
 
 
@@ -154,10 +158,11 @@ async def parse_vikunja_json(
     """
     try:
         return import_service.parse_vikunja_json(json_content)
-    except Exception as e:
+    except Exception:
+        logger.warning("import parse failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to parse JSON: {str(e)}",
+            detail=ImportMessages.PARSE_FAILED,
         )
 
 
@@ -222,10 +227,11 @@ async def parse_ticktick_csv(
     """
     try:
         return import_service.parse_ticktick_csv(csv_content)
-    except Exception as e:
+    except Exception:
+        logger.warning("import parse failed", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to parse CSV: {str(e)}",
+            detail=ImportMessages.PARSE_FAILED,
         )
 
 

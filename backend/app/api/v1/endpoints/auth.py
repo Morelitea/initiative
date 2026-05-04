@@ -51,7 +51,8 @@ router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 STATE_TTL_SECONDS = 600
-_oidc_metadata_cache: dict[str, dict[str, Any]] = {}
+_OIDC_METADATA_TTL_SECONDS = 300  # 5 minutes
+_oidc_metadata_cache: dict[str, tuple[dict[str, Any], float]] = {}
 logger = logging.getLogger(__name__)
 
 
@@ -382,19 +383,23 @@ def _frontend_redirect_uri() -> str:
 
 
 async def _fetch_oidc_metadata(issuer_url: str) -> dict[str, Any]:
-    # Normalize: strip trailing well-known path if present, then re-append
     normalized = issuer_url.rstrip("/")
     well_known_suffix = "/.well-known/openid-configuration"
     if normalized.endswith(well_known_suffix):
         normalized = normalized[: -len(well_known_suffix)]
     discovery_url = f"{normalized}{well_known_suffix}"
-    if discovery_url in _oidc_metadata_cache:
-        return _oidc_metadata_cache[discovery_url]
+
+    cached = _oidc_metadata_cache.get(discovery_url)
+    if cached is not None:
+        metadata, fetched_at = cached
+        if time.time() - fetched_at < _OIDC_METADATA_TTL_SECONDS:
+            return metadata
+
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.get(discovery_url)
         resp.raise_for_status()
         metadata = resp.json()
-    _oidc_metadata_cache[discovery_url] = metadata
+    _oidc_metadata_cache[discovery_url] = (metadata, time.time())
     return metadata
 
 
@@ -558,6 +563,12 @@ async def oidc_callback(
     now_utc = datetime.now(timezone.utc)
 
     if not user:
+        count_result = await session.exec(select(func.count(User.id)))
+        is_first_user = count_result.one() == 0
+
+        if (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION) and not is_first_user:
+            return _error_redirect(is_mobile, OidcMessages.REGISTRATION_DISABLED)
+
         random_password = secrets.token_urlsafe(32)
         user = User(
             email_hash=hash_email(normalized_email),

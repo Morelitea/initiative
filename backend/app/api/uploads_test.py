@@ -170,3 +170,13 @@ async def test_upload_legacy_file_accessible_to_any_authenticated_user(
         assert response.status_code == 200
     finally:
         test_file.unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_security_headers_on_api_response(client: AsyncClient):
+    """Every API response must carry baseline security headers."""
+    response = await client.get("/api/v1/auth/bootstrap")
+    assert response.status_code == 200
+    assert response.headers.get("x-content-type-options") == "nosniff"
+    assert response.headers.get("x-frame-options") == "DENY"
+    assert response.headers.get("referrer-policy") == "strict-origin-when-cross-origin"

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Limit image attachment uploads to 10 MB to prevent memory exhaustion
+- Block OIDC new-account creation when `ENABLE_PUBLIC_REGISTRATION` is disabled
+- Return opaque error codes from import parse endpoints instead of raw exception text
+- Add 5-minute TTL to OIDC discovery metadata cache
+- Add `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy` headers to all responses
+- Guard AI settings `base_url` against SSRF — validates against private/loopback/link-local IPs at both request time and write time for ollama and custom providers
+- Add `CORS_ALLOWED_ORIGINS` config variable to replace the `allow_origins=["*"]` placeholder
+
 ## [0.43.2] - 2026-05-03
 
 ### Added

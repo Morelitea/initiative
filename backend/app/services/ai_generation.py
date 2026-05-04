@@ -11,10 +11,16 @@ import json
 import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.messages import AIMessages
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.ai_settings import AIProvider
 from app.services.ai_settings import resolve_ai_settings
+from app.services.webhook_target_url import (
+    WebhookTargetUrlError,
+    WebhookTargetUrlPrivateError,
+    assert_target_url_is_public_async,
+)
 
 # Maximum output lengths to prevent excessive LLM responses
 _MAX_SUBTASK_LENGTH = 200
@@ -25,6 +31,18 @@ _MAX_SUMMARY_LENGTH = 5000
 class AIGenerationError(Exception):
     """Raised when AI generation fails."""
     pass
+
+
+async def _validate_generation_base_url(
+    provider: AIProvider | None,
+    base_url: str | None,
+) -> None:
+    if provider not in {AIProvider.ollama, AIProvider.custom} or not base_url:
+        return
+    try:
+        await assert_target_url_is_public_async(base_url)
+    except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as exc:
+        raise AIGenerationError(AIMessages.INVALID_BASE_URL) from exc
 
 
 async def generate_subtasks(
@@ -47,6 +65,8 @@ async def generate_subtasks(
 
     if not resolved.provider:
         raise AIGenerationError("No AI provider configured")
+
+    await _validate_generation_base_url(resolved.provider, resolved.base_url)
 
     locale = getattr(user, "locale", None) or "en"
     system_prompt, user_content = _build_subtasks_prompt(
@@ -107,6 +127,8 @@ async def generate_description(
     if not resolved.provider:
         raise AIGenerationError("No AI provider configured")
 
+    await _validate_generation_base_url(resolved.provider, resolved.base_url)
+
     locale = getattr(user, "locale", None) or "en"
     system_prompt, user_content = _build_description_prompt(
         task, initiative_name, project_name, locale=locale
@@ -163,6 +185,8 @@ async def generate_document_summary(
 
     if not resolved.provider:
         raise AIGenerationError("No AI provider configured")
+
+    await _validate_generation_base_url(resolved.provider, resolved.base_url)
 
     # Convert Lexical JSON to markdown for better AI comprehension
     markdown_content = lexical_to_markdown(document_content)
