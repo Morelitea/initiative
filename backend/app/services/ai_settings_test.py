@@ -60,6 +60,14 @@ async def test_fetch_custom_models_blocks_private_ip():
 
 
 @pytest.mark.unit
+async def test_custom_test_connection_returns_error_without_base_url():
+    """_test_custom_connection with no base_url returns the 'Base URL required' error without hitting SSRF guard."""
+    result = await _test_custom_connection(None, None, None)
+    assert result.success is False
+    assert "Base URL is required" in result.message
+
+
+@pytest.mark.unit
 async def test_fetch_ollama_models_allows_no_base_url():
     """_fetch_ollama_models with no base_url uses localhost default (not SSRF-guarded)."""
     with patch("app.services.ai_settings.httpx.AsyncClient") as mock_client:

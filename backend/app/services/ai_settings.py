@@ -11,9 +11,11 @@ Settings cascade: Platform -> Guild -> User
 from __future__ import annotations
 
 import httpx
+from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import decrypt_field, encrypt_field, SALT_AI_API_KEY
+from app.core.messages import AIMessages
 from app.db.session import reapply_rls_context
 
 from app.models.user import User
@@ -170,8 +172,6 @@ async def update_guild_ai_settings(
         try:
             await assert_target_url_is_public_async(payload.base_url)
         except (WebhookTargetUrlError, WebhookTargetUrlPrivateError):
-            from fastapi import HTTPException
-            from app.core.messages import AIMessages
             raise HTTPException(status_code=400, detail=AIMessages.INVALID_BASE_URL)
 
     guild_settings = await get_or_create_guild_settings(session, guild_id)
@@ -311,8 +311,6 @@ async def update_user_ai_settings(
         try:
             await assert_target_url_is_public_async(payload.base_url)
         except (WebhookTargetUrlError, WebhookTargetUrlPrivateError):
-            from fastapi import HTTPException
-            from app.core.messages import AIMessages
             raise HTTPException(status_code=400, detail=AIMessages.INVALID_BASE_URL)
 
     if payload.clear_settings:
