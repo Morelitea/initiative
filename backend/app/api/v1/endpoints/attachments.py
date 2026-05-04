@@ -15,6 +15,8 @@ from app.schemas.attachment import AttachmentUploadResponse
 
 router = APIRouter()
 
+MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
 ImageUploadUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -38,7 +40,12 @@ async def upload_attachment(
             detail=AttachmentMessages.IMAGE_ONLY,
         )
 
-    contents = await file.read()
+    contents = await file.read(MAX_IMAGE_BYTES + 1)
+    if len(contents) > MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=AttachmentMessages.TOO_LARGE,
+        )
     if not contents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
