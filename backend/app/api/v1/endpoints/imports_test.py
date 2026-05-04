@@ -8,12 +8,12 @@ from app.testing import create_user, get_auth_headers
 
 @pytest.mark.integration
 async def test_todoist_parse_bad_csv_opaque_error(client: AsyncClient, session: AsyncSession):
-    """Malformed Todoist CSV returns the constant, not a raw exception string."""
+    """Todoist CSV with a non-numeric INDENT triggers ValueError, returns the opaque constant."""
     user = await create_user(session)
     response = await client.post(
         "/api/v1/imports/todoist/parse",
         headers={**get_auth_headers(user), "Content-Type": "text/plain"},
-        content=b"\x00\x01\x02\x03binary garbage",
+        content=b"TYPE,CONTENT,INDENT\ntask,My Task,not-a-number",
     )
     assert response.status_code == 400
     detail = response.json()["detail"]
