@@ -563,8 +563,7 @@ async def oidc_callback(
     now_utc = datetime.now(timezone.utc)
 
     if not user:
-        from sqlalchemy import func as sa_func
-        count_result = await session.exec(select(sa_func.count(User.id)))
+        count_result = await session.exec(select(func.count(User.id)))
         is_first_user = count_result.one() == 0
 
         if not settings.ENABLE_PUBLIC_REGISTRATION and not is_first_user:

@@ -653,5 +653,5 @@ async def test_oidc_callback_blocks_new_user_when_registration_disabled(
     )
 
     assert response.status_code in (302, 307)
-    assert "registration_disabled" in response.headers["location"]
+    assert "OIDC_REGISTRATION_DISABLED" in response.headers["location"]
     assert "session_token" not in response.cookies
