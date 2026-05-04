@@ -594,16 +594,23 @@ async def test_logout_clears_session_cookie(
 
 @pytest.mark.integration
 @pytest.mark.auth
+@pytest.mark.parametrize(
+    ("public_registration_enabled", "guild_creation_disabled"),
+    [(False, False), (True, True)],
+)
 async def test_oidc_callback_blocks_new_user_when_registration_disabled(
     client: AsyncClient,
     session: AsyncSession,
     monkeypatch,
+    public_registration_enabled: bool,
+    guild_creation_disabled: bool,
 ):
-    """OIDC callback must not create a new account when public registration is off."""
+    """OIDC callback must honor the same no-invite registration gate as /register."""
     from app.core import config as cfg
     import app.api.v1.endpoints.auth as auth_module
 
-    monkeypatch.setattr(cfg.settings, "ENABLE_PUBLIC_REGISTRATION", False)
+    monkeypatch.setattr(cfg.settings, "ENABLE_PUBLIC_REGISTRATION", public_registration_enabled)
+    monkeypatch.setattr(cfg.settings, "DISABLE_GUILD_CREATION", guild_creation_disabled)
     # Must have at least one existing user so is_first_user is False
     await create_user(session)
 

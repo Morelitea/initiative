@@ -139,6 +139,19 @@ class Settings(BaseSettings):
             items = value
         return [item.strip().lower() for item in items if item and item.strip()]
 
+    @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_allowed_origins(cls, value: str | list[str] | None) -> list[str]:
+        if value is None:
+            return ["*"]
+        if isinstance(value, str):
+            if not value.strip():
+                return ["*"]
+            items = value.split(",")
+        else:
+            items = value
+        return [item.strip() for item in items if item and item.strip()] or ["*"]
+
     @field_validator("ADVANCED_TOOL_ALLOWED_ORIGINS", mode="before")
     @classmethod
     def parse_advanced_tool_origins(cls, value: str | list[str] | None) -> list[str]:

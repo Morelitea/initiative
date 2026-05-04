@@ -566,7 +566,7 @@ async def oidc_callback(
         count_result = await session.exec(select(func.count(User.id)))
         is_first_user = count_result.one() == 0
 
-        if not settings.ENABLE_PUBLIC_REGISTRATION and not is_first_user:
+        if (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION) and not is_first_user:
             return _error_redirect(is_mobile, OidcMessages.REGISTRATION_DISABLED)
 
         random_password = secrets.token_urlsafe(32)
