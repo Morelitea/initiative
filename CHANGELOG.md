@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stored XSS in legacy document embed nodes.** The Lexical `EmbedNode` (kept around for backwards compatibility with documents that used the old generic embed type before `YouTubeNode` / `TweetNode` existed) rendered its stored `html` field via `dangerouslySetInnerHTML` without sanitization. A user able to write a document — i.e. any guild member with edit access — could craft a serialized JSON payload containing `{ "type": "embed", "html": "<script>…</script>" }`, save the document, and have the script run in every other viewer's session. The constructor now passes the html through DOMPurify before storing it on `__html`, so all entry paths (importJSON of legacy data, paste-conversion via `convertEmbedElement`, programmatic creation) are sanitized at the same boundary. Default DOMPurify config strips `<script>`, event handler attributes, `javascript:` URLs, and `<iframe>`; legacy YouTube embeds may render empty after the fix and should be re-added with the dedicated `YouTubeNode` insert tool.
+
 ## [0.43.2] - 2026-05-03
 
 ### Added

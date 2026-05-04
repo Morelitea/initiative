@@ -224,6 +224,9 @@ importers:
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
+      dompurify:
+        specifier: ^3.4.1
+        version: 3.4.1
       embla-carousel-react:
         specifier: ^8.6.0
         version: 8.6.0(react@19.2.5)
