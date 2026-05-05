@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bump vite from v7 to v8. Decreases bundler step from 25s to 2s.
 - Migrate to typescript 7 beta. Decreases compile step from 25s to 5s.
 - Bump Dockerfile Node.js from v20 to v24.
-- Pin pnpm to 11.0.6 via the `packageManager` field in `frontend/package.json`. CI and the Dockerfile auto-detect it through corepack, so contributors no longer need to match versions manually — fresh clones with corepack enabled get the right pnpm on first invocation.
+- Pin pnpm to 10.33.3 via the `packageManager` field in `frontend/package.json`. CI and the Dockerfile auto-detect it through corepack, so contributors no longer need to match versions manually — fresh clones with corepack enabled get the right pnpm on first invocation.
 
 ## [0.43.2] - 2026-05-03
 

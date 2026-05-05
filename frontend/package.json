@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.0.6",
+  "packageManager": "pnpm@10.33.3",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsgo -b && vite build",
