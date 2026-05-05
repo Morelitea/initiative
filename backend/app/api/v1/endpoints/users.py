@@ -1,7 +1,5 @@
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
-import re
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlmodel import select, update as sql_update
@@ -17,6 +15,11 @@ from app.api.deps import (
 )
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash, verify_password
+from app.core.user_input_validators import (
+    normalize_notification_time,
+    normalize_timezone,
+    normalize_week_starts_on,
+)
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
@@ -32,6 +35,9 @@ from app.schemas.user import (
     AccountDeletionRequest,
     AccountDeletionResponse,
     DeletionEligibilityResponse,
+    GuildRemovalEligibilityResponse,
+    GuildRemovalProjectInfo,
+    GuildRemovalRequest,
     ProjectBasic,
     UserPublic,
 )
@@ -41,7 +47,7 @@ from app.schemas.api_key import (
     ApiKeyListResponse,
 )
 from app.schemas.stats import UserStatsResponse
-from app.core.messages import AuthMessages, UserMessages
+from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
@@ -63,49 +69,6 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
 
-TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
-
-
-def _normalize_timezone(value: str | None) -> str | None:
-    if value is None:
-        return None
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    try:
-        ZoneInfo(cleaned)
-    except ZoneInfoNotFoundError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.INVALID_TIMEZONE)
-    return cleaned
-
-
-def _normalize_notification_time(value: str | None) -> str | None:
-    if value is None:
-        return None
-    cleaned = value.strip()
-    if not cleaned:
-        return None
-    if not TIME_PATTERN.match(cleaned):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.INVALID_TIME_FORMAT)
-    return cleaned
-
-
-def _normalize_week_starts_on(value: int | str | None) -> int | None:
-    if value is None:
-        return None
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.INVALID_WEEK_START,
-        )
-    if number < 0 or number > 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=UserMessages.INVALID_WEEK_START,
-        )
-    return number
 
 
 @router.get("/me", response_model=UserRead)
@@ -324,15 +287,15 @@ async def update_users_me(
         else:
             current_user.avatar_url = None
     if "week_starts_on" in update_data:
-        normalized_week_start = _normalize_week_starts_on(update_data["week_starts_on"])
+        normalized_week_start = normalize_week_starts_on(update_data["week_starts_on"])
         if normalized_week_start is not None:
             current_user.week_starts_on = normalized_week_start
     if "timezone" in update_data:
-        normalized_timezone = _normalize_timezone(update_data["timezone"])
+        normalized_timezone = normalize_timezone(update_data["timezone"])
         if normalized_timezone:
             current_user.timezone = normalized_timezone
     if "overdue_notification_time" in update_data:
-        normalized_time = _normalize_notification_time(update_data["overdue_notification_time"])
+        normalized_time = normalize_notification_time(update_data["overdue_notification_time"])
         if normalized_time:
             current_user.overdue_notification_time = normalized_time
     for field in [
@@ -430,17 +393,17 @@ async def update_user(
             user.avatar_base64 = None
     for field, value in update_data.items():
         if field == "timezone":
-            normalized_timezone = _normalize_timezone(value)
+            normalized_timezone = normalize_timezone(value)
             if normalized_timezone:
                 setattr(user, field, normalized_timezone)
             continue
         if field == "overdue_notification_time":
-            normalized_time = _normalize_notification_time(value)
+            normalized_time = normalize_notification_time(value)
             if normalized_time:
                 setattr(user, field, normalized_time)
             continue
         if field == "week_starts_on":
-            normalized_week_start = _normalize_week_starts_on(value)
+            normalized_week_start = normalize_week_starts_on(value)
             if normalized_week_start is not None:
                 setattr(user, field, normalized_week_start)
             continue
@@ -587,8 +550,15 @@ async def delete_own_account(
     # removed by an admin.
     if current_user.oidc_sub is None:
         if not verify_password(request.password, current_user.hashed_password):
+            # 400 (not 401): the user IS authenticated — they passed
+            # ``get_current_active_user`` to reach this endpoint. The
+            # global axios interceptor treats every 401 as a session
+            # expiry and force-logs-out the SPA, so a wrong-password
+            # response on this form would knock the user out of the
+            # session they were trying to confirm into. 400 keeps the
+            # error scoped to the form's onError handler.
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
+                status_code=status.HTTP_400_BAD_REQUEST,
                 detail=UserMessages.INVALID_PASSWORD,
             )
 
@@ -712,12 +682,82 @@ async def delete_my_api_key(
 
 
 
+@router.get(
+    "/{user_id}/guild-removal-eligibility",
+    response_model=GuildRemovalEligibilityResponse,
+)
+async def check_guild_removal_eligibility(
+    user_id: int,
+    session: SessionDep,
+    current_admin: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildAdminContext,
+) -> GuildRemovalEligibilityResponse:
+    """Pre-flight info for the guild admin's remove-member action.
+
+    The SPA calls this before opening the confirm dialog so it knows
+    whether to prompt for project-ownership transfers (the same way
+    self-leave does). Without this, the user table's "Remove" button
+    would silently orphan every project the target user owned.
+    """
+    await set_rls_context(
+        session,
+        user_id=current_admin.id,
+        guild_id=guild_context.guild_id,
+        guild_role="admin",
+        is_superadmin=(current_admin.role == UserRole.admin),
+    )
+
+    sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
+        session, user_id, guild_id=guild_context.guild_id
+    )
+    sole_pm_names = [initiative.name for initiative in sole_pm_initiatives]
+
+    owned_projects = await users_service.get_owned_projects_in_guild(
+        session, user_id, guild_context.guild_id
+    )
+    # Bundle transfer candidates per-project so the SPA can render the
+    # picker in one round trip. We can't reuse
+    # ``GET /users/me/initiative-members`` because the admin doing the
+    # removal isn't required to be a member of every initiative the
+    # target user belongs to. The candidate query lives in
+    # ``services/users.py`` so the leave-eligibility endpoint can share
+    # the same rules.
+    owned_project_infos: list[GuildRemovalProjectInfo] = []
+    candidate_cache: dict[int, list[UserPublic]] = {}
+    for project in owned_projects:
+        candidates = candidate_cache.get(project.initiative_id)
+        if candidates is None:
+            candidates = await users_service.fetch_pm_candidates(
+                session,
+                initiative_id=project.initiative_id,
+                excluded_user_id=user_id,
+            )
+            candidate_cache[project.initiative_id] = candidates
+        owned_project_infos.append(
+            GuildRemovalProjectInfo(
+                id=project.id,
+                name=project.name,
+                initiative_id=project.initiative_id,
+                candidates=candidates,
+            )
+        )
+
+    can_remove = len(sole_pm_names) == 0 and len(owned_project_infos) == 0
+
+    return GuildRemovalEligibilityResponse(
+        can_remove=can_remove,
+        sole_pm_initiatives=sole_pm_names,
+        owned_projects=owned_project_infos,
+    )
+
+
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
     session: SessionDep,
     current_admin: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
+    body: GuildRemovalRequest | None = None,
 ) -> None:
     await set_rls_context(
         session,
@@ -753,6 +793,64 @@ async def delete_user(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    # Block the admin from orphaning projects: every project the target
+    # user owns in this guild needs an explicit disposition (transfer
+    # to a project manager, or delete). We apply the transfers /
+    # deletions before ``remove_user_from_guild_initiatives`` drops
+    # their membership rows so the new state is in place by the time
+    # RLS evaluates against the guild's surviving members.
+    owned_projects = await users_service.get_owned_projects_in_guild(
+        session, user_id, guild_context.guild_id
+    )
+    if owned_projects:
+        transfers = body.project_transfers if body is not None else {}
+        deletions = set(body.project_deletions) if body is not None else set()
+        owned_ids = {project.id for project in owned_projects}
+        transfer_ids = set(transfers.keys())
+
+        # Every owned project needs exactly one disposition; reject
+        # missing, surplus, or overlapping ids with one stable code so
+        # the SPA can map a single translation string. Distinct from
+        # the self-leave code so the copy can speak in the right voice.
+        missing = owned_ids - transfer_ids - deletions
+        extra = (transfer_ids - owned_ids) | (deletions - owned_ids)
+        overlap = transfer_ids & deletions
+        if missing or extra or overlap:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.CANNOT_REMOVE_OWNS_PROJECTS,
+            )
+        for project_id, new_owner_id in transfers.items():
+            try:
+                await users_service.transfer_project_ownership(
+                    session, project_id, new_owner_id
+                )
+            except users_service.InvalidTransferRecipient:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=GuildMessages.PROJECT_TRANSFER_RECIPIENT_INVALID,
+                )
+
+        if deletions:
+            # Soft-delete (send to trash) the projects the admin opted
+            # to discard rather than transfer — the escape hatch for
+            # the "no eligible project manager left" case.
+            from app.services import soft_delete as soft_delete_service
+            from app.services import guilds as guilds_service
+
+            retention_days = await guilds_service.get_guild_retention_days(
+                session, guild_context.guild_id
+            )
+            projects_by_id = {project.id: project for project in owned_projects}
+            for project_id in deletions:
+                project = projects_by_id[project_id]
+                await soft_delete_service.soft_delete_entity(
+                    session,
+                    project,
+                    deleted_by_user_id=current_admin.id,
+                    retention_days=retention_days,
+                )
 
     await initiatives_service.remove_user_from_guild_initiatives(
         session,

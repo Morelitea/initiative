@@ -1,4 +1,4 @@
-import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
+import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/extension";
 import { ScissorsIcon } from "lucide-react";
 
 import { useToolbarContext } from "@/components/ui/editor/context/toolbar-context";

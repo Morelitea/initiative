@@ -23,6 +23,7 @@ class DocumentType(str, Enum):
     file = "file"  # Uploaded file (PDF, DOCX, etc.)
     whiteboard = "whiteboard"  # Excalidraw scene stored in content JSONB
     smart_link = "smart_link"  # URL-backed iframe embed (Figma, YouTube, …)
+    spreadsheet = "spreadsheet"  # Sparse cell map; collaborative via yjs
 
 
 class Document(SoftDeleteMixin, table=True):

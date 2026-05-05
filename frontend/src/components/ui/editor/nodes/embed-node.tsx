@@ -3,6 +3,7 @@
  * New embeds should use YouTubeNode or TweetNode instead.
  */
 import type { JSX } from "react";
+import DOMPurify from "dompurify";
 import {
   DecoratorNode,
   type DOMConversionMap,
@@ -22,12 +23,18 @@ export type SerializedEmbedNode = SerializedLexicalNode & {
   html: string;
 };
 
+// Sanitize legacy embed HTML before rendering. Default DOMPurify config
+// strips <script>, on* event handlers, javascript: URLs, and other XSS
+// vectors. Stored documents containing legacy <embed> nodes are loaded
+// via importJSON and would otherwise execute attacker-controlled markup.
+export const sanitizeEmbedHtml = (html: string): string => DOMPurify.sanitize(html);
+
 export class EmbedNode extends DecoratorNode<JSX.Element> {
   __html: string;
 
   constructor(html: string, key?: NodeKey) {
     super(key);
-    this.__html = html;
+    this.__html = sanitizeEmbedHtml(html);
   }
 
   static getType(): string {

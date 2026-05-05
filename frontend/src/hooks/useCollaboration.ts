@@ -136,6 +136,12 @@ export function useCollaboration({
     return (id: string, yjsDocMap: Map<string, Y.Doc>): CollaborationProvider => {
       // Check if we already have a provider with the same URL
       if (providerRef.current && currentWsUrlRef.current === wsUrl) {
+        // Ensure the existing provider's Y.Doc is registered in this yjsDocMap.
+        // CollaborationPlugin reads `yjsDocMap.get(id)` immediately after the
+        // factory returns to seed createBinding's `doc` arg; under
+        // LexicalExtensionComposer the docMap can be a fresh instance on each
+        // mount, so we always have to repopulate it here.
+        yjsDocMap.set(id, providerRef.current.doc);
         // Ensure provider is connected (cancels pending disconnect or reconnects)
         providerRef.current.connect();
         return providerRef.current;

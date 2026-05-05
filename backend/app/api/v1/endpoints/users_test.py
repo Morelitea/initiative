@@ -10,6 +10,7 @@ Tests the user API endpoints at /api/v1/users including:
 
 import pytest
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
@@ -227,6 +228,132 @@ async def test_delete_user_as_member_forbidden(client: AsyncClient, session: Asy
     response = await client.delete(f"/api/v1/users/{member2.id}", headers=headers)
 
     assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_guild_removal_eligibility_lists_owned_projects(
+    client: AsyncClient, session: AsyncSession
+):
+    """The pre-flight endpoint surfaces every project the target user
+    owns in the active guild so the SPA can prompt the admin for
+    transfer recipients before issuing DELETE."""
+    from app.testing.factories import create_initiative, create_project
+
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    project = await create_project(session, initiative=initiative, owner=member)
+
+    response = await client.get(
+        f"/api/v1/users/{member.id}/guild-removal-eligibility",
+        headers=get_guild_headers(guild, admin),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["can_remove"] is False
+    assert len(data["owned_projects"]) == 1
+    assert data["owned_projects"][0]["id"] == project.id
+
+
+@pytest.mark.integration
+async def test_delete_user_blocks_when_owned_projects_lack_transfer(
+    client: AsyncClient, session: AsyncSession
+):
+    """Removing a member who owns projects without supplying transfers
+    is rejected so the admin doesn't silently orphan the rows."""
+    from app.testing.factories import create_initiative, create_project
+
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_project(session, initiative=initiative, owner=member)
+
+    response = await client.delete(
+        f"/api/v1/users/{member.id}",
+        headers=get_guild_headers(guild, admin),
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "CANNOT_REMOVE_OWNS_PROJECTS"
+
+
+@pytest.mark.integration
+async def test_delete_user_with_transfers_reassigns_and_succeeds(
+    client: AsyncClient, session: AsyncSession
+):
+    """Supplying transfers for every owned project lets the admin
+    proceed; ``owner_id`` is reassigned before the membership row is
+    dropped so the project survives the removal."""
+    from app.models.project import Project
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
+
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    successor = await create_user(session, email="successor@example.com")
+    member = await create_user(session, email="member@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=successor, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=successor)
+    await create_initiative_member(session, initiative=initiative, user=member)
+    project = await create_project(session, initiative=initiative, owner=member)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/users/{member.id}",
+        headers=get_guild_headers(guild, admin),
+        json={"project_transfers": {str(project.id): successor.id}},
+    )
+    assert response.status_code == 204
+
+    refreshed = (
+        await session.exec(select(Project).where(Project.id == project.id))
+    ).one()
+    assert refreshed.owner_id == successor.id
+
+
+@pytest.mark.integration
+async def test_delete_user_with_deletion_soft_deletes_project(
+    client: AsyncClient, session: AsyncSession
+):
+    """``project_deletions`` is the admin's escape hatch when no PM
+    candidate is available to take over. The project is soft-deleted
+    rather than orphaned."""
+    from app.db.soft_delete_filter import select_including_deleted
+    from app.models.project import Project
+    from app.testing.factories import create_initiative, create_project
+
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    project = await create_project(session, initiative=initiative, owner=member)
+
+    response = await client.request(
+        "DELETE",
+        f"/api/v1/users/{member.id}",
+        headers=get_guild_headers(guild, admin),
+        json={"project_deletions": [project.id]},
+    )
+    assert response.status_code == 204
+
+    refreshed = (
+        await session.exec(select_including_deleted(Project).where(Project.id == project.id))
+    ).one()
+    assert refreshed.deleted_at is not None
+    assert refreshed.deleted_by == admin.id
 
 
 @pytest.mark.integration
@@ -630,7 +757,11 @@ async def test_password_user_cannot_skip_password_check(
         },
     )
 
-    assert response.status_code == 401
+    # 400 (not 401): the user IS authenticated; a 401 here would
+    # cascade through the SPA's global axios interceptor and force a
+    # logout, which is the original bug this status code change fixed.
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_INVALID_PASSWORD"
 
 
 @pytest.mark.integration

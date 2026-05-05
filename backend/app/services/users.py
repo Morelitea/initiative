@@ -299,6 +299,67 @@ async def get_owned_projects(session: AsyncSession, user_id: int) -> List[Projec
     return list(result.all())
 
 
+async def get_owned_projects_in_guild(
+    session: AsyncSession, user_id: int, guild_id: int
+) -> List[Project]:
+    """Projects in a single guild whose ``owner_id`` is the user.
+
+    Used by the leave-guild flow: if the user leaves without
+    transferring these, the project's RLS guard (``InitiativeMember``)
+    no longer matches for them, and there's no guild-admin DAC bypass,
+    so the row becomes unreachable.
+    """
+    from app.models.initiative import Initiative
+
+    stmt = (
+        select(Project)
+        .join(Initiative, Initiative.id == Project.initiative_id)
+        .where(Project.owner_id == user_id, Initiative.guild_id == guild_id)
+    )
+    result = await session.exec(stmt)
+    return list(result.all())
+
+
+async def fetch_pm_candidates(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    excluded_user_id: int,
+) -> List["UserPublic"]:  # noqa: F821 — forward ref to avoid circular import
+    """Active project-manager candidates for ``initiative_id``, with
+    ``excluded_user_id`` filtered out.
+
+    Project ownership only requires initiative membership in principle,
+    but for transfer-on-departure UX we restrict the picker to
+    initiative managers — they're the role that actually administers
+    the project, so handing them the row matches the user's intent and
+    keeps them empowered to make further changes (reassign, rename,
+    archive). Non-manager members can still appear via direct
+    ``ProjectPermission`` rows; this helper just narrows the picker.
+
+    Shared between the leave-eligibility (``guilds.py``) and admin
+    remove-eligibility (``users.py``) endpoints so the rules don't
+    drift between the two flows.
+    """
+    from app.models.initiative import InitiativeMember, InitiativeRoleModel
+    from app.schemas.user import UserPublic
+
+    stmt = (
+        select(User)
+        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeRoleModel.is_manager.is_(True),
+            User.status == UserStatus.active,
+            User.id != excluded_user_id,
+        )
+        .order_by(User.full_name, User.id)
+    )
+    result = await session.exec(stmt)
+    return [UserPublic.model_validate(u) for u in result.all()]
+
+
 async def check_deletion_eligibility(
     session: AsyncSession,
     user_id: int,
@@ -516,6 +577,15 @@ async def transfer_project_ownership(
     users out (``GET /users/me/initiative-members`` and
     ``GET /admin/initiatives/.../members``); this is the server-side
     safety net for clients that bypass those endpoints.
+
+    Drops the previous owner's ``ProjectPermission`` row as part of
+    the transfer. Every call site is a "user is leaving" path
+    (self-deactivation, leave-guild, admin-removal, OIDC sync), so
+    the departing user shouldn't retain access — and leaving the
+    stale ``level=owner`` row behind has bitten us before: if that
+    user is later reactivated and re-added, the project shows two
+    owner-level permissions and the access dropdown can't reconcile
+    the value.
     """
     project = (await session.exec(select(Project).where(Project.id == project_id))).one()
 
@@ -527,10 +597,23 @@ async def transfer_project_ownership(
             f"Project {project_id} transfer target {new_owner_id} is not an active user"
         )
 
+    previous_owner_id = project.owner_id
     project.owner_id = new_owner_id
     project.updated_at = datetime.now(timezone.utc)
     session.add(project)
     await session.flush()
+
+    # Drop the previous owner's per-user permission row (if any) before
+    # creating / upgrading the new owner's. Skipped when transferring
+    # to oneself (no-op) or when the previous owner happens to be the
+    # new owner — ``previous_owner_id != new_owner_id`` covers both.
+    if previous_owner_id is not None and previous_owner_id != new_owner_id:
+        await session.exec(
+            delete(ProjectPermission).where(
+                ProjectPermission.project_id == project_id,
+                ProjectPermission.user_id == previous_owner_id,
+            )
+        )
 
     # Ensure new owner has owner permission
     perm_stmt = select(ProjectPermission).where(

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { TabsContent } from "@/components/ui/tabs";
+import { ProjectExportCard } from "@/components/projects/settings/ProjectExportCard";
 import {
   useUpdateProject,
   useDeleteProject,
@@ -188,6 +189,12 @@ export const ProjectSettingsAdvancedTab = ({
             )}
           </CardFooter>
         </Card>
+
+        <ProjectExportCard
+          projectId={projectId}
+          projectName={project.name}
+          canWriteProject={canWriteProject}
+        />
 
         {isOwner ? (
           <Card className="border-destructive/40 bg-destructive/5 shadow-sm">

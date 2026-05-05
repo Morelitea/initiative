@@ -1,42 +1,18 @@
 import { useEffect, useState, type RefObject } from "react";
-import {
-  CHECK_LIST,
-  ELEMENT_TRANSFORMERS,
-  MULTILINE_ELEMENT_TRANSFORMERS,
-  TEXT_FORMAT_TRANSFORMERS,
-  TEXT_MATCH_TRANSFORMERS,
-} from "@lexical/markdown";
-// import { AutoFocusPlugin } from "@lexical/react/LexicalAutoFocusPlugin";
-import { CheckListPlugin } from "@lexical/react/LexicalCheckListPlugin";
-import { ClearEditorPlugin } from "@lexical/react/LexicalClearEditorPlugin";
-import { ClickableLinkPlugin } from "@lexical/react/LexicalClickableLinkPlugin";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
-import { LexicalErrorBoundary } from "@lexical/react/LexicalErrorBoundary";
-import { HashtagPlugin } from "@lexical/react/LexicalHashtagPlugin";
-import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
-import { HorizontalRulePlugin } from "@lexical/react/LexicalHorizontalRulePlugin";
-import { ListPlugin } from "@lexical/react/LexicalListPlugin";
-import { MarkdownShortcutPlugin } from "@lexical/react/LexicalMarkdownShortcutPlugin";
-import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { TabIndentationPlugin } from "@lexical/react/LexicalTabIndentationPlugin";
 import { TablePlugin } from "@lexical/react/LexicalTablePlugin";
 
 import { ContentEditable } from "@/components/ui/editor/editor-ui/content-editable";
 import { ActionsPlugin } from "@/components/ui/editor/plugins/actions/actions-plugin";
-// import { CharacterLimitPlugin } from "@/components/ui/editor/plugins/actions/character-limit-plugin";
 import { ClearEditorActionPlugin } from "@/components/ui/editor/plugins/actions/clear-editor-plugin";
 import { CounterCharacterPlugin } from "@/components/ui/editor/plugins/actions/counter-character-plugin";
 import { EditModeTogglePlugin } from "@/components/ui/editor/plugins/actions/edit-mode-toggle-plugin";
 import { ImportExportPlugin } from "@/components/ui/editor/plugins/actions/import-export-plugin";
 import { MarkdownTogglePlugin } from "@/components/ui/editor/plugins/actions/markdown-toggle-plugin";
-// import { MaxLengthPlugin } from "@/components/ui/editor/plugins/actions/max-length-plugin";
-// import { ShareContentPlugin } from "@/components/ui/editor/plugins/actions/share-content-plugin";
 import { SpeechToTextPlugin } from "@/components/ui/editor/plugins/actions/speech-to-text-plugin";
 import { TreeViewPlugin } from "@/components/ui/editor/plugins/actions/tree-view-plugin";
-import { AutoLinkPlugin } from "@/components/ui/editor/plugins/auto-link-plugin";
-// import { AutocompletePlugin } from "@/components/ui/editor/plugins/autocomplete-plugin";
 import { CodeActionMenuPlugin } from "@/components/ui/editor/plugins/code-action-menu-plugin";
-import { CodeHighlightPlugin } from "@/components/ui/editor/plugins/code-highlight-plugin";
 import { ComponentPickerMenuPlugin } from "@/components/ui/editor/plugins/component-picker-menu-plugin";
 import { ContextMenuPlugin } from "@/components/ui/editor/plugins/context-menu-plugin";
 import { DragDropPastePlugin } from "@/components/ui/editor/plugins/drag-drop-paste-plugin";
@@ -45,17 +21,10 @@ import { AutoEmbedPlugin } from "@/components/ui/editor/plugins/embeds/auto-embe
 import { TwitterPlugin } from "@/components/ui/editor/plugins/embeds/twitter-plugin";
 import { YouTubePlugin } from "@/components/ui/editor/plugins/embeds/youtube-plugin";
 import { EmojiPickerPlugin } from "@/components/ui/editor/plugins/emoji-picker-plugin";
-import { EmojisPlugin } from "@/components/ui/editor/plugins/emojis-plugin";
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
 import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/floating-wikilink-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
-import { ImagesPlugin } from "@/components/ui/editor/plugins/images-plugin";
 import { TableActionMenuPlugin } from "@/components/ui/editor/plugins/table-action-menu-plugin";
-import { KeywordsPlugin } from "@/components/ui/editor/plugins/keywords-plugin";
-import { LayoutPlugin } from "@/components/ui/editor/plugins/layout-plugin";
-import { HeadingAnchorPlugin } from "@/components/ui/editor/plugins/heading-anchor-plugin";
-import { LinkPlugin } from "@/components/ui/editor/plugins/link-plugin";
-import { ListMaxIndentLevelPlugin } from "@/components/ui/editor/plugins/list-max-indent-level-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { WikilinksPlugin } from "@/components/ui/editor/plugins/wikilinks-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
@@ -94,7 +63,6 @@ import { CodeLanguageToolbarPlugin } from "@/components/ui/editor/plugins/toolba
 import { ElementFormatToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/element-format-toolbar-plugin";
 import { FontBackgroundToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/font-background-toolbar-plugin";
 import { FontColorToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/font-color-toolbar-plugin";
-// import { FontFamilyToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/font-family-toolbar-plugin";
 import { FontFormatToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/font-format-toolbar-plugin";
 import { FontSizeToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/font-size-toolbar-plugin";
 import { HistoryToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/history-toolbar-plugin";
@@ -102,18 +70,11 @@ import { LinkToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/link-t
 import { SubSuperToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/subsuper-toolbar-plugin";
 import { ToolbarPlugin } from "@/components/ui/editor/plugins/toolbar/toolbar-plugin";
 import { ToolbarOverflowMenu } from "@/components/ui/editor/plugins/toolbar/toolbar-overflow-menu";
-// import { TypingPerfPlugin } from "@/components/ui/editor/plugins/typing-pref-plugin";
-import { EMOJI } from "@/components/ui/editor/transformers/markdown-emoji-transformer";
-import { HR } from "@/components/ui/editor/transformers/markdown-hr-transformer";
-import { IMAGE } from "@/components/ui/editor/transformers/markdown-image-transformer";
-import { TABLE } from "@/components/ui/editor/transformers/markdown-table-transformer";
-import { TWEET } from "@/components/ui/editor/transformers/markdown-tweet-transformer";
-import { WIKILINK } from "@/components/ui/editor/transformers/markdown-wikilink-transformer";
+import { MARKDOWN_TRANSFORMERS } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
 import { Separator } from "@/components/ui/separator";
 import type { UserPublic } from "@/api/generated/initiativeAPI.schemas";
 
 const placeholder = "Press / for commands...";
-// const maxLength = 500;
 
 export function Plugins({
   showToolbar = true,
@@ -219,34 +180,19 @@ export function Plugins({
         </ToolbarPlugin>
       )}
       <div className="relative">
-        {/* <AutoFocusPlugin /> */}
-        <RichTextPlugin
-          contentEditable={
-            <div className="relative">
-              <div className="" ref={onRef}>
-                <ContentEditable
-                  placeholder={placeholder}
-                  className="ContentEditable__root relative block min-h-72 px-8 pt-4 pb-14 focus:outline-none"
-                />
-              </div>
-              {/* Collaboration cursors container - must be inside the content area for proper positioning */}
-              {collaborative && <div ref={cursorsContainerRef} className="collaboration-cursors" />}
-            </div>
-          }
-          ErrorBoundary={LexicalErrorBoundary}
-        />
+        <div className="relative">
+          <div className="" ref={onRef}>
+            <ContentEditable
+              placeholder={placeholder}
+              className="ContentEditable__root relative block min-h-72 px-8 pt-4 pb-14 focus:outline-none"
+            />
+          </div>
+          {collaborative && <div ref={cursorsContainerRef} className="collaboration-cursors" />}
+        </div>
 
-        <ClickableLinkPlugin />
-        <HeadingAnchorPlugin />
-        <CheckListPlugin />
-        <HorizontalRulePlugin />
         <TablePlugin hasCellMerge hasCellBackgroundColor />
         <TableActionMenuPlugin anchorElem={floatingAnchorElem} readOnly={readOnly} />
-        <ListPlugin />
         <TabIndentationPlugin />
-        <HashtagPlugin />
-        {/* Disable HistoryPlugin when in collaborative mode - Yjs has its own undo manager */}
-        {!collaborative && <HistoryPlugin />}
 
         <MentionsPlugin mentionableUsers={mentionableUsers} />
         <WikilinksPlugin
@@ -255,39 +201,14 @@ export function Plugins({
           onCreateDocument={onWikilinkCreate}
         />
         <DraggableBlockPlugin anchorElem={floatingAnchorElem} />
-        <KeywordsPlugin />
-        <EmojisPlugin />
-        <ImagesPlugin />
-
-        <LayoutPlugin />
 
         <AutoEmbedPlugin />
         <TwitterPlugin />
         <YouTubePlugin />
 
-        <CodeHighlightPlugin />
         <CodeActionMenuPlugin anchorElem={floatingAnchorElem} />
 
-        <MarkdownShortcutPlugin
-          transformers={[
-            TABLE,
-            HR,
-            IMAGE,
-            EMOJI,
-            TWEET,
-            WIKILINK,
-            CHECK_LIST,
-            ...ELEMENT_TRANSFORMERS,
-            ...MULTILINE_ELEMENT_TRANSFORMERS,
-            ...TEXT_FORMAT_TRANSFORMERS,
-            ...TEXT_MATCH_TRANSFORMERS,
-          ]}
-        />
-        {/* <TypingPerfPlugin /> */}
         <TabFocusPlugin />
-        {/* <AutocompletePlugin /> */}
-        <AutoLinkPlugin />
-        <LinkPlugin />
 
         <ComponentPickerMenuPlugin
           baseOptions={[
@@ -333,41 +254,20 @@ export function Plugins({
           anchorElem={floatingAnchorElem}
           setIsLinkEditMode={setIsLinkEditMode}
         />
-
-        <ListMaxIndentLevelPlugin />
       </div>
       {showToolbar && (
         <ActionsPlugin>
           <div className="bg-background sticky bottom-0 z-10 clear-both flex items-center justify-between gap-2 overflow-auto border-t p-1">
-            <div className="flex flex-1 justify-start">
-              {/* <MaxLengthPlugin maxLength={maxLength} />
-              <CharacterLimitPlugin maxLength={maxLength} charset="UTF-16" /> */}
-            </div>
+            <div className="flex flex-1 justify-start"></div>
             <div>
               <CounterCharacterPlugin charset="UTF-16" />
             </div>
             <div className="flex flex-1 justify-end">
               <SpeechToTextPlugin />
-              {/* <ShareContentPlugin /> */}
               <ImportExportPlugin documentName={documentName} />
-              <MarkdownTogglePlugin
-                transformers={[
-                  TABLE,
-                  HR,
-                  IMAGE,
-                  EMOJI,
-                  TWEET,
-                  WIKILINK,
-                  CHECK_LIST,
-                  ...ELEMENT_TRANSFORMERS,
-                  ...MULTILINE_ELEMENT_TRANSFORMERS,
-                  ...TEXT_FORMAT_TRANSFORMERS,
-                  ...TEXT_MATCH_TRANSFORMERS,
-                ]}
-              />
+              <MarkdownTogglePlugin transformers={MARKDOWN_TRANSFORMERS} />
               <EditModeTogglePlugin forceReadOnly={readOnly} />
               <ClearEditorActionPlugin />
-              <ClearEditorPlugin />
               <TreeViewPlugin />
             </div>
           </div>

@@ -87,6 +87,7 @@
     "updated": "Updated {{date}}",
     "template": "Template",
     "whiteboardLabel": "Whiteboard",
+    "spreadsheetLabel": "Spreadsheet",
     "projects_one": "{{count}} project",
     "projects_other": "{{count}} projects",
     "comments_one": "{{count}} comment",
@@ -247,6 +248,7 @@
     "documentTypeLabel": "Document type",
     "documentTypeText": "Text document",
     "documentTypeWhiteboard": "Whiteboard",
+    "documentTypeSpreadsheet": "Spreadsheet",
     "documentTypeSmartLink": "Smart link",
     "smartLinkUrlLabel": "URL",
     "smartLinkUrlPlaceholder": "Paste a link",
@@ -336,6 +338,19 @@
     "loading": "Loading whiteboard\u2026",
     "syncing": "Syncing whiteboard\u2026",
     "readOnly": "You have read-only access to this whiteboard."
+  },
+  "spreadsheet": {
+    "exportCsv": "Export CSV",
+    "importCsv": "Import CSV",
+    "exportSuccess": "Spreadsheet exported",
+    "exportError": "Could not export the spreadsheet. Please try again.",
+    "fileTooLarge": "That file is unusually large. Pick a smaller export (\u226450 MB).",
+    "importEmpty": "That CSV is empty.",
+    "importParseError": "Could not parse that file as CSV.",
+    "importConfirmTitle": "Replace spreadsheet contents?",
+    "importConfirmDescription": "Importing a CSV will overwrite every cell in this spreadsheet. This cannot be undone.",
+    "importConfirmAction": "Import and replace",
+    "importSuccess": "Spreadsheet imported"
   },
   "sidePanel": {
     "title": "Document Panel",

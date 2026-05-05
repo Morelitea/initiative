@@ -2,14 +2,9 @@
   "compilerOptions": {
     "target": "ES2020",
     "useDefineForClassFields": true,
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ES2022"
-    ],
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "allowJs": false,
     "skipLibCheck": true,
-    "esModuleInterop": false,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
@@ -19,26 +14,14 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "types": [
-      "vite/client"
-    ],
-    "baseUrl": ".",
+    "types": ["vite/client"],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "*": ["./*"],
+      "@/*": ["./src/*"]
     }
   },
-  "include": [
-    "src",
-    "tailwind.config.ts",
-    "vite.config.d.ts"
-  ],
-  "exclude": [
-    "src/__tests__",
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx"
-  ],
+  "include": ["src", "tailwind.config.ts", "vite.config.d.ts"],
+  "exclude": ["src/__tests__", "src/**/*.test.ts", "src/**/*.test.tsx"],
   "references": [
     {
       "path": "./tsconfig.node.json"

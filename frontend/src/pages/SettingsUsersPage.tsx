@@ -7,9 +7,9 @@ import {
   useUsers,
   useApproveUser,
   useUpdateGuildMembership,
-  useRemoveGuildMember,
   useExportGuildUsersCsv,
 } from "@/hooks/useUsers";
+import { RemoveGuildMemberDialog } from "@/components/guilds/RemoveGuildMemberDialog";
 import {
   listGuildInvitesApiV1GuildsGuildIdInvitesGet,
   createGuildInviteApiV1GuildsGuildIdInvitesPost,
@@ -18,7 +18,6 @@ import {
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -111,8 +110,6 @@ export const SettingsUsersPage = () => {
     },
   });
 
-  const deleteUser = useRemoveGuildMember();
-
   const handleRoleChange = (userId: number, role: GuildRole) => {
     // Update guild membership role
     updateGuildMembership.mutate({ guildId: activeGuildId!, userId, role });
@@ -144,13 +141,6 @@ export const SettingsUsersPage = () => {
       params: {},
       filename: `${safeGuildName}-users-${datestamp}.csv`,
     });
-  };
-
-  const confirmDeleteUser = () => {
-    if (deleteUserConfirm) {
-      deleteUser.mutate(deleteUserConfirm.userId);
-      setDeleteUserConfirm(null);
-    }
   };
 
   if (!isGuildAdmin) {
@@ -269,7 +259,7 @@ export const SettingsUsersPage = () => {
               type="button"
               variant="destructive"
               onClick={() => handleDeleteUser(guildMember.id, guildMember.email)}
-              disabled={deleteUser.isPending || isSelf}
+              disabled={isSelf}
             >
               {t("users.removeFromGuild")}
             </Button>
@@ -454,17 +444,11 @@ export const SettingsUsersPage = () => {
         </CardContent>
       </Card>
 
-      <ConfirmDialog
+      <RemoveGuildMemberDialog
         open={deleteUserConfirm !== null}
         onOpenChange={(open) => !open && setDeleteUserConfirm(null)}
-        title={t("users.removeUserTitle")}
-        description={t("users.removeUserDescription", {
-          email: deleteUserConfirm?.email ?? "this user",
-        })}
-        confirmLabel={t("users.removeConfirmLabel")}
-        onConfirm={confirmDeleteUser}
-        isLoading={deleteUser.isPending}
-        destructive
+        userId={deleteUserConfirm?.userId ?? null}
+        email={deleteUserConfirm?.email ?? ""}
       />
     </div>
   );

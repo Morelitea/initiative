@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.config import settings
-from app.core.messages import GuildMessages
+from app.core.messages import AdvancedToolMessages, GuildMessages
+from app.core.security import create_advanced_tool_handoff_token
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from app.models.guild import GuildRole, GuildMembership, Guild
 from app.models.user import User, UserRole
@@ -21,10 +22,14 @@ from app.schemas.guild import (
     GuildOrderUpdate,
     GuildUpdate,
     LeaveGuildEligibilityResponse,
+    LeaveGuildRequest,
 )
+from app.schemas.user import GuildRemovalProjectInfo, UserPublic
+from app.schemas.initiative import AdvancedToolHandoffResponse
 from app.services import guilds as guilds_service
 from app.services import initiatives as initiatives_service
 from app.services import rls as rls_service
+from app.services import users as users_service
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
@@ -193,6 +198,63 @@ async def update_guild(
     return _serialize_guild(guild, membership, retention_days=retention_days)
 
 
+# ---------------------------------------------------------------------------
+# Advanced tool handoff (guild scope) — admin-only embed.
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{guild_id}/advanced-tool/handoff",
+    response_model=AdvancedToolHandoffResponse,
+)
+async def create_guild_advanced_tool_handoff(
+    guild_id: int,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> AdvancedToolHandoffResponse:
+    """Mint a short-lived JWT for the guild-scoped advanced-tool iframe.
+
+    Authorization gates (all enforced here, not in the receiving embed):
+
+      1. Deployment must have ADVANCED_TOOL_URL configured.
+      2. Caller must be a guild admin (or platform superadmin).
+
+    The returned token has ``scope=guild`` and intentionally omits
+    ``initiative_id``. The receiving service must trust the JWT's scope
+    claim — the URL query param is a hint only, useful for routing on the
+    embed side, not enough to authorize on its own.
+    """
+    if not settings.ADVANCED_TOOL_URL:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdvancedToolMessages.NOT_CONFIGURED)
+
+    is_superadmin = current_user.role == UserRole.admin
+    await _ensure_guild_admin(
+        session,
+        guild_id=guild_id,
+        user_id=current_user.id,
+        is_superadmin=is_superadmin,
+    )
+
+    token, expires_in_seconds = create_advanced_tool_handoff_token(
+        user_id=current_user.id,
+        guild_id=guild_id,
+        guild_role=GuildRole.admin.value,
+        # Guild admins are managers by definition for this scope.
+        is_manager=True,
+        # Admins always have create permission at the guild level.
+        can_create=True,
+        scope="guild",
+    )
+
+    return AdvancedToolHandoffResponse(
+        handoff_token=token,
+        expires_in_seconds=expires_in_seconds,
+        iframe_url=settings.ADVANCED_TOOL_URL,
+        scope="guild",
+        initiative_id=None,
+    )
+
+
 @router.delete("/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_guild(
     guild_id: int,
@@ -318,13 +380,19 @@ async def check_leave_eligibility(
 
     Returns information about blockers:
     - is_last_admin: User is the last admin of the guild
-    - sole_pm_initiatives: List of initiative names where user is the sole PM
+    - sole_pm_initiatives: Initiatives in this guild where the user is the sole PM
+    - owned_projects: Projects in this guild whose ``owner_id`` is the
+      user, with project-manager candidates per project. The leave
+      endpoint requires a transfer-or-delete disposition for each —
+      without one, the project's RLS gate (``InitiativeMember``) no
+      longer matches on leave, and there's no DAC bypass for guild
+      admins, so the row would be unreachable.
     """
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
     if membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER)
 
-    from app.services.users import is_last_admin_of_guild
+    from app.services.users import get_owned_projects_in_guild, is_last_admin_of_guild
 
     is_last_admin = await is_last_admin_of_guild(session, guild_id, current_user.id)
 
@@ -333,12 +401,42 @@ async def check_leave_eligibility(
     )
     sole_pm_names = [initiative.name for initiative in sole_pm_initiatives]
 
-    can_leave = not is_last_admin and len(sole_pm_names) == 0
+    owned_projects = await get_owned_projects_in_guild(session, current_user.id, guild_id)
+    owned_project_infos: list[GuildRemovalProjectInfo] = []
+    candidate_cache: dict[int, list[UserPublic]] = {}
+    for project in owned_projects:
+        candidates = candidate_cache.get(project.initiative_id)
+        if candidates is None:
+            candidates = await users_service.fetch_pm_candidates(
+                session,
+                initiative_id=project.initiative_id,
+                excluded_user_id=current_user.id,
+            )
+            candidate_cache[project.initiative_id] = candidates
+        owned_project_infos.append(
+            GuildRemovalProjectInfo(
+                id=project.id,
+                name=project.name,
+                initiative_id=project.initiative_id,
+                candidates=candidates,
+            )
+        )
+
+    can_leave = (
+        not is_last_admin
+        and len(sole_pm_names) == 0
+        # ``owned_projects`` is not itself a hard blocker — leave can
+        # proceed if the client supplies a disposition for every entry.
+        # ``can_leave`` here reflects "can leave with no extra input";
+        # the leave endpoint enforces the transfer/delete rules.
+        and len(owned_project_infos) == 0
+    )
 
     return LeaveGuildEligibilityResponse(
         can_leave=can_leave,
         is_last_admin=is_last_admin,
         sole_pm_initiatives=sole_pm_names,
+        owned_projects=owned_project_infos,
     )
 
 
@@ -347,18 +445,41 @@ async def leave_guild(
     guild_id: int,
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    body: LeaveGuildRequest | None = None,
 ) -> Response:
     """Leave a guild.
 
     Restrictions:
     - Cannot leave if you are the last admin of the guild
     - Cannot leave if you are the sole PM of any initiative in the guild
+    - Cannot leave while you own projects in the guild unless the body
+      supplies ``project_transfers`` covering every owned project.
     """
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
     if membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER)
 
-    from app.services.users import is_last_admin_of_guild
+    # ``UserSessionDep`` only sets the user_id; transferring or
+    # soft-deleting projects below issues UPDATEs against the
+    # guild-scoped ``projects`` table, whose ``guild_update`` RLS
+    # policy requires ``current_guild_id`` to match the row. Now that
+    # we've confirmed the user is a member of this guild, set the
+    # full RLS context so the UPDATEs aren't filtered to zero rows
+    # (which surfaces as ``StaleDataError`` from SQLAlchemy when the
+    # expected row count doesn't match).
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_id,
+        guild_role=membership.role.value,
+        is_superadmin=(current_user.role == UserRole.admin),
+    )
+
+    from app.services.users import (
+        InvalidTransferRecipient,
+        get_owned_projects_in_guild,
+        is_last_admin_of_guild,
+    )
 
     if await is_last_admin_of_guild(session, guild_id, current_user.id, for_update=True):
         raise HTTPException(
@@ -374,6 +495,57 @@ async def leave_guild(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.CANNOT_LEAVE_SOLE_PM,
         )
+
+    owned_projects = await get_owned_projects_in_guild(session, current_user.id, guild_id)
+    if owned_projects:
+        transfers = body.project_transfers if body is not None else {}
+        deletions = set(body.project_deletions) if body is not None else set()
+        owned_ids = {project.id for project in owned_projects}
+        transfer_ids = set(transfers.keys())
+
+        # Every owned project needs exactly one disposition (transfer
+        # OR delete) and the union must cover them all. Any missing,
+        # surplus, or overlapping ids → reject with one stable code so
+        # the SPA can map a single translation string.
+        missing = owned_ids - transfer_ids - deletions
+        extra = (transfer_ids - owned_ids) | (deletions - owned_ids)
+        overlap = transfer_ids & deletions
+        if missing or extra or overlap:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.CANNOT_LEAVE_OWNS_PROJECTS,
+            )
+
+        for project_id, new_owner_id in transfers.items():
+            try:
+                await users_service.transfer_project_ownership(
+                    session, project_id, new_owner_id
+                )
+            except InvalidTransferRecipient:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=GuildMessages.PROJECT_TRANSFER_RECIPIENT_INVALID,
+                )
+
+        if deletions:
+            # Soft-delete (send to trash) the projects the user opted to
+            # discard rather than transfer. Uses the guild's configured
+            # retention so the trash auto-purge job picks them up just
+            # like a normal in-app project deletion.
+            from app.services import soft_delete as soft_delete_service
+
+            retention_days = await guilds_service.get_guild_retention_days(
+                session, guild_id
+            )
+            projects_by_id = {project.id: project for project in owned_projects}
+            for project_id in deletions:
+                project = projects_by_id[project_id]
+                await soft_delete_service.soft_delete_entity(
+                    session,
+                    project,
+                    deleted_by_user_id=current_user.id,
+                    retention_days=retention_days,
+                )
 
     await guilds_service.remove_user_from_guild(session, guild_id=guild_id, user_id=current_user.id)
 

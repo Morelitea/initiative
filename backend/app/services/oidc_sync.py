@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildMembership, GuildRole
 from app.models.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.oidc_claim_mapping import OIDCClaimMapping, OIDCMappingTargetType
+from app.models.user import User, UserStatus
 
 logger = logging.getLogger(__name__)
 
@@ -215,6 +216,15 @@ async def sync_oidc_assignments(
     )
     for gm in stale_guilds.all():
         if gm.guild_id not in matched_guild_ids:
+            # Re-home any projects the departing user owned in this
+            # guild before dropping their initiative memberships. The
+            # interactive ``leave_guild`` endpoint requires the user
+            # to nominate transfer recipients; an automated OIDC sync
+            # has no UI to ask, so we pick a fallback (initiative
+            # manager → guild admin) and log if neither exists.
+            await _auto_transfer_owned_projects(
+                session, user_id=user_id, guild_id=gm.guild_id,
+            )
             await remove_user_from_guild_initiatives(
                 session, guild_id=gm.guild_id, user_id=user_id,
             )
@@ -294,3 +304,129 @@ async def _create_initiative_membership(
     session.add(im)
     await session.flush()
     return im
+
+
+async def _pick_fallback_owner(
+    session: AsyncSession,
+    *,
+    excluded_user_id: int,
+    guild_id: int,
+    initiative_id: int,
+) -> int | None:
+    """Pick a fallback owner for an orphaned project.
+
+    Preference order:
+      1. An active initiative manager (other than the departing user).
+      2. An active guild admin (other than the departing user).
+      3. ``None`` if neither exists — caller logs and skips the
+         transfer; the project will be orphaned but the OIDC sync
+         won't crash.
+    """
+    manager_stmt = (
+        select(User.id)
+        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeRoleModel.is_manager.is_(True),
+            User.status == UserStatus.active,
+            User.id != excluded_user_id,
+        )
+        .limit(1)
+    )
+    manager_id = (await session.exec(manager_stmt)).first()
+    if manager_id is not None:
+        return manager_id
+
+    admin_stmt = (
+        select(User.id)
+        .join(GuildMembership, GuildMembership.user_id == User.id)
+        .where(
+            GuildMembership.guild_id == guild_id,
+            GuildMembership.role == GuildRole.admin,
+            User.status == UserStatus.active,
+            User.id != excluded_user_id,
+        )
+        .limit(1)
+    )
+    return (await session.exec(admin_stmt)).first()
+
+
+async def _auto_transfer_owned_projects(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    guild_id: int,
+) -> None:
+    """Re-home projects owned by ``user_id`` in ``guild_id`` to a
+    fallback owner before the user is removed from the guild.
+
+    Used by the OIDC group-sync removal path, which has no UI to ask
+    the user where to transfer ownership. The interactive
+    ``leave_guild`` endpoint requires explicit transfers instead;
+    this helper is the automated equivalent.
+    """
+    from sqlmodel import delete as sql_delete
+
+    from app.models.project import ProjectPermission
+    from app.services.users import (
+        InvalidTransferRecipient,
+        get_owned_projects_in_guild,
+        transfer_project_ownership,
+    )
+
+    async def _drop_departing_permission(project_id: int) -> None:
+        # Mirror the ``ProjectPermission`` cleanup that
+        # ``transfer_project_ownership`` does on its success path. The
+        # row is already unreachable (the user's ``InitiativeMember``
+        # is about to be deleted), but a re-sync that adds the user
+        # back would otherwise resurrect a stale ``level=owner`` entry
+        # — the same regression Bug 5 fixed for the transfer path.
+        await session.exec(
+            sql_delete(ProjectPermission).where(
+                ProjectPermission.project_id == project_id,
+                ProjectPermission.user_id == user_id,
+            )
+        )
+
+    owned = await get_owned_projects_in_guild(session, user_id, guild_id)
+    for project in owned:
+        new_owner_id = await _pick_fallback_owner(
+            session,
+            excluded_user_id=user_id,
+            guild_id=guild_id,
+            initiative_id=project.initiative_id,
+        )
+        if new_owner_id is None:
+            logger.warning(
+                "OIDC sync: no fallback owner available for project %s "
+                "(initiative %s, guild %s); leaving owner_id pointing to "
+                "removed user %s",
+                project.id,
+                project.initiative_id,
+                guild_id,
+                user_id,
+            )
+            await _drop_departing_permission(project.id)
+            continue
+        try:
+            await transfer_project_ownership(session, project.id, new_owner_id)
+        except InvalidTransferRecipient:
+            # ``_pick_fallback_owner`` already filtered for active
+            # users, so this is a TOCTOU race: the chosen candidate
+            # was deactivated between the picker query and the
+            # transfer's re-validation. Treat it the same as
+            # "no fallback available" so the rest of the sync keeps
+            # going — otherwise the exception would propagate up
+            # through ``_auto_transfer_owned_projects`` and abort the
+            # ``stale_guilds`` loop in ``sync_oidc_assignments``,
+            # leaving later guild removals partially applied.
+            logger.warning(
+                "OIDC sync: fallback owner %s for project %s became "
+                "inactive between selection and transfer; leaving "
+                "owner_id pointing to removed user %s",
+                new_owner_id,
+                project.id,
+                user_id,
+            )
+            await _drop_departing_permission(project.id)

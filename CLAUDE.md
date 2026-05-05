@@ -66,7 +66,7 @@ cd frontend && pnpm generate:api
 
 # Option 2: Without a running backend
 cd backend && python scripts/export_openapi.py ../frontend/openapi.json
-cd frontend && pnpm orval
+cd frontend && pnpm orval && pnpm prettier --write src/api/generated
 ```
 
 Always commit the regenerated output. CI enforces this — the `check-generated-types` job will fail if generated files don't match the current backend schemas.

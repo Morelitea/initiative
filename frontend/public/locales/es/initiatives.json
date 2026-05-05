@@ -142,7 +142,8 @@
       "documents": "Documentos",
       "projects": "Proyectos",
       "queues": "Colas",
-      "events": "Eventos"
+      "events": "Eventos",
+      "advancedTool": "Herramienta avanzada"
     },
     "permissions": {
       "viewDocuments": "Ver documentos",
@@ -152,7 +153,9 @@
       "viewQueues": "Ver colas",
       "createQueues": "Crear colas",
       "viewEvents": "Ver eventos",
-      "createEvents": "Crear eventos"
+      "createEvents": "Crear eventos",
+      "viewAdvancedTool": "Abrir la herramienta avanzada",
+      "createAdvancedTool": "Crear en la herramienta avanzada"
     }
   },
   "advancedTools": "Herramientas avanzadas",
@@ -160,5 +163,18 @@
   "queuesFeature": "Colas",
   "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue.",
   "eventsFeature": "Calendario",
-  "eventsFeatureDescription": "Programa y gestiona eventos de calendario con asistentes y seguimiento de RSVP."
+  "eventsFeatureDescription": "Programa y gestiona eventos de calendario con asistentes y seguimiento de RSVP.",
+  "advancedToolFeatureDescription": "Inserta el panel de {{name}} en esta iniciativa.",
+  "advancedTool": {
+    "connecting": "Conectando…",
+    "handoffFailed": "No se pudo establecer una sesión segura con la herramienta integrada.",
+    "iframeError": "No se pudo cargar la herramienta integrada.",
+    "unavailableTitle": "No configurado",
+    "unavailableDescription": "Esta instalación no tiene una herramienta avanzada configurada.",
+    "disabledTitle": "{{name}} está desactivado para esta iniciativa",
+    "disabledDescription": "Actívalo desde la configuración de la iniciativa para cargar el panel.",
+    "openSettings": "Abrir configuración",
+    "guildAdminOnlyTitle": "Solo administradores",
+    "guildAdminOnlyDescription": "Solo los administradores del grupo pueden gestionar las automatizaciones a nivel de grupo."
+  }
 }

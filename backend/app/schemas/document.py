@@ -14,7 +14,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.document import Document, ProjectDocument
 
 LexicalState = Dict[str, Any]
-DocumentTypeStr = Literal["native", "file", "whiteboard", "smart_link"]
+DocumentTypeStr = Literal["native", "file", "whiteboard", "smart_link", "spreadsheet"]
 
 
 class DocumentProjectLink(BaseModel):

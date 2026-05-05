@@ -359,3 +359,64 @@ async def test_is_last_platform_admin_with_other_active_admin(session: AsyncSess
 
     assert await user_service.is_last_platform_admin(session, a.id) is False
     assert await user_service.is_last_platform_admin(session, b.id) is False
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_transfer_project_ownership_drops_previous_owners_permission_row(
+    session: AsyncSession,
+):
+    """Transferring ownership has to drop the departing owner's
+    ``ProjectPermission`` row. Otherwise that user keeps a stale
+    ``level=owner`` row which, after a reactivation + readd cycle,
+    leaves the project with two "owners" and a broken access
+    dropdown that can't reconcile its value.
+    """
+    from app.models.project import ProjectPermission
+    from app.testing.factories import create_initiative, create_project
+
+    admin = await create_user(session, email="admin@example.com")
+    successor = await create_user(session, email="successor@example.com")
+    departing = await create_user(session, email="departing@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(session, user=successor, guild=guild, role=GuildRole.member)
+    await create_guild_membership(session, user=departing, guild=guild, role=GuildRole.member)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    project = await create_project(session, initiative=initiative, owner=departing)
+
+    # Sanity: project factory grants the creator an owner-level
+    # ProjectPermission.
+    pre = (
+        await session.exec(
+            select(ProjectPermission).where(
+                ProjectPermission.project_id == project.id,
+                ProjectPermission.user_id == departing.id,
+            )
+        )
+    ).one()
+    assert pre is not None
+
+    await user_service.transfer_project_ownership(session, project.id, successor.id)
+    await session.commit()
+
+    # Departing owner's row is gone.
+    assert (
+        await session.exec(
+            select(ProjectPermission).where(
+                ProjectPermission.project_id == project.id,
+                ProjectPermission.user_id == departing.id,
+            )
+        )
+    ).one_or_none() is None
+
+    # Successor has owner-level permission.
+    successor_perm = (
+        await session.exec(
+            select(ProjectPermission).where(
+                ProjectPermission.project_id == project.id,
+                ProjectPermission.user_id == successor.id,
+            )
+        )
+    ).one()
+    assert successor_perm.level.value == "owner"

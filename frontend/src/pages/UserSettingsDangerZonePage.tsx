@@ -16,12 +16,16 @@ interface UserSettingsDangerZonePageProps {
 
 export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZonePageProps) => {
   const { t } = useTranslation("settings");
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  // ``null`` = closed; otherwise the selection the user clicked. Two
+  // separate buttons (Deactivate / Delete) drive the same dialog with
+  // a different ``initialAction`` so the choice is unambiguous and the
+  // dialog skips its first step.
+  const [pendingAction, setPendingAction] = useState<"deactivate" | "soft_delete" | null>(null);
   const router = useRouter();
   const { isNativePlatform, getServerHostname, clearServerUrl } = useServer();
 
   const handleDeleteSuccess = () => {
-    setDeleteDialogOpen(false);
+    setPendingAction(null);
     logout();
     router.navigate({ to: "/login" });
   };
@@ -78,33 +82,29 @@ export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZ
           <CardDescription>{t("dangerZone.deleteDescription")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="border-muted space-y-2 rounded-lg border p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h4 className="font-medium">{t("dangerZone.deactivateTitle")}</h4>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  {t("dangerZone.deactivateDescription")}
-                </p>
-              </div>
+          <div className="border-muted space-y-3 rounded-lg border p-4">
+            <div>
+              <h4 className="font-medium">{t("dangerZone.deactivateTitle")}</h4>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t("dangerZone.deactivateDescription")}
+              </p>
             </div>
+            <Button variant="outline" onClick={() => setPendingAction("deactivate")}>
+              {t("dangerZone.deactivateButton")}
+            </Button>
           </div>
 
-          <div className="border-destructive/50 bg-destructive/5 space-y-2 rounded-lg border p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1">
-                <h4 className="text-destructive font-medium">
-                  {t("dangerZone.permanentDeleteTitle")}
-                </h4>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  {t("dangerZone.permanentDeleteDescriptionText")}{" "}
-                  <strong>{t("dangerZone.cannotBeUndone")}</strong>
-                </p>
-              </div>
+          <div className="border-destructive/50 bg-destructive/5 space-y-3 rounded-lg border p-4">
+            <div>
+              <h4 className="text-destructive font-medium">
+                {t("dangerZone.permanentDeleteTitle")}
+              </h4>
+              <p className="text-muted-foreground mt-1 text-sm">
+                {t("dangerZone.permanentDeleteDescriptionText")}{" "}
+                <strong>{t("dangerZone.cannotBeUndone")}</strong>
+              </p>
             </div>
-          </div>
-
-          <div className="border-t pt-4">
-            <Button variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
+            <Button variant="destructive" onClick={() => setPendingAction("soft_delete")}>
               {t("dangerZone.deleteButton")}
             </Button>
           </div>
@@ -112,10 +112,13 @@ export const UserSettingsDangerZonePage = ({ user, logout }: UserSettingsDangerZ
       </Card>
 
       <DeleteAccountDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null);
+        }}
         onSuccess={handleDeleteSuccess}
         user={user}
+        initialAction={pendingAction ?? undefined}
       />
     </div>
   );

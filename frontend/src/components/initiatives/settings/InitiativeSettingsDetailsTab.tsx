@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 interface InitiativeSettingsDetailsTabProps {
   name: string;
@@ -21,6 +22,8 @@ interface InitiativeSettingsDetailsTabProps {
   onToggleQueues: (value: boolean) => void;
   eventsEnabled: boolean;
   onToggleEvents: (value: boolean) => void;
+  advancedToolEnabled: boolean;
+  onToggleAdvancedTool: (value: boolean) => void;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -37,11 +40,14 @@ export const InitiativeSettingsDetailsTab = ({
   onToggleQueues,
   eventsEnabled,
   onToggleEvents,
+  advancedToolEnabled,
+  onToggleAdvancedTool,
   canManageMembers,
   isSaving,
   onSaveDetails,
 }: InitiativeSettingsDetailsTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
+  const { advancedTool } = useAppConfig();
 
   return (
     <TabsContent value="details">
@@ -133,6 +139,22 @@ export const InitiativeSettingsDetailsTab = ({
                 disabled={!canManageMembers || isSaving}
               />
             </div>
+            {advancedTool && (
+              <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="settings-advanced-tool-toggle">{advancedTool.name}</Label>
+                  <p className="text-muted-foreground text-xs">
+                    {t("advancedToolFeatureDescription", { name: advancedTool.name })}
+                  </p>
+                </div>
+                <Switch
+                  id="settings-advanced-tool-toggle"
+                  checked={advancedToolEnabled}
+                  onCheckedChange={onToggleAdvancedTool}
+                  disabled={!canManageMembers || isSaving}
+                />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

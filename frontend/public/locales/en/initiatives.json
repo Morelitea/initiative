@@ -142,7 +142,8 @@
       "documents": "Documents",
       "projects": "Projects",
       "queues": "Queues",
-      "events": "Events"
+      "events": "Events",
+      "advancedTool": "Advanced Tool"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -152,7 +153,9 @@
       "viewQueues": "View Queues",
       "createQueues": "Create Queues",
       "viewEvents": "View Events",
-      "createEvents": "Create Events"
+      "createEvents": "Create Events",
+      "viewAdvancedTool": "Open Advanced Tool",
+      "createAdvancedTool": "Create in Advanced Tool"
     }
   },
   "advancedTools": "Advanced Tools",
@@ -160,5 +163,18 @@
   "queuesFeature": "Queues",
   "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next.",
   "eventsFeature": "Calendar",
-  "eventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking."
+  "eventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking.",
+  "advancedToolFeatureDescription": "Embed the {{name}} panel under this initiative.",
+  "advancedTool": {
+    "connecting": "Connecting…",
+    "handoffFailed": "Couldn’t establish a secure session with the embedded tool.",
+    "iframeError": "The embedded tool failed to load.",
+    "unavailableTitle": "Not configured",
+    "unavailableDescription": "This deployment does not have an advanced tool configured.",
+    "disabledTitle": "{{name}} is disabled for this initiative",
+    "disabledDescription": "Enable it from the initiative’s settings page to load the panel.",
+    "openSettings": "Open settings",
+    "guildAdminOnlyTitle": "Admins only",
+    "guildAdminOnlyDescription": "Only guild admins can manage automations at the guild level."
+  }
 }

@@ -24,6 +24,7 @@ from app.core.rate_limit import limiter
 from app.core.encryption import decrypt_field, encrypt_field, encrypt_token, hash_email, SALT_EMAIL, SALT_OIDC_CLIENT_SECRET
 from app.core.messages import AuthMessages, OidcMessages
 from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.user_input_validators import normalize_timezone
 from app.models.user import User, UserRole, UserStatus
 from app.models.guild import GuildRole
 from app.schemas.token import Token
@@ -86,12 +87,37 @@ async def register_user(
         if (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION) and not normalized_invite and not is_first_user:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.REGISTRATION_REQUIRES_INVITE)
 
+        # Captcha gate (no-op when ``CAPTCHA_PROVIDER`` isn't configured;
+        # see ``app.services.captcha``). Skipped on the bootstrap
+        # first-user path because there's no bot economics on a fresh
+        # deployment with zero users — and operators shouldn't be
+        # locked out by a captcha they haven't fully wired up yet.
+        # ``get_real_client_ip`` honours ``X-Forwarded-For`` only when
+        # ``BEHIND_PROXY`` is on, so when the API sits behind nginx /
+        # ALB / Cloudflare the captcha provider sees the real client IP
+        # for its anti-abuse heuristics — not the proxy's.
+        if not is_first_user:
+            from app.core.rate_limit import get_real_client_ip
+            from app.services import captcha as captcha_service
+
+            await captcha_service.verify_or_raise(
+                user_in.captcha_token,
+                remote_ip=get_real_client_ip(request),
+            )
+
         if normalized_invite:
             user_role = UserRole.member
         else:
             user_role = UserRole.admin if is_first_user else UserRole.member
 
-        user = User(
+        # Validate the optional browser-supplied IANA timezone via the
+        # same helper used by self-update / admin-update. Returns
+        # ``None`` when the field is omitted or blank, in which case
+        # we simply don't pass ``timezone`` to the model and the
+        # column default ``"UTC"`` applies.
+        normalized_timezone = normalize_timezone(user_in.timezone)
+
+        user_kwargs: dict[str, Any] = dict(
             email_hash=hash_email(normalized_email),
             email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
             full_name=user_in.full_name,
@@ -100,6 +126,9 @@ async def register_user(
             status=UserStatus.active,
             email_verified=is_first_user or not smtp_configured,
         )
+        if normalized_timezone is not None:
+            user_kwargs["timezone"] = normalized_timezone
+        user = User(**user_kwargs)
         session.add(user)
         await session.flush()
 

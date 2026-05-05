@@ -14,6 +14,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   checkLeaveEligibilityApiV1GuildsGuildIdLeaveEligibilityGet,
   leaveGuildApiV1GuildsGuildIdLeaveDelete,
@@ -36,12 +45,23 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
   const [leaving, setLeaving] = useState(false);
   const [eligibility, setEligibility] = useState<LeaveGuildEligibilityResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Per-project disposition: "transfer" or "delete". Default
+  // "transfer" because handing the project to a successor preserves
+  // history; "delete" sends it to the guild's trash retention bucket.
+  const [projectDispositions, setProjectDispositions] = useState<
+    Record<number, "transfer" | "delete">
+  >({});
+  // Per-project: id of the user the leaver is handing the project to.
+  // Only meaningful for projects whose disposition is "transfer".
+  const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
 
   useEffect(() => {
     if (!open) {
       setEligibility(null);
       setError(null);
       setLoading(true);
+      setProjectDispositions({});
+      setProjectTransfers({});
       return;
     }
 
@@ -53,6 +73,18 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
           guild.id
         )) as unknown as LeaveGuildEligibilityResponse;
         setEligibility(data);
+        // Default each owned project to "transfer" when there's a PM
+        // candidate available, otherwise "delete" (since transfer with
+        // no candidate would just stall the dialog). The user can
+        // still flip the radio either way.
+        setProjectDispositions(
+          Object.fromEntries(
+            data.owned_projects.map((p) => [
+              p.id,
+              (p.candidates?.length ?? 0) > 0 ? ("transfer" as const) : ("delete" as const),
+            ])
+          )
+        );
       } catch (err) {
         console.error("Failed to check leave eligibility", err);
         setError(t("leave.failedToCheckEligibility"));
@@ -64,10 +96,41 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
     void checkEligibility();
   }, [open, guild.id, t]);
 
+  const ownedProjects = eligibility?.owned_projects ?? [];
+  const hasOwnedProjects = ownedProjects.length > 0;
+  // A project's disposition is "ready" when the user has either
+  // chosen "delete" OR chosen "transfer" and picked a recipient.
+  const allDispositionsReady =
+    !hasOwnedProjects ||
+    ownedProjects.every((project) => {
+      const disposition = projectDispositions[project.id];
+      if (disposition === "delete") return true;
+      if (disposition === "transfer") return !!projectTransfers[project.id];
+      return false;
+    });
+  const hasHardBlocker =
+    !!eligibility && (eligibility.is_last_admin || eligibility.sole_pm_initiatives.length > 0);
+
   const handleLeave = async () => {
     setLeaving(true);
     try {
-      await leaveGuildApiV1GuildsGuildIdLeaveDelete(guild.id);
+      // Split the dispositions into the two arrays the backend
+      // expects. ``transfers`` only includes projects the user actually
+      // routed to a successor (the disposition gate above won't let an
+      // unfilled "transfer" through anyway, but be defensive).
+      const transfers: Record<number, number> = {};
+      const deletions: number[] = [];
+      for (const project of ownedProjects) {
+        if (projectDispositions[project.id] === "delete") {
+          deletions.push(project.id);
+        } else if (projectTransfers[project.id]) {
+          transfers[project.id] = projectTransfers[project.id];
+        }
+      }
+      await leaveGuildApiV1GuildsGuildIdLeaveDelete(guild.id, {
+        project_transfers: transfers,
+        project_deletions: deletions,
+      });
 
       // Switch to another guild if leaving the active one
       if (activeGuildId === guild.id) {
@@ -111,7 +174,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       return null;
     }
 
-    if (!eligibility.can_leave) {
+    if (hasHardBlocker) {
       return (
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
@@ -135,6 +198,101 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
       );
     }
 
+    if (hasOwnedProjects) {
+      return (
+        <div className="space-y-4">
+          <AlertDialogDescription>
+            <Trans
+              i18nKey="leave.transferDescription"
+              ns="guilds"
+              values={{ name: guild.name }}
+              components={{ bold: <strong /> }}
+            />
+          </AlertDialogDescription>
+          {ownedProjects.map((project) => {
+            const candidates = project.candidates ?? [];
+            const disposition = projectDispositions[project.id] ?? "transfer";
+            const transferValue = projectTransfers[project.id]?.toString() ?? "";
+            const noCandidates = candidates.length === 0;
+            return (
+              <div key={project.id} className="space-y-3 rounded-md border p-3">
+                <p className="font-medium">{project.name}</p>
+                <RadioGroup
+                  value={disposition}
+                  onValueChange={(next) =>
+                    setProjectDispositions((prev) => ({
+                      ...prev,
+                      [project.id]: next as "transfer" | "delete",
+                    }))
+                  }
+                  className="space-y-2"
+                >
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem
+                      value="transfer"
+                      id={`disposition-${project.id}-transfer`}
+                      disabled={noCandidates}
+                      className="mt-1"
+                    />
+                    <div className="flex-1 space-y-2">
+                      <Label
+                        htmlFor={`disposition-${project.id}-transfer`}
+                        className="cursor-pointer font-normal"
+                      >
+                        {t("leave.dispositionTransferLabel")}
+                      </Label>
+                      {noCandidates ? (
+                        <p className="text-muted-foreground text-sm">
+                          {t("leave.noTransferCandidates")}
+                        </p>
+                      ) : disposition === "transfer" ? (
+                        <Select
+                          value={transferValue}
+                          onValueChange={(next) =>
+                            setProjectTransfers((prev) => ({
+                              ...prev,
+                              [project.id]: Number(next),
+                            }))
+                          }
+                        >
+                          <SelectTrigger id={`transfer-${project.id}`}>
+                            <SelectValue placeholder={t("leave.selectNewOwnerPlaceholder")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {candidates.map((member) => (
+                              <SelectItem key={member.id} value={member.id.toString()}>
+                                {member.full_name || member.email}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem
+                      value="delete"
+                      id={`disposition-${project.id}-delete`}
+                      className="mt-1"
+                    />
+                    <Label
+                      htmlFor={`disposition-${project.id}-delete`}
+                      className="flex-1 cursor-pointer font-normal"
+                    >
+                      {t("leave.dispositionDeleteLabel")}
+                      <span className="text-muted-foreground mt-1 block text-xs font-normal">
+                        {t("leave.dispositionDeleteHelper")}
+                      </span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
     return (
       <AlertDialogDescription>
         <Trans
@@ -147,7 +305,14 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
     );
   };
 
-  const canLeave = eligibility?.can_leave && !loading && !error;
+  // The button is shown for every non-blocked, non-error state. The
+  // disabled state additionally requires every owned-project to have a
+  // ready disposition (a "delete" or a "transfer" with a recipient) —
+  // clicking with a half-filled map would just bounce off the backend's
+  // CANNOT_LEAVE_OWNS_PROJECTS guard, so we gate it here for a faster
+  // signal.
+  const canShowLeaveButton = !loading && !error && eligibility && !hasHardBlocker;
+  const leaveDisabled = leaving || !allDispositionsReady;
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -158,10 +323,10 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
         {renderContent()}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={leaving}>{t("common:cancel")}</AlertDialogCancel>
-          {canLeave && (
+          {canShowLeaveButton && (
             <AlertDialogAction
               onClick={handleLeave}
-              disabled={leaving}
+              disabled={leaveDisabled}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {leaving ? (

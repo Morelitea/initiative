@@ -6,6 +6,7 @@ import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { ChevronDown, Filter, Loader2 } from "lucide-react";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { useTasks, usePrefetchTasks, useUpdateTask } from "@/hooks/useTasks";
 import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -255,8 +256,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
         });
       } catch (error) {
         console.error(error);
-        const message = error instanceof Error ? error.message : t("errors.statusUpdate");
-        toast.error(message);
+        toast.error(getErrorMessage(error, "tasks:errors.statusUpdate"));
       }
     },
     [activeGuildId, updateTaskStatusMutate, t]

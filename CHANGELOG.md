@@ -7,7 +7,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stored XSS in legacy document embed nodes.** The Lexical `EmbedNode` (kept around for backwards compatibility with documents that used the old generic embed type before `YouTubeNode` / `TweetNode` existed) rendered its stored `html` field via `dangerouslySetInnerHTML` without sanitization. A user able to write a document — i.e. any guild member with edit access — could craft a serialized JSON payload containing `{ "type": "embed", "html": "<script>…</script>" }`, save the document, and have the script run in every other viewer's session. The constructor now passes the html through DOMPurify before storing it on `__html`, so all entry paths (importJSON of legacy data, paste-conversion via `convertEmbedElement`, programmatic creation) are sanitized at the same boundary. Default DOMPurify config strips `<script>`, event handler attributes, `javascript:` URLs, and `<iframe>`; legacy YouTube embeds may render empty after the fix and should be re-added with the dedicated `YouTubeNode` insert tool.
+
+### Changed
+
+- Bump vite from v7 to v8. Decreases bundler step from 25s to 2s.
+- Migrate to typescript 7 beta. Decreases compile step from 25s to 5s.
+- Bump Dockerfile Node.js from v20 to v24.
+- Pin pnpm to 10.33.3 via the `packageManager` field in `frontend/package.json`. CI and the Dockerfile auto-detect it through corepack, so contributors no longer need to match versions manually — fresh clones with corepack enabled get the right pnpm on first invocation.
+
+## [0.43.2] - 2026-05-03
+
 ### Added
+
+- **Optional captcha gate on registration.** Set `CAPTCHA_PROVIDER` (one of `hcaptcha`, `turnstile`, or `recaptcha` — v2 only for reCAPTCHA, since the gate uses the rendered checkbox widget rather than v3's score flow), `CAPTCHA_SITE_KEY`, and `CAPTCHA_SECRET_KEY` and the public registration endpoint will require a solved widget before creating an account. The SPA picks the right widget at runtime based on `GET /api/v1/config`. Bootstrap-first-user registrations (no users yet) and the OSS default (no env vars set) are silently skipped — registrations work exactly as before. The verifier fails closed on provider network errors, so a transient outage rejects registrations rather than letting them through unchecked.
+
+### Changed
+
+- **Auto-detect timezone on registration.** The register form now forwards the browser's resolved IANA timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) so a new account's wall clock matches where the user actually is, instead of starting at the model default of `"UTC"`. Time-of-day features (rolling recurrence, due-date display, daily digests) read the stored zone, so the new default removes a step from the "why is my task scheduled at 5 AM?" loop. Non-SPA callers (curl, integration scripts) that omit the field still get the `"UTC"` default — no breaking change. OIDC sign-in still picks `"UTC"` until the user updates it in settings; that flow has no SPA form to attach the value to.
+
+- **Timezone editor on the Profile tab.** Settings → Profile now exposes the same timezone picker that's been on Settings → Notifications, so a wrong default surfaces and is fixable on the first profile pass instead of requiring users to find the notifications tab. The picker, fallback list, and `Intl.supportedValuesOf("timeZone")` resolution moved to a shared `lib/timezones.ts` so both pages stay in sync.
+
+### Fixed
+
+- **Rolling recurrence off-by-one across the UTC date boundary.** A task set to repeat "every N days after completion" anchored its next due date on the UTC calendar day, not the user's local one. For tasks whose local time crossed midnight UTC (e.g. 5pm Los Angeles is 00:00 UTC the next day), completing the task one local day earlier than the UTC day produced a next occurrence one day too soon — `every 3 days` ended up scheduling 2 days out. The advance step now converts both `now` and the original due time into the user's stored timezone before doing the date math, so the new occurrence lands on the user-intuitive calendar day.
+
+- **Settings unreachable when you have no guild memberships.** A user with zero memberships used to see only the "no guild" screen with create/join/logout — no path to user settings (so no way to delete their own account) and no path to platform-admin settings either. The empty-state screen now exposes **Account settings** (always) and **Platform settings** (when `user.role === "admin"`) buttons, and the `/profile/*` and `/settings/admin/*` routes render in a minimal Back-to-start shell instead of bouncing back to the empty state.
+
+## [0.43.1] - 2026-05-02
+
+### Changed
+
+- **Self-deactivation / deletion UX.** Settings → Danger Zone now exposes **Deactivate Account** and **Delete Account** as two separate buttons next to their descriptions, instead of a single ambiguous opener that landed on a radio chooser. Each button takes you straight to the eligibility check for that action, the dialog title and step descriptions match the action you picked, and the deactivate copy now spells out that you'll be removed from every guild you're in (rejoining requires a fresh invite).
+
+### Fixed
+
+- **Orphaned projects when leaving a guild.** Leaving a guild while owning projects in it would silently strand the rows: the user's initiative membership got dropped, no DAC permission survived, and guild admins (who have no implicit project bypass) couldn't reach them. Leaving now forces a per-project decision — for each project you own in the guild, the dialog asks whether to transfer ownership to a project manager or delete the project (which sends it to the guild's trash retention bucket). The transfer-recipient picker is filtered to initiative managers since they're the role that actually administers projects. The eligibility endpoint surfaces the project list so the SPA can pre-flight the prompt, and the backend rejects a leave whose disposition map doesn't cover every owned project exactly once. The OIDC group-sync removal path, which has no UI to ask, auto-transfers ownership to an active initiative manager (falling back to a guild admin) before dropping the user, and logs a warning when neither exists.
+
+- **Orphaned projects when a guild admin removes a member.** The user-management table's "Remove from guild" button shared the same orphan hazard as self-leave: the backend just dropped initiative memberships and walked away. The remove dialog now pre-flights `GET /users/{user_id}/guild-removal-eligibility` and renders a per-project radio (transfer to a project manager, or delete) so the admin always has an escape hatch — including for projects in initiatives where no other PM is available. The eligibility response bundles candidate transfer recipients per-project, so the picker works even for initiatives the admin doesn't belong to.
+
+- **Project access dropdown blank for a reactivated former owner.** If a project owner self-deactivated (which forced an ownership transfer to another member) and was later reactivated and re-added to the initiative, the project's individual-access list showed them at the old `level=owner` but the access dropdown was blank because two users now had owner-level rows pointing at the same project. `transfer_project_ownership` now drops the departing owner's `ProjectPermission` row as part of the transfer — every call site is a "user is leaving" path so the row was already stale.
+
+- **Wrong password on the deactivate / delete form signed you out.** The self-deletion endpoint returned `401 UNAUTHORIZED` for a password mismatch, which the SPA's global axios interceptor treats as a session-expiry signal and force-logs-out from. The user was kicked back to the login screen instead of seeing "wrong password" inline. The endpoint now returns `400` for that specific case (the user *is* authenticated — they just typed the wrong confirmation password), so the error stays scoped to the form.
+
+- **Error toasts no longer leak raw backend codes.** A class of `toast.error(...)` call sites was passing through the raw `error.message` or `response.data.detail` string as a fallback, which surfaced backend constants like `USER_INVALID_PASSWORD` to users when there was no client-side mapping. All of those now route through the existing `getErrorMessage(error, "namespace:fallbackKey")` helper, which looks up the code in the `errors` translation namespace before falling through to a localized fallback. The `errors` namespace is also now preloaded with `common` so the lookup works on any page (previously, only pages whose `useTranslation` happened to include `errors` resolved codes correctly).
+
+## [0.43.0] - 2026-05-01
+
+### Added
+
+- **Spreadsheet documents.** Pick **Spreadsheet** from the document-type dropdown when creating a new document to get a virtualized cell grid that scrolls horizontally and vertically without bound. Edit cells with click + type / Enter / Tab / arrow keys; copy and paste between cells (and from Numbers / Excel / Sheets — multi-row / multi-column blocks expand into the grid). Toolbar buttons export the sheet as CSV or import a CSV file. Cells store strings, numbers, booleans, or blanks; numeric- and boolean-looking inputs get auto-coerced to the right type, and booleans render as interactive checkboxes. Edits sync in real time between users on the same document over the existing yjs collaboration infrastructure, and each user's currently-selected cell shows up to peers as a colored ring with their name.
+
+- **Webhook subscriptions for the advanced-tool service.** Outbound HMAC-signed event delivery (sha256 over `timestamp + "." + body`) so the embed can react to writes (e.g. `task.created`) without polling. Subscriptions are guild-scoped, RLS-protected, and the HMAC secret is returned only at create time. _Note: likely temporary scaffolding for testing the embed integration; expect the contract to shift as it shakes out._
+
+- **Delegation auth for the advanced-tool service.** Accept short-lived RS256-signed JWTs from the embed's backend so it can call Initiative on a user's behalf. Existing RLS + role-permission checks still gate every action — delegation answers only "who is acting." Deactivated users can't be impersonated. Disabled by default; opt in with `AUTO_DELEGATION_PUBLIC_KEY_PEM`.
+
+- **Embedded advanced tool integration.** Initiative now supports plugging in an externally-deployed companion app as an iframe panel under specific initiatives or as a dedicated guild settings tab. Operators set `ADVANCED_TOOL_NAME` and `ADVANCED_TOOL_URL` on the backend; without those, the entire feature stays fully hidden — no UI surface, no per-initiative toggle, and the API endpoints return 404.
+  - **Per-initiative panel** — initiative managers turn it on under Initiative settings → Details → Advanced Tools. Once enabled, the panel becomes the first item in the initiative's sidebar group for any user whose role grants the new `advanced_tool_enabled` permission.
+  - **Per-guild panel** — guild admins get a dedicated tab in guild settings for cross-initiative or admin-only views. The tab only appears when the deployment has an advanced tool URL configured AND the user is a guild admin.
+  - **Role-based access control** — two new initiative-level permission keys (`advanced_tool_enabled`, `create_advanced_tool`) gate visibility and creation rights at the role level. Built-in managers get both by default; members get neither.
+  - **Security model** — embedding uses a 60-second audience-scoped JWT delivered to the iframe via postMessage (never the URL). Strict origin checks on every postMessage; iframe is sandboxed (`allow-scripts allow-same-origin allow-forms allow-downloads`); locale forwarded so the embed picks up the user's language without re-prompting. JWT can be signed with RS256 via `HANDOFF_SIGNING_PRIVATE_KEY_PEM` so the embed verifies with a public key only — no shared secret. Falls back to HS256 with `SECRET_KEY` for OSS deployments. Tokens carry a `jti` so the embed can refuse repeat redemption within the validity window. The handoff endpoint authorizes membership + role + master-switch + URL-configured before issuing a token, so the embed never has to make access decisions on its own.
+  - **Runtime config endpoint** — `GET /api/v1/config` exposes the deployment's advanced-tool config (URL + name) so the SPA discovers it at boot without rebuilding the bundle.
+
+- **Project export & import.** Settings → Advanced now offers an **Export as JSON** button that downloads a self-contained JSON file with the project's metadata, task statuses, project tags, tasks (with subtasks, recurrence, priorities, dates, and custom property values), and the property *definitions* those tasks reference. From the projects page, an **Import** button next to **New project** accepts a JSON export and recreates the project under any initiative you can create projects in — including across separate Initiative installations. References are name- and email-based so IDs from one database don't leak into another:
+  - **Tags** are matched against the target guild by name; new tags are created if they don't exist.
+  - **Task statuses** are recreated per-project from the export.
+  - **Custom properties** are matched by name in the target initiative. If the target already has a property with the same name but a different type, the imported one is renamed `<name>_<type>` (e.g. `Severity_select`) so the existing property is never mutated.
+  - **Assignees** are matched by email against the target initiative's members. Unmatched emails are reported in a toast warning and silently dropped — the importer becomes the project owner and `created_by` for every task.
+  - The format is **versioned** (`schema_version`) so future format changes can refuse stale exports cleanly.
 
 - **Trash and Restore.** Deleting a project, task, document, comment, initiative, tag, queue, queue item, or calendar event now sends it to a trash can instead of permanently destroying it. Items stay there for the guild's retention period (default 90 days; admins can change it under **Settings → Guild → Trash retention** or set "Never" to keep things forever).
   - **Personal view** — every member sees a **Trash** tab under their profile listing the things they deleted, with a **Restore** button next to each.
@@ -20,6 +89,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export users as CSV from **Settings → Users** (guild admins) and **Settings → Admin → Users** (platform admins). Each row gets an **Export** button, and the card header has **Export all as CSV**. Exports include ID, email, full name, role, status, and initiative roles — enough for HR or compliance teams to keep an offline record before an account is removed.
 
 - **Chester the Mimic** — a pixel-art treasure chest mascot now greets you in toast notifications. Each toast type pairs with a Chester mood (success → proud sparkles, error → chomping, warning → thinking, info → talking, default → idle), and the seven mood SVGs ship as standalone animated assets. Platform admins can preview them all from the new "Chester toast playground" card in **Settings → Admin → Branding**.
+
+- **Keep screen awake.** A new toggle under **Settings → Interface** prevents this device's screen from dimming or locking while the app is open. Useful for long planning or reading sessions on a tablet at the table. The setting is per-device — it's saved locally (localStorage on web, Capacitor Preferences on native) and never synced to the backend, so each device can opt in independently. Uses the Screen Wake Lock API on web and the native idle-timer/`FLAG_KEEP_SCREEN_ON` flag on Capacitor builds.
 
 ### Changed
 
@@ -36,11 +107,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Anonymized users are filtered out of "add member" and @-mention pickers, so you can't accidentally assign or mention someone whose account no longer exists.
 
-- **Infra image build now uses a separate `requirements-infra.txt`** so the OSS image stays slimmer (no `aioboto3`). The infra build arg is `INSTALL_INFRA_EXTRAS=true`; the existing `VITE_ENABLE_AUTOMATIONS=true` arg is still accepted as a backward-compat alias and will be removed once the workflow is updated.
+- **Single Docker image for OSS and hosted deployments.** The dual-build setup (separate `*-infra` image with `INSTALL_INFRA_EXTRAS=true`) is gone — one image now serves every deployment, with the advanced tool integration enabled at runtime via env vars instead of at build time. The `INSTALL_INFRA_EXTRAS` build arg, the `requirements-infra.txt` extras file, and the `build-docker-infra` GitHub Actions job have been removed. Self-hosters get the same image we run; auditors can verify by inspection that the public image has no automation/event-publishing code paths.
 
 - Bump lexical dependencies for a more stable document editor.
 
+- Migrated the document editor to Lexical 0.44's Extension API. No user-visible behavior change, but the editor now uses `LexicalExtensionComposer` with `defineExtension` instead of the legacy `LexicalComposer` + plugin-list pattern, which clears the deprecation warning around `CodeNode` and aligns the editor with the upstream shadcn-editor architecture so future Lexical updates are easier to absorb.
+
 ### Fixed
+
+- Read-only members can now create new documents from a template they have access to. Previously the copy required write access to the template, which defeated the point of templates being shared starters. Copying a non-template document still requires write access on the source.
+
+- Deleting a document from the document settings page no longer fires two success toasts.
 
 - Drag-scrolling a kanban board no longer smears a text selection across every card the pointer passes over.
 
@@ -48,16 +125,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The guild filter on **My Tasks** and **Created Tasks** silently ignored your selection — picking one or more guilds still showed tasks from every guild you belong to. The pages now narrow correctly.
 
-- The task edit page sometimes opened with a blank status badge until you nudged the page (added a tag, changed a property, etc.), then it would suddenly show the right value. The page now uses the status that ships with the task itself instead of waiting for a second lookup, so the badge and status picker show the correct value the moment the task loads.
-
 - Documents owned by a departing user no longer become orphaned when the user leaves the initiative — whether they leave the guild, deactivate or delete their own account, get removed by an admin, or get unassigned via OIDC sync. The initiative's project managers automatically inherit ownership of those documents, so anyone who needs to find or clean up old work after a team move still can.
 
 - Custom properties UI is now translated to Spanish and French. Previously, users on those locales saw English labels throughout the properties picker, manager, and filters.
 
 ### Removed
 
-- **Automation engine.** Flow definitions, run history, and the in-app workflow editor have all been removed from this repo. The capability moves to a sibling `inititative_infra` service that consumes domain events from a Kinesis stream. Self-hosted users on the OSS image lose the in-app automation builder, which only ever shipped as a paid/infra preview. Anyone running the `-infra` variant will continue to see automation UI once their `inititative_infra` service is wired up; until then, the automation menu is hidden.
-- **Redis dependency.** Removed entirely. Initiative now has Postgres as its only runtime dependency. The Redis Streams event bus that previously fed the in-process automation engine is gone; events go to Kinesis instead (when `ENABLE_EVENT_PUBLISHING=true`).
+- **Automation engine, event publisher, and `aioboto3` dependency.** Domain-event fan-out for automation now lives entirely in the separately-deployed advanced tool service rather than in the FOSS backend. The bundled Kinesis publisher, the in-process automation engine, the Redis dependency, and the `automations_enabled` initiative flag (replaced by the generic `advanced_tool_enabled` slot) are all gone from the FOSS image. Fresh installs are unaffected; existing databases get a clean migration path.
+
+## [0.42.1] - 2026-04-28
+
+### Fixed
+
+- The task edit page sometimes opened with the wrong status, priority, and recurrence shown until you nudged the page (added a tag, changed a property, etc.), then it would suddenly snap to the right values. All three fields now read from the task's own data on the first render instead of waiting for a delayed copy into local form state, so the form is correct the moment the task loads.
 
 ## [0.42.0] - 2026-04-23
 

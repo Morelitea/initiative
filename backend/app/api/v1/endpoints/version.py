@@ -74,7 +74,6 @@ def get_changelog(version: Optional[str] = None, limit: int = 1) -> dict[str, li
 
     If version is provided, returns changes for that specific version.
     If not provided, returns the most recent N versions (default 1).
-    Limit parameter controls how many recent versions to return (max 10).
     """
     try:
         # Try Docker path first: /app/app/api/v1/endpoints/version.py -> /app/CHANGELOG.md
@@ -96,8 +95,7 @@ def get_changelog(version: Optional[str] = None, limit: int = 1) -> dict[str, li
         matches = re.findall(pattern, content, re.DOTALL)
 
         entries = []
-        # Clamp limit to max 10
-        max_entries = min(limit, 10) if not version else len(matches)
+        max_entries = limit if not version else len(matches)
 
         for version_num, date, changes in matches:
             # Skip if user requested a specific version and this isn't it

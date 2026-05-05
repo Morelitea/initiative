@@ -9,7 +9,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Loader2, LogOut, Menu, Plus, Search, Ticket } from "lucide-react";
+import { Loader2, LogOut, Menu, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,7 @@ import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySid
 import { VersionDialog } from "@/components/VersionDialog";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
 import { useGuilds } from "@/hooks/useGuilds";
+import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
@@ -112,11 +113,35 @@ function AppLayout() {
     return <Navigate to={redirectTo} replace />;
   }
 
-  // Show no-guild empty state if user has no guild memberships
-  if (guilds.length === 0 && user) {
-    return (
-      <NoGuildState canCreateGuilds={canCreateGuilds} createGuild={createGuild} logout={logout} />
-    );
+  // No-guild empty-state branch. The user-scoped settings routes
+  // (``/profile/*``) and platform-admin settings (``/settings/admin/*``
+  // for an admin) don't need guild context — the APIs they call don't
+  // require an ``X-Guild-ID`` header — and a user with zero
+  // memberships would otherwise have no path to delete their account
+  // or, for platform admins, configure system-wide settings. The
+  // path-based decision lives in ``chooseNoGuildLayout`` so it can be
+  // unit-tested without a router; see ``noGuildLayout.test.ts``.
+  if (user) {
+    const isPlatformAdmin = user.role === "admin";
+    const layout = chooseNoGuildLayout({
+      hasGuilds: guilds.length > 0,
+      pathname: location.pathname,
+      isPlatformAdmin,
+    });
+    if (layout === "shell") {
+      return <NoGuildSettingsShell logout={logout} />;
+    }
+    if (layout === "empty") {
+      return (
+        <NoGuildState
+          canCreateGuilds={canCreateGuilds}
+          createGuild={createGuild}
+          logout={logout}
+          isPlatformAdmin={isPlatformAdmin}
+        />
+      );
+    }
+    // layout === "main" → fall through to the standard sidebar layout.
   }
 
   const handleClearRecent = (projectId: number) => {
@@ -202,10 +227,12 @@ function NoGuildState({
   canCreateGuilds,
   createGuild,
   logout,
+  isPlatformAdmin,
 }: {
   canCreateGuilds: boolean;
   createGuild: (input: { name: string; description?: string }) => Promise<unknown>;
   logout: () => void;
+  isPlatformAdmin: boolean;
 }) {
   const { t } = useTranslation("guilds");
   const [guildName, setGuildName] = useState("");
@@ -264,11 +291,62 @@ function NoGuildState({
           </Button>
         </div>
 
+        {/* Direct entry points to the user/platform settings pages so a
+            user with no memberships can still manage their account
+            (e.g. delete it) or, for platform admins, system-wide
+            configuration. Without these the only paths off this screen
+            are create/join/logout. */}
+        <div className="flex flex-col gap-2">
+          <Button variant="outline" asChild>
+            <Link to="/profile">
+              <UserCog className="h-4 w-4" />
+              {t("noGuild.accountSettings")}
+            </Link>
+          </Button>
+          {isPlatformAdmin && (
+            <Button variant="outline" asChild>
+              <Link to="/settings/admin">
+                <Settings className="h-4 w-4" />
+                {t("noGuild.platformSettings")}
+              </Link>
+            </Button>
+          )}
+        </div>
+
         <Button variant="ghost" onClick={logout}>
           <LogOut className="h-4 w-4" />
           {t("noGuild.logOut")}
         </Button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Minimal layout shown when the user has zero guild memberships but
+ * is on a route that doesn't need guild context (``/profile/*``,
+ * ``/settings/admin/*``). Renders the matched outlet inside a
+ * narrow container with just enough chrome (Back-to-start + logout)
+ * to navigate away.
+ */
+function NoGuildSettingsShell({ logout }: { logout: () => void }) {
+  const { t } = useTranslation("guilds");
+  return (
+    <div className="bg-background flex min-h-screen flex-col">
+      <div className="bg-card/70 supports-backdrop-filter:bg-card/60 sticky top-0 z-50 flex h-12 items-center justify-between border-b px-4 backdrop-blur">
+        <Button variant="ghost" size="sm" asChild>
+          <Link to="/">{t("noGuild.shellBackToStart")}</Link>
+        </Button>
+        <Button variant="ghost" size="sm" onClick={logout}>
+          <LogOut className="h-4 w-4" />
+          {t("noGuild.logOut")}
+        </Button>
+      </div>
+      <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
+      </main>
     </div>
   );
 }

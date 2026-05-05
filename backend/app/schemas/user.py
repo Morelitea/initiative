@@ -16,6 +16,16 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    # Optional IANA timezone forwarded by the SPA on registration so a
+    # new account starts at the user's wall clock instead of the model
+    # default ``"UTC"``. Validated server-side by ``_normalize_timezone``;
+    # omitted by non-SPA callers, in which case the model default applies.
+    timezone: Optional[str] = None
+    # Optional captcha token supplied by the SPA's widget when the
+    # deployment has ``CAPTCHA_PROVIDER`` configured. Verified
+    # server-side via ``app.services.captcha`` before the row is
+    # written. Ignored when captcha isn't configured.
+    captcha_token: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -184,6 +194,59 @@ class DeletionEligibilityResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     owned_projects: List[ProjectBasic] = Field(default_factory=list)
     last_admin_guilds: List[str] = Field(default_factory=list)
+
+
+class GuildRemovalProjectInfo(BaseModel):
+    """Per-project payload on ``GuildRemovalEligibilityResponse``.
+
+    Bundles the candidate transfer recipients next to the project so
+    the SPA can render the picker without a second round-trip. The
+    leave-guild path uses ``GET /users/me/initiative-members/...``
+    instead — but a guild admin removing someone may not themselves
+    be a member of every initiative the target user belongs to, so
+    that endpoint isn't always callable from this flow.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    initiative_id: int
+    candidates: List[UserPublic] = Field(default_factory=list)
+
+
+class GuildRemovalEligibilityResponse(BaseModel):
+    """Pre-flight info for ``DELETE /users/{user_id}`` (guild admin
+    removes a member from their guild).
+
+    Mirrors the leave-guild eligibility shape for the same reason: the
+    SPA needs to know up-front whether the admin will be prompted to
+    pick replacement owners for projects the target user owns. Without
+    this, the existing one-click "remove member" path silently
+    orphaned every project where the leaving user was sole owner.
+    """
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    can_remove: bool
+    sole_pm_initiatives: List[str] = Field(default_factory=list)
+    owned_projects: List[GuildRemovalProjectInfo] = Field(default_factory=list)
+
+
+class GuildRemovalRequest(BaseModel):
+    """Body for ``DELETE /users/{user_id}``.
+
+    Every project the target user owns in the active guild must
+    appear in exactly one of ``project_transfers`` (hand it to
+    another active project manager) or ``project_deletions`` (send
+    it to trash so the guild's retention window can purge it). The
+    delete branch exists so an admin can still remove a user from a
+    guild where no other project manager is available — without it,
+    a sole-PM situation would leave the admin with a forever-disabled
+    Remove button.
+    """
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    project_transfers: Dict[int, int] = Field(default_factory=dict)
+    project_deletions: List[int] = Field(default_factory=list)
 
 
 class AccountDeletionResponse(BaseModel):

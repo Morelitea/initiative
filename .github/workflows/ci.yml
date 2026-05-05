@@ -135,9 +135,9 @@ jobs:
 
       - name: Install pnpm
         if: steps.filter.outputs.skip != 'true'
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
-          version: 9
+          package_json_file: frontend/package.json
 
       - name: Install dependencies
         if: steps.filter.outputs.skip != 'true'
@@ -155,13 +155,13 @@ jobs:
         if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
-          pnpm tsc --noEmit
+          pnpm check
 
       - name: Run tests
         if: steps.filter.outputs.skip != 'true'
         run: |
           cd frontend
-          pnpm vitest run --passWithNoTests
+          pnpm test:run
 
   check-generated-types:
     name: Check Generated Types
@@ -171,13 +171,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for backend changes
+      - name: Check for backend or orval changes
         id: filter
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts || true)
+            CHANGED=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts frontend/package.json || true)
           else
-            CHANGED=$(git diff --name-only HEAD~1...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts || true)
+            CHANGED=$(git diff --name-only HEAD~1...HEAD -- backend/ frontend/orval.config.ts frontend/src/api/mutator.ts frontend/package.json || true)
           fi
           if [[ -z "$CHANGED" ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
@@ -215,9 +215,9 @@ jobs:
 
       - name: Install pnpm
         if: steps.filter.outputs.skip != 'true'
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@v6
         with:
-          version: 9
+          package_json_file: frontend/package.json
 
       - name: Install frontend dependencies
         if: steps.filter.outputs.skip != 'true'
@@ -230,7 +230,7 @@ jobs:
         run: |
           cd frontend
           pnpm orval
-          pnpm prettier --write src/api/generated/
+          pnpm format:api
 
       - name: Check for drift
         if: steps.filter.outputs.skip != 'true'

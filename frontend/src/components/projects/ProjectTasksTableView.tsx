@@ -619,7 +619,7 @@ type TaskCellProps = {
 };
 
 const TaskCell = ({ task, canOpenTask, onTaskClick }: TaskCellProps) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "dates"]);
   // Memoize expensive recurrence computation
   const recurrenceText = useMemo(() => {
     if (!task.recurrence) return null;

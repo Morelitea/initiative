@@ -1,6 +1,8 @@
 {
   "EMAIL_ALREADY_REGISTERED": "Email ya registrado",
   "REGISTRATION_REQUIRES_INVITE": "El registro requiere un código de invitación",
+  "CAPTCHA_REQUIRED": "Por favor completa el captcha e inténtalo de nuevo.",
+  "CAPTCHA_INVALID": "La verificación del captcha falló. Inténtalo de nuevo.",
   "UNABLE_TO_CREATE_USER": "No se pudo crear el usuario",
   "INCORRECT_CREDENTIALS": "Email o contraseña incorrectos",
   "INACTIVE_USER": "Usuario inactivo",
@@ -27,6 +29,9 @@
   "NOT_GUILD_MEMBER": "No eres miembro de este gremio",
   "CANNOT_LEAVE_LAST_ADMIN": "No puedes salir del gremio: eres el último administrador. Promueve a otro usuario como administrador primero.",
   "CANNOT_LEAVE_SOLE_PM": "No puedes salir del gremio: eres el único gerente de proyecto. Promueve a otro miembro primero.",
+  "CANNOT_LEAVE_OWNS_PROJECTS": "No puedes salir del gremio: aún posees proyectos en él. Elige un nuevo propietario para cada uno antes de salir.",
+  "CANNOT_REMOVE_OWNS_PROJECTS": "No se puede eliminar al miembro: aún posee proyectos en este gremio. Elige un nuevo propietario para cada uno antes de eliminarlo.",
+  "PROJECT_TRANSFER_RECIPIENT_INVALID": "El destinatario de la transferencia del proyecto no es un miembro activo válido.",
   "INVITE_NOT_FOUND": "Código de invitación no encontrado",
   "INVITE_EXPIRED_OR_USED": "La invitación ha expirado o ya fue utilizada",
   "INVITE_INVALID": "La invitación ya no es válida",
@@ -128,6 +133,7 @@
   "DOCUMENT_AI_NATIVE_ONLY": "La generación de resúmenes con IA solo está disponible para documentos nativos",
   "DOCUMENT_SMART_LINK_URL_REQUIRED": "Se requiere una URL para los documentos de enlace inteligente",
   "DOCUMENT_SMART_LINK_URL_INVALID": "Las URL de enlace inteligente deben comenzar con http:// o https://",
+  "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "El contenido de la hoja de cálculo no es válido o tiene un formato no compatible.",
   "DOCUMENT_INVALID_TAG_IDS": "Uno o más IDs de etiqueta no son válidos",
   "COMMENT_NOT_FOUND": "Comentario no encontrado",
   "COMMENT_PERMISSION_DENIED": "No autorizado para comentar",
@@ -211,5 +217,11 @@
   "TRASH_INVALID_OWNER": "Ese usuario no puede asumir la propiedad.",
   "TRASH_PURGE_REQUIRES_ADMIN": "Solo los administradores del gremio pueden eliminar permanentemente.",
   "TRASH_UNKNOWN_ENTITY_TYPE": "Tipo de elemento de papelera desconocido.",
+  "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED": "Esta exportación de proyecto fue creada por una versión más nueva de Initiative y no se puede importar aquí.",
+  "PROJECT_EXPORT_INVALID_PAYLOAD": "El archivo de exportación del proyecto no es válido o está dañado.",
+  "PROJECT_EXPORT_INITIATIVE_NOT_FOUND": "Iniciativa de destino no encontrada.",
+  "PROJECT_EXPORT_NO_TASK_STATUSES": "La exportación del proyecto no tiene estados de tarea, que son obligatorios para importar.",
+  "ADVANCED_TOOL_NOT_CONFIGURED": "La herramienta avanzada no está configurada en esta instalación.",
+  "ADVANCED_TOOL_NOT_ENABLED": "La herramienta avanzada no está activada para esta iniciativa.",
   "fallback": "Algo salió mal. Por favor intenta de nuevo."
 }

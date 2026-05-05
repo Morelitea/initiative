@@ -90,6 +90,9 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
           {document.document_type === "whiteboard" ? (
             <Badge variant="secondary">{t("card.whiteboardLabel")}</Badge>
           ) : null}
+          {document.document_type === "spreadsheet" ? (
+            <Badge variant="secondary">{t("card.spreadsheetLabel")}</Badge>
+          ) : null}
           {smartLinkMatch ? <Badge variant="secondary">{smartLinkMatch.label}</Badge> : null}
           {document.is_template ? <Badge variant="outline">{t("card.template")}</Badge> : null}
           <Badge variant="secondary">{t("card.projects", { count: projectCount })}</Badge>

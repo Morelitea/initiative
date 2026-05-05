@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -85,9 +86,8 @@ export const SettingsGuildAIPage = () => {
       setFormState((prev) => ({ ...prev, apiKey: "" }));
       setHasExistingKey(data.has_api_key);
     },
-    onError: (error: Error & { response?: { status?: number; data?: { detail?: string } } }) => {
-      const message = error.response?.data?.detail ?? t("ai.saveError");
-      toast.error(message);
+    onError: (error: Error) => {
+      toast.error(getErrorMessage(error, "settings:ai.saveError"));
     },
   });
 

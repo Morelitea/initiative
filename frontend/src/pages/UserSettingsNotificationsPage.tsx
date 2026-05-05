@@ -13,34 +13,7 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Badge } from "@/components/ui/badge";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
-
-const FALLBACK_TIMEZONES = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "Europe/London",
-  "Europe/Berlin",
-  "Europe/Paris",
-  "Asia/Singapore",
-  "Asia/Tokyo",
-  "Australia/Sydney",
-];
-
-const resolveTimezones = () => {
-  const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
-  if (typeof intl.supportedValuesOf === "function") {
-    try {
-      return intl.supportedValuesOf("timeZone");
-    } catch {
-      return FALLBACK_TIMEZONES;
-    }
-  }
-  return FALLBACK_TIMEZONES;
-};
-
-const TIMEZONE_OPTIONS = resolveTimezones();
+import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 
 type NotificationField =
   | "email_initiative_addition"

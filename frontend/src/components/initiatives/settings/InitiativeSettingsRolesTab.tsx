@@ -20,9 +20,11 @@ import {
   useDeleteRole,
   CORE_PERMISSION_GROUPS,
   ADVANCED_PERMISSION_GROUPS,
+  ADVANCED_TOOL_PERMISSION_GROUP,
   PERMISSION_LABEL_KEYS,
   type PermissionGroup,
 } from "@/hooks/useInitiativeRoles";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 interface InitiativeSettingsRolesTabProps {
   initiativeId: number;
@@ -78,6 +80,14 @@ export const InitiativeSettingsRolesTab = ({
   const rolesQuery = useInitiativeRoles(initiativeId || null);
   const updateRoleMutation = useUpdateRole(initiativeId);
   const deleteRoleMutation = useDeleteRole(initiativeId);
+
+  // Only surface the advanced-tool permission group when the deployment has
+  // an advanced tool URL configured. OSS deployments without it never see
+  // these permission rows in role settings.
+  const { advancedTool } = useAppConfig();
+  const advancedGroups = advancedTool
+    ? [...ADVANCED_PERMISSION_GROUPS, ADVANCED_TOOL_PERMISSION_GROUP]
+    : ADVANCED_PERMISSION_GROUPS;
 
   const handleTogglePermission = useCallback(
     (role: InitiativeRoleRead, key: PermissionKey, enabled: boolean) => {
@@ -159,14 +169,14 @@ export const InitiativeSettingsRolesTab = ({
                       />
                     ))}
 
-                    {ADVANCED_PERMISSION_GROUPS.length > 0 && (
+                    {advancedGroups.length > 0 && (
                       <Accordion type="single" collapsible>
                         <AccordionItem value="advanced" className="border-b-0">
                           <AccordionTrigger className="text-muted-foreground py-2 text-sm font-medium">
                             {t("advancedTools")}
                           </AccordionTrigger>
                           <AccordionContent className="space-y-4 pt-2">
-                            {ADVANCED_PERMISSION_GROUPS.map((group) => (
+                            {advancedGroups.map((group) => (
                               <PermissionGroupSection
                                 key={group.labelKey}
                                 group={group}

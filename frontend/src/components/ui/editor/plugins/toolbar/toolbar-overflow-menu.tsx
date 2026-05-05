@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { INSERT_EMBED_COMMAND } from "@lexical/react/LexicalAutoEmbedPlugin";
 import { $isDecoratorBlockNode } from "@lexical/react/LexicalDecoratorBlockNode";
-import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/react/LexicalHorizontalRuleNode";
+import { INSERT_HORIZONTAL_RULE_COMMAND } from "@lexical/extension";
 import { $isHeadingNode, $isQuoteNode } from "@lexical/rich-text";
 import { $isTableSelection } from "@lexical/table";
 import { $getNearestBlockElementAncestorOrThrow } from "@lexical/utils";
