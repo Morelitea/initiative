@@ -30,6 +30,27 @@ class Settings(BaseSettings):
     AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
     APP_URL: str = "http://localhost:5173"
+    # ALLOWED_ORIGINS controls the CORS allowlist. Defaults to APP_URL so a
+    # single-origin deploy works out of the box. Override with a
+    # comma-separated list (e.g. "https://app.example.com,https://www.example.com")
+    # when the frontend is served from a different origin than APP_URL.
+    # Never set this to "*" in production — that combined with
+    # allow_credentials=True allows any site to make authenticated requests.
+    ALLOWED_ORIGINS: list[str] | str | None = None
+
+    @property
+    def cors_origins(self) -> list[str]:
+        """Return the resolved CORS origin allowlist."""
+        if isinstance(self.ALLOWED_ORIGINS, list) and self.ALLOWED_ORIGINS:
+            origins = self.ALLOWED_ORIGINS
+        elif isinstance(self.ALLOWED_ORIGINS, str) and self.ALLOWED_ORIGINS.strip():
+            origins = [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
+        else:
+            origins = []
+        # Always include APP_URL so single-origin deploys need no extra config
+        if self.APP_URL not in origins:
+            origins = [self.APP_URL] + origins
+        return origins
     OIDC_ENABLED: bool = False
     OIDC_ISSUER: str | None = None
     OIDC_CLIENT_ID: str | None = None

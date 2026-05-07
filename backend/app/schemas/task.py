@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from typing import List, Literal, Optional
 
@@ -106,10 +107,66 @@ class TaskRecurrence(BaseModel):
         return self
 
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>", re.DOTALL)
+# Event handler attributes e.g. onerror=, onclick=, onmouseover= …
+_EVENT_HANDLER_RE = re.compile(
+    r'\bon\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]*)', re.IGNORECASE
+)
+# javascript: and data: URI schemes inside attribute values
+_DANGEROUS_URI_RE = re.compile(
+    r'(?:javascript|data|vbscript)\s*:', re.IGNORECASE
+)
+
+
+def _strip_html(value: str) -> str:
+    """Remove all HTML tags from a plain-text field (e.g. task title)."""
+    return _HTML_TAG_RE.sub("", value).strip()
+
+
+def _sanitize_html(value: str) -> str:
+    """Strip dangerous HTML from a rich-text field (e.g. task description).
+
+    Removes:
+    - All inline event handlers (onerror=, onclick=, …)
+    - javascript: / data: / vbscript: URI schemes
+    - <script>, <iframe>, <object>, <embed>, <form>, <input> tags entirely
+    Leaves safe structural/formatting tags intact so markdown-rendered
+    content round-trips correctly.
+    """
+    # Strip outright-dangerous block elements first
+    dangerous_tags = re.compile(
+        r"<\s*/?\s*(?:script|iframe|object|embed|form|input|base|link|meta|style)"
+        r"(?:\s[^>]*)?>",
+        re.IGNORECASE | re.DOTALL,
+    )
+    value = dangerous_tags.sub("", value)
+    # Strip event handler attributes from remaining tags
+    value = _EVENT_HANDLER_RE.sub("", value)
+    # Strip dangerous URI schemes
+    value = _DANGEROUS_URI_RE.sub("blocked:", value)
+    return value.strip()
+
+
 class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
     priority: TaskPriority = TaskPriority.medium
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def sanitize_title(cls, v: object) -> object:
+        """Task titles are plain text — strip all HTML tags."""
+        if isinstance(v, str):
+            return _strip_html(v)
+        return v
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def sanitize_description(cls, v: object) -> object:
+        """Strip dangerous HTML from task descriptions."""
+        if isinstance(v, str):
+            return _sanitize_html(v)
+        return v
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     recurrence: Optional[TaskRecurrence] = None
@@ -126,6 +183,20 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     task_status_id: Optional[int] = None
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def sanitize_title(cls, v: object) -> object:
+        if isinstance(v, str):
+            return _strip_html(v)
+        return v
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def sanitize_description(cls, v: object) -> object:
+        if isinstance(v, str):
+            return _sanitize_html(v)
+        return v
     priority: Optional[TaskPriority] = None
     assignee_ids: Optional[List[int]] = None
     start_date: Optional[datetime] = None
