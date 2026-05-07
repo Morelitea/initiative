@@ -5,9 +5,6 @@ Findings addressed:
   (pentest 2026-05-07, initiative-dev.morels.me)
 """
 
-import pytest
-from pydantic import ValidationError
-
 from app.schemas.task import TaskBase, TaskUpdate
 
 
