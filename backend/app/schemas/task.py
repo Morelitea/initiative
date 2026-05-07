@@ -133,13 +133,25 @@ def _sanitize_html(value: str) -> str:
     Leaves safe structural/formatting tags intact so markdown-rendered
     content round-trips correctly.
     """
-    # Strip outright-dangerous block elements first
-    dangerous_tags = re.compile(
-        r"<\s*/?\s*(?:script|iframe|object|embed|form|input|base|link|meta|style)"
-        r"(?:\s[^>]*)?>",
+    # Strip dangerous elements including everything between their open/close tags.
+    # Must handle both self-closing and paired tags, e.g.:
+    #   <script>alert(1)</script>  → stripped entirely (tags + content)
+    #   <input type="hidden">      → stripped (self-closing / void)
+    _dangerous_names = (
+        r"script|iframe|object|embed|form|input|base|link|meta|style"
+    )
+    # Paired tags: strip open tag, content, and close tag together
+    paired = re.compile(
+        rf"<\s*({_dangerous_names})(?:\s[^>]*)?>.*?</\s*\1\s*>",
         re.IGNORECASE | re.DOTALL,
     )
-    value = dangerous_tags.sub("", value)
+    value = paired.sub("", value)
+    # Remaining unpaired / self-closing open tags (e.g. <input ...>)
+    unpaired = re.compile(
+        rf"<\s*/?\s*(?:{_dangerous_names})(?:\s[^>]*)?>",
+        re.IGNORECASE | re.DOTALL,
+    )
+    value = unpaired.sub("", value)
     # Strip event handler attributes from remaining tags
     value = _EVENT_HANDLER_RE.sub("", value)
     # Strip dangerous URI schemes

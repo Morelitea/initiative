@@ -78,16 +78,20 @@ async def add_security_headers(request: Request, call_next):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Return a generic error message for validation errors.
+    """Sanitise validation errors before returning them to clients.
 
-    FastAPI's default handler includes full Pydantic field paths and input
-    values in the response, which leaks internal schema details to clients.
-    We map every validation failure to a single generic message instead.
+    FastAPI's default handler echoes the raw ``input`` value that triggered
+    each error back in the response body, which leaks user-supplied data and
+    exposes the internal Pydantic field structure.  We preserve the error
+    messages (including application-level codes such as
+    ``PROPERTY_OPTIONS_REQUIRED`` that callers legitimately depend on) but
+    strip the ``input`` and ``url`` keys from every entry.
     """
-    return JSONResponse(
-        status_code=422,
-        content={"detail": "Invalid request data"},
-    )
+    sanitized = [
+        {k: v for k, v in err.items() if k not in ("input", "url")}
+        for err in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": sanitized})
 
 @app.get("/uploads/{filename:path}", include_in_schema=False)
 @limiter.limit("600/minute")

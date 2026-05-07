@@ -24,7 +24,7 @@ class TestTaskTitleSanitization:
     def test_img_onerror_stripped(self):
         """The exact payload used in the pentest."""
         payload = '<img src=x onerror=window.__xss=document.cookie>'
-        t = TaskBase(title=payload, project_id=1)
+        t = TaskBase(title=payload)
         assert "<img" not in t.title
         assert "onerror" not in t.title
 
@@ -43,12 +43,12 @@ class TestTaskTitleSanitization:
         assert "<b>" not in t.title
         assert "bold italic" in t.title
 
-    def test_empty_string_stays_empty(self):
-        # Empty string is falsy — validator should pass it through
-        # (validation still rejects empty after strip in Pydantic min_length if set,
-        #  but our validator should not crash on it)
-        with pytest.raises(ValidationError):
-            TaskBase(title="", project_id=1)
+    def test_html_only_title_becomes_empty_string(self):
+        # A title that is ONLY HTML tags reduces to "" after stripping.
+        # Pydantic's str validator allows empty strings unless min_length is set;
+        # the sanitiser itself should not crash or raise.
+        t = TaskBase(title="<b></b>")
+        assert t.title == ""
 
     def test_task_update_title_sanitized(self):
         u = TaskUpdate(title='<img src=x onerror=alert(1)> urgent fix')
