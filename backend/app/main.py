@@ -87,10 +87,23 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     ``PROPERTY_OPTIONS_REQUIRED`` that callers legitimately depend on) but
     strip the ``input`` and ``url`` keys from every entry.
     """
-    sanitized = [
-        {k: v for k, v in err.items() if k not in ("input", "url")}
-        for err in exc.errors()
-    ]
+    def _clean(err: dict) -> dict:
+        cleaned: dict = {}
+        for k, v in err.items():
+            if k in ("input", "url"):
+                continue
+            # Pydantic v2 puts the raw exception object in ctx["error"], which
+            # is not JSON-serialisable.  Stringify any exception values.
+            if k == "ctx" and isinstance(v, dict):
+                cleaned[k] = {
+                    ck: str(cv) if isinstance(cv, Exception) else cv
+                    for ck, cv in v.items()
+                }
+            else:
+                cleaned[k] = v
+        return cleaned
+
+    sanitized = [_clean(err) for err in exc.errors()]
     return JSONResponse(status_code=422, content={"detail": sanitized})
 
 @app.get("/uploads/{filename:path}", include_in_schema=False)
