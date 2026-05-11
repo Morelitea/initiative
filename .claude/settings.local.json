@@ -16,7 +16,19 @@
       "Bash(pnpm exec tsc:*)",
       "Bash(timeout 300 pytest:*)",
       "Bash(python -m pytest:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(gh issue *)",
+      "Bash(gh.exe issue *)",
+      "PowerShell(gh issue list --repo Morelitea/initiative --limit 5 --state open --json number,title,createdAt,url)",
+      "PowerShell(& \"C:\\\\Users\\\\PUSH\\\\AppData\\\\Local\\\\GitHubDesktop\\\\bin\\\\gh.exe\" issue list --repo Morelitea/initiative --limit 5 --state open --json number,title,createdAt,url)",
+      "WebFetch(domain:github.com)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\PUSH\\\\helper\\\\initiative\\\\backend\" -Recurse -Directory)",
+      "Bash(Select-Object -First 20)",
+      "Bash(mkdir -p \"c:/Users/PUSH/helper/initiative/.claude/skills/initiative\")",
+      "Bash(git add *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\PUSH\\helper\\initiative\\.claude\\skills"
     ]
   }
 }
