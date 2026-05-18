@@ -22,12 +22,11 @@ const config: CapacitorConfig = {
     },
     // SafeArea plugin config for edge-to-edge mode
     SafeArea: {
-      // Enable edge-to-edge mode so the plugin reads actual native inset values
-      // (e.g. ~44px for iPhone notch) and injects them as CSS custom properties.
-      // Without this, the plugin reports 0 because the OS thinks it handled insets,
-      // which overrides our CSS env() values and causes content to overlap the status bar.
-      initialViewportFitCover: true,
+      // Disable viewport-fit detection to force native padding mode
+      // This ensures safe area insets work on Samsung and other devices where
+      // the WebView may not properly set CSS env(safe-area-inset-*) values
       detectViewportFitCoverChanges: false,
+      initialViewportFitCover: false,
     },
   },
 };
