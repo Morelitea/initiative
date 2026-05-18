@@ -490,6 +490,32 @@ async def test_download_inline_returns_no_attachment_header(
 
 
 @pytest.mark.integration
+async def test_download_inline_html_is_same_origin_framable_but_scriptless(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Inline HTML can be framed by the same-origin viewer but cannot run scripts."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    doc = await _create_file_document(session, initiative=initiative, owner=owner, filename="dl_inline.html")
+    try:
+        headers = get_auth_headers(owner)
+        response = await client.get(f"/api/v1/documents/{doc.id}/download?inline=1", headers=headers)
+        assert response.status_code == 200
+        # Same-origin framing allowed (overrides the global DENY middleware)
+        assert response.headers.get("x-frame-options") == "SAMEORIGIN"
+        csp = response.headers.get("content-security-policy", "")
+        assert "frame-ancestors 'self'" in csp
+        # Stored-XSS hardening preserved: scripts still disabled
+        assert "script-src 'none'" in csp
+        assert "attachment" not in response.headers.get("content-disposition", "")
+    finally:
+        (_uploads_dir() / "dl_inline.html").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
 async def test_download_query_token_auth(
     client: AsyncClient, session: AsyncSession
 ) -> None:

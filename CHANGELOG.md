@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **HTML and SVG documents now preview in the in-app viewer.** The `X-Frame-Options: DENY` header added in 0.44.0 also applied to the document-download endpoint, so the file viewer's iframe was blocked from displaying uploaded HTML/SVG files (`refused to display … X-Frame-Options to 'deny'`). The inline document response now sends `X-Frame-Options: SAMEORIGIN` and `Content-Security-Policy: frame-ancestors 'self'`, so the same-origin viewer can render them while cross-origin framing stays blocked. The existing `script-src 'none'` and sandboxed iframe are unchanged — uploaded HTML still cannot execute scripts, so there is no stored-XSS regression.
+
 ## [0.44.0] - 2026-05-16
 
 ### Added
