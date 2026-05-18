@@ -1698,7 +1698,17 @@ async def download_document_file(
     ext = (document.original_filename or filename).rsplit(".", 1)[-1].lower()
     content_type = (document.file_content_type or "").lower()
     if ext in ("svg", "html", "htm") or "svg" in content_type or "html" in content_type:
-        headers["Content-Security-Policy"] = "script-src 'none'"
+        if inline:
+            # Disable scripts (stored-XSS hardening) but allow the file to be
+            # framed by the same-origin in-app document viewer. X-Frame-Options
+            # set here overrides the SecurityHeadersMiddleware global DENY (it
+            # uses setdefault); frame-ancestors 'self' is the CSP equivalent.
+            headers["Content-Security-Policy"] = "script-src 'none'; frame-ancestors 'self'"
+            headers["X-Frame-Options"] = "SAMEORIGIN"
+        else:
+            # Non-inline downloads are sent as attachments; keep the strict
+            # script-src and let the global X-Frame-Options: DENY stand.
+            headers["Content-Security-Policy"] = "script-src 'none'"
 
     logger.info("document_download document_id=%d user=%d inline=%s", document_id, current_user.id, inline)
     if inline:
