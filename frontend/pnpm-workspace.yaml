@@ -1,4 +1,4 @@
 allowBuilds:
-  esbuild: false
-  msw: false
-  sharp: false
+  esbuild: true
+  msw: true
+  sharp: true
