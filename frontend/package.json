@@ -145,7 +145,7 @@
     "baseline-browser-mapping": "^2.10.27",
     "cross-env": "^10.1.0",
     "husky": "^9.1.7",
-    "jsdom": "^29.0.1",
+    "jsdom": "^29.1.1",
     "lint-staged": "^16.4.0",
     "msw": "^2.13.2",
     "orval": "^8.10.0",
