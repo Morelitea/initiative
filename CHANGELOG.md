@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Pagination control now resyncs when external code resets the page.** When a filter change called `setPage(1)` on the My Tasks / My Projects / My Documents / Created Tasks / Documents / Tag Tasks tables, the underlying query refetched page 1 correctly but the DataTable's internal pagination control kept its old `pageIndex`, so the UI continued to show the previous page number and an empty/short data page. DataTable now accepts a controlled `pageIndex` prop in `manualPagination` mode and syncs to it on change. Bug existed since manual pagination was introduced; surfaced while validating filter behavior in the Biome migration.
+
 ### Changed
 
 - **Frontend tooling: migrated from ESLint + Prettier to Biome.** Single tool now handles linting, formatting, and import organization with significantly faster pre-commit hooks. The previous ESLint rule set is preserved (a11y, React hooks, i18next, TypeScript) and Tailwind class sorting replaces `prettier-plugin-tailwindcss`. New scripts: `pnpm check` / `check:fix` (all-in-one), `pnpm lint` / `lint:fix`, `pnpm format`; the TypeScript-only check moved from `pnpm check` to `pnpm typecheck`. `useExhaustiveDependencies` is configured with `reportUnnecessaryDependencies: false` to preserve intentional trigger-deps (e.g. "reset page when filters change"). Removed dev dependencies: `eslint`, `@eslint/js`, `@typescript-eslint/*`, `eslint-plugin-i18next`, `eslint-plugin-jsx-a11y`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `prettier`, `prettier-plugin-tailwindcss`.

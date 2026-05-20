@@ -74,6 +74,7 @@ export interface DocumentsListViewProps {
   totalPages: number;
   totalCount: number;
   pageSize: number;
+  page: number;
   onPageSizeChange: (size: number) => void;
   onPageChange: (updater: number | ((prev: number) => number)) => void;
   onPrefetchPage: (page: number) => void;
@@ -96,6 +97,7 @@ export const DocumentsListView = ({
   totalPages,
   totalCount,
   pageSize,
+  page,
   onPageSizeChange,
   onPageChange,
   onPrefetchPage,
@@ -334,6 +336,7 @@ export const DocumentsListView = ({
         manualPagination
         pageCount={totalPages}
         rowCount={totalCount}
+        pageIndex={page - 1}
         onPaginationChange={(pag: PaginationState) => {
           if (pag.pageSize !== pageSize) {
             onPageSizeChange(pag.pageSize);

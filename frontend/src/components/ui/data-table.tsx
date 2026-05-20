@@ -105,6 +105,13 @@ interface DataTableProps<TData, TValue> {
   manualPagination?: boolean;
   pageCount?: number;
   rowCount?: number;
+  /**
+   * Controlled 0-based page index for manualPagination. When provided, external
+   * page changes (e.g. "reset to page 1 on filter change") are reflected in
+   * the pagination control. Without this, the table's internal pageIndex would
+   * desync from the data being shown.
+   */
+  pageIndex?: number;
   onPaginationChange?: (pagination: PaginationState) => void;
   onPrefetchPage?: (pageIndex: number) => void;
   manualSorting?: boolean;
@@ -155,6 +162,7 @@ export function DataTable<TData, TValue>({
   manualPagination = false,
   pageCount: externalPageCount,
   rowCount: externalRowCount,
+  pageIndex: externalPageIndex,
   onPaginationChange: externalOnPaginationChange,
   onPrefetchPage,
   manualSorting = false,
@@ -211,6 +219,18 @@ export function DataTable<TData, TValue>({
     groupingEnabled ? initialGroupingRef.current : []
   );
   const [pagination, setPagination] = useState<PaginationState>(() => initialPaginationRef.current);
+
+  // Sync external pageIndex into the table's internal pagination state when
+  // manualPagination is true (e.g. so "reset to page 1 on filter change" from
+  // the parent hook actually moves the pagination control).
+  useEffect(() => {
+    if (manualPagination && externalPageIndex !== undefined) {
+      setPagination((prev) =>
+        prev.pageIndex === externalPageIndex ? prev : { ...prev, pageIndex: externalPageIndex }
+      );
+    }
+  }, [externalPageIndex, manualPagination]);
+
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [selectionModeActive, setSelectionModeActive] = useState(false);
   const groupingSelectId = useId();

@@ -230,6 +230,7 @@ export const MyTasksPage = () => {
                   manualPagination
                   pageCount={table.totalPages}
                   rowCount={table.totalCount}
+                  pageIndex={table.page - 1}
                   onPaginationChange={(pag) => {
                     if (pag.pageSize !== table.pageSize) {
                       table.setPageSize(pag.pageSize);

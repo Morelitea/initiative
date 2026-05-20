@@ -700,6 +700,7 @@ export const DocumentsView = ({
             totalPages={totalPages}
             totalCount={totalCount}
             pageSize={pageSize}
+            page={page}
             onPageSizeChange={handlePageSizeChange}
             onPageChange={setPage}
             onPrefetchPage={prefetchPage}

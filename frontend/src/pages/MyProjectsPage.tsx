@@ -481,6 +481,7 @@ export const MyProjectsPage = () => {
               onSortingChange={handleSortingChange}
               pageCount={totalPages}
               rowCount={totalCount}
+              pageIndex={page - 1}
               onPaginationChange={(pag) => {
                 if (pag.pageSize !== pageSize) {
                   setPageSize(pag.pageSize);
