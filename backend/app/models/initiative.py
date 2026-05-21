@@ -56,7 +56,9 @@ DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
     # only managers can view/create unless a custom role grants it.
     PermissionKey.advanced_tool_enabled: False,
     PermissionKey.create_advanced_tool: False,
-    PermissionKey.counters_enabled: True,
+    # Counters is an advanced tool — opt-in by default like queues/events,
+    # gated by the initiative master switch.
+    PermissionKey.counters_enabled: False,
     PermissionKey.create_counters: False,
 }
 
