@@ -198,6 +198,14 @@ export const SpreadsheetDocumentEditor = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragRef = useRef<DragState | null>(null);
   const resizeStartRef = useRef<{ pos: number; size: number }>({ pos: 0, size: 0 });
+  // Owns the window listeners attached during a resize drag.  Held in a ref
+  // so the unmount cleanup (below) can abort an in-flight drag, preventing
+  // a stale formatting write after the editor has gone away.
+  const resizeAbortRef = useRef<AbortController | null>(null);
+  // Stable ref so the resize handler can call the latest formatting mutators
+  // without listing `formatting` (a new object every render) as a dependency.
+  const formattingRef = useRef(formatting);
+  formattingRef.current = formatting; // keep current on every render
 
   // Effective per-index sizes: an in-flight resize preview wins over the
   // shared formatting value, which wins over the constant default.
@@ -711,39 +719,17 @@ export const SpreadsheetDocumentEditor = ({
   }, [pendingImport, replaceAll, formatting, docForData, t]);
 
   // --- column / row resize ----------------------------------------------
-  useEffect(() => {
-    if (!drag) return;
-    const onMove = (e: PointerEvent) => {
-      const cur = dragRef.current;
-      if (!cur) return;
-      const delta =
-        cur.kind === "col"
-          ? e.clientX - resizeStartRef.current.pos
-          : e.clientY - resizeStartRef.current.pos;
-      const lo = cur.kind === "col" ? MIN_COL_WIDTH : MIN_ROW_HEIGHT;
-      const hi = cur.kind === "col" ? MAX_COL_WIDTH : MAX_ROW_HEIGHT;
-      const size = Math.max(lo, Math.min(resizeStartRef.current.size + delta, hi));
-      const next = { ...cur, size };
-      dragRef.current = next;
-      setDrag(next);
-    };
-    const onUp = () => {
-      const cur = dragRef.current;
-      if (cur) {
-        if (cur.kind === "col") formatting.updateColumn(cur.index, { width: cur.size });
-        else formatting.updateRow(cur.index, { height: cur.size });
-      }
-      dragRef.current = null;
-      setDrag(null);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-  }, [drag, formatting]);
-
+  // Listeners are attached synchronously inside startResize (the pointerdown
+  // handler) so there is never a gap between "drag started" and "pointerup
+  // is handled".  The previous useEffect approach had an inherent race: React
+  // defers effects until after paint, so a quick release (common on Mac
+  // trackpads) could fire pointerup before the effect had a chance to run.
+  //
+  // An AbortController owns listener lifetime so:
+  //   - commit / cancel both tear down with a single ``.abort()`` call
+  //   - the unmount effect (below) aborts an in-flight drag, preventing a
+  //     stale ``formattingRef.current.updateColumn`` write into a Yjs doc
+  //     whose view has already been unmounted.
   const startResize = useCallback(
     (kind: "col" | "row", index: number, e: ReactPointerEvent) => {
       if (readOnly) return;
@@ -757,9 +743,73 @@ export const SpreadsheetDocumentEditor = ({
       const next = { kind, index, size };
       dragRef.current = next;
       setDrag(next);
+
+      // Abort any previous drag's listeners (defensive — shouldn't happen,
+      // but a missed pointerup would otherwise leak them indefinitely).
+      resizeAbortRef.current?.abort();
+      const controller = new AbortController();
+      resizeAbortRef.current = controller;
+      const { signal } = controller;
+
+      const onMove = (ev: PointerEvent) => {
+        const cur = dragRef.current;
+        if (!cur) return;
+        const delta =
+          cur.kind === "col"
+            ? ev.clientX - resizeStartRef.current.pos
+            : ev.clientY - resizeStartRef.current.pos;
+        const lo = cur.kind === "col" ? MIN_COL_WIDTH : MIN_ROW_HEIGHT;
+        const hi = cur.kind === "col" ? MAX_COL_WIDTH : MAX_ROW_HEIGHT;
+        // Round to integer: pointer coords are fractional on Retina/Mac, and
+        // sanitizeColumnFmt/RowFmt drop non-integer sizes (clampInt requires
+        // Number.isInteger), which previously caused the commit to silently
+        // delete the entry and revert to the default width/height.
+        const newSize = Math.round(Math.max(lo, Math.min(resizeStartRef.current.size + delta, hi)));
+        const updated = { ...cur, size: newSize };
+        dragRef.current = updated;
+        setDrag(updated);
+      };
+
+      const teardown = () => {
+        controller.abort();
+        if (resizeAbortRef.current === controller) resizeAbortRef.current = null;
+        dragRef.current = null;
+        setDrag(null);
+      };
+
+      const commit = () => {
+        const cur = dragRef.current;
+        if (cur) {
+          const fmt = formattingRef.current;
+          if (cur.kind === "col") fmt.updateColumn(cur.index, { width: cur.size });
+          else fmt.updateRow(cur.index, { height: cur.size });
+        }
+        teardown();
+      };
+
+      // pointercancel fires on Mac when the OS reclassifies a trackpad
+      // gesture as a scroll — the user wasn't trying to resize, so discard
+      // the in-flight drag instead of writing whatever intermediate size
+      // it happened to reach.
+      const cancel = () => {
+        teardown();
+      };
+
+      window.addEventListener("pointermove", onMove, { signal });
+      window.addEventListener("pointerup", commit, { signal });
+      window.addEventListener("pointercancel", cancel, { signal });
     },
     [readOnly, colWidth, rowHeight]
   );
+
+  // Abort any in-flight resize drag when the editor unmounts so the window
+  // listeners can't fire against a stale formattingRef afterwards.
+  useEffect(() => {
+    return () => {
+      resizeAbortRef.current?.abort();
+      resizeAbortRef.current = null;
+    };
+  }, []);
   const resetSize = useCallback(
     (kind: "col" | "row", index: number) => {
       if (readOnly) return;
