@@ -290,6 +290,20 @@ async def test_fractional_positions(client: AsyncClient, session: AsyncSession):
     assert update.status_code == 200
     assert update.json()["position"] == 10.25
 
+    # Positions are now C=10.5, A=10.25, B=10. Turn order must respect the
+    # fractional ordering (descending), not collapse to the shared integer.
+    start = await client.post(f"/api/v1/queues/{queue_data['id']}/start", headers=headers)
+    assert start.status_code == 200
+    assert start.json()["current_item"]["label"] == "C"
+
+    second = await client.post(f"/api/v1/queues/{queue_data['id']}/next", headers=headers)
+    assert second.status_code == 200
+    assert second.json()["current_item"]["label"] == "A"
+
+    third = await client.post(f"/api/v1/queues/{queue_data['id']}/next", headers=headers)
+    assert third.status_code == 200
+    assert third.json()["current_item"]["label"] == "B"
+
 
 # ---------------------------------------------------------------------------
 # Turn management
