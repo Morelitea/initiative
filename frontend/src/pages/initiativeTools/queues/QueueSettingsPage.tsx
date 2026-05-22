@@ -296,7 +296,7 @@ export const QueueSettingsPage = () => {
             />
             <UserPermissionsCard
               userPermissions={userPermissionRows}
-              availableMembers={membersQuery.data ?? []}
+              availableMembers={availableMembers}
               busy={accessBusy}
               onAdd={handleAddUser}
               onUpdateLevel={handleUpdateUserLevel}

@@ -135,7 +135,9 @@ export const UserPermissionsCard = ({
     setSelectedLevel("read");
   };
 
-  const selectableIds = () => selectedRows.filter((r) => !r.isOwner).map((r) => r.user_id);
+  // Owner rows can't be bulk-changed/removed, so exclude them from both the
+  // count and the action payloads to avoid a misleading "N selected".
+  const selectableIds = selectedRows.filter((r) => !r.isOwner).map((r) => r.user_id);
 
   return (
     <Card className="shadow-sm">
@@ -144,15 +146,15 @@ export const UserPermissionsCard = ({
         <CardDescription>{description ?? t("userPermissionsDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {selectedRows.length > 0 && (
+        {selectableIds.length > 0 && (
           <div className="flex items-center gap-3 rounded-md bg-muted p-3">
             <span className="font-medium text-sm">
-              {t("selectedCount", { count: selectedRows.length })}
+              {t("selectedCount", { count: selectableIds.length })}
             </span>
             <Select
               onValueChange={(level) => {
-                const ids = selectableIds();
-                if (ids.length > 0) onBulkUpdate(ids, level as "read" | "write");
+                if (selectableIds.length > 0)
+                  onBulkUpdate(selectableIds, level as "read" | "write");
                 setSelectedRows([]);
               }}
               disabled={busy}
@@ -170,8 +172,7 @@ export const UserPermissionsCard = ({
               variant="destructive"
               size="sm"
               onClick={() => {
-                const ids = selectableIds();
-                if (ids.length > 0) onBulkRemove(ids);
+                if (selectableIds.length > 0) onBulkRemove(selectableIds);
                 setSelectedRows([]);
               }}
               disabled={busy}

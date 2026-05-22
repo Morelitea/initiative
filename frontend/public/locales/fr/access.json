@@ -24,9 +24,11 @@
   "selectMember": "Sélectionner un membre…",
   "noMembersFound": "Aucun membre trouvé.",
   "allMembersHaveAccess": "Tous les membres ont déjà accès.",
-  "addAll": "Tout ajouter ({{count}})",
+  "addAll_one": "Tout ajouter ({{count}})",
+  "addAll_other": "Tout ajouter ({{count}})",
   "addingAll": "Ajout de tous…",
   "filterByName": "Filtrer par nom…",
-  "selectedCount": "{{count}} sélectionné(s)",
+  "selectedCount_one": "{{count}} sélectionné",
+  "selectedCount_other": "{{count}} sélectionnés",
   "changeAccess": "Modifier l'accès…"
 }
