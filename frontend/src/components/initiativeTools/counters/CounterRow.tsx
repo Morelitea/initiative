@@ -120,7 +120,7 @@ export const CounterRow = ({
   // Buttons are h-11 in row layout (44px iOS HIG target). Grid cards use
   // h-10 so the value stays visually dominant.
   const stepButtonSize = layout === "grid" ? "h-10 w-10" : "h-11 w-11";
-  const stepIconSize = layout === "grid" ? "h-5 w-5" : "h-5 w-5";
+  const stepIconSize = "h-5 w-5";
 
   const dragHandle = (
     <button
@@ -209,7 +209,12 @@ export const CounterRow = ({
         ref={setNodeRef}
         style={style}
         className={cn(
-          "relative flex aspect-square min-h-45 flex-col overflow-hidden rounded-lg border border-black/10 px-3 pt-2 pb-3 shadow-sm dark:border-white/10",
+          // Phones (2-up): no aspect-square — it conflicts with min-h-45 (the
+          // resolved height exceeds the grid row track and bleeds into the next
+          // row). A min-height floor + content-driven growth avoids overlap.
+          // md+ cards are wide enough that the square height clears the floor,
+          // so aspect-square is safe and restores the square look.
+          "relative flex min-h-45 flex-col overflow-hidden rounded-lg border border-black/10 px-3 pt-2 pb-3 shadow-sm md:aspect-square dark:border-white/10",
           isDragging && "opacity-70"
         )}
       >

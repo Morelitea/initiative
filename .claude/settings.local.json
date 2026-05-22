@@ -16,7 +16,8 @@
       "Bash(pnpm exec tsgo:*)",
       "Bash(timeout 300 pytest:*)",
       "Bash(python -m pytest:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(pnpm typecheck *)"
     ]
   }
 }

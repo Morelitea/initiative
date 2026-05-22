@@ -50,7 +50,10 @@ export const CounterSegmentedClockView = ({
   const strokeDashoffset = circumference - (pct / 100) * circumference;
   const fillColor = textColor ?? "rgba(255,255,255,0.9)";
 
-  const wrapperSize = size === "lg" ? "h-24 w-24" : "h-20 w-20";
+  // Grid cards ("lg") size the dial responsively: on a 2-up phone the card's
+  // value area is only ~65px tall, so start small and grow with the breakpoints
+  // that widen the grid. The row layout ("md") keeps a fixed dial.
+  const wrapperSize = size === "lg" ? "h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24" : "h-20 w-20";
   const inputSize = size === "lg" ? "lg" : "md";
 
   return (
