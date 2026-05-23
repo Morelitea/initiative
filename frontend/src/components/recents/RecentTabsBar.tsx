@@ -2,34 +2,31 @@ import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { useGuilds } from "@/hooks/useGuilds";
-import { guildPath } from "@/lib/guildUrl";
-import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { renderRecentIcon } from "@/lib/recentIcon";
+import { type RecentKey, recentRoute } from "@/lib/recentRoute";
 import { cn } from "@/lib/utils";
 
-interface ProjectTabsBarProps {
-  projects?: ProjectRead[];
-  activeProjectId?: number | null;
+interface RecentTabsBarProps {
+  items?: RecentItemRead[];
+  activeKey?: RecentKey | null;
   loading?: boolean;
-  onClose: (projectId: number) => void;
+  onClose: (item: RecentItemRead) => void;
 }
 
-export const ProjectTabsBar = ({
-  projects,
-  activeProjectId,
-  loading,
-  onClose,
-}: ProjectTabsBarProps) => {
+/**
+ * Sticky-header tabs bar for the 20 most-recently-opened guild-scoped items
+ * (projects, documents, queues, counter groups). Replaces the projects-only
+ * ``ProjectTabsBar``.
+ */
+export const RecentTabsBar = ({ items, activeKey, loading, onClose }: RecentTabsBarProps) => {
   const { t } = useTranslation("projects");
   const { activeGuildId } = useGuilds();
 
-  // Helper to create guild-scoped paths
-  const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
-
-  if (!loading && (!projects || projects.length === 0)) {
+  if (!loading && (!items || items.length === 0)) {
     return null;
   }
 
@@ -39,12 +36,13 @@ export const ProjectTabsBar = ({
         {loading ? (
           <p className="py-3 text-muted-foreground text-xs">{t("tabsBar.loadingRecent")}</p>
         ) : (
-          projects?.map((project) => {
-            const isActive = project.id === activeProjectId;
+          items?.map((item) => {
+            const isActive =
+              activeKey?.entityType === item.entity_type && activeKey?.entityId === item.entity_id;
             return (
-              <div key={project.id} className="flex items-center">
+              <div key={`${item.entity_type}-${item.entity_id}`} className="flex items-center">
                 <Link
-                  to={gp(`/projects/${project.id}`)}
+                  to={recentRoute(item, activeGuildId)}
                   className={cn(
                     "group inline-flex items-center gap-2 rounded-t-md border border-transparent px-3 py-2 text-sm transition",
                     isActive
@@ -52,13 +50,8 @@ export const ProjectTabsBar = ({
                       : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  {project.initiative ? (
-                    <InitiativeColorDot color={project.initiative.color} className="h-2 w-2" />
-                  ) : null}
-                  {project.icon ? (
-                    <span className="text-base leading-none">{project.icon}</span>
-                  ) : null}
-                  <span className="max-w-40 truncate">{project.name}</span>
+                  {renderRecentIcon(item)}
+                  <span className="max-w-40 truncate">{item.name}</span>
                 </Link>
                 <Button
                   type="button"
@@ -67,9 +60,9 @@ export const ProjectTabsBar = ({
                   className="ml-1 h-7 w-7 text-muted-foreground hover:text-foreground"
                   onClick={(event) => {
                     event.preventDefault();
-                    onClose(project.id);
+                    onClose(item);
                   }}
-                  aria-label={t("tabsBar.closeProject", { name: project.name })}
+                  aria-label={t("tabsBar.closeProject", { name: item.name })}
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>

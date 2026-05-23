@@ -24,7 +24,8 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { useProject, useProjectTaskStatuses, useRecordProjectView } from "@/hooks/useProjects";
+import { useProject, useProjectTaskStatuses } from "@/hooks/useProjects";
+import { useRecordRecentView } from "@/hooks/useRecents";
 import { useUsers } from "@/hooks/useUsers";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -70,7 +71,7 @@ export const ProjectDetailPage = () => {
 
   const usersQuery = useUsers();
 
-  const recordViewMutation = useRecordProjectView();
+  const recordViewMutation = useRecordRecentView("project");
   const viewedProjectId = projectQuery.data?.id;
   useEffect(() => {
     if (!viewedProjectId) {

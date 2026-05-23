@@ -11,12 +11,12 @@ import { Loader2, LogOut, Menu, Plus, Search, Settings, Ticket, UserCog } from "
 import { Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
-import { ProjectTabsBar } from "@/components/projects/ProjectTabsBar";
+import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +26,13 @@ import { VersionDialog } from "@/components/VersionDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useClearProjectView, useRecentProjects } from "@/hooks/useProjects";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
+import { useClearRecentView, useRecents } from "@/hooks/useRecents";
 import { useServer } from "@/hooks/useServer";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
+import { getActiveRecentKey } from "@/lib/recentRoute";
 
 /**
  * Loading fallback for lazy-loaded pages inside the main layout.
@@ -94,12 +95,12 @@ function AppLayout() {
   usePushNotifications();
   useBackButton();
 
-  const recentQuery = useRecentProjects({
+  const recentQuery = useRecents({
     enabled: activeGuildId !== null && !loading && !!user,
     staleTime: 30_000,
   });
 
-  const clearRecent = useClearProjectView();
+  const clearRecent = useClearRecentView();
 
   // Now we can have conditional returns
   // Show loading state while auth or guild membership is being determined
@@ -144,15 +145,14 @@ function AppLayout() {
     // layout === "main" → fall through to the standard sidebar layout.
   }
 
-  const handleClearRecent = (projectId: number) => {
-    clearRecent.mutate(projectId);
+  const handleClearRecent = (item: RecentItemRead) => {
+    clearRecent.mutate({ entityType: item.entity_type, entityId: item.entity_id });
   };
 
-  // Match both old /projects/:id and new /g/:guildId/projects/:id patterns
-  const activeProjectMatch =
-    location.pathname.match(/^\/g\/\d+\/projects\/(\d+)/) ||
-    location.pathname.match(/^\/projects\/(\d+)/);
-  const activeProjectId = activeProjectMatch ? Number(activeProjectMatch[1]) : null;
+  const activeRecentKey = getActiveRecentKey(location.pathname);
+  // ProjectActivitySidebar still wants the active project id directly.
+  const activeProjectId =
+    activeRecentKey?.entityType === "project" ? activeRecentKey.entityId : null;
 
   return (
     <>
@@ -196,10 +196,10 @@ function AppLayout() {
                     <TooltipContent>{shortcutLabel}</TooltipContent>
                   </Tooltip>
                   <div className="min-w-0 flex-1">
-                    <ProjectTabsBar
-                      projects={recentQuery.data as ProjectRead[] | undefined}
+                    <RecentTabsBar
+                      items={recentQuery.data}
                       loading={recentQuery.isLoading}
-                      activeProjectId={activeProjectId}
+                      activeKey={activeRecentKey}
                       onClose={handleClearRecent}
                     />
                   </div>

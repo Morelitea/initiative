@@ -12,7 +12,6 @@ import type {
   ProjectPermissionRead,
   ProjectPermissionUpdate,
   ProjectRead,
-  ProjectRecentViewRead,
   ProjectRolePermissionCreate,
   ProjectRolePermissionRead,
   ProjectRolePermissionUpdate,
@@ -28,7 +27,6 @@ import {
   addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost,
   archiveProjectApiV1ProjectsProjectIdArchivePost,
   attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost,
-  clearProjectViewApiV1ProjectsProjectIdViewDelete,
   createProjectApiV1ProjectsPost,
   deleteProjectApiV1ProjectsProjectIdDelete,
   detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete,
@@ -41,14 +39,11 @@ import {
   getListWritableProjectsApiV1ProjectsWritableGetQueryKey,
   getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey,
   getReadProjectApiV1ProjectsProjectIdGetQueryKey,
-  getRecentProjectsApiV1ProjectsRecentGetQueryKey,
   listGlobalProjectsApiV1ProjectsGlobalGet,
   listProjectsApiV1ProjectsGet,
   listWritableProjectsApiV1ProjectsWritableGet,
   projectActivityFeedApiV1ProjectsProjectIdActivityGet,
   readProjectApiV1ProjectsProjectIdGet,
-  recentProjectsApiV1ProjectsRecentGet,
-  recordProjectViewApiV1ProjectsProjectIdViewPost,
   removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete,
   removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost,
   removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete,
@@ -74,7 +69,6 @@ import {
   invalidateFavoriteProjects,
   invalidateProject,
   invalidateProjectTaskStatuses,
-  invalidateRecentProjects,
 } from "@/api/query-keys";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -123,15 +117,9 @@ export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
   });
 };
 
-export const useRecentProjects = (options?: QueryOpts<ProjectRecentViewRead[]>) => {
-  return useQuery<ProjectRecentViewRead[]>({
-    queryKey: getRecentProjectsApiV1ProjectsRecentGetQueryKey(),
-    queryFn: () =>
-      recentProjectsApiV1ProjectsRecentGet() as unknown as Promise<ProjectRecentViewRead[]>,
-    staleTime: 30 * 1000,
-    ...options,
-  });
-};
+// ``useRecentProjects`` was removed when the projects-only ``/projects/recent``
+// endpoint was retired. Use ``useRecents`` from ``@/hooks/useRecents`` for the
+// mixed-type bar instead.
 
 export const useFavoriteProjects = (options?: QueryOpts<ProjectRead[]>) => {
   return useQuery<ProjectRead[]>({
@@ -368,39 +356,9 @@ export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
   });
 };
 
-export const useRecordProjectView = (options?: MutationOpts<void, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (projectId: number) => {
-      await recordProjectViewApiV1ProjectsProjectIdViewPost(projectId);
-    },
-    onSuccess: (...args) => {
-      void invalidateRecentProjects();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useClearProjectView = (options?: MutationOpts<void, number>) => {
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (projectId: number) => {
-      await clearProjectViewApiV1ProjectsProjectIdViewDelete(projectId);
-    },
-    onSuccess: (...args) => {
-      void invalidateRecentProjects();
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
+// ``useRecordProjectView`` / ``useClearProjectView`` were replaced by the
+// polymorphic ``useRecordRecentView`` / ``useClearRecentView`` in
+// ``@/hooks/useRecents``.
 
 // ── Favorite / Pin Mutations ────────────────────────────────────────────────
 

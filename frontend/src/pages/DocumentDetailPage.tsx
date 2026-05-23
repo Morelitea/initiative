@@ -43,6 +43,7 @@ import { TagPicker } from "@/components/tags/TagPicker";
 import { useComments, useCommentsCache } from "@/hooks/useComments";
 import { useDocument, useSetDocumentCache, useUpdateDocument } from "@/hooks/useDocuments";
 import { useSetDocumentProperties } from "@/hooks/useProperties";
+import { useRecordRecentView } from "@/hooks/useRecents";
 import { useSetDocumentTags } from "@/hooks/useTags";
 import { toast } from "@/lib/chesterToast";
 import { createEmptyEditorState, normalizeEditorState } from "@/lib/editorState";
@@ -226,6 +227,16 @@ export const DocumentDetailPage = () => {
   });
 
   const document = documentQuery.data;
+
+  // Track recently viewed documents so the layout header tabs bar can surface
+  // them. Mirrors the pattern in ProjectDetailPage.
+  const recordViewMutation = useRecordRecentView("document");
+  const viewedDocumentId = documentQuery.data?.id;
+  useEffect(() => {
+    if (!viewedDocumentId) return;
+    recordViewMutation.mutate(viewedDocumentId);
+  }, [viewedDocumentId, recordViewMutation.mutate]);
+
   const normalizedDocumentContent = useMemo(
     () => normalizeEditorState(document?.content as SerializedEditorState | null | undefined),
     [document]

@@ -48,6 +48,7 @@ import {
   useSteppedCount,
   useUpdateCounter,
 } from "@/hooks/useCounters";
+import { useRecordRecentView } from "@/hooks/useRecents";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getItem, setItem } from "@/lib/storage";
 
@@ -119,6 +120,14 @@ export function CounterGroupDetailPage() {
     const list = group?.counters ?? [];
     return [...list].sort((a, b) => Number(a.position) - Number(b.position));
   }, [group?.counters]);
+
+  // Track recently viewed counter groups for the layout header tabs bar.
+  const recordViewMutation = useRecordRecentView("counter_group");
+  const viewedGroupId = group?.id;
+  useEffect(() => {
+    if (!viewedGroupId) return;
+    recordViewMutation.mutate(viewedGroupId);
+  }, [viewedGroupId, recordViewMutation.mutate]);
 
   const canWrite = group?.my_permission_level === "owner" || group?.my_permission_level === "write";
   const canManage = group?.my_permission_level === "owner";

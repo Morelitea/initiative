@@ -1,6 +1,6 @@
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { Loader2, Plus, SearchX, Settings, ShieldAlert, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
@@ -41,6 +41,7 @@ import {
   useUpdateQueue,
 } from "@/hooks/useQueues";
 import { useQueueView } from "@/hooks/useQueueView";
+import { useRecordRecentView } from "@/hooks/useRecents";
 import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -54,6 +55,14 @@ export function QueueDetailPage() {
 
   const queueQuery = useQueue(Number.isFinite(parsedId) ? parsedId : null);
   const queue = queueQuery.data;
+
+  // Track recently viewed queues for the layout header tabs bar.
+  const recordViewMutation = useRecordRecentView("queue");
+  const viewedQueueId = queue?.id;
+  useEffect(() => {
+    if (!viewedQueueId) return;
+    recordViewMutation.mutate(viewedQueueId);
+  }, [viewedQueueId, recordViewMutation.mutate]);
 
   // Per-queue view preference (list vs. on-deck), persisted to local storage.
   const [view, setView] = useQueueView(parsedId);

@@ -56,7 +56,7 @@ export const invalidateProjectTaskStatuses = (projectId: number) =>
 export const invalidateProjectActivity = (projectId: number) =>
   invalidateExact([`/api/v1/projects/${projectId}/activity`]);
 
-export const invalidateRecentProjects = () => invalidateExact([`/api/v1/projects/recent`]);
+export const invalidateRecents = () => invalidateExact([`/api/v1/recents/`]);
 
 export const invalidateFavoriteProjects = () => invalidateExact([`/api/v1/projects/favorites`]);
 
