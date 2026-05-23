@@ -241,16 +241,19 @@ describe("hold / release", () => {
   });
 
   describe("releaseHeldState", () => {
-    it("makes the held item current and clears the hold", () => {
+    it("clears the hold without rewinding the rotation pointer", () => {
+      // Releasing should rejoin the rotation but not pull current back onto
+      // an item the rotation already advanced past.
       const queue = {
         ...running,
         items: [{ ...a, held_at_round: 1 }, b, c],
         current_item: b,
       };
       const released = releaseHeldState(queue, a.id);
-      expect(released.current_item?.id).toBe(a.id);
-      expect(released.current_item?.held_at_round).toBeNull();
+      expect(released.current_item?.id).toBe(b.id); // unchanged
       expect(released.current_round).toBe(1);
+      const updatedA = released.items.find((i) => i.id === a.id);
+      expect(updatedA?.held_at_round).toBeNull();
     });
 
     it("is a no-op if the target isn't held", () => {

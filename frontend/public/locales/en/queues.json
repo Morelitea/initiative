@@ -58,7 +58,7 @@
   "queueStopped": "Queue stopped",
   "queueReset": "Queue reset",
   "queueHeld": "Turn held",
-  "queueReleased": "Held item released",
+  "queueReleased": "Returned to the rotation",
   "currentTurn": "Current Turn",
   "noItems": "No items in this queue",
   "noItemsDescription": "Add items to track turns.",

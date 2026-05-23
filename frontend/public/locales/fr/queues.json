@@ -55,7 +55,7 @@
   "held": "En attente",
   "actNow": "Agir",
   "queueHeld": "Tour reporté",
-  "queueReleased": "Élément en attente libéré",
+  "queueReleased": "Retour dans la rotation",
   "queueStarted": "File démarrée",
   "queueStopped": "File arrêtée",
   "queueReset": "File réinitialisée",

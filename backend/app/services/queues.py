@@ -497,10 +497,16 @@ async def release_held(
     queue: Queue,
     item_id: int,
 ) -> Queue:
-    """Manually release a held item — they interrupt and become the current turn.
+    """Manually release a held item back into the rotation.
 
-    Round is unchanged. ``is_active`` is unchanged (release works whether
-    the queue is running or stopped).
+    Clears ``held_at_round`` on the target so it rejoins the active rotation.
+    ``current_item_id``, ``current_round``, and ``is_active`` are deliberately
+    untouched — releasing a hold shouldn't rewind the rotation pointer onto
+    items that already took their turn this round. The released item will
+    next act when the rotation reaches its natural position-desc slot (this
+    round if their position is below the current item's, otherwise next
+    round). Users who want the held item to act immediately can use
+    ``set_active_item`` instead.
     """
     items = getattr(queue, "items", None) or []
     target = next((item for item in items if item.id == item_id), None)
@@ -517,7 +523,6 @@ async def release_held(
 
     target.held_at_round = None
     session.add(target)
-    queue.current_item_id = target.id
     queue.updated_at = datetime.now(timezone.utc)
     session.add(queue)
     return queue

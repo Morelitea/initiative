@@ -415,8 +415,13 @@ export const holdCurrentState = (queue: QueueRead): QueueRead => {
 };
 
 /**
- * Manually release a held item — they interrupt and become the current
- * turn. Round and `is_active` are unchanged.
+ * Manually release a held item back into the active rotation.
+ *
+ * Clears `held_at_round` only — `current_item` is intentionally untouched so
+ * releasing doesn't rewind the rotation pointer onto items that already took
+ * their turn this round. The released item will next act when the rotation
+ * reaches its natural position-desc slot. To make a held item act
+ * immediately, use `setActiveItemState` (the Set Active path).
  */
 export const releaseHeldState = (queue: QueueRead, itemId: number): QueueRead => {
   const target = queue.items.find((i) => i.id === itemId);
@@ -425,7 +430,6 @@ export const releaseHeldState = (queue: QueueRead, itemId: number): QueueRead =>
   return {
     ...queue,
     items: replaceItem(queue, itemId, () => released),
-    current_item: released,
   };
 };
 

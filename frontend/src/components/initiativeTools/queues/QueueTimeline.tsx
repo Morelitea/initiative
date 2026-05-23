@@ -148,6 +148,11 @@ interface ActButtonProps {
   label: string;
 }
 
+/**
+ * Clears the row's hold so it rejoins the rotation. Intentionally doesn't
+ * promote the row to current — releasing should rejoin the rotation, not
+ * rewind it onto items that already took their turn this round.
+ */
 const ActButton = ({ itemId, onAct, label }: ActButtonProps) => (
   <Tooltip delayDuration={300}>
     <TooltipTrigger asChild>

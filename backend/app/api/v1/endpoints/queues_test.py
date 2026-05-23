@@ -451,11 +451,17 @@ async def test_advance_auto_releases_at_natural_slot(
 
 
 @pytest.mark.integration
-async def test_release_makes_held_current(client: AsyncClient, session: AsyncSession):
-    """Manually releasing a held item makes it current; round preserved."""
+async def test_release_clears_hold_without_rewinding(
+    client: AsyncClient, session: AsyncSession
+):
+    """Release clears `held_at_round` but leaves the current pointer alone.
+
+    The released item rejoins the rotation; whoever was currently up stays up
+    so the rotation doesn't double-act items that already took their turn.
+    """
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = get_guild_headers(guild, admin)
-    queue_data, a, _b, _c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, b, _c = await _running_queue_with_abc(client, headers, initiative.id)
 
     # Hold A; current is B.
     await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
@@ -464,7 +470,7 @@ async def test_release_makes_held_current(client: AsyncClient, session: AsyncSes
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == a["id"]
+    assert payload["current_item"]["id"] == b["id"]  # unchanged
     assert payload["current_round"] == 1
     assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
@@ -474,7 +480,7 @@ async def test_release_while_stopped(client: AsyncClient, session: AsyncSession)
     """Release works when the queue is stopped; is_active is preserved."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = get_guild_headers(guild, admin)
-    queue_data, a, _b, _c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, b, _c = await _running_queue_with_abc(client, headers, initiative.id)
 
     await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
     await client.post(f"/api/v1/queues/{queue_data['id']}/stop", headers=headers)
@@ -484,7 +490,10 @@ async def test_release_while_stopped(client: AsyncClient, session: AsyncSession)
     assert response.status_code == 200
     payload = response.json()
     assert payload["is_active"] is False
-    assert payload["current_item"]["id"] == a["id"]
+    # Current pointer is whatever it was when we stopped — release doesn't
+    # rewind it.
+    assert payload["current_item"]["id"] == b["id"]
+    assert _items_by_id(payload)[a["id"]]["held_at_round"] is None
 
 
 @pytest.mark.integration
