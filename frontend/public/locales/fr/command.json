@@ -12,7 +12,8 @@
     "counterGroups": "Groupes de compteurs"
   },
   "actions": {
-    "addTask": "Ajouter une tâche"
+    "addTask": "Ajouter une tâche",
+    "addDocument": "Ajouter un document"
   },
   "pages": {
     "myTasks": "Mes tâches",

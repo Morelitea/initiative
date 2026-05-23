@@ -2,6 +2,7 @@ import { useRouter } from "@tanstack/react-router";
 import {
   BarChart3,
   CheckSquare,
+  FilePlus,
   GalleryHorizontalEnd,
   Gauge,
   ListTodo,
@@ -15,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import {
   CommandDialog,
@@ -231,6 +233,16 @@ export function CommandCenter() {
           >
             <Plus className="text-muted-foreground" />
             <span>{t("actions.addTask")}</span>
+          </CommandItem>
+          <CommandItem
+            value="action-add-document"
+            onSelect={() => {
+              setOpen(false);
+              getOpenCreateDocumentWizard()?.();
+            }}
+          >
+            <FilePlus className="text-muted-foreground" />
+            <span>{t("actions.addDocument")}</span>
           </CommandItem>
         </CommandGroup>
 

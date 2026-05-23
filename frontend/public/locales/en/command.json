@@ -12,7 +12,8 @@
     "counterGroups": "Counter Groups"
   },
   "actions": {
-    "addTask": "Add Task"
+    "addTask": "Add Task",
+    "addDocument": "Add Document"
   },
   "pages": {
     "myTasks": "My Tasks",

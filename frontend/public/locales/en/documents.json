@@ -290,6 +290,14 @@
     "uploadError": "Unable to upload document.",
     "somePermissionsFailed": "Document created, but some permissions could not be applied."
   },
+  "createWizard": {
+    "title": "Add Document",
+    "selectGuild": "Select a guild",
+    "selectInitiative": "Select an initiative",
+    "lastUsed": "Last used",
+    "back": "Back",
+    "noInitiatives": "No initiatives found in this guild."
+  },
   "viewer": {
     "loadError": "Unable to load document",
     "openNewTab": "Open in new tab",

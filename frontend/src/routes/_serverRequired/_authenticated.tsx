@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { AppSidebar } from "@/components/AppSidebar";
 import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
+import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
@@ -158,6 +159,7 @@ function AppLayout() {
     <>
       <CommandCenter />
       <CreateTaskWizard />
+      <CreateDocumentWizard />
       <div className="flex min-h-screen flex-col bg-background">
         <PushPermissionPrompt />
         <div className="flex flex-1">

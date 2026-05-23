@@ -12,7 +12,8 @@
     "counterGroups": "Grupos de contadores"
   },
   "actions": {
-    "addTask": "Agregar tarea"
+    "addTask": "Agregar tarea",
+    "addDocument": "Agregar documento"
   },
   "pages": {
     "myTasks": "Mis Tareas",

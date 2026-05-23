@@ -290,6 +290,14 @@
     "uploadError": "Impossible de télécharger le document.",
     "somePermissionsFailed": "Document créé, mais certaines permissions n'ont pas pu être appliquées."
   },
+  "createWizard": {
+    "title": "Ajouter un document",
+    "selectGuild": "Sélectionnez un groupe",
+    "selectInitiative": "Sélectionnez une initiative",
+    "lastUsed": "Dernier utilisé",
+    "back": "Retour",
+    "noInitiatives": "Aucune initiative trouvée dans ce groupe."
+  },
   "viewer": {
     "loadError": "Impossible de charger le document",
     "openNewTab": "Ouvrir dans un nouvel onglet",

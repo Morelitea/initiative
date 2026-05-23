@@ -290,6 +290,14 @@
     "uploadError": "No se pudo subir el documento.",
     "somePermissionsFailed": "Documento creado, pero algunos permisos no se pudieron aplicar."
   },
+  "createWizard": {
+    "title": "Agregar documento",
+    "selectGuild": "Selecciona un gremio",
+    "selectInitiative": "Selecciona una iniciativa",
+    "lastUsed": "Último usado",
+    "back": "Atrás",
+    "noInitiatives": "No se encontraron iniciativas en este gremio."
+  },
   "viewer": {
     "loadError": "No se pudo cargar el documento",
     "openNewTab": "Abrir en nueva pestaña",

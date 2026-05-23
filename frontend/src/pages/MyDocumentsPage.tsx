@@ -2,12 +2,13 @@ import { keepPreviousData } from "@tanstack/react-query";
 import { Link, useRouter, useSearch } from "@tanstack/react-router";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronDown, Filter, Loader2, Search } from "lucide-react";
+import { ChevronDown, Filter, Loader2, Plus, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllDocuments } from "@/api/query-keys";
+import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { SortIcon } from "@/components/SortIcon";
 import { TagBadge } from "@/components/tags/TagBadge";
@@ -344,9 +345,15 @@ export const MyDocumentsPage = () => {
   return (
     <PullToRefresh onRefresh={handleRefresh}>
       <div className="space-y-6">
-        <div>
-          <h1 className="font-semibold text-3xl tracking-tight">{t("myDocuments.title")}</h1>
-          <p className="text-muted-foreground">{t("myDocuments.subtitle")}</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-semibold text-3xl tracking-tight">{t("myDocuments.title")}</h1>
+            <p className="text-muted-foreground">{t("myDocuments.subtitle")}</p>
+          </div>
+          <Button size="sm" onClick={() => getOpenCreateDocumentWizard()?.()}>
+            <Plus className="mr-1 h-4 w-4" />
+            {t("page.newDocument")}
+          </Button>
         </div>
 
         <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
