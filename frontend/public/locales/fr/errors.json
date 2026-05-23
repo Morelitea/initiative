@@ -206,6 +206,8 @@
   "QUEUE_NOT_ACTIVE": "La file n'est pas active",
   "QUEUE_ALREADY_ACTIVE": "La file est déjà active",
   "QUEUE_NO_ITEMS": "La file ne contient aucun élément",
+  "QUEUE_NO_CURRENT_ITEM": "Aucun tour actuel à reporter",
+  "QUEUE_ITEM_NOT_HELD": "Cet élément n'est pas en attente",
   "QUEUE_INVALID_TAG_IDS": "Un ou plusieurs identifiants d'étiquettes sont invalides",
   "QUEUES_NOT_ENABLED": "Les files ne sont pas activées pour cette initiative",
   "NOTIFICATION_NOT_FOUND": "Notification introuvable",

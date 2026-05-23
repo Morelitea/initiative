@@ -206,6 +206,8 @@
   "QUEUE_NOT_ACTIVE": "La cola no está activa",
   "QUEUE_ALREADY_ACTIVE": "La cola ya está activa",
   "QUEUE_NO_ITEMS": "La cola no tiene elementos",
+  "QUEUE_NO_CURRENT_ITEM": "No hay turno actual para retener",
+  "QUEUE_ITEM_NOT_HELD": "Este elemento no está retenido",
   "QUEUE_INVALID_TAG_IDS": "Uno o más IDs de etiqueta no son válidos",
   "QUEUES_NOT_ENABLED": "Las colas no están habilitadas para esta iniciativa",
   "NOTIFICATION_NOT_FOUND": "Notificación no encontrada",

@@ -206,6 +206,8 @@
   "QUEUE_NOT_ACTIVE": "Queue is not active",
   "QUEUE_ALREADY_ACTIVE": "Queue is already active",
   "QUEUE_NO_ITEMS": "Queue has no items",
+  "QUEUE_NO_CURRENT_ITEM": "No current item to hold",
+  "QUEUE_ITEM_NOT_HELD": "This item isn't currently held",
   "QUEUE_INVALID_TAG_IDS": "One or more tag IDs are invalid",
   "QUEUES_NOT_ENABLED": "Queues are not enabled for this initiative",
   "COUNTER_NOT_FOUND": "Counter not found",
