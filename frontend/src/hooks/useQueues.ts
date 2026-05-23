@@ -416,10 +416,11 @@ export const holdCurrentState = (queue: QueueRead): QueueRead => {
 
 export interface ReleaseHeldOptions {
   /**
-   * PF2e Delay semantics: rewrite the released item's `position` so it lands
-   * just below the current item in the rotation (the new initiative slot
-   * persists for the rest of the encounter). Default `false` keeps the
-   * original position — they re-enter at their natural slot.
+   * PF2e Delay semantics: the target acts now (becomes the current turn)
+   * and its `position` is rewritten to land just above the previous current
+   * item. The new initiative slot persists for the rest of the encounter.
+   * Default `false` keeps the original position and the current pointer —
+   * the released item re-enters at its natural slot.
    */
   reposition?: boolean;
 }
@@ -427,11 +428,12 @@ export interface ReleaseHeldOptions {
 /**
  * Manually release a held item back into the active rotation.
  *
- * Clears `held_at_round` on the target. `current_item` is intentionally
- * untouched so releasing doesn't rewind the rotation pointer onto items that
- * already took their turn this round. When `reposition` is set, also
- * recompute the target's `position` so the next advance lands on it
- * (mirrors backend `release_held(reposition=True)`).
+ * Clears `held_at_round` on the target. With `reposition: false` (default),
+ * `current_item` is intentionally untouched so releasing doesn't rewind the
+ * rotation pointer onto items that already took their turn. With
+ * `reposition: true`, the target's `position` is rewritten just above the
+ * previous current and the target becomes the new current — mirrors backend
+ * `release_held(reposition=True)`.
  */
 export const releaseHeldState = (
   queue: QueueRead,
@@ -442,22 +444,24 @@ export const releaseHeldState = (
   if (!target || target.held_at_round === null) return queue;
 
   let nextPosition = target.position;
+  let promoteToCurrent = false;
   const currentId = queue.current_item?.id ?? null;
   if (options.reposition && currentId !== null && currentId !== itemId) {
     const current = queue.items.find((i) => i.id === currentId);
     if (current) {
-      // Next active item strictly below current, position-desc.
-      const below = queue.items
+      // Closest active item strictly above current.
+      const above = queue.items
         .filter(
           (i) =>
             i.is_visible &&
             i.held_at_round === null &&
             i.id !== itemId &&
             i.id !== current.id &&
-            i.position < current.position
+            i.position > current.position
         )
-        .sort((a, b) => b.position - a.position)[0];
-      nextPosition = below ? (current.position + below.position) / 2 : current.position - 1.0;
+        .sort((a, b) => a.position - b.position)[0];
+      nextPosition = above ? (current.position + above.position) / 2 : current.position + 1.0;
+      promoteToCurrent = true;
     }
   }
 
@@ -469,6 +473,7 @@ export const releaseHeldState = (
   return {
     ...queue,
     items: replaceItem(queue, itemId, () => released),
+    current_item: promoteToCurrent ? released : queue.current_item,
   };
 };
 

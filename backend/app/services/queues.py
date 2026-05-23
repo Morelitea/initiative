@@ -506,14 +506,15 @@ async def release_held(
     untouched — releasing a hold shouldn't rewind the rotation pointer onto
     items that already took their turn this round.
 
-    When ``reposition`` is True (PF2e Delay semantics), the target's
-    ``position`` is rewritten to land immediately after the current item in
-    the position-desc rotation: the midpoint between the current item and
-    the next-lower active item, or just below the current item if it's the
-    bottom of the rotation. The new initiative slot persists for the rest
-    of the encounter — exactly like a PF2e Delay re-entry. Default ``False``
-    keeps the released item at its original position so it acts at its
-    natural slot the next time the rotation reaches it.
+    When ``reposition`` is True (PF2e Delay semantics), the target acts now
+    — it becomes the current turn, and its ``position`` is rewritten to land
+    just above the previous current item in the position-desc rotation
+    (midpoint between the previous current and the next-higher active item,
+    or ``current.position + 1`` if current was the top of the rotation). The
+    new initiative slot persists for the rest of the encounter, exactly like
+    a PF2e Delay re-entry. Default ``False`` keeps the released item at its
+    original position so it acts at its natural slot the next time the
+    rotation reaches it, without disrupting the current pointer.
     """
     items = getattr(queue, "items", None) or []
     target = next((item for item in items if item.id == item_id), None)
@@ -533,9 +534,9 @@ async def release_held(
     if reposition and queue.current_item_id is not None and queue.current_item_id != target.id:
         current = next((x for x in items if x.id == queue.current_item_id), None)
         if current is not None:
-            # Next active item whose position is strictly below current's.
-            # Held items and the target itself are excluded.
-            actives_below = sorted(
+            # Next active item whose position is strictly above current's
+            # (held items and the target itself excluded).
+            actives_above = sorted(
                 (
                     x
                     for x in items
@@ -543,18 +544,20 @@ async def release_held(
                     and x.held_at_round is None
                     and x.id != target.id
                     and x.id != current.id
-                    and x.position < current.position
+                    and x.position > current.position
                 ),
                 key=lambda x: x.position,
-                reverse=True,
             )
-            if actives_below:
-                target.position = (current.position + actives_below[0].position) / 2
+            if actives_above:
+                target.position = (current.position + actives_above[0].position) / 2
             else:
-                # Current is the bottom of the rotation — drop the released
-                # item just below it. -1.0 is arbitrary but safely under any
-                # other active position.
-                target.position = current.position - 1.0
+                # Current was already the top — drop the released item just
+                # above it. +1.0 is arbitrary but safely over any other
+                # active position relative to current.
+                target.position = current.position + 1.0
+            # They're acting *now*, before the previous current's turn — take
+            # over the current pointer so the rotation reflects that.
+            queue.current_item_id = target.id
 
     session.add(target)
     queue.updated_at = datetime.now(timezone.utc)

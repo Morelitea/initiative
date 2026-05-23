@@ -476,18 +476,20 @@ async def test_release_clears_hold_without_rewinding(
 
 
 @pytest.mark.integration
-async def test_release_with_reposition_drops_target_below_current(
+async def test_release_with_reposition_lifts_target_above_current(
     client: AsyncClient, session: AsyncSession
 ):
-    """PF2e Delay semantics: reposition places the released item just below current."""
+    """Reposition places the released item above current and makes them act now."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = get_guild_headers(guild, admin)
     queue_data, a, b, c = await _running_queue_with_abc(client, headers, initiative.id)
 
-    # Hold A (pos 30) on its turn → current becomes B (pos 20).
+    # Hold A (pos 30) on its turn → current becomes B (pos 20). After hold,
+    # the only items above B in the rotation are... none (A is held, so B is
+    # effectively the top of the active rotation).
     await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
-    # Release A with reposition: A's new position should sit between B (20)
-    # and C (10), so the rotation visits A next.
+    # Release A with reposition: A acts now (becomes current), and its new
+    # position drops just above B (which was current).
     response = await client.post(
         f"/api/v1/queues/{queue_data['id']}/release/{a['id']}",
         headers=headers,
@@ -495,45 +497,50 @@ async def test_release_with_reposition_drops_target_below_current(
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["current_item"]["id"] == b["id"]  # rotation pointer untouched
+    assert payload["current_item"]["id"] == a["id"]  # A is now current
     by_id = _items_by_id(payload)
     assert by_id[a["id"]]["held_at_round"] is None
-    # A is now strictly between B and C.
-    assert by_id[b["id"]]["position"] > by_id[a["id"]]["position"] > by_id[c["id"]]["position"]
+    # A's new position is strictly above B's (and B is still above C).
+    assert by_id[a["id"]]["position"] > by_id[b["id"]]["position"] > by_id[c["id"]]["position"]
 
-    # Advance from B → next position-desc-active is now A (newly between B/C).
+    # Advancing from A goes to B next — A's elevated position persists.
     after_next = (
         await client.post(f"/api/v1/queues/{queue_data['id']}/next", headers=headers)
     ).json()
-    assert after_next["current_item"]["id"] == a["id"]
+    assert after_next["current_item"]["id"] == b["id"]
 
 
 @pytest.mark.integration
-async def test_release_with_reposition_when_current_is_lowest(
+async def test_release_with_reposition_between_current_and_higher(
     client: AsyncClient, session: AsyncSession
 ):
-    """If current is the bottom of the rotation, repositioned item drops just below it."""
+    """When other active items sit above current, target lands between them."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = get_guild_headers(guild, admin)
     queue_data = await _create_queue_via_api(client, headers, initiative.id)
     a = await _add_item_via_api(client, headers, queue_data["id"], "A", position=30)
     b = await _add_item_via_api(client, headers, queue_data["id"], "B", position=20)
-    # Start → current=A (highest position).
+    c = await _add_item_via_api(client, headers, queue_data["id"], "C", position=10)
     await client.post(f"/api/v1/queues/{queue_data['id']}/start", headers=headers)
-    # Hold A (its turn) → A becomes held, current advances to B. B is now
-    # the only un-held active item, i.e. the bottom of the remaining rotation.
+    # Advance to B (current goes A → B). Then hold B → current becomes C.
+    await client.post(f"/api/v1/queues/{queue_data['id']}/next", headers=headers)
     await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    # Now A (pos 30) is active and above C (current, pos 10). Release B with
+    # reposition: B's new position should land between C (10) and A (30) — the
+    # midpoint is 20.
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/release/{a['id']}",
+        f"/api/v1/queues/{queue_data['id']}/release/{b['id']}",
         headers=headers,
         json={"reposition": True},
     )
     assert response.status_code == 200
     payload = response.json()
     by_id = _items_by_id(payload)
-    # A's new position drops strictly below B's; the exact value isn't
-    # important, only the ordering.
-    assert by_id[a["id"]]["position"] < by_id[b["id"]]["position"]
+    assert by_id[b["id"]]["position"] == 20  # midpoint of 30 (A) and 10 (C)
+    # B is now current — they're acting now, between A and C.
+    assert payload["current_item"]["id"] == b["id"]
+    # Sanity: A is still strictly above B, B above C.
+    assert by_id[a["id"]]["position"] > by_id[b["id"]]["position"] > by_id[c["id"]]["position"]
 
 
 @pytest.mark.integration

@@ -258,9 +258,10 @@ describe("hold / release", () => {
       expect(updatedA?.position).toBe(a.position);
     });
 
-    it("repositions the released item between current and next-lower when asked", () => {
-      // PF2e Delay: A is held; current=B(20); next-lower=C(10).
-      // Release A with reposition → A.position becomes (20 + 10) / 2 = 15.
+    it("lifts the released item above current and promotes it to current", () => {
+      // A is held; current=B(20). With A held there's nothing active above
+      // B, so releasing A "here" should set A.position = B.position + 1 = 21
+      // and make A the current turn — A acts now, before B does.
       const queue = {
         ...running,
         items: [{ ...a, held_at_round: 1 }, b, c],
@@ -268,23 +269,23 @@ describe("hold / release", () => {
       };
       const released = releaseHeldState(queue, a.id, { reposition: true });
       const updatedA = released.items.find((i) => i.id === a.id);
-      expect(updatedA?.position).toBe(15);
-      expect(released.current_item?.id).toBe(b.id); // pointer still untouched
+      expect(updatedA?.position).toBe(21);
+      expect(released.current_item?.id).toBe(a.id);
     });
 
-    it("drops the position just below current when current is the bottom", () => {
-      // Only A and B exist; A held; current=B(20). Reposition → A.position = 19.
-      const queue = buildQueue({
-        is_active: true,
-        items: [
-          { ...a, held_at_round: 1, position: 30 },
-          { ...b, position: 20 },
-        ],
-        current_item: { ...b, position: 20 },
-      });
-      const released = releaseHeldState(queue, a.id, { reposition: true });
-      const updatedA = released.items.find((i) => i.id === a.id);
-      expect(updatedA?.position).toBe(19);
+    it("lands between current and next-higher when one exists", () => {
+      // B is held in the middle; current=C(10) with A(30) still above. Release
+      // B with reposition → B.position lands at the midpoint between 10 and 30
+      // (= 20), and B becomes current.
+      const queue = {
+        ...running,
+        items: [a, { ...b, held_at_round: 1 }, c],
+        current_item: c,
+      };
+      const released = releaseHeldState(queue, b.id, { reposition: true });
+      const updatedB = released.items.find((i) => i.id === b.id);
+      expect(updatedB?.position).toBe(20);
+      expect(released.current_item?.id).toBe(b.id);
     });
 
     it("is a no-op if the target isn't held", () => {
