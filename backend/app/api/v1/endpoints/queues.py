@@ -741,6 +741,60 @@ async def reset_queue(
     return result
 
 
+@router.post("/{queue_id}/hold", response_model=QueueRead)
+async def hold_current_turn(
+    queue_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> QueueRead:
+    """Hold the current turn — the item leaves the rotation until it acts.
+
+    The held item is recorded with the current round; the rotation
+    auto-releases it when its natural position-desc slot comes back around in
+    a later round. Users can also call ``/release/{item_id}`` to act sooner.
+    """
+    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    await queues_service.hold_current(session, queue)
+    await session.commit()
+    await reapply_rls_context(session)
+
+    hydrated = await _refetch_queue(session, queue.id)
+    result = serialize_queue(
+        hydrated,
+        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+    )
+    await queue_manager.broadcast(queue_id, "turn_held", result.model_dump(mode="json"))
+    return result
+
+
+@router.post("/{queue_id}/release/{item_id}", response_model=QueueRead)
+async def release_held_item(
+    queue_id: int,
+    item_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> QueueRead:
+    """Release a held item — they interrupt and become the current turn.
+
+    Round is unchanged. Works regardless of ``is_active`` so the user can
+    line up an acting item before starting the queue.
+    """
+    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    await queues_service.release_held(session, queue, item_id)
+    await session.commit()
+    await reapply_rls_context(session)
+
+    hydrated = await _refetch_queue(session, queue.id)
+    result = serialize_queue(
+        hydrated,
+        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+    )
+    await queue_manager.broadcast(queue_id, "turn_released", result.model_dump(mode="json"))
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Item Tags
 # ---------------------------------------------------------------------------
@@ -1044,10 +1098,11 @@ async def websocket_queue(
     3. Server broadcasts JSON events as queue state changes
     4. Client keeps connection alive; no client-to-server data expected
 
-    Event types: turn_advance, turn_previous, item_added, item_removed,
-    item_updated, tags_changed, queue_started, queue_stopped, queue_reset,
-    items_reordered, queue_updated, queue_deleted, documents_changed,
-    tasks_changed, permissions_changed
+    Event types: turn_advance, turn_previous, turn_set_active, turn_held,
+    turn_released, item_added, item_removed, item_updated, tags_changed,
+    queue_started, queue_stopped, queue_reset, items_reordered,
+    queue_updated, queue_deleted, documents_changed, tasks_changed,
+    permissions_changed
     """
     await websocket.accept()
 

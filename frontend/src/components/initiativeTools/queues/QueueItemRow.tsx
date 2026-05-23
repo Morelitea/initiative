@@ -1,4 +1,5 @@
-import { EyeOff, FileText, ListChecks } from "lucide-react";
+import { EyeOff, FileText, ListChecks, PauseCircle } from "lucide-react";
+import type { KeyboardEvent, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { QueueItemRead } from "@/api/generated/initiativeAPI.schemas";
@@ -14,21 +15,46 @@ interface QueueItemRowProps {
   isActive: boolean;
   onEdit: (item: QueueItemRead) => void;
   onSetActive: (itemId: number) => void;
+  /**
+   * Optional control rendered to the right of the row (e.g. the "Act" button
+   * on a held row). The row was historically a `<button>` element, but a
+   * button-inside-button is invalid HTML; the root is now a `<div
+   * role="button">` so this slot can contain interactive children safely.
+   */
+  actionButton?: ReactNode;
 }
 
-export const QueueItemRow = ({ item, isActive, onEdit, onSetActive }: QueueItemRowProps) => {
+export const QueueItemRow = ({
+  item,
+  isActive,
+  onEdit,
+  onSetActive,
+  actionButton,
+}: QueueItemRowProps) => {
   const { t } = useTranslation("queues");
 
   const userInitials = item.user ? getInitials(item.user.full_name, item.user.email) : null;
   const userAvatarSrc = item.user
     ? resolveUploadUrl(item.user.avatar_url) || item.user.avatar_base64 || undefined
     : undefined;
+  const isHeld = item.held_at_round !== null;
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onEdit(item);
+    }
+  };
 
   return (
-    <button
-      type="button"
+    // biome-ignore lint/a11y/useSemanticElements: a native <button> would make
+    // nested interactive children (the Act button on held rows) invalid HTML.
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onEdit(item)}
       onDoubleClick={() => onSetActive(item.id)}
+      onKeyDown={handleKeyDown}
       className={cn(
         "group flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left transition",
         "hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -59,6 +85,12 @@ export const QueueItemRow = ({ item, isActive, onEdit, onSetActive }: QueueItemR
             <span className="rounded-full bg-primary px-2 py-0.5 font-medium text-primary-foreground text-xs">
               {t("currentTurn")}
             </span>
+          )}
+          {isHeld && (
+            <PauseCircle
+              className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+              aria-label={t("held")}
+            />
           )}
           {!item.is_visible && (
             <EyeOff
@@ -120,6 +152,9 @@ export const QueueItemRow = ({ item, isActive, onEdit, onSetActive }: QueueItemR
           </AvatarFallback>
         </Avatar>
       )}
-    </button>
+
+      {/* Right-side action button (e.g. Act on held rows) */}
+      {actionButton}
+    </div>
   );
 };

@@ -29,8 +29,10 @@ import { useQueueRealtime } from "@/hooks/useQueueRealtime";
 import {
   useAdvanceTurn,
   useDeleteQueue,
+  useHoldCurrent,
   usePreviousTurn,
   useQueue,
+  useReleaseHeld,
   useResetQueue,
   useSetActiveItem,
   useStartQueue,
@@ -115,13 +117,21 @@ export function QueueDetailPage() {
     onSuccess: () => toast.success(t("queueReset")),
   });
   const setActiveItem = useSetActiveItem(parsedId);
+  const holdCurrent = useHoldCurrent(parsedId, {
+    onSuccess: () => toast.success(t("queueHeld")),
+  });
+  const releaseHeld = useReleaseHeld(parsedId, {
+    onSuccess: () => toast.success(t("queueReleased")),
+  });
 
   const isControlLoading =
     startQueue.isPending ||
     stopQueue.isPending ||
     advanceTurn.isPending ||
     previousTurn.isPending ||
-    resetQueue.isPending;
+    resetQueue.isPending ||
+    holdCurrent.isPending ||
+    releaseHeld.isPending;
 
   // Item dialogs
   const [addItemOpen, setAddItemOpen] = useState(false);
@@ -279,6 +289,7 @@ export function QueueDetailPage() {
         onNext={() => advanceTurn.mutate()}
         onPrevious={() => previousTurn.mutate()}
         onReset={() => resetQueue.mutate()}
+        onHold={() => holdCurrent.mutate()}
         isLoading={isControlLoading}
       />
 
@@ -321,6 +332,11 @@ export function QueueDetailPage() {
             onSetActive={(itemId) => {
               if (canEdit && queue.is_active) {
                 setActiveItem.mutate(itemId);
+              }
+            }}
+            onAct={(itemId) => {
+              if (canEdit) {
+                releaseHeld.mutate(itemId);
               }
             }}
           />

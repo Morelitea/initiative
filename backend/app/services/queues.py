@@ -243,7 +243,13 @@ async def get_queue_item(
 # ---------------------------------------------------------------------------
 
 def _visible_items_desc(queue: Queue) -> list[QueueItem]:
-    """Return visible items sorted by position descending (highest first)."""
+    """Return visible items sorted by position descending (highest first).
+
+    Includes held items — the rotation logic in ``advance_turn`` walks the
+    visible list directly so it can auto-release held items whose due slot
+    has come up. Functions that want the *active* (non-held) rotation use
+    :func:`_active_rotation_desc` instead.
+    """
     items = getattr(queue, "items", None) or []
     return sorted(
         [item for item in items if item.is_visible],
@@ -252,12 +258,26 @@ def _visible_items_desc(queue: Queue) -> list[QueueItem]:
     )
 
 
-async def advance_turn(session: AsyncSession, queue: Queue) -> Queue:
-    """Advance to the next visible item by position (descending).
+def _active_rotation_desc(queue: Queue) -> list[QueueItem]:
+    """Return rotation-eligible items (visible AND not held), position desc.
 
-    Items sorted by position DESC (highest goes first, like TTRPG initiative).
-    Wraps around to the first item and increments current_round.
-    Skips hidden items (is_visible=False).
+    Used by ``previous_turn``, ``start_queue``, ``reset_queue`` to land on
+    items that are currently in the rotation. ``advance_turn`` and the
+    hold/release helpers iterate over :func:`_visible_items_desc` instead
+    because they have to consider held items for auto-release.
+    """
+    return [item for item in _visible_items_desc(queue) if item.held_at_round is None]
+
+
+async def advance_turn(session: AsyncSession, queue: Queue) -> Queue:
+    """Advance to the next rotation slot, auto-releasing any held item due.
+
+    Walks visible items in position-desc order (with round wrap). A candidate
+    that's held with ``held_at_round < new_current_round`` is auto-released
+    (``held_at_round`` cleared) and becomes the current turn — so a held
+    participant whose natural slot has come back around isn't silently
+    skipped forever. Held items whose due round hasn't arrived are skipped.
+    Mirrors the algorithm in ``advanceQueueState`` (frontend).
     """
     visible = _visible_items_desc(queue)
     if not visible:
@@ -266,7 +286,7 @@ async def advance_turn(session: AsyncSession, queue: Queue) -> Queue:
             detail=QueueMessages.NO_ITEMS,
         )
 
-    # Find current item index in the sorted list
+    # Locate the current item within the visible list (held or not).
     current_idx: int | None = None
     if queue.current_item_id is not None:
         for idx, item in enumerate(visible):
@@ -274,47 +294,71 @@ async def advance_turn(session: AsyncSession, queue: Queue) -> Queue:
                 current_idx = idx
                 break
 
-    if current_idx is None or current_idx >= len(visible) - 1:
-        # Not found or at end — wrap to first item and increment round
-        queue.current_item_id = visible[0].id
-        queue.current_round += 1
-    else:
-        # Move to next item
-        queue.current_item_id = visible[current_idx + 1].id
+    idx = current_idx if current_idx is not None else -1
+    round_ = queue.current_round
+    # Cap iterations defensively; the only natural terminator is "found a
+    # rotation-eligible candidate" or "every held item has a future due
+    # round" (which would be a pathological state).
+    for _ in range(len(visible) * 2 + 1):
+        next_idx = (idx + 1) % len(visible)
+        wrapped = next_idx == 0 and current_idx is not None
+        if wrapped:
+            round_ += 1
+        candidate = visible[next_idx]
+        if candidate.held_at_round is None:
+            queue.current_item_id = candidate.id
+            queue.current_round = round_
+            queue.updated_at = datetime.now(timezone.utc)
+            session.add(queue)
+            return queue
+        if candidate.held_at_round < round_:
+            # Due: auto-release and act now.
+            candidate.held_at_round = None
+            session.add(candidate)
+            queue.current_item_id = candidate.id
+            queue.current_round = round_
+            queue.updated_at = datetime.now(timezone.utc)
+            session.add(queue)
+            return queue
+        # Held and not yet due — skip past it.
+        idx = next_idx
+        current_idx = next_idx  # subsequent wraps should bump round
 
+    # Every item in the rotation is held and not yet due. Clear current and
+    # leave the round where we landed; user can release manually.
+    queue.current_item_id = None
+    queue.current_round = round_
     queue.updated_at = datetime.now(timezone.utc)
     session.add(queue)
     return queue
 
 
 async def previous_turn(session: AsyncSession, queue: Queue) -> Queue:
-    """Move to the previous visible item by position (descending).
+    """Move to the previous rotation-eligible item by position (descending).
 
-    Reverse direction of advance_turn. Wraps around to the last item
-    and decrements current_round (minimum 1).
+    Held items are skipped without auto-release — auto-release is a forward-
+    time effect of :func:`advance_turn` only. Wraps to the last and
+    decrements ``current_round`` (minimum 1).
     """
-    visible = _visible_items_desc(queue)
-    if not visible:
+    rotation = _active_rotation_desc(queue)
+    if not rotation:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=QueueMessages.NO_ITEMS,
         )
 
-    # Find current item index
     current_idx: int | None = None
     if queue.current_item_id is not None:
-        for idx, item in enumerate(visible):
+        for idx, item in enumerate(rotation):
             if item.id == queue.current_item_id:
                 current_idx = idx
                 break
 
     if current_idx is None or current_idx <= 0:
-        # Not found or at beginning — wrap to last item and decrement round
-        queue.current_item_id = visible[-1].id
+        queue.current_item_id = rotation[-1].id
         queue.current_round = max(1, queue.current_round - 1)
     else:
-        # Move to previous item
-        queue.current_item_id = visible[current_idx - 1].id
+        queue.current_item_id = rotation[current_idx - 1].id
 
     queue.updated_at = datetime.now(timezone.utc)
     session.add(queue)
@@ -322,16 +366,16 @@ async def previous_turn(session: AsyncSession, queue: Queue) -> Queue:
 
 
 async def start_queue(session: AsyncSession, queue: Queue) -> Queue:
-    """Start the queue: set is_active=True, reset to first visible item, round 1."""
-    visible = _visible_items_desc(queue)
-    if not visible:
+    """Start the queue: set is_active=True, reset to first rotation item, round 1."""
+    rotation = _active_rotation_desc(queue)
+    if not rotation:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=QueueMessages.NO_ITEMS,
         )
 
     queue.is_active = True
-    queue.current_item_id = visible[0].id
+    queue.current_item_id = rotation[0].id
     queue.current_round = 1
     queue.updated_at = datetime.now(timezone.utc)
     session.add(queue)
@@ -347,16 +391,16 @@ async def stop_queue(session: AsyncSession, queue: Queue) -> Queue:
 
 
 async def reset_queue(session: AsyncSession, queue: Queue) -> Queue:
-    """Reset the queue: set current_round=1, current_item_id to first visible item."""
-    visible = _visible_items_desc(queue)
-    if not visible:
+    """Reset the queue: round=1, current = first rotation item. Held state preserved."""
+    rotation = _active_rotation_desc(queue)
+    if not rotation:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=QueueMessages.NO_ITEMS,
         )
 
     queue.current_round = 1
-    queue.current_item_id = visible[0].id
+    queue.current_item_id = rotation[0].id
     queue.updated_at = datetime.now(timezone.utc)
     session.add(queue)
     return queue
@@ -367,16 +411,113 @@ async def set_active_item(
     queue: Queue,
     item_id: int,
 ) -> Queue:
-    """Set the active item on a queue. Validates item belongs to the queue."""
+    """Set the active item on a queue. Validates item belongs to the queue.
+
+    If the target is currently held, ``held_at_round`` is cleared as part of
+    the same operation — the invariant ``current ∉ held set`` should survive
+    any direct-set path so the rotation doesn't enter a state where its
+    current pointer references a held item.
+    """
     items = getattr(queue, "items", None) or []
-    found = any(item.id == item_id for item in items)
-    if not found:
+    target: QueueItem | None = next((item for item in items if item.id == item_id), None)
+    if target is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
 
+    if target.held_at_round is not None:
+        target.held_at_round = None
+        session.add(target)
     queue.current_item_id = item_id
+    queue.updated_at = datetime.now(timezone.utc)
+    session.add(queue)
+    return queue
+
+
+async def hold_current(session: AsyncSession, queue: Queue) -> Queue:
+    """Hold the current turn — record the round and advance to the next item.
+
+    The held item leaves the rotation immediately. ``current_item_id``
+    advances to the next rotation slot, skipping any other held items whose
+    due round hasn't arrived. If holding empties the rotation,
+    ``current_item_id`` is cleared and the round is unchanged.
+    """
+    if queue.current_item_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueueMessages.NO_CURRENT_ITEM,
+        )
+    items = getattr(queue, "items", None) or []
+    current = next((item for item in items if item.id == queue.current_item_id), None)
+    if current is None:
+        # current_item_id pointing at a deleted/missing row; treat as "no current"
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueueMessages.NO_CURRENT_ITEM,
+        )
+
+    # Record the hold *before* advancing so the rotation skips this item.
+    current.held_at_round = queue.current_round
+    session.add(current)
+
+    # Find the next rotation-eligible slot in position-desc order, with wrap.
+    visible = _visible_items_desc(queue)
+    rotation = [item for item in visible if item.held_at_round is None]
+    if not rotation:
+        queue.current_item_id = None
+        queue.updated_at = datetime.now(timezone.utc)
+        session.add(queue)
+        return queue
+
+    # Locate where we *were* in the full visible list; advance from there to
+    # the next non-held slot, wrapping and bumping round if needed.
+    current_idx = next(
+        (idx for idx, item in enumerate(visible) if item.id == current.id),
+        -1,
+    )
+    round_ = queue.current_round
+    for step in range(1, len(visible) + 1):
+        next_idx = (current_idx + step) % len(visible)
+        if next_idx <= current_idx:
+            round_ = queue.current_round + 1
+        candidate = visible[next_idx]
+        if candidate.held_at_round is None:
+            queue.current_item_id = candidate.id
+            queue.current_round = round_
+            break
+
+    queue.updated_at = datetime.now(timezone.utc)
+    session.add(queue)
+    return queue
+
+
+async def release_held(
+    session: AsyncSession,
+    queue: Queue,
+    item_id: int,
+) -> Queue:
+    """Manually release a held item — they interrupt and become the current turn.
+
+    Round is unchanged. ``is_active`` is unchanged (release works whether
+    the queue is running or stopped).
+    """
+    items = getattr(queue, "items", None) or []
+    target = next((item for item in items if item.id == item_id), None)
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=QueueMessages.ITEM_NOT_FOUND,
+        )
+    if target.held_at_round is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=QueueMessages.ITEM_NOT_HELD,
+        )
+
+    target.held_at_round = None
+    session.add(target)
+    queue.current_item_id = target.id
     queue.updated_at = datetime.now(timezone.utc)
     session.add(queue)
     return queue

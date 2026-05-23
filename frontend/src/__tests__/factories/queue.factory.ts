@@ -23,6 +23,7 @@ export function buildQueueItem(overrides: Partial<QueueItemRead> = {}): QueueIte
     color: null,
     notes: null,
     is_visible: true,
+    held_at_round: null,
     user_id: null,
     user: null,
     tags: [],

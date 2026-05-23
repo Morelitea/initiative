@@ -2176,6 +2176,7 @@ export interface QueueItemRead {
   tags: TagSummary[];
   documents: QueueItemDocumentRead[];
   tasks: QueueItemTaskRead[];
+  held_at_round: number | null;
   created_at: string;
 }
 

@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Loader2, Pause, Play, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Hand, Loader2, Pause, Play, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { QueueRead } from "@/api/generated/initiativeAPI.schemas";
@@ -13,6 +13,7 @@ interface QueueControlsProps {
   onNext: () => void;
   onPrevious: () => void;
   onReset: () => void;
+  onHold: () => void;
   isLoading?: boolean;
 }
 
@@ -23,6 +24,7 @@ export const QueueControls = ({
   onNext,
   onPrevious,
   onReset,
+  onHold,
   isLoading = false,
 }: QueueControlsProps) => {
   const { t } = useTranslation("queues");
@@ -69,14 +71,16 @@ export const QueueControls = ({
         </TooltipContent>
       </Tooltip>
 
-      {/* Previous */}
+      {/* Previous / Next / Hold need a current turn to operate on; without
+          one (e.g. when every visible item has been held) clicking would
+          either no-op on the server or surprise the user. */}
       <Tooltip delayDuration={300}>
         <TooltipTrigger asChild>
           <Button
             variant="outline"
             size="icon"
             onClick={onPrevious}
-            disabled={!queue.is_active || isLoading}
+            disabled={!queue.is_active || !queue.current_item || isLoading}
             aria-label={t("previous")}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -94,7 +98,7 @@ export const QueueControls = ({
             variant="outline"
             size="icon"
             onClick={onNext}
-            disabled={!queue.is_active || isLoading}
+            disabled={!queue.is_active || !queue.current_item || isLoading}
             aria-label={t("next")}
           >
             <ChevronRight className="h-4 w-4" />
@@ -102,6 +106,25 @@ export const QueueControls = ({
         </TooltipTrigger>
         <TooltipContent>
           <p>{t("next")}</p>
+        </TooltipContent>
+      </Tooltip>
+
+      {/* Hold the current turn — they leave the rotation until released or
+          their natural slot comes back around. */}
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onHold}
+            disabled={!queue.is_active || !queue.current_item || isLoading}
+          >
+            <Hand className="mr-1 h-4 w-4" />
+            {t("hold")}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>{t("hold")}</p>
         </TooltipContent>
       </Tooltip>
 

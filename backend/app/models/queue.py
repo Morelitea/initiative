@@ -107,6 +107,17 @@ class QueueItem(SoftDeleteMixin, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    # NULL when the item is in the rotation. When set, records the
+    # ``current_round`` at the time the user held this item. The rotation
+    # auto-releases held items in ``advance_turn`` when ``current_round``
+    # exceeds ``held_at_round`` AND the rotation reaches the item's natural
+    # position-desc slot — so a held participant can't be forgotten if the
+    # event they were waiting for never happens. See
+    # ``backend/app/services/queues.py:advance_turn``.
+    held_at_round: Optional[int] = Field(
+        default=None,
+        sa_column=Column(Integer, nullable=True),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

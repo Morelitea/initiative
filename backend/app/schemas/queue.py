@@ -108,6 +108,10 @@ class QueueItemRead(QueueItemBase):
     tags: List[TagSummary] = Field(default_factory=list)
     documents: List[QueueItemDocumentRead] = Field(default_factory=list)
     tasks: List[QueueItemTaskRead] = Field(default_factory=list)
+    # Round in which the user held this item (NULL = not held). The rotation
+    # auto-releases the item at its natural slot in ``held_at_round + 1`` so
+    # held participants can't be forgotten.
+    held_at_round: Optional[int] = None
     created_at: datetime
 
 
@@ -225,6 +229,7 @@ def serialize_queue_item(item: "QueueItem") -> QueueItemRead:
         color=item.color,
         notes=item.notes,
         is_visible=item.is_visible,
+        held_at_round=item.held_at_round,
         tags=_serialize_queue_item_tags(item),
         documents=_serialize_queue_item_documents(item),
         tasks=_serialize_queue_item_tasks(item),
