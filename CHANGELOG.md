@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-05-23
+
 ### Added
 
 - **Recent items bar now spans more than projects.** The sticky tabs strip at the top of the app surfaces the 20 most recently opened guild-scoped items across projects, documents, queues, and counter groups, ordered by last viewed. Each tab shows an entity-specific icon (project emoji, file-type icon for documents, `GalleryHorizontalEnd` for queues, `Gauge` for counter groups) and links to the matching detail page. The previous projects-only `/projects/recent` endpoint has been replaced by a polymorphic `recent_views` table and a single `GET /api/v1/recents` endpoint; new `POST /<entity>/{id}/view` and `DELETE /<entity>/{id}/view` endpoints record/clear views for each of the four entity types.
