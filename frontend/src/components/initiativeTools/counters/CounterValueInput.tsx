@@ -10,7 +10,7 @@ interface CounterValueInputProps {
   /** Called with the typed value after blur, debounce, or Enter. */
   onCommit: (value: string) => void;
   /** Visual size — affects font size only. */
-  size?: "xl" | "lg" | "md" | "sm";
+  size?: "2xl" | "xl" | "lg" | "md" | "sm";
   /** Apply this text color (e.g. contrasting against a colored card). */
   textColor?: string;
   className?: string;
@@ -87,12 +87,19 @@ export const CounterValueInput = ({
       if (valueLength <= 11) return "text-xl";
       return "text-base";
     }
-    // "xl" (grid cards)
-    if (valueLength <= 4) return "text-5xl";
-    if (valueLength <= 6) return "text-4xl";
-    if (valueLength <= 8) return "text-3xl";
-    if (valueLength <= 11) return "text-2xl";
-    return "text-xl";
+    if (size === "xl") {
+      if (valueLength <= 4) return "text-5xl";
+      if (valueLength <= 6) return "text-4xl";
+      if (valueLength <= 8) return "text-3xl";
+      if (valueLength <= 11) return "text-2xl";
+      return "text-xl";
+    }
+    // "2xl" (fullscreen focus view)
+    if (valueLength <= 3) return "text-8xl";
+    if (valueLength <= 5) return "text-7xl";
+    if (valueLength <= 7) return "text-6xl";
+    if (valueLength <= 10) return "text-5xl";
+    return "text-4xl";
   })();
 
   // Size the box to the typed content (font-mono ⇒ 1 char ≈ 1ch) so the input —

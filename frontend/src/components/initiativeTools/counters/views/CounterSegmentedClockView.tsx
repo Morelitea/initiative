@@ -11,8 +11,8 @@ interface CounterSegmentedClockViewProps {
   onCommit: (value: string) => void;
   ariaLabel?: string;
   className?: string;
-  /** Size hint — "lg" doubles the diameter for grid cards. */
-  size?: "md" | "lg";
+  /** Size hint — "lg" doubles the diameter for grid cards, "2xl" for fullscreen focus. */
+  size?: "2xl" | "lg" | "md";
 }
 
 const toNum = (value: string): number => {
@@ -53,8 +53,15 @@ export const CounterSegmentedClockView = ({
   // Grid cards ("lg") size the dial responsively: on a 2-up phone the card's
   // value area is only ~65px tall, so start small and grow with the breakpoints
   // that widen the grid. The row layout ("md") keeps a fixed dial.
-  const wrapperSize = size === "lg" ? "h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24" : "h-20 w-20";
-  const inputSize = size === "lg" ? "lg" : "md";
+  // "2xl" is the fullscreen focus dial — fills most of the focus viewport area.
+  const wrapperSize =
+    size === "2xl"
+      ? "h-64 w-64 sm:h-72 sm:w-72"
+      : size === "lg"
+        ? "h-16 w-16 sm:h-20 sm:w-20 lg:h-24 lg:w-24"
+        : "h-20 w-20";
+  const inputSize = size === "2xl" ? "2xl" : size === "lg" ? "lg" : "md";
+  const strokeWidth = size === "2xl" ? 4 : 6;
 
   return (
     <div className={cn("relative inline-flex items-center justify-center", wrapperSize, className)}>
@@ -64,7 +71,7 @@ export const CounterSegmentedClockView = ({
         aria-hidden="true"
       >
         <circle
-          strokeWidth={6}
+          strokeWidth={strokeWidth}
           fill="transparent"
           stroke="rgba(0,0,0,0.18)"
           r={RADIUS}
@@ -72,7 +79,7 @@ export const CounterSegmentedClockView = ({
           cy={CENTER}
         />
         <circle
-          strokeWidth={6}
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           fill="transparent"
           stroke={fillColor}

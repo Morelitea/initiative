@@ -9,8 +9,8 @@ interface CounterNumberViewProps {
   onCommit: (value: string) => void;
   ariaLabel?: string;
   className?: string;
-  /** Size hint — "xl" for grid cards where the value should dominate. */
-  size?: "xl" | "lg";
+  /** Size hint — "xl" for grid cards, "2xl" for fullscreen focus. */
+  size?: "2xl" | "xl" | "lg";
 }
 
 export const CounterNumberView = ({

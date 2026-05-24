@@ -11,8 +11,8 @@ interface CounterProgressBarViewProps {
   onCommit: (value: string) => void;
   ariaLabel?: string;
   className?: string;
-  /** Size hint — "xl" enlarges the value for grid cards. */
-  size?: "xl" | "lg";
+  /** Size hint — "xl" enlarges the value for grid cards, "2xl" for fullscreen focus. */
+  size?: "2xl" | "xl" | "lg";
 }
 
 const toNum = (value: string): number => {
@@ -44,8 +44,17 @@ export const CounterProgressBarView = ({
   const value = toNum(count);
   const pct = range > 0 ? Math.max(0, Math.min(100, ((value - minN) / range) * 100)) : 0;
 
+  const slashSize =
+    size === "2xl"
+      ? "text-xl opacity-70"
+      : size === "xl"
+        ? "text-base opacity-70"
+        : "text-sm opacity-70";
+  const barHeight = size === "2xl" ? "h-4" : "h-2";
+  const gapClass = size === "2xl" ? "gap-3" : "gap-1.5";
+
   return (
-    <div className={cn("flex w-full flex-col items-center gap-1.5", className)}>
+    <div className={cn("flex w-full flex-col items-center", gapClass, className)}>
       <div
         className="flex items-baseline justify-center gap-1 font-mono tabular-nums"
         style={{ color: textColor }}
@@ -59,12 +68,10 @@ export const CounterProgressBarView = ({
           size={size}
           ariaLabel={ariaLabel}
         />
-        <span className={size === "xl" ? "text-base opacity-70" : "text-sm opacity-70"}>
-          / {max}
-        </span>
+        <span className={slashSize}>/ {max}</span>
       </div>
       <div
-        className="h-2 w-full overflow-hidden rounded-full"
+        className={cn("w-full overflow-hidden rounded-full", barHeight)}
         style={{ background: "rgba(0,0,0,0.18)" }}
       >
         <div

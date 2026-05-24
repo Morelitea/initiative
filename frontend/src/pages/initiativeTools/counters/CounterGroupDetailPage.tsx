@@ -307,6 +307,7 @@ export function CounterGroupDetailPage() {
                   counter={counter}
                   canWrite={!!canWrite}
                   layout={layout}
+                  focusHref={gp(`/counter-groups/${group.id}/counter/${counter.id}`)}
                   onSetCount={(value) => {
                     // Direct typed entry wins over any pending stepped flush.
                     stepper.cancel(counter.id);

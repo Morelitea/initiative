@@ -81,8 +81,18 @@
   "noAccess": "Acceso denegado",
   "noAccessDescription": "No tienes permiso para ver este grupo de contadores.",
   "backToGroups": "Volver a los grupos de contadores",
+  "backToGroup": "Volver al grupo",
   "counterCount_one": "{{count}} contador",
   "counterCount_other": "{{count}} contadores",
+
+  "focus": {
+    "openFocus": "Abrir pantalla completa",
+    "exit": "Salir de la pantalla completa",
+    "next": "Contador siguiente",
+    "previous": "Contador anterior",
+    "counterPosition": "{{current}} / {{total}}",
+    "notFound": "Contador no encontrado en este grupo"
+  },
   "createFirst": "Crea tu primer grupo de contadores",
 
   "settings": "Configuración",

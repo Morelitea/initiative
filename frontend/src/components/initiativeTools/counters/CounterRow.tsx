@@ -1,6 +1,16 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Minus, MoreVertical, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import {
+  GripVertical,
+  Maximize2,
+  Minus,
+  MoreVertical,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
@@ -24,6 +34,8 @@ interface CounterRowProps {
   counter: CounterRead;
   canWrite: boolean;
   layout?: CounterLayout;
+  /** Link to the full-screen single-counter view. Hides the button when omitted. */
+  focusHref?: string;
   onSetCount: (value: string) => void;
   onIncrement: () => void;
   onDecrement: () => void;
@@ -36,6 +48,7 @@ export const CounterRow = ({
   counter,
   canWrite,
   layout = "row",
+  focusHref,
   onSetCount,
   onIncrement,
   onDecrement,
@@ -148,12 +161,19 @@ export const CounterRow = ({
           aria-label={t("more")}
           className={cn("h-7 w-7 opacity-70 hover:opacity-100", moreHoverClass)}
           style={{ color: fg }}
-          disabled={!canWrite}
         >
           <MoreVertical className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {focusHref && (
+          <DropdownMenuItem asChild>
+            <Link to={focusHref}>
+              <Maximize2 className="h-4 w-4" />
+              {t("focus.openFocus")}
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={onReset} disabled={!canWrite}>
           <RotateCcw className="h-4 w-4" />
           {t("reset")}
