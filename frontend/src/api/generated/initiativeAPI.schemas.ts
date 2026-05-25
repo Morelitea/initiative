@@ -3144,6 +3144,22 @@ export interface UserUpdate {
   locale?: string | null;
 }
 
+/**
+ * Body for ``PUT /user-view-preferences/{scope_key}``.
+ */
+export interface UserViewPreferenceWrite {
+  value: unknown;
+}
+
+export type UserViewPreferencesMapItems = { [key: string]: unknown };
+
+/**
+ * Response for ``GET /user-view-preferences`` — keyed by scope.
+ */
+export interface UserViewPreferencesMap {
+  items?: UserViewPreferencesMapItems;
+}
+
 export interface VerificationConfirmRequest {
   /** @minLength 10 */
   token: string;

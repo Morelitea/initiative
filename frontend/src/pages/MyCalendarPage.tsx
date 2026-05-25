@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { addYears, endOfYear, startOfYear, subYears } from "date-fns";
 import { ChevronDown, Download, Filter, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
@@ -21,33 +21,32 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGlobalCalendarEventsList } from "@/hooks/useCalendarEvents";
 import { useGlobalTasksTable } from "@/hooks/useGlobalTasksTable";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
-import { getItem, setItem } from "@/lib/storage";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
 
-const PREFS_DEFAULTS = {
-  showEvents: true,
-  calendarViewMode: "month" as CalendarViewMode,
+type StoredPrefs = {
+  showEvents: boolean;
+  calendarViewMode: CalendarViewMode;
 };
 
-const readStoredPrefs = () => {
-  try {
-    const raw = getItem(STORAGE_KEY);
-    if (!raw) return PREFS_DEFAULTS;
-    const parsed = JSON.parse(raw);
-    return {
-      showEvents:
-        typeof parsed?.showEvents === "boolean" ? parsed.showEvents : PREFS_DEFAULTS.showEvents,
-      calendarViewMode:
-        typeof parsed?.calendarViewMode === "string"
-          ? (parsed.calendarViewMode as CalendarViewMode)
-          : PREFS_DEFAULTS.calendarViewMode,
-    };
-  } catch {
-    return PREFS_DEFAULTS;
-  }
+const PREFS_DEFAULTS: StoredPrefs = {
+  showEvents: true,
+  calendarViewMode: "month",
+};
+
+const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
+  if (raw === null || typeof raw !== "object") return PREFS_DEFAULTS;
+  const v = raw as Partial<StoredPrefs>;
+  return {
+    showEvents: typeof v.showEvents === "boolean" ? v.showEvents : PREFS_DEFAULTS.showEvents,
+    calendarViewMode:
+      typeof v.calendarViewMode === "string"
+        ? (v.calendarViewMode as CalendarViewMode)
+        : PREFS_DEFAULTS.calendarViewMode,
+  };
 };
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -59,28 +58,35 @@ export const MyCalendarPage = () => {
   const gp = useGuildPath();
   const navigate = useNavigate();
 
-  const storedPrefs = useMemo(() => readStoredPrefs(), []);
-
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
-  // Calendar-specific state
-  const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>(
-    () => storedPrefs.calendarViewMode
+  // Calendar-specific state (server-persisted)
+  const [storedPrefsRaw, setStoredPrefs] = useViewPreference<StoredPrefs>(
+    STORAGE_KEY,
+    PREFS_DEFAULTS
+  );
+  const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
+  const { calendarViewMode, showEvents } = storedPrefs;
+  const setCalendarViewMode = useCallback(
+    (next: CalendarViewMode) =>
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), calendarViewMode: next })),
+    [setStoredPrefs]
+  );
+  const setShowEvents = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) =>
+      setStoredPrefs((prev) => {
+        const safe = sanitizeStoredPrefs(prev);
+        return {
+          ...safe,
+          showEvents: typeof next === "function" ? next(safe.showEvents) : next,
+        };
+      }),
+    [setStoredPrefs]
   );
   const [focusDate, setFocusDate] = useState(() => new Date());
-  const [showEvents, setShowEvents] = useState(() => storedPrefs.showEvents);
 
   // Use the same hook as My Tasks for task data + filters
   const table = useGlobalTasksTable({ scope: "global", storageKeyPrefix: "my-calendar-tasks" });
-
-  // Persist calendar-specific preferences
-  useEffect(() => {
-    const payload = {
-      showEvents,
-      calendarViewMode,
-    };
-    setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [showEvents, calendarViewMode]);
 
   // --- Events query (global cross-guild) ---
   const eventsParams = useMemo((): ListGlobalCalendarEventsApiV1CalendarEventsGlobalGetParams => {

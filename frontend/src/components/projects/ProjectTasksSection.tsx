@@ -19,7 +19,7 @@ import {
   Plus,
   Table,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -72,6 +72,7 @@ import {
   useTasks,
   useUpdateTask,
 } from "@/hooks/useTasks";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getItem, setItem } from "@/lib/storage";
 
@@ -97,38 +98,48 @@ const DEFAULT_FILTERS: StoredFilters = {
   showArchived: false,
 };
 
-type FilterAction =
-  | { type: "RESET_ALL" }
-  | { type: "LOAD"; payload: Partial<StoredFilters> }
-  | { type: "SET_VIEW_MODE"; payload: ViewMode }
-  | { type: "SET_ASSIGNEE_FILTERS"; payload: string[] }
-  | { type: "SET_DUE_FILTER"; payload: DueFilterOption }
-  | { type: "SET_STATUS_FILTERS"; payload: number[] }
-  | { type: "SET_TAG_FILTERS"; payload: number[] }
-  | { type: "SET_PROPERTY_FILTERS"; payload: PropertyFilterCondition[] }
-  | { type: "SET_SHOW_ARCHIVED"; payload: boolean };
-
-function filterReducer(state: StoredFilters, action: FilterAction): StoredFilters {
-  switch (action.type) {
-    case "RESET_ALL":
-      return DEFAULT_FILTERS;
-    case "LOAD":
-      return { ...state, ...action.payload };
-    case "SET_VIEW_MODE":
-      return { ...state, viewMode: action.payload };
-    case "SET_ASSIGNEE_FILTERS":
-      return { ...state, assigneeFilters: action.payload };
-    case "SET_DUE_FILTER":
-      return { ...state, dueFilter: action.payload };
-    case "SET_STATUS_FILTERS":
-      return { ...state, statusFilters: action.payload };
-    case "SET_TAG_FILTERS":
-      return { ...state, tagFilters: action.payload };
-    case "SET_PROPERTY_FILTERS":
-      return { ...state, propertyFilters: action.payload };
-    case "SET_SHOW_ARCHIVED":
-      return { ...state, showArchived: action.payload };
+/**
+ * Coerce whatever shape comes back from the server (or a legacy
+ * localStorage blob) into a valid ``StoredFilters``. Drops any field
+ * with the wrong type so a stale or corrupted blob can't crash the UI.
+ */
+function sanitizeStoredFilters(raw: unknown): StoredFilters {
+  if (raw === null || typeof raw !== "object") return DEFAULT_FILTERS;
+  const parsed = raw as Partial<StoredFilters>;
+  const out: StoredFilters = { ...DEFAULT_FILTERS };
+  if (
+    parsed.viewMode === "table" ||
+    parsed.viewMode === "kanban" ||
+    parsed.viewMode === "calendar" ||
+    parsed.viewMode === "gantt"
+  ) {
+    out.viewMode = parsed.viewMode;
   }
+  if (Array.isArray(parsed.assigneeFilters)) {
+    out.assigneeFilters = parsed.assigneeFilters.filter((v): v is string => typeof v === "string");
+  }
+  if (parsed.dueFilter) {
+    out.dueFilter = parsed.dueFilter;
+  }
+  if (Array.isArray(parsed.statusFilters)) {
+    out.statusFilters = parsed.statusFilters.filter((v): v is number => typeof v === "number");
+  }
+  if (Array.isArray(parsed.tagFilters)) {
+    out.tagFilters = parsed.tagFilters.filter((v): v is number => typeof v === "number");
+  }
+  if (Array.isArray(parsed.propertyFilters)) {
+    out.propertyFilters = parsed.propertyFilters.filter(
+      (entry): entry is PropertyFilterCondition =>
+        entry !== null &&
+        typeof entry === "object" &&
+        typeof (entry as PropertyFilterCondition).property_id === "number" &&
+        typeof (entry as PropertyFilterCondition).op === "string"
+    );
+  }
+  if (typeof parsed.showArchived === "boolean") {
+    out.showArchived = parsed.showArchived;
+  }
+  return out;
 }
 
 type TaskViewOption = { value: ViewMode; labelKey: string; icon: LucideIcon };
@@ -197,7 +208,10 @@ export const ProjectTasksSection = ({
   const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
-  const [filters, dispatchFilters] = useReducer(filterReducer, DEFAULT_FILTERS);
+  const filterStorageKey = `project:${projectId}:view-filters`;
+  const [storedFilters, setStoredFilters, { isLoaded: filtersLoaded }] =
+    useViewPreference<StoredFilters>(filterStorageKey, DEFAULT_FILTERS);
+  const filters = useMemo(() => sanitizeStoredFilters(storedFilters), [storedFilters]);
   const {
     viewMode,
     assigneeFilters,
@@ -207,9 +221,51 @@ export const ProjectTasksSection = ({
     propertyFilters,
     showArchived,
   } = filters;
+  const patchFilters = useCallback(
+    (patch: Partial<StoredFilters>) => setStoredFilters((prev) => ({ ...prev, ...patch })),
+    [setStoredFilters]
+  );
 
   // Fetch guild tags for filtering
   const { data: tags = [] } = useTags();
+
+  // Prune saved filters that reference items the user no longer has access
+  // to (deleted tag, removed status, ex-member). The hook value is the
+  // source of truth for filters; once the lookup data resolves we strip
+  // any dangling IDs and write the cleaned blob back, so future loads
+  // don't have to re-pay for the diff.
+  const tagsLoaded = tags !== undefined;
+  const userOptionsLoaded = userOptions.length > 0;
+  useEffect(() => {
+    if (!filtersLoaded || !tagsLoaded || !userOptionsLoaded) return;
+    const tagIds = new Set(tags.map((tg) => tg.id));
+    const statusIds = new Set(sortedTaskStatuses.map((s) => s.id));
+    const assigneeIdsSet = new Set(userOptions.map((u) => String(u.id)));
+    const cleaned: StoredFilters = {
+      ...filters,
+      tagFilters: filters.tagFilters.filter((id) => tagIds.has(id)),
+      statusFilters: filters.statusFilters.filter((id) => statusIds.has(id)),
+      assigneeFilters: filters.assigneeFilters.filter((id) => assigneeIdsSet.has(id)),
+    };
+    if (
+      cleaned.tagFilters.length !== filters.tagFilters.length ||
+      cleaned.statusFilters.length !== filters.statusFilters.length ||
+      cleaned.assigneeFilters.length !== filters.assigneeFilters.length
+    ) {
+      setStoredFilters(cleaned);
+    }
+    // Property filter pruning lives in the property filter UI itself
+    // (it needs the property definitions, which aren't fetched here).
+  }, [
+    filtersLoaded,
+    tagsLoaded,
+    userOptionsLoaded,
+    tags,
+    sortedTaskStatuses,
+    userOptions,
+    filters,
+    setStoredFilters,
+  ]);
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
   const [localOverride, setLocalOverride] = useState<TaskListRead[] | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(initialComposerOpen ?? false);
@@ -222,7 +278,6 @@ export const ProjectTasksSection = ({
     onComposerOpenChange?.(isComposerOpen);
   }, [isComposerOpen, onComposerOpenChange]);
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
-  const [filtersLoadedForProject, setFiltersLoadedForProject] = useState<number | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<TaskListRead[]>([]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
   const [isBulkEditTagsDialogOpen, setIsBulkEditTagsDialogOpen] = useState(false);
@@ -259,7 +314,7 @@ export const ProjectTasksSection = ({
   };
 
   const tasksQuery = useTasks(taskListParams, {
-    enabled: Number.isFinite(projectId) && filtersLoadedForProject === projectId,
+    enabled: Number.isFinite(projectId) && filtersLoaded,
   });
 
   const projectTasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
@@ -285,39 +340,34 @@ export const ProjectTasksSection = ({
     return explicit?.id ?? sortedTaskStatuses[0]?.id ?? null;
   }, [sortedTaskStatuses]);
 
-  const filterStorageKey = useMemo(
-    () => (Number.isFinite(projectId) ? `project:${projectId}:view-filters` : null),
-    [projectId]
-  );
-
   const handleViewModeChange = (value: string) => {
     if (value === "table" || value === "kanban" || value === "calendar" || value === "gantt") {
-      dispatchFilters({ type: "SET_VIEW_MODE", payload: value });
+      patchFilters({ viewMode: value });
     }
   };
   const handleAssigneeFiltersChange = useCallback(
-    (v: string[]) => dispatchFilters({ type: "SET_ASSIGNEE_FILTERS", payload: v }),
-    []
+    (v: string[]) => patchFilters({ assigneeFilters: v }),
+    [patchFilters]
   );
   const handleDueFilterChange = useCallback(
-    (v: DueFilterOption) => dispatchFilters({ type: "SET_DUE_FILTER", payload: v }),
-    []
+    (v: DueFilterOption) => patchFilters({ dueFilter: v }),
+    [patchFilters]
   );
   const handleStatusFiltersChange = useCallback(
-    (v: number[]) => dispatchFilters({ type: "SET_STATUS_FILTERS", payload: v }),
-    []
+    (v: number[]) => patchFilters({ statusFilters: v }),
+    [patchFilters]
   );
   const handleTagFiltersChange = useCallback(
-    (v: number[]) => dispatchFilters({ type: "SET_TAG_FILTERS", payload: v }),
-    []
+    (v: number[]) => patchFilters({ tagFilters: v }),
+    [patchFilters]
   );
   const handlePropertyFiltersChange = useCallback(
-    (v: PropertyFilterCondition[]) => dispatchFilters({ type: "SET_PROPERTY_FILTERS", payload: v }),
-    []
+    (v: PropertyFilterCondition[]) => patchFilters({ propertyFilters: v }),
+    [patchFilters]
   );
   const handleShowArchivedChange = useCallback(
-    (v: boolean) => dispatchFilters({ type: "SET_SHOW_ARCHIVED", payload: v }),
-    []
+    (v: boolean) => patchFilters({ showArchived: v }),
+    [patchFilters]
   );
 
   useEffect(() => {
@@ -340,68 +390,6 @@ export const ProjectTasksSection = ({
     mediaQuery.addListener(handleChange);
     return () => mediaQuery.removeListener(handleChange);
   }, []);
-
-  useEffect(() => {
-    if (!filterStorageKey || filtersLoadedForProject === projectId) {
-      return;
-    }
-    // Reset to defaults first
-    dispatchFilters({ type: "RESET_ALL" });
-
-    try {
-      const raw = getItem(filterStorageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as Partial<StoredFilters>;
-        const loaded: Partial<StoredFilters> = {};
-        if (
-          parsed.viewMode === "table" ||
-          parsed.viewMode === "kanban" ||
-          parsed.viewMode === "calendar" ||
-          parsed.viewMode === "gantt"
-        ) {
-          loaded.viewMode = parsed.viewMode;
-        }
-        if (Array.isArray(parsed.assigneeFilters)) {
-          loaded.assigneeFilters = parsed.assigneeFilters;
-        }
-        if (parsed.dueFilter) {
-          loaded.dueFilter = parsed.dueFilter;
-        }
-        if (Array.isArray(parsed.statusFilters)) {
-          loaded.statusFilters = parsed.statusFilters;
-        }
-        if (Array.isArray(parsed.tagFilters)) {
-          loaded.tagFilters = parsed.tagFilters;
-        }
-        if (Array.isArray(parsed.propertyFilters)) {
-          loaded.propertyFilters = parsed.propertyFilters.filter(
-            (entry): entry is PropertyFilterCondition =>
-              entry !== null &&
-              typeof entry === "object" &&
-              typeof (entry as PropertyFilterCondition).property_id === "number" &&
-              typeof (entry as PropertyFilterCondition).op === "string"
-          );
-        }
-        if (typeof parsed.showArchived === "boolean") {
-          loaded.showArchived = parsed.showArchived;
-        }
-        if (Object.keys(loaded).length > 0) {
-          dispatchFilters({ type: "LOAD", payload: loaded });
-        }
-      }
-    } catch {
-      // ignore parse errors
-    } finally {
-      setFiltersLoadedForProject(projectId);
-    }
-  }, [filterStorageKey, filtersLoadedForProject, projectId]);
-
-  useEffect(() => {
-    if (!filterStorageKey || filtersLoadedForProject !== projectId) {
-      return;
-    }
-    setItem(filterStorageKey, JSON.stringify(filters));
-  }, [filterStorageKey, filtersLoadedForProject, projectId, filters]);
 
   useEffect(() => {
     if (!collapsedStorageKey) {

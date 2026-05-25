@@ -1,5 +1,6 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
+import type { UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
 import {
   getReadProjectApiV1ProjectsProjectIdGetQueryKey,
   readProjectApiV1ProjectsProjectIdGet,
@@ -16,6 +17,7 @@ import {
   getListUsersApiV1UsersGetQueryKey,
   listUsersApiV1UsersGet,
 } from "@/api/generated/users/users";
+import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import { getItem } from "@/lib/storage";
 
 type StoredFilters = {
@@ -26,27 +28,35 @@ type StoredFilters = {
   showArchived: boolean;
 };
 
-function getStoredFilters(projectId: number): {
-  assigneeFilters: string[];
-  statusFilters: number[];
-  showArchived: boolean;
-} {
+function sanitize(value: unknown) {
   const defaults = {
     assigneeFilters: [] as string[],
     statusFilters: [] as number[],
     showArchived: false,
   };
+  if (value === null || typeof value !== "object") return defaults;
+  const parsed = value as Partial<StoredFilters>;
+  return {
+    assigneeFilters: Array.isArray(parsed.assigneeFilters) ? parsed.assigneeFilters : [],
+    statusFilters: Array.isArray(parsed.statusFilters) ? parsed.statusFilters : [],
+    showArchived: typeof parsed.showArchived === "boolean" ? parsed.showArchived : false,
+  };
+}
+
+function getStoredFilters(
+  queryClient: { getQueryData: <T>(key: readonly unknown[]) => T | undefined },
+  projectId: number
+) {
+  const scopeKey = `project:${projectId}:view-filters`;
+  const fromCache = queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)
+    ?.items?.[scopeKey];
+  if (fromCache !== undefined) return sanitize(fromCache);
   try {
-    const raw = getItem(`project:${projectId}:view-filters`);
-    if (!raw) return defaults;
-    const parsed = JSON.parse(raw) as Partial<StoredFilters>;
-    return {
-      assigneeFilters: Array.isArray(parsed.assigneeFilters) ? parsed.assigneeFilters : [],
-      statusFilters: Array.isArray(parsed.statusFilters) ? parsed.statusFilters : [],
-      showArchived: typeof parsed.showArchived === "boolean" ? parsed.showArchived : false,
-    };
+    const raw = getItem(scopeKey);
+    if (!raw) return sanitize(null);
+    return sanitize(JSON.parse(raw));
   } catch {
-    return defaults;
+    return sanitize(null);
   }
 }
 
@@ -60,8 +70,12 @@ export const Route = createFileRoute(
     const projectId = Number(params.projectId);
     const { queryClient } = context;
 
-    // Read saved filters from storage
-    const { assigneeFilters, statusFilters, showArchived } = getStoredFilters(projectId);
+    // Read saved filters from the hydrated view-preferences cache (or
+    // legacy localStorage if the user hasn't migrated yet).
+    const { assigneeFilters, statusFilters, showArchived } = getStoredFilters(
+      queryClient,
+      projectId
+    );
 
     // Build task query params (page_size=0 fetches all for drag-and-drop)
     const conditions: Array<{ field: string; op: string; value: unknown }> = [

@@ -1,6 +1,8 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import { apiClient } from "@/api/client";
+import type { UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
+import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import { getItem } from "@/lib/storage";
 
 type MyTasksSearchParams = {
@@ -11,18 +13,48 @@ type MyTasksSearchParams = {
 const STORAGE_KEY = "initiative-my-tasks-filters";
 const PAGE_SIZE = 20;
 
-function readStoredFilters() {
+type MyTasksFilters = {
+  statusFilters: unknown[];
+  priorityFilters: unknown[];
+  guildFilters: unknown[];
+};
+
+const DEFAULT_FILTERS: MyTasksFilters = {
+  statusFilters: [],
+  priorityFilters: [],
+  guildFilters: [],
+};
+
+function sanitize(value: unknown): MyTasksFilters {
+  if (value === null || typeof value !== "object") return DEFAULT_FILTERS;
+  const v = value as Partial<MyTasksFilters>;
+  return {
+    statusFilters: Array.isArray(v.statusFilters) ? v.statusFilters : [],
+    priorityFilters: Array.isArray(v.priorityFilters) ? v.priorityFilters : [],
+    guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : [],
+  };
+}
+
+/**
+ * Route loaders run before any React hook can fetch the view-preferences
+ * map, so we read from whatever is closest: the hydrated React Query
+ * cache (after the first authenticated render), or the legacy local
+ * storage blob (only present during the first session after deploy,
+ * before the one-shot migration runs). After both are exhausted, the
+ * page component itself will re-fetch with the real persisted filters.
+ */
+function readPrefetchFilters(queryClient: {
+  getQueryData: <T>(key: readonly unknown[]) => T | undefined;
+}): MyTasksFilters {
+  const fromCache = queryClient.getQueryData<UserViewPreferencesMap>(VIEW_PREFERENCES_QUERY_KEY)
+    ?.items?.[STORAGE_KEY];
+  if (fromCache !== undefined) return sanitize(fromCache);
   try {
     const raw = getItem(STORAGE_KEY);
-    if (!raw) return { statusFilters: [], priorityFilters: [], guildFilters: [] };
-    const parsed = JSON.parse(raw);
-    return {
-      statusFilters: Array.isArray(parsed?.statusFilters) ? parsed.statusFilters : [],
-      priorityFilters: Array.isArray(parsed?.priorityFilters) ? parsed.priorityFilters : [],
-      guildFilters: Array.isArray(parsed?.guildFilters) ? parsed.guildFilters : [],
-    };
+    if (!raw) return DEFAULT_FILTERS;
+    return sanitize(JSON.parse(raw));
   } catch {
-    return { statusFilters: [], priorityFilters: [], guildFilters: [] };
+    return DEFAULT_FILTERS;
   }
 }
 
@@ -38,7 +70,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/")({
   }),
   loader: async ({ context }) => {
     const { queryClient } = context;
-    const { statusFilters, priorityFilters, guildFilters } = readStoredFilters();
+    const { statusFilters, priorityFilters, guildFilters } = readPrefetchFilters(queryClient);
 
     const conditions: Array<{ field: string; op: string; value: unknown }> = [];
     if (statusFilters.length > 0)

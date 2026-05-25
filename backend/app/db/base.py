@@ -24,6 +24,7 @@ from app.models.queue import Queue, QueueItem, QueueItemTag, QueuePermission, Qu
 from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, CalendarEventTag, CalendarEventDocument
 from app.models.counter import Counter, CounterGroup, CounterGroupPermission, CounterGroupRolePermission
 from app.models.upload import Upload
+from app.models.user_view_preference import UserViewPreference
 
 __all__ = [
     "User",
@@ -75,4 +76,5 @@ __all__ = [
     "CounterGroupPermission",
     "CounterGroupRolePermission",
     "Upload",
+    "UserViewPreference",
 ]

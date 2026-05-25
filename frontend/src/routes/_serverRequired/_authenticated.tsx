@@ -27,6 +27,7 @@ import { VersionDialog } from "@/components/VersionDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useBackButton } from "@/hooks/useBackButton";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useLegacyFilterStorageMigration } from "@/hooks/useLegacyFilterStorageMigration";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
 import { useClearRecentView, useRecents } from "@/hooks/useRecents";
@@ -95,6 +96,7 @@ function AppLayout() {
   useRealtimeUpdates();
   usePushNotifications();
   useBackButton();
+  useLegacyFilterStorageMigration();
 
   const recentQuery = useRecents({
     enabled: activeGuildId !== null && !loading && !!user,

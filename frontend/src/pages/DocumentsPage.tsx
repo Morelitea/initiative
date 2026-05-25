@@ -38,8 +38,8 @@ import {
 } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
-import { getItem, setItem } from "@/lib/storage";
 import { buildTagTree, collectDescendantTagIds, findNodeByPath } from "@/lib/tagTree";
 
 const INITIATIVE_FILTER_ALL = "all";
@@ -108,30 +108,50 @@ export const DocumentsView = ({
   }, [searchParams, lockedInitiativeId]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
-  const [viewMode, setViewMode] = useState<"grid" | "list" | "tags">(() => {
-    if (fixedTagIds) return "list";
-    const stored = getItem(DOCUMENT_VIEW_KEY);
-    return stored === "list" || stored === "grid" || stored === "tags" ? stored : "tags";
-  });
-  const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
-  const [tagFilters, setTagFilters] = useState<number[]>(() => {
-    if (fixedTagIds) return fixedTagIds;
-    const stored = getItem(DOCUMENT_TAG_FILTERS_KEY);
-    if (!stored) return [];
-    try {
-      const parsed = JSON.parse(stored);
-      return Array.isArray(parsed) ? parsed.filter(Number.isFinite) : [];
-    } catch {
-      return [];
-    }
-  });
 
-  // Sync tagFilters when fixedTagIds prop changes (e.g. navigating between tag detail pages)
-  useEffect(() => {
-    if (fixedTagIds) {
-      setTagFilters(fixedTagIds);
-    }
-  }, [fixedTagIds]);
+  // View mode and tag filters are server-persisted in the normal case.
+  // When fixedTagIds is provided (tag detail page), the view is forced
+  // to "list" and tagFilters mirrors the prop — writes are discarded so
+  // we don't pollute the persisted "regular" preferences with the
+  // ephemeral fixed-page values.
+  const [persistedViewMode, setPersistedViewMode] = useViewPreference<string>(
+    DOCUMENT_VIEW_KEY,
+    "tags"
+  );
+  const viewMode: "grid" | "list" | "tags" = fixedTagIds
+    ? "list"
+    : persistedViewMode === "list" || persistedViewMode === "grid" || persistedViewMode === "tags"
+      ? persistedViewMode
+      : "tags";
+  const setViewMode = useCallback(
+    (next: "grid" | "list" | "tags") => {
+      if (fixedTagIds) return;
+      setPersistedViewMode(next);
+    },
+    [fixedTagIds, setPersistedViewMode]
+  );
+
+  const [persistedTagFilters, setPersistedTagFilters] = useViewPreference<number[]>(
+    DOCUMENT_TAG_FILTERS_KEY,
+    []
+  );
+  const tagFilters = fixedTagIds
+    ? fixedTagIds
+    : Array.isArray(persistedTagFilters)
+      ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
+      : [];
+  const setTagFilters = useCallback(
+    (next: number[] | ((prev: number[]) => number[])) => {
+      if (fixedTagIds) return;
+      setPersistedTagFilters((prev) => {
+        const safe = Array.isArray(prev) ? prev : [];
+        return typeof next === "function" ? next(safe) : next;
+      });
+    },
+    [fixedTagIds, setPersistedTagFilters]
+  );
+
+  const [treeSelectedPaths, setTreeSelectedPaths] = useState<Set<string>>(new Set());
 
   const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>([]);
 
@@ -450,16 +470,6 @@ export const DocumentsView = ({
       isClosingCreateDialog.current = false;
     }
   }, [searchParams, lockedInitiativeId, createDialogOpen]);
-
-  useEffect(() => {
-    if (fixedTagIds) return;
-    setItem(DOCUMENT_VIEW_KEY, viewMode);
-  }, [viewMode, fixedTagIds]);
-
-  useEffect(() => {
-    if (fixedTagIds) return;
-    setItem(DOCUMENT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
-  }, [tagFilters, fixedTagIds]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

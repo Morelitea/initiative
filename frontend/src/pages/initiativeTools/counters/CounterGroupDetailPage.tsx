@@ -49,15 +49,10 @@ import {
   useUpdateCounter,
 } from "@/hooks/useCounters";
 import { useRecordRecentView } from "@/hooks/useRecents";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
-import { getItem, setItem } from "@/lib/storage";
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
-
-const readStoredLayout = (groupId: number): CounterLayout => {
-  const raw = getItem(layoutStorageKey(groupId));
-  return raw === "grid" ? "grid" : "row";
-};
 
 const computeMidpoint = (counters: CounterRead[], targetIndex: number): string => {
   const before = counters[targetIndex - 1];
@@ -98,21 +93,17 @@ export function CounterGroupDetailPage() {
   const [editing, setEditing] = useState<CounterRead | null>(null);
   const [resetAllOpen, setResetAllOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<CounterRead | null>(null);
-  const [layout, setLayout] = useState<CounterLayout>(() =>
-    groupId !== null ? readStoredLayout(groupId) : "row"
+  // The scope key encodes groupId, so the hook automatically returns
+  // the right value when navigating between groups — no manual re-read.
+  const [persistedLayout, setPersistedLayout] = useViewPreference<string>(
+    groupId !== null ? layoutStorageKey(groupId) : "counter-group-noop-layout",
+    "row"
   );
-
-  // Re-read from storage when navigating between groups (storage is keyed by id).
-  useEffect(() => {
-    if (groupId === null) return;
-    setLayout(readStoredLayout(groupId));
-  }, [groupId]);
+  const layout: CounterLayout = persistedLayout === "grid" ? "grid" : "row";
 
   const toggleLayout = () => {
     if (groupId === null) return;
-    const next: CounterLayout = layout === "row" ? "grid" : "row";
-    setLayout(next);
-    setItem(layoutStorageKey(groupId), next);
+    setPersistedLayout(layout === "row" ? "grid" : "row");
   };
 
   const group = groupQuery.data;

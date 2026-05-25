@@ -53,8 +53,8 @@ import {
   useUpdateProject,
 } from "@/hooks/useProjects";
 import { useTags } from "@/hooks/useTags";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
-import { getItem, setItem } from "@/lib/storage";
 
 const INITIATIVE_FILTER_ALL = "all";
 const PROJECT_SORT_KEY = "project:list:sort";
@@ -113,24 +113,24 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       isClosingComposer.current = false;
     }
   }, [searchParams, isComposerOpen]);
-  const [searchQuery, setSearchQuery] = useState<string>(() => {
-    return getItem(PROJECT_SEARCH_KEY) ?? "";
-  });
-  const [sortMode, setSortMode] = useState<
-    "custom" | "updated" | "created" | "alphabetical" | "recently_viewed"
-  >(() => {
-    const stored = getItem(PROJECT_SORT_KEY);
-    if (
-      stored === "custom" ||
-      stored === "updated" ||
-      stored === "created" ||
-      stored === "alphabetical" ||
-      stored === "recently_viewed"
-    ) {
-      return stored;
-    }
-    return "custom";
-  });
+  const [searchQuery, setSearchQuery] = useViewPreference<string>(PROJECT_SEARCH_KEY, "");
+  type ProjectSortMode = "custom" | "updated" | "created" | "alphabetical" | "recently_viewed";
+  const [persistedSortMode, setPersistedSortMode] = useViewPreference<ProjectSortMode>(
+    PROJECT_SORT_KEY,
+    "custom"
+  );
+  const sortMode: ProjectSortMode =
+    persistedSortMode === "custom" ||
+    persistedSortMode === "updated" ||
+    persistedSortMode === "created" ||
+    persistedSortMode === "alphabetical" ||
+    persistedSortMode === "recently_viewed"
+      ? persistedSortMode
+      : "custom";
+  const setSortMode = useCallback(
+    (next: ProjectSortMode) => setPersistedSortMode(next),
+    [setPersistedSortMode]
+  );
   const [customOrder, setCustomOrder] = useState<number[]>([]);
   const updateProjectMutation = useUpdateProject();
   const removeTemplate = {
@@ -188,30 +188,38 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
   const unarchiveProject = useUnarchiveProject();
 
-  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
-    const stored = getItem(PROJECT_VIEW_KEY);
-    return stored === "list" || stored === "grid" ? stored : "grid";
-  });
+  const [persistedViewMode, setPersistedViewMode] = useViewPreference<string>(
+    PROJECT_VIEW_KEY,
+    "grid"
+  );
+  const viewMode: "grid" | "list" =
+    persistedViewMode === "list" || persistedViewMode === "grid" ? persistedViewMode : "grid";
+  const setViewMode = useCallback(
+    (next: "grid" | "list") => setPersistedViewMode(next),
+    [setPersistedViewMode]
+  );
   const [tabValue, setTabValue] = useState<"active" | "templates" | "archive">("active");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [tagFilters, setTagFilters] = useState<number[]>(() => {
-    if (fixedTagIds) return fixedTagIds;
-    const stored = getItem(PROJECT_TAG_FILTERS_KEY);
-    if (!stored) return [];
-    try {
-      const parsed = JSON.parse(stored);
-      return Array.isArray(parsed) ? parsed.filter(Number.isFinite) : [];
-    } catch {
-      return [];
-    }
-  });
 
-  // Sync tagFilters when fixedTagIds prop changes (e.g. navigating between tag detail pages)
-  useEffect(() => {
-    if (fixedTagIds) {
-      setTagFilters(fixedTagIds);
-    }
-  }, [fixedTagIds]);
+  const [persistedTagFilters, setPersistedTagFilters] = useViewPreference<number[]>(
+    PROJECT_TAG_FILTERS_KEY,
+    []
+  );
+  const tagFilters = fixedTagIds
+    ? fixedTagIds
+    : Array.isArray(persistedTagFilters)
+      ? persistedTagFilters.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
+      : [];
+  const setTagFilters = useCallback(
+    (next: number[] | ((prev: number[]) => number[])) => {
+      if (fixedTagIds) return;
+      setPersistedTagFilters((prev) => {
+        const safe = Array.isArray(prev) ? prev : [];
+        return typeof next === "function" ? next(safe) : next;
+      });
+    },
+    [fixedTagIds, setPersistedTagFilters]
+  );
 
   const { data: allTags = [] } = useTags();
 
@@ -317,23 +325,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   }, []);
 
   const reorderProjects = useReorderProjects();
-
-  useEffect(() => {
-    setItem(PROJECT_SEARCH_KEY, searchQuery);
-  }, [searchQuery]);
-
-  useEffect(() => {
-    setItem(PROJECT_SORT_KEY, sortMode);
-  }, [sortMode]);
-
-  useEffect(() => {
-    setItem(PROJECT_VIEW_KEY, viewMode);
-  }, [viewMode]);
-
-  useEffect(() => {
-    if (fixedTagIds) return;
-    setItem(PROJECT_TAG_FILTERS_KEY, JSON.stringify(tagFilters));
-  }, [tagFilters, fixedTagIds]);
 
   useEffect(() => {
     const projects = projectsQuery.data?.items ?? [];

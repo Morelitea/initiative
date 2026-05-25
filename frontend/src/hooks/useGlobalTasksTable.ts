@@ -24,9 +24,9 @@ import type { PropertyFilterCondition } from "@/components/properties/PropertyFi
 import { useGuilds } from "@/hooks/useGuilds";
 import { useArchivedProjects, useProjects, useTemplateProjects } from "@/hooks/useProjects";
 import { useUpdateTask } from "@/hooks/useTasks";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { getItem, setItem } from "@/lib/storage";
 
 const statusFallbackOrder: Record<TaskStatusCategory, TaskStatusCategory[]> = {
   backlog: ["backlog"],
@@ -40,39 +40,36 @@ const SORT_DEFAULTS: SortField[] = [
   { field: "due_date", dir: "asc" },
 ];
 
-const FILTER_DEFAULTS = {
+type StoredPrefs = {
+  statusFilters: TaskStatusCategory[];
+  priorityFilters: TaskPriority[];
+  guildFilters: number[];
+  propertyFilters: PropertyFilterCondition[];
+  sorting: SortField[];
+};
+
+const FILTER_DEFAULTS: StoredPrefs = {
   statusFilters: ["backlog", "todo", "in_progress"] as TaskStatusCategory[],
-  priorityFilters: [] as TaskPriority[],
-  guildFilters: [] as number[],
-  propertyFilters: [] as PropertyFilterCondition[],
+  priorityFilters: [],
+  guildFilters: [],
+  propertyFilters: [],
   sorting: SORT_DEFAULTS,
 };
 
-const readStoredPrefs = (storageKey: string) => {
-  try {
-    const raw = getItem(storageKey);
-    if (!raw) {
-      return FILTER_DEFAULTS;
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      statusFilters: Array.isArray(parsed?.statusFilters)
-        ? parsed.statusFilters
-        : FILTER_DEFAULTS.statusFilters,
-      priorityFilters: Array.isArray(parsed?.priorityFilters)
-        ? parsed.priorityFilters
-        : FILTER_DEFAULTS.priorityFilters,
-      guildFilters: Array.isArray(parsed?.guildFilters)
-        ? parsed.guildFilters
-        : FILTER_DEFAULTS.guildFilters,
-      propertyFilters: Array.isArray(parsed?.propertyFilters)
-        ? (parsed.propertyFilters as PropertyFilterCondition[])
-        : FILTER_DEFAULTS.propertyFilters,
-      sorting: Array.isArray(parsed?.sorting) ? parsed.sorting : FILTER_DEFAULTS.sorting,
-    };
-  } catch {
-    return FILTER_DEFAULTS;
-  }
+const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
+  if (raw === null || typeof raw !== "object") return FILTER_DEFAULTS;
+  const v = raw as Partial<StoredPrefs>;
+  return {
+    statusFilters: Array.isArray(v.statusFilters) ? v.statusFilters : FILTER_DEFAULTS.statusFilters,
+    priorityFilters: Array.isArray(v.priorityFilters)
+      ? v.priorityFilters
+      : FILTER_DEFAULTS.priorityFilters,
+    guildFilters: Array.isArray(v.guildFilters) ? v.guildFilters : FILTER_DEFAULTS.guildFilters,
+    propertyFilters: Array.isArray(v.propertyFilters)
+      ? v.propertyFilters
+      : FILTER_DEFAULTS.propertyFilters,
+    sorting: Array.isArray(v.sorting) ? v.sorting : FILTER_DEFAULTS.sorting,
+  };
 };
 
 const getDefaultFiltersVisibility = () => {
@@ -115,26 +112,39 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     new Map()
   );
 
-  // --- Read stored preferences once ---
-  const storedPrefs = useMemo(() => readStoredPrefs(storageKey), [storageKey]);
+  // --- Server-persisted filter + sort preferences ---
+  const [storedPrefsRaw, setStoredPrefs] = useViewPreference<StoredPrefs>(
+    storageKey,
+    FILTER_DEFAULTS
+  );
+  const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
+  const { statusFilters, priorityFilters, guildFilters, propertyFilters, sorting } = storedPrefs;
 
-  // --- Filter state ---
-  const [statusFilters, setStatusFilters] = useState<TaskStatusCategory[]>(
-    () => storedPrefs.statusFilters
+  const makeSetter = useCallback(
+    <K extends keyof StoredPrefs>(key: K) =>
+      (value: StoredPrefs[K] | ((prev: StoredPrefs[K]) => StoredPrefs[K])) => {
+        setStoredPrefs((prev) => {
+          const current = sanitizeStoredPrefs(prev);
+          const next =
+            typeof value === "function"
+              ? (value as (p: StoredPrefs[K]) => StoredPrefs[K])(current[key])
+              : value;
+          return { ...current, [key]: next };
+        });
+      },
+    [setStoredPrefs]
   );
-  const [priorityFilters, setPriorityFilters] = useState<TaskPriority[]>(
-    () => storedPrefs.priorityFilters
-  );
+  const setStatusFilters = useMemo(() => makeSetter("statusFilters"), [makeSetter]);
+  const setPriorityFilters = useMemo(() => makeSetter("priorityFilters"), [makeSetter]);
+  const setGuildFilters = useMemo(() => makeSetter("guildFilters"), [makeSetter]);
+  const setPropertyFilters = useMemo(() => makeSetter("propertyFilters"), [makeSetter]);
+  const setSorting = useMemo(() => makeSetter("sorting"), [makeSetter]);
+
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
-  const [guildFilters, setGuildFilters] = useState<number[]>(() => storedPrefs.guildFilters);
-  const [propertyFilters, setPropertyFilters] = useState<PropertyFilterCondition[]>(
-    () => storedPrefs.propertyFilters
-  );
 
   // --- Pagination state ---
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [sorting, setSorting] = useState<SortField[]>(() => storedPrefs.sorting ?? SORT_DEFAULTS);
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -174,7 +184,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       }
       setPage(1);
     },
-    [setPage]
+    [setPage, setSorting]
   );
 
   // Reset to page 1 when filters change
@@ -314,18 +324,6 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       }
     });
   }, [tasks]);
-
-  // --- Persist filters & sorting ---
-  useEffect(() => {
-    const payload = {
-      statusFilters,
-      priorityFilters,
-      guildFilters,
-      propertyFilters,
-      sorting,
-    };
-    setItem(storageKey, JSON.stringify(payload));
-  }, [statusFilters, priorityFilters, guildFilters, propertyFilters, sorting, storageKey]);
 
   // --- Status helpers ---
   const fetchProjectStatuses = useCallback(async (projectId: number, guildId: number | null) => {

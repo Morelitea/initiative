@@ -23,15 +23,32 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useGlobalProjects, usePrefetchGlobalProjects } from "@/hooks/useProjects";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { guildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
-import { getItem, setItem } from "@/lib/storage";
 
 const MY_PROJECTS_FILTERS_KEY = "initiative-my-projects-filters";
-const FILTER_DEFAULTS = {
-  guildFilters: [] as number[],
-  sortBy: undefined as string | undefined,
-  sortDir: undefined as string | undefined,
+type StoredPrefs = {
+  guildFilters: number[];
+  sortBy: string | undefined;
+  sortDir: string | undefined;
+};
+const FILTER_DEFAULTS: StoredPrefs = {
+  guildFilters: [],
+  sortBy: undefined,
+  sortDir: undefined,
+};
+
+const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
+  if (raw === null || typeof raw !== "object") return FILTER_DEFAULTS;
+  const v = raw as Partial<StoredPrefs>;
+  return {
+    guildFilters: Array.isArray(v.guildFilters)
+      ? v.guildFilters.filter((x): x is number => typeof x === "number")
+      : [],
+    sortBy: typeof v.sortBy === "string" ? v.sortBy : undefined,
+    sortDir: typeof v.sortDir === "string" ? v.sortDir : undefined,
+  };
 };
 
 /** Map DataTable column IDs to backend sort field names */
@@ -44,25 +61,6 @@ const SORT_FIELD_MAP: Record<string, string> = {
 const SORT_FIELD_REVERSE: Record<string, string> = Object.fromEntries(
   Object.entries(SORT_FIELD_MAP).map(([col, field]) => [field, col])
 );
-
-const readStoredPrefs = () => {
-  try {
-    const raw = getItem(MY_PROJECTS_FILTERS_KEY);
-    if (!raw) {
-      return FILTER_DEFAULTS;
-    }
-    const parsed = JSON.parse(raw);
-    return {
-      guildFilters: Array.isArray(parsed?.guildFilters)
-        ? parsed.guildFilters
-        : FILTER_DEFAULTS.guildFilters,
-      sortBy: typeof parsed?.sortBy === "string" ? parsed.sortBy : undefined,
-      sortDir: typeof parsed?.sortDir === "string" ? parsed.sortDir : undefined,
-    };
-  } catch {
-    return FILTER_DEFAULTS;
-  }
-};
 
 const getDefaultFiltersVisibility = () => {
   if (typeof window === "undefined") {
@@ -87,30 +85,56 @@ export const MyProjectsPage = () => {
     await invalidateAllProjects();
   }, []);
 
-  const storedPrefs = useMemo(() => readStoredPrefs(), []);
+  const [storedPrefsRaw, setStoredPrefs] = useViewPreference<StoredPrefs>(
+    MY_PROJECTS_FILTERS_KEY,
+    FILTER_DEFAULTS
+  );
+  const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
+  const { guildFilters, sortBy, sortDir } = storedPrefs;
+  const setGuildFilters = useCallback(
+    (next: number[] | ((prev: number[]) => number[])) =>
+      setStoredPrefs((prev) => {
+        const safe = sanitizeStoredPrefs(prev);
+        return {
+          ...safe,
+          guildFilters: typeof next === "function" ? next(safe.guildFilters) : next,
+        };
+      }),
+    [setStoredPrefs]
+  );
+  const setSortBy = useCallback(
+    (next: string | undefined) =>
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), sortBy: next })),
+    [setStoredPrefs]
+  );
+  const setSortDir = useCallback(
+    (next: string | undefined) =>
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), sortDir: next })),
+    [setStoredPrefs]
+  );
 
-  const [guildFilters, setGuildFilters] = useState<number[]>(() => storedPrefs.guildFilters);
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   const [page, setPageState] = useState(() => searchParams.page ?? 1);
   const [pageSize, setPageSize] = useState(PAGE_SIZE);
-  const [sortBy, setSortBy] = useState<string | undefined>(() => storedPrefs.sortBy);
-  const [sortDir, setSortDir] = useState<string | undefined>(() => storedPrefs.sortDir);
 
-  const handleSortingChange = useCallback((sorting: SortingState) => {
-    if (sorting.length > 0) {
-      const field = SORT_FIELD_MAP[sorting[0].id];
-      if (field) {
-        setSortBy(field);
-        setSortDir(sorting[0].desc ? "desc" : "asc");
+  const handleSortingChange = useCallback(
+    (sorting: SortingState) => {
+      if (sorting.length > 0) {
+        const field = SORT_FIELD_MAP[sorting[0].id];
+        if (field) {
+          setSortBy(field);
+          setSortDir(sorting[0].desc ? "desc" : "asc");
+        }
+      } else {
+        setSortBy(undefined);
+        setSortDir(undefined);
       }
-    } else {
-      setSortBy(undefined);
-      setSortDir(undefined);
-    }
-  }, []);
+    },
+    [setSortDir, setSortBy]
+  );
 
   const setPage = useCallback(
     (updater: number | ((prev: number) => number)) => {
@@ -142,12 +166,6 @@ export const MyProjectsPage = () => {
   useEffect(() => {
     setPage(1);
   }, [guildFilters, debouncedSearch, setPage]);
-
-  // Persist filters & sort to localStorage
-  useEffect(() => {
-    const payload = { guildFilters, sortBy, sortDir };
-    setItem(MY_PROJECTS_FILTERS_KEY, JSON.stringify(payload));
-  }, [guildFilters, sortBy, sortDir]);
 
   // Build guild lookup for display
   const guildsById = useMemo(() => {

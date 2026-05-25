@@ -60,3 +60,12 @@ export function removeItem(key: string): void {
   cache.delete(key);
   void Preferences.remove({ key });
 }
+
+/** Enumerate every stored key. Used by the one-shot view-preferences migration. */
+export function listKeys(): string[] {
+  if (!isNative()) {
+    if (!hasLocalStorage) return [];
+    return Object.keys(localStorage);
+  }
+  return Array.from(cache.keys());
+}
