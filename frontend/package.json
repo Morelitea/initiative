@@ -112,7 +112,7 @@
     "react-i18next": "^17.0.8",
     "react-markdown": "^10.1.0",
     "react-pdf": "^10.4.1",
-    "recharts": "2.15.4",
+    "recharts": "3.8.1",
     "rehype-slug": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "robot-toast": "^2.1.9",
