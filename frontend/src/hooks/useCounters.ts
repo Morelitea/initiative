@@ -48,6 +48,7 @@ import {
   optimisticReset,
   optimisticSetCount,
 } from "@/lib/counter-math";
+import { fireCounterStepFeedback } from "@/lib/counterStepFeedback";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -614,6 +615,10 @@ export const useSteppedCount = (groupId: number) => {
 
   const step = useCallback(
     (counter: CounterRead, direction: 1 | -1) => {
+      // Fire audio + haptic per click, before any cache/network work, so
+      // rapid presses feel responsive even if the debounced PUT lags.
+      fireCounterStepFeedback(direction === 1 ? "up" : "down");
+
       // Base the next target on the in-memory intent when mid-burst (so a
       // refetch that reset the cache between presses can't lose clicks),
       // otherwise on the freshest cache value.

@@ -33,6 +33,7 @@ import {
   useSteppedCount,
 } from "@/hooks/useCounters";
 import { getContrastingTextColor } from "@/lib/counter-color";
+import { isAtMax, isAtMin } from "@/lib/counter-math";
 import { useGuildPath } from "@/lib/guildUrl";
 import { cn } from "@/lib/utils";
 
@@ -312,9 +313,12 @@ export function CounterDetailPage() {
           type="button"
           variant="ghost"
           onClick={() => stepper.decrement(counter)}
-          disabled={!canWrite}
+          disabled={!canWrite || isAtMin(counter)}
           aria-label={t("decrement")}
-          className={cn("h-24 rounded-2xl text-current shadow-sm sm:h-28", stepButtonClass)}
+          className={cn(
+            "h-24 touch-manipulation rounded-2xl text-current shadow-sm sm:h-28",
+            stepButtonClass
+          )}
           style={{ color: fg }}
         >
           <Minus className="h-10 w-10" />
@@ -323,9 +327,12 @@ export function CounterDetailPage() {
           type="button"
           variant="ghost"
           onClick={() => stepper.increment(counter)}
-          disabled={!canWrite}
+          disabled={!canWrite || isAtMax(counter)}
           aria-label={t("increment")}
-          className={cn("h-24 rounded-2xl text-current shadow-sm sm:h-28", stepButtonClass)}
+          className={cn(
+            "h-24 touch-manipulation rounded-2xl text-current shadow-sm sm:h-28",
+            stepButtonClass
+          )}
           style={{ color: fg }}
         >
           <Plus className="h-10 w-10" />

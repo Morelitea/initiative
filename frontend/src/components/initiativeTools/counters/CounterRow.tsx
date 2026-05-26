@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getContrastingTextColor } from "@/lib/counter-color";
+import { isAtMax, isAtMin } from "@/lib/counter-math";
 import { cn } from "@/lib/utils";
 
 import { CounterNumberView } from "./views/CounterNumberView";
@@ -190,15 +191,25 @@ export const CounterRow = ({
     </DropdownMenu>
   );
 
+  const atMin = isAtMin(counter);
+  const atMax = isAtMax(counter);
+
+  // `touch-manipulation` relaxes the mobile browser's tap-vs-scroll heuristic
+  // and drops the synthetic-click delay, so small finger movement during a
+  // press still fires the click instead of being interpreted as a swipe.
   const minusButton = (
     <Button
       type="button"
       variant="ghost"
       size="icon"
       onClick={onDecrement}
-      disabled={!canWrite}
+      disabled={!canWrite || atMin}
       aria-label={t("decrement")}
-      className={cn(stepButtonSize, "rounded-md text-current shadow-sm", stepButtonClass)}
+      className={cn(
+        stepButtonSize,
+        "touch-manipulation rounded-md text-current shadow-sm",
+        stepButtonClass
+      )}
       style={{ color: fg }}
     >
       <Minus className={stepIconSize} />
@@ -211,9 +222,13 @@ export const CounterRow = ({
       variant="ghost"
       size="icon"
       onClick={onIncrement}
-      disabled={!canWrite}
+      disabled={!canWrite || atMax}
       aria-label={t("increment")}
-      className={cn(stepButtonSize, "rounded-md text-current shadow-sm", stepButtonClass)}
+      className={cn(
+        stepButtonSize,
+        "touch-manipulation rounded-md text-current shadow-sm",
+        stepButtonClass
+      )}
       style={{ color: fg }}
     >
       <Plus className={stepIconSize} />

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Counter `+`/`−` button feedback.** Each press fires a short audio tick (`tick.wav` on increment, `tick_reverse.wav` on decrement) and a brief haptic tap. Works on both the row/grid cards and the focus view. No user preference gating yet.
+
 ## [0.46.1] - 2026-05-24
 
 ### Added
@@ -14,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Counter focus view.** Each counter can now be opened in a full-screen, mobile-first layout via the "Open full screen" menu item on the row (URL: `/g/{guildId}/counter-groups/{groupId}/counter/{counterId}`). The view scales the value, progress bar, or segmented-clock dial to fill the viewport, exposes thumb-zone-sized `−`/`+` controls in the bottom safe area, lets you cycle through the group's counters with chevrons or a horizontal swipe, and stays in sync with other clients via the existing WebSocket. Counter view components gained a `2xl` size variant used by this layout.
 
 ### Changed
+
+- **Counter `+`/`−` buttons disable at their bounds.** When a counter is at its configured `max`, the `+` button is disabled; at `min`, the `−` button is disabled. Applies to both the row/grid cards and the focus view. Counters without a configured bound (`null` min/max) are unaffected.
+- **Counter `+`/`−` buttons tap more reliably on mobile.** Added `touch-action: manipulation` to the step buttons so a slight finger wobble during a press no longer cancels the click as a swipe, and the synthetic-click delay is gone.
 
 - **Filter and view-mode preferences are now per-user, not per-device.** Project task filters (assignee, tag, status, due, property, show-archived, view mode), the Projects / Documents / My Tasks / Created Tasks / My Documents / My Projects / My Calendar filter sets and sort orders, and the counter group row/grid layout toggle now persist to a new `user_view_preferences` table keyed by `(user_id, scope_key)` instead of `localStorage`. Set filters once and they apply on every device you sign in to. A one-shot migration on first authenticated load uploads any legacy `localStorage` values to the server and clears them locally. Sidebar collapse states, side-panel state, and similar device-specific UI prefs still live in local storage.
 

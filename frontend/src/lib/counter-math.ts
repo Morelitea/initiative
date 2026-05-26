@@ -44,3 +44,15 @@ export const optimisticReset = (counter: CounterRead): string =>
 
 export const optimisticSetCount = (counter: CounterRead, value: string): string =>
   formatNumber(clampCount(toNum(value), counter.min, counter.max));
+
+/** True when the counter is at (or past) its lower bound. ``null`` min = never. */
+export const isAtMin = (counter: CounterRead): boolean => {
+  if (counter.min === null) return false;
+  return toNum(counter.count) <= toNum(counter.min);
+};
+
+/** True when the counter is at (or past) its upper bound. ``null`` max = never. */
+export const isAtMax = (counter: CounterRead): boolean => {
+  if (counter.max === null) return false;
+  return toNum(counter.count) >= toNum(counter.max);
+};
