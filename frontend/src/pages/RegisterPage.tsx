@@ -142,7 +142,7 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
         setError(t("register.passwordMismatch"));
         return;
       }
-      const policyError = validatePasswordLocal(password, t);
+      const policyError = validatePasswordLocal(password);
       if (policyError) {
         setError(policyError);
         return;

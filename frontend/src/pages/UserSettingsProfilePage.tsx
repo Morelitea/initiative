@@ -127,7 +127,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 return;
               }
               if (password) {
-                const policyError = validatePasswordLocal(password, t);
+                const policyError = validatePasswordLocal(password);
                 if (policyError) {
                   setError(policyError);
                   return;

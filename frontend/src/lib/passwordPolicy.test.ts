@@ -1,30 +1,31 @@
-import type { TFunction } from "i18next";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Stub the i18n module so the policy returns its lookup key — we can
+// then assert on which key was requested without booting i18next.
+vi.mock("@/i18n", () => ({
+  default: { t: (key: string) => key },
+}));
 
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "./passwordPolicy";
 
-// Minimal ``t`` stand-in: returns the key so we can assert on the
-// translation lookup without booting i18next.
-const fakeT = ((key: string) => key) as unknown as TFunction;
-
 describe("validatePasswordLocal", () => {
   it("returns null for the empty string so we don't shout before typing", () => {
-    expect(validatePasswordLocal("", fakeT)).toBeNull();
+    expect(validatePasswordLocal("")).toBeNull();
   });
 
   it("flags a password one character shorter than the minimum", () => {
     const password = "a".repeat(PASSWORD_MIN_LENGTH - 1);
-    expect(validatePasswordLocal(password, fakeT)).toBe("auth:passwordPolicy.minLength");
+    expect(validatePasswordLocal(password)).toBe("auth:passwordPolicy.minLength");
   });
 
   it("accepts a password at exactly the minimum length", () => {
     const password = "a".repeat(PASSWORD_MIN_LENGTH);
-    expect(validatePasswordLocal(password, fakeT)).toBeNull();
+    expect(validatePasswordLocal(password)).toBeNull();
   });
 
   it("accepts a long password regardless of character classes", () => {
     // Mirror of the NIST 800-63B stance: no class requirements client-side.
-    expect(validatePasswordLocal("correct-horse-battery-staple", fakeT)).toBeNull();
-    expect(validatePasswordLocal("all-lowercase-passphrase", fakeT)).toBeNull();
+    expect(validatePasswordLocal("correct-horse-battery-staple")).toBeNull();
+    expect(validatePasswordLocal("all-lowercase-passphrase")).toBeNull();
   });
 });

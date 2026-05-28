@@ -40,7 +40,7 @@ export const ResetPasswordPage = () => {
       setError(t("resetPassword.passwordMismatch"));
       return;
     }
-    const policyError = validatePasswordLocal(password, t);
+    const policyError = validatePasswordLocal(password);
     if (policyError) {
       setError(policyError);
       return;
