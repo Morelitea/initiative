@@ -15,7 +15,11 @@ from app.services import hibp
 
 
 def _sha1(password: str) -> str:
-    return hashlib.sha1(password.encode("utf-8")).hexdigest().upper()
+    # ``usedforsecurity=False`` mirrors the production call in
+    # ``hibp.is_password_breached`` — without it, this helper raises
+    # ValueError on FIPS-enforcing OpenSSL builds before any test
+    # body runs.
+    return hashlib.sha1(password.encode("utf-8"), usedforsecurity=False).hexdigest().upper()
 
 
 @pytest.fixture
