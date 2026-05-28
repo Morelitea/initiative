@@ -328,9 +328,13 @@ export const TaskEditPage = () => {
     return users.find((user) => user.id === task.created_by_id) ?? null;
   }, [users, task?.created_by_id]);
 
-  const creationMeta = useMemo(() => {
+  // The non-time-varying part of the chip. Gated on ``usersQuery.isSuccess``
+  // when there *is* a creator id so we don't flash "User #<id>" while the
+  // users list is still loading — once users arrive, the genuine "creator
+  // has left the guild" case is the only path to that fallback.
+  const creationContext = useMemo(() => {
     if (!task?.created_at) return null;
-    const createdAt = new Date(task.created_at);
+    if (task.created_by_id != null && !usersQuery.isSuccess) return null;
     const anonymized = isAnonymizedUser(creator);
     const displayName = creator
       ? getUserDisplayName(creator)
@@ -342,15 +346,36 @@ export const TaskEditPage = () => {
         ? resolveUploadUrl(creator.avatar_url) || creator.avatar_base64 || undefined
         : undefined;
     return {
+      createdAt: new Date(task.created_at),
       displayName,
       avatarSrc,
       anonymized,
       initials: getInitialsForUser(creator),
       creatorId: creator?.id ?? null,
-      relative: formatDistanceToNow(createdAt, { addSuffix: true, locale: dateLocale }),
-      absolute: format(createdAt, "PPpp", { locale: dateLocale }),
     };
-  }, [task?.created_at, task?.created_by_id, creator, dateLocale]);
+  }, [task?.created_at, task?.created_by_id, creator, usersQuery.isSuccess]);
+
+  // Tick once a minute so the "N ago" label stays fresh while the page is
+  // open — ``formatDistanceToNow`` reads ``Date.now()`` at call time, so a
+  // bare state update is enough to re-render with a current value.
+  const [, setRelativeTick] = useState(0);
+  useEffect(() => {
+    if (!creationContext) return;
+    const id = setInterval(() => setRelativeTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [creationContext]);
+
+  // Computed each render (cheap) so the tick above actually shows up.
+  const creationMeta = creationContext
+    ? {
+        ...creationContext,
+        relative: formatDistanceToNow(creationContext.createdAt, {
+          addSuffix: true,
+          locale: dateLocale,
+        }),
+        absolute: format(creationContext.createdAt, "PPpp", { locale: dateLocale }),
+      }
+    : null;
   // Pure DAC: only users with write access (owner or write level) can be assigned tasks
   // Includes both explicit user permissions and role-based permissions
   const userOptions = useMemo(() => {
