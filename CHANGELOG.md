@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.46.2] - 2026-05-27
+
 ### Added
 
 - **Counter `+`/`−` button feedback.** Each press fires a short audio tick (`tick.wav` on increment, `tick_reverse.wav` on decrement) and a brief haptic tap. Works on both the row/grid cards and the focus view. No user preference gating yet.
