@@ -325,7 +325,7 @@
     "current": "current",
     "versionLabel": "Version {{number}} · {{date}}",
     "uploadNew": "Upload new version",
-    "viewingOld": "You're viewing an older version. Upload a new version to make changes the current file.",
+    "viewingOld": "You're viewing an older version. Upload a new version to replace the current file.",
     "deleteVersion": "Delete version",
     "deleteConfirm": "Delete version {{number}}? This permanently removes this version's file and can't be undone.",
     "uploadSuccess": "New version uploaded",
