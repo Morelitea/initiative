@@ -320,6 +320,20 @@
     "showSource": "View source",
     "showRendered": "View rendered"
   },
+  "versions": {
+    "label": "Version history",
+    "current": "current",
+    "versionLabel": "Version {{number}} · {{date}}",
+    "uploadNew": "Upload new version",
+    "viewingOld": "You're viewing an older version.",
+    "viewingOldCanEdit": "You're viewing an older version. Upload a new version to replace the current file.",
+    "deleteVersion": "Delete version",
+    "deleteConfirm": "Delete version {{number}}? This permanently removes this version's file and can't be undone.",
+    "uploadSuccess": "New version uploaded",
+    "deleteSuccess": "Version deleted",
+    "uploadError": "Failed to upload new version",
+    "deleteError": "Failed to delete version"
+  },
   "summary": {
     "aiNotEnabled": "AI features are not enabled. Configure AI settings to generate document summaries.",
     "generateDescription": "Generate an AI-powered summary of this document.",

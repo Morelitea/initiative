@@ -24,12 +24,14 @@ import type {
   AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams,
   BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost,
   BodyUploadDocumentFileApiV1DocumentsUploadPost,
+  BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost,
   DocumentAutocomplete,
   DocumentBacklink,
   DocumentCopyRequest,
   DocumentCountsResponse,
   DocumentCreate,
   DocumentDuplicateRequest,
+  DocumentFileVersionRead,
   DocumentListResponse,
   DocumentPermissionBulkCreate,
   DocumentPermissionBulkDelete,
@@ -702,6 +704,387 @@ export const useUploadDocumentFileApiV1DocumentsUploadPost = <
 > => {
   return useMutation(
     getUploadDocumentFileApiV1DocumentsUploadPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Upload a new version of a file document. Requires write access.
+ * @summary Upload Document Version
+ */
+export const uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost = (
+  documentId: number,
+  bodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost: BodyType<BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  const formData = new FormData();
+  formData.append(`file`, bodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost.file);
+
+  return apiMutator<DocumentFileVersionRead>(
+    {
+      url: `/api/v1/documents/${documentId}/versions`,
+      method: "POST",
+      headers: { "Content-Type": "multipart/form-data" },
+      data: formData,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>>,
+    TError,
+    {
+      documentId: number;
+      data: BodyType<BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>;
+    },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>>,
+  TError,
+  {
+    documentId: number;
+    data: BodyType<BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>;
+  },
+  TContext
+> => {
+  const mutationKey = ["uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>>,
+    {
+      documentId: number;
+      data: BodyType<BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>;
+    }
+  > = (props) => {
+    const { documentId, data } = props ?? {};
+
+    return uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost(
+      documentId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UploadDocumentVersionApiV1DocumentsDocumentIdVersionsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>>
+>;
+export type UploadDocumentVersionApiV1DocumentsDocumentIdVersionsPostMutationBody =
+  BodyType<BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>;
+export type UploadDocumentVersionApiV1DocumentsDocumentIdVersionsPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Upload Document Version
+ */
+export const useUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>>,
+      TError,
+      {
+        documentId: number;
+        data: BodyType<BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>;
+      },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>>,
+  TError,
+  {
+    documentId: number;
+    data: BodyType<BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost>;
+  },
+  TContext
+> => {
+  return useMutation(
+    getUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * List all stored versions of a file document, newest first. Read access.
+ * @summary List Document Versions
+ */
+export const listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet = (
+  documentId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<DocumentFileVersionRead[]>(
+    { url: `/api/v1/documents/${documentId}/versions`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListDocumentVersionsApiV1DocumentsDocumentIdVersionsGetQueryKey = (
+  documentId: number
+) => {
+  return [`/api/v1/documents/${documentId}/versions`] as const;
+};
+
+export const getListDocumentVersionsApiV1DocumentsDocumentIdVersionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  documentId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListDocumentVersionsApiV1DocumentsDocumentIdVersionsGetQueryKey(documentId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>
+  > = ({ signal }) =>
+    listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet(documentId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: documentId !== null && documentId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListDocumentVersionsApiV1DocumentsDocumentIdVersionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>
+>;
+export type ListDocumentVersionsApiV1DocumentsDocumentIdVersionsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListDocumentVersionsApiV1DocumentsDocumentIdVersionsGet<
+  TData = Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  documentId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDocumentVersionsApiV1DocumentsDocumentIdVersionsGet<
+  TData = Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  documentId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListDocumentVersionsApiV1DocumentsDocumentIdVersionsGet<
+  TData = Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  documentId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Document Versions
+ */
+
+export function useListDocumentVersionsApiV1DocumentsDocumentIdVersionsGet<
+  TData = Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  documentId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListDocumentVersionsApiV1DocumentsDocumentIdVersionsGetQueryOptions(
+    documentId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Delete a version of a file document. Owner only. Deleting the current
+ * version promotes the previous one; deleting the last version is blocked.
+ * @summary Delete Document Version
+ */
+export const deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete = (
+  documentId: number,
+  versionId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/documents/${documentId}/versions/${versionId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDeleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete>
+      >,
+      TError,
+      { documentId: number; versionId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete>
+    >,
+    TError,
+    { documentId: number; versionId: number },
+    TContext
+  > => {
+    const mutationKey = ["deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete>
+      >,
+      { documentId: number; versionId: number }
+    > = (props) => {
+      const { documentId, versionId } = props ?? {};
+
+      return deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete(
+        documentId,
+        versionId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type DeleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDeleteMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete>>
+  >;
+
+export type DeleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Delete Document Version
+ */
+export const useDeleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete>
+      >,
+      TError,
+      { documentId: number; versionId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete>>,
+  TError,
+  { documentId: number; versionId: number },
+  TContext
+> => {
+  return useMutation(
+    getDeleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDeleteMutationOptions(options),
     queryClient
   );
 };

@@ -1307,6 +1307,8 @@ export const DocumentDetailPage = () => {
               contentType={document.file_content_type}
               originalFilename={document.original_filename}
               fileSize={document.file_size}
+              canEdit={canEditDocument}
+              isOwner={document.my_permission_level === "owner"}
             />
           </Suspense>
         ) : (

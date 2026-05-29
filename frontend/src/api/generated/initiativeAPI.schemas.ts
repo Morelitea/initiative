@@ -306,6 +306,10 @@ export interface BodyUploadDocumentFileApiV1DocumentsUploadPost {
   file: Blob;
 }
 
+export interface BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost {
+  file: Blob;
+}
+
 /**
  * Compact per-attendee snapshot for list responses.
  *
@@ -850,6 +854,22 @@ export interface DocumentCreate {
 
 export interface DocumentDuplicateRequest {
   title?: string | null;
+}
+
+/**
+ * A single stored version of a file-type document. The binary is fetched
+ * via the version download endpoint by id — ``file_url`` is intentionally
+ * not exposed.
+ */
+export interface DocumentFileVersionRead {
+  id: number;
+  version_number: number;
+  file_content_type: string | null;
+  file_size: number | null;
+  original_filename: string | null;
+  uploaded_by_id: number;
+  created_at: string;
+  is_current: boolean;
 }
 
 /**

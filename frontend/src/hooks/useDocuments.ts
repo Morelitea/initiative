@@ -8,6 +8,7 @@ import {
   copyDocumentApiV1DocumentsDocumentIdCopyPost,
   createDocumentApiV1DocumentsPost,
   deleteDocumentApiV1DocumentsDocumentIdDelete,
+  deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete,
   duplicateDocumentApiV1DocumentsDocumentIdDuplicatePost,
   generateSummaryApiV1DocumentsDocumentIdAiSummaryPost,
   getBacklinksApiV1DocumentsDocumentIdBacklinksGet,
@@ -15,8 +16,10 @@ import {
   getGetBacklinksApiV1DocumentsDocumentIdBacklinksGetQueryKey,
   getGetDocumentCountsApiV1DocumentsCountsGetQueryKey,
   getListDocumentsApiV1DocumentsGetQueryKey,
+  getListDocumentVersionsApiV1DocumentsDocumentIdVersionsGetQueryKey,
   getReadDocumentApiV1DocumentsDocumentIdGetQueryKey,
   listDocumentsApiV1DocumentsGet,
+  listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet,
   readDocumentApiV1DocumentsDocumentIdGet,
   removeDocumentMemberApiV1DocumentsDocumentIdMembersUserIdDelete,
   removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost,
@@ -25,12 +28,15 @@ import {
   updateDocumentMemberApiV1DocumentsDocumentIdMembersUserIdPatch,
   updateDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdPatch,
   uploadDocumentFileApiV1DocumentsUploadPost,
+  uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost,
 } from "@/api/generated/documents/documents";
 import type {
   BodyUploadDocumentFileApiV1DocumentsUploadPost,
+  BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost,
   DocumentBacklink,
   DocumentCountsResponse,
   DocumentCreate,
+  DocumentFileVersionRead,
   DocumentListResponse,
   DocumentPermissionBulkCreate,
   DocumentPermissionBulkDelete,
@@ -45,7 +51,12 @@ import type {
   ListDocumentsApiV1DocumentsGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
-import { invalidateAllDocuments, invalidateDocument, invalidateProject } from "@/api/query-keys";
+import {
+  invalidateAllDocuments,
+  invalidateDocument,
+  invalidateDocumentVersions,
+  invalidateProject,
+} from "@/api/query-keys";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
@@ -384,6 +395,86 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
     },
     onError: (...args) => {
       toast.error(getErrorMessage(args[0], "documents:create.uploadError"));
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
+// ── File versions ─────────────────────────────────────────────────────────
+
+export const useDocumentVersions = (
+  documentId: number | null,
+  options?: QueryOpts<DocumentFileVersionRead[]>
+) => {
+  const { enabled: userEnabled = true, ...rest } = options ?? {};
+  return useQuery<DocumentFileVersionRead[]>({
+    queryKey: getListDocumentVersionsApiV1DocumentsDocumentIdVersionsGetQueryKey(documentId!),
+    queryFn: () =>
+      listDocumentVersionsApiV1DocumentsDocumentIdVersionsGet(documentId!) as unknown as Promise<
+        DocumentFileVersionRead[]
+      >,
+    enabled: documentId !== null && Number.isFinite(documentId) && userEnabled,
+    ...rest,
+  });
+};
+
+export const useUploadDocumentVersion = (
+  options?: MutationOpts<DocumentFileVersionRead, { documentId: number; file: Blob }>
+) => {
+  const { t } = useTranslation("documents");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({ documentId, file }: { documentId: number; file: Blob }) => {
+      const body: BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost = { file };
+      return uploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost(
+        documentId,
+        body
+      ) as unknown as Promise<DocumentFileVersionRead>;
+    },
+    onSuccess: (...args) => {
+      const documentId = args[1].documentId;
+      void invalidateDocumentVersions(documentId);
+      // Mirror file fields on the document row changed — refresh detail + lists.
+      void invalidateDocument(documentId);
+      void invalidateAllDocuments();
+      toast.success(t("versions.uploadSuccess"));
+      onSuccess?.(...args);
+    },
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "documents:versions.uploadError"));
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
+export const useDeleteDocumentVersion = (
+  options?: MutationOpts<void, { documentId: number; versionId: number }>
+) => {
+  const { t } = useTranslation("documents");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({ documentId, versionId }: { documentId: number; versionId: number }) => {
+      await deleteDocumentVersionApiV1DocumentsDocumentIdVersionsVersionIdDelete(
+        documentId,
+        versionId
+      );
+    },
+    onSuccess: (...args) => {
+      const documentId = args[1].documentId;
+      void invalidateDocumentVersions(documentId);
+      void invalidateDocument(documentId);
+      void invalidateAllDocuments();
+      toast.success(t("versions.deleteSuccess"));
+      onSuccess?.(...args);
+    },
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "documents:versions.deleteError"));
       onError?.(...args);
     },
     onSettled,

@@ -320,6 +320,20 @@
     "showSource": "Ver código fuente",
     "showRendered": "Ver renderizado"
   },
+  "versions": {
+    "label": "Historial de versiones",
+    "current": "actual",
+    "versionLabel": "Versión {{number}} · {{date}}",
+    "uploadNew": "Subir nueva versión",
+    "viewingOld": "Estás viendo una versión anterior.",
+    "viewingOldCanEdit": "Estás viendo una versión anterior. Sube una nueva versión para cambiar el archivo actual.",
+    "deleteVersion": "Eliminar versión",
+    "deleteConfirm": "¿Eliminar la versión {{number}}? Esto elimina permanentemente el archivo de esta versión y no se puede deshacer.",
+    "uploadSuccess": "Nueva versión subida",
+    "deleteSuccess": "Versión eliminada",
+    "uploadError": "No se pudo subir la nueva versión",
+    "deleteError": "No se pudo eliminar la versión"
+  },
   "summary": {
     "aiNotEnabled": "Las funciones de IA no están habilitadas. Configura los ajustes de IA para generar resúmenes de documentos.",
     "generateDescription": "Genera un resumen del documento con inteligencia artificial.",

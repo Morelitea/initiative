@@ -72,6 +72,9 @@ export const invalidateDocument = (documentId: number) =>
 export const invalidateDocumentBacklinks = (documentId: number) =>
   invalidateExact([`/api/v1/documents/${documentId}/backlinks`]);
 
+export const invalidateDocumentVersions = (documentId: number) =>
+  invalidateExact([`/api/v1/documents/${documentId}/versions`]);
+
 // ── Comments ─────────────────────────────────────────────────────────────────
 
 export const invalidateAllComments = () => invalidatePrefix("/api/v1/comments");

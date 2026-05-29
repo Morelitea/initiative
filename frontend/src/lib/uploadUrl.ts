@@ -3,38 +3,60 @@ import { Capacitor } from "@capacitor/core";
 import { apiClient, getAuthToken } from "@/api/client";
 
 /**
- * Resolve a document ID to its authorized download URL.
- * On native platforms, prepends the API server URL and appends ?token= for auth.
+ * Resolve an `/api/v1/...` path for a download served via iframe/window.open.
+ * On native platforms, prepends the API server origin and appends ?token= for
+ * auth (native WebViews can't send Authorization headers or HttpOnly cookies).
  * On web, returns the API path as-is (same-origin, session cookie handles auth).
+ */
+function resolveDownloadApiPath(apiPath: string): string {
+  if (!Capacitor.isNativePlatform()) {
+    return apiPath;
+  }
+
+  const baseUrl = apiClient.defaults.baseURL;
+  let origin = "";
+  if (baseUrl) {
+    try {
+      origin = new URL(baseUrl).origin;
+    } catch {
+      origin = baseUrl.replace(/\/api\/v1\/?$/, "");
+    }
+  }
+  const resolved = origin ? `${origin}${apiPath}` : apiPath;
+  const token = getAuthToken();
+  if (token) {
+    const sep = resolved.includes("?") ? "&" : "?";
+    return `${resolved}${sep}token=${encodeURIComponent(token)}`;
+  }
+  return resolved;
+}
+
+/**
+ * Resolve a document ID to its authorized download URL (current version).
  */
 export function resolveDocumentDownloadUrl(documentId: number, inline = false): string | null {
   if (!documentId) {
     return null;
   }
-
   const base = `/api/v1/documents/${documentId}/download`;
-  const apiPath = inline ? `${base}?inline=1` : base;
+  return resolveDownloadApiPath(inline ? `${base}?inline=1` : base);
+}
 
-  if (Capacitor.isNativePlatform()) {
-    const baseUrl = apiClient.defaults.baseURL;
-    let origin = "";
-    if (baseUrl) {
-      try {
-        origin = new URL(baseUrl).origin;
-      } catch {
-        origin = baseUrl.replace(/\/api\/v1\/?$/, "");
-      }
-    }
-    const resolved = origin ? `${origin}${apiPath}` : apiPath;
-    const token = getAuthToken();
-    if (token) {
-      const sep = resolved.includes("?") ? "&" : "?";
-      return `${resolved}${sep}token=${encodeURIComponent(token)}`;
-    }
-    return resolved;
+/**
+ * Resolve the authorized download URL for a specific stored version of a file
+ * document. Shares the native-platform auth handling with
+ * {@link resolveDocumentDownloadUrl}.
+ */
+export function resolveDocumentVersionDownloadUrl(
+  documentId: number,
+  versionId: number,
+  inline = false
+): string | null {
+  if (!documentId || !versionId) {
+    return null;
   }
-
-  return apiPath;
+  const base = `/api/v1/documents/${documentId}/versions/${versionId}/download`;
+  return resolveDownloadApiPath(inline ? `${base}?inline=1` : base);
 }
 
 /**

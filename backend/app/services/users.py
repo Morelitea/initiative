@@ -652,6 +652,7 @@ async def reassign_user_content(
     deletion. Reassign the authorship pointer to the dedicated system
     user so those rows remain valid.
     """
+    from app.models.document import DocumentFileVersion
     from app.models.upload import Upload
 
     # Update documents created_by
@@ -666,6 +667,14 @@ async def reassign_user_content(
         update(Document)
         .where(Document.updated_by_id == user_id)
         .values(updated_by_id=system_user_id)
+    )
+
+    # File-document version history (uploaded_by_id is NOT NULL with a RESTRICT
+    # FK) — reassign so the version row, and the document blob it backs, survive.
+    await session.exec(
+        update(DocumentFileVersion)
+        .where(DocumentFileVersion.uploaded_by_id == user_id)
+        .values(uploaded_by_id=system_user_id)
     )
 
     # Update comments author

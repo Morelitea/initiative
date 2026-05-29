@@ -13,7 +13,7 @@ from app.schemas.property import PropertySummary
 from app.schemas.tag import TagSummary
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.document import Document, ProjectDocument
+    from app.models.document import Document, DocumentFileVersion, ProjectDocument
 
 LexicalState = Dict[str, Any]
 DocumentTypeStr = Literal["native", "file", "whiteboard", "smart_link", "spreadsheet"]
@@ -172,6 +172,22 @@ class DocumentRead(DocumentSummary):
     content: LexicalState = Field(default_factory=dict)
 
 
+class DocumentFileVersionRead(SanitizedBaseModel):
+    """A single stored version of a file-type document. The binary is fetched
+    via the version download endpoint by id — ``file_url`` is intentionally
+    not exposed."""
+    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    id: int
+    version_number: int
+    file_content_type: Optional[str] = None
+    file_size: Optional[int] = None
+    original_filename: Optional[str] = None
+    uploaded_by_id: int
+    created_at: datetime
+    is_current: bool = False
+
+
 class ProjectDocumentSummary(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -302,6 +318,36 @@ def serialize_document(
         **summary.model_dump(),
         content=document.content or {},
     )
+
+
+def serialize_document_file_version(
+    version: "DocumentFileVersion",
+    *,
+    is_current: bool,
+) -> DocumentFileVersionRead:
+    return DocumentFileVersionRead(
+        id=version.id,
+        version_number=version.version_number,
+        file_content_type=version.file_content_type,
+        file_size=version.file_size,
+        original_filename=version.original_filename,
+        uploaded_by_id=version.uploaded_by_id,
+        created_at=version.created_at,
+        is_current=is_current,
+    )
+
+
+def serialize_document_file_versions(
+    versions: List["DocumentFileVersion"],
+) -> List[DocumentFileVersionRead]:
+    """Serialize versions, marking the highest ``version_number`` as current."""
+    if not versions:
+        return []
+    current_number = max(v.version_number for v in versions)
+    return [
+        serialize_document_file_version(v, is_current=v.version_number == current_number)
+        for v in versions
+    ]
 
 
 def serialize_project_document_link(link: "ProjectDocument") -> ProjectDocumentSummary | None:

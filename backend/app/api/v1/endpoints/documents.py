@@ -6,6 +6,7 @@ from typing import Annotated, List, Literal, Optional
 from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import delete as sa_delete, exists, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -22,7 +23,7 @@ from app.core.config import settings
 from app.core.messages import DocumentMessages, InitiativeMessages, QueryMessages
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
-from app.models.document import Document, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
+from app.models.document import Document, DocumentFileVersion, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
 from app.models.property import DocumentPropertyValue
@@ -46,8 +47,11 @@ from app.schemas.document import (
     DocumentRolePermissionCreate,
     DocumentRolePermissionRead,
     DocumentRolePermissionUpdate,
+    DocumentFileVersionRead,
     DocumentUpdate,
     serialize_document,
+    serialize_document_file_version,
+    serialize_document_file_versions,
     serialize_document_summary,
 )
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
@@ -210,6 +214,50 @@ def _require_document_access(
 def _get_document_permission(document: Document, user_id: int) -> DocumentPermission | None:
     """Get a user's permission for a document from the loaded permissions."""
     return permissions_service.get_document_permission(document, user_id)
+
+
+def _file_download_response(
+    *,
+    file_url: str,
+    content_type: str | None,
+    original_filename: str | None,
+    inline: bool,
+) -> FileResponse:
+    """Build a hardened FileResponse for a stored upload blob.
+
+    Shared by the current-document download and the per-version download so
+    the path-traversal guard and SVG/HTML stored-XSS hardening can't drift
+    between the two endpoints.
+    """
+    uploads_path = Path(settings.UPLOADS_DIR)
+    filename = file_url.split("/")[-1]
+    try:
+        file_path = (uploads_path / filename).resolve()
+        file_path.relative_to(uploads_path.resolve())
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    if not file_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+
+    headers: dict[str, str] = {"X-Content-Type-Options": "nosniff"}
+    ext = (original_filename or filename).rsplit(".", 1)[-1].lower()
+    normalized_type = (content_type or "").lower()
+    if ext in ("svg", "html", "htm") or "svg" in normalized_type or "html" in normalized_type:
+        if inline:
+            # Disable scripts (stored-XSS hardening) but allow the file to be
+            # framed by the same-origin in-app document viewer. X-Frame-Options
+            # set here overrides the SecurityHeadersMiddleware global DENY (it
+            # uses setdefault); frame-ancestors 'self' is the CSP equivalent.
+            headers["Content-Security-Policy"] = "script-src 'none'; frame-ancestors 'self'"
+            headers["X-Frame-Options"] = "SAMEORIGIN"
+        else:
+            # Non-inline downloads are sent as attachments; keep the strict
+            # script-src and let the global X-Frame-Options: DENY stand.
+            headers["Content-Security-Policy"] = "script-src 'none'"
+
+    if inline:
+        return FileResponse(file_path, media_type=content_type or None, headers=headers)
+    return FileResponse(file_path, filename=original_filename or filename, headers=headers)
 
 
 def _build_visible_docs_filters(
@@ -811,8 +859,8 @@ async def upload_document_file(
             filename=file.filename,
             content_type=file.content_type,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.INVALID_FILE)
 
     # Save file to uploads directory
     file_url = attachments_service.save_document_file(contents, extension)
@@ -850,11 +898,24 @@ async def upload_document_file(
         level=DocumentPermissionLevel.owner,
         guild_id=guild_context.guild_id,
     )
+    # Record the initial version (v1). The documents row mirrors this version's
+    # file fields; subsequent uploads add higher-numbered versions.
+    initial_version = DocumentFileVersion(
+        document_id=document.id,
+        guild_id=guild_context.guild_id,
+        version_number=1,
+        file_url=file_url,
+        file_content_type=mime_type,
+        file_size=len(contents),
+        original_filename=file.filename,
+        uploaded_by_id=current_user.id,
+    )
     # Auto-set featured image for image uploads (before commit so we avoid expired attrs)
     if mime_type and mime_type.startswith("image/"):
         document.featured_image_url = file_url
 
     session.add(owner_permission)
+    session.add(initial_version)
     await session.commit()
     await reapply_rls_context(session)
 
@@ -865,6 +926,214 @@ async def upload_document_file(
             hydrated, current_user.id,
         ),
     )
+
+
+def _normalize_mime(mime: str | None) -> str:
+    """Normalize a MIME type for version type-match comparison."""
+    normalized = (mime or "").lower().strip()
+    if normalized == "image/jpg":
+        return "image/jpeg"
+    return normalized
+
+
+@router.post(
+    "/{document_id}/versions",
+    response_model=DocumentFileVersionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_document_version(
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+    document_id: int,
+    file: UploadFile = File(...),
+) -> DocumentFileVersionRead:
+    """Upload a new version of a file document. Requires write access."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    if document.document_type != DocumentType.file:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.NOT_A_FILE_DOCUMENT)
+    _require_document_access(document, current_user, access="write")
+
+    contents = await file.read()
+    try:
+        mime_type, extension = attachments_service.validate_document_file(
+            content=contents,
+            filename=file.filename,
+            content_type=file.content_type,
+        )
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.INVALID_FILE)
+
+    # A new version must keep the document's original file type. Skip the
+    # check when the stored type is NULL so legacy documents without a
+    # recorded content type aren't permanently locked out of new versions
+    # (``_normalize_mime(None)`` returns ``""`` and would always mismatch).
+    if (
+        document.file_content_type is not None
+        and _normalize_mime(mime_type) != _normalize_mime(document.file_content_type)
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.VERSION_TYPE_MISMATCH)
+
+    file_url = attachments_service.save_document_file(contents, extension)
+
+    # Track the new blob in the uploads table for guild-scoped access control.
+    upload_record = Upload(
+        filename=file_url.split("/")[-1],
+        guild_id=guild_context.guild_id,
+        uploader_user_id=current_user.id,
+        size_bytes=len(contents),
+    )
+    session.add(upload_record)
+
+    max_version = await session.scalar(
+        select(func.max(DocumentFileVersion.version_number)).where(
+            DocumentFileVersion.document_id == document_id
+        )
+    )
+    next_version = (max_version or 0) + 1
+
+    version = DocumentFileVersion(
+        document_id=document_id,
+        guild_id=guild_context.guild_id,
+        version_number=next_version,
+        file_url=file_url,
+        file_content_type=mime_type,
+        file_size=len(contents),
+        original_filename=file.filename,
+        uploaded_by_id=current_user.id,
+    )
+    session.add(version)
+
+    # Mirror the new (now current) version onto the document row so the
+    # existing download endpoint and viewer serve the latest file.
+    document.file_url = file_url
+    document.file_content_type = mime_type
+    document.file_size = len(contents)
+    document.original_filename = file.filename
+    document.updated_by_id = current_user.id
+    document.updated_at = datetime.now(timezone.utc)
+    if mime_type and mime_type.startswith("image/"):
+        document.featured_image_url = file_url
+
+    try:
+        await session.commit()
+    except IntegrityError:
+        # The (document_id, version_number) unique constraint rejected this row:
+        # a concurrent upload claimed the same next version number between our
+        # MAX() read and this commit. Roll back, drop the orphaned blob, and ask
+        # the caller to retry rather than surfacing a 500.
+        await session.rollback()
+        await reapply_rls_context(session)
+        attachments_service.delete_upload_by_url(file_url)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=DocumentMessages.VERSION_CONFLICT,
+        )
+    await reapply_rls_context(session)
+    await session.refresh(version)
+    return serialize_document_file_version(version, is_current=True)
+
+
+@router.get("/{document_id}/versions", response_model=List[DocumentFileVersionRead])
+async def list_document_versions(
+    document_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> List[DocumentFileVersionRead]:
+    """List all stored versions of a file document, newest first. Read access."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    if document.document_type != DocumentType.file:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.NOT_A_FILE_DOCUMENT)
+    _require_document_access(document, current_user, access="read")
+
+    result = await session.exec(
+        select(DocumentFileVersion)
+        .where(DocumentFileVersion.document_id == document_id)
+        .order_by(DocumentFileVersion.version_number.desc())
+    )
+    versions = result.all()
+    return serialize_document_file_versions(list(versions))
+
+
+@router.delete(
+    "/{document_id}/versions/{version_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_document_version(
+    document_id: int,
+    version_id: int,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> None:
+    """Delete a version of a file document. Owner only. Deleting the current
+    version promotes the previous one; deleting the last version is blocked."""
+    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    if document.document_type != DocumentType.file:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.NOT_A_FILE_DOCUMENT)
+    _require_document_access(document, current_user, require_owner=True)
+
+    # Serialize concurrent deletes against the same document by taking a
+    # row-level lock on the document row. Without it, two owner DELETEs that
+    # both observe ``len(versions) >= 2`` can both pass the "last version"
+    # guard and race to delete different rows — leaving zero versions, and
+    # (in the worst case) ``document.file_url`` pointing at a blob that the
+    # second request also deleted. Holding the lock until commit means the
+    # second request re-reads the version list after the first one finishes.
+    await session.exec(
+        select(Document).where(Document.id == document_id).with_for_update()
+    )
+
+    result = await session.exec(
+        select(DocumentFileVersion)
+        .where(DocumentFileVersion.document_id == document_id)
+        .order_by(DocumentFileVersion.version_number.desc())
+    )
+    versions = list(result.all())
+    if len(versions) <= 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.CANNOT_DELETE_LAST_VERSION,
+        )
+
+    target = next((v for v in versions if v.id == version_id), None)
+    if target is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.VERSION_NOT_FOUND)
+
+    is_current = target.version_number == versions[0].version_number
+    deleted_url = target.file_url
+
+    await session.delete(target)
+    await session.flush()
+
+    # Remove the upload-tracking row + filesystem blob for this version.
+    filename = deleted_url.split("/")[-1]
+    await session.exec(sa_delete(Upload).where(Upload.filename == filename))
+
+    if is_current:
+        # Promote the next-highest version to current by mirroring its file
+        # fields onto the document row.
+        promoted = next((v for v in versions if v.id != version_id), None)
+        if promoted is not None:
+            document.file_url = promoted.file_url
+            document.file_content_type = promoted.file_content_type
+            document.file_size = promoted.file_size
+            document.original_filename = promoted.original_filename
+            document.updated_by_id = current_user.id
+            document.updated_at = datetime.now(timezone.utc)
+            # Keep featured image coherent when it referenced the deleted blob.
+            if document.featured_image_url == deleted_url:
+                if (promoted.file_content_type or "").startswith("image/"):
+                    document.featured_image_url = promoted.file_url
+                else:
+                    document.featured_image_url = None
+
+    await session.commit()
+    await reapply_rls_context(session)
+
+    # Delete the blob after the row is gone so a failed commit doesn't orphan files.
+    attachments_service.delete_upload_by_url(deleted_url)
 
 
 @router.get("/{document_id}", response_model=DocumentRead)
@@ -1686,36 +1955,76 @@ async def download_document_file(
 
     _require_document_access(document, current_user, access="read")
 
-    uploads_path = Path(settings.UPLOADS_DIR)
-    filename = document.file_url.split("/")[-1]
-    try:
-        file_path = (uploads_path / filename).resolve()
-        file_path.relative_to(uploads_path.resolve())
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    if not file_path.is_file():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-
-    headers: dict[str, str] = {"X-Content-Type-Options": "nosniff"}
-    ext = (document.original_filename or filename).rsplit(".", 1)[-1].lower()
-    content_type = (document.file_content_type or "").lower()
-    if ext in ("svg", "html", "htm") or "svg" in content_type or "html" in content_type:
-        if inline:
-            # Disable scripts (stored-XSS hardening) but allow the file to be
-            # framed by the same-origin in-app document viewer. X-Frame-Options
-            # set here overrides the SecurityHeadersMiddleware global DENY (it
-            # uses setdefault); frame-ancestors 'self' is the CSP equivalent.
-            headers["Content-Security-Policy"] = "script-src 'none'; frame-ancestors 'self'"
-            headers["X-Frame-Options"] = "SAMEORIGIN"
-        else:
-            # Non-inline downloads are sent as attachments; keep the strict
-            # script-src and let the global X-Frame-Options: DENY stand.
-            headers["Content-Security-Policy"] = "script-src 'none'"
-
     logger.info("document_download document_id=%d user=%d inline=%s", document_id, current_user.id, inline)
-    if inline:
-        return FileResponse(file_path, media_type=document.file_content_type or None, headers=headers)
-    return FileResponse(file_path, filename=document.original_filename or filename, headers=headers)
+    return _file_download_response(
+        file_url=document.file_url,
+        content_type=document.file_content_type,
+        original_filename=document.original_filename,
+        inline=inline,
+    )
+
+
+@router.get("/{document_id}/versions/{version_id}/download", include_in_schema=False)
+@limiter.limit("30/minute")
+async def download_document_file_version(
+    request: Request,
+    document_id: int,
+    version_id: int,
+    current_user: UploadUserDep,
+    # Same rationale as download_document_file: served via iframe/window.open
+    # which can't send X-Guild-ID, so we use the admin session and enforce
+    # guild isolation directly in the query.
+    session: Annotated[AsyncSession, Depends(get_admin_session)],
+    inline: bool = False,
+) -> FileResponse:
+    """Download a specific stored version of a file document — read permission."""
+    stmt = (
+        select(Document)
+        .where(Document.id == document_id)
+        .join(Document.initiative)
+        .where(
+            Initiative.guild_id.in_(
+                select(GuildMembership.guild_id).where(GuildMembership.user_id == current_user.id)
+            )
+        )
+        .options(
+            selectinload(Document.initiative)
+            .selectinload(Initiative.memberships)
+            .options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+            ),
+            selectinload(Document.permissions),
+            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+        )
+    )
+    result = await session.exec(stmt)
+    document = result.one_or_none()
+    if document is None or document.document_type != DocumentType.file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND)
+
+    _require_document_access(document, current_user, access="read")
+
+    version_result = await session.exec(
+        select(DocumentFileVersion).where(
+            DocumentFileVersion.id == version_id,
+            DocumentFileVersion.document_id == document_id,
+        )
+    )
+    version = version_result.one_or_none()
+    if version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.VERSION_NOT_FOUND)
+
+    logger.info(
+        "document_version_download document_id=%d version_id=%d user=%d inline=%s",
+        document_id, version_id, current_user.id, inline,
+    )
+    return _file_download_response(
+        file_url=version.file_url,
+        content_type=version.file_content_type,
+        original_filename=version.original_filename,
+        inline=inline,
+    )
 
 
 @router.post("/{document_id}/view", response_model=RecentViewWrite)

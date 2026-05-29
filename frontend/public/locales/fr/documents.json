@@ -320,6 +320,20 @@
     "showSource": "Voir la source",
     "showRendered": "Voir le rendu"
   },
+  "versions": {
+    "label": "Historique des versions",
+    "current": "actuelle",
+    "versionLabel": "Version {{number}} · {{date}}",
+    "uploadNew": "Téléverser une nouvelle version",
+    "viewingOld": "Vous consultez une version antérieure.",
+    "viewingOldCanEdit": "Vous consultez une version antérieure. Téléversez une nouvelle version pour modifier le fichier actuel.",
+    "deleteVersion": "Supprimer la version",
+    "deleteConfirm": "Supprimer la version {{number}} ? Cela supprime définitivement le fichier de cette version et est irréversible.",
+    "uploadSuccess": "Nouvelle version téléversée",
+    "deleteSuccess": "Version supprimée",
+    "uploadError": "Échec du téléversement de la nouvelle version",
+    "deleteError": "Échec de la suppression de la version"
+  },
   "summary": {
     "aiNotEnabled": "Les fonctionnalités IA ne sont pas activées. Configurez les paramètres IA pour générer des résumés de documents.",
     "generateDescription": "Générer un résumé alimenté par l'IA pour ce document.",
