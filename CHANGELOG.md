@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Manual save button on document titles.
 - **Version history for uploaded file documents.** Uploaded files (PDFs, Office docs, images) now keep a version history instead of being a single replaceable blob. A "Version history" popover on the file viewer lists every version (newest first) with its upload time; selecting an older version views or downloads it, and an inline trash button on each row deletes it. Anyone with write access can upload a new version (it must match the original file type); only the document owner can delete versions. Deleting the current version rolls back to the previous one; the last remaining version can't be deleted (delete the document instead). Old version blobs are cleaned up when the document is purged.
 
+### Changed
+
+- **Active Guild highlight.** The active guild is now highlighted by a more subtle bottom pill when on a home page (My Tasks, My Documents, etc), to reduce confusion on where you are in the app.
+
 ## [0.46.2] - 2026-05-27
 
 ### Added
