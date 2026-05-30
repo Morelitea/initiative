@@ -597,6 +597,13 @@
       "admin": "Admin",
       "owner": "Owner"
     },
+    "roleDescriptions": {
+      "member": "Standard access to their own guilds. No platform-wide privileges.",
+      "support": "Read-only platform visibility (users, guilds, audit) and can request time-bound access to a guild.",
+      "moderator": "Everything Support can do, plus user management (suspend/reactivate) and content moderation.",
+      "admin": "Manages users, guilds, and roles platform-wide, with cross-guild data access and approves access requests.",
+      "owner": "Full control, including app-wide configuration (auth, branding, email, AI). The only role that can manage configuration."
+    },
     "changeRoleTitle": "Change platform role",
     "changeRoleDescription": "This will change {{email}}'s platform role to {{role}}.",
     "roleChangeSuccess": "Platform role changed to {{role}}"

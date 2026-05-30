@@ -595,6 +595,13 @@
       "admin": "Administrador",
       "owner": "Propietario"
     },
+    "roleDescriptions": {
+      "member": "Acceso estándar a sus propios gremios. Sin privilegios a nivel de plataforma.",
+      "support": "Visibilidad de solo lectura de la plataforma (usuarios, gremios, auditoría) y puede solicitar acceso temporal a un gremio.",
+      "moderator": "Todo lo que puede hacer Soporte, además de gestión de usuarios (suspender/reactivar) y moderación de contenido.",
+      "admin": "Gestiona usuarios, gremios y roles en toda la plataforma, con acceso a datos entre gremios y aprueba solicitudes de acceso.",
+      "owner": "Control total, incluida la configuración de toda la plataforma (autenticación, personalización, email, IA). El único rol que puede gestionar la configuración."
+    },
     "changeRoleTitle": "Cambiar rol de plataforma",
     "changeRoleDescription": "Esto cambiará el rol de plataforma de {{email}} a {{role}}.",
     "roleChangeSuccess": "Rol de plataforma cambiado a {{role}}",

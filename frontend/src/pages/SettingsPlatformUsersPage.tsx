@@ -22,13 +22,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   useAdminReactivateUser,
   useAdminTriggerPasswordReset,
@@ -53,6 +48,9 @@ const platformRoleRank = (role: UserRole): number => PLATFORM_ROLE_ORDER.indexOf
 const platformRoleLabel = (role: UserRole, t: TranslateFn): string =>
   t(`platformUsers.roles.${role}`);
 
+const platformRoleDescription = (role: UserRole, t: TranslateFn): string =>
+  t(`platformUsers.roleDescriptions.${role}`);
+
 const ROLE_BADGE: Record<
   UserRole,
   { icon: LucideIcon | null; variant: "default" | "secondary" | "outline" }
@@ -64,13 +62,27 @@ const ROLE_BADGE: Record<
   member: { icon: null, variant: "outline" },
 };
 
+// A role badge with a hover tooltip describing the role. Used wherever the
+// role isn't editable (read-only viewers, the actor's own row, higher-ranked
+// targets) so the meaning of each role is still discoverable.
 const PlatformRoleBadge = ({ role, t }: { role: UserRole; t: TranslateFn }) => {
   const { icon: Icon, variant } = ROLE_BADGE[role];
   return (
-    <Badge variant={variant} className="inline-flex items-center gap-1">
-      {Icon && <Icon className="h-3 w-3" />}
-      {platformRoleLabel(role, t)}
-    </Badge>
+    <TooltipProvider>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <span className="inline-flex cursor-help">
+            <Badge variant={variant} className="inline-flex items-center gap-1">
+              {Icon && <Icon className="h-3 w-3" />}
+              {platformRoleLabel(role, t)}
+            </Badge>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs">
+          {platformRoleDescription(role, t)}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
@@ -275,9 +287,11 @@ export const SettingsPlatformUsersPage = () => {
             disabled={updatePlatformRole.isPending}
           >
             <SelectTrigger className="h-8 w-[160px]">
-              <SelectValue />
+              {/* Render the label directly rather than <SelectValue> so the
+                  per-item descriptions below don't leak into the trigger. */}
+              {platformRoleLabel(platformUser.role, t as TranslateFn)}
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-w-xs">
               {PLATFORM_ROLE_ORDER.map((role) => {
                 // Can't assign above your own rank; the last owner can only
                 // stay an owner.
@@ -285,7 +299,14 @@ export const SettingsPlatformUsersPage = () => {
                   platformRoleRank(role) > actorRank || (isLastOwner && role !== "owner");
                 return (
                   <SelectItem key={role} value={role} disabled={disabled}>
-                    {platformRoleLabel(role, t as TranslateFn)}
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium">
+                        {platformRoleLabel(role, t as TranslateFn)}
+                      </span>
+                      <span className="text-muted-foreground text-xs leading-snug">
+                        {platformRoleDescription(role, t as TranslateFn)}
+                      </span>
+                    </div>
                   </SelectItem>
                 );
               })}
