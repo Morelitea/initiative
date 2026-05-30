@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.core.messages import CounterMessages
+from app.core.pam_context import grant_satisfies
 from app.models.counter import (
     Counter,
     CounterGroup,
@@ -115,6 +116,9 @@ def require_counter_group_access(
     access: str = "read",
     require_owner: bool = False,
 ) -> None:
+    # A live PAM grant covering the group's guild satisfies read/write.
+    if grant_satisfies(group.guild_id, access=access, require_owner=require_owner):
+        return
     effective = _effective_level(group, user)
 
     if require_owner:

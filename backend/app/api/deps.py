@@ -11,6 +11,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
+from app.core.pam_context import set_active_grant
 from app.core.messages import AuthMessages, GuildMessages
 from app.core.security import (
     AutoDelegationClaims,
@@ -365,6 +366,11 @@ async def get_guild_session(
         # writes. guild_role is left unset so guild-role-gated paths don't treat
         # the grantee as a member.
         grant = guild_context.grant
+        access_level = grant.access_level if grant is not None else AccessLevel.read.value
+        # Mirror the grant into the request-scoped PAM context so the app-layer
+        # resource access checks (require_*_access) honor it consistently with
+        # RLS — what the grantee can list, they can also open/edit per level.
+        set_active_grant(guild_context.guild_id, access_level)
         # Leave current_guild_id unset — the existing write policies treat a
         # matching current_guild_id as proof of membership. Scope the grant via
         # pam_guild_id instead.
@@ -376,10 +382,11 @@ async def get_guild_session(
             is_superadmin=False,
             pam_guild_id=guild_context.guild_id,
             pam_read=True,
-            pam_write=(grant is not None and grant.access_level == AccessLevel.read_write.value),
+            pam_write=(access_level == AccessLevel.read_write.value),
         )
         return session
 
+    set_active_grant(None, None)
     await set_rls_context(
         session,
         user_id=current_user.id,

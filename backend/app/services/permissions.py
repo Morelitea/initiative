@@ -22,6 +22,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import inspect
 from sqlmodel import select
 
+from app.core.pam_context import grant_satisfies
+
 from app.models.project import (
     Project,
     ProjectPermission,
@@ -255,7 +257,10 @@ def require_project_access(
 
     DAC: Access granted through explicit ProjectPermission or role-based
     permission.  Effective level = MAX(user-specific, role-based).
+    A live PAM grant covering the project's guild also satisfies read/write.
     """
+    if grant_satisfies(project.guild_id, access=access, require_owner=require_owner):
+        return
     effective = _effective_project_level(project, user.id)
 
     if require_owner:
@@ -375,7 +380,10 @@ def require_document_access(
 
     DAC: Access granted through explicit DocumentPermission or role-based
     permission.  Effective level = MAX(user-specific, role-based).
+    A live PAM grant covering the document's guild also satisfies read/write.
     """
+    if grant_satisfies(document.guild_id, access=access, require_owner=require_owner):
+        return
     effective = _effective_document_level(document, user)
 
     if require_owner:
