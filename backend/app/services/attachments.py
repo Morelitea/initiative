@@ -123,9 +123,10 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
     ``RLSSessionDep`` for the manual "Delete Now" action. Caller commits.
     """
     from sqlalchemy import delete as sa_delete, or_, text
+    from sqlmodel import select
 
     from app.db.soft_delete_filter import select_including_deleted
-    from app.models.document import Document, DocumentType
+    from app.models.document import Document, DocumentFileVersion, DocumentType
     from app.models.upload import Upload
 
     docs_list = list(documents)
@@ -144,6 +145,23 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
             normalized = normalize_upload_url(d.file_url)
             if normalized:
                 file_url_filenames.add(Path(normalized).name)
+
+    # Historical version blobs for the doomed file docs (the documents row
+    # only mirrors the current version; older versions live in
+    # document_file_versions). The version rows themselves cascade-delete with
+    # the document; here we clean up their Upload rows + blobs.
+    version_rows = await session.exec(
+        select(DocumentFileVersion.file_url).where(
+            DocumentFileVersion.document_id.in_(doomed_ids)
+        )
+    )
+    for version_url in version_rows.all():
+        if not version_url:
+            continue
+        file_urls_to_unlink.add(version_url)
+        normalized = normalize_upload_url(version_url)
+        if normalized:
+            file_url_filenames.add(Path(normalized).name)
 
     if file_url_filenames:
         await session.exec(

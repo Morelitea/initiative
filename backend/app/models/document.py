@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, LargeBinary, String, text
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
@@ -123,6 +123,60 @@ class Document(SoftDeleteMixin, table=True):
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    file_versions: List["DocumentFileVersion"] = Relationship(
+        back_populates="document",
+        sa_relationship_kwargs={
+            "cascade": "all, delete-orphan",
+            "order_by": "DocumentFileVersion.version_number",
+        },
+    )
+
+
+class DocumentFileVersion(SQLModel, table=True):
+    """A single uploaded version of a file-type document.
+
+    Every file document has at least one row here; the ``documents`` row
+    mirrors the file fields of the current version (the highest
+    ``version_number``) so the existing download endpoint and viewer keep
+    working without consulting this table.
+    """
+
+    __tablename__ = "document_file_versions"
+    __table_args__ = (
+        UniqueConstraint("document_id", "version_number", name="uq_dfv_document_version"),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    document_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("documents.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        )
+    )
+    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    version_number: int = Field(nullable=False)
+    file_url: str = Field(sa_column=Column(String(length=512), nullable=False))
+    file_content_type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=128), nullable=True),
+    )
+    file_size: Optional[int] = Field(
+        default=None,
+        sa_column=Column(BigInteger, nullable=True),
+    )
+    original_filename: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(length=255), nullable=True),
+    )
+    uploaded_by_id: int = Field(foreign_key="users.id", nullable=False)
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+
+    document: Optional["Document"] = Relationship(back_populates="file_versions")
 
 
 class ProjectDocument(SQLModel, table=True):

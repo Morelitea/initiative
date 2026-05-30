@@ -168,10 +168,12 @@ export const GuildAvatar = ({
 const SortableGuildButton = ({
   guild,
   isActive,
+  isHomeMode,
   onSelect,
 }: {
   guild: GuildRead;
   isActive: boolean;
+  isHomeMode: boolean;
   onSelect: (guildId: number) => void;
 }) => {
   const { t } = useTranslation("guilds");
@@ -194,9 +196,11 @@ const SortableGuildButton = ({
             ref={setNodeRef}
             onClick={() => onSelect(guild.id)}
             className={cn(
-              "flex h-12 w-12 cursor-grab items-center justify-center rounded-2xl border-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:cursor-grabbing",
+              "relative flex h-12 w-12 cursor-grab items-center justify-center rounded-2xl border-3 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 active:cursor-grabbing",
               isActive
-                ? "border-primary/60 bg-primary/10 text-primary"
+                ? isHomeMode
+                  ? "border-transparent bg-muted text-foreground"
+                  : "border-primary/60 bg-primary/10 text-primary"
                 : "border-transparent bg-muted text-muted-foreground hover:bg-muted/80"
             )}
             aria-label={t("switchTo", { name: guild.name })}
@@ -204,6 +208,12 @@ const SortableGuildButton = ({
             {...attributes}
             {...listeners}
           >
+            {isActive && isHomeMode ? (
+              <span
+                className="-translate-x-1/2 absolute -bottom-2 left-1/2 z-10 mt-1 h-1 w-7 rounded-full bg-primary/60"
+                aria-hidden="true"
+              />
+            ) : null}
             <GuildAvatar name={guild.name} icon={guild.icon_base64} active={isActive} />
           </button>
         </TooltipTrigger>
@@ -317,6 +327,7 @@ export const GuildSidebar = ({ isHomeMode = false }: { isHomeMode?: boolean }) =
                   key={guild.id}
                   guild={guild}
                   isActive={guild.id === activeGuildId}
+                  isHomeMode={isHomeMode}
                   onSelect={handleGuildSwitch}
                 />
               ))}

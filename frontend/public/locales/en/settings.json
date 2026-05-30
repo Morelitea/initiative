@@ -23,7 +23,8 @@
       "guild": "Guild",
       "ai": "AI",
       "users": "Users",
-      "trash": "Trash"
+      "trash": "Trash",
+      "dangerZone": "Danger zone"
     }
   },
   "adminLayout": {

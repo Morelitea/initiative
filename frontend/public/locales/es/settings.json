@@ -23,7 +23,8 @@
       "guild": "Gremio",
       "ai": "IA",
       "users": "Usuarios",
-      "trash": "Papelera"
+      "trash": "Papelera",
+      "dangerZone": "Zona de peligro"
     }
   },
   "adminLayout": {

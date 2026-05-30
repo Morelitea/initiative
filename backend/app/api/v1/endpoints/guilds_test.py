@@ -219,13 +219,16 @@ async def test_update_guild_without_membership_forbidden(client: AsyncClient, se
 
 @pytest.mark.integration
 async def test_delete_guild_as_admin(client: AsyncClient, session: AsyncSession):
-    """Test that admin can delete guild."""
+    """Test that admin can delete guild with the right password and phrase."""
     user = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, name="To Delete")
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
 
     headers = get_auth_headers(user)
-    response = await client.delete(f"/api/v1/guilds/{guild.id}", headers=headers)
+    body = {"password": "testpassword123", "confirmation_text": "DELETE GUILD TO DELETE"}
+    response = await client.request(
+        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
+    )
 
     assert response.status_code == 204
 
@@ -238,9 +241,64 @@ async def test_delete_guild_as_member_forbidden(client: AsyncClient, session: As
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.member)
 
     headers = get_auth_headers(user)
-    response = await client.delete(f"/api/v1/guilds/{guild.id}", headers=headers)
+    body = {"password": "testpassword123", "confirmation_text": "DELETE GUILD TEST GUILD"}
+    response = await client.request(
+        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
+    )
 
     assert response.status_code == 403
+
+
+@pytest.mark.integration
+async def test_delete_guild_wrong_password(client: AsyncClient, session: AsyncSession):
+    """A wrong password is rejected with 400 (not 401, to avoid logout)."""
+    user = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session, name="To Delete")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    headers = get_auth_headers(user)
+    body = {"password": "wrongpassword", "confirmation_text": "DELETE GUILD TO DELETE"}
+    response = await client.request(
+        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "GUILD_INVALID_PASSWORD"
+
+
+@pytest.mark.integration
+async def test_delete_guild_wrong_confirmation(client: AsyncClient, session: AsyncSession):
+    """A mismatched confirmation phrase is rejected with 400."""
+    user = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session, name="To Delete")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    headers = get_auth_headers(user)
+    body = {"password": "testpassword123", "confirmation_text": "To Delete"}
+    response = await client.request(
+        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "GUILD_CONFIRMATION_MISMATCH"
+
+
+@pytest.mark.integration
+async def test_delete_guild_oidc_user_skips_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """OIDC-only users delete with just the phrase — no password required."""
+    user = await create_user(session, email="sso@example.com", oidc_sub="sso-123")
+    guild = await create_guild(session, name="To Delete")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+
+    headers = get_auth_headers(user)
+    body = {"confirmation_text": "DELETE GUILD TO DELETE"}
+    response = await client.request(
+        "DELETE", f"/api/v1/guilds/{guild.id}", headers=headers, json=body
+    )
+
+    assert response.status_code == 204
 
 
 @pytest.mark.integration

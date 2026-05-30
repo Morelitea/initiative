@@ -14,9 +14,14 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getErrorMessage } from "@/lib/errorMessage";
+import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 
 export const ResetPasswordPage = () => {
-  const { t } = useTranslation("auth");
+  // Include ``errors`` so ``getErrorMessage`` can map server codes
+  // like ``PASSWORD_BREACHED`` without the namespace having to
+  // lazy-load mid-submit.
+  const { t } = useTranslation(["auth", "errors"]);
   const searchParams = useSearch({ strict: false }) as { token?: string };
   const router = useRouter();
   const token = searchParams.token ?? "";
@@ -35,6 +40,11 @@ export const ResetPasswordPage = () => {
       setError(t("resetPassword.passwordMismatch"));
       return;
     }
+    const policyError = validatePasswordLocal(password);
+    if (policyError) {
+      setError(policyError);
+      return;
+    }
     setStatus("submitting");
     setError(null);
     try {
@@ -42,7 +52,10 @@ export const ResetPasswordPage = () => {
       setStatus("success");
     } catch (err) {
       console.error(err);
-      setError(t("resetPassword.error"));
+      // ``getErrorMessage`` maps server codes like ``PASSWORD_BREACHED``
+      // to the localized string from ``errors.json``; falls back to the
+      // generic reset-page error when the code isn't recognized.
+      setError(getErrorMessage(err, "auth:resetPassword.error"));
       setStatus("idle");
     }
   };
@@ -89,8 +102,18 @@ export const ResetPasswordPage = () => {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                  minLength={PASSWORD_MIN_LENGTH}
                   required
                 />
+                <p
+                  className={
+                    password.length > 0 && password.length < PASSWORD_MIN_LENGTH
+                      ? "text-destructive text-xs"
+                      : "text-muted-foreground text-xs"
+                  }
+                >
+                  {t("auth:passwordPolicy.minLengthHelp")}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">{t("resetPassword.confirmPasswordLabel")}</Label>

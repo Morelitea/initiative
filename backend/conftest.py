@@ -85,6 +85,20 @@ def _install_soft_delete_filter():
     install_soft_delete_filter()
 
 
+@pytest.fixture(autouse=True)
+def _disable_hibp_check(monkeypatch):
+    """Disable the HaveIBeenPwned breach lookup for all tests by default.
+
+    Without this, every registration / password change test would make
+    a real outbound HTTPS call to the HIBP API — flaky and slow.
+    Tests that explicitly exercise the breach path opt back in via
+    their own monkeypatch + ``hibp.is_password_breached`` stub.
+    """
+    from app.core.config import settings as app_settings
+
+    monkeypatch.setattr(app_settings, "HIBP_CHECK_ENABLED", False)
+
+
 @pytest.fixture(scope="function")
 async def engine():
     """Create a test database engine."""

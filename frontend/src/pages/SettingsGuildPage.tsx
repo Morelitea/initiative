@@ -1,23 +1,10 @@
 import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
-import { Trans, useTranslation } from "react-i18next";
+import { useTranslation } from "react-i18next";
 
-import {
-  deleteGuildApiV1GuildsGuildIdDelete,
-  updateGuildApiV1GuildsGuildIdPatch,
-} from "@/api/generated/guilds/guilds";
+import { updateGuildApiV1GuildsGuildIdPatch } from "@/api/generated/guilds/guilds";
 import type { GuildRead } from "@/api/generated/initiativeAPI.schemas";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,9 +21,6 @@ export const SettingsGuildPage = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [iconBase64, setIconBase64] = useState<string | null>(null);
   const [iconError, setIconError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   useEffect(() => {
     if (!activeGuild) {
@@ -106,28 +90,6 @@ export const SettingsGuildPage = () => {
       setSaving(false);
     }
   };
-
-  const confirmDeleteGuild = async () => {
-    if (!activeGuild) {
-      return;
-    }
-    setDeleting(true);
-    setSaveError(null);
-    setShowDeleteConfirm(false);
-    setDeleteConfirmText("");
-    try {
-      await deleteGuildApiV1GuildsGuildIdDelete(activeGuild.id);
-      await refreshGuilds();
-      window.location.replace("/");
-    } catch (error) {
-      console.error(error);
-      setSaveError(t("settings.unableToDelete"));
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const canConfirmDelete = deleteConfirmText === activeGuild?.name;
 
   if (!activeGuild) {
     return (
@@ -203,73 +165,6 @@ export const SettingsGuildPage = () => {
           </form>
         </CardContent>
       </Card>
-      <Card className="border-destructive/40 bg-destructive/5">
-        <CardHeader>
-          <CardTitle>{t("settings.dangerZone")}</CardTitle>
-          <CardDescription>{t("settings.dangerDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Button
-            variant="destructive"
-            onClick={() => {
-              setDeleteConfirmText("");
-              setShowDeleteConfirm(true);
-            }}
-            disabled={deleting}
-          >
-            {deleting ? t("settings.deleting") : t("settings.deleteGuild")}
-          </Button>
-        </CardContent>
-      </Card>
-
-      <AlertDialog
-        open={showDeleteConfirm}
-        onOpenChange={(open) => {
-          setShowDeleteConfirm(open);
-          if (!open) setDeleteConfirmText("");
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("settings.deleteConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              <Trans
-                i18nKey="settings.deleteConfirmDescription"
-                ns="guilds"
-                values={{ name: activeGuild?.name }}
-                components={{ bold: <strong /> }}
-              />
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="delete-guild-confirm-input">
-              <Trans
-                i18nKey="settings.deleteConfirmLabel"
-                ns="guilds"
-                values={{ name: activeGuild?.name }}
-                components={{ bold: <strong /> }}
-              />
-            </Label>
-            <Input
-              id="delete-guild-confirm-input"
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder={activeGuild?.name}
-              autoComplete="off"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>{t("common:cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void confirmDeleteGuild()}
-              disabled={!canConfirmDelete || deleting}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              {deleting ? t("settings.deleting") : t("common:delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };

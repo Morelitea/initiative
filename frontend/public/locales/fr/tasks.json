@@ -64,6 +64,8 @@
     "backToProjects": "← Retour aux projets",
     "loadProjectError": "Impossible de charger le contexte du projet pour cette tâche.",
     "statusBadge": "Statut",
+    "createdBy": "Créée par {{name}} · {{time}}",
+    "createdAt": "Créée {{time}}",
     "subtitle": "Modifiez chaque détail de cette tâche.",
     "detailsTitle": "Détails de la tâche",
     "detailsDescription": "Mettez à jour les champs ci-dessous et enregistrez vos modifications.",

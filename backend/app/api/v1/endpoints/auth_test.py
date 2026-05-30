@@ -76,7 +76,7 @@ async def test_register_duplicate_email(client: AsyncClient, session: AsyncSessi
     user_data = {
         "email": "existing@example.com",
         "full_name": "Duplicate User",
-        "password": "password123",
+        "password": "password1234",
     }
 
     response = await client.post("/api/v1/auth/register", json=user_data)
@@ -92,7 +92,7 @@ async def test_register_normalizes_email(client: AsyncClient):
     user_data = {
         "email": "  TEST@EXAMPLE.COM  ",
         "full_name": "Test User",
-        "password": "password123",
+        "password": "password1234",
     }
 
     response = await client.post("/api/v1/auth/register", json=user_data)
@@ -117,7 +117,7 @@ async def test_register_persists_browser_timezone(
         json={
             "email": "tz-user@example.com",
             "full_name": "TZ User",
-            "password": "password123",
+            "password": "password1234",
             "timezone": "America/Los_Angeles",
         },
     )
@@ -141,7 +141,7 @@ async def test_register_rejects_invalid_timezone(client: AsyncClient):
         json={
             "email": "bad-tz@example.com",
             "full_name": "Bad TZ",
-            "password": "password123",
+            "password": "password1234",
             "timezone": "Mars/Olympus_Mons",
         },
     )
@@ -163,7 +163,7 @@ async def test_register_without_timezone_keeps_utc_default(
         json={
             "email": "no-tz@example.com",
             "full_name": "No TZ",
-            "password": "password123",
+            "password": "password1234",
         },
     )
     assert response.status_code == 201
@@ -199,7 +199,7 @@ async def test_register_requires_captcha_token_when_configured(
         json={
             "email": "needs-captcha@example.com",
             "full_name": "Needs Captcha",
-            "password": "password123",
+            "password": "password1234",
         },
     )
     assert response.status_code == 400
@@ -225,7 +225,7 @@ async def test_register_skips_captcha_for_bootstrap_first_user(
         json={
             "email": "bootstrap@example.com",
             "full_name": "Bootstrap",
-            "password": "password123",
+            "password": "password1234",
         },
     )
     assert response.status_code == 201
@@ -250,7 +250,7 @@ async def test_register_no_captcha_required_when_provider_unset(
         json={
             "email": "no-captcha@example.com",
             "full_name": "No Captcha",
-            "password": "password123",
+            "password": "password1234",
         },
     )
     assert response.status_code == 201
@@ -282,7 +282,7 @@ async def test_register_with_valid_captcha_token_succeeds(
         json={
             "email": "good-token@example.com",
             "full_name": "Good Token",
-            "password": "password123",
+            "password": "password1234",
             "captcha_token": "stub-valid-token",
         },
     )
@@ -707,3 +707,125 @@ async def test_oidc_callback_blocks_new_user_when_registration_disabled(
     assert response.status_code in (302, 307)
     assert "OIDC_REGISTRATION_DISABLED" in response.headers["location"]
     assert "session_token" not in response.cookies
+
+
+# --- Password policy -------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_rejects_password_shorter_than_minimum(client: AsyncClient):
+    """11-char passwords (the previous loose default in our own tests)
+    must now be rejected. Locks down the new NIST-aligned 12-char floor."""
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "tooshort@example.com",
+            "full_name": "Too Short",
+            "password": "elevenchars",  # 11 chars
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "PASSWORD_TOO_SHORT"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_rejects_breached_password(client: AsyncClient, monkeypatch):
+    """A password that passes the length floor but appears in HIBP must
+    be rejected with the BREACHED code, not silently accepted."""
+    from app.services import hibp as hibp_module
+
+    async def _breached(_pw: str) -> bool:
+        return True
+
+    monkeypatch.setattr(hibp_module, "is_password_breached", _breached)
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "breached@example.com",
+            "full_name": "Breached",
+            "password": "long-enough-but-pwned",
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "PASSWORD_BREACHED"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_accepts_compliant_password(client: AsyncClient):
+    """Sanity check: a 12+ char password with HIBP disabled (default in
+    tests) succeeds, so the policy gate isn't accidentally rejecting
+    everything."""
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "ok@example.com",
+            "full_name": "OK User",
+            "password": "twelve-chars",  # exactly 12 chars
+        },
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_grandfathers_existing_short_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """Users whose hashes were written before the policy landed must keep
+    logging in. The policy applies only to flows that *set* a new
+    password — never to ``verify_password`` on the login path."""
+    short_password = "shortpw"  # 7 chars — would fail the policy if applied
+    user = User(
+        email_hash=hash_email("legacy-short@example.com"),
+        email_encrypted=encrypt_field("legacy-short@example.com", SALT_EMAIL),
+        full_name="Legacy Short",
+        hashed_password=get_password_hash(short_password),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/token",
+        data={"username": "legacy-short@example.com", "password": short_password},
+    )
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_password_reset_rejects_short_password(
+    client: AsyncClient, session: AsyncSession
+):
+    """Password reset must run the same policy as registration. The
+    reset token must NOT be consumed when the candidate fails — a
+    failed attempt would otherwise burn the user's only reset link."""
+    from app.models.user_token import UserToken, UserTokenPurpose
+    from app.services import user_tokens
+
+    user = await create_user(session, email="reset@example.com")
+    token = await user_tokens.create_token(
+        session,
+        user_id=user.id,
+        purpose=UserTokenPurpose.password_reset,
+    )
+
+    response = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": token, "password": "elevenchars"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "PASSWORD_TOO_SHORT"
+
+    # Reset token must still be redeemable — we failed before consuming it.
+    from sqlmodel import select
+    fresh = (
+        await session.exec(select(UserToken).where(UserToken.token == token))
+    ).one()
+    assert fresh.consumed_at is None

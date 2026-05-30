@@ -64,6 +64,8 @@
     "backToProjects": "\u2190 Volver a proyectos",
     "loadProjectError": "No se pudo cargar el contexto del proyecto para esta tarea.",
     "statusBadge": "Estado",
+    "createdBy": "Creada por {{name}} · {{time}}",
+    "createdAt": "Creada {{time}}",
     "subtitle": "Edita todos los detalles de esta tarea.",
     "detailsTitle": "Detalles de la tarea",
     "detailsDescription": "Actualiza los campos a continuación y guarda tus cambios.",

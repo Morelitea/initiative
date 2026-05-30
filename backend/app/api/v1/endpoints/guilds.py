@@ -7,12 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response
 from app.api.deps import SessionDep, UserSessionDep, get_current_active_user
 from app.core.config import settings
 from app.core.messages import AdvancedToolMessages, GuildMessages
-from app.core.security import create_advanced_tool_handoff_token
+from app.core.security import create_advanced_tool_handoff_token, verify_password
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from app.models.guild import GuildRole, GuildMembership, Guild
 from app.models.user import User, UserRole
 from app.schemas.guild import (
     GuildCreate,
+    GuildDeletionRequest,
     GuildMembershipUpdate,
     GuildRead,
     GuildInviteAcceptRequest,
@@ -258,12 +259,35 @@ async def create_guild_advanced_tool_handoff(
 @router.delete("/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def delete_guild(
     guild_id: int,
+    request: GuildDeletionRequest,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> Response:
     await _ensure_guild_admin(session, guild_id=guild_id, user_id=current_user.id, is_superadmin=(current_user.role == UserRole.admin))
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
+
+    # Password gate — skipped for OIDC-only users (provisioned with a
+    # random hash they were never shown), same rationale as the
+    # account-deletion endpoint. 400 not 401 so the SPA's axios
+    # interceptor doesn't treat a wrong password as a session expiry and
+    # force-log-out the user mid-confirmation.
+    if current_user.oidc_sub is None:
+        if not verify_password(request.password, current_user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=GuildMessages.INVALID_PASSWORD,
+            )
+
+    # The whole phrase is uppercased, including the name, so casing on
+    # the guild name can't trip up the confirmation.
+    expected = f"DELETE GUILD {guild.name.upper()}"
+    if request.confirmation_text != expected:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.CONFIRMATION_MISMATCH,
+        )
+
     await guilds_service.delete_guild(session, guild)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -444,3 +444,76 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     ]
     ids = {item["entity_id"] for item in comment_items}
     assert ids == {parent.id}, f"reply leaked into trash listing: {ids}"
+
+
+async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSession):
+    """A purged file document must clean up the Upload rows for ALL of its
+    historical versions, not just the current blob mirrored on the documents
+    row."""
+    from sqlmodel import select
+
+    from app.models.document import DocumentFileVersion
+    from app.services.attachments import purge_document_uploads
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+
+    # Current blob (mirrored on the document) + one historical version blob.
+    current_name = "doc_v2.pdf"
+    old_name = "doc_v1.pdf"
+    for name in (current_name, old_name):
+        session.add(
+            Upload(filename=name, guild_id=guild.id, uploader_user_id=user.id, size_bytes=10)
+        )
+    doomed = Document(
+        guild_id=guild.id,
+        initiative_id=initiative.id,
+        title="Doomed file",
+        document_type=DocumentType.file,
+        content={},
+        file_url=f"/uploads/{current_name}",
+        file_content_type="application/pdf",
+        file_size=10,
+        original_filename=current_name,
+        created_by_id=user.id,
+        updated_by_id=user.id,
+    )
+    session.add(doomed)
+    await session.flush()
+    session.add_all(
+        [
+            DocumentFileVersion(
+                document_id=doomed.id,
+                guild_id=guild.id,
+                version_number=1,
+                file_url=f"/uploads/{old_name}",
+                file_content_type="application/pdf",
+                file_size=10,
+                original_filename=old_name,
+                uploaded_by_id=user.id,
+            ),
+            DocumentFileVersion(
+                document_id=doomed.id,
+                guild_id=guild.id,
+                version_number=2,
+                file_url=f"/uploads/{current_name}",
+                file_content_type="application/pdf",
+                file_size=10,
+                original_filename=current_name,
+                uploaded_by_id=user.id,
+            ),
+        ]
+    )
+    await session.commit()
+    await session.refresh(doomed)
+
+    await purge_document_uploads(session, [doomed])
+    await session.commit()
+
+    remaining = (
+        await session.exec(
+            select(Upload).where(Upload.filename.in_([current_name, old_name]))
+        )
+    ).all()
+    assert remaining == []

@@ -5,6 +5,8 @@
   "CAPTCHA_INVALID": "La verificación del captcha falló. Inténtalo de nuevo.",
   "UNABLE_TO_CREATE_USER": "No se pudo crear el usuario",
   "INCORRECT_CREDENTIALS": "Email o contraseña incorrectos",
+  "PASSWORD_TOO_SHORT": "La contraseña debe tener al menos 12 caracteres.",
+  "PASSWORD_BREACHED": "Esta contraseña ha aparecido en una filtración de datos conocida. Elige otra.",
   "INACTIVE_USER": "Usuario inactivo",
   "EMAIL_NOT_VERIFIED": "Email no verificado",
   "TOKEN_NOT_FOUND": "Token no encontrado",
@@ -135,6 +137,12 @@
   "DOCUMENT_SMART_LINK_URL_INVALID": "Las URL de enlace inteligente deben comenzar con http:// o https://",
   "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "El contenido de la hoja de cálculo no es válido o tiene un formato no compatible.",
   "DOCUMENT_INVALID_TAG_IDS": "Uno o más IDs de etiqueta no son válidos",
+  "DOCUMENT_NOT_A_FILE_DOCUMENT": "Solo los documentos de archivo subidos admiten versiones",
+  "DOCUMENT_VERSION_NOT_FOUND": "Versión no encontrada",
+  "DOCUMENT_CANNOT_DELETE_LAST_VERSION": "No se puede eliminar la única versión; elimina el documento en su lugar",
+  "DOCUMENT_VERSION_TYPE_MISMATCH": "Una nueva versión debe ser del mismo tipo de archivo que el original",
+  "DOCUMENT_VERSION_CONFLICT": "Alguien subió una versión al mismo tiempo. Inténtalo de nuevo.",
+  "DOCUMENT_INVALID_FILE": "Archivo no compatible o no válido. Compatibles: PDF, Word, Excel, PowerPoint, TXT, HTML, imágenes, Markdown (máx. 50 MB).",
   "COMMENT_NOT_FOUND": "Comentario no encontrado",
   "COMMENT_PERMISSION_DENIED": "No autorizado para comentar",
   "COMMENT_PARENT_NOT_FOUND": "Comentario padre no encontrado",
@@ -239,5 +247,7 @@
   "COUNTER_VIEW_MODE_REQUIRES_BOUNDS": "La barra de progreso y el reloj segmentado requieren definir mínimo y máximo",
   "COUNTER_MIN_GREATER_THAN_MAX": "El mínimo no puede ser mayor que el máximo",
   "COUNTER_STEP_MUST_BE_POSITIVE": "El incremento debe ser un número positivo",
-  "COUNTER_OUT_OF_RANGE": "El valor está fuera del rango permitido"
+  "COUNTER_OUT_OF_RANGE": "El valor está fuera del rango permitido",
+  "GUILD_INVALID_PASSWORD": "Contraseña incorrecta",
+  "GUILD_CONFIRMATION_MISMATCH": "El texto de confirmación no coincide"
 }

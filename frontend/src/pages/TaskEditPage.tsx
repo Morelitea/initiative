@@ -1,4 +1,5 @@
 import { Link, useParams, useRouter } from "@tanstack/react-router";
+import { format, formatDistanceToNow } from "date-fns";
 import {
   AlertCircle,
   Archive,
@@ -40,6 +41,7 @@ import { TagPicker } from "@/components/tags";
 import { MoveTaskDialog } from "@/components/tasks/MoveTaskDialog";
 import { TaskChecklist } from "@/components/tasks/TaskChecklist";
 import { statusTriggerStyle, TaskStatusOption } from "@/components/tasks/TaskStatusOption";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   Breadcrumb,
@@ -63,9 +65,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useComments } from "@/hooks/useComments";
+import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useSetTaskProperties } from "@/hooks/useProperties";
@@ -84,6 +88,8 @@ import { toast } from "@/lib/chesterToast";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { queryClient } from "@/lib/queryClient";
+import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { getInitialsForUser, getUserDisplayName, isAnonymizedUser } from "@/lib/userDisplay";
 
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -113,6 +119,7 @@ export const TaskEditPage = () => {
   useGuilds();
   const { t } = useTranslation(["tasks", "common", "properties"]);
   const gp = useGuildPath();
+  const dateLocale = useDateLocale();
   const { data: roleLabels } = useRoleLabels();
   const memberLabel = getRoleLabel("member", roleLabels);
   const { isEnabled: aiEnabled } = useAIEnabled();
@@ -312,6 +319,63 @@ export const TaskEditPage = () => {
 
   const users = useMemo(() => usersQuery.data ?? [], [usersQuery.data]);
   const project = projectQuery.data;
+
+  // Creator metadata for the inline "Created by …" chip in the title row.
+  // ``users`` may not include the creator if they've since left the guild —
+  // fall back to ``User #<id>`` in that case so the chip still renders.
+  const creator = useMemo(() => {
+    if (task?.created_by_id == null) return null;
+    return users.find((user) => user.id === task.created_by_id) ?? null;
+  }, [users, task?.created_by_id]);
+
+  // The non-time-varying part of the chip. Gated on ``usersQuery.isSuccess``
+  // when there *is* a creator id so we don't flash "User #<id>" while the
+  // users list is still loading — once users arrive, the genuine "creator
+  // has left the guild" case is the only path to that fallback.
+  const creationContext = useMemo(() => {
+    if (!task?.created_at) return null;
+    if (task.created_by_id != null && !usersQuery.isSuccess) return null;
+    const anonymized = isAnonymizedUser(creator);
+    const displayName = creator
+      ? getUserDisplayName(creator)
+      : task.created_by_id != null
+        ? `User #${task.created_by_id}`
+        : null;
+    const avatarSrc =
+      creator && !anonymized
+        ? resolveUploadUrl(creator.avatar_url) || creator.avatar_base64 || undefined
+        : undefined;
+    return {
+      createdAt: new Date(task.created_at),
+      displayName,
+      avatarSrc,
+      anonymized,
+      initials: getInitialsForUser(creator),
+      creatorId: creator?.id ?? null,
+    };
+  }, [task?.created_at, task?.created_by_id, creator, usersQuery.isSuccess]);
+
+  // Tick once a minute so the "N ago" label stays fresh while the page is
+  // open — ``formatDistanceToNow`` reads ``Date.now()`` at call time, so a
+  // bare state update is enough to re-render with a current value.
+  const [, setRelativeTick] = useState(0);
+  useEffect(() => {
+    if (!creationContext) return;
+    const id = setInterval(() => setRelativeTick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, [creationContext]);
+
+  // Computed each render (cheap) so the tick above actually shows up.
+  const creationMeta = creationContext
+    ? {
+        ...creationContext,
+        relative: formatDistanceToNow(creationContext.createdAt, {
+          addSuffix: true,
+          locale: dateLocale,
+        }),
+        absolute: format(creationContext.createdAt, "PPpp", { locale: dateLocale }),
+      }
+    : null;
   // Pure DAC: only users with write access (owner or write level) can be assigned tasks
   // Includes both explicit user permissions and role-based permissions
   const userOptions = useMemo(() => {
@@ -583,6 +647,40 @@ export const TaskEditPage = () => {
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-semibold text-3xl tracking-tight">{title || task?.title}</h1>
           <Badge variant="secondary">{currentStatus?.name ?? t("edit.statusBadge")}</Badge>
+          {creationMeta ? (
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="ml-auto flex items-center gap-2 text-muted-foreground text-xs">
+                    {creationMeta.displayName ? (
+                      <Avatar className="h-5 w-5 border text-[10px]">
+                        {creationMeta.avatarSrc ? (
+                          <AvatarImage
+                            src={creationMeta.avatarSrc}
+                            alt={creationMeta.displayName}
+                          />
+                        ) : null}
+                        <AvatarFallback
+                          userId={creationMeta.anonymized ? null : creationMeta.creatorId}
+                        >
+                          {creationMeta.initials}
+                        </AvatarFallback>
+                      </Avatar>
+                    ) : null}
+                    <span>
+                      {creationMeta.displayName
+                        ? t("edit.createdBy", {
+                            name: creationMeta.displayName,
+                            time: creationMeta.relative,
+                          })
+                        : t("edit.createdAt", { time: creationMeta.relative })}
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>{creationMeta.absolute}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : null}
         </div>
         <p className="text-muted-foreground text-sm">{t("edit.subtitle")}</p>
       </div>

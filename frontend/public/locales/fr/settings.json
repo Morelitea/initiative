@@ -23,7 +23,8 @@
       "guild": "Groupe",
       "ai": "IA",
       "users": "Utilisateurs",
-      "trash": "Corbeille"
+      "trash": "Corbeille",
+      "dangerZone": "Zone de danger"
     }
   },
   "adminLayout": {

@@ -58,6 +58,13 @@ export const GuildSettingsLayout = () => {
           : "/settings/advanced-tool",
       });
     }
+    // Danger zone lives last — destructive guild deletion is deliberately
+    // tucked behind its own tab rather than the first screen.
+    tabs.push({
+      value: "danger-zone",
+      label: t("guildLayout.tabs.dangerZone"),
+      path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
+    });
     return tabs;
   }, [urlGuildId, t, advancedTool]);
 
@@ -86,6 +93,7 @@ export const GuildSettingsLayout = () => {
     { value: "users", subPath: "/settings/users" },
     { value: "trash", subPath: "/settings/trash" },
     { value: "advanced-tool", subPath: "/settings/advanced-tool" },
+    { value: "danger-zone", subPath: "/settings/danger-zone" },
   ];
 
   const activeTab =

@@ -11,7 +11,7 @@ from app.models.api_key import AdminApiKey
 from app.models.project_activity import ProjectFavorite
 from app.models.recent_view import RecentView
 from app.models.comment import Comment
-from app.models.document import Document, DocumentPermission, DocumentRolePermission, ProjectDocument, DocumentLink
+from app.models.document import Document, DocumentFileVersion, DocumentPermission, DocumentRolePermission, ProjectDocument, DocumentLink
 from app.models.notification import Notification
 from app.models.oidc_claim_mapping import OIDCClaimMapping
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
@@ -46,6 +46,7 @@ __all__ = [
     "RecentView",
     "Comment",
     "Document",
+    "DocumentFileVersion",
     "DocumentPermission",
     "DocumentRolePermission",
     "ProjectDocument",

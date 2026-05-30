@@ -23,6 +23,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.rate_limit import limiter
 from app.core.encryption import decrypt_field, encrypt_field, encrypt_token, hash_email, SALT_EMAIL, SALT_OIDC_CLIENT_SECRET
 from app.core.messages import AuthMessages, OidcMessages
+from app.core.password_policy import enforce_password_policy
 from app.core.security import create_access_token, get_password_hash, password_needs_rehash, verify_password
 from app.core.user_input_validators import normalize_timezone
 from app.models.user import User, UserRole, UserStatus
@@ -105,6 +106,11 @@ async def register_user(
                 user_in.captcha_token,
                 remote_ip=get_real_client_ip(request),
             )
+
+        # Enforce password policy (NIST 800-63B: length + HIBP breach
+        # check) before we hash. Raises 422 PASSWORD_TOO_SHORT /
+        # PASSWORD_BREACHED on failure.
+        await enforce_password_policy(user_in.password)
 
         if normalized_invite:
             user_role = UserRole.member
@@ -783,6 +789,9 @@ async def request_password_reset(request: Request, payload: PasswordResetRequest
 @router.post("/password/reset", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
 async def reset_password(request: Request, payload: PasswordResetSubmit, session: SessionDep) -> VerificationSendResponse:
+    # Run the policy first so an invalid candidate doesn't burn the
+    # reset token; ``consume_token`` is one-shot.
+    await enforce_password_policy(payload.password)
     record = await user_tokens.consume_token(
         session,
         token=payload.token,

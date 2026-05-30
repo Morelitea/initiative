@@ -79,6 +79,23 @@ class GuildUpdate(SanitizedBaseModel):
     retention_days: Optional[int] = Field(default=None, ge=1, le=3650)
 
 
+class GuildDeletionRequest(SanitizedBaseModel):
+    """Body for ``DELETE /guilds/{id}``.
+
+    Deleting a guild cascades through every initiative, project, task,
+    document, membership, invite, and settings row it owns, so the
+    endpoint gates on two confirmations:
+
+    - ``confirmation_text`` must equal ``DELETE GUILD <NAME>`` (the whole
+      phrase uppercased) so the action can't be triggered by a stray click.
+    - ``password`` is the current user's password. It is ignored for
+      OIDC-only users (who have no usable password), mirroring the
+      account-deletion endpoint, which is why it defaults to empty.
+    """
+    password: str = ""
+    confirmation_text: str
+
+
 class GuildOrderUpdate(SanitizedBaseModel):
     model_config = ConfigDict(populate_by_name=True)
     guild_ids: list[int] = Field(min_length=1, alias="guildIds")

@@ -14,6 +14,7 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
+from app.core.password_policy import enforce_password_policy
 from app.core.security import get_password_hash, verify_password
 from app.core.user_input_validators import (
     normalize_notification_time,
@@ -216,6 +217,9 @@ async def create_user(
     if result.one_or_none():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=UserMessages.EMAIL_ALREADY_REGISTERED)
 
+    # Admin-created accounts go through the same policy as self-registration.
+    await enforce_password_policy(user_in.password)
+
     guild_id = guild_context.guild_id
 
     user = User(
@@ -258,6 +262,7 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
+        await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
         current_user.token_version += 1
         # Bulk-revoke all active device tokens
@@ -382,6 +387,7 @@ async def update_user(
             detail=UserMessages.PLATFORM_ROLE_WRONG_ENDPOINT,
         )
     if (password := update_data.pop("password", None)):
+        await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
     if "avatar_base64" in update_data:
         user.avatar_base64 = update_data.pop("avatar_base64")

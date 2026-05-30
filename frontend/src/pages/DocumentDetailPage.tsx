@@ -10,6 +10,7 @@ import {
   Maximize2,
   Minimize2,
   PanelRight,
+  Save,
   ScrollText,
   SearchX,
   Settings,
@@ -117,7 +118,7 @@ import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 export const DocumentDetailPage = () => {
-  const { t } = useTranslation(["documents", "properties"]);
+  const { t } = useTranslation(["documents", "properties", "common"]);
   const dateLocale = useDateLocale();
   const { documentId } = useParams({ strict: false }) as { documentId: string };
   const parsedId = Number(documentId);
@@ -387,6 +388,10 @@ export const DocumentDetailPage = () => {
     ((document && title?.trim() !== document?.title?.trim()) ||
       documentContentJson !== currentContentJson ||
       normalizedDocumentFeatured !== featuredImageUrl);
+
+  const titleIsDirty = Boolean(
+    canEditDocument && document && title?.trim() !== document?.title?.trim()
+  );
 
   const commentsCanModerate = useMemo(() => {
     if (!document || !user) {
@@ -1079,13 +1084,41 @@ export const DocumentDetailPage = () => {
         </div>
       </div>
       <div className="space-y-2">
-        <Input
-          value={title}
-          onChange={(event) => setTitle(event.target.value)}
-          placeholder={t("detail.titlePlaceholder")}
-          className="font-semibold text-2xl"
-          disabled={!canEditDocument}
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder={t("detail.titlePlaceholder")}
+            className="font-semibold text-2xl"
+            disabled={!canEditDocument}
+          />
+          {titleIsDirty ? (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (saveDocument.isPending) return;
+                saveDocument.mutate({
+                  documentId: parsedId,
+                  data: {
+                    title: title?.trim(),
+                    content: contentForSave,
+                    featured_image_url: featuredImageUrl,
+                  },
+                });
+              }}
+              disabled={saveDocument.isPending}
+              className="shrink-0"
+            >
+              {saveDocument.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {t("common:save")}
+            </Button>
+          ) : null}
+        </div>
         <div className="flex flex-wrap items-center gap-2 text-muted-foreground text-sm">
           {document.initiative ? (
             <Link
@@ -1274,6 +1307,8 @@ export const DocumentDetailPage = () => {
               contentType={document.file_content_type}
               originalFilename={document.original_filename}
               fileSize={document.file_size}
+              canEdit={canEditDocument}
+              isOwner={document.my_permission_level === "owner"}
             />
           </Suspense>
         ) : (

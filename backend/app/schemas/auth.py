@@ -22,7 +22,12 @@ class PasswordResetRequest(SanitizedBaseModel):
 
 class PasswordResetSubmit(SanitizedBaseModel):
     token: str = Field(min_length=10)
-    password: str = Field(min_length=8, max_length=256)
+    # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
+    # multi-megabyte payload. The min length and breach checks live in
+    # ``app.core.password_policy`` and are invoked from the endpoint,
+    # so all policy failures surface with a flat error code from
+    # ``PasswordMessages`` that ``errors.json`` can map.
+    password: str = Field(max_length=256)
 
 
 # Device token schemas for mobile app authentication

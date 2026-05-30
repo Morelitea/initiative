@@ -64,6 +64,8 @@
     "backToProjects": "\u2190 Back to projects",
     "loadProjectError": "Unable to load project context for this task.",
     "statusBadge": "Status",
+    "createdBy": "Created by {{name}} · {{time}}",
+    "createdAt": "Created {{time}}",
     "subtitle": "Edit every detail of this task.",
     "detailsTitle": "Task details",
     "detailsDescription": "Update the fields below and save your changes.",

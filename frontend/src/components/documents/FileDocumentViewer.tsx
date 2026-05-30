@@ -1,22 +1,38 @@
+import { formatDistanceToNow } from "date-fns";
 import {
   Download,
   ExternalLink,
   FileSpreadsheet,
   FileText,
+  History,
   Loader2,
   Presentation,
+  Trash2,
+  Upload,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Document, Page, pdfjs } from "react-pdf";
 
+import type { DocumentFileVersionRead } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useDateLocale } from "@/hooks/useDateLocale";
+import {
+  useDeleteDocumentVersion,
+  useDocumentVersions,
+  useUploadDocumentVersion,
+} from "@/hooks/useDocuments";
+import { toast } from "@/lib/chesterToast";
 import { formatBytes, getFileExtension, getFileTypeLabel } from "@/lib/fileUtils";
-import { resolveDocumentDownloadUrl } from "@/lib/uploadUrl";
+import { resolveDocumentDownloadUrl, resolveDocumentVersionDownloadUrl } from "@/lib/uploadUrl";
+import { cn } from "@/lib/utils";
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -24,12 +40,21 @@ import "react-pdf/dist/Page/TextLayer.css";
 // Configure PDF.js worker from CDN (most reliable for Vite)
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
+// Accepted file types for uploading a new version (mirrors CreateDocumentDialog).
+const VERSION_UPLOAD_ACCEPT =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.html,.htm,.png,.jpg,.jpeg,.gif,.webp,.svg,.md,.markdown";
+const MAX_VERSION_FILE_SIZE = 50 * 1024 * 1024;
+
 interface FileDocumentViewerProps {
   documentId: number;
   fileUrl: string;
   contentType?: string | null;
   originalFilename?: string | null;
   fileSize?: number | null;
+  /** Whether the current user can upload a new version (write or owner). */
+  canEdit?: boolean;
+  /** Whether the current user owns the document (can delete versions). */
+  isOwner?: boolean;
 }
 
 export const FileDocumentViewer = ({
@@ -38,12 +63,50 @@ export const FileDocumentViewer = ({
   contentType,
   originalFilename,
   fileSize,
+  canEdit = false,
+  isOwner = false,
 }: FileDocumentViewerProps) => {
-  const { t } = useTranslation("documents");
-  const resolvedUrl = resolveDocumentDownloadUrl(documentId);
-  const inlineUrl = resolveDocumentDownloadUrl(documentId, true);
-  const fileTypeLabel = getFileTypeLabel(contentType, originalFilename);
-  const extension = getFileExtension(originalFilename || fileUrl);
+  const { t } = useTranslation(["documents", "common"]);
+  const dateLocale = useDateLocale();
+
+  // ── Version history ─────────────────────────────────────────────────────
+  const { data: versions } = useDocumentVersions(documentId);
+  const uploadVersion = useUploadDocumentVersion();
+  const deleteVersion = useDeleteDocumentVersion();
+  const versionInputRef = useRef<HTMLInputElement>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<number | null>(null);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versionPendingDelete, setVersionPendingDelete] = useState<DocumentFileVersionRead | null>(
+    null
+  );
+
+  const currentVersion = useMemo(() => versions?.find((v) => v.is_current) ?? null, [versions]);
+  const selectedVersion = useMemo(() => {
+    if (selectedVersionId == null) return currentVersion;
+    return versions?.find((v) => v.id === selectedVersionId) ?? currentVersion;
+  }, [versions, selectedVersionId, currentVersion]);
+  const isViewingCurrent = selectedVersion == null || selectedVersion.is_current;
+  const hasMultipleVersions = (versions?.length ?? 0) > 1;
+
+  // Always render via the version-specific URL once the version is known —
+  // including the current version. The version id lives in the path, so when a
+  // new version is uploaded (the current version's id changes) the URL changes
+  // too, busting the browser/react-pdf/<img> cache that keys on the URL string.
+  // (The plain /download URL is constant and would otherwise show stale bytes.)
+  // Falls back to the document download URL only until the version list loads.
+  const resolvedUrl = selectedVersion
+    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id)
+    : resolveDocumentDownloadUrl(documentId);
+  const inlineUrl = selectedVersion
+    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id, true)
+    : resolveDocumentDownloadUrl(documentId, true);
+
+  // Header metadata follows the selected version (falls back to props/current).
+  const displayFilename = selectedVersion?.original_filename ?? originalFilename;
+  const displayFileSize = selectedVersion?.file_size ?? fileSize;
+
+  const fileTypeLabel = getFileTypeLabel(contentType, displayFilename);
+  const extension = getFileExtension(displayFilename || fileUrl);
 
   // PDF viewer state
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -111,7 +174,7 @@ export const FileDocumentViewer = ({
 
     const link = document.createElement("a");
     link.href = resolvedUrl;
-    link.download = originalFilename || "document";
+    link.download = displayFilename || "document";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -120,6 +183,48 @@ export const FileDocumentViewer = ({
   const handleOpenInNewTab = () => {
     if (!inlineUrl) return;
     window.open(inlineUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const handleVersionFileSelected = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (file.size > MAX_VERSION_FILE_SIZE) {
+      toast.error(t("create.fileTooLarge"));
+      return;
+    }
+    uploadVersion.mutate(
+      { documentId, file },
+      {
+        // Show the newly uploaded (now current) version.
+        onSuccess: () => {
+          setSelectedVersionId(null);
+          setVersionsOpen(false);
+        },
+      }
+    );
+  };
+
+  const handleSelectVersion = (version: DocumentFileVersionRead) => {
+    setSelectedVersionId(version.is_current ? null : version.id);
+    setVersionsOpen(false);
+  };
+
+  const handleConfirmDeleteVersion = () => {
+    if (!versionPendingDelete) return;
+    const deletedId = versionPendingDelete.id;
+    deleteVersion.mutate(
+      { documentId, versionId: deletedId },
+      {
+        onSuccess: () => {
+          // If the version being viewed was deleted, fall back to current.
+          if (selectedVersionId === deletedId) {
+            setSelectedVersionId(null);
+          }
+          setVersionPendingDelete(null);
+        },
+      }
+    );
   };
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -147,19 +252,106 @@ export const FileDocumentViewer = ({
   const OfficeIcon = isExcel ? FileSpreadsheet : isPowerPoint ? Presentation : FileText;
   const iconColor = isExcel ? "text-green-600" : isPowerPoint ? "text-orange-500" : "text-blue-600";
 
+  const formatVersionDate = (createdAt: string) =>
+    formatDistanceToNow(new Date(createdAt), { addSuffix: true, locale: dateLocale });
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-muted-foreground text-sm">
           <span className="font-medium">{fileTypeLabel}</span>
-          {fileSize && <span className="ml-2">({formatBytes(fileSize)})</span>}
-          {originalFilename && (
+          {displayFileSize && <span className="ml-2">({formatBytes(displayFileSize)})</span>}
+          {displayFilename && (
             <span className="ml-2 inline-block max-w-50 truncate align-bottom">
-              {originalFilename}
+              {displayFilename}
             </span>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {versions && versions.length > 0 && (
+            <Popover open={versionsOpen} onOpenChange={setVersionsOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={isViewingCurrent ? "outline" : "secondary"}
+                  size="sm"
+                  aria-label={t("versions.label")}
+                >
+                  <History className="mr-2 h-4 w-4" />
+                  {t("versions.label")}
+                  {versions.length > 1 && (
+                    <Badge variant="secondary" className="ml-2 px-1.5">
+                      {versions.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-0">
+                <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+                  <span className="font-medium text-sm">{t("versions.label")}</span>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7"
+                      onClick={() => versionInputRef.current?.click()}
+                      disabled={uploadVersion.isPending}
+                    >
+                      {uploadVersion.isPending ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="mr-1.5 h-3.5 w-3.5" />
+                      )}
+                      {t("versions.uploadNew")}
+                    </Button>
+                  )}
+                </div>
+                <div className="max-h-72 overflow-y-auto py-1">
+                  {versions.map((v) => {
+                    const isSelected = selectedVersion?.id === v.id;
+                    return (
+                      <div
+                        key={v.id}
+                        className={cn(
+                          "flex items-center gap-1 px-1.5",
+                          isSelected && "bg-accent/60"
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSelectVersion(v)}
+                          className="flex flex-1 items-center gap-2 rounded px-1.5 py-1.5 text-left text-sm hover:bg-accent"
+                        >
+                          <span className="flex-1 truncate">
+                            {t("versions.versionLabel", {
+                              number: v.version_number,
+                              date: formatVersionDate(v.created_at),
+                            })}
+                          </span>
+                          {v.is_current && (
+                            <Badge variant="outline" className="shrink-0">
+                              {t("versions.current")}
+                            </Badge>
+                          )}
+                        </button>
+                        {isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={() => setVersionPendingDelete(v)}
+                            disabled={!hasMultipleVersions || deleteVersion.isPending}
+                            aria-label={t("versions.deleteVersion")}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
           <Button variant="outline" size="sm" onClick={handleOpenInNewTab}>
             <ExternalLink className="mr-2 h-4 w-4" />
             {t("viewer.openNewTab")}
@@ -170,6 +362,35 @@ export const FileDocumentViewer = ({
           </Button>
         </div>
       </div>
+      {!isViewingCurrent && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-700 text-sm dark:text-amber-400">
+          {t(canEdit ? "versions.viewingOldCanEdit" : "versions.viewingOld")}
+        </div>
+      )}
+      <input
+        ref={versionInputRef}
+        type="file"
+        accept={VERSION_UPLOAD_ACCEPT}
+        className="hidden"
+        onChange={handleVersionFileSelected}
+      />
+      <ConfirmDialog
+        open={versionPendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setVersionPendingDelete(null);
+        }}
+        title={t("versions.deleteVersion")}
+        description={
+          versionPendingDelete
+            ? t("versions.deleteConfirm", { number: versionPendingDelete.version_number })
+            : undefined
+        }
+        confirmLabel={t("versions.deleteVersion")}
+        cancelLabel={t("common:cancel")}
+        onConfirm={handleConfirmDeleteVersion}
+        isLoading={deleteVersion.isPending}
+        destructive
+      />
 
       <div
         className="w-full min-w-0 overflow-hidden rounded-lg border bg-card"

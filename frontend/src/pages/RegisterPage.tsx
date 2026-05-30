@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 
 interface RegisterPageProps {
   bootstrapMode?: boolean;
@@ -139,6 +140,11 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
     try {
       if (password !== confirmPassword) {
         setError(t("register.passwordMismatch"));
+        return;
+      }
+      const policyError = validatePasswordLocal(password);
+      if (policyError) {
+        setError(policyError);
         return;
       }
       if (inviteCode && inviteStatus && !inviteStatus.is_valid) {
@@ -290,8 +296,18 @@ export const RegisterPage = ({ bootstrapMode = false }: RegisterPageProps) => {
                   type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
+                  minLength={PASSWORD_MIN_LENGTH}
                   required
                 />
+                <p
+                  className={
+                    password.length > 0 && password.length < PASSWORD_MIN_LENGTH
+                      ? "text-destructive text-xs"
+                      : "text-muted-foreground text-xs"
+                  }
+                >
+                  {t("auth:passwordPolicy.minLengthHelp")}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">{t("register.confirmPasswordLabel")}</Label>

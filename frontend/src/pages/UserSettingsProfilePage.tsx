@@ -11,7 +11,9 @@ import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUpdateCurrentUser } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import { getInitials } from "@/lib/initials";
+import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
 
 const dataUrl = (value?: string | null) => {
@@ -30,7 +32,10 @@ interface UserSettingsProfilePageProps {
 }
 
 export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfilePageProps) => {
-  const { t } = useTranslation("settings");
+  // Pull in ``auth`` and ``errors`` so the password-policy hint and the
+  // server's ``PASSWORD_BREACHED`` code map without lazy-loading those
+  // namespaces mid-submit.
+  const { t } = useTranslation(["settings", "auth", "errors"]);
   const [fullName, setFullName] = useState(user.full_name ?? "");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -70,7 +75,10 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
       toast.success(t("profile.updateSuccess"));
     },
     onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : t("profile.updateError"));
+      // Map server password-policy codes (``PASSWORD_TOO_SHORT``,
+      // ``PASSWORD_BREACHED``) and other backend errors via the shared
+      // helper; fall back to the generic update-error string.
+      setError(getErrorMessage(err, "settings:profile.updateError"));
     },
   });
 
@@ -118,6 +126,13 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 setError(t("profile.passwordsMismatch"));
                 return;
               }
+              if (password) {
+                const policyError = validatePasswordLocal(password);
+                if (policyError) {
+                  setError(policyError);
+                  return;
+                }
+              }
               const payload: Record<string, unknown> = {};
               if (fullName !== user.full_name) {
                 payload.full_name = fullName;
@@ -163,7 +178,17 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder={t("profile.passwordPlaceholder")}
+                  minLength={password.length > 0 ? PASSWORD_MIN_LENGTH : undefined}
                 />
+                <p
+                  className={
+                    password.length > 0 && password.length < PASSWORD_MIN_LENGTH
+                      ? "text-destructive text-xs"
+                      : "text-muted-foreground text-xs"
+                  }
+                >
+                  {t("auth:passwordPolicy.minLengthHelp")}
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="confirm-password">{t("profile.confirmPasswordLabel")}</Label>

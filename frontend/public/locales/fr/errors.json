@@ -5,6 +5,8 @@
   "CAPTCHA_INVALID": "La vérification du captcha a échoué. Veuillez réessayer.",
   "UNABLE_TO_CREATE_USER": "Impossible de créer l'utilisateur",
   "INCORRECT_CREDENTIALS": "Adresse e-mail ou mot de passe incorrect",
+  "PASSWORD_TOO_SHORT": "Le mot de passe doit comporter au moins 12 caractères.",
+  "PASSWORD_BREACHED": "Ce mot de passe figure dans une fuite de données connue. Choisissez-en un autre.",
   "INACTIVE_USER": "Utilisateur inactif",
   "EMAIL_NOT_VERIFIED": "Adresse e-mail non vérifiée",
   "TOKEN_NOT_FOUND": "Jeton introuvable",
@@ -135,6 +137,12 @@
   "DOCUMENT_SMART_LINK_URL_INVALID": "Les URLs de lien intelligent doivent commencer par http:// ou https://",
   "DOCUMENT_SPREADSHEET_INVALID_PAYLOAD": "Le contenu de la feuille de calcul est invalide ou dans un format non pris en charge.",
   "DOCUMENT_INVALID_TAG_IDS": "Un ou plusieurs identifiants d'étiquettes sont invalides",
+  "DOCUMENT_NOT_A_FILE_DOCUMENT": "Seuls les documents de type fichier téléversés prennent en charge les versions",
+  "DOCUMENT_VERSION_NOT_FOUND": "Version introuvable",
+  "DOCUMENT_CANNOT_DELETE_LAST_VERSION": "Impossible de supprimer la seule version ; supprimez plutôt le document",
+  "DOCUMENT_VERSION_TYPE_MISMATCH": "Une nouvelle version doit être du même type de fichier que l'original",
+  "DOCUMENT_VERSION_CONFLICT": "Quelqu'un a téléversé une version en même temps. Veuillez réessayer.",
+  "DOCUMENT_INVALID_FILE": "Fichier non pris en charge ou invalide. Pris en charge : PDF, Word, Excel, PowerPoint, TXT, HTML, images, Markdown (max 50 Mo).",
   "COMMENT_NOT_FOUND": "Commentaire introuvable",
   "COMMENT_PERMISSION_DENIED": "Non autorisé à commenter",
   "COMMENT_PARENT_NOT_FOUND": "Commentaire parent introuvable",
@@ -239,5 +247,7 @@
   "COUNTER_VIEW_MODE_REQUIRES_BOUNDS": "La barre de progression et l’horloge segmentée nécessitent un min et un max",
   "COUNTER_MIN_GREATER_THAN_MAX": "Le minimum ne peut pas être supérieur au maximum",
   "COUNTER_STEP_MUST_BE_POSITIVE": "Le pas doit être un nombre positif",
-  "COUNTER_OUT_OF_RANGE": "La valeur est en dehors de la plage autorisée"
+  "COUNTER_OUT_OF_RANGE": "La valeur est en dehors de la plage autorisée",
+  "GUILD_INVALID_PASSWORD": "Mot de passe incorrect",
+  "GUILD_CONFIRMATION_MISMATCH": "Le texte de confirmation ne correspond pas"
 }

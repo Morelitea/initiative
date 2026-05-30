@@ -420,3 +420,56 @@ async def test_transfer_project_ownership_drops_previous_owners_permission_row(
         )
     ).one()
     assert successor_perm.level.value == "owner"
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSession):
+    """reassign_user_content must move document_file_versions.uploaded_by_id to
+    the system user so hard-deleting an uploader doesn't violate the RESTRICT FK
+    (and version history outlives the user)."""
+    from app.models.document import Document, DocumentFileVersion, DocumentType
+    from app.testing.factories import create_initiative
+
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    initiative = await create_initiative(session, guild, owner)
+
+    doc = Document(
+        title="Versioned",
+        initiative_id=initiative.id,
+        guild_id=guild.id,
+        created_by_id=owner.id,
+        updated_by_id=owner.id,
+        document_type=DocumentType.file,
+        file_url="/uploads/v1.pdf",
+        file_content_type="application/pdf",
+        file_size=10,
+        original_filename="v1.pdf",
+    )
+    session.add(doc)
+    await session.flush()
+    version = DocumentFileVersion(
+        document_id=doc.id,
+        guild_id=guild.id,
+        version_number=1,
+        file_url="/uploads/v1.pdf",
+        file_content_type="application/pdf",
+        file_size=10,
+        original_filename="v1.pdf",
+        uploaded_by_id=owner.id,
+    )
+    session.add(version)
+    await session.commit()
+
+    system_user = await user_service.get_or_create_system_user(session)
+    await user_service.reassign_user_content(session, owner.id, system_user.id)
+    await session.commit()
+
+    refreshed = (
+        await session.exec(
+            select(DocumentFileVersion).where(DocumentFileVersion.id == version.id)
+        )
+    ).one()
+    assert refreshed.uploaded_by_id == system_user.id

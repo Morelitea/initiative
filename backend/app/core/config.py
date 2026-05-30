@@ -134,6 +134,14 @@ class Settings(BaseSettings):
 
     BEHIND_PROXY: bool = False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
 
+    # Reject passwords that appear in the HaveIBeenPwned breach corpus
+    # when a user sets one (registration, reset, change). Uses the
+    # k-anonymity API — only the first 5 hex chars of the SHA-1 hash
+    # leave the server. Flip to ``False`` to disable the check (e.g.
+    # in air-gapped deployments or when egress is blocked); the length
+    # floor in ``app.core.password_policy`` still applies.
+    HIBP_CHECK_ENABLED: bool = True
+
     @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")
     @classmethod
     def parse_email_domains(cls, value: str | list[str] | None) -> list[str]:
