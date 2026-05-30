@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.47.0] - 2026-05-29
+
 ### Added
 
 - **Password complexity requirements.** New passwords must be at least 12 characters and are checked against the HaveIBeenPwned breach corpus via the k-anonymity API (only a 5-char SHA-1 prefix leaves the server). Enforced on registration, password reset, self password change, and admin user creation/update; no character-class rules per NIST SP 800-63B guidance. Existing accounts are grandfathered — short or breached passwords keep working at login until the next change. Disable the breach check by setting `HIBP_CHECK_ENABLED=false` in the backend env (e.g. for air-gapped deployments).
