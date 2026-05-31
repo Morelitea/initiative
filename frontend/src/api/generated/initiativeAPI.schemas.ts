@@ -2894,6 +2894,10 @@ export interface TaskRead {
 export interface TaskReorderItem {
   id: number;
   task_status_id: number;
+  /**
+   * @minimum -1000000000000000000
+   * @maximum 1000000000000000000
+   */
   position: number;
 }
 
