@@ -11,6 +11,7 @@ from app.core.encryption import (
     SALT_OIDC_CLIENT_SECRET,
     SALT_SMTP_PASSWORD,
 )
+from app.core.pam_context import has_active_grant
 from app.db.session import reapply_rls_context
 from app.models.app_setting import AppSetting, DEFAULT_ROLE_LABELS
 from app.models.guild_setting import GuildSetting
@@ -63,6 +64,12 @@ async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSe
     settings_row = result.one_or_none()
     if settings_row:
         return settings_row
+    # A PAM grantee can't write guild_settings (a config table deliberately
+    # off-limits to grants), so the lazy INSERT would fault under RLS. Their
+    # read is satisfied by a transient default — guild overrides simply don't
+    # apply, which is correct for a non-member.
+    if has_active_grant(guild_id):
+        return GuildSetting(guild_id=guild_id)
     settings_row = GuildSetting(guild_id=guild_id)
     session.add(settings_row)
     await session.commit()

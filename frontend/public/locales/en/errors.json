@@ -67,6 +67,7 @@
   "PROJECT_OWNER_REQUIRED": "Project owner permission required",
   "PROJECT_NO_ACCESS": "You don't have access to this project",
   "PROJECT_WRITE_ACCESS_REQUIRED": "Write access required",
+  "PROJECT_GRANT_CANNOT_MANAGE_MEMBERS": "Temporary access can't manage project members",
   "PROJECT_INVALID_TEMPLATE": "Selected template is invalid",
   "PROJECT_INITIATIVE_REQUIRED": "Initiative is required",
   "PROJECT_CREATE_PERMISSION_REQUIRED": "Permission required to create projects",
@@ -261,5 +262,7 @@
   "ACCESS_GRANT_CANNOT_CANCEL_OTHERS": "You can only cancel your own request.",
   "ADMIN_CANNOT_ASSIGN_HIGHER_ROLE": "You can't assign a role higher than your own.",
   "ADMIN_CANNOT_DEMOTE_LAST_OWNER": "Cannot demote the last platform owner.",
-  "ADMIN_CANNOT_DELETE_LAST_OWNER": "Cannot delete the last platform owner."
+  "ADMIN_CANNOT_DELETE_LAST_OWNER": "Cannot delete the last platform owner.",
+  "DOCUMENT_GRANT_CANNOT_MANAGE_MEMBERS": "Temporary access can't manage document members",
+  "COUNTER_GRANT_CANNOT_MANAGE": "Temporary access can't manage counter group access"
 }

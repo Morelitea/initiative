@@ -707,14 +707,26 @@ async def _require_project_membership(
     *,
     access: str = "read",
     require_manager: bool = False,
+    manage_access: bool = False,
 ):
     """Check if user has required access to a project.
 
     Thin wrapper around ``permissions_service.require_project_access`` that
     also supports loading permissions from the DB when not eagerly loaded.
+
+    ``manage_access=True`` marks an access-control operation (adding/removing
+    members, changing permission levels). A PAM grant confers content
+    read/write only — never access-control management — and those writes target
+    ``project_permissions`` which RLS won't let a grant write, so we reject
+    grantees here with a clean 403 instead of letting the write fault (500).
     """
     # Ensure permission is loaded (may hit DB if not eagerly loaded)
     await _get_project_permission(project, current_user.id, session)
+    if manage_access and has_active_grant(project.guild_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ProjectMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        )
     permissions_service.require_project_access(
         project, current_user, access=access, require_owner=require_manager,
     )
@@ -1645,6 +1657,7 @@ async def add_project_member(
         current_user,
         session,
         access="write",
+        manage_access=True,
             )
     _ensure_not_archived(project)
     if member_in.level == ProjectPermissionLevel.owner:
@@ -1691,6 +1704,7 @@ async def add_project_members_bulk(
         current_user,
         session,
         access="write",
+        manage_access=True,
             )
     _ensure_not_archived(project)
 
@@ -1770,6 +1784,7 @@ async def remove_project_members_bulk(
         current_user,
         session,
         access="write",
+        manage_access=True,
             )
     _ensure_not_archived(project)
 
@@ -1816,6 +1831,7 @@ async def update_project_member(
         current_user,
         session,
         access="write",
+        manage_access=True,
             )
     _ensure_not_archived(project)
 
@@ -1856,6 +1872,7 @@ async def remove_project_member(
         current_user,
         session,
         access="write",
+        manage_access=True,
             )
     _ensure_not_archived(project)
     if user_id == project.owner_id:
@@ -2038,7 +2055,9 @@ async def add_project_role_permission(
 ) -> ProjectRolePermissionRead:
     """Add a role-based permission to a project."""
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
-    await _require_project_membership(project, current_user, session, access="write")
+    await _require_project_membership(
+        project, current_user, session, access="write", manage_access=True
+    )
     _ensure_not_archived(project)
 
     if role_perm_in.level == ProjectPermissionLevel.owner:
@@ -2102,7 +2121,9 @@ async def update_project_role_permission(
 ) -> ProjectRolePermissionRead:
     """Update a role-based permission level on a project."""
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
-    await _require_project_membership(project, current_user, session, access="write")
+    await _require_project_membership(
+        project, current_user, session, access="write", manage_access=True
+    )
     _ensure_not_archived(project)
 
     if update_in.level == ProjectPermissionLevel.owner:
@@ -2146,7 +2167,9 @@ async def remove_project_role_permission(
 ) -> None:
     """Remove a role-based permission from a project."""
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
-    await _require_project_membership(project, current_user, session, access="write")
+    await _require_project_membership(
+        project, current_user, session, access="write", manage_access=True
+    )
     _ensure_not_archived(project)
 
     stmt = select(ProjectRolePermission).where(

@@ -10,10 +10,12 @@ import pytest
 from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.pam_context import set_active_grant
 from app.db.session import set_rls_context
 from app.models.counter import CounterGroup
 from app.models.document import Document
 from app.models.user import UserRole
+from app.services import app_settings as app_settings_service
 from app.testing import (
     create_guild,
     create_initiative,
@@ -107,6 +109,42 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
         assert result.rowcount == 0, "read grant must not be able to write"
     finally:
         await _reset_role(session)
+
+
+@pytest.mark.integration
+async def test_grantee_guild_settings_lazy_create_does_not_fault(session: AsyncSession):
+    """``get_or_create_guild_settings`` must not try to INSERT for a grantee.
+
+    guild_settings is a config table off-limits to grants, so the lazy create
+    would violate RLS and 500 the read-only ``/settings/ai/resolved`` (and any
+    other settings read). A grantee gets a transient default instead.
+    """
+    owner = await create_user(session, email="owner-gs@example.com", role=UserRole.owner)
+    support = await create_user(session, email="support-gs@example.com", role=UserRole.support)
+    guild = await create_guild(session, creator=owner)  # no guild_settings row seeded
+
+    try:
+        await _set_app_user(session)
+        await set_rls_context(
+            session, user_id=support.id, pam_guild_id=guild.id, pam_read=True, pam_write=False
+        )
+        set_active_grant(guild.id, "read")
+
+        # Pre-fix this raised InsufficientPrivilegeError on the INSERT.
+        row = await app_settings_service.get_or_create_guild_settings(session, guild.id)
+        assert row.guild_id == guild.id
+        assert row.id is None, "grantee settings must be transient, not persisted"
+    finally:
+        set_active_grant(None, None)
+        await _reset_role(session)
+
+    # Nothing was written.
+    persisted = (
+        await session.execute(
+            text("SELECT count(*) FROM guild_settings WHERE guild_id = :g"), {"g": guild.id}
+        )
+    ).scalar_one()
+    assert persisted == 0, "grantee read must not create a guild_settings row"
 
 
 @pytest.mark.integration

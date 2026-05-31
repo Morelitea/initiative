@@ -65,6 +65,7 @@
   "PROJECT_OWNER_REQUIRED": "Permission de propriétaire du projet requise",
   "PROJECT_NO_ACCESS": "Vous n'avez pas accès à ce projet",
   "PROJECT_WRITE_ACCESS_REQUIRED": "Accès en écriture requis",
+  "PROJECT_GRANT_CANNOT_MANAGE_MEMBERS": "L'accès temporaire ne peut pas gérer les membres du projet",
   "PROJECT_INVALID_TEMPLATE": "Le modèle sélectionné est invalide",
   "PROJECT_INITIATIVE_REQUIRED": "Une initiative est requise",
   "PROJECT_CREATE_PERMISSION_REQUIRED": "Permission requise pour créer des projets",
@@ -261,5 +262,7 @@
   "ACCESS_GRANT_CANNOT_CANCEL_OTHERS": "Vous ne pouvez annuler que votre propre demande.",
   "ADMIN_CANNOT_ASSIGN_HIGHER_ROLE": "Vous ne pouvez pas attribuer un rôle supérieur au vôtre.",
   "ADMIN_CANNOT_DEMOTE_LAST_OWNER": "Impossible de rétrograder le dernier propriétaire de la plateforme.",
-  "ADMIN_CANNOT_DELETE_LAST_OWNER": "Impossible de supprimer le dernier propriétaire de la plateforme."
+  "ADMIN_CANNOT_DELETE_LAST_OWNER": "Impossible de supprimer le dernier propriétaire de la plateforme.",
+  "DOCUMENT_GRANT_CANNOT_MANAGE_MEMBERS": "L'accès temporaire ne peut pas gérer les membres du document",
+  "COUNTER_GRANT_CANNOT_MANAGE": "L'accès temporaire ne peut pas gérer l'accès au groupe de compteurs"
 }

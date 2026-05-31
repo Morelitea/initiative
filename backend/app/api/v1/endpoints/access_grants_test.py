@@ -273,6 +273,57 @@ async def test_revoke_and_cancel(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
+async def test_grant_cannot_manage_project_members(client: AsyncClient, session: AsyncSession):
+    """Even a read_write grant can't manage project members/permissions — a
+    grant confers content read/write only. Must be a clean 403, not a 500 from
+    the project_permissions write faulting under RLS."""
+    owner = await create_user(session, email="owner-mm@example.com", role=UserRole.owner)
+    support = await create_user(session, email="support-mm@example.com", role=UserRole.support)
+    target = await create_user(session, email="target-mm@example.com")
+    guild = await create_guild(session, creator=owner)
+    init = await create_initiative(session, guild, owner, name="Ops")
+    project = await create_project(session, init, owner, name="Site")
+    await _approved_read_grant(session, user=support, guild=guild, owner=owner, level="read_write")
+
+    headers = get_guild_headers(guild, support)
+    resp = await client.post(
+        f"/api/v1/projects/{project.id}/members",
+        json={"user_id": target.id, "level": "write"},
+        headers=headers,
+    )
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == "PROJECT_GRANT_CANNOT_MANAGE_MEMBERS"
+
+
+@pytest.mark.integration
+async def test_grant_cannot_manage_counter_group_access(
+    client: AsyncClient, session: AsyncSession
+):
+    """A read_write grant can't manage counter group access (writes
+    counter_group_permissions, which RLS blocks) — clean 403, not 500."""
+    from app.models.counter import CounterGroup
+
+    owner = await create_user(session, email="owner-cg@example.com", role=UserRole.owner)
+    support = await create_user(session, email="support-cg@example.com", role=UserRole.support)
+    guild = await create_guild(session, creator=owner)
+    init = await create_initiative(session, guild, owner, name="Stats Wing")
+    cg = CounterGroup(guild_id=guild.id, initiative_id=init.id, name="Stats", created_by_id=owner.id)
+    session.add(cg)
+    await session.commit()
+    await session.refresh(cg)
+    await _approved_read_grant(session, user=support, guild=guild, owner=owner, level="read_write")
+
+    headers = get_guild_headers(guild, support)
+    resp = await client.put(
+        f"/api/v1/counter-groups/{cg.id}/permissions",
+        json=[],
+        headers=headers,
+    )
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == "COUNTER_GRANT_CANNOT_MANAGE"
+
+
+@pytest.mark.integration
 async def test_grantee_sees_guild_content(client: AsyncClient, session: AsyncSession):
     """A read grant exposes the guild's initiatives/projects in the list
     endpoints — not just RLS, but the app-layer membership filters too (the
