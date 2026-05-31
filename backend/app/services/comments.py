@@ -11,6 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import CommentMessages
+from app.core.pam_context import grant_satisfies
 from app.models.comment import Comment
 from app.models.document import Document, DocumentPermission, DocumentRolePermission
 from app.models.guild import GuildRole
@@ -123,12 +124,16 @@ async def _ensure_task_access(
     *,
     project: Project,
     user: User,
+    access: str = "read",
 ) -> None:
-    """Ensure user can access task for commenting (pure DAC).
+    """Ensure user can access task for commenting.
 
-    Tasks inherit access from their project's permission levels.
-    Any permission level (owner, write, read) grants comment access.
+    Tasks inherit access from their project's permission levels (DAC); any
+    level (owner, write, read) grants comment access. A live PAM grant also
+    satisfies it — read for viewing comments, read_write for posting/editing.
     """
+    if grant_satisfies(project.guild_id, access=access):
+        return
     if await _has_project_permission(session, project_id=project.id, user_id=user.id):
         return
     raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
@@ -139,12 +144,16 @@ async def _ensure_document_access(
     *,
     document: Document,
     user: User,
+    access: str = "read",
 ) -> None:
     """Ensure user can access document for commenting.
 
-    Any permission level (owner, write, read) grants comment access,
-    including role-based permissions.
+    Any permission level (owner, write, read) grants comment access, including
+    role-based permissions. A live PAM grant also satisfies it — read for
+    viewing, read_write for posting/editing.
     """
+    if grant_satisfies(document.guild_id, access=access):
+        return
     # Check user-specific permission
     permissions = getattr(document, "permissions", None)
     if permissions is None:
@@ -205,6 +214,7 @@ async def create_comment(
             session,
             project=context.project,
             user=author,
+            access="write",
         )
         if parent_comment and parent_comment.task_id != context.task.id:
             raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
@@ -229,6 +239,7 @@ async def create_comment(
             session,
             document=document,
             user=author,
+            access="write",
         )
         if parent_comment and parent_comment.document_id != document.id:
             raise CommentValidationError(CommentMessages.PARENT_MISMATCH)

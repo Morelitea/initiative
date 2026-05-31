@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user, get_guild_membership
+from app.core.pam_context import has_active_grant
 from app.db.session import reapply_rls_context
 from app.models.comment import Comment
 from app.models.document import Document
@@ -79,18 +80,18 @@ async def recent_comments(
     """
     user_id = current_user.id
 
-    # Reuse DAC visibility subqueries from permissions service
-    visible_projects = visible_project_ids_subquery(user_id).subquery()
-    visible_documents = visible_document_ids_subquery(user_id).subquery()
-
-    stmt = (
-        select(Comment)
-        .outerjoin(Task, Task.id == Comment.task_id)
-        .outerjoin(Project, Project.id == Task.project_id)
-        .outerjoin(Document, Document.id == Comment.document_id)
-        .where(
-            Comment.parent_comment_id.is_(None),
-            Comment.guild_id == guild_context.guild_id,
+    conditions = [
+        Comment.parent_comment_id.is_(None),
+        Comment.guild_id == guild_context.guild_id,
+    ]
+    # A PAM grantee can read all of the guild's content (RLS already scopes the
+    # joined tables to the granted guild), so skip the per-DAC visibility
+    # narrowing that a non-member would otherwise fail. Members still see only
+    # the tasks/documents they have permission for.
+    if not has_active_grant(guild_context.guild_id):
+        visible_projects = visible_project_ids_subquery(user_id).subquery()
+        visible_documents = visible_document_ids_subquery(user_id).subquery()
+        conditions.append(
             or_(
                 and_(
                     Project.id.isnot(None),
@@ -100,8 +101,15 @@ async def recent_comments(
                     Document.id.isnot(None),
                     Document.id.in_(select(visible_documents)),
                 ),
-            ),
+            )
         )
+
+    stmt = (
+        select(Comment)
+        .outerjoin(Task, Task.id == Comment.task_id)
+        .outerjoin(Project, Project.id == Task.project_id)
+        .outerjoin(Document, Document.id == Comment.document_id)
+        .where(*conditions)
         .options(selectinload(Comment.author))
         .order_by(Comment.created_at.desc(), Comment.id.desc())
         .limit(limit)
