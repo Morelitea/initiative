@@ -364,7 +364,7 @@ async def _duplicate_template_tasks(
             selectinload(Task.tag_links),
         )
         .where(Task.project_id == template.id)
-        .order_by(Task.sort_order.asc(), Task.id.asc())
+        .order_by(Task.position.asc(), Task.id.asc())
     )
     task_result = await session.exec(task_stmt)
     template_tasks = task_result.all()
@@ -389,7 +389,7 @@ async def _duplicate_template_tasks(
             task_status_id=mapped_status_id,
             priority=template_task.priority,
             due_date=template_task.due_date,
-            sort_order=template_task.sort_order,
+            position=template_task.position,
         )
         session.add(new_task)
         await session.flush()

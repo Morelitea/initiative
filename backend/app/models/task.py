@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, Float, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Integer, JSON, Numeric, String, Text
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models._mixins import SoftDeleteMixin
@@ -122,9 +122,9 @@ class Task(SoftDeleteMixin, table=True):
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
-    sort_order: float = Field(
+    position: float = Field(
         default=0,
-        sa_column=Column(Float, nullable=False, server_default="0"),
+        sa_column=Column(Numeric(20, 10, asdecimal=False), nullable=False, server_default="0"),
     )
     is_archived: bool = Field(
         default=False,

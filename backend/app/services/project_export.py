@@ -94,7 +94,7 @@ async def build_project_export(
     # Tasks (and gather property-definition references along the way)
     tasks: list[ProjectExportTask] = []
     referenced_property_ids: dict[int, _PropDefSnapshot] = {}
-    tasks_sorted = sorted(project.tasks or [], key=lambda t: (t.sort_order, t.id or 0))
+    tasks_sorted = sorted(project.tasks or [], key=lambda t: (t.position, t.id or 0))
     for task in tasks_sorted:
         property_values: list[ProjectExportPropertyValue] = []
         for pv in task.property_values or []:
@@ -145,7 +145,7 @@ async def build_project_export(
                 recurrence=task.recurrence,
                 recurrence_strategy=task.recurrence_strategy,
                 recurrence_occurrence_count=task.recurrence_occurrence_count,
-                sort_order=task.sort_order,
+                position=task.position,
                 is_archived=task.is_archived,
                 status_name=status_name,
                 tags=task_tags,

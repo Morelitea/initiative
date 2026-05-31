@@ -125,7 +125,7 @@ export function CommandCenter() {
   // Two modes for the tasks query:
   //  - Idle: surface tasks the user is actively working on (assigned to them,
   //    not done, most recently updated). The default backend sort
-  //    (``sort_order`` asc) returns the top of every project's kanban which
+  //    (``position`` asc) returns the top of every project's kanban which
   //    is rarely what's relevant "in the moment".
   //  - Searching: drop the "my tasks" / "not done" lenses and let the user
   //    find any task in the active guild whose title matches. The ``ilike``

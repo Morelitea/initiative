@@ -43,6 +43,11 @@ import {
   priorityVariant,
   type UserOption,
 } from "@/components/projects/projectTasksConfig";
+import {
+  computeMidpoint,
+  reorderTaskList,
+  shouldInsertAfter,
+} from "@/components/projects/taskOrdering";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { BulkEditTaskTagsDialog } from "@/components/tasks/BulkEditTaskTagsDialog";
 import { TaskBulkEditDialog } from "@/components/tasks/TaskBulkEditDialog";
@@ -624,22 +629,28 @@ export const ProjectTasksSection = ({
     return counts;
   }, [sortedTaskStatuses, groupedTasks]);
 
-  const persistOrder = useCallback(
-    (nextTasks: TaskListRead[]) => {
-      if (!Number.isFinite(projectId) || nextTasks.length === 0) {
+  // Persist a single moved task: compute its fractional midpoint from its new
+  // neighbors in the global order and send only that task (not the whole list).
+  const persistMove = useCallback(
+    (movedTaskId: number, taskStatusId: number, orderedTasks: TaskListRead[]) => {
+      if (!Number.isFinite(projectId) || isPersistingOrder) {
         return;
       }
+      const insertIndex = orderedTasks.findIndex((task) => task.id === movedTaskId);
+      if (insertIndex === -1) {
+        return;
+      }
+      const withoutMoved = orderedTasks.filter((task) => task.id !== movedTaskId);
       const payload: TaskReorderRequest = {
         project_id: projectId,
-        items: nextTasks.map((task, index) => ({
-          id: task.id,
-          task_status_id: task.task_status_id,
-          sort_order: index + 1,
-        })),
+        items: [
+          {
+            id: movedTaskId,
+            task_status_id: taskStatusId,
+            position: computeMidpoint(withoutMoved, insertIndex),
+          },
+        ],
       };
-      if (isPersistingOrder) {
-        return;
-      }
       persistTaskOrderMutate(payload);
     },
     [projectId, persistTaskOrderMutate, isPersistingOrder]
@@ -674,7 +685,7 @@ export const ProjectTasksSection = ({
   }, [canEditTaskDetails, isComposerOpen]);
 
   const moveTaskInOrder = useCallback(
-    (taskId: number, targetStatusId: number, overTaskId: number | null) => {
+    (taskId: number, targetStatusId: number, overTaskId: number | null, insertAfter: boolean) => {
       const targetStatus = statusLookup.get(targetStatusId);
       if (!targetStatus) {
         return;
@@ -691,38 +702,20 @@ export const ProjectTasksSection = ({
           task_status_id: targetStatus.id,
           task_status: targetStatus,
         };
-        const withoutActive = base.filter((task) => task.id !== taskId);
-        const next = [...withoutActive];
-
-        if (overTaskId !== null) {
-          const insertIndex = next.findIndex((task) => task.id === overTaskId);
-          if (insertIndex >= 0) {
-            next.splice(insertIndex, 0, updatedTask);
-            nextState = next;
-            return next;
-          }
-        }
-
-        let lastIndex = -1;
-        next.forEach((task, index) => {
-          if (task.task_status_id === targetStatusId) {
-            lastIndex = index;
-          }
-        });
-        next.splice(lastIndex + 1, 0, updatedTask);
-        nextState = next;
-        return next;
+        nextState = reorderTaskList(base, updatedTask, overTaskId, insertAfter, targetStatus.id);
+        return nextState;
       });
       if (nextState) {
-        persistOrder(nextState);
+        persistMove(taskId, targetStatus.id, nextState);
       }
     },
-    [persistOrder, statusLookup, projectTasks]
+    [persistMove, statusLookup, projectTasks]
   );
 
   const reorderListTasks = useCallback(
     (activeId: number, overId: number) => {
       let nextState: TaskListRead[] | null = null;
+      let movedStatusId: number | null = null;
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         const oldIndex = base.findIndex((task) => task.id === activeId);
@@ -730,14 +723,15 @@ export const ProjectTasksSection = ({
         if (oldIndex === -1 || newIndex === -1) {
           return prev;
         }
+        movedStatusId = base[oldIndex].task_status_id;
         nextState = arrayMove(base, oldIndex, newIndex);
         return nextState;
       });
-      if (nextState) {
-        persistOrder(nextState);
+      if (nextState && movedStatusId !== null) {
+        persistMove(activeId, movedStatusId, nextState);
       }
     },
-    [persistOrder, projectTasks]
+    [persistMove, projectTasks]
   );
 
   const mouseSensorConfig = useMemo(() => ({ activationConstraint: { distance: 4 } }), []);
@@ -793,11 +787,16 @@ export const ProjectTasksSection = ({
     const overData = finalOver.data.current as { type?: string; statusId?: number } | undefined;
     let targetStatusId = currentTask.task_status_id;
     let overTaskId: number | null = null;
+    let insertAfter = false;
 
     if (overData?.type === "task") {
       targetStatusId = overData.statusId ?? targetStatusId;
       const parsed = Number(finalOver.id);
       overTaskId = Number.isFinite(parsed) ? parsed : null;
+      // Drop before/after the target depending on which half of it the dragged
+      // card's center released over (the first slot of a column was otherwise
+      // unreachable — drops always snapped to the second slot).
+      insertAfter = shouldInsertAfter(active.rect.current.translated, finalOver.rect);
     } else if (overData?.type === "column") {
       targetStatusId = overData.statusId ?? targetStatusId;
     }
@@ -806,7 +805,7 @@ export const ProjectTasksSection = ({
       return;
     }
 
-    moveTaskInOrder(activeId, targetStatusId, overTaskId);
+    moveTaskInOrder(activeId, targetStatusId, overTaskId, insertAfter);
     setActiveTaskId(null);
     lastKanbanOverRef.current = null;
   };

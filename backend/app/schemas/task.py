@@ -170,7 +170,7 @@ class TaskRead(TaskBase):
     task_status: TaskStatusRead
     created_at: datetime
     updated_at: datetime
-    sort_order: float
+    position: float
     is_archived: bool = False
     created_by_id: Optional[int] = None
     assignees: List[UserPublic] = []
@@ -193,7 +193,7 @@ class TaskListRead(TaskBase):
     task_status: TaskStatusRead
     created_at: datetime
     updated_at: datetime
-    sort_order: float
+    position: float
     is_archived: bool = False
     created_by_id: Optional[int] = None
     assignees: List[TaskAssigneeSummary] = []
@@ -225,7 +225,11 @@ class TaskListResponse(SanitizedBaseModel):
 class TaskReorderItem(SanitizedBaseModel):
     id: int
     task_status_id: int
-    sort_order: float
+    # Bounded to reject NaN/±inf (which would silently defeat the rebalance
+    # gap check, where `abs(a - b) < gap` is always False for NaN). Negative
+    # values are valid — dropping above a card with a fractional position can
+    # legitimately produce one.
+    position: float = Field(ge=-1e18, le=1e18)
 
 
 class TaskReorderRequest(SanitizedBaseModel):

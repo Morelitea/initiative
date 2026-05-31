@@ -118,7 +118,7 @@ def _date_group_expression(tz: str | None = None):
 
 # Static sort fields (everything except date_group which is timezone-dependent)
 _TASK_SORT_FIELDS_STATIC: dict[str, object] = {
-    "sort_order": Task.sort_order,
+    "position": Task.position,
     "title": Task.title,
     "due_date": Task.due_date,
     "start_date": Task.start_date,
@@ -137,7 +137,7 @@ def _task_sort_fields(tz: str | None = None) -> dict[str, object]:
     return {**_TASK_SORT_FIELDS_STATIC, "date_group": _date_group_expression(tz)}
 
 
-TASK_DEFAULT_SORT = [(Task.sort_order, "asc"), (Task.id, "asc")]
+TASK_DEFAULT_SORT = [(Task.position, "asc"), (Task.id, "asc")]
 
 
 def _build_task_filter_fields(
@@ -258,10 +258,77 @@ subtasks_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
-async def _next_sort_order(session: SessionDep, project_id: int) -> float:
-    result = await session.exec(select(func.max(Task.sort_order)).where(Task.project_id == project_id))
+async def _next_position(session: SessionDep, project_id: int) -> float:
+    result = await session.exec(select(func.max(Task.position)).where(Task.project_id == project_id))
     max_value = result.one_or_none()
     return (max_value or 0) + 1
+
+
+# Positions are stored as NUMERIC(20, 10); two stored values differ by at least
+# 1e-10. When repeated midpoint inserts squeeze neighbors closer than this, the
+# next midpoint can no longer fit between them, so we renumber the whole group.
+_MIN_POSITION_GAP = 1e-9
+
+
+async def _rebalance_if_needed(
+    session: SessionDep, project_id: int, moved_positions: dict[int, float]
+) -> dict[int, float]:
+    """Renumber a project's tasks to evenly spaced integers when two positions have
+    collided to within ``_MIN_POSITION_GAP`` (precision exhaustion from repeated
+    drag-reorder midpoint inserts).
+
+    Positions are a single project-wide ordering (the list view sorts by them and
+    kanban columns are filtered slices of that order), so the rebalance spans the
+    whole project rather than a single status group.
+
+    A collision can only be introduced next to a task we just moved, so the common
+    case (no exhaustion) is settled with a cheap existence query per moved task
+    instead of loading the whole project. Only on a near-collision do we scan and
+    renumber.
+
+    Sets only ``position`` on the touched tasks — never ``updated_at`` — so tasks
+    that were merely renumbered (not explicitly moved) don't churn. Returns a map
+    of task id -> new position for every task it changed (empty when no rebalance
+    was necessary).
+    """
+    # The session runs with autoflush off, so push the just-applied positions to
+    # the DB before the neighbor check evaluates them in SQL (otherwise it reads
+    # stale values and reports phantom collisions).
+    await session.flush()
+
+    collision = False
+    for moved_id, position in moved_positions.items():
+        neighbor = await session.exec(
+            select(Task.id)
+            .where(
+                Task.project_id == project_id,
+                Task.id != moved_id,
+                func.abs(Task.position - position) < _MIN_POSITION_GAP,
+            )
+            .limit(1)
+        )
+        if neighbor.first() is not None:
+            collision = True
+            break
+    if not collision:
+        return {}
+
+    stmt = (
+        select(Task)
+        .where(Task.project_id == project_id)
+        .order_by(Task.position.asc(), Task.id.asc())
+    )
+    result = await session.exec(stmt)
+    ordered = result.all()
+
+    changed: dict[int, float] = {}
+    for index, task in enumerate(ordered, start=1):
+        new_position = float(index)
+        if task.position != new_position:
+            task.position = new_position
+            session.add(task)
+            changed[task.id] = new_position
+    return changed
 
 
 async def _annotate_tasks(session: SessionDep, tasks: list[Task]) -> None:
@@ -386,7 +453,7 @@ def _task_to_list_read(task: Task) -> TaskListRead:
         recurrence_strategy=task.recurrence_strategy,
         created_at=task.created_at,
         updated_at=task.updated_at,
-        sort_order=task.sort_order,
+        position=task.position,
         is_archived=task.is_archived,
         created_by_id=task.created_by_id,
         assignees=assignees,
@@ -634,7 +701,7 @@ async def _advance_recurrence_if_needed(
         due_date=next_due,
         recurrence=recurrence.model_dump(mode="json"),
         recurrence_strategy=strategy,
-        sort_order=await _next_sort_order(session, task.project_id),
+        position=await _next_position(session, task.project_id),
         recurrence_occurrence_count=task.recurrence_occurrence_count + 1,
         created_by_id=task.created_by_id,
     )
@@ -1182,7 +1249,7 @@ async def create_task(
         access="write",
     )
 
-    sort_order = await _next_sort_order(session, task_in.project_id)
+    position = await _next_position(session, task_in.project_id)
     await task_statuses_service.ensure_default_statuses(session, project.id)
     selected_status = None
     if task_in.task_status_id is not None:
@@ -1207,7 +1274,7 @@ async def create_task(
             recurrence_obj = TaskRecurrence.model_validate(task_data["recurrence"])
             task_data["recurrence"] = recurrence_obj.model_dump(mode="json")
 
-    task = Task(**task_data, sort_order=sort_order, task_status_id=selected_status.id, created_by_id=current_user.id)
+    task = Task(**task_data, position=position, task_status_id=selected_status.id, created_by_id=current_user.id)
     session.add(task)
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
@@ -1392,7 +1459,7 @@ async def move_task(
     task.project_id = target_project.id
     task.task_status_id = default_status.id
     task.task_status = default_status
-    task.sort_order = 0
+    task.position = 0
     task.updated_at = now
     session.add(task)
 
@@ -1455,7 +1522,7 @@ async def duplicate_task(
     original_subtasks = list(subtasks_result.all())
 
     # Get next sort order for the new task
-    sort_order = await _next_sort_order(session, original_task.project_id)
+    position = await _next_position(session, original_task.project_id)
 
     # Create the new task with the same properties
     new_task = Task(
@@ -1468,7 +1535,7 @@ async def duplicate_task(
         due_date=original_task.due_date,
         recurrence=original_task.recurrence,
         recurrence_strategy=original_task.recurrence_strategy,
-        sort_order=sort_order,
+        position=position,
         created_by_id=current_user.id,
     )
     session.add(new_task)
@@ -1637,7 +1704,7 @@ async def reorder_tasks(
             task.task_status_id = status_obj.id
             task.task_status = status_obj
 
-        task.sort_order = item.sort_order
+        task.position = item.position
         task.updated_at = now
         session.add(task)
         await _advance_recurrence_if_needed(
@@ -1648,10 +1715,19 @@ async def reorder_tasks(
             user_timezone=current_user.timezone,
         )
 
+    # Renumber the project's tasks if any moved task collided with a neighbor;
+    # collects ids the rebalance touched so they're returned to the client
+    # alongside the explicitly-moved tasks (rebalanced tasks keep updated_at).
+    moved_positions = {item.id: item.position for item in reorder_in.items}
+    rebalanced_ids = set(
+        await _rebalance_if_needed(session, reorder_in.project_id, moved_positions)
+    )
+
     await _touch_project(session, reorder_in.project_id, timestamp=now)
     await session.commit()
     await reapply_rls_context(session)
 
+    affected_ids = set(task_ids) | rebalanced_ids
     refreshed_stmt = (
         select(Task)
         .options(
@@ -1661,8 +1737,8 @@ async def reorder_tasks(
             selectinload(Task.assignees),
             selectinload(Task.task_status),
         )
-        .where(Task.project_id == reorder_in.project_id)
-        .order_by(Task.sort_order.asc(), Task.id.asc())
+        .where(Task.id.in_(tuple(affected_ids)))
+        .order_by(Task.position.asc(), Task.id.asc())
     )
     refreshed_result = await session.exec(refreshed_stmt)
     tasks = refreshed_result.all()

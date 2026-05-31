@@ -52,7 +52,7 @@ export function buildTask(overrides: Partial<TaskListRead> = {}): TaskListRead {
     recurrence_occurrence_count: 0,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
-    sort_order: counter,
+    position: counter,
     is_archived: false,
     comment_count: 0,
     guild_id: null,

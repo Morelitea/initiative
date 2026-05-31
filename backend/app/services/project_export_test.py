@@ -67,7 +67,7 @@ async def _seed_populated_project(session: AsyncSession):
         task_status_id=todo_status.id,
         title="Fix the thing",
         description="Important",
-        sort_order=1024.0,
+        position=1024.0,
     )
     session.add(task)
     await session.commit()
@@ -328,3 +328,37 @@ async def test_schema_version_unsupported_rejected(session: AsyncSession):
         )
     assert excinfo.value.status_code == 400
     assert excinfo.value.detail == "PROJECT_EXPORT_SCHEMA_VERSION_UNSUPPORTED"
+
+
+@pytest.mark.unit
+def test_project_export_task_accepts_legacy_sort_order():
+    """Exports created before ``sort_order`` was renamed to ``position`` must
+    still import with their ordering intact, not silently default to 0.0."""
+    from app.schemas.project_export import ProjectExportTask
+
+    legacy = ProjectExportTask.model_validate(
+        {
+            "title": "Old export task",
+            "status_name": "To Do",
+            "sort_order": 1024.0,
+            "tags": [],
+            "assignee_emails": [],
+            "subtasks": [],
+            "property_values": [],
+        }
+    )
+    assert legacy.position == 1024.0
+
+    # A current export (already using ``position``) is unaffected.
+    current = ProjectExportTask.model_validate(
+        {
+            "title": "New export task",
+            "status_name": "To Do",
+            "position": 7.5,
+            "tags": [],
+            "assignee_emails": [],
+            "subtasks": [],
+            "property_values": [],
+        }
+    )
+    assert current.position == 7.5

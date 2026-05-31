@@ -1922,7 +1922,7 @@ export interface ProjectExportTask {
   recurrence?: ProjectExportTaskRecurrence;
   recurrence_strategy?: string;
   recurrence_occurrence_count?: number;
-  sort_order?: number;
+  position?: number;
   is_archived?: boolean;
   status_name: string;
   tags: ProjectExportTag[];
@@ -2808,7 +2808,7 @@ export interface TaskListRead {
   task_status: TaskStatusRead;
   created_at: string;
   updated_at: string;
-  sort_order: number;
+  position: number;
   is_archived: boolean;
   created_by_id: number | null;
   assignees: TaskAssigneeSummary[];
@@ -2878,7 +2878,7 @@ export interface TaskRead {
   task_status: TaskStatusRead;
   created_at: string;
   updated_at: string;
-  sort_order: number;
+  position: number;
   is_archived: boolean;
   created_by_id: number | null;
   assignees: UserPublic[];
@@ -2894,7 +2894,11 @@ export interface TaskRead {
 export interface TaskReorderItem {
   id: number;
   task_status_id: number;
-  sort_order: number;
+  /**
+   * @minimum -1000000000000000000
+   * @maximum 1000000000000000000
+   */
+  position: number;
 }
 
 export interface TaskReorderRequest {

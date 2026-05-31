@@ -250,13 +250,13 @@ async def import_todoist_tasks(
         result.errors.append("No tasks found in CSV")
         return result
 
-    # Get the next sort_order for the project
+    # Get the next position for the project
     max_order_result = await session.execute(
-        select(func.coalesce(func.max(Task.sort_order), 0)).where(
+        select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )
     )
-    next_sort_order = float(max_order_result.scalar() or 0) + 1
+    next_position = float(max_order_result.scalar() or 0) + 1
 
     # Track parent tasks for subtask creation
     last_parent_task: Optional[Task] = None
@@ -292,14 +292,14 @@ async def import_todoist_tasks(
                     title=task_data["title"],
                     description=task_data.get("description"),
                     priority=priority,
-                    sort_order=next_sort_order,
+                    position=next_position,
                 )
                 session.add(task)
                 await session.flush()
 
                 last_parent_task = task
                 subtask_position = 0
-                next_sort_order += 1
+                next_position += 1
                 result.tasks_created += 1
             else:
                 # Subtask (indent > 1)
@@ -443,13 +443,13 @@ async def import_vikunja_tasks(
         result.errors.append("No tasks found in the selected project")
         return result
 
-    # Get the next sort_order for the project
+    # Get the next position for the project
     max_order_result = await session.execute(
-        select(func.coalesce(func.max(Task.sort_order), 0)).where(
+        select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )
     )
-    next_sort_order = float(max_order_result.scalar() or 0) + 1
+    next_position = float(max_order_result.scalar() or 0) + 1
 
     for task_data in tasks:
         try:
@@ -489,7 +489,7 @@ async def import_vikunja_tasks(
                 title=task_data.get("title", "Untitled"),
                 description=description,
                 priority=priority,
-                sort_order=next_sort_order,
+                position=next_position,
             )
             session.add(task)
             await session.flush()  # Get task ID for subtasks
@@ -505,7 +505,7 @@ async def import_vikunja_tasks(
                 session.add(subtask)
                 result.subtasks_created += 1
 
-            next_sort_order += 1
+            next_position += 1
             result.tasks_created += 1
 
         except Exception as e:
@@ -675,13 +675,13 @@ async def import_ticktick_tasks(
         result.errors.append(f"No tasks found in list '{source_list_name}'")
         return result
 
-    # Get the next sort_order for the project
+    # Get the next position for the project
     max_order_result = await session.execute(
-        select(func.coalesce(func.max(Task.sort_order), 0)).where(
+        select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )
     )
-    next_sort_order = float(max_order_result.scalar() or 0) + 1
+    next_position = float(max_order_result.scalar() or 0) + 1
 
     # Track created tasks for subtask linking
     created_tasks: Dict[str, Task] = {}
@@ -719,13 +719,13 @@ async def import_ticktick_tasks(
                 title=task_data["title"],
                 description=description,
                 priority=priority,
-                sort_order=next_sort_order,
+                position=next_position,
             )
             session.add(task)
             await session.flush()
 
             created_tasks[task_data["id"]] = task
-            next_sort_order += 1
+            next_position += 1
             result.tasks_created += 1
 
         except Exception as e:

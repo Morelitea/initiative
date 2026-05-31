@@ -398,7 +398,7 @@ async def _import_task(
         recurrence=envelope_task.recurrence,
         recurrence_strategy=envelope_task.recurrence_strategy,
         recurrence_occurrence_count=envelope_task.recurrence_occurrence_count,
-        sort_order=envelope_task.sort_order,
+        position=envelope_task.position,
         is_archived=envelope_task.is_archived,
         created_by_id=importer_id,
     )
