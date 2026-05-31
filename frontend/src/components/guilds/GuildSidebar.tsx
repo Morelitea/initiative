@@ -266,7 +266,10 @@ const GrantGuildButton = ({
       </TooltipTrigger>
       <TooltipContent side="right" sideOffset={12}>
         <p>{guild.name}</p>
-        <p className="text-muted-foreground text-xs">
+        {/* De-emphasize against the tooltip's own (primary) background — not
+            text-muted-foreground, which is tuned for the card background and
+            washes out on the colored tooltip. */}
+        <p className="text-primary-foreground/80 text-xs">
           {t("temporaryAccess")}
           {left !== null ? ` · ${t("expiresInMinutes", { minutes: left })}` : ""}
         </p>
