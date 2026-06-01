@@ -233,6 +233,14 @@ export function DataTable<TData, TValue>({
 
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [selectionModeActive, setSelectionModeActive] = useState(false);
+  // Anchor for shift+click range selection: the id of the last row toggled
+  // individually. shiftKeyRef captures the modifier from the checkbox's onClick
+  // (Radix's onCheckedChange doesn't expose the mouse event). rowCheckboxHandlerRef
+  // lets the selection column (built before `table` exists) call into a handler
+  // that closes over `table` without adding `table` to its memo deps.
+  const lastSelectedRowIdRef = useRef<string | null>(null);
+  const shiftKeyRef = useRef(false);
+  const rowCheckboxHandlerRef = useRef<(rowId: string, value: boolean) => void>(() => {});
   const groupingSelectId = useId();
   const computedInitialState: Partial<TableState> = {
     sorting: initialSortingRef.current,
@@ -266,14 +274,22 @@ export function DataTable<TData, TValue>({
             table.getIsAllPageRowsSelected() ||
             (table.getIsSomePageRowsSelected() && "indeterminate")
           }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          onCheckedChange={(value) => {
+            // Select-all resets the range anchor so a subsequent shift+click
+            // starts fresh rather than ranging from a stale individual click.
+            lastSelectedRowIdRef.current = null;
+            table.toggleAllPageRowsSelected(!!value);
+          }}
           aria-label={t("selectAll")}
         />
       ),
       cell: ({ row }) => (
         <Checkbox
           checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          onClick={(e) => {
+            shiftKeyRef.current = e.shiftKey;
+          }}
+          onCheckedChange={(value) => rowCheckboxHandlerRef.current(row.id, !!value)}
           aria-label={t("selectRow")}
         />
       ),
@@ -462,22 +478,74 @@ export function DataTable<TData, TValue>({
     });
   }, [groupingEnabled, grouping, groupingColumnIdSet]);
 
+  // Handle a row-selection checkbox toggle, applying a shift+click range when an
+  // anchor exists. The range spans the currently displayed (sorted/filtered/
+  // paginated) rows between the anchor and the clicked row, inclusive, and only
+  // ever selects (never deselects) — the standard anchor range-select behavior.
+  // Limitation: under pagination the range is scoped to the current page, so a
+  // shift+click whose anchor lives on another page falls back to a single toggle.
+  rowCheckboxHandlerRef.current = (rowId: string, value: boolean) => {
+    const isShift = shiftKeyRef.current;
+    shiftKeyRef.current = false;
+    const anchorId = lastSelectedRowIdRef.current;
+    if (isShift && value && anchorId && anchorId !== rowId) {
+      const visibleRows = table.getRowModel().rows;
+      const from = visibleRows.findIndex((r) => r.id === anchorId);
+      const to = visibleRows.findIndex((r) => r.id === rowId);
+      if (from !== -1 && to !== -1) {
+        const [lo, hi] = from < to ? [from, to] : [to, from];
+        table.setRowSelection((prev) => {
+          const next = { ...prev };
+          for (let i = lo; i <= hi; i++) {
+            const row = visibleRows[i];
+            if (!row.getIsGrouped()) {
+              next[row.id] = true;
+            }
+          }
+          return next;
+        });
+        lastSelectedRowIdRef.current = rowId;
+        return;
+      }
+    }
+    table.getRow(rowId).toggleSelected(value);
+    lastSelectedRowIdRef.current = rowId;
+  };
+
   useEffect(() => {
     if (enableRowSelection && selectionModeActive && onRowSelectionChange) {
-      const selectedRows = table.getFilteredSelectedRowModel().rows.map((row) => row.original);
+      // Report ALL selected rows (not just filter-visible ones) so the reported
+      // selection always matches the checked checkboxes — selections persist
+      // across filtering. columnFilters is a dep so reported `.original`
+      // references stay fresh when the row model rebuilds on a filter change.
+      // Limitation: under manualPagination only the current page is in `data`,
+      // so selections on other pages remain in rowSelection (by id) but can't be
+      // reported as row objects; cross-page selection is out of scope.
+      const selectedRows = table.getSelectedRowModel().rows.map((row) => row.original);
       onRowSelectionChange(selectedRows);
     }
-  }, [rowSelection, enableRowSelection, selectionModeActive, onRowSelectionChange, table]);
+  }, [
+    rowSelection,
+    columnFilters,
+    enableRowSelection,
+    selectionModeActive,
+    onRowSelectionChange,
+    table,
+  ]);
 
   useEffect(() => {
     if (!selectionModeActive && Object.keys(rowSelection).length > 0) {
       setRowSelection({});
+      lastSelectedRowIdRef.current = null;
+      shiftKeyRef.current = false;
     }
   }, [selectionModeActive, rowSelection]);
 
   const handleExitSelection = useCallback(() => {
     setSelectionModeActive(false);
     setRowSelection({});
+    lastSelectedRowIdRef.current = null;
+    shiftKeyRef.current = false;
     if (onExitSelection) {
       onExitSelection();
     }
@@ -498,16 +566,16 @@ export function DataTable<TData, TValue>({
   // When virtualization is enabled, pagination is disabled (mutually exclusive)
   const showPagination = enablePagination && !enableVirtualization;
 
-  // Stable key that changes when visible columns change (selection mode toggle, column dropdown).
-  // Used by MemoizedVirtualCells to know when to re-render.
-  const visibleColumnKey = useMemo(
-    () =>
-      table
-        .getVisibleLeafColumns()
-        .map((c) => c.id)
-        .join(","),
-    [table.getVisibleLeafColumns]
-  );
+  // Key that changes when the visible columns change (selection mode toggle,
+  // column visibility dropdown). MemoizedVirtualCells compares it by string value
+  // to decide when to re-render, so already-rendered virtual rows pick up new
+  // columns without waiting to be scrolled out and back in. Computed inline (not
+  // memoized) so it always reflects the current visible columns — value equality
+  // means recomputing an identical string still won't trigger cell re-renders.
+  const visibleColumnKey = table
+    .getVisibleLeafColumns()
+    .map((c) => c.id)
+    .join(",");
 
   // Padding-based virtualization: spacer rows keep scroll height correct
   // while visible rows render in normal table flow for proper column alignment.
@@ -523,14 +591,25 @@ export function DataTable<TData, TValue>({
       {helpText && typeof helpText === "function" ? helpText(table) : helpText}
       {enableRowSelection &&
         selectionModeActive &&
-        table.getFilteredSelectedRowModel().rows.length > 0 && (
-          <div className="text-muted-foreground text-sm">
-            {t("rowsSelected", {
-              selected: table.getFilteredSelectedRowModel().rows.length,
-              total: table.getFilteredRowModel().rows.length,
-            })}
-          </div>
-        )}
+        table.getSelectedRowModel().rows.length > 0 &&
+        (() => {
+          const selected = table.getSelectedRowModel().rows.length;
+          const filteredTotal = table.getFilteredRowModel().rows.length;
+          const filteredSelected = table.getFilteredSelectedRowModel().rows.length;
+          // When a filter hides any selected row, "X of Y selected" is misleading
+          // because X (all selected rows) includes ones not visible in the filtered
+          // view — e.g. it would read "2 of 3 selected" when none of the 3 visible
+          // rows are checked. Switch to the filter-aware variant whenever the filter
+          // hides at least one selected row, not just when selected > filteredTotal.
+          const showFilteredVariant = columnFilters.length > 0 && filteredSelected < selected;
+          return (
+            <div className="text-muted-foreground text-sm">
+              {showFilteredVariant
+                ? t("rowsSelectedFiltered", { selected, total: filteredTotal })
+                : t("rowsSelected", { selected, total: filteredTotal })}
+            </div>
+          );
+        })()}
       <div
         className={cn(
           "overflow-hidden rounded-md border",

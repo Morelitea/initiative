@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Shift+click range selection in data tables.** In selection mode you can now click one row's checkbox, then shift+click another to select every row in between (inclusive) in the order they're displayed.
+
+### Fixed
+
+- **Data table selection no longer desyncs when filtering.** Rows you select stay selected when you filter them out of view and then clear the filter — the checked boxes always match the selection used for bulk actions. The selection count also reads sensibly when a filter hides some of your selected rows (e.g. "5 selected (2 match filter)").
+
 ## [0.49.0] - 2026-06-01
 
 ### Added

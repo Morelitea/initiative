@@ -56,6 +56,7 @@
   "columns": "Columnas",
   "tableOptions": "Opciones de tabla",
   "rowsSelected": "{{selected}} de {{total}} fila(s) seleccionada(s)",
+  "rowsSelectedFiltered": "{{selected}} seleccionada(s) ({{total}} coinciden con el filtro)",
   "selectAll": "Seleccionar todo",
   "selectRow": "Seleccionar fila",
   "noResultsDot": "Sin resultados.",
