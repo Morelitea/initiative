@@ -128,8 +128,11 @@ export const useNativeUpdate = () => {
       // Reuse a previously-downloaded bundle for this version if present (avoids a
       // "already exists" error from download() across launches); otherwise download it.
       const downloadUrl = buildBundleDownloadUrl(serverUrl, manifest.url);
+      // Only reuse a fully-downloaded bundle; a retained error/partial entry would make
+      // set() throw and, since we'd keep "finding" it, never re-download — leaving the user
+      // stuck on this version. Filtering to status "success" forces a fresh download instead.
       const existing = (await CapacitorUpdater.list()).bundles.find(
-        (b) => b.version === manifest.version
+        (b) => b.version === manifest.version && b.status === "success"
       );
       const bundle =
         existing ??
