@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-05-31
+
 ### Added
 
 - **Graduated platform roles.** The two platform-level roles (`admin`/`member`) are replaced by a five-rung ladder — `member` → `support` → `moderator` → `admin` → `owner` — backed by a capability model so each platform operation is gated on the specific privilege it needs instead of a single all-or-nothing "admin" flag. App-wide configuration (OIDC, SMTP, branding, role labels, platform AI) now requires the `owner` role; user management, guild management, and role assignment are split across `moderator`/`admin`. Role assignment is bounded (you can't grant a role above your own), and the platform can never be left without an `owner`. Existing platform admins are automatically promoted to `owner` so no one loses access. The old single admin page is now split into two capability-gated areas: **Platform settings** (`/settings/platform` — auth, branding, email, AI; owner-only) and an **Admin dashboard** (`/settings/admin` — users and access; for support/moderator/admin), surfaced as separate entries in the sidebar menu and command palette.
