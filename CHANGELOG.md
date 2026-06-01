@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.49.0] - 2026-06-01
+
 ### Added
 
 - **Self-hosted over-the-air (OTA) app updates.** The native mobile app now downloads the web bundle that matches the backend it's connected to, so the frontend and backend stay in sync without reinstalling the APK for every release — no paid live-update service required. Each server build ships the matching Capacitor bundle; on launch and when returning to the foreground the app checks the server version and, if it differs, downloads the bundle and prompts "Reload now" (with a "Later" option). A failed update automatically rolls back to the previous bundle. When a release changes native code (not just web assets), the app detects that its installed shell is too old and asks you to update from the store/APK instead. Releases that only change web assets no longer rebuild the APK — they update entirely over the air.
