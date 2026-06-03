@@ -101,7 +101,7 @@
     "embla-carousel-react": "^8.6.0",
     "emoji-picker-react": "^4.19.1",
     "exceljs": "^4.4.0",
-    "fuse.js": "^7.4.0",
+    "fuse.js": "^7.4.1",
     "i18next": "^26.3.0",
     "i18next-http-backend": "^4.0.0",
     "lexical": "^0.45.0",
