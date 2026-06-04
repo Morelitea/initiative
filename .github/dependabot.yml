@@ -17,6 +17,11 @@ updates:
       day: "monday"
     open-pull-requests-limit: 5
     target-branch: "dev"
+    cooldown:
+      default-days: 5
+      semver-major-days: 7
+      semver-minor-days: 5
+      semver-patch-days: 3
     # Dev-only build tools — vulnerabilities in these don't affect production.
     # Security alerts for these are dismissed via auto-triage rules in
     # Settings > Advanced Security > Dependabot rules.
