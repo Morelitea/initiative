@@ -378,6 +378,8 @@
     "importConfirmDescription": "Importing a file will overwrite every cell in this spreadsheet (and, for Excel files, its formatting). This cannot be undone.",
     "importConfirmAction": "Import and replace",
     "importSuccess": "Spreadsheet imported",
+    "sortAscending": "Sort A → Z",
+    "sortDescending": "Sort Z → A",
     "format": {
       "scopeCell": "Cell",
       "scopeColumn": "Column",

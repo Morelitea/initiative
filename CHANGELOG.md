@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Sort a spreadsheet by a column.** Right-click any column header in a spreadsheet document and choose "Sort A → Z" or "Sort Z → A" to reorder the whole sheet by that column, keeping every row's other cells (and their formatting) aligned. Blanks always sort to the bottom, and frozen header rows stay pinned in place.
+
 ## [0.49.1] - 2026-06-01
 
 ### Added
