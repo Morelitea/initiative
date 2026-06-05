@@ -136,7 +136,13 @@ export const CreateProjectDialog = ({
             setName("");
             setDescription("");
             setIcon("");
-            setInitiativeId(null);
+            // Restore the default initiative rather than clearing it: the dialog
+            // stays mounted, and the sync effect won't re-run on reopen (its deps
+            // are unchanged), so clearing would leave a subsequent create with no
+            // initiative — silently returning early — until a page refresh.
+            setInitiativeId(
+              lockedInitiativeId != null ? String(lockedInitiativeId) : defaultInitiativeId
+            );
             setSelectedTemplateId(NO_TEMPLATE_VALUE);
             setIsTemplateProject(false);
             setRoleGrants([]);
