@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Add Project from an Initiative's Projects tab now always creates the project in that initiative.** Previously the new-project dialog showed the initiative you were viewing, but — when the initiatives list was already cached — could create the project in a different initiative.
+- **The active-guild indicator pill shows again in the guild sidebar on home pages.** A corrupted CSS class (spaces replaced by special characters) had made the highlight invisible.
+
 ## [0.49.5] - 2026-06-04
 
 ### Added

@@ -210,7 +210,7 @@ const SortableGuildButton = ({
           >
             {isActive && isHomeMode ? (
               <span
-                className="absolute·-bottom-2·left-1/2·z-10·mt-1·h-1·w-7·-translate-x-1/2·rounded-full·bg-primary/60"
+                className="absolute -bottom-2 left-1/2 z-10 mt-1 h-1 w-7 -translate-x-1/2 rounded-full bg-primary/60"
                 aria-hidden="true"
               />
             ) : null}

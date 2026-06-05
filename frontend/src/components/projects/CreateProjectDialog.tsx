@@ -72,12 +72,19 @@ export const CreateProjectDialog = ({
 
   const templatesQuery = useTemplateProjects();
 
-  // Sync initiative ID from parent when dialog opens or default changes
+  // Sync initiative ID from parent when dialog opens or default changes.
+  // A locked initiative (e.g. from the Initiative Details page) always wins so
+  // the project is created in the initiative shown in the dialog, even when the
+  // parent's default lags behind due to effect ordering / cached query data.
   useEffect(() => {
+    if (lockedInitiativeId != null) {
+      setInitiativeId(String(lockedInitiativeId));
+      return;
+    }
     if (defaultInitiativeId) {
       setInitiativeId(defaultInitiativeId);
     }
-  }, [defaultInitiativeId]);
+  }, [lockedInitiativeId, defaultInitiativeId]);
 
   // Sync description from selected template
   useEffect(() => {
@@ -129,7 +136,13 @@ export const CreateProjectDialog = ({
             setName("");
             setDescription("");
             setIcon("");
-            setInitiativeId(null);
+            // Restore the default initiative rather than clearing it: the dialog
+            // stays mounted, and the sync effect won't re-run on reopen (its deps
+            // are unchanged), so clearing would leave a subsequent create with no
+            // initiative — silently returning early — until a page refresh.
+            setInitiativeId(
+              lockedInitiativeId != null ? String(lockedInitiativeId) : defaultInitiativeId
+            );
             setSelectedTemplateId(NO_TEMPLATE_VALUE);
             setIsTemplateProject(false);
             setRoleGrants([]);

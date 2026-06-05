@@ -298,6 +298,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       setInitiativeId(null);
       return;
     }
+    // A locked initiative is managed by the effect above; don't fall back to the
+    // first creatable initiative or we'd desync from the locked one.
+    if (lockedInitiativeId) {
+      return;
+    }
     // Don't override if we're opening from URL params
     const urlInitiativeId = searchParams.initiativeId;
     if (initiativeId || urlInitiativeId) {
@@ -306,7 +311,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     if (creatableInitiatives.length > 0) {
       setInitiativeId(String(creatableInitiatives[0].id));
     }
-  }, [canCreateProjects, initiativeId, creatableInitiatives, searchParams]);
+  }, [canCreateProjects, initiativeId, creatableInitiatives, searchParams, lockedInitiativeId]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
