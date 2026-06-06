@@ -1,5 +1,6 @@
 import { App } from "@capacitor/app";
-import { CapacitorUpdater } from "@capgo/capacitor-updater";
+import { SplashScreen } from "@capacitor/splash-screen";
+import { type BundleInfo, CapacitorUpdater } from "@capgo/capacitor-updater";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { compareVersions } from "@/hooks/useDockerHubVersion";
@@ -55,6 +56,47 @@ export const decideNativeUpdate = (args: {
     return "native-required";
   }
   return "download";
+};
+
+/**
+ * Pick the bundle that is safe to swap to for `version`: a fully-downloaded one with status
+ * `"success"`. `download()` can resolve before the bundle reaches `"success"` (still verifying),
+ * and a retained `error`/`downloading` entry must never be handed to `set()` — that throws or
+ * boots a broken bundle that rolls back, which re-shows the reload prompt. Pure so it can be
+ * unit-tested against a `list()` snapshot.
+ */
+export const findReadyBundle = (bundles: BundleInfo[], version: string): BundleInfo | null =>
+  bundles.find((b) => b.version === version && b.status === "success") ?? null;
+
+type BundleReadiness =
+  | { status: "ready"; bundle: BundleInfo }
+  | { status: "error" }
+  | { status: "timeout" };
+
+/**
+ * Poll `list()` until a `"success"` bundle for `version` exists (`ready`), the bundle reaches a
+ * terminal `"error"` (e.g. checksum verification failed after `download()` resolved), or
+ * `timeoutMs` elapses (`timeout`). The eager download already `await`ed `download()`, so this
+ * normally returns `ready` on the first check; it only spins while the bundle is still verifying
+ * or, in the "tapped reload before the download finished" case, still downloading. Failing fast
+ * on `"error"` avoids stranding the user under a blank splash for the full timeout.
+ */
+const awaitReadyBundle = async (version: string, timeoutMs = 60_000): Promise<BundleReadiness> => {
+  const start = Date.now();
+  for (;;) {
+    const { bundles } = await CapacitorUpdater.list();
+    const ready = findReadyBundle(bundles, version);
+    if (ready) {
+      return { status: "ready", bundle: ready };
+    }
+    if (bundles.some((b) => b.version === version && b.status === "error")) {
+      return { status: "error" };
+    }
+    if (Date.now() - start >= timeoutMs) {
+      return { status: "timeout" };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
 };
 
 /**
@@ -131,9 +173,7 @@ export const useNativeUpdate = () => {
       // Only reuse a fully-downloaded bundle; a retained error/partial entry would make
       // set() throw and, since we'd keep "finding" it, never re-download — leaving the user
       // stuck on this version. Filtering to status "success" forces a fresh download instead.
-      const existing = (await CapacitorUpdater.list()).bundles.find(
-        (b) => b.version === manifest.version && b.status === "success"
-      );
+      const existing = findReadyBundle((await CapacitorUpdater.list()).bundles, manifest.version);
       const bundle =
         existing ??
         (await CapacitorUpdater.download({
@@ -168,20 +208,51 @@ export const useNativeUpdate = () => {
     };
   }, [isNativePlatform, serverUrl, checkForUpdate]);
 
-  /** Swap to the downloaded bundle and reload the WebView. */
+  /** Swap to the downloaded bundle and reload the WebView, under cover of the native splash. */
   const applyUpdate = useCallback(async () => {
+    const version = handledVersionRef.current;
     const bundleId = bundleIdRef.current;
-    if (!bundleId) {
+    if (!bundleId || !version) {
       return;
     }
-    try {
-      await CapacitorUpdater.set({ id: bundleId });
-      // set() reloads the WebView into the new bundle; nothing after this runs. On success
-      // the dialog disappears with the old context, so there's no need to hide it first.
-    } catch (error) {
-      // set() failed (e.g. the OS evicted the downloaded bundle between download and tap).
-      // Leave the prompt open so the user can retry rather than silently no-op.
-      console.debug("Failed to apply OTA bundle:", error);
+    // Raise the native splash before anything that reloads or stalls. It survives the WebView
+    // reload set() triggers, so the user sees continuous branding from tap → (any remaining
+    // download/verification) → new bundle boot — no white flash, no re-shown prompt. The
+    // swapped-in bundle hides it in main.tsx after notifyAppReady().
+    await SplashScreen.show({ autoHide: false }).catch(() => {});
+
+    // Never swap into a half-verified bundle: download() can resolve before the bundle reaches
+    // "success", and a stale tap can land while it is still downloading. Wait (under the splash)
+    // until it is ready, else set() throws or boots a bundle that rolls back and re-prompts —
+    // the reported "reload doesn't apply, dialog pops up again".
+    const readiness = await awaitReadyBundle(version);
+    if (readiness.status === "ready") {
+      try {
+        await CapacitorUpdater.set({ id: readiness.bundle.id });
+        // set() reloads the WebView into the new bundle; nothing after this runs. On success the
+        // dialog disappears with the old context, so there's no need to hide it first.
+        return;
+      } catch (error) {
+        // set() failed (e.g. the OS evicted the bundle since download) — likely transient. Drop
+        // the splash and leave the prompt open so the user can retry.
+        console.debug("Failed to apply OTA bundle:", error);
+        await SplashScreen.hide().catch(() => {});
+        return;
+      }
+    }
+
+    // No usable bundle — drop the splash so the user is never stranded on it.
+    await SplashScreen.hide().catch(() => {});
+    if (readiness.status === "error") {
+      // The download verified-failed and will never boot. Discard it and clear the dedup guard so
+      // the next foreground check re-downloads from scratch, and close the prompt — re-tapping
+      // would only hit the same dead bundle. (On "timeout" we leave the prompt open: the download
+      // may still be finishing, so a retry can succeed.)
+      console.debug(`OTA bundle ${version} reached "error"; discarding for a clean re-download`);
+      await CapacitorUpdater.delete({ id: bundleId }).catch(() => {});
+      handledVersionRef.current = null;
+      bundleIdRef.current = null;
+      setUpdateReady(HIDDEN);
     }
   }, []);
 

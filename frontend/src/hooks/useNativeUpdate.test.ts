@@ -1,6 +1,16 @@
+import type { BundleInfo } from "@capgo/capacitor-updater";
 import { describe, expect, it } from "vitest";
 
-import { buildBundleDownloadUrl, decideNativeUpdate } from "./useNativeUpdate";
+import { buildBundleDownloadUrl, decideNativeUpdate, findReadyBundle } from "./useNativeUpdate";
+
+const bundle = (over: Partial<BundleInfo>): BundleInfo => ({
+  id: "1",
+  version: "0.0.0",
+  status: "success",
+  downloaded: "",
+  checksum: "",
+  ...over,
+});
 
 /**
  * These pure helpers back the OTA flow in {@link useNativeUpdate}. The load-bearing details:
@@ -73,5 +83,37 @@ describe("decideNativeUpdate", () => {
         minNativeVersion: "0.99.0",
       })
     ).toBe("up-to-date");
+  });
+});
+
+/**
+ * `applyUpdate` only swaps to a bundle this gate approves. The load-bearing rule: never hand a
+ * still-downloading or errored bundle to `set()` — that throws or boots a bundle that rolls back
+ * and re-shows the reload prompt. Only a `"success"` bundle for the exact target version passes.
+ */
+describe("findReadyBundle", () => {
+  it("returns the success bundle for the requested version", () => {
+    const ready = bundle({ id: "9", version: "0.49.0", status: "success" });
+    expect(findReadyBundle([bundle({ version: "0.48.0" }), ready], "0.49.0")).toBe(ready);
+  });
+
+  it("ignores a bundle that is still downloading (set() would throw)", () => {
+    expect(
+      findReadyBundle([bundle({ version: "0.49.0", status: "downloading" })], "0.49.0")
+    ).toBeNull();
+  });
+
+  it("ignores an errored bundle for the version (would roll back and re-prompt)", () => {
+    expect(findReadyBundle([bundle({ version: "0.49.0", status: "error" })], "0.49.0")).toBeNull();
+  });
+
+  it("ignores a success bundle for a different version", () => {
+    expect(
+      findReadyBundle([bundle({ version: "0.48.0", status: "success" })], "0.49.0")
+    ).toBeNull();
+  });
+
+  it("returns null when no bundles are present", () => {
+    expect(findReadyBundle([], "0.49.0")).toBeNull();
   });
 });

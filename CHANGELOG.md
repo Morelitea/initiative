@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Native app: in-app updates now apply reliably instead of re-prompting.** When the app downloaded a new version and you tapped "Reload Now," the reload sometimes failed to take and the update dialog reappeared. The app now shows a splash screen that covers the entire reload — waiting for the new version to finish downloading and verifying before swapping it in — so the update applies the first time. (Reaches existing installs after a store/APK update.)
+
 ## [0.49.8] - 2026-06-05
 
 ### Added
