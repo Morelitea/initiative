@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "if lsof -ti:5173 >/dev/null 2>&1; then echo 'Dev server already listening on :5173 — attaching to it.'; exec tail -f /dev/null; else echo 'No dev server on :5173 — starting the full dev environment (scripts/dev-pre-launch.sh).'; exec bash scripts/dev-pre-launch.sh; fi"
+      ],
+      "port": 5173
+    }
+  ]
+}
