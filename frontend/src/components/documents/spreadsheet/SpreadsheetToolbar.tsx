@@ -57,7 +57,6 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { HISTORY_SHORTCUT } from "@/hooks/useYjsHistory";
-import { colIndexToLetter } from "@/lib/spreadsheet/coords";
 import type {
   BorderLineStyle,
   CellAlign,
@@ -326,21 +325,6 @@ export const SpreadsheetToolbar = ({
         return t("documents:spreadsheet.format.borderThin");
     }
   };
-
-  const ref = (r: number, c: number) => `${colIndexToLetter(c)}${r + 1}`;
-  const selectionLabel =
-    mode === "columns"
-      ? t("documents:spreadsheet.format.scopeColumnLabel", {
-          name:
-            c1 === c2 ? colIndexToLetter(c1) : `${colIndexToLetter(c1)}:${colIndexToLetter(c2)}`,
-        })
-      : isRows
-        ? t("documents:spreadsheet.format.scopeRowLabel", {
-            name: r1 === r2 ? r1 + 1 : `${r1 + 1}:${r2 + 1}`,
-          })
-        : t("documents:spreadsheet.format.scopeCellLabel", {
-            name: r1 === r2 && c1 === c2 ? ref(r1, c1) : `${ref(r1, c1)}:${ref(r2, c2)}`,
-          });
 
   const scopeStyle = focusStyle;
   const scopeFormat = focusFormat;
@@ -892,17 +876,12 @@ export const SpreadsheetToolbar = ({
     </div>
   );
 
-  const labelSpan = (
-    <span className="shrink-0 font-mono text-muted-foreground text-xs">{selectionLabel}</span>
-  );
-
   if (isMobile) {
     return (
       <div className="flex w-full items-center gap-2">
         {fileMenu}
         {historyControls}
         {functionMenu}
-        {labelSpan}
         <Popover>
           <PopoverTrigger asChild>
             <Button type="button" size="sm" variant="outline" className="ml-auto h-8 gap-1.5">
@@ -930,7 +909,6 @@ export const SpreadsheetToolbar = ({
     <div className="flex flex-wrap items-center gap-1.5">
       {fileMenu}
       {historyControls}
-      {labelSpan}
       <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
       <GroupPopover
         icon={<Type className="h-4 w-4" />}

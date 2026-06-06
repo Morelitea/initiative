@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type RefObject, useMemo, useRef } from "react";
+import { type FocusEvent, type KeyboardEvent, type RefObject, useMemo, useRef } from "react";
 
 import { FORMULA_REF_COLORS, type FormulaRefToken } from "@/lib/spreadsheet/formula-refs";
 
@@ -9,7 +9,13 @@ interface FormulaCellInputProps {
   inputRef: RefObject<HTMLInputElement | null> | null;
   onChange: (value: string) => void;
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
-  onBlur: () => void;
+  /** Receives the blur event so the caller can inspect ``relatedTarget`` (a
+   *  focus handoff between the in-cell and formula-bar editors must not
+   *  commit the edit). */
+  onBlur: (e: FocusEvent<HTMLInputElement>) => void;
+  /** Fired when this input gains focus — lets the editor track which of the
+   *  two editing surfaces (cell vs formula bar) point-mode should target. */
+  onFocus?: () => void;
 }
 
 /**
@@ -29,6 +35,7 @@ export const FormulaCellInput = ({
   onChange,
   onKeyDown,
   onBlur,
+  onFocus,
 }: FormulaCellInputProps) => {
   const mirrorRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +74,7 @@ export const FormulaCellInput = ({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
+        onFocus={onFocus}
         onScroll={(e) => {
           if (mirrorRef.current) mirrorRef.current.scrollLeft = e.currentTarget.scrollLeft;
         }}

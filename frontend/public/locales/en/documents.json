@@ -424,6 +424,9 @@
         "ABS": "Absolute (non-negative) value"
       }
     },
+    "formulaBar": {
+      "nameBoxLabel": "Name box — go to a cell or range (e.g. B12 or A1:C3)"
+    },
     "format": {
       "scopeCell": "Cell",
       "scopeColumn": "Column",

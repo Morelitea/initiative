@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import * as Y from "yjs";
 
 import { FormulaCellInput } from "@/components/documents/spreadsheet/FormulaCellInput";
+import { SpreadsheetFormulaBar } from "@/components/documents/spreadsheet/SpreadsheetFormulaBar";
 import {
   SpreadsheetToolbar,
   type ToolbarSelection,
@@ -41,7 +42,13 @@ import {
 import { matchHistoryShortcut } from "@/hooks/useYjsHistory";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
-import { type CellValue, colIndexToLetter, keyOf, parseKey } from "@/lib/spreadsheet/coords";
+import {
+  type CellValue,
+  colIndexToLetter,
+  keyOf,
+  parseA1Range,
+  parseKey,
+} from "@/lib/spreadsheet/coords";
 import {
   cellsToCsv,
   coerceScalar,
@@ -253,6 +260,14 @@ export const SpreadsheetDocumentEditor = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const editingInputRef = useRef<HTMLInputElement>(null);
+  const formulaBarInputRef = useRef<HTMLInputElement>(null);
+  // The editing surface point-mode reference insertion and caret restoration
+  // target: the in-cell input or the formula-bar input, whichever last gained
+  // focus. Both edit the same draft, so a formula can be built from either.
+  const activeEditorRef = useRef<HTMLInputElement | null>(null);
+  // Set when an edit is begun by focusing the formula bar, so the
+  // begin-edit auto-focus effect doesn't yank focus down into the cell input.
+  const focusBarOnEditRef = useRef(false);
   // Set when an edit ends via the keyboard (Enter/Tab/Escape) so focus
   // returns to the grid — otherwise it falls to <body> as the input
   // unmounts and type-to-edit on the next cell stops working. A blur
@@ -534,6 +549,27 @@ export const SpreadsheetDocumentEditor = ({
     });
   }, []);
 
+  // Name-box go-to: select the cell/range the text names (clamped to the grid)
+  // and scroll its top-left into view. Invalid input is ignored — the name box
+  // resets to the current selection on blur.
+  const navigateToRef = useCallback(
+    (text: string) => {
+      const box = parseA1Range(text);
+      if (!box) return;
+      const r1 = Math.min(box.r1, dimensions.rows - 1);
+      const c1 = Math.min(box.c1, dimensions.cols - 1);
+      const r2 = Math.min(box.r2, dimensions.rows - 1);
+      const c2 = Math.min(box.c2, dimensions.cols - 1);
+      // Anchor at the bottom-right so the active (focus) cell is the top-left,
+      // matching how a spreadsheet lands the cursor on a navigated range.
+      setSel({ anchor: { row: r2, col: c2 }, focus: { row: r1, col: c1 }, mode: "range" });
+      rowVirtualizer.scrollToIndex(r1, { align: "center" });
+      colVirtualizer.scrollToIndex(c1, { align: "center" });
+      containerRef.current?.focus();
+    },
+    [dimensions.rows, dimensions.cols, rowVirtualizer, colVirtualizer]
+  );
+
   // Commit a fill (drag or double-click): tile / extrapolate the source
   // rectangle across the new region in one transaction, then keep the filled
   // block selected. A target identical to the source (a click with no drag)
@@ -660,6 +696,18 @@ export const SpreadsheetDocumentEditor = ({
     pointRefRef.current = null;
   }, []);
 
+  // Blur handler shared by the in-cell input and the formula-bar input. A blur
+  // that hands focus to the *other* editing surface is a surface switch, not
+  // an edit end — keep the draft alive instead of committing.
+  const handleEditorBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      const next = e.relatedTarget;
+      if (next === formulaBarInputRef.current || next === editingInputRef.current) return;
+      commitEdit();
+    },
+    [commitEdit]
+  );
+
   // Point mode: splice the clicked cell's reference into the formula being
   // edited. ``extend`` builds an ``A1:B3`` range from the drag anchor and
   // overwrites the reference inserted on mousedown; otherwise it resolves the
@@ -669,7 +717,7 @@ export const SpreadsheetDocumentEditor = ({
   const insertReference = useCallback(
     (row: number, col: number, extend: boolean): boolean => {
       if (!editing) return false;
-      const input = editingInputRef.current;
+      const input = activeEditorRef.current ?? editingInputRef.current;
       if (!input) return false;
       const draft = editing.draft;
       const cellRef = (r: number, c: number) => `${colIndexToLetter(c)}${r + 1}`;
@@ -710,7 +758,7 @@ export const SpreadsheetDocumentEditor = ({
   // it on re-render). Runs before paint so there's no visible jump.
   useLayoutEffect(() => {
     if (pendingCaretRef.current === null) return;
-    const input = editingInputRef.current;
+    const input = activeEditorRef.current ?? editingInputRef.current;
     if (input) {
       const pos = pendingCaretRef.current;
       input.focus();
@@ -756,6 +804,13 @@ export const SpreadsheetDocumentEditor = ({
   const editingCellKey = editing ? `${editing.row}:${editing.col}` : null;
   useEffect(() => {
     if (editingCellKey && editingInputRef.current) {
+      // Edit begun from the formula bar: leave focus there (the cell input is
+      // still mounted as a mirror, but the user is typing in the bar).
+      if (focusBarOnEditRef.current) {
+        focusBarOnEditRef.current = false;
+        return;
+      }
+      activeEditorRef.current = editingInputRef.current;
       editingInputRef.current.focus();
     } else if (!editingCellKey && refocusGridRef.current) {
       // Edit ended via the keyboard: pull focus back to the grid (the
@@ -1493,7 +1548,10 @@ export const SpreadsheetDocumentEditor = ({
             setEditing({ row: r, col: c, draft });
           }}
           onEditingKeyDown={handleEditingKeyDown}
-          onEditingBlur={() => commitEdit()}
+          onEditingBlur={handleEditorBlur}
+          onEditingFocus={() => {
+            activeEditorRef.current = editingInputRef.current;
+          }}
         />
       );
     },
@@ -1519,11 +1577,48 @@ export const SpreadsheetDocumentEditor = ({
       beginEdit,
       setCell,
       handleEditingKeyDown,
-      commitEdit,
+      handleEditorBlur,
       startFill,
       autofillDown,
       extendFill,
     ]
+  );
+
+  // The name box label: the active cell ref, or the selection range / band.
+  const formulaBarLabel = useMemo(() => {
+    const { r1, r2, c1, c2 } = selBox;
+    if (sel.mode === "columns") {
+      return c1 === c2 ? colIndexToLetter(c1) : `${colIndexToLetter(c1)}:${colIndexToLetter(c2)}`;
+    }
+    if (sel.mode === "rows") return r1 === r2 ? `${r1 + 1}` : `${r1 + 1}:${r2 + 1}`;
+    const ref = (r: number, c: number) => `${colIndexToLetter(c)}${r + 1}`;
+    return r1 === r2 && c1 === c2 ? ref(r1, c1) : `${ref(r1, c1)}:${ref(r2, c2)}`;
+  }, [sel.mode, selBox]);
+
+  // The formula bar mirrors the live edit draft, else the focus cell's raw
+  // value (its formula/value as stored, not the computed result).
+  const formulaBarValue = editing
+    ? editing.draft
+    : (() => {
+        const raw = cells.get(keyOf(sel.focus.row, sel.focus.col));
+        return raw == null ? "" : String(raw);
+      })();
+
+  // Focusing the bar begins an edit of the focus cell (unless one is already
+  // live); the flag keeps focus in the bar instead of the cell input.
+  const handleFormulaBarFocus = useCallback(() => {
+    activeEditorRef.current = formulaBarInputRef.current;
+    if (readOnly || editing) return;
+    focusBarOnEditRef.current = true;
+    beginEdit(sel.focus.row, sel.focus.col);
+  }, [readOnly, editing, beginEdit, sel.focus.row, sel.focus.col]);
+
+  const handleFormulaBarChange = useCallback(
+    (draft: string) => {
+      pointRefRef.current = null;
+      setEditing((p) => (p ? { ...p, draft } : { row: sel.focus.row, col: sel.focus.col, draft }));
+    },
+    [sel.focus.row, sel.focus.col]
   );
 
   return (
@@ -1565,6 +1660,19 @@ export const SpreadsheetDocumentEditor = ({
           onChange={handleFileSelected}
         />
       </div>
+
+      <SpreadsheetFormulaBar
+        selectionLabel={formulaBarLabel}
+        onNavigate={navigateToRef}
+        value={formulaBarValue}
+        tokens={editingRefs}
+        inputRef={formulaBarInputRef}
+        onChange={handleFormulaBarChange}
+        onFocus={handleFormulaBarFocus}
+        onKeyDown={handleEditingKeyDown}
+        onBlur={handleEditorBlur}
+        readOnly={readOnly}
+      />
 
       {/* biome-ignore lint/a11y/useSemanticElements: virtualized absolute layout doesn't fit a <table>; ARIA grid roles convey semantics */}
       <div
@@ -1998,7 +2106,8 @@ interface CellViewProps {
   onToggleBoolean: () => void;
   onDraftChange: (draft: string) => void;
   onEditingKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
-  onEditingBlur: () => void;
+  onEditingBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
+  onEditingFocus: () => void;
   onFillHandleMouseDown: () => void;
   onFillHandleDoubleClick: () => void;
 }
@@ -2029,6 +2138,7 @@ const CellView = ({
   onDraftChange,
   onEditingKeyDown,
   onEditingBlur,
+  onEditingFocus,
   onFillHandleMouseDown,
   onFillHandleDoubleClick,
 }: CellViewProps) => {
@@ -2127,6 +2237,7 @@ const CellView = ({
           onChange={onDraftChange}
           onKeyDown={onEditingKeyDown}
           onBlur={onEditingBlur}
+          onFocus={onEditingFocus}
         />
         {peerOverlay}
       </div>

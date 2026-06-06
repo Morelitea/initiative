@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { boundingBox, colIndexToLetter, keyOf, letterToColIndex, parseKey } from "./coords";
+import {
+  boundingBox,
+  colIndexToLetter,
+  keyOf,
+  letterToColIndex,
+  parseA1Range,
+  parseKey,
+} from "./coords";
 
 describe("colIndexToLetter / letterToColIndex", () => {
   it("round-trips single-letter columns", () => {
@@ -79,5 +86,28 @@ describe("boundingBox", () => {
       ["3:1", 99],
     ]);
     expect(boundingBox(map)).toEqual({ rows: 4, cols: 2 });
+  });
+});
+
+describe("parseA1Range", () => {
+  it("parses a single cell to a degenerate box", () => {
+    expect(parseA1Range("B12")).toEqual({ r1: 11, c1: 1, r2: 11, c2: 1 });
+    expect(parseA1Range("A1")).toEqual({ r1: 0, c1: 0, r2: 0, c2: 0 });
+  });
+
+  it("parses a range and normalizes endpoint order", () => {
+    expect(parseA1Range("A1:C3")).toEqual({ r1: 0, c1: 0, r2: 2, c2: 2 });
+    expect(parseA1Range("C3:A1")).toEqual({ r1: 0, c1: 0, r2: 2, c2: 2 });
+  });
+
+  it("is case-insensitive, tolerates whitespace and $ anchors", () => {
+    expect(parseA1Range("  aa2  ")).toEqual({ r1: 1, c1: 26, r2: 1, c2: 26 });
+    expect(parseA1Range("$A$1:$B$2")).toEqual({ r1: 0, c1: 0, r2: 1, c2: 1 });
+  });
+
+  it("rejects non-references", () => {
+    for (const bad of ["", "1", "A", "A0", "1A", "A1:", ":A1", "foo", "A1 B2"]) {
+      expect(parseA1Range(bad)).toBeNull();
+    }
   });
 });

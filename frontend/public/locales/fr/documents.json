@@ -424,6 +424,9 @@
         "ABS": "Valeur absolue (non négative)"
       }
     },
+    "formulaBar": {
+      "nameBoxLabel": "Zone Nom : aller à une cellule ou une plage (p. ex. B12 ou A1:C3)"
+    },
     "format": {
       "scopeCell": "Cellule",
       "scopeColumn": "Colonne",

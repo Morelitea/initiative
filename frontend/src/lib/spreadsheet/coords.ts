@@ -50,6 +50,42 @@ export const letterToColIndex = (letters: string): number => {
   return total - 1;
 };
 
+/** A normalized 0-based cell box (top-left .. bottom-right, inclusive). */
+export interface CellRange {
+  r1: number;
+  c1: number;
+  r2: number;
+  c2: number;
+}
+
+// A1 cell ref or ``ref:ref`` range, ``$`` anchors allowed and ignored.
+const A1_RANGE = /^\s*\$?([A-Za-z]+)\$?(\d+)(?:\s*:\s*\$?([A-Za-z]+)\$?(\d+))?\s*$/;
+
+/**
+ * Parse an A1-style reference or range (``"B12"``, ``"a1:c3"``, ``"$A$1"``)
+ * into a normalized 0-based box, or ``null`` when the text isn't a valid
+ * reference. Drives the formula bar's name-box go-to navigation; ``$`` anchors
+ * are accepted but carry no meaning for navigation. Endpoints are sorted so
+ * ``C3:A1`` and ``A1:C3`` yield the same box.
+ */
+export const parseA1Range = (text: string): CellRange | null => {
+  const m = A1_RANGE.exec(text);
+  if (!m) return null;
+  const c1 = letterToColIndex(m[1]);
+  const r1 = Number(m[2]) - 1;
+  if (c1 < 0 || r1 < 0) return null;
+  if (m[3] === undefined) return { r1, c1, r2: r1, c2: c1 };
+  const c2 = letterToColIndex(m[3]);
+  const r2 = Number(m[4]) - 1;
+  if (c2 < 0 || r2 < 0) return null;
+  return {
+    r1: Math.min(r1, r2),
+    c1: Math.min(c1, c2),
+    r2: Math.max(r1, r2),
+    c2: Math.max(c1, c2),
+  };
+};
+
 /**
  * Compute the bounding box (max row + 1, max col + 1) of a sparse cell
  * map. Returns ``{ rows: 0, cols: 0 }`` for an empty map.

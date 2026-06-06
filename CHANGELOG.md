@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Formula bar above the spreadsheet grid.** A name box (left) shows the active cell or selected range — type a reference like `B12` or `A1:C3` and press Enter to jump there — and an editable formula bar (right) shows and edits the active cell's underlying formula or value, so you can see a formula even though the cell displays its computed result. Editing works from either the bar or the cell, and clicking cells to insert references (point mode) works while editing in the bar. The cell/range indicator that used to live in the formatting toolbar now lives in the name box.
+
 ## [0.49.7] - 2026-06-05
 
 ### Added

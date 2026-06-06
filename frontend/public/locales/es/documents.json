@@ -424,6 +424,9 @@
         "ABS": "Valor absoluto (no negativo)"
       }
     },
+    "formulaBar": {
+      "nameBoxLabel": "Cuadro de nombres: ir a una celda o rango (p. ej. B12 o A1:C3)"
+    },
     "format": {
       "scopeCell": "Celda",
       "scopeColumn": "Columna",
