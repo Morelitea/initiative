@@ -25,7 +25,11 @@ services:
     volumes:
       - ./uploads:/app/uploads
     environment:
-      # Optional: Run as a specific UID/GID (default: 1000/1000)
+      # Optional: Run as a specific UID/GID (default: 1000/1000).
+      # Set PUID/PGID here — do NOT add a compose `user:` override. The image
+      # must start as root to create the runtime user and drop privileges; a
+      # `user:` override makes the entrypoint fail with
+      # "fatal: Only root may add a user or group to the system".
       # Unraid users: set PUID=99 PGID=100 for nobody:users
       # PUID: 1000
       # PGID: 1000

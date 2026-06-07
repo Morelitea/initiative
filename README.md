@@ -193,6 +193,22 @@ Images support `linux/amd64` and `linux/arm64` architectures.
 
 For FCM setup, see [docs/FIREBASE_SETUP.md](docs/FIREBASE_SETUP.md). For a complete list of options, see `backend/.env.example`.
 
+### Database connections
+
+Initiative needs **three** PostgreSQL connection strings, and the container will not start without all of them (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN` have no defaults — a missing one aborts startup with a config validation error). They work as a set:
+
+- **`DATABASE_URL`** — a **superuser** connection used once at startup to run migrations and **auto-create two least-privilege roles**: `app_user` (RLS-enforced, used for all normal request traffic) and `app_admin` (`BYPASSRLS`, used for migrations and background jobs).
+- **`DATABASE_URL_APP`** — connects as `app_user`. The password in this URL is the password the `app_user` role is created/updated with.
+- **`DATABASE_URL_ADMIN`** — connects as `app_admin`. Likewise, its password seeds that role.
+
+In other words, the superuser URL bootstraps the roles, while the `APP`/`ADMIN` URLs both *define* those roles' passwords and are what the running app actually uses. The [example compose file](docker-compose.example.yml) wires all three together with matching credentials, so the default `docker-compose up` path works as-is. If you write your own compose file or use `docker run`, set all three.
+
+### Running as a non-root user (PUID/PGID)
+
+The container **starts as root** so its entrypoint can create the runtime user, fix ownership on the uploads volume, and then drop privileges with `gosu`. The main uvicorn process runs unprivileged — by default UID/GID `1000:1000` with no Linux capabilities.
+
+To run as a different UID/GID (for example, to match the NAS user that owns the `uploads` volume), set the **`PUID`/`PGID`** environment variables. **Do not** add a Docker `user:` (Compose) or `--user` (run) override — that starts the entrypoint as non-root, so it can't create the user and fails with `fatal: Only root may add a user or group to the system`. `PUID`/`PGID` is the supported knob; `0` (root) is rejected.
+
 ---
 
 ## Roadmap
