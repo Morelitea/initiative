@@ -3,24 +3,27 @@ import { isSameDay, parseISO } from "date-fns";
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
 import type { CalendarEntry } from "@/components/calendar";
 
-/** A datetime with no meaningful time-of-day (a date-only task date). */
-const isMidnight = (d: Date) => d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0;
-
 /**
  * Build the calendar entries for a single task.
  *
- * - Both start & due on the *same day* with real (different) times → ONE timed
- *   entry spanning the slot (`allDay: false`).
- * - Both on the same day but equal / both-midnight → ONE all-day entry (can't
+ * - Both start & due on the *same day* with different times → ONE timed entry
+ *   spanning the slot (`allDay: false`).
+ * - Both on the same day at the same instant → ONE all-day entry (can't
  *   meaningfully span a time slot).
  * - Both on *different days* → TWO labeled markers (`kind: "start" | "due"`) so
  *   the user can tell them apart and drag each independently.
  * - Only one of start/due → a single marker.
  *
  * `meta.kind` (`"start" | "due" | "span"`) drives reschedule routing; the
- * top-level `kind` drives the start/due visual treatment.
+ * top-level `kind` drives the start/due visual treatment. `draggable` gates
+ * whether the entry can be dragged to reschedule (callers pass the relevant
+ * permission; the backend remains authoritative).
  */
-export function buildTaskCalendarEntries(task: TaskListRead, color: string): CalendarEntry[] {
+export function buildTaskCalendarEntries(
+  task: TaskListRead,
+  color: string,
+  draggable = true
+): CalendarEntry[] {
   const attendees = task.assignees
     .filter((a) => a.full_name)
     .map((a) => ({
@@ -36,6 +39,7 @@ export function buildTaskCalendarEntries(task: TaskListRead, color: string): Cal
     attendees,
     properties: task.properties,
     tags: task.tags,
+    draggable,
   };
 
   const start = task.start_date ? parseISO(task.start_date) : null;
@@ -61,7 +65,7 @@ export function buildTaskCalendarEntries(task: TaskListRead, color: string): Cal
   });
 
   if (start && due) {
-    const degenerate = start.getTime() === due.getTime() || (isMidnight(start) && isMidnight(due));
+    const degenerate = start.getTime() === due.getTime();
     if (isSameDay(start, due) && !degenerate) {
       return [
         {

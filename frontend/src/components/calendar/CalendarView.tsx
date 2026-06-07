@@ -234,6 +234,7 @@ function DraggableEntryButton({
   className,
   style,
   title,
+  dragId,
   onSelect,
   children,
 }: {
@@ -242,12 +243,17 @@ function DraggableEntryButton({
   className?: string;
   style?: CSSProperties;
   title?: string;
+  /** Override for the dnd-kit draggable id. Required where the same entry is
+   *  rendered as more than one strip (e.g. a span crossing multiple week rows
+   *  in month view) so each registration has a unique id. Defaults to the
+   *  entry id. ``data.entry`` is unchanged, so reschedule routing is identical. */
+  dragId?: string;
   onSelect?: (entry: CalendarEntry) => void;
   children: ReactNode;
 }) {
   const canDrag = enabled && entry.draggable !== false;
   const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
-    id: String(entry.id),
+    id: dragId ?? String(entry.id),
     data: { entry },
     disabled: !canDrag,
   });
@@ -711,9 +717,15 @@ function MonthView({
                   // Offset below the day number line (~24px)
                   const top = 24 + span.lane * (SPAN_BAR_HEIGHT + SPAN_BAR_GAP);
 
+                  // A span crossing multiple week rows renders one strip per
+                  // row; disambiguate the dnd-kit id by week so registrations
+                  // don't collide.
+                  const weekDragKey = `${span.entry.id}-${dateKey(week[span.startCol])}`;
+
                   return (
                     <DraggableEntryButton
-                      key={`${span.entry.id}-${dateKey(week[span.startCol])}`}
+                      key={weekDragKey}
+                      dragId={weekDragKey}
                       entry={span.entry}
                       enabled={dndEnabled}
                       onSelect={onEntryClick}
@@ -881,6 +893,7 @@ function WeekView({
                 return (
                   <DraggableEntryButton
                     key={`${span.entry.id}-${span.startCol}`}
+                    dragId={`${span.entry.id}-${span.startCol}`}
                     entry={span.entry}
                     enabled={dndEnabled}
                     onSelect={onEntryClick}

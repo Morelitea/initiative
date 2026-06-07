@@ -267,6 +267,18 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     return false;
   }, [canCreate, initiativeId, initiativePermissions]);
 
+  // Tasks belong to projects; the precise per-project edit permission is
+  // enforced by the backend on drop. Here we gate task-chip dragging on
+  // project-create permission as a proxy, so users who can't manage project
+  // content don't get draggable task chips. Decoupled from canCreateEvents so
+  // event-create and task-edit are judged independently.
+  const canEditTasks = useMemo(() => {
+    if (initiativeId && initiativePermissions) {
+      return canCreatePermission(initiativePermissions, "projects");
+    }
+    return false;
+  }, [initiativeId, initiativePermissions]);
+
   // --- Merge events + tasks into calendar entries ---
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
@@ -290,6 +302,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           })),
           properties: event.property_values,
           tags: event.tags,
+          draggable: canCreateEvents,
           meta: { type: "event", eventId: event.id },
         });
       });
@@ -298,12 +311,14 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     if (showTasks) {
       const tasks = tasksQuery.data?.items ?? [];
       tasks.forEach((task) => {
-        entries.push(...buildTaskCalendarEntries(task, getProjectColor(task.project_id)));
+        entries.push(
+          ...buildTaskCalendarEntries(task, getProjectColor(task.project_id), canEditTasks)
+        );
       });
     }
 
     return entries;
-  }, [showEvents, showTasks, eventsQuery.data, tasksQuery.data]);
+  }, [showEvents, showTasks, eventsQuery.data, tasksQuery.data, canCreateEvents, canEditTasks]);
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -575,7 +590,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           onFocusDateChange={setFocusDate}
           onEntryClick={handleEntryClick}
           onSlotClick={canCreateEvents ? handleSlotClick : undefined}
-          onEntryReschedule={canCreateEvents ? handleEntryReschedule : undefined}
+          onEntryReschedule={canCreateEvents || canEditTasks ? handleEntryReschedule : undefined}
           weekStartsOn={weekStartsOn}
         />
       )}

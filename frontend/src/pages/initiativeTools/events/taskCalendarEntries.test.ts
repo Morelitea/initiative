@@ -85,6 +85,18 @@ describe("buildTaskCalendarEntries", () => {
     expect(buildTaskCalendarEntries(task, COLOR)).toHaveLength(0);
   });
 
+  it("propagates the draggable flag onto entries (defaults to true)", () => {
+    const task = buildTask({
+      id: 14,
+      start_date: "2026-01-15T09:00:00",
+      due_date: "2026-01-18T17:00:00",
+    });
+    expect(buildTaskCalendarEntries(task, COLOR).every((e) => e.draggable === true)).toBe(true);
+    expect(buildTaskCalendarEntries(task, COLOR, false).every((e) => e.draggable === false)).toBe(
+      true
+    );
+  });
+
   it("propagates color, tags, and assignees onto entries", () => {
     const tag = buildTag({ name: "urgent" });
     const task = buildTask({
