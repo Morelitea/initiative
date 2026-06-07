@@ -467,8 +467,11 @@ export const ProjectTasksSection = ({
     },
   });
 
-  const updateTaskStatus = useUpdateTask({
-    onSuccess: (updatedTask) => {
+  // Patch the locally-overridden task list with a server-confirmed update so
+  // the board/calendar reflects it immediately (and drop the task if it no
+  // longer matches the active status filter).
+  const applyTaskUpdateToLocal = useCallback(
+    (updatedTask: TaskListRead) => {
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
@@ -479,8 +482,22 @@ export const ProjectTasksSection = ({
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
+    },
+    [projectTasks, statusFilters]
+  );
+
+  const updateTaskStatus = useUpdateTask({
+    onSuccess: (updatedTask) => {
+      applyTaskUpdateToLocal(updatedTask);
       toast.success(t("tasks.taskUpdated"));
     },
+  });
+
+  // Calendar drag-reschedule: patches the local list so the entry moves
+  // immediately, but stays silent (no per-drag toast), matching the initiative
+  // calendar's reschedule UX.
+  const rescheduleTaskDates = useUpdateTask({
+    onSuccess: applyTaskUpdateToLocal,
   });
 
   const bulkUpdateTasks = useBulkUpdateTasks({
@@ -601,10 +618,10 @@ export const ProjectTasksSection = ({
     return entries;
   }, [statusFilteredTasks, canEditTaskDetails]);
 
-  // Drag-to-reschedule on the calendar. Reuses the task-update mutation (which
-  // already patches the local task list optimistically) so the dropped entry
-  // moves immediately. A start/due marker patches only that field; a same-day
-  // span shifts both endpoints (CalendarView preserved the duration).
+  // Drag-to-reschedule on the calendar. Uses the silent date-update mutation
+  // (patches the local list so the dropped entry moves immediately, no toast).
+  // A start/due marker patches only that field; a same-day span shifts both
+  // endpoints (CalendarView preserved the duration).
   const handleCalendarReschedule = useCallback(
     ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
       const meta = entry.meta as
@@ -612,17 +629,17 @@ export const ProjectTasksSection = ({
         | undefined;
       if (meta?.type !== "task" || !meta.taskId) return;
       if (meta.kind === "start") {
-        updateTaskStatus.mutate({ taskId: meta.taskId, data: { start_date: startAt } });
+        rescheduleTaskDates.mutate({ taskId: meta.taskId, data: { start_date: startAt } });
       } else if (meta.kind === "due") {
-        updateTaskStatus.mutate({ taskId: meta.taskId, data: { due_date: startAt } });
+        rescheduleTaskDates.mutate({ taskId: meta.taskId, data: { due_date: startAt } });
       } else {
-        updateTaskStatus.mutate({
+        rescheduleTaskDates.mutate({
           taskId: meta.taskId,
           data: { start_date: startAt, due_date: endAt },
         });
       }
     },
-    [updateTaskStatus]
+    [rescheduleTaskDates]
   );
 
   // Count of archivable done tasks (non-archived tasks in done category)
