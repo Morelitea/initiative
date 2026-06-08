@@ -40,6 +40,7 @@ import {
   endTimeOptionsFor,
   offsetEndTime,
   parseLocalDate,
+  reconcileEndTime,
   shiftEndPreservingDuration,
   TIME_OPTIONS,
 } from "./eventDateTime";
@@ -320,7 +321,10 @@ export const CreateEventDialog = ({
                   <DateTimePicker
                     value={endDate}
                     includeTime={false}
-                    onChange={setEndDate}
+                    onChange={(next) => {
+                      setEndDate(next);
+                      setEndTime(reconcileEndTime(startDate, startTime, next, endTime));
+                    }}
                     calendarProps={(() => {
                       const min = parseLocalDate(startDate);
                       return min ? { disabled: { before: min } } : undefined;

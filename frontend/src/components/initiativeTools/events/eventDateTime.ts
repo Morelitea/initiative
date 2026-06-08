@@ -76,6 +76,22 @@ export const shiftEndPreservingDuration = (
   return { endDate: toDateKey(nextEnd), endTime: toTimeSlot(nextEnd) };
 };
 
+// When the end date moves onto the start day and the current end time is no
+// longer after the start, snap it forward so the end-time Select never shows a
+// value that its filtered options exclude. Across days (or when still valid)
+// the end time is left untouched.
+export const reconcileEndTime = (
+  startDate: string,
+  startTime: string,
+  nextEndDate: string,
+  endTime: string
+): string => {
+  if (nextEndDate === startDate && toMinutes(endTime) <= toMinutes(startTime)) {
+    return offsetEndTime(startTime);
+  }
+  return endTime;
+};
+
 // End-time slots offered for the given range. On the same day the end must be
 // after the start, so earlier slots are hidden; across days every time is valid.
 export const endTimeOptionsFor = (startDate: string, endDate: string, startTime: string) => {

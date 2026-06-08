@@ -12,6 +12,7 @@ import {
   datesAreValid,
   endTimeOptionsFor,
   parseLocalDate,
+  reconcileEndTime,
   shiftEndPreservingDuration,
   TIME_OPTIONS,
   toDateKey,
@@ -212,9 +213,15 @@ export function EventSettingsPage() {
   const setEventTags = useSetEventTags(eventId);
 
   // Tags persist immediately on change (like tasks/documents), no Save button.
+  // Optimistically update, then roll back to the prior selection if the save
+  // fails (the hook surfaces an error toast on its own).
   const handleTagsChange = (newTags: TagSummary[]) => {
+    const previous = tags;
     setTags(newTags);
-    setEventTags.mutate(newTags.map((tag) => tag.id));
+    setEventTags.mutate(
+      newTags.map((tag) => tag.id),
+      { onError: () => setTags(previous) }
+    );
   };
 
   const deleteEvent = useDeleteCalendarEvent({
@@ -384,7 +391,10 @@ export function EventSettingsPage() {
                   <DateTimePicker
                     value={endDate}
                     includeTime={false}
-                    onChange={setEndDate}
+                    onChange={(next) => {
+                      setEndDate(next);
+                      setEndTime(reconcileEndTime(startDate, startTime, next, endTime));
+                    }}
                     calendarProps={(() => {
                       const min = parseLocalDate(startDate);
                       return min ? { disabled: { before: min } } : undefined;

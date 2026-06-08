@@ -4,6 +4,7 @@ import {
   datesAreValid,
   endTimeOptionsFor,
   offsetEndTime,
+  reconcileEndTime,
   shiftEndPreservingDuration,
   toTimeSlotRounded,
 } from "./eventDateTime";
@@ -83,6 +84,22 @@ describe("datesAreValid", () => {
 
   it("allows an all-day event ending on the same day", () => {
     expect(datesAreValid(true, "2026-07-01", "00:00", "2026-07-01", "00:00")).toBe(true);
+  });
+});
+
+describe("reconcileEndTime", () => {
+  it("snaps a now-invalid end time forward when the end rolls back to the start day", () => {
+    // End was 12:00 on a later day; rolled back to the start day where the
+    // start is 14:00 — 12:00 is no longer selectable, so snap to 15:00.
+    expect(reconcileEndTime("2026-07-01", "14:00", "2026-07-01", "12:00")).toBe("15:00");
+  });
+
+  it("leaves a still-valid same-day end time untouched", () => {
+    expect(reconcileEndTime("2026-07-01", "09:00", "2026-07-01", "10:00")).toBe("10:00");
+  });
+
+  it("leaves the end time untouched when the end is on a later day", () => {
+    expect(reconcileEndTime("2026-07-01", "14:00", "2026-07-03", "12:00")).toBe("12:00");
   });
 });
 
