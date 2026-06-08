@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Mobile app "Reload now" no longer hangs on the splash screen.** After the splash-covered OTA reload landed, tapping "Reload now" showed the splash for ~60 seconds and then re-displayed the same "New Version Available" dialog without applying the update. The reload waited for the downloaded bundle to report a `success` status that Capacitor only assigns *after* a bundle boots and confirms itself — a freshly downloaded bundle is `pending` — so the wait always timed out. The update now applies as soon as the bundle is downloaded and ready.
+
 ## [0.50.0] - 2026-06-08
 
 ### Added

@@ -6,7 +6,7 @@ import { buildBundleDownloadUrl, decideNativeUpdate, findReadyBundle } from "./u
 const bundle = (over: Partial<BundleInfo>): BundleInfo => ({
   id: "1",
   version: "0.0.0",
-  status: "success",
+  status: "pending",
   downloaded: "",
   checksum: "",
   ...over,
@@ -87,14 +87,21 @@ describe("decideNativeUpdate", () => {
 });
 
 /**
- * `applyUpdate` only swaps to a bundle this gate approves. The load-bearing rule: never hand a
- * still-downloading or errored bundle to `set()` — that throws or boots a bundle that rolls back
- * and re-shows the reload prompt. Only a `"success"` bundle for the exact target version passes.
+ * `applyUpdate` only swaps to a bundle this gate approves. The load-bearing rule: a freshly
+ * downloaded bundle is `"pending"` (Capgo only marks it `"success"` after set() + the booted
+ * bundle calls notifyAppReady), so the gate must accept `"pending"` — gating on `"success"`
+ * would wait forever and re-show the prompt. It must still reject a still-downloading or errored
+ * bundle — handing either to `set()` throws or boots a bundle that rolls back and re-prompts.
  */
 describe("findReadyBundle", () => {
-  it("returns the success bundle for the requested version", () => {
-    const ready = bundle({ id: "9", version: "0.49.0", status: "success" });
+  it("returns the downloaded (pending) bundle for the requested version", () => {
+    const ready = bundle({ id: "9", version: "0.49.0", status: "pending" });
     expect(findReadyBundle([bundle({ version: "0.48.0" }), ready], "0.49.0")).toBe(ready);
+  });
+
+  it("also accepts an already-confirmed (success) bundle for the version (reuse/downgrade)", () => {
+    const ready = bundle({ id: "9", version: "0.49.0", status: "success" });
+    expect(findReadyBundle([ready], "0.49.0")).toBe(ready);
   });
 
   it("ignores a bundle that is still downloading (set() would throw)", () => {
@@ -107,9 +114,9 @@ describe("findReadyBundle", () => {
     expect(findReadyBundle([bundle({ version: "0.49.0", status: "error" })], "0.49.0")).toBeNull();
   });
 
-  it("ignores a success bundle for a different version", () => {
+  it("ignores a pending bundle for a different version", () => {
     expect(
-      findReadyBundle([bundle({ version: "0.48.0", status: "success" })], "0.49.0")
+      findReadyBundle([bundle({ version: "0.48.0", status: "pending" })], "0.49.0")
     ).toBeNull();
   });
 

@@ -59,14 +59,20 @@ export const decideNativeUpdate = (args: {
 };
 
 /**
- * Pick the bundle that is safe to swap to for `version`: a fully-downloaded one with status
- * `"success"`. `download()` can resolve before the bundle reaches `"success"` (still verifying),
- * and a retained `error`/`downloading` entry must never be handed to `set()` — that throws or
- * boots a broken bundle that rolls back, which re-shows the reload prompt. Pure so it can be
- * unit-tested against a `list()` snapshot.
+ * Pick the bundle that is safe to swap to for `version`: a fully-downloaded one awaiting
+ * activation. In Capgo's lifecycle a bundle is `"downloading"` while in flight, becomes
+ * `"pending"` once `download()` has fully written and verified it (the state we want), and only
+ * becomes `"success"` *after* `set()` swaps to it and the booted bundle calls `notifyAppReady()`
+ * — so a not-yet-applied bundle is never `"success"`, and gating on that status would wait
+ * forever. `"success"` is still accepted for the rare reuse/downgrade case where the target is an
+ * already-confirmed bundle. A retained `error`/`downloading` entry must never be handed to
+ * `set()` — that throws or boots a broken bundle that rolls back and re-shows the reload prompt.
+ * Pure so it can be unit-tested against a `list()` snapshot.
  */
 export const findReadyBundle = (bundles: BundleInfo[], version: string): BundleInfo | null =>
-  bundles.find((b) => b.version === version && b.status === "success") ?? null;
+  bundles.find(
+    (b) => b.version === version && (b.status === "pending" || b.status === "success")
+  ) ?? null;
 
 type BundleReadiness =
   | { status: "ready"; bundle: BundleInfo }
@@ -74,12 +80,12 @@ type BundleReadiness =
   | { status: "timeout" };
 
 /**
- * Poll `list()` until a `"success"` bundle for `version` exists (`ready`), the bundle reaches a
- * terminal `"error"` (e.g. checksum verification failed after `download()` resolved), or
- * `timeoutMs` elapses (`timeout`). The eager download already `await`ed `download()`, so this
- * normally returns `ready` on the first check; it only spins while the bundle is still verifying
- * or, in the "tapped reload before the download finished" case, still downloading. Failing fast
- * on `"error"` avoids stranding the user under a blank splash for the full timeout.
+ * Poll `list()` until a downloaded-and-ready (`"pending"`) bundle for `version` exists (`ready`),
+ * the bundle reaches a terminal `"error"` (e.g. checksum verification failed), or `timeoutMs`
+ * elapses (`timeout`). The eager download already `await`ed `download()`, which leaves the bundle
+ * `"pending"`, so this normally returns `ready` on the first check; it only spins in the "tapped
+ * reload before the download finished" case, where the bundle is still `"downloading"`. Failing
+ * fast on `"error"` avoids stranding the user under a blank splash for the full timeout.
  */
 const awaitReadyBundle = async (version: string, timeoutMs = 60_000): Promise<BundleReadiness> => {
   const start = Date.now();
@@ -170,9 +176,10 @@ export const useNativeUpdate = () => {
       // Reuse a previously-downloaded bundle for this version if present (avoids a
       // "already exists" error from download() across launches); otherwise download it.
       const downloadUrl = buildBundleDownloadUrl(serverUrl, manifest.url);
-      // Only reuse a fully-downloaded bundle; a retained error/partial entry would make
-      // set() throw and, since we'd keep "finding" it, never re-download — leaving the user
-      // stuck on this version. Filtering to status "success" forces a fresh download instead.
+      // Only reuse a fully-downloaded ("pending") bundle; a retained error/partial entry would
+      // make set() throw and, since we'd keep "finding" it, never re-download — leaving the user
+      // stuck on this version. findReadyBundle excludes error/downloading, forcing a fresh
+      // download instead.
       const existing = findReadyBundle((await CapacitorUpdater.list()).bundles, manifest.version);
       const bundle =
         existing ??
@@ -221,10 +228,10 @@ export const useNativeUpdate = () => {
     // swapped-in bundle hides it in main.tsx after notifyAppReady().
     await SplashScreen.show({ autoHide: false }).catch(() => {});
 
-    // Never swap into a half-verified bundle: download() can resolve before the bundle reaches
-    // "success", and a stale tap can land while it is still downloading. Wait (under the splash)
-    // until it is ready, else set() throws or boots a bundle that rolls back and re-prompts —
-    // the reported "reload doesn't apply, dialog pops up again".
+    // Never swap into a still-downloading bundle: a stale tap can land before download() finished
+    // (status "downloading"). Wait (under the splash) until it is "pending" (downloaded + ready),
+    // else set() throws or boots a bundle that rolls back and re-prompts — the reported "reload
+    // doesn't apply, dialog pops up again".
     const readiness = await awaitReadyBundle(version);
     if (readiness.status === "ready") {
       try {
