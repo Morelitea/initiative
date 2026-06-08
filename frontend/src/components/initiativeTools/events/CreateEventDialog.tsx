@@ -10,6 +10,7 @@ import type {
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Dialog,
   DialogContent,
@@ -29,18 +30,20 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useInitiativeMembers } from "@/hooks/useInitiatives";
 import type { DialogProps } from "@/types/dialog";
 
-// Generate half-hour time slots
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-  const hour = Math.floor(i / 2);
-  const minute = i % 2 === 0 ? "00" : "30";
-  const hh = String(hour).padStart(2, "0");
-  const label = `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${minute} ${hour < 12 ? "AM" : "PM"}`;
-  return { value: `${hh}:${minute}`, label };
-});
+import {
+  datesAreValid,
+  endTimeOptionsFor,
+  offsetEndTime,
+  parseLocalDate,
+  reconcileEndTime,
+  shiftEndPreservingDuration,
+  TIME_OPTIONS,
+} from "./eventDateTime";
 
 type CreateEventDialogProps = DialogProps & {
   initiativeId: number;
@@ -58,6 +61,7 @@ export const CreateEventDialog = ({
   onSuccess,
 }: CreateEventDialogProps) => {
   const { t } = useTranslation(["events", "common"]);
+  const { user } = useAuth();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -94,15 +98,15 @@ export const CreateEventDialog = ({
 
   useEffect(() => {
     if (open) {
+      // The creator attends their own event by default.
+      setAttendeeIds(user ? [user.id] : []);
       if (defaultStartDate) {
         setStartDate(defaultStartDate);
         setEndDate(defaultStartDate);
       }
       if (defaultStartTime) {
         setStartTime(defaultStartTime);
-        const [h, m] = defaultStartTime.split(":").map(Number);
-        const endH = Math.min(h + 1, 23);
-        setEndTime(`${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+        setEndTime(offsetEndTime(defaultStartTime));
       }
     } else {
       setTitle("");
@@ -117,7 +121,40 @@ export const CreateEventDialog = ({
       setRecurrence(null);
       setRecurrenceStrategy("fixed");
     }
-  }, [open, defaultStartDate, defaultStartTime]);
+  }, [open, defaultStartDate, defaultStartTime, user]);
+
+  // Apply a new start date/time, shifting the end so the event keeps its
+  // current length (a 90-minute event stays 90 minutes; a multi-day event keeps
+  // its span). The end may land on a later day — that's how multi-day timed
+  // events are created.
+  const applyStart = (nextDate: string, nextTime: string) => {
+    setStartDate(nextDate);
+    setStartTime(nextTime);
+    const shifted = shiftEndPreservingDuration(
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      nextDate,
+      nextTime
+    );
+    if (shifted) {
+      setEndDate(shifted.endDate);
+      setEndTime(shifted.endTime);
+    }
+  };
+
+  const endTimeOptions = useMemo(
+    () => endTimeOptionsFor(startDate, endDate, startTime),
+    [startDate, endDate, startTime]
+  );
+
+  // Guard submit against an end that lands before the start (possible after the
+  // user edits the end date/time independently).
+  const datesValid = useMemo(
+    () => datesAreValid(allDay, startDate, startTime, endDate, endTime),
+    [allDay, startDate, endDate, startTime, endTime]
+  );
 
   const createEvent = useCreateCalendarEvent({
     onSuccess: (event) => {
@@ -127,11 +164,11 @@ export const CreateEventDialog = ({
   });
 
   const isCreating = createEvent.isPending;
-  const canSubmit = title.trim() && startDate && !isCreating;
+  const canSubmit = title.trim() && datesValid && !isCreating;
 
   const handleSubmit = () => {
     const trimmedTitle = title.trim();
-    if (!trimmedTitle || !startDate) return;
+    if (!trimmedTitle || !datesValid) return;
 
     let startISO: string;
     let endISO: string;
@@ -140,7 +177,7 @@ export const CreateEventDialog = ({
       endISO = new Date(`${endDate || startDate}T23:59:59`).toISOString();
     } else {
       startISO = new Date(`${startDate}T${startTime}:00`).toISOString();
-      endISO = new Date(`${startDate}T${endTime}:00`).toISOString();
+      endISO = new Date(`${endDate || startDate}T${endTime}:00`).toISOString();
     }
 
     createEvent.mutate({
@@ -227,44 +264,44 @@ export const CreateEventDialog = ({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>{t("startDate")}</Label>
-                <Input
-                  type="date"
+                <DateTimePicker
                   value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    if (!endDate || e.target.value > endDate) {
-                      setEndDate(e.target.value);
+                  includeTime={false}
+                  onChange={(next) => {
+                    setStartDate(next);
+                    if (!endDate || next > endDate) {
+                      setEndDate(next);
                     }
                   }}
                 />
               </div>
               <div className="space-y-2">
                 <Label>{t("endDate")}</Label>
-                <Input
-                  type="date"
+                <DateTimePicker
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  min={startDate || undefined}
+                  includeTime={false}
+                  onChange={setEndDate}
+                  calendarProps={(() => {
+                    const min = parseLocalDate(startDate);
+                    return min ? { disabled: { before: min } } : undefined;
+                  })()}
                 />
               </div>
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="space-y-2">
-                <Label>{t("startDate")}</Label>
-                <Input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => {
-                    setStartDate(e.target.value);
-                    setEndDate(e.target.value);
-                  }}
-                />
-              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>{t("startDate")}</Label>
-                  <Select value={startTime} onValueChange={setStartTime}>
+                  <DateTimePicker
+                    value={startDate}
+                    includeTime={false}
+                    onChange={(next) => applyStart(next, startTime)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("startTime")}</Label>
+                  <Select value={startTime} onValueChange={(value) => applyStart(startDate, value)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -277,14 +314,31 @@ export const CreateEventDialog = ({
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>{t("endDate")}</Label>
+                  <DateTimePicker
+                    value={endDate}
+                    includeTime={false}
+                    onChange={(next) => {
+                      setEndDate(next);
+                      setEndTime(reconcileEndTime(startDate, startTime, next, endTime));
+                    }}
+                    calendarProps={(() => {
+                      const min = parseLocalDate(startDate);
+                      return min ? { disabled: { before: min } } : undefined;
+                    })()}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("endTime")}</Label>
                   <Select value={endTime} onValueChange={setEndTime}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="max-h-60">
-                      {TIME_OPTIONS.map((opt) => (
+                      {endTimeOptions.map((opt) => (
                         <SelectItem key={opt.value} value={opt.value}>
                           {opt.label}
                         </SelectItem>

@@ -11,10 +11,11 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.calendar_event import CalendarEventAttendee, RSVPStatus
+from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, RSVPStatus
 from app.models.event_reminder_dispatch import EventReminderDispatch
 from app.models.notification import Notification, NotificationType
-from app.services.notifications import _run_event_reminder_pass
+from app.models.user import User
+from app.services.notifications import _format_event_when, _run_event_reminder_pass
 from app.testing import (
     create_calendar_event,
     create_guild,
@@ -58,6 +59,48 @@ async def _reminders_for(session: AsyncSession, user_id: int) -> list[Notificati
         )
     )
     return list(result.all())
+
+
+@pytest.mark.unit
+def test_format_event_when_localizes_to_recipient_timezone():
+    """A timed event renders in the recipient's IANA timezone with its abbrev."""
+    event = CalendarEvent(
+        title="Sync",
+        start_at=datetime(2026, 7, 1, 21, 30, tzinfo=timezone.utc),
+        end_at=datetime(2026, 7, 1, 22, 30, tzinfo=timezone.utc),
+        all_day=False,
+    )
+    la = User(timezone="America/Los_Angeles")
+    assert _format_event_when(event, la) == "Wed, Jul 1, 2026 at 2:30 PM PDT"
+
+    utc_user = User(timezone="UTC")
+    assert _format_event_when(event, utc_user) == "Wed, Jul 1, 2026 at 9:30 PM UTC"
+
+
+@pytest.mark.unit
+def test_format_event_when_all_day_omits_time_and_zone():
+    """All-day events show just the date, regardless of recipient timezone."""
+    event = CalendarEvent(
+        title="Holiday",
+        start_at=datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc),
+        end_at=datetime(2026, 7, 1, 23, 59, tzinfo=timezone.utc),
+        all_day=True,
+    )
+    assert _format_event_when(event, User(timezone="Asia/Tokyo")) == "Wed, Jul 1, 2026"
+
+
+@pytest.mark.unit
+def test_format_event_when_falls_back_on_bad_timezone():
+    """An unrecognized timezone string falls back to UTC instead of raising."""
+    event = CalendarEvent(
+        title="Sync",
+        start_at=datetime(2026, 7, 1, 21, 30, tzinfo=timezone.utc),
+        end_at=datetime(2026, 7, 1, 22, 30, tzinfo=timezone.utc),
+        all_day=False,
+    )
+    assert _format_event_when(event, User(timezone="Not/AZone")) == (
+        "Wed, Jul 1, 2026 at 9:30 PM UTC"
+    )
 
 
 @pytest.mark.integration

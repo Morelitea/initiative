@@ -6,8 +6,20 @@ import { useTranslation } from "react-i18next";
 import type {
   PropertyDefinitionRead,
   PropertySummary,
+  TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
+import {
+  datesAreValid,
+  endTimeOptionsFor,
+  parseLocalDate,
+  reconcileEndTime,
+  shiftEndPreservingDuration,
+  TIME_OPTIONS,
+  toDateKey,
+  toTimeSlotRounded,
+} from "@/components/initiativeTools/events/eventDateTime";
 import { AddPropertyButton, PropertyList } from "@/components/properties";
+import { TagPicker } from "@/components/tags";
 import { Badge } from "@/components/ui/badge";
 import {
   Breadcrumb,
@@ -19,16 +31,26 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   useCalendarEvent,
   useDeleteCalendarEvent,
   useSetEventAttendees,
+  useSetEventTags,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
 import { useInitiativeMembers } from "@/hooks/useInitiatives";
@@ -47,10 +69,13 @@ export function EventSettingsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
-  const [startAt, setStartAt] = useState("");
-  const [endAt, setEndAt] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endDate, setEndDate] = useState("");
+  const [endTime, setEndTime] = useState("10:00");
   const [allDay, setAllDay] = useState(false);
   const [color, setColor] = useState("");
+  const [tags, setTags] = useState<TagSummary[]>([]);
   const [attendeeIds, setAttendeeIds] = useState<number[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -135,13 +160,47 @@ export function EventSettingsPage() {
       setTitle(event.title);
       setDescription(event.description ?? "");
       setLocation(event.location ?? "");
-      setStartAt(toLocalDateTimeString(new Date(event.start_at)));
-      setEndAt(toLocalDateTimeString(new Date(event.end_at)));
+      const start = new Date(event.start_at);
+      const end = new Date(event.end_at);
+      setStartDate(toDateKey(start));
+      setStartTime(toTimeSlotRounded(start));
+      setEndDate(toDateKey(end));
+      setEndTime(toTimeSlotRounded(end));
       setAllDay(event.all_day);
       setColor(event.color ?? "");
+      setTags(event.tags ?? []);
       setAttendeeIds(event.attendees.map((a) => a.user_id));
     }
   }, [event]);
+
+  // Apply a new start date/time, shifting the end to keep the event's length
+  // (mirrors the create dialog; multi-day spans are preserved).
+  const applyStart = (nextDate: string, nextTime: string) => {
+    setStartDate(nextDate);
+    setStartTime(nextTime);
+    const shifted = shiftEndPreservingDuration(
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      nextDate,
+      nextTime
+    );
+    if (shifted) {
+      setEndDate(shifted.endDate);
+      setEndTime(shifted.endTime);
+    }
+  };
+
+  const endTimeOptions = useMemo(
+    () => endTimeOptionsFor(startDate, endDate, startTime),
+    [startDate, endDate, startTime]
+  );
+
+  const datesValid = useMemo(
+    () => datesAreValid(allDay, startDate, startTime, endDate, endTime),
+    [allDay, startDate, endDate, startTime, endTime]
+  );
 
   const updateEvent = useUpdateCalendarEvent(eventId, {
     onSuccess: () => toast.success(t("detailsUpdated")),
@@ -151,6 +210,20 @@ export function EventSettingsPage() {
     onSuccess: () => toast.success(t("detailsUpdated")),
   });
 
+  const setEventTags = useSetEventTags(eventId);
+
+  // Tags persist immediately on change (like tasks/documents), no Save button.
+  // Optimistically update, then roll back to the prior selection if the save
+  // fails (the hook surfaces an error toast on its own).
+  const handleTagsChange = (newTags: TagSummary[]) => {
+    const previous = tags;
+    setTags(newTags);
+    setEventTags.mutate(
+      newTags.map((tag) => tag.id),
+      { onError: () => setTags(previous) }
+    );
+  };
+
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
@@ -159,15 +232,18 @@ export function EventSettingsPage() {
   });
 
   const handleSave = () => {
-    const startValue = allDay ? `${startAt.split("T")[0]}T00:00:00` : startAt;
-    const endValue = allDay ? `${endAt.split("T")[0]}T23:59:59` : endAt;
+    if (!datesValid) return;
+    const startValue = allDay ? `${startDate}T00:00:00` : `${startDate}T${startTime}:00`;
+    const endValue = allDay
+      ? `${endDate || startDate}T23:59:59`
+      : `${endDate || startDate}T${endTime}:00`;
 
     updateEvent.mutate({
       title: title.trim() || undefined,
       description: description.trim() || undefined,
       location: location.trim() || undefined,
-      start_at: startValue ? new Date(startValue).toISOString() : undefined,
-      end_at: endValue ? new Date(endValue).toISOString() : undefined,
+      start_at: new Date(startValue).toISOString(),
+      end_at: new Date(endValue).toISOString(),
       all_day: allDay,
       color: color || undefined,
     });
@@ -257,56 +333,104 @@ export function EventSettingsPage() {
           {allDay ? (
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="event-start">{t("startDate")}</Label>
-                <Input
-                  id="event-start"
-                  type="date"
-                  value={startAt.split("T")[0]}
-                  onChange={(e) => setStartAt(e.target.value)}
+                <Label>{t("startDate")}</Label>
+                <DateTimePicker
+                  value={startDate}
+                  includeTime={false}
+                  onChange={(next) => {
+                    setStartDate(next);
+                    if (!endDate || next > endDate) {
+                      setEndDate(next);
+                    }
+                  }}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="event-end">{t("endDate")}</Label>
-                <Input
-                  id="event-end"
-                  type="date"
-                  value={endAt.split("T")[0]}
-                  onChange={(e) => setEndAt(e.target.value)}
-                  min={startAt.split("T")[0] || undefined}
+                <Label>{t("endDate")}</Label>
+                <DateTimePicker
+                  value={endDate}
+                  includeTime={false}
+                  onChange={setEndDate}
+                  calendarProps={(() => {
+                    const min = parseLocalDate(startDate);
+                    return min ? { disabled: { before: min } } : undefined;
+                  })()}
                 />
               </div>
             </div>
           ) : (
-            <div className="space-y-2">
-              <Label htmlFor="event-start">{t("startDate")}</Label>
-              <Input
-                id="event-start"
-                type="datetime-local"
-                value={startAt}
-                onChange={(e) => setStartAt(e.target.value)}
-              />
-              <Label htmlFor="event-end">{t("endDate")}</Label>
-              <Input
-                id="event-end"
-                type="datetime-local"
-                value={endAt}
-                onChange={(e) => setEndAt(e.target.value)}
-              />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>{t("startDate")}</Label>
+                  <DateTimePicker
+                    value={startDate}
+                    includeTime={false}
+                    onChange={(next) => applyStart(next, startTime)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("startTime")}</Label>
+                  <Select value={startTime} onValueChange={(value) => applyStart(startDate, value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {TIME_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>{t("endDate")}</Label>
+                  <DateTimePicker
+                    value={endDate}
+                    includeTime={false}
+                    onChange={(next) => {
+                      setEndDate(next);
+                      setEndTime(reconcileEndTime(startDate, startTime, next, endTime));
+                    }}
+                    calendarProps={(() => {
+                      const min = parseLocalDate(startDate);
+                      return min ? { disabled: { before: min } } : undefined;
+                    })()}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("endTime")}</Label>
+                  <Select value={endTime} onValueChange={setEndTime}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {endTimeOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
           )}
 
           <div className="space-y-2">
             <Label htmlFor="event-color">{t("color")}</Label>
-            <Input
+            <ColorPickerPopover
               id="event-color"
-              type="color"
-              value={color || "#6366f1"}
-              onChange={(e) => setColor(e.target.value)}
-              className="h-10 w-20"
+              value={color || "#6366F1"}
+              onChange={setColor}
+              triggerLabel={t("color")}
             />
           </div>
 
-          <Button onClick={handleSave} disabled={updateEvent.isPending}>
+          <Button onClick={handleSave} disabled={updateEvent.isPending || !datesValid}>
             {updateEvent.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -367,6 +491,16 @@ export function EventSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Tags */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("tags")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <TagPicker selectedTags={tags} onChange={handleTagsChange} />
+        </CardContent>
+      </Card>
+
       {/* Custom Properties */}
       <Card>
         <CardHeader>
@@ -412,9 +546,4 @@ export function EventSettingsPage() {
       />
     </div>
   );
-}
-
-function toLocalDateTimeString(date: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

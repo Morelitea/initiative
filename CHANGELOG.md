@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Events can span multiple days.** A timed event's end can now fall on a later day (the 24-hour limit is gone). The create dialog and edit page gained separate end-date pickers, and the calendar draws a multi-day timed event across each day it touches — in week and day views it fills the time grid on every day (start day from its start time, full middle days, end day up to its end time) rather than sitting in the all-day bar.
+- **Edit an event's tags.** The event settings page now has a tag picker (matching tasks and documents) to add or remove tags; changes save immediately.
+
+### Changed
+
+- **Event reminder and invitation times now show in your timezone.** Event notification emails and push messages (invitations, reschedules, cancellations, and reminders) previously printed the start time in UTC. They now render in the recipient's own timezone in a more readable form (e.g. "Wed, Jul 1, 2026 at 2:30 PM PDT").
+- **Creating an event adds you as an attendee by default.** The event creation dialog now starts with you in the attendee list (you can still remove yourself).
+- **Changing an event's start time keeps its length.** Adjusting the start time shifts the end by the same amount, preserving the event's duration (including multi-day spans) instead of forcing it back to one hour.
+- **Consistent date, time, and color pickers for events.** The event edit page now uses the same calendar date pickers, half-hour time selectors, and color picker as the create dialog.
+- **Declined attendees stop getting event notifications.** If you decline an event's invitation, you no longer receive its reschedule, update, or cancellation notifications — matching reminders, which already skipped declined RSVPs.
+
 ## [0.50.1] - 2026-06-08
 
 ### Fixed

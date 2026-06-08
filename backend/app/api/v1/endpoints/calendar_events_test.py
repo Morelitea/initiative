@@ -144,6 +144,53 @@ async def test_create_event_notifies_attendees_not_creator(
 
 
 @pytest.mark.integration
+async def test_create_multi_day_timed_event_is_allowed(
+    client: AsyncClient, session: AsyncSession
+):
+    """A timed (non-all-day) event may now span more than 24 hours / cross days."""
+    organizer, _attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    headers = get_guild_headers(guild, organizer)
+
+    response = await client.post(
+        "/api/v1/calendar-events/",
+        headers=headers,
+        json={
+            "initiative_id": initiative.id,
+            "title": "Conference",
+            "start_at": "2026-07-01T14:00:00Z",
+            "end_at": "2026-07-03T16:00:00Z",
+            "all_day": False,
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["start_at"].startswith("2026-07-01")
+    assert body["end_at"].startswith("2026-07-03")
+
+
+@pytest.mark.integration
+async def test_create_event_rejects_end_before_start(
+    client: AsyncClient, session: AsyncSession
+):
+    """end_at before start_at is still rejected."""
+    organizer, _attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    headers = get_guild_headers(guild, organizer)
+
+    response = await client.post(
+        "/api/v1/calendar-events/",
+        headers=headers,
+        json={
+            "initiative_id": initiative.id,
+            "title": "Backwards",
+            "start_at": "2026-07-03T16:00:00Z",
+            "end_at": "2026-07-01T14:00:00Z",
+            "all_day": False,
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.integration
 async def test_update_event_time_notifies_attendees_as_rescheduled(
     client: AsyncClient, session: AsyncSession
 ):
@@ -186,6 +233,64 @@ async def test_delete_event_notifies_attendees(
 
     cancels = await _notifications_for(session, attendee.id, NotificationType.event_cancelled)
     assert len(cancels) == 1
+
+
+@pytest.mark.integration
+async def test_update_event_skips_declined_attendees(
+    client: AsyncClient, session: AsyncSession
+):
+    """An attendee who declined doesn't get reschedule/update notifications."""
+    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    headers = get_guild_headers(guild, organizer)
+    event = await create_calendar_event(session, initiative, organizer, title="Review")
+    await client.put(
+        f"/api/v1/calendar-events/{event.id}/attendees",
+        headers=headers,
+        json=[attendee.id],
+    )
+    declined = await client.patch(
+        f"/api/v1/calendar-events/{event.id}/rsvp",
+        headers=get_guild_headers(guild, attendee),
+        json={"rsvp_status": "declined"},
+    )
+    assert declined.status_code == 200
+
+    response = await client.patch(
+        f"/api/v1/calendar-events/{event.id}",
+        headers=headers,
+        json={"start_at": "2026-08-01T15:00:00Z", "end_at": "2026-08-01T16:00:00Z"},
+    )
+    assert response.status_code == 200
+
+    updates = await _notifications_for(session, attendee.id, NotificationType.event_updated)
+    assert updates == []
+
+
+@pytest.mark.integration
+async def test_delete_event_skips_declined_attendees(
+    client: AsyncClient, session: AsyncSession
+):
+    """An attendee who declined doesn't get the cancellation notice."""
+    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    headers = get_guild_headers(guild, organizer)
+    event = await create_calendar_event(session, initiative, organizer, title="Retro")
+    await client.put(
+        f"/api/v1/calendar-events/{event.id}/attendees",
+        headers=headers,
+        json=[attendee.id],
+    )
+    declined = await client.patch(
+        f"/api/v1/calendar-events/{event.id}/rsvp",
+        headers=get_guild_headers(guild, attendee),
+        json={"rsvp_status": "declined"},
+    )
+    assert declined.status_code == 200
+
+    response = await client.delete(f"/api/v1/calendar-events/{event.id}", headers=headers)
+    assert response.status_code == 204
+
+    cancels = await _notifications_for(session, attendee.id, NotificationType.event_cancelled)
+    assert cancels == []
 
 
 @pytest.mark.integration

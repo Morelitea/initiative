@@ -728,11 +728,18 @@ async def notify_comment_reply(
 # ---------------------------------------------------------------------------
 
 
-def _format_event_when(event: CalendarEvent) -> str:
-    """Human-readable event start for email/push bodies (UTC, like overdue)."""
+def _format_event_when(event: CalendarEvent, recipient: User) -> str:
+    """Human-readable event start, localized to the recipient's timezone.
+
+    All-day events show just the date; timed events convert the stored UTC
+    instant into the recipient's IANA timezone and append the zone abbrev
+    (e.g. ``Wed, Jul 1, 2026 at 2:30 PM PDT``).
+    """
     if event.all_day:
-        return event.start_at.strftime("%Y-%m-%d")
-    return event.start_at.strftime("%Y-%m-%d %H:%M UTC")
+        return event.start_at.strftime("%a, %b %-d, %Y")
+    tz = _resolve_timezone(recipient.timezone)
+    local = event.start_at.astimezone(tz)
+    return local.strftime("%a, %b %-d, %Y at %-I:%M %p %Z")
 
 
 async def _deliver_event_notification(
@@ -821,7 +828,7 @@ async def notify_event_invitation(
     if attendee.id == organizer.id:
         return
     organizer_name = organizer.full_name or organizer.email
-    when = _format_event_when(event)
+    when = _format_event_when(event, attendee)
     await _deliver_event_notification(
         session,
         recipient=attendee,
@@ -850,7 +857,7 @@ async def notify_event_updated(
     if attendee.id == editor.id:
         return
     editor_name = editor.full_name or editor.email
-    when = _format_event_when(event)
+    when = _format_event_when(event, attendee)
     if time_changed:
         headline = "Event rescheduled"
         body = f"{editor_name} rescheduled {event.title} to {when}."
@@ -886,7 +893,7 @@ async def notify_event_cancelled(
     if attendee.id == canceller.id:
         return
     canceller_name = canceller.full_name or canceller.email
-    when = _format_event_when(event)
+    when = _format_event_when(event, attendee)
     await _deliver_event_notification(
         session,
         recipient=attendee,
@@ -944,7 +951,7 @@ async def notify_event_reminder(
     guild_id: int,
 ) -> None:
     """Send a scheduled lead-time reminder for an upcoming event."""
-    when = _format_event_when(event)
+    when = _format_event_when(event, recipient)
     await _deliver_event_notification(
         session,
         recipient=recipient,

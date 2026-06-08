@@ -195,6 +195,31 @@ function parseEntry(entry: CalendarEntry): { start: Date; end: Date } {
   return { start: parseISO(entry.startAt), end: parseISO(entry.endAt) };
 }
 
+/**
+ * Clip a timed entry to a single day, returning the fractional start/end hours
+ * (0–24) of the portion that falls on `day`, or null when it doesn't overlap.
+ * Multi-day timed events use this so each day renders only its slice: the start
+ * day runs from its start time to midnight, any middle day fills 0–24, and the
+ * end day runs from midnight to its end time.
+ */
+function daySegmentHours(
+  day: Date,
+  entry: CalendarEntry
+): { startHour: number; endHour: number } | null {
+  const { start, end } = parseEntry(entry);
+  if (Number.isNaN(start.getTime())) return null;
+  const safeEnd = Number.isNaN(end.getTime()) ? start : end;
+  const dayStart = startOfDay(day);
+  const nextDay = addDays(dayStart, 1);
+  if (safeEnd <= dayStart || start >= nextDay) return null;
+  const segStart = start < dayStart ? dayStart : start;
+  const segEnd = safeEnd > nextDay ? nextDay : safeEnd;
+  const startHour = (segStart.getTime() - dayStart.getTime()) / 3_600_000;
+  let endHour = (segEnd.getTime() - dayStart.getTime()) / 3_600_000;
+  if (endHour <= startHour) endHour = Math.min(startHour + 1, 24);
+  return { startHour, endHour };
+}
+
 function formatTime(date: Date): string {
   const h = getHours(date);
   const m = getMinutes(date);
@@ -782,33 +807,37 @@ function WeekView({
     return eachDayOfInterval({ start, end: addDays(start, 6) });
   }, [focusDate, weekStartsOn]);
 
+  // The top span bar holds ONLY all-day entries. Timed entries — including
+  // multi-day ones — render as clipped blocks in each day's time grid below.
+  const allDayEntries = useMemo(() => entries.filter((e) => e.allDay), [entries]);
+  const timedEntries = useMemo(() => entries.filter((e) => !e.allDay), [entries]);
+
   const { spans, singleDay } = useMemo(
-    () => computeSpanPlacements(weekDays, entries),
-    [weekDays, entries]
+    () => computeSpanPlacements(weekDays, allDayEntries),
+    [weekDays, allDayEntries]
   );
 
-  // Build timed entries by date (single-day non-all-day entries only)
+  // A timed entry shows on every day it overlaps (multi-day events repeat,
+  // clipped to each day's slice via daySegmentHours).
   const timedByDate = useMemo(() => {
     const map = new Map<string, CalendarEntry[]>();
-    for (const [key, dayEntries] of singleDay) {
-      map.set(
-        key,
-        dayEntries.filter((e) => !e.allDay)
-      );
+    for (const day of weekDays) {
+      const list = timedEntries.filter((e) => daySegmentHours(day, e) !== null);
+      if (list.length) map.set(dateKey(day), list);
     }
     return map;
-  }, [singleDay]);
+  }, [weekDays, timedEntries]);
 
-  // Also collect single-day all-day entries for the span area
+  // Single-day all-day entries shown as one-column chips in the span area.
+  // (`singleDay` only holds all-day entries now, since computeSpanPlacements
+  // was given the all-day subset.)
   const allDaySingles = useMemo(() => {
     const result: SpanPlacement[] = [];
     for (const [key, dayEntries] of singleDay) {
       const col = weekDays.findIndex((d) => dateKey(d) === key);
       if (col === -1) continue;
       for (const entry of dayEntries) {
-        if (entry.allDay) {
-          result.push({ entry, startCol: col, spanCols: 1, lane: 0, showTitle: true });
-        }
+        result.push({ entry, startCol: col, spanCols: 1, lane: 0, showTitle: true });
       }
     }
     return result;
@@ -950,10 +979,9 @@ function WeekView({
               lane: number;
             }[] = [];
             for (const entry of dayEntries) {
-              const { start, end } = parseEntry(entry);
-              const sH = getHours(start) + getMinutes(start) / 60;
-              const eH = getHours(end) + getMinutes(end) / 60;
-              dayBlocks.push({ entry, startHour: sH, endHour: eH <= sH ? sH + 1 : eH, lane: 0 });
+              const seg = daySegmentHours(day, entry);
+              if (!seg) continue;
+              dayBlocks.push({ entry, startHour: seg.startHour, endHour: seg.endHour, lane: 0 });
             }
             dayBlocks.sort(
               (a, b) =>
@@ -1016,8 +1044,12 @@ function WeekView({
                   const leftPct = (block.lane / dayMaxLane) * 100;
 
                   return (
+                    // A multi-day timed event renders one block per day, so the
+                    // dnd-kit id must include the day to stay unique (data.entry
+                    // is unchanged, so reschedule routing is identical).
                     <DraggableEntryButton
-                      key={block.entry.id}
+                      key={`${block.entry.id}-${key}`}
+                      dragId={`${block.entry.id}-${key}`}
                       entry={block.entry}
                       enabled={dndEnabled}
                       onSelect={onEntryClick}
@@ -1101,10 +1133,9 @@ function DayView({
   const { blocks, maxLane } = useMemo(() => {
     const result: TimedBlock[] = [];
     for (const entry of timedEntries) {
-      const { start, end } = parseEntry(entry);
-      const sH = getHours(start) + getMinutes(start) / 60;
-      const eH = getHours(end) + getMinutes(end) / 60;
-      result.push({ entry, startHour: sH, endHour: eH <= sH ? sH + 1 : eH, lane: 0 });
+      const seg = daySegmentHours(focusDate, entry);
+      if (!seg) continue;
+      result.push({ entry, startHour: seg.startHour, endHour: seg.endHour, lane: 0 });
     }
     // Sort and assign lanes for overlapping
     result.sort(
@@ -1127,7 +1158,7 @@ function DayView({
       }
     }
     return { blocks: result, maxLane: Math.max(laneEnds.length, 1) };
-  }, [timedEntries]);
+  }, [timedEntries, focusDate]);
 
   return (
     <div className="space-y-3">

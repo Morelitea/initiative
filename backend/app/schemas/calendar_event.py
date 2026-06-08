@@ -91,11 +91,6 @@ class CalendarEventBase(SanitizedBaseModel):
     def validate_dates(self) -> "CalendarEventBase":
         if self.end_at < self.start_at:
             raise ValueError("end_at must be after start_at")
-        # Non-all-day events cannot span more than 24 hours
-        if not self.all_day:
-            from datetime import timedelta
-            if (self.end_at - self.start_at) > timedelta(hours=24):
-                raise ValueError("Non-all-day events cannot span more than 24 hours")
         return self
 
 

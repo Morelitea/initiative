@@ -25,6 +25,7 @@ from app.models.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
     CalendarEventTag,
+    RSVPStatus,
 )
 from app.models.guild import GuildMembership
 from app.models.initiative import Initiative, PermissionKey
@@ -600,13 +601,6 @@ async def update_calendar_event(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="end_at must be after start_at",
             )
-        if not event.all_day:
-            from datetime import timedelta
-            if (event.end_at - event.start_at) > timedelta(hours=24):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Non-all-day events cannot span more than 24 hours",
-                )
         event.updated_at = datetime.now(timezone.utc)
         session.add(event)
 
@@ -620,7 +614,14 @@ async def update_calendar_event(
         )
         if meaningful_change:
             for attendee in event.attendees:
-                if attendee.user and attendee.user_id != current_user.id:
+                # Skip the editor and anyone who declined — a declined attendee
+                # isn't coming, so reschedules/edits are noise (mirrors the
+                # reminder pass, which also skips declined RSVPs).
+                if (
+                    attendee.user
+                    and attendee.user_id != current_user.id
+                    and attendee.rsvp_status != RSVPStatus.declined
+                ):
                     await notifications_service.notify_event_updated(
                         session,
                         attendee=attendee.user,
@@ -658,7 +659,13 @@ async def delete_calendar_event(
     )
     retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
     for attendee in event.attendees:
-        if attendee.user and attendee.user_id != current_user.id:
+        # A declined attendee already isn't attending, so skip the cancellation
+        # notice for them (consistent with update/reminder notifications).
+        if (
+            attendee.user
+            and attendee.user_id != current_user.id
+            and attendee.rsvp_status != RSVPStatus.declined
+        ):
             await notifications_service.notify_event_cancelled(
                 session,
                 attendee=attendee.user,
