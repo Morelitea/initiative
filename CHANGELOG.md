@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-06-08
+
+### Added
+
+- **Drag and drop to reschedule on the calendar.** On both the initiative and project calendars, drag an event or task to a different day in month view (its time of day is kept), or onto a specific day-and-time slot in week view, or to a different hour in day view — rescheduling it without opening it. A plain click still opens the item.
+- **"Add Event" button on an initiative's calendar.** A floating Add Event button (matching the existing Add Task button) now appears on an initiative's Events page for members who can create events.
+- **Tags on the calendar list view.** Tasks and events in the calendar list now show their tags.
+- **Event notifications for attendees.** You now get a notification (bell, plus email/push if enabled) when you're invited to an event, when an event you're attending is updated or rescheduled, and when one is cancelled. Organizers are notified when an attendee responds to their invitation. A new "Events" category in notification settings controls the email and mobile channels.
+- **Event reminders.** A new "Event reminders" notification category sends a reminder before events you're attending begin, with a configurable lead time (at the time of the event, 5/10/15/30 minutes, 1 hour, or 1 day before — defaulting to 15 minutes).
+- **My Calendar tasks toggle.** The My Calendar view gained a Tasks toggle (matching the initiative calendar) to show or hide tasks, and a My Calendar entry was added to the command center.
+
+### Changed
+
+- **The chosen calendar view now persists.** Switching between day, week, month, year, or list view is remembered across sessions and devices, and shared across the Events, My Tasks, and Created Tasks calendars.
+- **Tasks clearly distinguish start from due on the calendar.** Start and due dates are labeled "Start"/"Due" with distinct markers, and a task that both starts and is due on the same day now renders as a single block spanning its time slot instead of two all-day entries.
+
 ## [0.49.9] - 2026-06-06
 
 ### Added

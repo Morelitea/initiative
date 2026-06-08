@@ -1,7 +1,7 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { addYears, endOfYear, format, startOfYear, subYears } from "date-fns";
-import { ChevronDown, Download, Filter, Loader2, Upload } from "lucide-react";
+import { ChevronDown, Download, Filter, Loader2, Plus, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,7 +12,14 @@ import type {
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
-import { type CalendarEntry, CalendarView, type CalendarViewMode } from "@/components/calendar";
+import {
+  buildTaskCalendarEntries,
+  CALENDAR_VIEW_MODE_KEY,
+  type CalendarEntry,
+  type CalendarEntryReschedule,
+  CalendarView,
+  type CalendarViewMode,
+} from "@/components/calendar";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
 import {
@@ -24,33 +31,19 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { useAuth } from "@/hooks/useAuth";
-import { useCalendarEventsList } from "@/hooks/useCalendarEvents";
+import { useCalendarEventsList, useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import {
   canCreate as canCreatePermission,
   useMyInitiativePermissions,
 } from "@/hooks/useInitiativeRoles";
-import { useTasks } from "@/hooks/useTasks";
+import { useTasks, useUpdateTask } from "@/hooks/useTasks";
+import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
 
 const STORAGE_KEY = "initiative-events-prefs";
-
-/** Distinct colors auto-assigned to projects on the calendar */
-const PROJECT_COLORS = [
-  "#3b82f6", // blue
-  "#10b981", // emerald
-  "#f59e0b", // amber
-  "#ef4444", // red
-  "#8b5cf6", // violet
-  "#ec4899", // pink
-  "#14b8a6", // teal
-  "#f97316", // orange
-  "#06b6d4", // cyan
-  "#84cc16", // lime
-];
-
-const getProjectColor = (projectId: number) => PROJECT_COLORS[projectId % PROJECT_COLORS.length];
 
 const STATUS_CATEGORIES: TaskStatusCategory[] = ["backlog", "todo", "in_progress", "done"];
 const PRIORITY_ORDER: TaskPriority[] = ["low", "medium", "high", "urgent"];
@@ -128,8 +121,11 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   searchParamsRef.current = searchParams;
   const isClosingCreateDialog = useRef(false);
 
-  // Calendar state
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
+  // Calendar state — view mode persists per-user across all calendars.
+  const [viewMode, setViewMode] = useViewPreference<CalendarViewMode>(
+    CALENDAR_VIEW_MODE_KEY,
+    "month"
+  );
   const [focusDate, setFocusDate] = useState(() => new Date());
 
   // Filter state (persisted)
@@ -255,6 +251,18 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     return false;
   }, [canCreate, initiativeId, initiativePermissions]);
 
+  // Tasks belong to projects; the precise per-project edit permission is
+  // enforced by the backend on drop. Here we gate task-chip dragging on
+  // project-create permission as a proxy, so users who can't manage project
+  // content don't get draggable task chips. Decoupled from canCreateEvents so
+  // event-create and task-edit are judged independently.
+  const canEditTasks = useMemo(() => {
+    if (initiativeId && initiativePermissions) {
+      return canCreatePermission(initiativePermissions, "projects");
+    }
+    return false;
+  }, [initiativeId, initiativePermissions]);
+
   // --- Merge events + tasks into calendar entries ---
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
@@ -277,6 +285,8 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
             userId: att.user_id,
           })),
           properties: event.property_values,
+          tags: event.tags,
+          draggable: canCreateEvents,
           meta: { type: "event", eventId: event.id },
         });
       });
@@ -285,47 +295,14 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     if (showTasks) {
       const tasks = tasksQuery.data?.items ?? [];
       tasks.forEach((task) => {
-        const taskAttendees = task.assignees
-          .filter((a) => a.full_name)
-          .map((a) => ({
-            name: a.full_name!,
-            avatarUrl: a.avatar_url,
-            avatarBase64: a.avatar_base64,
-            userId: a.id,
-          }));
-        const color = getProjectColor(task.project_id);
-
-        if (task.due_date) {
-          entries.push({
-            id: `task-${task.id}-due`,
-            title: task.title,
-            startAt: task.due_date,
-            endAt: task.due_date,
-            allDay: true,
-            color,
-            attendees: taskAttendees,
-            properties: task.properties,
-            meta: { type: "task", taskId: task.id },
-          });
-        }
-        if (task.start_date) {
-          entries.push({
-            id: `task-${task.id}-start`,
-            title: task.title,
-            startAt: task.start_date,
-            endAt: task.start_date,
-            allDay: true,
-            color,
-            attendees: taskAttendees,
-            properties: task.properties,
-            meta: { type: "task", taskId: task.id },
-          });
-        }
+        entries.push(
+          ...buildTaskCalendarEntries(task, getProjectColor(task.project_id), canEditTasks)
+        );
       });
     }
 
     return entries;
-  }, [showEvents, showTasks, eventsQuery.data, tasksQuery.data]);
+  }, [showEvents, showTasks, eventsQuery.data, tasksQuery.data, canCreateEvents, canEditTasks]);
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -376,6 +353,41 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       void router.navigate({ to: gp(`/tasks/${meta.taskId}`) });
     }
   };
+
+  // Drag-to-reschedule: route the computed new times to the right mutation.
+  // A start/due marker patches only that field; an event or same-day span
+  // shifts both endpoints (CalendarView already preserved the duration).
+  const updateTask = useUpdateTask();
+  const rescheduleEvent = useRescheduleCalendarEvent();
+
+  const handleEntryReschedule = useCallback(
+    ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
+      const meta = entry.meta as
+        | { type?: string; taskId?: number; eventId?: number; kind?: "start" | "due" | "span" }
+        | undefined;
+      if (!meta) return;
+      if (meta.type === "event" && meta.eventId) {
+        rescheduleEvent.mutate({
+          eventId: meta.eventId,
+          data: { start_at: startAt, end_at: endAt },
+        });
+        return;
+      }
+      if (meta.type === "task" && meta.taskId) {
+        if (meta.kind === "start") {
+          updateTask.mutate({ taskId: meta.taskId, data: { start_date: startAt } });
+        } else if (meta.kind === "due") {
+          updateTask.mutate({ taskId: meta.taskId, data: { due_date: startAt } });
+        } else {
+          updateTask.mutate({
+            taskId: meta.taskId,
+            data: { start_date: startAt, due_date: endAt },
+          });
+        }
+      }
+    },
+    [updateTask, rescheduleEvent]
+  );
 
   const defaultStartDate = createDefaultDate ? format(createDefaultDate, "yyyy-MM-dd") : undefined;
 
@@ -562,6 +574,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           onFocusDateChange={setFocusDate}
           onEntryClick={handleEntryClick}
           onSlotClick={canCreateEvents ? handleSlotClick : undefined}
+          onEntryReschedule={canCreateEvents || canEditTasks ? handleEntryReschedule : undefined}
           weekStartsOn={weekStartsOn}
         />
       )}
@@ -581,6 +594,19 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         onOpenChange={setImportDialogOpen}
         fixedInitiativeId={initiativeId ?? undefined}
       />
+
+      {canCreateEvents && initiativeId && (
+        <Button
+          className="fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
+          onClick={() => {
+            setCreateDefaultDate(null);
+            setCreateDialogOpen(true);
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          {t("createEvent")}
+        </Button>
+      )}
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import {
   BarChart3,
+  CalendarDays,
   CheckSquare,
   FilePlus,
   GalleryHorizontalEnd,
@@ -168,6 +169,7 @@ export function CommandCenter() {
     const items = [
       { label: t("pages.myTasks"), path: "/", icon: CheckSquare },
       { label: t("pages.tasksICreated"), path: "/created-tasks", icon: PenLine },
+      { label: t("pages.myCalendar"), path: "/my-calendar", icon: CalendarDays },
       { label: t("pages.myProjects"), path: "/my-projects", icon: ListTodo },
       { label: t("pages.myDocuments"), path: "/my-documents", icon: ScrollText },
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },

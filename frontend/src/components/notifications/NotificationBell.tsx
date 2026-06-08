@@ -97,6 +97,14 @@ const notificationLink = (notification: NotificationRead): string | null => {
       // The Access tab serves both requesters (their requests) and approvers
       // (the queue). It's a platform route, not guild-scoped.
       return "/settings/admin/access";
+    case "event_invitation":
+    case "event_updated":
+    case "event_cancelled":
+    case "event_rsvp":
+    case "event_reminder": {
+      const eventId = Number(data.event_id);
+      return Number.isFinite(eventId) ? `/events/${eventId}` : null;
+    }
     default:
       return null;
   }
@@ -185,6 +193,36 @@ const notificationText = (
       return t("notifications.accessGrantDenied", { guild: data.guild_name ?? "a guild" });
     case "access_grant_revoked":
       return t("notifications.accessGrantRevoked", { guild: data.guild_name ?? "a guild" });
+    case "event_invitation":
+      return t("notifications.eventInvitation", {
+        organizer: data.organizer_name ?? "Someone",
+        eventTitle: data.event_title ?? "an event",
+      });
+    case "event_updated":
+      return data.time_changed
+        ? t("notifications.eventRescheduled", {
+            editor: data.editor_name ?? "Someone",
+            eventTitle: data.event_title ?? "an event",
+          })
+        : t("notifications.eventUpdated", {
+            editor: data.editor_name ?? "Someone",
+            eventTitle: data.event_title ?? "an event",
+          });
+    case "event_cancelled":
+      return t("notifications.eventCancelled", {
+        canceller: data.canceller_name ?? "Someone",
+        eventTitle: data.event_title ?? "an event",
+      });
+    case "event_rsvp":
+      return t("notifications.eventRsvp", {
+        responder: data.responder_name ?? "Someone",
+        status: data.rsvp_status ?? "responded",
+        eventTitle: data.event_title ?? "an event",
+      });
+    case "event_reminder":
+      return t("notifications.eventReminder", {
+        eventTitle: data.event_title ?? "an event",
+      });
     default:
       return t("notifications.defaultNotification");
   }

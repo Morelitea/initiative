@@ -76,7 +76,9 @@
     "viewMode": "View mode",
     "noEntries": "No events",
     "allDay": "All day",
-    "more": "+{{count}} more"
+    "more": "+{{count}} more",
+    "start": "Start",
+    "due": "Due"
   },
   "createAccess": {
     "advancedOptions": "Advanced options",

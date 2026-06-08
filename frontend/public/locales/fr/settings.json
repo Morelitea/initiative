@@ -251,7 +251,21 @@
       "newProject": "Nouveau projet dans l'initiative",
       "newProjectDescription": "Lorsque des projets sont créés dans vos initiatives.",
       "overdueTasks": "Tâches en retard",
-      "overdueTasksDescription": "Rappel quotidien pour les tâches en retard à l'heure programmée."
+      "overdueTasksDescription": "Rappel quotidien pour les tâches en retard à l'heure programmée.",
+      "events": "Événements",
+      "eventsDescription": "Quand on vous invite à un événement ou qu'un événement auquel vous participez change.",
+      "eventReminders": "Rappels d'événements",
+      "eventRemindersDescription": "Un rappel avant le début des événements auxquels vous participez."
+    },
+    "reminderLeadTime": {
+      "label": "Me rappeler",
+      "atStart": "À l'heure de l'événement",
+      "minute_one": "{{count}} minute avant",
+      "minute_other": "{{count}} minutes avant",
+      "hour_one": "{{count}} heure avant",
+      "hour_other": "{{count}} heures avant",
+      "day_one": "{{count}} jour avant",
+      "day_other": "{{count}} jours avant"
     }
   },
   "dangerZone": {

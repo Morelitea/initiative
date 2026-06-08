@@ -299,6 +299,19 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
+      # Sync the Docker Hub repository overview from docs/DOCKERHUB.md so the published
+      # description stays in version control. The description-update API needs a token with
+      # write scope (or the account password); if this 401s, widen DOCKERHUB_TOKEN's scope.
+      - name: Update Docker Hub description
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.IMAGE_NAME }}
+          short-description: "Self-hosted project management for friend groups, gaming communities, and small teams"
+          readme-filepath: ./docs/DOCKERHUB.md
+
       - name: Download Android APK
         if: needs.build-android.result == 'success'
         uses: actions/download-artifact@v8

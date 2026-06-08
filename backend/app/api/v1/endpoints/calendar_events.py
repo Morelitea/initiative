@@ -24,6 +24,7 @@ from app.db.session import get_admin_session, reapply_rls_context
 from app.models.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
+    CalendarEventTag,
 )
 from app.models.guild import GuildMembership
 from app.models.initiative import Initiative, PermissionKey
@@ -43,6 +44,7 @@ from app.schemas.ical import ICalImportRequest, ICalImportResult, ICalParseReque
 from app.schemas.property import PropertyValuesSetRequest
 from app.services import calendar_events as events_service
 from app.services import ical_service
+from app.services import notifications as notifications_service
 from app.services import properties as properties_service
 from app.services import rls as rls_service
 
@@ -131,6 +133,14 @@ async def _refetch_event(session: RLSSessionDep, event_id: int) -> CalendarEvent
     return event
 
 
+async def _fetch_users(session: RLSSessionDep, user_ids: list[int]) -> list[User]:
+    """Load User rows (for reading notification preferences) by id."""
+    if not user_ids:
+        return []
+    result = await session.exec(select(User).where(User.id.in_(tuple(set(user_ids)))))
+    return list(result.all())
+
+
 # ---------------------------------------------------------------------------
 # Cross-guild global view
 # ---------------------------------------------------------------------------
@@ -188,6 +198,7 @@ async def list_global_calendar_events(
             CalendarEventAttendee.user,
         ),
         selectinload(CalendarEvent.initiative),
+        selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
         selectinload(CalendarEvent.property_values)
         .selectinload(CalendarEventPropertyValue.property_definition),
         selectinload(CalendarEvent.property_values)
@@ -440,6 +451,7 @@ async def list_calendar_events(
         .options(
             selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
             selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
+            selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
             selectinload(CalendarEvent.property_values)
             .selectinload(CalendarEventPropertyValue.property_definition),
             selectinload(CalendarEvent.property_values)
@@ -521,6 +533,16 @@ async def create_calendar_event(
             session, event, event_in.document_ids, guild_context.guild_id, current_user.id,
         )
 
+    invite_ids = [uid for uid in (event_in.attendee_ids or []) if uid != current_user.id]
+    for attendee in await _fetch_users(session, invite_ids):
+        await notifications_service.notify_event_invitation(
+            session,
+            attendee=attendee,
+            organizer=current_user,
+            event=event,
+            guild_id=guild_context.guild_id,
+        )
+
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
@@ -544,6 +566,14 @@ async def update_calendar_event(
         guild_context,
         PermissionKey.create_events,
     )
+
+    # Snapshot fields that drive the "updated"/"rescheduled" notification before
+    # the in-place mutation below.
+    old_title = event.title
+    old_location = event.location
+    old_all_day = event.all_day
+    old_start = event.start_at
+    old_end = event.end_at
 
     updated = False
     update_data = event_in.model_dump(exclude_unset=True)
@@ -579,6 +609,27 @@ async def update_calendar_event(
                 )
         event.updated_at = datetime.now(timezone.utc)
         session.add(event)
+
+        # Notify attendees only on meaningful changes (skip pure color/tag edits).
+        time_changed = event.start_at != old_start or event.end_at != old_end
+        meaningful_change = (
+            time_changed
+            or event.title != old_title
+            or event.location != old_location
+            or event.all_day != old_all_day
+        )
+        if meaningful_change:
+            for attendee in event.attendees:
+                if attendee.user and attendee.user_id != current_user.id:
+                    await notifications_service.notify_event_updated(
+                        session,
+                        attendee=attendee.user,
+                        editor=current_user,
+                        event=event,
+                        guild_id=guild_context.guild_id,
+                        time_changed=time_changed,
+                    )
+
         await session.commit()
         await reapply_rls_context(session)
 
@@ -606,6 +657,15 @@ async def delete_calendar_event(
         PermissionKey.create_events,
     )
     retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    for attendee in event.attendees:
+        if attendee.user and attendee.user_id != current_user.id:
+            await notifications_service.notify_event_cancelled(
+                session,
+                attendee=attendee.user,
+                canceller=current_user,
+                event=event,
+                guild_id=guild_context.guild_id,
+            )
     await soft_delete_entity(
         session,
         event,
@@ -637,7 +697,19 @@ async def set_attendees(
         guild_context,
         PermissionKey.create_events,
     )
+    old_ids = {a.user_id for a in event.attendees}
     await events_service.set_event_attendees(session, event, attendee_ids, guild_context.guild_id)
+
+    added_ids = [uid for uid in (set(attendee_ids) - old_ids) if uid != current_user.id]
+    for attendee in await _fetch_users(session, added_ids):
+        await notifications_service.notify_event_invitation(
+            session,
+            attendee=attendee,
+            organizer=current_user,
+            event=event,
+            guild_id=guild_context.guild_id,
+        )
+
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
@@ -671,6 +743,19 @@ async def update_rsvp(
 
     attendee.rsvp_status = rsvp_in.rsvp_status
     session.add(attendee)
+
+    if event.created_by_id != current_user.id:
+        organizers = await _fetch_users(session, [event.created_by_id])
+        if organizers:
+            await notifications_service.notify_event_rsvp(
+                session,
+                organizer=organizers[0],
+                responder=current_user,
+                event=event,
+                rsvp_status=rsvp_in.rsvp_status,
+                guild_id=guild_context.guild_id,
+            )
+
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)

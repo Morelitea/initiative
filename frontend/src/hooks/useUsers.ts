@@ -151,13 +151,13 @@ export const useExportGuildUsersCsv = (options?: MutationOpts<void, ExportGuildU
 };
 
 export const useUpdateNotificationPreferences = (
-  options?: MutationOpts<void, Record<string, boolean | string>>
+  options?: MutationOpts<void, Record<string, boolean | string | number | null>>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (data: Record<string, boolean | string>) => {
+    mutationFn: async (data: Record<string, boolean | string | number | null>) => {
       await updateUsersMeApiV1UsersMePatch(
         data as Parameters<typeof updateUsersMeApiV1UsersMePatch>[0]
       );

@@ -54,6 +54,35 @@ def normalize_notification_time(value: str | None) -> str | None:
     return cleaned
 
 
+# 0 == "at the time of the event"; reminders are turned off via the
+# email/push toggles, not via this lead time.
+ALLOWED_REMINDER_MINUTES = {0, 5, 10, 15, 30, 60, 1440}
+
+
+def normalize_reminder_minutes(value: int | str | None) -> int | None:
+    """Validate the event-reminder lead time in minutes.
+
+    ``None`` is passed through (legacy "off"); ``0`` means "at the time of the
+    event". Any other value must be one of the allowed presets (5, 10, 15, 30
+    min, 1 hour, 1 day); raises ``400 USER_INVALID_REMINDER_MINUTES`` otherwise.
+    """
+    if value is None:
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.INVALID_REMINDER_MINUTES,
+        )
+    if number not in ALLOWED_REMINDER_MINUTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.INVALID_REMINDER_MINUTES,
+        )
+    return number
+
+
 def normalize_week_starts_on(value: int | str | None) -> int | None:
     """Validate a Sunday-Saturday weekday index (0–6)."""
     if value is None:

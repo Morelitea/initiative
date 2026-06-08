@@ -32,7 +32,14 @@ import type {
   TaskReorderRequest,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { type CalendarEntry, CalendarView, type CalendarViewMode } from "@/components/calendar";
+import {
+  buildTaskCalendarEntries,
+  CALENDAR_VIEW_MODE_KEY,
+  type CalendarEntry,
+  type CalendarEntryReschedule,
+  CalendarView,
+  type CalendarViewMode,
+} from "@/components/calendar";
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
@@ -80,6 +87,7 @@ import {
 } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
+import { getProjectColor } from "@/lib/projectColor";
 import { getItem, setItem } from "@/lib/storage";
 
 type ViewMode = "table" | "kanban" | "calendar" | "gantt";
@@ -294,7 +302,12 @@ export const ProjectTasksSection = ({
   // Calendar view state
   const { user } = useAuth();
   const weekStartsOn = (user?.week_starts_on ?? 0) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
-  const [calendarViewMode, setCalendarViewMode] = useState<CalendarViewMode>("month");
+  // Persist the chosen sub-view (day/week/month/...) per-user, shared with the
+  // other calendars via the same preference key.
+  const [calendarViewMode, setCalendarViewMode] = useViewPreference<CalendarViewMode>(
+    CALENDAR_VIEW_MODE_KEY,
+    "month"
+  );
   const [calendarFocusDate, setCalendarFocusDate] = useState(() => new Date());
 
   // Fetch tasks with server-side filtering (page_size=0 fetches all for drag-and-drop)
@@ -454,8 +467,11 @@ export const ProjectTasksSection = ({
     },
   });
 
-  const updateTaskStatus = useUpdateTask({
-    onSuccess: (updatedTask) => {
+  // Patch the locally-overridden task list with a server-confirmed update so
+  // the board/calendar reflects it immediately (and drop the task if it no
+  // longer matches the active status filter).
+  const applyTaskUpdateToLocal = useCallback(
+    (updatedTask: TaskListRead) => {
       setLocalOverride((prev) => {
         const base = prev ?? projectTasks;
         if (!base.length) return prev;
@@ -466,8 +482,22 @@ export const ProjectTasksSection = ({
         }
         return base.filter((task) => task.id !== updatedTask.id);
       });
+    },
+    [projectTasks, statusFilters]
+  );
+
+  const updateTaskStatus = useUpdateTask({
+    onSuccess: (updatedTask) => {
+      applyTaskUpdateToLocal(updatedTask);
       toast.success(t("tasks.taskUpdated"));
     },
+  });
+
+  // Calendar drag-reschedule: patches the local list so the entry moves
+  // immediately, but stays silent (no per-drag toast), matching the initiative
+  // calendar's reschedule UX.
+  const rescheduleTaskDates = useUpdateTask({
+    onSuccess: applyTaskUpdateToLocal,
   });
 
   const bulkUpdateTasks = useBulkUpdateTasks({
@@ -575,43 +605,42 @@ export const ProjectTasksSection = ({
   // Status filtering is now done server-side, so statusFilteredTasks is just filteredTasks
   const statusFilteredTasks = filteredTasks;
 
-  // Map tasks to CalendarEntry[] for the generic CalendarView
+  // Map tasks to CalendarEntry[] for the generic CalendarView. Shares the
+  // helper used by the initiative calendar so start/due markers, same-day
+  // spans, tags, and drag-to-reschedule behave identically.
   const calendarEntries = useMemo(() => {
     const entries: CalendarEntry[] = [];
     statusFilteredTasks.forEach((task) => {
-      const taskAttendees = task.assignees
-        .filter((a) => a.full_name)
-        .map((a) => ({
-          name: a.full_name!,
-          avatarUrl: a.avatar_url,
-          avatarBase64: a.avatar_base64,
-          userId: a.id,
-        }));
-
-      if (task.due_date) {
-        entries.push({
-          id: `${task.id}-due`,
-          title: task.title,
-          startAt: task.due_date,
-          endAt: task.due_date,
-          allDay: true,
-          attendees: taskAttendees,
-        });
-      }
-      if (task.start_date) {
-        entries.push({
-          id: `${task.id}-start`,
-          title: task.title,
-          startAt: task.start_date,
-          endAt: task.start_date,
-          allDay: true,
-          color: "#10b981",
-          attendees: taskAttendees,
-        });
-      }
+      entries.push(
+        ...buildTaskCalendarEntries(task, getProjectColor(task.project_id), canEditTaskDetails)
+      );
     });
     return entries;
-  }, [statusFilteredTasks]);
+  }, [statusFilteredTasks, canEditTaskDetails]);
+
+  // Drag-to-reschedule on the calendar. Uses the silent date-update mutation
+  // (patches the local list so the dropped entry moves immediately, no toast).
+  // A start/due marker patches only that field; a same-day span shifts both
+  // endpoints (CalendarView preserved the duration).
+  const handleCalendarReschedule = useCallback(
+    ({ entry, startAt, endAt }: CalendarEntryReschedule) => {
+      const meta = entry.meta as
+        | { type?: string; taskId?: number; kind?: "start" | "due" | "span" }
+        | undefined;
+      if (meta?.type !== "task" || !meta.taskId) return;
+      if (meta.kind === "start") {
+        rescheduleTaskDates.mutate({ taskId: meta.taskId, data: { start_date: startAt } });
+      } else if (meta.kind === "due") {
+        rescheduleTaskDates.mutate({ taskId: meta.taskId, data: { due_date: startAt } });
+      } else {
+        rescheduleTaskDates.mutate({
+          taskId: meta.taskId,
+          data: { start_date: startAt, due_date: endAt },
+        });
+      }
+    },
+    [rescheduleTaskDates]
+  );
 
   // Count of archivable done tasks (non-archived tasks in done category)
   const archivableDoneTasksCount = useMemo(() => {
@@ -1032,9 +1061,10 @@ export const ProjectTasksSection = ({
             focusDate={calendarFocusDate}
             onFocusDateChange={setCalendarFocusDate}
             onEntryClick={(entry) => {
-              const taskId = Number(String(entry.id).split("-")[0]);
-              if (canViewTaskDetails) onTaskClick(taskId);
+              const meta = entry.meta as { taskId?: number } | undefined;
+              if (meta?.taskId && canViewTaskDetails) onTaskClick(meta.taskId);
             }}
+            onEntryReschedule={canEditTaskDetails ? handleCalendarReschedule : undefined}
             weekStartsOn={weekStartsOn}
           />
         </TabsContent>

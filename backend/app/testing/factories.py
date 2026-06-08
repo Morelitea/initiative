@@ -75,6 +75,11 @@ async def create_user(
         "push_project_added": True,
         "push_overdue_tasks": True,
         "push_mentions": True,
+        "email_events": True,
+        "push_events": True,
+        "email_event_reminders": True,
+        "push_event_reminders": True,
+        "event_reminder_minutes_before": 15,
     }
 
     user_data = {**defaults, **overrides}

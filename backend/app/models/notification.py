@@ -19,6 +19,11 @@ class NotificationType(str, Enum):
     access_grant_approved = "access_grant_approved"
     access_grant_denied = "access_grant_denied"
     access_grant_revoked = "access_grant_revoked"
+    event_invitation = "event_invitation"
+    event_updated = "event_updated"
+    event_cancelled = "event_cancelled"
+    event_rsvp = "event_rsvp"
+    event_reminder = "event_reminder"
 
 
 class Notification(SQLModel, table=True):

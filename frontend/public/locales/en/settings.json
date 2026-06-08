@@ -251,7 +251,21 @@
       "newProject": "New project in initiative",
       "newProjectDescription": "When projects are created in your initiatives.",
       "overdueTasks": "Overdue tasks",
-      "overdueTasksDescription": "Daily reminder for tasks past due at your scheduled time."
+      "overdueTasksDescription": "Daily reminder for tasks past due at your scheduled time.",
+      "events": "Events",
+      "eventsDescription": "When you’re invited to an event, or one you’re attending changes.",
+      "eventReminders": "Event reminders",
+      "eventRemindersDescription": "A reminder before events you’re attending begin."
+    },
+    "reminderLeadTime": {
+      "label": "Remind me",
+      "atStart": "At the time of the event",
+      "minute_one": "{{count}} minute before",
+      "minute_other": "{{count}} minutes before",
+      "hour_one": "{{count}} hour before",
+      "hour_other": "{{count}} hours before",
+      "day_one": "{{count}} day before",
+      "day_other": "{{count}} days before"
     }
   },
   "dangerZone": {

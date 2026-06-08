@@ -14,6 +14,8 @@ from app.models.initiative import Initiative
 from app.models.project import Project
 from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, RSVPStatus
+from app.models.event_reminder_dispatch import EventReminderDispatch
 from app.core.capabilities import Capability, roles_with_capability
 from app.models.user import User, UserStatus
 from app.models.notification import NotificationType
@@ -25,6 +27,10 @@ logger = logging.getLogger(__name__)
 
 DIGEST_POLL_SECONDS = 120
 OVERDUE_POLL_SECONDS = 300
+EVENT_REMINDER_POLL_SECONDS = 60
+# Events that started within this window are still eligible, so a 0-minute
+# ("at start") reminder fires on the next poll rather than being missed.
+EVENT_REMINDER_GRACE = timedelta(minutes=5)
 
 
 def _normalize_target_path(target_path: str) -> str:
@@ -54,6 +60,12 @@ def _project_target_path(project_id: int | None) -> str:
     if project_id is None:
         return "/projects"
     return f"/projects/{project_id}"
+
+
+def _event_target_path(event_id: int | None) -> str:
+    if event_id is None:
+        return "/calendar"
+    return f"/events/{event_id}"
 
 
 async def _project_guild_map(session: AsyncSession, project_ids: set[int]) -> dict[int, int]:
@@ -711,6 +723,243 @@ async def notify_comment_reply(
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
+# ---------------------------------------------------------------------------
+# Calendar event notifications
+# ---------------------------------------------------------------------------
+
+
+def _format_event_when(event: CalendarEvent) -> str:
+    """Human-readable event start for email/push bodies (UTC, like overdue)."""
+    if event.all_day:
+        return event.start_at.strftime("%Y-%m-%d")
+    return event.start_at.strftime("%Y-%m-%d %H:%M UTC")
+
+
+async def _deliver_event_notification(
+    session: AsyncSession,
+    *,
+    recipient: User,
+    notification_type: NotificationType,
+    data: dict,
+    email_enabled: bool,
+    push_enabled: bool,
+    email_subject: str,
+    email_headline: str,
+    email_body: str,
+    push_title: str,
+    push_body: str,
+) -> None:
+    """Shared 3-tier delivery for calendar-event notifications.
+
+    In-app is always created; email/push are gated by the caller's resolved
+    preference flags. Mirrors the task/comment notifiers' structure.
+    """
+    target_path = data.get("target_path", "/calendar")
+    guild_id = data.get("guild_id")
+    await user_notifications.create_notification(
+        session,
+        user_id=recipient.id,
+        notification_type=notification_type,
+        data=data,
+    )
+    if email_enabled:
+        try:
+            await email_service.send_mention_email(
+                session,
+                recipient,
+                subject=email_subject,
+                headline=email_headline,
+                body_text=email_body,
+                link=data.get("smart_link"),
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping event email for %s", recipient.email)
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send event email: %s", exc)
+    if push_enabled:
+        try:
+            await push_notifications.send_push_to_user(
+                session=session,
+                user_id=recipient.id,
+                notification_type=notification_type,
+                title=push_title,
+                body=push_body,
+                data={
+                    "type": notification_type.value,
+                    "event_id": str(data.get("event_id")),
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
+                },
+            )
+        except Exception as exc:
+            logger.error(f"Failed to send push notification: {exc}", exc_info=True)
+
+
+def _event_data(event: CalendarEvent, guild_id: int, **extra) -> dict:
+    target_path = _event_target_path(event.id)
+    data = {
+        "event_id": event.id,
+        "event_title": event.title,
+        "start_at": event.start_at.isoformat(),
+        "guild_id": guild_id,
+        "target_path": target_path,
+        "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+    }
+    data.update(extra)
+    return data
+
+
+async def notify_event_invitation(
+    session: AsyncSession,
+    *,
+    attendee: User,
+    organizer: User,
+    event: CalendarEvent,
+    guild_id: int,
+) -> None:
+    """Notify a user they were added as an attendee on a calendar event."""
+    if attendee.id == organizer.id:
+        return
+    organizer_name = organizer.full_name or organizer.email
+    when = _format_event_when(event)
+    await _deliver_event_notification(
+        session,
+        recipient=attendee,
+        notification_type=NotificationType.event_invitation,
+        data=_event_data(event, guild_id, organizer_name=organizer_name),
+        email_enabled=attendee.email_events is not False,
+        push_enabled=attendee.push_events is not False,
+        email_subject=f"You're invited: {event.title}",
+        email_headline="New event invitation",
+        email_body=f"{organizer_name} invited you to {event.title} ({when}).",
+        push_title="New event invitation",
+        push_body=f"{event.title} ({when})",
+    )
+
+
+async def notify_event_updated(
+    session: AsyncSession,
+    *,
+    attendee: User,
+    editor: User,
+    event: CalendarEvent,
+    guild_id: int,
+    time_changed: bool,
+) -> None:
+    """Notify an attendee that an event's details changed (or was rescheduled)."""
+    if attendee.id == editor.id:
+        return
+    editor_name = editor.full_name or editor.email
+    when = _format_event_when(event)
+    if time_changed:
+        headline = "Event rescheduled"
+        body = f"{editor_name} rescheduled {event.title} to {when}."
+    else:
+        headline = "Event updated"
+        body = f"{editor_name} updated {event.title} ({when})."
+    await _deliver_event_notification(
+        session,
+        recipient=attendee,
+        notification_type=NotificationType.event_updated,
+        data=_event_data(
+            event, guild_id, editor_name=editor_name, time_changed=time_changed
+        ),
+        email_enabled=attendee.email_events is not False,
+        push_enabled=attendee.push_events is not False,
+        email_subject=f"{headline}: {event.title}",
+        email_headline=headline,
+        email_body=body,
+        push_title=headline,
+        push_body=f"{event.title} ({when})",
+    )
+
+
+async def notify_event_cancelled(
+    session: AsyncSession,
+    *,
+    attendee: User,
+    canceller: User,
+    event: CalendarEvent,
+    guild_id: int,
+) -> None:
+    """Notify an attendee that an event was cancelled (deleted)."""
+    if attendee.id == canceller.id:
+        return
+    canceller_name = canceller.full_name or canceller.email
+    when = _format_event_when(event)
+    await _deliver_event_notification(
+        session,
+        recipient=attendee,
+        notification_type=NotificationType.event_cancelled,
+        data=_event_data(event, guild_id, canceller_name=canceller_name),
+        email_enabled=attendee.email_events is not False,
+        push_enabled=attendee.push_events is not False,
+        email_subject=f"Event cancelled: {event.title}",
+        email_headline="Event cancelled",
+        email_body=f"{canceller_name} cancelled {event.title} ({when}).",
+        push_title="Event cancelled",
+        push_body=f"{event.title} ({when})",
+    )
+
+
+async def notify_event_rsvp(
+    session: AsyncSession,
+    *,
+    organizer: User,
+    responder: User,
+    event: CalendarEvent,
+    rsvp_status: RSVPStatus,
+    guild_id: int,
+) -> None:
+    """Notify the organizer that an attendee responded to their event."""
+    if organizer.id == responder.id:
+        return
+    responder_name = responder.full_name or responder.email
+    status_value = rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
+    await _deliver_event_notification(
+        session,
+        recipient=organizer,
+        notification_type=NotificationType.event_rsvp,
+        data=_event_data(
+            event,
+            guild_id,
+            responder_name=responder_name,
+            rsvp_status=status_value,
+        ),
+        email_enabled=organizer.email_events is not False,
+        push_enabled=organizer.push_events is not False,
+        email_subject=f"RSVP update: {event.title}",
+        email_headline="RSVP update",
+        email_body=f"{responder_name} responded “{status_value}” to {event.title}.",
+        push_title="RSVP update",
+        push_body=f"{responder_name} responded {status_value} to {event.title}",
+    )
+
+
+async def notify_event_reminder(
+    session: AsyncSession,
+    *,
+    recipient: User,
+    event: CalendarEvent,
+    guild_id: int,
+) -> None:
+    """Send a scheduled lead-time reminder for an upcoming event."""
+    when = _format_event_when(event)
+    await _deliver_event_notification(
+        session,
+        recipient=recipient,
+        notification_type=NotificationType.event_reminder,
+        data=_event_data(event, guild_id),
+        email_enabled=recipient.email_event_reminders is not False,
+        push_enabled=recipient.push_event_reminders is not False,
+        email_subject=f"Reminder: {event.title}",
+        email_headline="Upcoming event",
+        email_body=f"{event.title} starts at {when}.",
+        push_title="Upcoming event",
+        push_body=f"{event.title} ({when})",
+    )
+
+
 async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:
     stmt = (
         select(TaskAssignmentDigestItem.user_id)
@@ -869,5 +1118,81 @@ async def process_overdue_notifications() -> None:
             user.last_overdue_notification_at = now_utc
             session.add(user)
             await session.commit()
+
+
+async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Dispatch any reminders due as of ``now`` using the given session.
+
+    Split out from ``process_event_reminders`` so tests can drive it with the
+    test session (the worker opens its own ``AdminSessionLocal``).
+    """
+    horizon = now + timedelta(days=1)
+    # Allow events that started within the grace window so a 0-minute
+    # ("at the time of the event") reminder still fires on the next poll
+    # instead of being skipped the instant the event begins.
+    lower = now - EVENT_REMINDER_GRACE
+    stmt = (
+        select(CalendarEvent, User)
+        .join(
+            CalendarEventAttendee,
+            CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
+        )
+        .join(User, User.id == CalendarEventAttendee.user_id)
+        .where(
+            CalendarEvent.deleted_at.is_(None),
+            CalendarEvent.start_at > lower,
+            CalendarEvent.start_at <= horizon,
+            CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
+            User.event_reminder_minutes_before.is_not(None),
+        )
+    )
+    result = await session.exec(stmt)
+    rows = result.all()
+    for event, user in rows:
+        minutes = user.event_reminder_minutes_before
+        if minutes is None:
+            continue
+        remind_at = event.start_at - timedelta(minutes=minutes)
+        if remind_at > now:
+            continue
+        existing = await session.exec(
+            select(EventReminderDispatch.id).where(
+                EventReminderDispatch.event_id == event.id,
+                EventReminderDispatch.user_id == user.id,
+                EventReminderDispatch.event_start_at == event.start_at,
+            )
+        )
+        if existing.first() is not None:
+            continue
+        # Reserve the dedup row and commit it *before* dispatching the external
+        # channels. This loop polls every 60s, so if email/push went out first
+        # and the ledger commit then failed, the next poll would resend. Writing
+        # the ledger first means a commit failure here simply retries cleanly,
+        # and a success guarantees at most one send.
+        session.add(
+            EventReminderDispatch(
+                event_id=event.id,
+                user_id=user.id,
+                event_start_at=event.start_at,
+            )
+        )
+        await session.commit()
+        await notify_event_reminder(
+            session, recipient=user, event=event, guild_id=event.guild_id
+        )
+        await session.commit()
+
+
+async def process_event_reminders() -> None:
+    """Dispatch lead-time reminders for upcoming calendar events.
+
+    Polled by the background worker. Considers events starting within the next
+    day (the widest lead preset) whose attendees opted into reminders, and
+    fires once per (event, user, start time) — keyed on ``start_at`` so a
+    reschedule re-arms the reminder. Attendees who RSVP'd ``declined`` are
+    skipped.
+    """
+    async with AdminSessionLocal() as session:
+        await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
 
 

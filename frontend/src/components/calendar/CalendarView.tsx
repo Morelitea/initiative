@@ -1,4 +1,17 @@
 import {
+  DndContext,
+  type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
+  MouseSensor,
+  pointerWithin,
+  TouchSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
   addDays,
   addMonths,
   addWeeks,
@@ -26,12 +39,14 @@ import {
   Grid3X3,
   List,
 } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { PropertySummary } from "@/api/generated/initiativeAPI.schemas";
+import type { PropertySummary, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { PropertyValueCell } from "@/components/properties/PropertyValueCell";
 import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpers";
+import { TagBadge } from "@/components/tags/TagBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,6 +60,10 @@ import { cn } from "@/lib/utils";
 // ---------------------------------------------------------------------------
 
 export type CalendarViewMode = "day" | "week" | "month" | "year" | "list";
+
+/** Shared `useViewPreference` scope key so every calendar (initiative events,
+ *  My Tasks, Created Tasks) persists and restores the same chosen sub-view. */
+export const CALENDAR_VIEW_MODE_KEY = "calendar:view-mode";
 
 export type CalendarEntryAttendee = {
   name: string;
@@ -60,6 +79,11 @@ export type CalendarEntryAttendee = {
   userId?: number | null;
 };
 
+/** Presentational marker for task entries: lets the calendar render a
+ *  "Start"/"Due" label and a distinct dot so the two are easy to tell apart.
+ *  Unset for events and same-day task spans. */
+export type CalendarEntryKind = "start" | "due";
+
 export type CalendarEntry = {
   id: number | string;
   title: string;
@@ -72,8 +96,28 @@ export type CalendarEntry = {
   /** Custom property values attached to the underlying entity. Rendered as
    *  compact chips on the list view; other calendar views omit them. */
   properties?: PropertySummary[];
+  /** Tags attached to the underlying entity. Rendered as badges on the list view. */
+  tags?: TagSummary[];
+  /** Presentational start/due marker (see CalendarEntryKind). */
+  kind?: CalendarEntryKind;
+  /** When false, the entry cannot be dragged to reschedule (default true). */
+  draggable?: boolean;
   /** Any extra data the consumer wants to pass through */
   meta?: Record<string, unknown>;
+};
+
+/** Payload handed to ``onEntryReschedule`` after a drag drop. CalendarView
+ *  computes the resulting absolute ISO start/end (duration preserved, and
+ *  time-of-day preserved on date-only moves); the consumer routes it to the
+ *  right mutation using ``entry.meta``/``entry.kind``. */
+export type CalendarEntryReschedule = {
+  entry: CalendarEntry;
+  /** New absolute start, ISO. */
+  startAt: string;
+  /** New absolute end, ISO. Equals ``startAt`` for instant markers. */
+  endAt: string;
+  /** Which axis changed: a date-only move (month/week) or a time move (day). */
+  mode: "day" | "time";
 };
 
 type CalendarViewProps = {
@@ -88,6 +132,9 @@ type CalendarViewProps = {
   onEntryClick?: (entry: CalendarEntry) => void;
   /** Called when user clicks an empty day/time slot to create */
   onSlotClick?: (date: Date) => void;
+  /** Called when the user drags an entry to a new day (month/week) or hour
+   *  (day). When omitted, drag-to-reschedule is disabled entirely. */
+  onEntryReschedule?: (change: CalendarEntryReschedule) => void;
   /** Week start day from user preferences */
   weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   /** Loading state */
@@ -161,6 +208,119 @@ function formatHourLabel(hour: number): string {
   if (hour < 12) return `${hour}am`;
   if (hour === 12) return "12pm";
   return `${hour - 12}pm`;
+}
+
+/** i18n key for a task entry's start/due marker label. */
+function kindLabelKey(kind: CalendarEntryKind): "calendar.start" | "calendar.due" {
+  return kind === "start" ? "calendar.start" : "calendar.due";
+}
+
+// ---------------------------------------------------------------------------
+// Drag-and-drop primitives
+// ---------------------------------------------------------------------------
+
+/** Identifies what a droppable target represents. ``day`` (month/week) moves
+ *  the date and keeps the time; ``hour`` (day view) moves the time. */
+type DropData = { type: "day"; dateKey: string } | { type: "hour"; hour: number; dateKey: string };
+
+/**
+ * An entry rendered as a ``<button>`` that doubles as a dnd-kit draggable.
+ * When ``enabled`` is false it behaves exactly like a plain button (click to
+ * select), so non-reschedulable calendars are unaffected.
+ */
+function DraggableEntryButton({
+  entry,
+  enabled,
+  className,
+  style,
+  title,
+  dragId,
+  onSelect,
+  children,
+}: {
+  entry: CalendarEntry;
+  enabled: boolean;
+  className?: string;
+  style?: CSSProperties;
+  title?: string;
+  /** Override for the dnd-kit draggable id. Required where the same entry is
+   *  rendered as more than one strip (e.g. a span crossing multiple week rows
+   *  in month view) so each registration has a unique id. Defaults to the
+   *  entry id. ``data.entry`` is unchanged, so reschedule routing is identical. */
+  dragId?: string;
+  onSelect?: (entry: CalendarEntry) => void;
+  children: ReactNode;
+}) {
+  const canDrag = enabled && entry.draggable !== false;
+  const { setNodeRef, listeners, attributes, isDragging } = useDraggable({
+    id: dragId ?? String(entry.id),
+    data: { entry },
+    disabled: !canDrag,
+  });
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      title={title}
+      className={cn(className, canDrag && "touch-none", isDragging && "opacity-30")}
+      style={style}
+      {...(canDrag ? attributes : {})}
+      {...(canDrag ? listeners : {})}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect?.(entry);
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * A ``<div>`` that doubles as a dnd-kit droppable while still forwarding the
+ * slot's own click/keyboard handlers (used for ``onSlotClick``). Highlights on
+ * hover-over during a drag.
+ */
+function DroppableDiv({
+  dropId,
+  data,
+  disabled,
+  className,
+  overClassName,
+  style,
+  role,
+  tabIndex,
+  onClick,
+  onKeyDown,
+  children,
+}: {
+  dropId: string;
+  data: DropData;
+  disabled: boolean;
+  className?: string;
+  overClassName?: string;
+  style?: CSSProperties;
+  role?: "button";
+  tabIndex?: number;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLDivElement>) => void;
+  children?: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: dropId, data, disabled });
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: role is set when interactive
+    <div
+      ref={setNodeRef}
+      className={cn(className, isOver && !disabled && overClassName)}
+      style={style}
+      role={role}
+      tabIndex={tabIndex}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+    >
+      {children}
+    </div>
+  );
 }
 
 function buildEntriesByDate(entries: CalendarEntry[]): Map<string, CalendarEntry[]> {
@@ -394,12 +554,14 @@ function MonthView({
   weekStartsOn,
   onEntryClick,
   onSlotClick,
+  dndEnabled = false,
 }: {
   entries: CalendarEntry[];
   focusDate: Date;
   weekStartsOn: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   onEntryClick?: (entry: CalendarEntry) => void;
   onSlotClick?: (date: Date) => void;
+  dndEnabled?: boolean;
 }) {
   const { t } = useTranslation(["common", "dates"]);
 
@@ -458,9 +620,12 @@ function MonthView({
                     const overflow = daySingles.length - MAX_VISIBLE_ENTRIES;
 
                     return (
-                      // biome-ignore lint/a11y/noStaticElementInteractions: role is set if interactive
-                      <div
+                      <DroppableDiv
                         key={key}
+                        dropId={`day:${key}`}
+                        data={{ type: "day", dateKey: key }}
+                        disabled={!dndEnabled}
+                        overClassName="ring-2 ring-primary/60 ring-inset"
                         role={onSlotClick ? "button" : undefined}
                         tabIndex={onSlotClick ? 0 : undefined}
                         className={cn(
@@ -499,29 +664,40 @@ function MonthView({
                         {visibleSingles.map((entry) => {
                           const { start } = parseEntry(entry);
                           return (
-                            <button
+                            <DraggableEntryButton
                               key={entry.id}
-                              type="button"
+                              entry={entry}
+                              enabled={dndEnabled}
+                              onSelect={onEntryClick}
                               className={cn(
                                 "flex w-full items-center gap-1 text-left text-[11px] leading-tight",
                                 onEntryClick
                                   ? "cursor-pointer rounded px-0.5 hover:bg-accent"
                                   : "cursor-default"
                               )}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onEntryClick?.(entry);
-                              }}
                             >
                               <span
-                                className="h-2 w-2 shrink-0 rounded-full"
-                                style={{ backgroundColor: entry.color || "var(--primary)" }}
+                                className={cn(
+                                  "h-2 w-2 shrink-0 rounded-full",
+                                  entry.kind === "start" && "border-2 bg-transparent"
+                                )}
+                                style={
+                                  entry.kind === "start"
+                                    ? { borderColor: entry.color || "var(--primary)" }
+                                    : { backgroundColor: entry.color || "var(--primary)" }
+                                }
                               />
-                              <span className="shrink-0 text-[10px] text-muted-foreground">
-                                {entry.allDay ? "" : formatTime(start)}
-                              </span>
+                              {entry.kind ? (
+                                <span className="shrink-0 font-semibold text-[9px] text-muted-foreground uppercase">
+                                  {t(`common:${kindLabelKey(entry.kind)}`)}
+                                </span>
+                              ) : (
+                                <span className="shrink-0 text-[10px] text-muted-foreground">
+                                  {entry.allDay ? "" : formatTime(start)}
+                                </span>
+                              )}
                               <span className="truncate">{entry.title}</span>
-                            </button>
+                            </DraggableEntryButton>
                           );
                         })}
                         {overflow > 0 && (
@@ -529,7 +705,7 @@ function MonthView({
                             {t("common:calendar.more", { count: overflow })}
                           </p>
                         )}
-                      </div>
+                      </DroppableDiv>
                     );
                   })}
                 </div>
@@ -541,10 +717,18 @@ function MonthView({
                   // Offset below the day number line (~24px)
                   const top = 24 + span.lane * (SPAN_BAR_HEIGHT + SPAN_BAR_GAP);
 
+                  // A span crossing multiple week rows renders one strip per
+                  // row; disambiguate the dnd-kit id by week so registrations
+                  // don't collide.
+                  const weekDragKey = `${span.entry.id}-${dateKey(week[span.startCol])}`;
+
                   return (
-                    <button
-                      key={`${span.entry.id}-${dateKey(week[span.startCol])}`}
-                      type="button"
+                    <DraggableEntryButton
+                      key={weekDragKey}
+                      dragId={weekDragKey}
+                      entry={span.entry}
+                      enabled={dndEnabled}
+                      onSelect={onEntryClick}
                       className={cn(
                         "absolute z-10 flex items-center gap-1 overflow-hidden rounded px-2 font-medium text-[11px] text-white",
                         onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
@@ -556,15 +740,11 @@ function MonthView({
                         height: SPAN_BAR_HEIGHT,
                         backgroundColor: span.entry.color || "var(--primary)",
                       }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEntryClick?.(span.entry);
-                      }}
                     >
                       <span className={cn("truncate", !span.showTitle && "opacity-70")}>
                         {span.entry.title}
                       </span>
-                    </button>
+                    </DraggableEntryButton>
                   );
                 })}
               </div>
@@ -586,12 +766,14 @@ function WeekView({
   weekStartsOn,
   onEntryClick,
   onSlotClick,
+  dndEnabled = false,
 }: {
   entries: CalendarEntry[];
   focusDate: Date;
   weekStartsOn: 0 | 1 | 2 | 3 | 4 | 5 | 6;
   onEntryClick?: (entry: CalendarEntry) => void;
   onSlotClick?: (date: Date) => void;
+  dndEnabled?: boolean;
 }) {
   const { t } = useTranslation(["common", "dates"]);
 
@@ -709,9 +891,12 @@ function WeekView({
                 const widthFrac = span.spanCols / 7;
                 const top = span.lane * (SPAN_BAR_HEIGHT + SPAN_BAR_GAP) + 2;
                 return (
-                  <button
+                  <DraggableEntryButton
                     key={`${span.entry.id}-${span.startCol}`}
-                    type="button"
+                    dragId={`${span.entry.id}-${span.startCol}`}
+                    entry={span.entry}
+                    enabled={dndEnabled}
+                    onSelect={onEntryClick}
                     className={cn(
                       "absolute z-10 flex items-center gap-1 overflow-hidden rounded px-2 font-medium text-[11px] text-white",
                       onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
@@ -723,13 +908,14 @@ function WeekView({
                       height: SPAN_BAR_HEIGHT,
                       backgroundColor: span.entry.color || "var(--primary)",
                     }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEntryClick?.(span.entry);
-                    }}
                   >
+                    {span.entry.kind && (
+                      <span className="shrink-0 rounded-sm bg-white/25 px-1 font-semibold text-[9px] uppercase">
+                        {t(`common:${kindLabelKey(span.entry.kind)}`)}
+                      </span>
+                    )}
                     <span className="truncate">{span.entry.title}</span>
-                  </button>
+                  </DraggableEntryButton>
                 );
               })}
             </div>
@@ -793,11 +979,15 @@ function WeekView({
 
             return (
               <div key={key} className="relative border-l">
-                {/* Hour slot backgrounds */}
+                {/* Hour slots — droppable so a timed entry dropped here moves
+                    to this column's day AND this hour. */}
                 {hours.map((hour) => (
-                  // biome-ignore lint/a11y/noStaticElementInteractions: role is set if interactive
-                  <div
+                  <DroppableDiv
                     key={hour}
+                    dropId={`week-slot:${key}:${hour}`}
+                    data={{ type: "hour", hour, dateKey: key }}
+                    disabled={!dndEnabled}
+                    overClassName="bg-primary/10"
                     className={cn("border-b", onSlotClick && "cursor-pointer hover:bg-accent/30")}
                     style={{ height: ROW_HEIGHT }}
                     role={onSlotClick ? "button" : undefined}
@@ -826,9 +1016,11 @@ function WeekView({
                   const leftPct = (block.lane / dayMaxLane) * 100;
 
                   return (
-                    <button
+                    <DraggableEntryButton
                       key={block.entry.id}
-                      type="button"
+                      entry={block.entry}
+                      enabled={dndEnabled}
+                      onSelect={onEntryClick}
                       className={cn(
                         "absolute z-10 flex overflow-hidden rounded-r border text-left text-[11px] transition-colors",
                         onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
@@ -842,10 +1034,6 @@ function WeekView({
                         backgroundColor: "var(--card)",
                         boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                       }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEntryClick?.(block.entry);
-                      }}
                     >
                       <div className="flex flex-col px-1.5 py-0.5">
                         <span className="truncate font-medium">{block.entry.title}</span>
@@ -856,7 +1044,7 @@ function WeekView({
                           </span>
                         )}
                       </div>
-                    </button>
+                    </DraggableEntryButton>
                   );
                 })}
               </div>
@@ -877,11 +1065,13 @@ function DayView({
   focusDate,
   onEntryClick,
   onSlotClick,
+  dndEnabled = false,
 }: {
   entries: CalendarEntry[];
   focusDate: Date;
   onEntryClick?: (entry: CalendarEntry) => void;
   onSlotClick?: (date: Date) => void;
+  dndEnabled?: boolean;
 }) {
   const { t } = useTranslation(["common"]);
 
@@ -960,6 +1150,11 @@ function DayView({
               }}
               onClick={() => onEntryClick?.(entry)}
             >
+              {entry.kind && (
+                <span className="shrink-0 rounded-sm bg-white/25 px-1 font-semibold text-[9px] uppercase">
+                  {t(`common:${kindLabelKey(entry.kind)}`)}
+                </span>
+              )}
               <span className="truncate">{entry.title}</span>
             </button>
           ))}
@@ -983,11 +1178,14 @@ function DayView({
 
         {/* Content column — relative container for positioned blocks */}
         <div className="relative border-l">
-          {/* Clickable hour slot backgrounds */}
+          {/* Clickable + droppable hour slot backgrounds */}
           {hours.map((hour) => (
-            // biome-ignore lint/a11y/noStaticElementInteractions: role is set if interactive
-            <div
+            <DroppableDiv
               key={hour}
+              dropId={`hour:${key}:${hour}`}
+              data={{ type: "hour", hour, dateKey: key }}
+              disabled={!dndEnabled}
+              overClassName="bg-primary/10"
               className={cn("border-b", onSlotClick && "cursor-pointer hover:bg-accent/30")}
               style={{ height: ROW_HEIGHT }}
               role={onSlotClick ? "button" : undefined}
@@ -1016,9 +1214,11 @@ function DayView({
             const leftPct = (block.lane / maxLane) * 100;
 
             return (
-              <button
+              <DraggableEntryButton
                 key={block.entry.id}
-                type="button"
+                entry={block.entry}
+                enabled={dndEnabled}
+                onSelect={onEntryClick}
                 className={cn(
                   "absolute z-10 flex overflow-hidden rounded-r border text-left text-[11px] transition-colors",
                   onEntryClick ? "cursor-pointer hover:brightness-90" : "cursor-default"
@@ -1032,10 +1232,6 @@ function DayView({
                   backgroundColor: "var(--card)",
                   boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                 }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEntryClick?.(block.entry);
-                }}
               >
                 <div className="flex flex-col px-2 py-1">
                   <span className="truncate font-medium">{block.entry.title}</span>
@@ -1044,7 +1240,7 @@ function DayView({
                     {formatTime(parseEntry(block.entry).end)}
                   </span>
                 </div>
-              </button>
+              </DraggableEntryButton>
             );
           })}
         </div>
@@ -1269,7 +1465,12 @@ function ListView({
 
               {/* Title + description + property chips */}
               <div className="min-w-0 flex-1">
-                <span className="truncate font-medium">{entry.title}</span>
+                {entry.kind && (
+                  <span className="mr-1.5 rounded-sm bg-muted px-1 font-semibold text-[10px] text-muted-foreground uppercase">
+                    {t(`common:${kindLabelKey(entry.kind)}`)}
+                  </span>
+                )}
+                <span className="font-medium">{entry.title}</span>
                 {entry.description && (
                   <p className="mt-0.5 line-clamp-2 text-muted-foreground text-xs">
                     {entry.description}
@@ -1290,6 +1491,18 @@ function ListView({
                     </div>
                   );
                 })()}
+                {entry.tags && entry.tags.length > 0 && (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {entry.tags.slice(0, 3).map((tag) => (
+                      <TagBadge key={tag.id} tag={tag} size="sm" />
+                    ))}
+                    {entry.tags.length > 3 && (
+                      <span className="text-muted-foreground text-xs">
+                        +{entry.tags.length - 3}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Attendee avatars */}
@@ -1428,11 +1641,79 @@ export const CalendarView = ({
   onFocusDateChange,
   onEntryClick,
   onSlotClick,
+  onEntryReschedule,
   weekStartsOn = 0,
   isLoading = false,
   hideListView = false,
 }: CalendarViewProps) => {
   const periodLabel = usePeriodLabel(viewMode, focusDate, weekStartsOn);
+  const dndEnabled = !!onEntryReschedule;
+  const [activeEntry, setActiveEntry] = useState<CalendarEntry | null>(null);
+
+  // A small move (>5px mouse, long-press on touch) starts a drag; a plain
+  // click still selects the entry, so navigation keeps working.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveEntry((event.active.data.current?.entry as CalendarEntry | undefined) ?? null);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveEntry(null);
+      const { active, over } = event;
+      if (!over) return;
+      const entry = active.data.current?.entry as CalendarEntry | undefined;
+      const drop = over.data.current as DropData | undefined;
+      if (!entry || !drop) return;
+
+      const start = parseISO(entry.startAt);
+      if (Number.isNaN(start.getTime())) return;
+      const end = parseISO(entry.endAt);
+      const durationMs = Number.isNaN(end.getTime()) ? 0 : end.getTime() - start.getTime();
+
+      if (drop.type === "day") {
+        // Change the date, keep the time-of-day (local midnight for all-day).
+        const target = parseISO(`${drop.dateKey}T00:00:00`);
+        const newStart = new Date(target);
+        newStart.setHours(start.getHours(), start.getMinutes(), start.getSeconds(), 0);
+        if (dateKey(newStart) === dateKey(start)) return; // no-op
+        const newEnd = new Date(newStart.getTime() + durationMs);
+        onEntryReschedule?.({
+          entry,
+          startAt: newStart.toISOString(),
+          endAt: newEnd.toISOString(),
+          mode: "day",
+        });
+        return;
+      }
+
+      // drop.type === "hour": set the date to the dropped column's day. Timed
+      // entries also move to the dropped hour; all-day markers keep their
+      // (midnight) time and only change date — so dropping a task start/due
+      // marker into a week column reschedules its date. In day view the column
+      // is always the focused day, so only the time changes.
+      const targetDay = parseISO(`${drop.dateKey}T00:00:00`);
+      const newStart = new Date(targetDay);
+      if (entry.allDay) {
+        newStart.setHours(start.getHours(), start.getMinutes(), start.getSeconds(), 0);
+      } else {
+        newStart.setHours(drop.hour, 0, 0, 0);
+      }
+      if (newStart.getTime() === start.getTime()) return; // no-op
+      const newEnd = new Date(newStart.getTime() + durationMs);
+      onEntryReschedule?.({
+        entry,
+        startAt: newStart.toISOString(),
+        endAt: newEnd.toISOString(),
+        mode: entry.allDay ? "day" : "time",
+      });
+    },
+    [onEntryReschedule]
+  );
 
   if (isLoading) {
     return (
@@ -1442,17 +1723,8 @@ export const CalendarView = ({
     );
   }
 
-  return (
-    <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
-      <CalendarHeader
-        viewMode={viewMode}
-        onViewModeChange={onViewModeChange}
-        focusDate={focusDate}
-        onFocusDateChange={onFocusDateChange}
-        periodLabel={periodLabel}
-        hideListView={hideListView}
-      />
-
+  const views = (
+    <>
       {viewMode === "month" ? (
         <MonthView
           entries={entries}
@@ -1460,6 +1732,7 @@ export const CalendarView = ({
           weekStartsOn={weekStartsOn}
           onEntryClick={onEntryClick}
           onSlotClick={onSlotClick}
+          dndEnabled={dndEnabled}
         />
       ) : null}
 
@@ -1470,6 +1743,7 @@ export const CalendarView = ({
           weekStartsOn={weekStartsOn}
           onEntryClick={onEntryClick}
           onSlotClick={onSlotClick}
+          dndEnabled={dndEnabled}
         />
       ) : null}
 
@@ -1479,6 +1753,7 @@ export const CalendarView = ({
           focusDate={focusDate}
           onEntryClick={onEntryClick}
           onSlotClick={onSlotClick}
+          dndEnabled={dndEnabled}
         />
       ) : null}
 
@@ -1495,6 +1770,43 @@ export const CalendarView = ({
       {viewMode === "list" ? (
         <ListView entries={entries} focusDate={focusDate} onEntryClick={onEntryClick} />
       ) : null}
+    </>
+  );
+
+  return (
+    <div className="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
+      <CalendarHeader
+        viewMode={viewMode}
+        onViewModeChange={onViewModeChange}
+        focusDate={focusDate}
+        onFocusDateChange={onFocusDateChange}
+        periodLabel={periodLabel}
+        hideListView={hideListView}
+      />
+
+      {dndEnabled ? (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={pointerWithin}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => setActiveEntry(null)}
+        >
+          {views}
+          <DragOverlay>
+            {activeEntry ? (
+              <div
+                className="pointer-events-none flex items-center gap-1 rounded px-2 py-1 font-medium text-[11px] text-white shadow-lg"
+                style={{ backgroundColor: activeEntry.color || "var(--primary)" }}
+              >
+                <span className="truncate">{activeEntry.title}</span>
+              </div>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
+      ) : (
+        views
+      )}
     </div>
   );
 };

@@ -56,6 +56,11 @@ class UserUpdate(SanitizedBaseModel):
     push_project_added: Optional[bool] = None
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
+    email_events: Optional[bool] = None
+    push_events: Optional[bool] = None
+    email_event_reminders: Optional[bool] = None
+    push_event_reminders: Optional[bool] = None
+    event_reminder_minutes_before: Optional[int] = None
     color_theme: Optional[str] = None
     task_completion_visual_feedback: Optional[str] = None
     task_completion_audio_feedback: Optional[bool] = None
@@ -115,6 +120,11 @@ class UserRead(UserBase):
     push_project_added: bool = True
     push_overdue_tasks: bool = True
     push_mentions: bool = True
+    email_events: bool = True
+    push_events: bool = True
+    email_event_reminders: bool = True
+    push_event_reminders: bool = True
+    event_reminder_minutes_before: Optional[int] = 15
     last_overdue_notification_at: Optional[datetime] = None
     last_task_assignment_digest_at: Optional[datetime] = None
     color_theme: str = "kobold"
@@ -175,6 +185,11 @@ class UserSelfUpdate(SanitizedBaseModel):
     push_project_added: Optional[bool] = None
     push_overdue_tasks: Optional[bool] = None
     push_mentions: Optional[bool] = None
+    email_events: Optional[bool] = None
+    push_events: Optional[bool] = None
+    email_event_reminders: Optional[bool] = None
+    push_event_reminders: Optional[bool] = None
+    event_reminder_minutes_before: Optional[int] = None
     color_theme: Optional[str] = None
     task_completion_visual_feedback: Optional[str] = None
     task_completion_audio_feedback: Optional[bool] = None

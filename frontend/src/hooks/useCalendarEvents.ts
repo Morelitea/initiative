@@ -133,6 +133,37 @@ export const useUpdateCalendarEvent = (
   });
 };
 
+/**
+ * Update an event identified per-call (the event id travels in the mutation
+ * variables) rather than bound at hook construction. Used by the calendar
+ * drag-to-reschedule flow, where the target event isn't known until drop time.
+ */
+export const useRescheduleCalendarEvent = (
+  options?: MutationOpts<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>
+) => {
+  const { t } = useTranslation("events");
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({ eventId, data }: { eventId: number; data: CalendarEventUpdate }) =>
+      updateCalendarEventApiV1CalendarEventsEventIdPatch(
+        eventId,
+        data
+      ) as unknown as Promise<CalendarEventRead>,
+    onSuccess: (...args) => {
+      void invalidateCalendarEvent(args[1].eventId);
+      void invalidateAllCalendarEvents();
+      onSuccess?.(...args);
+    },
+    onError: (...args) => {
+      toast.error(t("error"));
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
 export const useDeleteCalendarEvent = (options?: MutationOpts<void, number>) => {
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +9,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useFcmConfig } from "@/hooks/useSettings";
@@ -21,11 +29,20 @@ type NotificationField =
   | "email_project_added"
   | "email_overdue_tasks"
   | "email_mentions"
+  | "email_events"
+  | "email_event_reminders"
   | "push_initiative_addition"
   | "push_task_assignment"
   | "push_project_added"
   | "push_overdue_tasks"
-  | "push_mentions";
+  | "push_mentions"
+  | "push_events"
+  | "push_event_reminders";
+
+// Lead-time presets (minutes) for the event reminder. 0 = "at the time of the
+// event"; reminders are turned off via the email/push toggles, not here.
+const REMINDER_MINUTE_OPTIONS = [0, 5, 10, 15, 30, 60, 1440] as const;
+const DEFAULT_REMINDER_MINUTES = 15;
 
 interface UserSettingsNotificationsPageProps {
   user: UserRead;
@@ -41,6 +58,8 @@ interface NotificationCategory {
   pushField: NotificationField;
   pushValue: boolean;
   pushSetter: (v: boolean) => void;
+  // Optional control rendered full-width beneath the row (e.g. reminder lead time).
+  extra?: ReactNode;
 }
 
 export const UserSettingsNotificationsPage = ({
@@ -64,6 +83,10 @@ export const UserSettingsNotificationsPage = ({
   const [emailProjectAdded, setEmailProjectAdded] = useState(user.email_project_added ?? true);
   const [emailOverdue, setEmailOverdue] = useState(user.email_overdue_tasks ?? true);
   const [emailMentions, setEmailMentions] = useState(user.email_mentions ?? true);
+  const [emailEvents, setEmailEvents] = useState(user.email_events ?? true);
+  const [emailEventReminders, setEmailEventReminders] = useState(
+    user.email_event_reminders ?? true
+  );
 
   // Push preference states
   const [pushInitiative, setPushInitiative] = useState(user.push_initiative_addition ?? true);
@@ -71,6 +94,12 @@ export const UserSettingsNotificationsPage = ({
   const [pushProjectAdded, setPushProjectAdded] = useState(user.push_project_added ?? true);
   const [pushOverdue, setPushOverdue] = useState(user.push_overdue_tasks ?? true);
   const [pushMentions, setPushMentions] = useState(user.push_mentions ?? true);
+  const [pushEvents, setPushEvents] = useState(user.push_events ?? true);
+  const [pushEventReminders, setPushEventReminders] = useState(user.push_event_reminders ?? true);
+
+  const [reminderMinutes, setReminderMinutes] = useState<number>(
+    user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES
+  );
 
   useEffect(() => {
     setTimezone(user.timezone ?? "UTC");
@@ -80,11 +109,16 @@ export const UserSettingsNotificationsPage = ({
     setEmailProjectAdded(user.email_project_added ?? true);
     setEmailOverdue(user.email_overdue_tasks ?? true);
     setEmailMentions(user.email_mentions ?? true);
+    setEmailEvents(user.email_events ?? true);
+    setEmailEventReminders(user.email_event_reminders ?? true);
     setPushInitiative(user.push_initiative_addition ?? true);
     setPushAssignment(user.push_task_assignment ?? true);
     setPushProjectAdded(user.push_project_added ?? true);
     setPushOverdue(user.push_overdue_tasks ?? true);
     setPushMentions(user.push_mentions ?? true);
+    setPushEvents(user.push_events ?? true);
+    setPushEventReminders(user.push_event_reminders ?? true);
+    setReminderMinutes(user.event_reminder_minutes_before ?? DEFAULT_REMINDER_MINUTES);
   }, [user]);
 
   const updateNotificationToggles = useUpdateNotificationPreferences();
@@ -109,6 +143,31 @@ export const UserSettingsNotificationsPage = ({
         },
       }
     );
+  };
+
+  const handleReminderMinutesChange = (raw: string) => {
+    const previous = reminderMinutes;
+    const next = Number(raw);
+    setReminderMinutes(next);
+    updateNotificationToggles.mutate(
+      { event_reminder_minutes_before: next },
+      {
+        onSuccess: async () => {
+          await refreshUser();
+        },
+        onError: () => {
+          setReminderMinutes(previous);
+          toast.error(t("notifications.toggleError"));
+        },
+      }
+    );
+  };
+
+  const reminderLabel = (minutes: number): string => {
+    if (minutes === 0) return t("notifications.reminderLeadTime.atStart");
+    if (minutes >= 1440) return t("notifications.reminderLeadTime.day", { count: minutes / 1440 });
+    if (minutes >= 60) return t("notifications.reminderLeadTime.hour", { count: minutes / 60 });
+    return t("notifications.reminderLeadTime.minute", { count: minutes });
   };
 
   const handleScheduleSave = () => {
@@ -178,6 +237,45 @@ export const UserSettingsNotificationsPage = ({
       pushField: "push_overdue_tasks",
       pushValue: pushOverdue,
       pushSetter: setPushOverdue,
+    },
+    {
+      label: t("notifications.categories.events"),
+      description: t("notifications.categories.eventsDescription"),
+      emailField: "email_events",
+      emailValue: emailEvents,
+      emailSetter: setEmailEvents,
+      pushField: "push_events",
+      pushValue: pushEvents,
+      pushSetter: setPushEvents,
+    },
+    {
+      label: t("notifications.categories.eventReminders"),
+      description: t("notifications.categories.eventRemindersDescription"),
+      emailField: "email_event_reminders",
+      emailValue: emailEventReminders,
+      emailSetter: setEmailEventReminders,
+      pushField: "push_event_reminders",
+      pushValue: pushEventReminders,
+      pushSetter: setPushEventReminders,
+      extra: (
+        <div className="flex items-center gap-2">
+          <Label htmlFor="reminder-lead-time" className="text-muted-foreground text-sm">
+            {t("notifications.reminderLeadTime.label")}
+          </Label>
+          <Select value={String(reminderMinutes)} onValueChange={handleReminderMinutesChange}>
+            <SelectTrigger id="reminder-lead-time" className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {REMINDER_MINUTE_OPTIONS.map((minutes) => (
+                <SelectItem key={minutes} value={String(minutes)}>
+                  {reminderLabel(minutes)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ),
     },
   ];
 
@@ -280,42 +378,44 @@ export const UserSettingsNotificationsPage = ({
 
           {/* Data rows */}
           {categories.map((cat) => (
-            <div
-              key={cat.emailField}
-              className={`grid items-center gap-4 py-3 ${showPushColumn ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[1fr_auto]"}`}
-            >
-              <div>
-                <p className="font-medium">{cat.label}</p>
-                <p className="text-muted-foreground text-sm">{cat.description}</p>
-              </div>
-              <div className="flex w-16 justify-center">
-                <Switch
-                  checked={cat.emailValue}
-                  onCheckedChange={(checked) =>
-                    handleNotificationToggle(
-                      cat.emailField,
-                      checked,
-                      cat.emailSetter,
-                      cat.emailValue
-                    )
-                  }
-                />
-              </div>
-              {showPushColumn && (
+            <div key={cat.emailField} className="border-b last:border-b-0">
+              <div
+                className={`grid items-center gap-4 py-3 ${showPushColumn ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[1fr_auto]"}`}
+              >
+                <div>
+                  <p className="font-medium">{cat.label}</p>
+                  <p className="text-muted-foreground text-sm">{cat.description}</p>
+                </div>
                 <div className="flex w-16 justify-center">
                   <Switch
-                    checked={cat.pushValue}
+                    checked={cat.emailValue}
                     onCheckedChange={(checked) =>
                       handleNotificationToggle(
-                        cat.pushField,
+                        cat.emailField,
                         checked,
-                        cat.pushSetter,
-                        cat.pushValue
+                        cat.emailSetter,
+                        cat.emailValue
                       )
                     }
                   />
                 </div>
-              )}
+                {showPushColumn && (
+                  <div className="flex w-16 justify-center">
+                    <Switch
+                      checked={cat.pushValue}
+                      onCheckedChange={(checked) =>
+                        handleNotificationToggle(
+                          cat.pushField,
+                          checked,
+                          cat.pushSetter,
+                          cat.pushValue
+                        )
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+              {cat.extra && <div className="pb-3 pl-1">{cat.extra}</div>}
             </div>
           ))}
         </div>

@@ -18,6 +18,7 @@ from app.core.password_policy import enforce_password_policy
 from app.core.security import get_password_hash, verify_password
 from app.core.user_input_validators import (
     normalize_notification_time,
+    normalize_reminder_minutes,
     normalize_timezone,
     normalize_week_starts_on,
 )
@@ -304,17 +305,26 @@ async def update_users_me(
         normalized_time = normalize_notification_time(update_data["overdue_notification_time"])
         if normalized_time:
             current_user.overdue_notification_time = normalized_time
+    if "event_reminder_minutes_before" in update_data:
+        # ``None`` is a valid value here (reminders off), so assign directly.
+        current_user.event_reminder_minutes_before = normalize_reminder_minutes(
+            update_data["event_reminder_minutes_before"]
+        )
     for field in [
         "email_initiative_addition",
         "email_task_assignment",
         "email_project_added",
         "email_overdue_tasks",
         "email_mentions",
+        "email_events",
+        "email_event_reminders",
         "push_initiative_addition",
         "push_task_assignment",
         "push_project_added",
         "push_overdue_tasks",
         "push_mentions",
+        "push_events",
+        "push_event_reminders",
     ]:
         if field in update_data:
             new_value = bool(update_data[field])
@@ -408,6 +418,9 @@ async def update_user(
             normalized_time = normalize_notification_time(value)
             if normalized_time:
                 setattr(user, field, normalized_time)
+            continue
+        if field == "event_reminder_minutes_before":
+            setattr(user, field, normalize_reminder_minutes(value))
             continue
         if field == "week_starts_on":
             normalized_week_start = normalize_week_starts_on(value)

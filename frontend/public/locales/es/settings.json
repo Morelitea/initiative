@@ -251,7 +251,21 @@
       "newProject": "Nuevo proyecto en iniciativa",
       "newProjectDescription": "Cuando se crean proyectos en tus iniciativas.",
       "overdueTasks": "Tareas vencidas",
-      "overdueTasksDescription": "Recordatorio diario de tareas vencidas a la hora programada."
+      "overdueTasksDescription": "Recordatorio diario de tareas vencidas a la hora programada.",
+      "events": "Eventos",
+      "eventsDescription": "Cuando te invitan a un evento o cambia uno al que asistes.",
+      "eventReminders": "Recordatorios de eventos",
+      "eventRemindersDescription": "Un recordatorio antes de que comiencen los eventos a los que asistes."
+    },
+    "reminderLeadTime": {
+      "label": "Recordarme",
+      "atStart": "A la hora del evento",
+      "minute_one": "{{count}} minuto antes",
+      "minute_other": "{{count}} minutos antes",
+      "hour_one": "{{count}} hora antes",
+      "hour_other": "{{count}} horas antes",
+      "day_one": "{{count}} día antes",
+      "day_other": "{{count}} días antes"
     }
   },
   "dangerZone": {

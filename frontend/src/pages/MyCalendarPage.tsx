@@ -11,7 +11,12 @@ import type {
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCalendarEvents, invalidateAllTasks } from "@/api/query-keys";
-import { type CalendarEntry, CalendarView, type CalendarViewMode } from "@/components/calendar";
+import {
+  buildTaskCalendarEntries,
+  type CalendarEntry,
+  CalendarView,
+  type CalendarViewMode,
+} from "@/components/calendar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -24,16 +29,19 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
+import { getProjectColor } from "@/lib/projectColor";
 
 const STORAGE_KEY = "initiative-my-calendar-prefs";
 
 type StoredPrefs = {
   showEvents: boolean;
+  showTasks: boolean;
   calendarViewMode: CalendarViewMode;
 };
 
 const PREFS_DEFAULTS: StoredPrefs = {
   showEvents: true,
+  showTasks: true,
   calendarViewMode: "month",
 };
 
@@ -42,6 +50,7 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
   const v = raw as Partial<StoredPrefs>;
   return {
     showEvents: typeof v.showEvents === "boolean" ? v.showEvents : PREFS_DEFAULTS.showEvents,
+    showTasks: typeof v.showTasks === "boolean" ? v.showTasks : PREFS_DEFAULTS.showTasks,
     calendarViewMode:
       typeof v.calendarViewMode === "string"
         ? (v.calendarViewMode as CalendarViewMode)
@@ -66,7 +75,7 @@ export const MyCalendarPage = () => {
     PREFS_DEFAULTS
   );
   const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
-  const { calendarViewMode, showEvents } = storedPrefs;
+  const { calendarViewMode, showEvents, showTasks } = storedPrefs;
   const setCalendarViewMode = useCallback(
     (next: CalendarViewMode) =>
       setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), calendarViewMode: next })),
@@ -79,6 +88,17 @@ export const MyCalendarPage = () => {
         return {
           ...safe,
           showEvents: typeof next === "function" ? next(safe.showEvents) : next,
+        };
+      }),
+    [setStoredPrefs]
+  );
+  const setShowTasks = useCallback(
+    (next: boolean | ((prev: boolean) => boolean)) =>
+      setStoredPrefs((prev) => {
+        const safe = sanitizeStoredPrefs(prev);
+        return {
+          ...safe,
+          showTasks: typeof next === "function" ? next(safe.showTasks) : next,
         };
       }),
     [setStoredPrefs]
@@ -112,41 +132,24 @@ export const MyCalendarPage = () => {
   const calendarEntries = useMemo<CalendarEntry[]>(() => {
     const entries: CalendarEntry[] = [];
 
-    // Task entries
-    table.displayTasks.forEach((task) => {
-      const taskAttendees = task.assignees
-        .filter((a) => a.full_name)
-        .map((a) => ({
-          name: a.full_name!,
-          avatarUrl: a.avatar_url,
-          avatarBase64: a.avatar_base64,
-          userId: a.id,
-        }));
-
-      if (task.due_date) {
-        entries.push({
-          id: `task-${task.id}-due`,
-          title: task.title,
-          startAt: task.due_date,
-          endAt: task.due_date,
-          allDay: true,
-          attendees: taskAttendees,
-          meta: { type: "task", taskId: task.id, guildId: task.guild_id },
-        });
-      }
-      if (task.start_date) {
-        entries.push({
-          id: `task-${task.id}-start`,
-          title: task.title,
-          startAt: task.start_date,
-          endAt: task.start_date,
-          allDay: true,
-          color: "#10b981",
-          attendees: taskAttendees,
-          meta: { type: "task", taskId: task.id, guildId: task.guild_id },
-        });
-      }
-    });
+    // Task entries (only if showTasks is true). Reuse the shared builder so the
+    // start/due markers get the same visual treatment as the other calendars,
+    // injecting guildId into meta for cross-guild navigation. Not draggable here
+    // (My Calendar has no reschedule handler).
+    if (showTasks) {
+      table.displayTasks.forEach((task) => {
+        for (const entry of buildTaskCalendarEntries(
+          task,
+          getProjectColor(task.project_id),
+          false
+        )) {
+          entries.push({
+            ...entry,
+            meta: { ...(entry.meta as Record<string, unknown>), guildId: task.guild_id },
+          });
+        }
+      });
+    }
 
     // Event entries (only if showEvents is true, since events have no task status)
     if (showEvents) {
@@ -172,7 +175,7 @@ export const MyCalendarPage = () => {
     }
 
     return entries;
-  }, [table.displayTasks, eventsQuery.data, showEvents]);
+  }, [table.displayTasks, eventsQuery.data, showEvents, showTasks]);
 
   const handleEntryClick = (entry: CalendarEntry) => {
     const meta = entry.meta as
@@ -301,7 +304,15 @@ export const MyCalendarPage = () => {
                   emptyMessage={t("tasks:filters.noGuilds")}
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex items-end gap-2">
+                <Button
+                  variant={showTasks ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowTasks(!showTasks)}
+                  title={t("tasks:myCalendar.typeTasks")}
+                >
+                  {t("tasks:myCalendar.typeTasks")}
+                </Button>
                 <Button
                   variant={showEvents ? "default" : "outline"}
                   size="sm"

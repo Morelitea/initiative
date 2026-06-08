@@ -145,6 +145,7 @@ class CalendarEventSummary(CalendarEventBase):
     attendee_names: List[str] = Field(default_factory=list)
     attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
     property_values: List[PropertySummary] = Field(default_factory=list)
+    tags: List[TagSummary] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -161,7 +162,6 @@ class CalendarEventListResponse(SanitizedBaseModel):
 
 class CalendarEventRead(CalendarEventSummary):
     attendees: List[CalendarEventAttendeeRead] = Field(default_factory=list)
-    tags: List[TagSummary] = Field(default_factory=list)
     documents: List[CalendarEventDocumentRead] = Field(default_factory=list)
 
 
@@ -267,6 +267,7 @@ def serialize_calendar_event_summary(event: "CalendarEvent") -> CalendarEventSum
         attendee_names=names,
         attendee_previews=previews,
         property_values=_serialize_event_properties(event),
+        tags=_serialize_tags(event),
         created_at=event.created_at,
         updated_at=event.updated_at,
     )
@@ -277,6 +278,5 @@ def serialize_calendar_event(event: "CalendarEvent") -> CalendarEventRead:
     return CalendarEventRead(
         **summary.model_dump(),
         attendees=_serialize_attendees(event),
-        tags=_serialize_tags(event),
         documents=_serialize_documents(event),
     )

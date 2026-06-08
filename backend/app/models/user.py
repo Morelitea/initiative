@@ -129,6 +129,27 @@ class User(SQLModel, table=True):
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
     )
+    email_events: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_events: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    email_event_reminders: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    push_event_reminders: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+    # Lead time (minutes) for the scheduled event reminder. NULL = reminders off.
+    event_reminder_minutes_before: Optional[int] = Field(
+        default=15,
+        sa_column=Column(Integer, nullable=True, server_default="15"),
+    )
     last_overdue_notification_at: Optional[datetime] = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),

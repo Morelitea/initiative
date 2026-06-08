@@ -24,8 +24,10 @@ def start_background_tasks() -> list[asyncio.Task]:
     from app.services.notifications import (
         process_task_assignment_digests,
         process_overdue_notifications,
+        process_event_reminders,
         DIGEST_POLL_SECONDS,
         OVERDUE_POLL_SECONDS,
+        EVENT_REMINDER_POLL_SECONDS,
     )
     from app.services.oidc_refresh import process_oidc_refresh_sync, OIDC_SYNC_POLL_SECONDS
     from app.services.trash_purge import process_trash_purges, PURGE_POLL_SECONDS
@@ -36,6 +38,11 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(process_overdue_notifications, OVERDUE_POLL_SECONDS, "overdue-digest")
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_event_reminders, EVENT_REMINDER_POLL_SECONDS, "event-reminder"
+            )
         ),
         asyncio.create_task(
             _loop_worker(process_oidc_refresh_sync, OIDC_SYNC_POLL_SECONDS, "oidc-refresh-sync")
