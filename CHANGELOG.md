@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-06-08
+
 ### Added
 
 - **Drag and drop to reschedule on the calendar.** On both the initiative and project calendars, drag an event or task to a different day in month view (its time of day is kept), or onto a specific day-and-time slot in week view, or to a different hour in day view — rescheduling it without opening it. A plain click still opens the item.
