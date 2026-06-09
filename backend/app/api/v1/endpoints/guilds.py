@@ -325,45 +325,27 @@ async def delete_guild(
             detail=GuildMessages.CONFIRMATION_MISMATCH,
         )
 
-    # Drop the guild's schema (its content) BEFORE deleting the guild row: the
-    # schema's queues/counters/calendar FKs to public.guilds are NO ACTION and
-    # would block the row delete. Roll back first — this releases the read lock on
-    # public.guilds (DROP SCHEMA needs an exclusive lock) AND reverts the SET ROLE
-    # guild_<id> that _set_guild_admin_rls set (Postgres SET is transactional;
-    # rollback undoes it), so deprovision can DROP the role this session is no
-    # longer assuming.
-    user_id = current_user.id  # capture before rollback expires the ORM object
-    await session.rollback()
+    # Delete the guild ROW first — reliable, and the guild is immediately gone from
+    # the app's point of view. Its ON DELETE CASCADE FKs clear the shared roster
+    # (memberships, invites, OIDC mappings, access grants). The guild-scoped data
+    # lives in the schema, which no longer has FKs back to public.guilds, so the
+    # row delete isn't blocked by it. Runs as the assumed guild role, so the
+    # public.guilds guild_delete RLS policy (current_guild_id) matches.
+    await guilds_service.delete_guild(session, guild)
+    await session.commit()
+
+    # Drop the schema + role as best-effort cleanup. Reset the assumed guild role
+    # first (committed) so DROP ROLE can run. With the cross-schema FKs gone,
+    # DROP SCHEMA only locks this guild's tables — no contention with the app's
+    # reads of public.guilds/users. A failed cleanup must NEVER undo the committed
+    # deletion: an orphaned, empty schema is harmless and reclaimed on a retry or
+    # the next provision of that id.
+    await session.execute(text("SELECT set_config('role', 'none', false)"))
+    await session.commit()
     try:
         await deprovision_guild(guild_id)
     except Exception:
-        # The schema couldn't be dropped, so we can't delete the guild row (its
-        # schema's NO ACTION FKs would block it). Fail atomically — nothing removed.
-        logger.exception("Failed to deprovision guild %s; aborting delete", guild_id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=GuildMessages.GUILD_DELETE_FAILED,
-        )
-
-    # The guild role no longer exists, so re-establish only the guild *context*
-    # (no SET ROLE) so the shared public.guilds row delete passes its guild_delete
-    # RLS policy. This transaction commits, so the GUCs aren't rolled back.
-    await session.execute(
-        text(
-            "SELECT set_config('role', 'none', false), "
-            "set_config('search_path', 'public', false), "
-            "set_config('app.current_user_id', :uid, false), "
-            "set_config('app.current_guild_id', :gid, false), "
-            # Fail fast instead of hanging if a concurrent session holds a lock on
-            # public.guilds; the schema is already dropped, so a retry just redoes
-            # the (idempotent) deprovision and re-attempts the row delete.
-            "set_config('lock_timeout', '10s', false)"
-        ),
-        {"uid": str(user_id), "gid": str(guild_id)},
-    )
-    guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    await guilds_service.delete_guild(session, guild)
-    await session.commit()
+        logger.exception("Schema/role cleanup for deleted guild %s failed (orphan is harmless)", guild_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

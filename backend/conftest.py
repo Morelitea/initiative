@@ -179,18 +179,31 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
             )
         ).all():
             await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
-        for (role,) in (
-            await conn.execute(
-                text("SELECT rolname FROM pg_roles WHERE rolname ~ '^guild_[0-9]+$'")
-            )
-        ).all():
-            await conn.execute(text(f'DROP OWNED BY "{role}"'))
-            await conn.execute(text(f'DROP ROLE IF EXISTS "{role}"'))
+        roles = [
+            r for (r,) in (
+                await conn.execute(
+                    text("SELECT rolname FROM pg_roles WHERE rolname ~ '^guild_[0-9]+$'")
+                )
+            ).all()
+        ]
         # Truncate all public tables to reset state.
         await conn.execute(text("SET session_replication_role = 'replica'"))
         for table in reversed(SQLModel.metadata.sorted_tables):
             await conn.execute(text(f"TRUNCATE TABLE {table.name} RESTART IDENTITY CASCADE"))
         await conn.execute(text("SET session_replication_role = 'origin'"))
+
+    # Drop the guild roles best-effort, each in its own transaction: guild roles
+    # are cluster-global, so one shared with a co-located dev DB owns objects in
+    # *that* database and can't be dropped. DROP OWNED clears this DB's grants
+    # regardless; a failure to drop the (shared) role must not abort the rest.
+    from contextlib import suppress
+
+    for role in roles:
+        with suppress(Exception):
+            async with engine.begin() as rconn:
+                await rconn.exec_driver_sql("SET lock_timeout = '5s'")
+                await rconn.exec_driver_sql(f'DROP OWNED BY "{role}"')
+                await rconn.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')
 
 
 @pytest.fixture

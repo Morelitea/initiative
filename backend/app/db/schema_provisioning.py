@@ -71,7 +71,30 @@ def _guild_metadata(schema: str) -> tuple[MetaData, list]:
         )
         if is_guild:
             guild_tables.append(copy)
+    # Strip cross-schema FKs in a second pass — after every table is in ``md`` so
+    # each FK's referred_table resolves (intra-schema targets exist by now).
+    for copy in guild_tables:
+        _strip_cross_schema_fks(copy)
     return md, guild_tables
+
+
+def _strip_cross_schema_fks(table) -> None:
+    """Drop FK constraints from a guild table that reference a shared (public)
+    table; keep intra-schema (guild -> guild) ones.
+
+    In the schema-per-guild model the schema IS the tenant boundary, so a guild
+    schema's references to shared tables (guilds, users, ...) are intentionally
+    *soft* — no FK constraint. This keeps the columns but removes the constraint
+    so that:
+      - DROP SCHEMA (guild deletion) doesn't take locks on public.guilds/users
+        (which the live app is constantly reading), and
+      - deleting the guild row isn't blocked by the schema's NO ACTION FKs.
+    """
+    for fkc in list(table.foreign_key_constraints):
+        if fkc.referred_table.name not in GUILD_SCOPED_TABLES:
+            table.constraints.discard(fkc)
+            for fk in list(fkc.elements):
+                fk.parent.foreign_keys.discard(fk)
 
 
 def _guild_schema_ddl(schema: str) -> str:

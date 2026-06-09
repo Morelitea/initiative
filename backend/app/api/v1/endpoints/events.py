@@ -4,10 +4,13 @@ from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 import jwt
+from sqlalchemy import text
 from sqlmodel import select
 
-from app.api.deps import SessionDep
+from sqlmodel.ext.asyncio.session import AsyncSession
+
 from app.core.config import settings
+from app.db.session import AsyncSessionLocal
 from app.models.user import User, UserStatus
 from app.schemas.token import TokenPayload
 from app.services.realtime import manager
@@ -20,7 +23,7 @@ logger = logging.getLogger(__name__)
 MSG_AUTH = 5
 
 
-async def _user_from_token(token: str, session: SessionDep) -> Optional[User]:
+async def _user_from_token(token: str, session: AsyncSession) -> Optional[User]:
     """Validate JWT or device token and return user, or None if invalid."""
     # First try JWT validation
     try:
@@ -48,7 +51,7 @@ async def _user_from_token(token: str, session: SessionDep) -> Optional[User]:
 
 
 @router.websocket("/updates")
-async def websocket_updates(websocket: WebSocket, session: SessionDep):
+async def websocket_updates(websocket: WebSocket):
     """
     WebSocket endpoint for real-time updates.
 
@@ -83,8 +86,18 @@ async def websocket_updates(websocket: WebSocket, session: SessionDep):
         logger.info("Events WebSocket: Client disconnected before auth")
         return
 
-    # Validate token
-    user = await _user_from_token(token, session)
+    # Validate the token in a SHORT-LIVED session and release it before the
+    # keepalive loop. Holding a request-scoped session for the websocket's whole
+    # lifetime keeps a connection idle-in-transaction, whose locks block DDL like
+    # DROP SCHEMA (guild deletion). Mirrors the queue/counter websockets.
+    async with AsyncSessionLocal() as session:
+        # Reset any stale GUCs the pooled connection may carry (e.g. a SET ROLE to
+        # a since-dropped guild role would make every query error) before the auth
+        # query — AsyncSessionLocal doesn't run get_session's per-request reset.
+        await session.execute(
+            text("SELECT set_config('role', 'none', false), set_config('search_path', 'public', false)")
+        )
+        user = await _user_from_token(token, session)
     if not user:
         logger.warning("Events WebSocket: Auth failed")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
