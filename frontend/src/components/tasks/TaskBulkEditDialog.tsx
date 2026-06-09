@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
 
 export type TaskBulkUpdate = {
   start_date: string | null;
@@ -64,6 +65,7 @@ export const TaskBulkEditDialog = ({
   onCancel,
 }: TaskBulkEditDialogProps) => {
   const { t } = useTranslation(["tasks", "common"]);
+  const { user: currentUser } = useAuth();
   const [startDate, setStartDate] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [assigneeIds, setAssigneeIds] = useState<number[]>([]);
@@ -153,6 +155,7 @@ export const TaskBulkEditDialog = ({
                   options={userOptions}
                   onChange={setAssigneeIds}
                   emptyMessage={t("bulkEdit.noUsersAvailable")}
+                  currentUserId={currentUser?.id}
                 />
               </div>
             </AccordionContent>

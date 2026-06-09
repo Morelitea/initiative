@@ -199,7 +199,8 @@
     "searchPlaceholder": "Search {{memberLabel}}",
     "noAssignees": "No assignees selected.",
     "removeAssignee": "Remove {{name}}",
-    "clearAssignees": "Clear assignees"
+    "clearAssignees": "Clear assignees",
+    "you": "You"
   },
 
   "statuses": {

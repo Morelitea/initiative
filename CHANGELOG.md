@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Reworked the assignee selector to match the tag picker.** Members are now picked from a single searchable dropdown where every entry has a checkbox and avatar, and toggling it adds or removes the person. Selected members sort to the top, followed by yourself (tagged "You") ahead of everyone else, and current selections appear as removable avatar chips on the trigger.
 - Sidebars and the kanban board now show a slim, styled scrollbar instead of the browser default — the app sidebar uses a proper scroll area, while the guild rail and kanban (column and horizontal board) scrollers keep their native scrolling and drag behavior with just restyled scrollbars.
 - OIDC claim mappings no longer use database foreign keys for their initiative/role references — those tables move into per-guild schemas under schema-per-guild, which a shared-table FK can't span. Validity is enforced in the app (the create endpoint already validates) and the login sync skips stale references; the trade-off is documented in the model.
 

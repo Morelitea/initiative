@@ -115,7 +115,7 @@ export const TaskEditPage = () => {
   const { taskId } = useParams({ strict: false }) as { taskId: string };
   const parsedTaskId = Number(taskId);
   const router = useRouter();
-  useAuth();
+  const { user: currentUser } = useAuth();
   useGuilds();
   const { t } = useTranslation(["tasks", "common", "properties"]);
   const gp = useGuildPath();
@@ -383,6 +383,8 @@ export const TaskEditPage = () => {
       return users.map((user) => ({
         id: user.id,
         label: user.full_name ?? user.email,
+        avatarUrl: user.avatar_url,
+        avatarBase64: user.avatar_base64,
       }));
     }
     const allowed = new Set<number>();
@@ -413,6 +415,8 @@ export const TaskEditPage = () => {
       .map((user) => ({
         id: user.id,
         label: user.full_name ?? user.email,
+        avatarUrl: user.avatar_url,
+        avatarBase64: user.avatar_base64,
       }));
   }, [users, project]);
 
@@ -851,22 +855,6 @@ export const TaskEditPage = () => {
                 </div>
               </div>
 
-              <section className="space-y-2">
-                <Label>{t("properties:title")}</Label>
-                <PropertyList
-                  entityKind="task"
-                  entityId={parsedTaskId}
-                  properties={combinedProperties}
-                  disabled={isReadOnly}
-                />
-                <AddPropertyButton
-                  initiativeId={project?.initiative_id ?? 0}
-                  currentPropertyIds={combinedPropertyIds}
-                  onAdd={handleAddProperty}
-                  disabled={isReadOnly || !project?.initiative_id}
-                />
-              </section>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>{t("edit.assigneesLabel")}</Label>
@@ -876,6 +864,7 @@ export const TaskEditPage = () => {
                     onChange={setAssigneeIds}
                     disabled={isReadOnly}
                     emptyMessage={t("edit.assigneesEmptyMessage", { memberLabel })}
+                    currentUserId={currentUser?.id}
                   />
                 </div>
                 <div className="space-y-2">
@@ -897,6 +886,22 @@ export const TaskEditPage = () => {
                 disabled={isReadOnly}
                 referenceDate={dueDate || startDate || task?.due_date || task?.start_date}
               />
+
+              <section className="space-y-2">
+                <Label>{t("properties:title")}</Label>
+                <PropertyList
+                  entityKind="task"
+                  entityId={parsedTaskId}
+                  properties={combinedProperties}
+                  disabled={isReadOnly}
+                />
+                <AddPropertyButton
+                  initiativeId={project?.initiative_id ?? 0}
+                  currentPropertyIds={combinedPropertyIds}
+                  onAdd={handleAddProperty}
+                  disabled={isReadOnly || !project?.initiative_id}
+                />
+              </section>
 
               <div className="flex flex-wrap gap-3">
                 <Button type="submit" disabled={updateTask.isPending || isReadOnly}>

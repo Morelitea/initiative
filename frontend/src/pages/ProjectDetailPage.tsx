@@ -90,6 +90,8 @@ export const ProjectDetailPage = () => {
       return allUsers.map((item) => ({
         id: item.id,
         label: item.full_name ?? item.email,
+        avatarUrl: item.avatar_url,
+        avatarBase64: item.avatar_base64,
       }));
     }
 
@@ -121,6 +123,8 @@ export const ProjectDetailPage = () => {
       .map((item) => ({
         id: item.id,
         label: item.full_name ?? item.email,
+        avatarUrl: item.avatar_url,
+        avatarBase64: item.avatar_base64,
       }));
   }, [usersQuery.data, projectQuery.data]);
 

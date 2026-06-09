@@ -185,7 +185,8 @@
     "searchPlaceholder": "Rechercher {{memberLabel}}",
     "noAssignees": "Aucun assigné sélectionné.",
     "removeAssignee": "Retirer {{name}}",
-    "clearAssignees": "Effacer les assignés"
+    "clearAssignees": "Effacer les assignés",
+    "you": "Vous"
   },
   "statuses": {
     "title": "Statuts des tâches",
