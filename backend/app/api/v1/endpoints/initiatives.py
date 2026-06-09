@@ -783,6 +783,7 @@ async def add_initiative_member(
             user,
             initiative_id=initiative.id,
             initiative_name=initiative.name,
+            guild_id=initiative.guild_id,
         )
     return serialize_initiative(initiative)
 

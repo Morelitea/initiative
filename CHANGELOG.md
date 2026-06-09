@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Corrected malformed stored defaults for tag/task-status colors and the task-status icon (an extra pair of quotes had been baked into the default value).
+- The "added to initiative" notification now carries its guild (id + guild-qualified deep link), like every other guild-scoped notification — so it resolves correctly in the cross-guild inbox under schema-per-guild tenancy.
 
 ## [0.50.2] - 2026-06-08
 

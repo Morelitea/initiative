@@ -15,7 +15,11 @@ from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, RSVP
 from app.models.event_reminder_dispatch import EventReminderDispatch
 from app.models.notification import Notification, NotificationType
 from app.models.user import User
-from app.services.notifications import _format_event_when, _run_event_reminder_pass
+from app.services.notifications import (
+    _format_event_when,
+    _run_event_reminder_pass,
+    notify_initiative_membership,
+)
 from app.testing import (
     create_calendar_event,
     create_guild,
@@ -208,3 +212,35 @@ async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
 
     await _dispatch(session)
     assert await _reminders_for(session, attendee.id) == []
+
+
+@pytest.mark.integration
+async def test_notify_initiative_membership_carries_guild_context(session: AsyncSession):
+    """The initiative_added notification must carry its guild so the merged
+    cross-guild inbox can resolve/navigate it after schema-per-guild."""
+    creator = await create_user(session, email="ini-creator@example.com")
+    guild = await create_guild(session, creator=creator)
+    initiative = await create_initiative(session, guild, creator, name="Onboarding")
+    member = await create_user(session, email="ini-member@example.com")
+
+    await notify_initiative_membership(
+        session,
+        member,
+        initiative_id=initiative.id,
+        initiative_name=initiative.name,
+        guild_id=guild.id,
+    )
+
+    notifs = (
+        await session.exec(
+            select(Notification).where(
+                Notification.user_id == member.id,
+                Notification.type == NotificationType.initiative_added,
+            )
+        )
+    ).all()
+    assert len(notifs) == 1
+    data = notifs[0].data
+    assert data["guild_id"] == guild.id
+    assert data["target_path"] == f"/initiatives/{initiative.id}"
+    assert f"guild_id={guild.id}" in data["smart_link"]

@@ -68,6 +68,12 @@ def _event_target_path(event_id: int | None) -> str:
     return f"/events/{event_id}"
 
 
+def _initiative_target_path(initiative_id: int | None) -> str:
+    if initiative_id is None:
+        return "/initiatives"
+    return f"/initiatives/{initiative_id}"
+
+
 async def _project_guild_map(session: AsyncSession, project_ids: set[int]) -> dict[int, int]:
     if not project_ids:
         return {}
@@ -159,13 +165,21 @@ async def notify_initiative_membership(
     user: User,
     initiative_id: int,
     initiative_name: str,
+    guild_id: int,
 ) -> None:
+    target_path = _initiative_target_path(initiative_id)
     # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=user.id,
         notification_type=NotificationType.initiative_added,
-        data={"initiative_id": initiative_id, "initiative_name": initiative_name},
+        data={
+            "initiative_id": initiative_id,
+            "initiative_name": initiative_name,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
     )
     # Email
     if user.email_initiative_addition is not False:
@@ -187,7 +201,8 @@ async def notify_initiative_membership(
                 data={
                     "type": "initiative_added",
                     "initiative_id": str(initiative_id),
-                    "target_path": f"/initiatives/{initiative_id}",
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
                 },
             )
         except Exception as exc:
