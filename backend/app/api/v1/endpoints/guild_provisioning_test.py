@@ -85,10 +85,11 @@ async def test_create_guild_rolls_back_when_provisioning_fails(
 ):
     """If provisioning fails, the guild is rolled back (no orphaned row)."""
 
-    async def boom(_guild_id):
+    async def boom(*args, **kwargs):
         raise RuntimeError("provisioning failed")
 
-    monkeypatch.setattr(guilds_endpoint, "provision_guild", boom)
+    # Provisioning + schema seeding now run inside the service helper.
+    monkeypatch.setattr(guilds_endpoint.guilds_service, "seed_guild_content", boom)
 
     user = await create_user(session, email="rollback@example.com")
     headers = get_auth_headers(user)

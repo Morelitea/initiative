@@ -231,8 +231,12 @@ async def create_guild(
     description: str | None = None,
     icon_base64: str | None = None,
     creator: User | None = None,
-    with_settings: bool = True,
 ) -> Guild:
+    """Create a guild's *shared* rows only — the guild row (public) and the
+    creator's admin membership (public). The guild-scoped seed rows (settings +
+    default initiative) live in the guild's schema, which doesn't exist yet, so
+    the caller commits this, then calls :func:`seed_guild_content`.
+    """
     now = datetime.now(timezone.utc)
     guild = Guild(
         name=name.strip(),
@@ -244,11 +248,6 @@ async def create_guild(
     )
     session.add(guild)
     await session.flush()
-    # guild_settings is guild-scoped. The schema-native path (the guilds endpoint)
-    # passes with_settings=False and seeds it itself after provisioning + routing,
-    # so it lands in the guild schema. Legacy callers keep the convenience.
-    if with_settings:
-        await create_guild_settings(session, guild.id)
     if creator:
         await ensure_membership(
             session,
@@ -257,6 +256,37 @@ async def create_guild(
             role=GuildRole.admin,
         )
     return guild
+
+
+async def seed_guild_content(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    creator: User,
+    is_superadmin: bool = False,
+) -> None:
+    """Provision a new guild's schema and create its guild-scoped seed rows
+    (settings + default initiative) *inside* it.
+
+    The caller MUST have committed the shared guild row first — provisioning's
+    foreign keys to ``public.guilds`` would otherwise deadlock against the
+    uncommitted insert. The caller commits again afterwards. On failure the
+    caller should ``deprovision_guild`` and remove the shared rows.
+    """
+    from app.db.schema_provisioning import provision_guild
+    from app.db.session import set_rls_context
+    from app.services import initiatives as initiatives_service
+
+    await provision_guild(guild_id)
+    await set_rls_context(
+        session,
+        user_id=creator.id,
+        guild_id=guild_id,
+        guild_role=GuildRole.admin.value,
+        is_superadmin=is_superadmin,
+    )
+    await create_guild_settings(session, guild_id)
+    await initiatives_service.ensure_default_initiative(session, creator, guild_id=guild_id)
 
 
 async def update_guild(

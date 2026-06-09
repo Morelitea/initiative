@@ -11,7 +11,7 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.messages import AdvancedToolMessages, GuildMessages
 from app.core.security import create_advanced_tool_handoff_token, verify_password
-from app.db.schema_provisioning import deprovision_guild, provision_guild
+from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from app.models.guild import GuildRole, GuildMembership, Guild
 from app.models.user import User
@@ -150,9 +150,9 @@ async def create_guild(
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=GuildMessages.GUILD_NAME_REQUIRED)
 
-    # Shared rows (guild, settings, membership) live in public. Commit them first
-    # so the lock on the new guilds row is released before provisioning — the
-    # schema's FKs to public.guilds would otherwise deadlock against the
+    # The guild's shared rows (guild + admin membership) live in public. Commit
+    # them first so the lock on the new guilds row is released before provisioning
+    # — the schema's FKs to public.guilds would otherwise deadlock against the
     # uncommitted insert.
     guild = await guilds_service.create_guild(
         session,
@@ -160,23 +160,18 @@ async def create_guild(
         description=guild_in.description,
         icon_base64=guild_in.icon_base64,
         creator=current_user,
-        with_settings=False,  # seeded into the schema below, not public
     )
     await session.commit()
     try:
-        # Provision the schema, route into it, then create the guild-scoped rows
-        # (settings, default initiative) *there* — so a new guild is schema-native
-        # from birth, with private config (API keys, etc.) isolated in its schema.
-        await provision_guild(guild.id)
-        await set_rls_context(
+        # Provision the schema and create the guild-scoped seed rows (settings +
+        # default initiative) *inside* it — so a new guild is schema-native from
+        # birth, with private config (API keys, etc.) isolated in its schema.
+        await guilds_service.seed_guild_content(
             session,
-            user_id=current_user.id,
             guild_id=guild.id,
-            guild_role=GuildRole.admin.value,
+            creator=current_user,
             is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
         )
-        await guilds_service.create_guild_settings(session, guild.id)
-        await initiatives_service.ensure_default_initiative(session, current_user, guild_id=guild.id)
         await session.commit()
     except Exception:
         logger.exception("Guild %s setup failed; rolling back", guild.id)
@@ -460,6 +455,18 @@ async def check_leave_eligibility(
     membership = await guilds_service.get_membership(session, guild_id=guild_id, user_id=current_user.id)
     if membership is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=GuildMessages.NOT_GUILD_MEMBER)
+
+    # UserSessionDep sets only the user; the blocker checks below read this guild's
+    # schema-scoped data (owned projects, sole-PM initiatives). Now that membership
+    # is confirmed, route the session into the guild's schema so those queries
+    # resolve there instead of public.
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_id,
+        guild_role=membership.role.value,
+        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
+    )
 
     from app.services.users import get_owned_projects_in_guild, is_last_admin_of_guild
 

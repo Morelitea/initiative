@@ -150,25 +150,43 @@ async def register_user(
                 )
             except guilds_service.GuildInviteError as exc:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-            guild_role = GuildRole.member
+            # Joining an existing (already-provisioned) guild — just record membership.
+            await guilds_service.ensure_membership(
+                session,
+                guild_id=guild.id,
+                user_id=user.id,
+                role=GuildRole.member,
+            )
+            await session.commit()
         else:
             guild_name_source = (user.full_name or user.email.split("@", 1)[0]).strip() or user.email
             guild_name = guild_name_source if guild_name_source.lower().endswith("guild") else f"{guild_name_source}'s Guild"
-            guild = await guilds_service.create_guild(
-                session,
-                name=guild_name,
-                creator=user,
-            )
-            guild_role = GuildRole.admin
-            await initiatives_service.ensure_default_initiative(session, user, guild_id=guild.id)
+            # create_guild makes the shared rows (guild + admin membership). Commit
+            # them — together with the user — so provisioning's FK to public.guilds
+            # doesn't deadlock, then provision + seed the schema (settings + default
+            # initiative). On failure, undo the whole registration.
+            guild = await guilds_service.create_guild(session, name=guild_name, creator=user)
+            await session.commit()
+            try:
+                await guilds_service.seed_guild_content(session, guild_id=guild.id, creator=user)
+                await session.commit()
+            except Exception:
+                from contextlib import suppress as _suppress
 
-        await guilds_service.ensure_membership(
-            session,
-            guild_id=guild.id,
-            user_id=user.id,
-            role=guild_role,
-        )
-        await session.commit()
+                from app.db.schema_provisioning import deprovision_guild
+                from app.db.session import set_rls_context as _set_rls
+
+                logger.exception("Guild %s setup failed during registration; rolling back", guild.id)
+                with _suppress(Exception):
+                    await deprovision_guild(guild.id)
+                await _set_rls(session, user_id=user.id)
+                await guilds_service.delete_guild(session, guild)
+                await session.delete(user)
+                await session.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=AuthMessages.UNABLE_TO_CREATE_USER,
+                )
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
         logger.exception("Failed to register user due to integrity error")
