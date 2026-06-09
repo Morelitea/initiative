@@ -22,10 +22,12 @@ from app.db import base  # noqa: F401  # ensure SQLModel.metadata holds every ta
 from app.db import session as db_session
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
-# The login role the request path connects as; it must be able to read/write the
-# guild schema since per-request routing (search_path) sends guild-scoped queries
-# there. (Tightening this to per-guild roles + SET ROLE is the fail-closed step.)
+# The roles the app connects as must reach the guild schema, since per-request
+# routing (search_path) sends guild-scoped queries there: app_user for the RLS
+# request path, app_admin for guild creation / seeding / background jobs.
+# (Tightening to per-guild roles + SET ROLE is the fail-closed step.)
 APP_LOGIN_ROLE = make_url(settings.DATABASE_URL_APP).username
+ADMIN_LOGIN_ROLE = make_url(settings.DATABASE_URL_ADMIN).username
 
 
 def guild_schema_name(guild_id: int) -> str:
@@ -104,7 +106,7 @@ def _grant_statements(schema: str) -> list[str]:
     """
     role = schema  # the per-guild role shares the schema's name (guild_<id>)
     stmts: list[str] = []
-    for grantee in (role, APP_LOGIN_ROLE):
+    for grantee in (role, APP_LOGIN_ROLE, ADMIN_LOGIN_ROLE):
         stmts += [
             f'GRANT USAGE ON SCHEMA "{schema}" TO "{grantee}"',
             f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" '

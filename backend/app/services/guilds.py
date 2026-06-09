@@ -208,6 +208,16 @@ async def list_memberships(
     return result.all()
 
 
+async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSetting:
+    """Seed a guild_settings row. guild_settings is guild-scoped (it holds
+    private config like API keys), so under schema-per-guild this must run with
+    the session already routed to the guild's schema."""
+    settings_row = GuildSetting(guild_id=guild_id, retention_days=90)
+    session.add(settings_row)
+    await session.flush()
+    return settings_row
+
+
 async def create_guild(
     session: AsyncSession,
     *,
@@ -215,6 +225,7 @@ async def create_guild(
     description: str | None = None,
     icon_base64: str | None = None,
     creator: User | None = None,
+    with_settings: bool = True,
 ) -> Guild:
     now = datetime.now(timezone.utc)
     guild = Guild(
@@ -227,11 +238,11 @@ async def create_guild(
     )
     session.add(guild)
     await session.flush()
-    # Always seed a guild_settings row so list_memberships's LEFT JOIN
-    # never returns retention_days=NULL ambiguously (NULL must mean "user
-    # explicitly chose never auto-purge", not "row missing").
-    session.add(GuildSetting(guild_id=guild.id, retention_days=90))
-    await session.flush()
+    # guild_settings is guild-scoped. The schema-native path (the guilds endpoint)
+    # passes with_settings=False and seeds it itself after provisioning + routing,
+    # so it lands in the guild schema. Legacy callers keep the convenience.
+    if with_settings:
+        await create_guild_settings(session, guild.id)
     if creator:
         await ensure_membership(
             session,

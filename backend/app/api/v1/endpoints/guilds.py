@@ -150,35 +150,49 @@ async def create_guild(
     if not name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=GuildMessages.GUILD_NAME_REQUIRED)
 
+    # Shared rows (guild, settings, membership) live in public. Commit them first
+    # so the lock on the new guilds row is released before provisioning — the
+    # schema's FKs to public.guilds would otherwise deadlock against the
+    # uncommitted insert.
     guild = await guilds_service.create_guild(
         session,
         name=name,
         description=guild_in.description,
         icon_base64=guild_in.icon_base64,
         creator=current_user,
+        with_settings=False,  # seeded into the schema below, not public
     )
-    await initiatives_service.ensure_default_initiative(session, current_user, guild_id=guild.id)
     await session.commit()
-    await reapply_rls_context(session)
-    # Provision the guild's schema/role AFTER commit. Doing it before would
-    # deadlock: the uncommitted guilds INSERT holds a lock on public.guilds that
-    # the new schema's foreign keys to public.guilds need. If provisioning fails,
-    # undo the guild so we never leave one un-provisioned.
     try:
+        # Provision the schema, route into it, then create the guild-scoped rows
+        # (settings, default initiative) *there* — so a new guild is schema-native
+        # from birth, with private config (API keys, etc.) isolated in its schema.
         await provision_guild(guild.id)
-    except Exception:
-        # Undo the guild first so we never leave one un-provisioned; only then
-        # best-effort drop any partially-created schema (its failure must not
-        # block the guild rollback or mask the original error).
-        await guilds_service.delete_guild(session, guild)
+        await set_rls_context(
+            session,
+            user_id=current_user.id,
+            guild_id=guild.id,
+            guild_role=GuildRole.admin.value,
+            is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
+        )
+        await guilds_service.create_guild_settings(session, guild.id)
+        await initiatives_service.ensure_default_initiative(session, current_user, guild_id=guild.id)
         await session.commit()
+    except Exception:
+        logger.exception("Guild %s setup failed; rolling back", guild.id)
         with suppress(Exception):
-            await deprovision_guild(guild.id)
-        logger.exception("Guild %s provisioning failed; guild rolled back", guild.id)
+            await deprovision_guild(guild.id)  # drops the schema + any partial content
+        # Reset routing to public, then remove the shared rows we committed.
+        await set_rls_context(session, user_id=current_user.id)
+        stale = await guilds_service.get_guild(session, guild_id=guild.id)
+        if stale:
+            await guilds_service.delete_guild(session, stale)
+            await session.commit()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.GUILD_PROVISION_FAILED,
         )
+    await reapply_rls_context(session)
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=GuildMessages.GUILD_MEMBERSHIP_CREATE_FAILED)
