@@ -7,7 +7,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import InitiativeMember, InitiativeRoleModel
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.oidc_claim_mapping import OIDCClaimMapping, OIDCMappingTargetType
 from app.models.user import User, UserStatus
 
@@ -122,6 +122,28 @@ async def sync_oidc_assignments(
             else:
                 initiative_role_candidates.setdefault(mapping.initiative_id, [])
 
+    # Skip references that no longer resolve. oidc_claim_mappings is a shared
+    # (public) table with no FK to initiatives/initiative_roles (they move into
+    # per-guild schemas under schema-per-guild), so a purged initiative/role can
+    # leave a dangling mapping. Drop it here rather than fail a membership insert.
+    if initiative_guild:
+        from sqlalchemy import tuple_ as sa_tuple
+
+        existing = set(
+            (
+                await session.exec(
+                    select(Initiative.id).where(
+                        sa_tuple(Initiative.id, Initiative.guild_id).in_(
+                            tuple(initiative_guild.items())
+                        )
+                    )
+                )
+            ).all()
+        )
+        for missing in set(initiative_guild) - existing:
+            initiative_guild.pop(missing, None)
+            initiative_role_candidates.pop(missing, None)
+
     # Resolve each to a single role_id using DB metadata
     initiative_roles: dict[int, int | None] = {}  # initiative_id -> role_id
     for key, candidate_ids in initiative_role_candidates.items():
@@ -141,6 +163,24 @@ async def sync_oidc_assignments(
             continue
         roles.sort(key=lambda r: (not r.is_manager, r.position))
         initiative_roles[key] = roles[0].id
+
+    # Null out any resolved role that no longer exists (the FK was demoted), so
+    # the initiative_members.role_id FK can't fail on insert — the membership is
+    # still created, just without the stale role.
+    resolved_role_ids = {rid for rid in initiative_roles.values() if rid is not None}
+    if resolved_role_ids:
+        existing_roles = set(
+            (
+                await session.exec(
+                    select(InitiativeRoleModel.id).where(
+                        InitiativeRoleModel.id.in_(tuple(resolved_role_ids))
+                    )
+                )
+            ).all()
+        )
+        for key, rid in list(initiative_roles.items()):
+            if rid is not None and rid not in existing_roles:
+                initiative_roles[key] = None
 
     # --- Guild memberships ---
     for guild_id, role_str in guild_roles.items():

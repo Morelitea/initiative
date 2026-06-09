@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - per-guild schema provisioning (`app/db/schema_provisioning.py`): creates a `guild_<id>` schema with every guild-scoped table and a Postgres role scoped to just that schema — the next step toward schema-per-guild tenancy.
 - guild creation/deletion now provisions/drops that per-guild schema and role (via a superuser provisioning connection); creating a guild rolls back if provisioning fails.
 
+### Changed
+
+- OIDC claim mappings no longer use database foreign keys for their initiative/role references — those tables move into per-guild schemas under schema-per-guild, which a shared-table FK can't span. Validity is enforced in the app (the create endpoint already validates) and the login sync skips stale references; the trade-off is documented in the model.
+
 ### Fixed
 
 - Corrected malformed stored defaults for tag/task-status colors and the task-status icon (an extra pair of quotes had been baked into the default value).

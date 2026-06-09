@@ -14,11 +14,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
+from app.models.initiative import InitiativeMember
+from app.models.oidc_claim_mapping import OIDCClaimMapping, OIDCMappingTargetType
 from app.models.project import Project
 from app.models.user import UserStatus
 from app.services.oidc_sync import (
     _auto_transfer_owned_projects,
     _pick_fallback_owner,
+    sync_oidc_assignments,
 )
 from app.testing.factories import (
     create_guild,
@@ -262,3 +265,68 @@ async def test_auto_transfer_handles_inactive_fallback_race(
     assert any(
         "became inactive" in rec.message for rec in caplog.records
     )
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_sync_skips_orphaned_initiative_mapping(session: AsyncSession):
+    """A claim mapping pointing at a now-missing initiative (the FK was demoted,
+    so dangling rows are possible) must be skipped, not crash the login sync."""
+    admin = await create_user(session, email="orphan-admin@example.com")
+    guild = await create_guild(session, creator=admin)
+    user = await create_user(session, email="orphan-user@example.com")
+    session.add(
+        OIDCClaimMapping(
+            claim_value="eng",
+            target_type=OIDCMappingTargetType.initiative,
+            guild_id=guild.id,
+            guild_role="member",
+            initiative_id=99_999_999,  # does not exist
+            initiative_role_id=None,
+        )
+    )
+    await session.commit()
+
+    result = await sync_oidc_assignments(session, user_id=user.id, claim_values={"eng"})
+
+    assert result.initiatives_added == []
+    members = (
+        await session.exec(select(InitiativeMember).where(InitiativeMember.user_id == user.id))
+    ).all()
+    assert members == []
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_sync_nulls_orphaned_role_on_valid_initiative(session: AsyncSession):
+    """A valid initiative with a now-missing role still provisions the member —
+    the dangling role id is dropped to NULL rather than failing the insert."""
+    admin = await create_user(session, email="role-admin@example.com")
+    guild = await create_guild(session, creator=admin)
+    initiative = await create_initiative(session, guild=guild, creator=admin)
+    user = await create_user(session, email="role-user@example.com")
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.member)
+    session.add(
+        OIDCClaimMapping(
+            claim_value="pm",
+            target_type=OIDCMappingTargetType.initiative,
+            guild_id=guild.id,
+            guild_role="member",
+            initiative_id=initiative.id,
+            initiative_role_id=99_999_999,  # does not exist
+        )
+    )
+    await session.commit()
+
+    await sync_oidc_assignments(session, user_id=user.id, claim_values={"pm"})
+
+    members = (
+        await session.exec(
+            select(InitiativeMember).where(
+                InitiativeMember.user_id == user.id,
+                InitiativeMember.initiative_id == initiative.id,
+            )
+        )
+    ).all()
+    assert len(members) == 1
+    assert members[0].role_id is None
