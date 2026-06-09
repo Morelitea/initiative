@@ -19,6 +19,10 @@ engine = create_async_engine(settings.DATABASE_URL_APP, echo=False, future=True)
 # Admin engine: for background jobs and startup seeding (BYPASSRLS).
 admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False, future=True)
 
+# Provisioning engine: superuser credentials (same as migrations) for privileged
+# DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
+provisioning_engine = create_async_engine(settings.DATABASE_URL, echo=False, future=True)
+
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     autocommit=False,

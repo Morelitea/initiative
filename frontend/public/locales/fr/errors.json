@@ -24,6 +24,7 @@
   "GUILD_NAME_REQUIRED": "Le nom du groupe est requis",
   "GUILD_NOT_FOUND": "Groupe introuvable",
   "GUILD_MEMBERSHIP_CREATE_FAILED": "Échec de la création de l'appartenance au groupe",
+  "GUILD_PROVISION_FAILED": "Échec de l'approvisionnement du stockage du groupe",
   "GUILD_MEMBERSHIP_MISSING": "Appartenance au groupe manquante",
   "CANNOT_CHANGE_OWN_ROLE": "Impossible de modifier votre propre rôle dans le groupe",
   "USER_NOT_FOUND_IN_GUILD": "Utilisateur introuvable dans le groupe",

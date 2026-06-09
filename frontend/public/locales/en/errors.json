@@ -26,6 +26,7 @@
   "GUILD_INVALID_PASSWORD": "Incorrect password",
   "GUILD_CONFIRMATION_MISMATCH": "Confirmation text does not match",
   "GUILD_MEMBERSHIP_CREATE_FAILED": "Failed to create guild membership",
+  "GUILD_PROVISION_FAILED": "Failed to provision guild storage",
   "GUILD_MEMBERSHIP_MISSING": "Guild membership missing",
   "CANNOT_CHANGE_OWN_ROLE": "Cannot change your own guild role",
   "USER_NOT_FOUND_IN_GUILD": "User not found in guild",

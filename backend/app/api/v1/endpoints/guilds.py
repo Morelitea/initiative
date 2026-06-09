@@ -9,6 +9,7 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.messages import AdvancedToolMessages, GuildMessages
 from app.core.security import create_advanced_tool_handoff_token, verify_password
+from app.db.schema_provisioning import deprovision_guild, provision_guild
 from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
 from app.models.guild import GuildRole, GuildMembership, Guild
 from app.models.user import User
@@ -156,6 +157,20 @@ async def create_guild(
     await initiatives_service.ensure_default_initiative(session, current_user, guild_id=guild.id)
     await session.commit()
     await reapply_rls_context(session)
+    # Provision the guild's schema/role AFTER commit. Doing it before would
+    # deadlock: the uncommitted guilds INSERT holds a lock on public.guilds that
+    # the new schema's foreign keys to public.guilds need. If provisioning fails,
+    # undo the guild so we never leave one un-provisioned.
+    try:
+        await provision_guild(guild.id)
+    except Exception:
+        await deprovision_guild(guild.id)
+        await guilds_service.delete_guild(session, guild)
+        await session.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=GuildMessages.GUILD_PROVISION_FAILED,
+        )
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=GuildMessages.GUILD_MEMBERSHIP_CREATE_FAILED)
@@ -291,6 +306,9 @@ async def delete_guild(
 
     await guilds_service.delete_guild(session, guild)
     await session.commit()
+    # Drop the schema/role after the guild rows are gone. If it fails the guild
+    # is still deleted; an orphaned empty schema is harmless.
+    await deprovision_guild(guild_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

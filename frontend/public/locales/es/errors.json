@@ -24,6 +24,7 @@
   "GUILD_NAME_REQUIRED": "El nombre del gremio es obligatorio",
   "GUILD_NOT_FOUND": "Gremio no encontrado",
   "GUILD_MEMBERSHIP_CREATE_FAILED": "No se pudo crear la membresía del gremio",
+  "GUILD_PROVISION_FAILED": "No se pudo aprovisionar el almacenamiento del gremio",
   "GUILD_MEMBERSHIP_MISSING": "Falta la membresía del gremio",
   "CANNOT_CHANGE_OWN_ROLE": "No puedes cambiar tu propio rol de gremio",
   "USER_NOT_FOUND_IN_GUILD": "Usuario no encontrado en el gremio",

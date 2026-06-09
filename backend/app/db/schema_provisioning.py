@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from sqlmodel import SQLModel
 
 from app.db import base  # noqa: F401  # ensure SQLModel.metadata holds every table
+from app.db import session as db_session
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
 
@@ -143,3 +144,20 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     if await _role_exists(conn, role):
         await conn.exec_driver_sql(f'DROP OWNED BY "{role}"')  # clear grants first
         await conn.exec_driver_sql(f'DROP ROLE "{role}"')
+
+
+async def provision_guild(guild_id: int) -> str:
+    """Provision a guild's schema + role on the superuser engine, atomically.
+
+    Opens its own transaction on the provisioning (superuser) engine — the
+    request-path session can't run this DDL. Looked up via the module so tests
+    can point it at the test database.
+    """
+    async with db_session.provisioning_engine.begin() as conn:
+        return await provision_guild_schema(conn, guild_id)
+
+
+async def deprovision_guild(guild_id: int) -> None:
+    """Drop a guild's schema + role on the superuser engine."""
+    async with db_session.provisioning_engine.begin() as conn:
+        await drop_guild_schema(conn, guild_id)

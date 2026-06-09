@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - table classification manifest (`app/db/tenancy.py`) marking every table as shared or guild-scoped, with a test guarding completeness — the first step toward schema-per-guild tenancy.
-- per-guild schema provisioning (`app/db/schema_provisioning.py`): creates a `guild_<id>` schema with every guild-scoped table and a Postgres role scoped to just that schema — the next step toward schema-per-guild tenancy. Not yet wired into the request path.
+- per-guild schema provisioning (`app/db/schema_provisioning.py`): creates a `guild_<id>` schema with every guild-scoped table and a Postgres role scoped to just that schema — the next step toward schema-per-guild tenancy.
+- guild creation/deletion now provisions/drops that per-guild schema and role (via a superuser provisioning connection); creating a guild rolls back if provisioning fails.
 
 ### Fixed
 
