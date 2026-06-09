@@ -70,7 +70,7 @@ class PropertyDefinition(SQLModel, table=True):
     )
     color: Optional[str] = Field(
         default=None,
-        sa_column=Column(String(length=7), nullable=True),
+        sa_column=Column(String(length=9), nullable=True),
     )
     options: Optional[List[dict]] = Field(
         default=None,

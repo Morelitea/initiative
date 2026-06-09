@@ -33,7 +33,7 @@ class Tag(SoftDeleteMixin, table=True):
     )
     color: str = Field(
         default="#6366F1",
-        sa_column=Column(String(length=7), nullable=False, server_default="'#6366F1'"),
+        sa_column=Column(String(length=9), nullable=False, server_default="#6366F1"),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

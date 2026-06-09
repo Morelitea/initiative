@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Internal: table classification manifest (`app/db/tenancy.py`) marking every table as shared or guild-scoped, with a test guarding completeness — the first step toward schema-per-guild tenancy.
+- table classification manifest (`app/db/tenancy.py`) marking every table as shared or guild-scoped, with a test guarding completeness — the first step toward schema-per-guild tenancy.
+
+### Fixed
+
+- Corrected malformed stored defaults for tag/task-status colors and the task-status icon (an extra pair of quotes had been baked into the default value).
 
 ## [0.50.2] - 2026-06-08
 

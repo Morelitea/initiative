@@ -51,11 +51,11 @@ class TaskStatus(SQLModel, table=True):
     )
     color: str = Field(
         default="#94A3B8",
-        sa_column=Column(String(length=9), nullable=False, server_default="'#94A3B8'"),
+        sa_column=Column(String(length=9), nullable=False, server_default="#94A3B8"),
     )
     icon: str = Field(
         default="circle-dashed",
-        sa_column=Column(String(length=64), nullable=False, server_default="'circle-dashed'"),
+        sa_column=Column(String(length=64), nullable=False, server_default="circle-dashed"),
     )
 
     project: Optional["Project"] = Relationship(back_populates="task_statuses")
