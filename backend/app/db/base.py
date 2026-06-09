@@ -27,6 +27,11 @@ from app.models.counter import Counter, CounterGroup, CounterGroupPermission, Co
 from app.models.upload import Upload
 from app.models.user_view_preference import UserViewPreference
 from app.models.access_grant import AccessGrant
+from app.models.user_token import UserToken
+from app.models.push_token import PushToken
+from app.models.auto_delegation_jti import AutoDelegationJti
+from app.models.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.webhook_subscription import WebhookSubscription
 
 __all__ = [
     "User",
@@ -82,4 +87,9 @@ __all__ = [
     "CounterGroupRolePermission",
     "Upload",
     "UserViewPreference",
+    "UserToken",
+    "PushToken",
+    "AutoDelegationJti",
+    "TaskAssignmentDigestItem",
+    "WebhookSubscription",
 ]
