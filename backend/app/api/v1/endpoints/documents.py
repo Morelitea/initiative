@@ -24,6 +24,7 @@ from app.core.messages import DocumentMessages, InitiativeMessages, QueryMessage
 from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
+from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.models.document import Document, DocumentFileVersion, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
@@ -39,6 +40,7 @@ from app.schemas.document import (
     DocumentCopyRequest,
     DocumentDuplicateRequest,
     DocumentListResponse,
+    DocumentSummary,
     DocumentPermissionBulkCreate,
     DocumentPermissionBulkDelete,
     DocumentPermissionCreate,
@@ -347,6 +349,23 @@ async def _apply_property_filters(
     )
 
 
+def _sort_global_document_summaries(
+    items: list[DocumentSummary], sort_by: Optional[str], sort_dir: Optional[str]
+) -> list[DocumentSummary]:
+    """Order the merged cross-guild summaries, mirroring _apply_document_sort
+    (``id`` desc tiebreak applied as a separate stable pass)."""
+    items.sort(key=lambda d: d.id, reverse=True)
+    if sort_by == "title":
+        items.sort(key=lambda d: (d.title or "").lower(), reverse=sort_dir == "desc")
+    elif sort_by == "updated_at":
+        items.sort(key=lambda d: d.updated_at, reverse=sort_dir == "desc")
+    elif sort_by == "created_at":
+        items.sort(key=lambda d: d.created_at, reverse=sort_dir == "desc")
+    else:
+        items.sort(key=lambda d: d.updated_at, reverse=True)
+    return items
+
+
 async def _list_global_documents(
     session: SessionDep,
     current_user: User,
@@ -357,58 +376,54 @@ async def _list_global_documents(
     page_size: int = 20,
     sort_by: Optional[str] = None,
     sort_dir: Optional[str] = None,
-) -> tuple[list[Document], int]:
-    """List documents created by the current user across all guilds they belong to."""
-    conditions = [
-        GuildMembership.user_id == current_user.id,
-        Document.created_by_id == current_user.id,
-    ]
-    if guild_ids:
-        conditions.append(Initiative.guild_id.in_(tuple(guild_ids)))
+) -> tuple[list[DocumentSummary], int]:
+    """List documents the user created across every guild they belong to.
+
+    Visits each guild's schema in turn and merges. Per-schema ids collide, so
+    items are distinguished by (guild_id, id) via the nested initiative.
+    """
+    target_guilds = await member_guild_ids(session, current_user.id, restrict_to=guild_ids)
+    conditions = [Document.created_by_id == current_user.id]
     if search:
         normalized = search.strip().lower()
         if normalized:
             conditions.append(func.lower(Document.title).contains(normalized))
 
-    def _base_query(stmt):
-        return (
-            stmt
-            .join(Document.initiative)
-            .join(Initiative.guild)
-            .join(GuildMembership, GuildMembership.guild_id == Initiative.guild_id)
-            .where(*conditions)
+    async def _fetch(guild_session: AsyncSession, _guild_id: int) -> list[DocumentSummary]:
+        statement = select(Document).where(*conditions).options(
+            selectinload(Document.initiative).selectinload(Initiative.guild),
+            selectinload(Document.initiative).selectinload(Initiative.memberships).options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+            ),
+            selectinload(Document.project_links).selectinload(ProjectDocument.project),
+            selectinload(Document.permissions),
+            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.property_definition
+            ),
+            selectinload(Document.property_values).selectinload(
+                DocumentPropertyValue.value_user
+            ),
         )
+        documents = list((await guild_session.exec(statement)).unique().all())
+        await documents_service.annotate_comment_counts(guild_session, documents)
+        return [
+            serialize_document_summary(
+                document,
+                my_permission_level=_compute_my_doc_permission_level(document, current_user.id),
+            )
+            for document in documents
+        ]
 
-    # Count query
-    count_subq = _base_query(select(Document.id)).subquery()
-    count_stmt = select(func.count()).select_from(count_subq)
-    total_count = (await session.exec(count_stmt)).one()
-
-    # Data query with eager loading
-    statement = _base_query(select(Document)).options(
-        selectinload(Document.initiative).selectinload(Initiative.guild),
-        selectinload(Document.initiative).selectinload(Initiative.memberships).options(
-            selectinload(InitiativeMember.user),
-            selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
-        ),
-        selectinload(Document.project_links).selectinload(ProjectDocument.project),
-        selectinload(Document.permissions),
-        selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
-        selectinload(Document.tag_links).selectinload(DocumentTag.tag),
-        selectinload(Document.property_values).selectinload(
-            DocumentPropertyValue.property_definition
-        ),
-        selectinload(Document.property_values).selectinload(
-            DocumentPropertyValue.value_user
-        ),
-    )
-    statement = _apply_document_sort(statement, sort_by, sort_dir)
-
+    items = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
+    items = _sort_global_document_summaries(items, sort_by, sort_dir)
+    total_count = len(items)
     if page_size > 0:
-        statement = statement.offset((page - 1) * page_size).limit(page_size)
-
-    result = await session.exec(statement)
-    return result.unique().all(), total_count
+        start = (page - 1) * page_size
+        items = items[start : start + page_size]
+    return items, total_count
 
 
 @router.get("/counts", response_model=DocumentCountsResponse)
@@ -513,7 +528,7 @@ async def list_documents(
     all guilds they belong to. Optionally filter by guild_ids.
     """
     if scope == "global":
-        documents, total_count = await _list_global_documents(
+        items, total_count = await _list_global_documents(
             session,
             current_user,
             guild_ids=guild_ids,
@@ -523,16 +538,6 @@ async def list_documents(
             sort_by=sort_by,
             sort_dir=sort_dir,
         )
-        await documents_service.annotate_comment_counts(session, documents)
-        items = [
-            serialize_document_summary(
-                document,
-                my_permission_level=_compute_my_doc_permission_level(
-                    document, current_user.id,
-                ),
-            )
-            for document in documents
-        ]
         if page_size > 0:
             has_next = page * page_size < total_count
         else:

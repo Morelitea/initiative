@@ -100,14 +100,26 @@ async def test_list_global_documents_guild_filter(
     doc2 = await _create_document(client, guild2, user, init2, "Doc in Guild 2")
 
     headers = get_guild_headers(guild1, user)
+
+    def keyed(resp):
+        return {(d["initiative"]["guild_id"], d["id"]) for d in resp.json()["items"]}
+
+    # No filter: documents from BOTH guilds are aggregated (per-schema ids
+    # collide, so key by (guild_id, id)).
+    response = await client.get("/api/v1/documents/?scope=global", headers=headers)
+    assert response.status_code == 200
+    found = keyed(response)
+    assert (guild1.id, doc1["id"]) in found
+    assert (guild2.id, doc2["id"]) in found
+
+    # Filtered to guild1: only guild1's document.
     response = await client.get(
         f"/api/v1/documents/?scope=global&guild_ids={guild1.id}", headers=headers
     )
-
     assert response.status_code == 200
-    doc_ids = {d["id"] for d in response.json()["items"]}
-    assert doc1["id"] in doc_ids
-    assert doc2["id"] not in doc_ids
+    found = keyed(response)
+    assert (guild1.id, doc1["id"]) in found
+    assert (guild2.id, doc2["id"]) not in found
 
 
 @pytest.mark.integration
