@@ -74,20 +74,27 @@ def apply_to_all_guild_schemas(
     conversion drops it; pass ``False`` once those copies are gone (and a
     ``guild_template`` exists, add it to the targets).
 
+    Must run inside a transaction (migrations always do): the per-schema
+    ``search_path`` is set with ``is_local=true`` so it's scoped to that
+    transaction. If a statement fails, the error propagates uncaught and the
+    transaction rollback reverts the search_path — there is deliberately no
+    ``finally`` reset, which on an aborted transaction would itself raise and
+    mask the original error (and could strand a stale search_path on the
+    connection). On success we reset to ``public`` for any later statements in
+    the same transaction, since Alembic may batch migrations into one.
+
     Reminder: after using this in a migration, regenerate
     ``alembic/guild/guild_schema.sql`` so newly provisioned guilds get the change.
     """
     targets = (["public"] if include_public else []) + guild_schema_names(connection)
-    try:
-        for schema in targets:
-            # set_config (not SET) so it lands on this exact connection, matching
-            # how set_rls_context routes; schema name comes from pg_namespace so
-            # it's already a safe identifier.
-            connection.execute(
-                text("SELECT set_config('search_path', :sp, false)"),
-                {"sp": f"{schema}, public"},
-            )
-            for statement in statements:
-                connection.execute(text(statement))
-    finally:
-        connection.execute(text("SELECT set_config('search_path', 'public', false)"))
+    for schema in targets:
+        # set_config (not SET) so it lands on this exact connection, matching how
+        # set_rls_context routes; is_local=true scopes it to the transaction.
+        # Schema names come from pg_namespace, so they're already safe identifiers.
+        connection.execute(
+            text("SELECT set_config('search_path', :sp, true)"),
+            {"sp": f"{schema}, public"},
+        )
+        for statement in statements:
+            connection.execute(text(statement))
+    connection.execute(text("SELECT set_config('search_path', 'public', true)"))
