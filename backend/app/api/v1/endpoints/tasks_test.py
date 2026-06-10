@@ -620,9 +620,13 @@ async def test_reorder_rebalances_on_precision_exhaustion(
     assert data[task2.id]["position"] == 2.0
     assert data[task3.id]["position"] == 3.0
     # task2 was only renumbered, not explicitly moved -> updated_at must not churn.
-    assert datetime.fromisoformat(data[task2.id]["updated_at"]) == task2_updated_before
+    # (Normalize the trailing 'Z' — datetime.fromisoformat rejects it on <3.11.)
+    def _parse(ts: str) -> datetime:
+        return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+    assert _parse(data[task2.id]["updated_at"]) == task2_updated_before
     # task3 was explicitly moved -> updated_at advances.
-    assert datetime.fromisoformat(data[task3.id]["updated_at"]) > task2_updated_before
+    assert _parse(data[task3.id]["updated_at"]) > task2_updated_before
 
 
 @pytest.mark.integration
