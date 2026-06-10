@@ -986,18 +986,21 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
             continue  # rate-limited to one digest per hour
         per_guild_items: dict[int, list[int]] = {}
 
-        async def _fetch(routed: AsyncSession, gid: int) -> list[dict]:
+        # Capture user_id / per_guild_items as defaults so this closure doesn't
+        # bind the loop variables by reference (B023) — safe even if the call
+        # site is ever refactored to defer the closures.
+        async def _fetch(routed: AsyncSession, gid: int, *, _uid=user_id, _items=per_guild_items) -> list[dict]:
             items = (
                 await routed.exec(
                     select(TaskAssignmentDigestItem)
                     .where(
-                        TaskAssignmentDigestItem.user_id == user_id,
+                        TaskAssignmentDigestItem.user_id == _uid,
                         TaskAssignmentDigestItem.processed_at.is_(None),
                     )
                     .order_by(TaskAssignmentDigestItem.created_at.asc())
                 )
             ).scalars().all()
-            per_guild_items[gid] = [item.id for item in items]
+            _items[gid] = [item.id for item in items]
             return [
                 {
                     "task_title": item.task_title,
@@ -1018,7 +1021,9 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         # Send: re-load the user (gather expunged it) in a shared-table context.
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
-        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one()
+        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if user is None:  # deleted between the snapshot and now — skip, don't abort the pass
+            continue
         try:
             await email_service.send_task_assignment_digest_email(session, user, assignments)
             logger.info("task-digest: sent %d assignment(s) to user %s", len(assignments), email)
@@ -1040,9 +1045,12 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
                 .values(processed_at=now)
             )
             await session.commit()
+            await reapply_rls_context(session)  # commit may have dropped the connection's context
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
-        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one()
+        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if user is None:
+            continue
         user.last_task_assignment_digest_at = now
         session.add(user)
         await session.commit()
@@ -1134,7 +1142,9 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         guild_ids = await member_guild_ids(session, user_id)
         tasks = await gather_across_guilds(
             session, user_id, guild_ids,
-            lambda routed, _gid: _overdue_tasks_for_user(routed, user_id),
+            # _uid default-binds user_id so the closure doesn't capture the loop
+            # variable by reference (B023).
+            lambda routed, _gid, _uid=user_id: _overdue_tasks_for_user(routed, _uid),
         )
         if not tasks:
             continue
@@ -1142,7 +1152,9 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         # email/stamp touch only shared tables, so the user-only context is fine.
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
-        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one()
+        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if user is None:  # deleted between the snapshot and now — skip, don't abort the pass
+            continue
         try:
             await email_service.send_overdue_tasks_email(session, user, tasks)
             logger.info("overdue-digest: sent %d overdue task(s) to user %s", len(tasks), email)
@@ -1227,10 +1239,12 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
                 await reapply_rls_context(session)
                 recipient = (
                     await session.exec(select(User).where(User.id == user_id))
-                ).scalar_one()
+                ).scalar_one_or_none()
                 event = (
                     await session.exec(select(CalendarEvent).where(CalendarEvent.id == event_id))
-                ).scalar_one()
+                ).scalar_one_or_none()
+                if recipient is None or event is None:
+                    continue  # deleted mid-run; dedup row stays so we don't retry
                 await notify_event_reminder(
                     session, recipient=recipient, event=event, guild_id=ev_guild_id
                 )
