@@ -411,9 +411,10 @@ async def delete_guild(session: AsyncSession, guild: Guild) -> None:
     delete the shared guild row; its ``ON DELETE CASCADE`` foreign keys clear the
     roster (memberships, invites, OIDC claim mappings, access grants).
 
-    The caller MUST drop the schema first: the schema's queues/counters/calendar
-    foreign keys to ``public.guilds`` are ``NO ACTION`` and would otherwise block
-    this delete.
+    Order-independent w.r.t. the schema drop: guild-schema tables no longer carry
+    FKs to ``public.guilds`` (stripped at provisioning), so this row delete is never
+    blocked by the schema. Callers delete the row first (reliable, makes the guild
+    gone) and drop the schema as best-effort cleanup afterwards.
 
     Uses a bulk DELETE (not ``session.delete``) so the row goes via the DB-level
     ON DELETE CASCADE FKs — ``session.delete`` would walk ORM relationships and

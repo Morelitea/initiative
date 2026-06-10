@@ -14,7 +14,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
-from sqlmodel import select, update as sql_update
+from sqlmodel import delete as sql_delete, select, update as sql_update
 
 from app.api.deps import SessionDep, get_current_active_user, get_current_user_optional
 from app.db.session import get_admin_session
@@ -27,7 +27,7 @@ from app.core.password_policy import enforce_password_policy
 from app.core.security import create_access_token, get_password_hash, password_needs_rehash, verify_password
 from app.core.user_input_validators import normalize_timezone
 from app.models.user import User, UserRole, UserStatus
-from app.models.guild import GuildRole
+from app.models.guild import Guild, GuildRole
 from app.schemas.token import Token
 from app.schemas.auth import (
     DeviceTokenInfo,
@@ -167,21 +167,33 @@ async def register_user(
             # initiative). On failure, undo the whole registration.
             guild = await guilds_service.create_guild(session, name=guild_name, creator=user)
             await session.commit()
+            # Capture ids before the seed: the rollback in the failure path expires
+            # the ORM objects, so reading guild.id / user.id afterwards would reload.
+            guild_id = guild.id
+            user_id = user.id
             try:
-                await guilds_service.seed_guild_content(session, guild_id=guild.id, creator=user)
+                await guilds_service.seed_guild_content(session, guild_id=guild_id, creator=user)
                 await session.commit()
             except Exception:
                 from contextlib import suppress as _suppress
 
                 from app.db.schema_provisioning import deprovision_guild
-                from app.db.session import set_rls_context as _set_rls
 
-                logger.exception("Guild %s setup failed during registration; rolling back", guild.id)
+                logger.exception("Guild %s setup failed during registration; rolling back", guild_id)
+                # Roll back FIRST. If the seed failed on a DB error the session is
+                # aborted; without this rollback every cleanup query below raises
+                # PendingRollbackError and the already-committed user + guild rows
+                # are stranded. Rollback also reverts the seed's SET ROLE (Postgres
+                # SET is transactional) so deprovision can DROP the role; this is an
+                # admin (BYPASSRLS) session, so removing the shared rows isn't filtered.
+                await session.rollback()
                 with _suppress(Exception):
-                    await deprovision_guild(guild.id)
-                await _set_rls(session, user_id=user.id)
-                await guilds_service.delete_guild(session, guild)
-                await session.delete(user)
+                    await deprovision_guild(guild_id)
+                # Bulk DELETEs by captured id (CASCADE clears the roster) — never
+                # session.delete (walks ORM relationships with async-unsafe sync
+                # loads) and never the expired ORM objects (would reload).
+                await session.exec(sql_delete(Guild).where(Guild.id == guild_id))
+                await session.exec(sql_delete(User).where(User.id == user_id))
                 await session.commit()
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
