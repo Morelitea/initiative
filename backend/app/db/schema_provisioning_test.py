@@ -5,6 +5,8 @@ collide with real data, and drop it in teardown. Runs against the test DB as
 the owning role (the ``engine`` fixture), which has DDL privileges.
 """
 
+import re
+
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import ProgrammingError
@@ -279,3 +281,81 @@ async def test_drop_guild_schema_is_safe_when_absent(engine):
     """Dropping a guild that was never provisioned is a no-op, not an error."""
     async with engine.begin() as conn:
         await drop_guild_schema(conn, _GID_DROP_ABSENT)  # must not raise
+
+
+# --- drift guard: the provisioned guild schema must equal Alembic's public ------
+
+_GID_DRIFT = 990_120
+
+
+def _norm_default(d):
+    # Per-schema sequences are correct; collapse nextval(...) so the seq name
+    # (and a legacy rename like teams_id_seq) doesn't read as drift.
+    return re.sub(r"nextval\('[^']+'::regclass\)", "nextval(SEQ)", d) if d else d
+
+
+def _norm_constraint(s):
+    # PG re-renders array casts on round-trip; strip cast/paren/space noise so a
+    # semantically identical CHECK doesn't read as drift.
+    s = re.sub(r"::(?:text|character varying|varchar|bpchar|integer|bigint)(?:\[\])?", "", s)
+    return re.sub(r"[\s()\[\]]", "", s)
+
+
+async def test_guild_schema_matches_alembic_public(engine):
+    """The schema provisioning builds (by running alembic/guild/guild_schema.sql)
+    must be structurally identical to the tables Alembic builds in ``public`` —
+    same columns/types/nullability/defaults, CHECK/PK/UNIQUE, indexes (incl.
+    opclasses), and intra-schema FK ON DELETE rules. Cross-schema FKs are
+    intentionally absent (soft refs). This fails if the artifact drifts from
+    Alembic; regenerate it with scripts/gen_guild_schema.py."""
+    schema = guild_schema_name(_GID_DRIFT)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_DRIFT)
+
+        async with engine.connect() as conn:
+            async def cols(ns, t):
+                r = await conn.execute(text(
+                    "SELECT a.attname a, format_type(a.atttypid,a.atttypmod) ty, a.attnotnull n, "
+                    "pg_get_expr(ad.adbin,ad.adrelid) d FROM pg_attribute a "
+                    "LEFT JOIN pg_attrdef ad ON ad.adrelid=a.attrelid AND ad.adnum=a.attnum "
+                    "WHERE a.attrelid=(:ns||'.'||:t)::regclass AND a.attnum>0 AND NOT a.attisdropped"
+                ), {"ns": ns, "t": t})
+                return {x.a: (x.ty, x.n, _norm_default(x.d)) for x in r}
+
+            async def cons(ns, t):  # CHECK/PK/UNIQUE
+                r = await conn.execute(text(
+                    "SELECT pg_get_constraintdef(oid) d FROM pg_constraint "
+                    "WHERE conrelid=(:ns||'.'||:t)::regclass AND contype IN ('c','p','u')"
+                ), {"ns": ns, "t": t})
+                return sorted(_norm_constraint(x.d) for x in r)
+
+            async def intra_fks(ns, t):  # (target, ON DELETE) for guild->guild FKs only
+                r = await conn.execute(text(
+                    "SELECT tgt.relname g, con.confdeltype::text d FROM pg_constraint con "
+                    "JOIN pg_class tgt ON tgt.oid=con.confrelid "
+                    "WHERE con.conrelid=(:ns||'.'||:t)::regclass AND con.contype='f' "
+                    "AND tgt.relname = ANY(:gs)"
+                ), {"ns": ns, "t": t, "gs": list(GUILD_SCOPED_TABLES)})
+                return {(x.g, x.d) for x in r}
+
+            async def idx(ns, t):  # the USING ... part is schema-independent
+                r = await conn.execute(text(
+                    "SELECT indexdef i FROM pg_indexes WHERE schemaname=:ns AND tablename=:t"
+                ), {"ns": ns, "t": t})
+                return sorted(x.i.split(" USING ", 1)[1] for x in r if " USING " in x.i)
+
+            drift = []
+            for t in sorted(GUILD_SCOPED_TABLES):
+                if await cols("public", t) != await cols(schema, t):
+                    drift.append(f"columns: {t}")
+                if await cons("public", t) != await cons(schema, t):
+                    drift.append(f"constraints: {t}")
+                if await intra_fks("public", t) != await intra_fks(schema, t):
+                    drift.append(f"foreign keys: {t}")
+                if await idx("public", t) != await idx(schema, t):
+                    drift.append(f"indexes: {t}")
+            assert drift == [], f"guild schema drifted from Alembic's public: {drift}"
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_DRIFT)

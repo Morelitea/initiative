@@ -1,26 +1,24 @@
 """Provision and tear down a per-guild PostgreSQL schema.
 
-`provision_guild_schema` creates `guild_<id>` with every guild-scoped table
-(from `app.db.tenancy.GUILD_SCOPED_TABLES`) plus a Postgres role scoped to that
-schema; `drop_guild_schema` removes both. Idempotent — re-running back-fills any
-guild-scoped table added to the manifest since the schema was created. This is
-where each guild's schema + role come from; per-request routing (search_path +
-SET ROLE in `set_rls_context`) sends guild-scoped queries into them.
+`provision_guild_schema` creates `guild_<id>` (tables via `apply_guild_schema`,
+which RUNS the canonical Alembic-owned DDL in `alembic/guild/guild_schema.sql`)
+plus per-guild Postgres roles; `drop_guild_schema` removes both. Idempotent —
+re-running back-fills any guild-scoped table a later migration added. The model
+is never used to build the DB: Alembic is the single source, applied per schema.
+Per-request routing (search_path + SET ROLE in `set_rls_context`) sends
+guild-scoped queries into the schema.
 """
 
 from __future__ import annotations
 
-from sqlalchemy import MetaData, text
-from sqlalchemy.dialects import postgresql
+from pathlib import Path
+
+from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncConnection
-from sqlalchemy.schema import CreateIndex, CreateTable
-from sqlmodel import SQLModel
 
 from app.core.config import settings
-from app.db import base  # noqa: F401  # ensure SQLModel.metadata holds every table
 from app.db import session as db_session
-from app.db.tenancy import GUILD_SCOPED_TABLES
 
 # The roles the app connects as must reach the guild schema, since per-request
 # routing (search_path) sends guild-scoped queries there: app_user for the RLS
@@ -56,84 +54,29 @@ def guild_readonly_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_ro"
 
 
-def _guild_scoped_tables() -> list:
-    return [t for t in SQLModel.metadata.sorted_tables if t.name in GUILD_SCOPED_TABLES]
+# The single source for a guild schema's structure: schema-relative DDL generated
+# from the public tables Alembic builds (regenerate with scripts/gen_guild_schema.py
+# after any guild-scoped migration). The model is never used to build the DB.
+GUILD_SCHEMA_SQL_PATH = Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_schema.sql"
 
 
-# TODO(post-v1): once existing guilds have migrated and provisioning volume
-# actually matters, consider cloning a prebuilt `guild_template` schema
-# (pg_dump --schema | rename) instead of generating per-table DDL here — much
-# faster at scale, but it doesn't cover back-fill, so keep this path for that.
-def _guild_metadata(schema: str) -> tuple[MetaData, list]:
-    """Build a schema-qualified copy of the model and the guild tables to create.
+async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
+    """Build/refresh ``schema``'s guild-scoped tables by RUNNING the canonical,
+    Alembic-owned DDL with the search_path pointed at it.
 
-    Every table is copied so FK targets resolve: guild-scoped tables go to
-    ``schema``, shared tables (and the named enum types) stay in ``public``. Only
-    the guild-scoped copies are returned for creation. Being schema-explicit lets
-    ``create_all(checkfirst=True)`` check existence in *this* schema (not via the
-    search path, where the public copies would mask it) — which is what makes
-    re-provisioning back-fill newly-added tables.
+    The same DDL builds ``guild_template`` (a migration) and every ``guild_<id>``
+    (provisioning) — one source of truth, applied per schema. It's schema-relative
+    (unqualified names resolve in ``schema``; shared types/tables fall through to
+    ``public``) and idempotent (``IF NOT EXISTS`` / guarded constraints), so a
+    re-run back-fills anything a later migration added. No model, no clone.
     """
-    md = MetaData()
-
-    def referred_schema_fn(table, to_schema, constraint, referred_schema):
-        return schema if constraint.referred_table.name in GUILD_SCOPED_TABLES else None
-
-    guild_tables = []
-    for t in SQLModel.metadata.sorted_tables:
-        is_guild = t.name in GUILD_SCOPED_TABLES
-        copy = t.to_metadata(
-            md, schema=(schema if is_guild else None), referred_schema_fn=referred_schema_fn
-        )
-        if is_guild:
-            guild_tables.append(copy)
-    # Strip cross-schema FKs in a second pass — after every table is in ``md`` so
-    # each FK's referred_table resolves (intra-schema targets exist by now).
-    for copy in guild_tables:
-        _strip_cross_schema_fks(copy)
-    return md, guild_tables
-
-
-def _strip_cross_schema_fks(table) -> None:
-    """Drop FK constraints from a guild table that reference a shared (public)
-    table; keep intra-schema (guild -> guild) ones.
-
-    In the schema-per-guild model the schema IS the tenant boundary, so a guild
-    schema's references to shared tables (guilds, users, ...) are intentionally
-    *soft* — no FK constraint. This keeps the columns but removes the constraint
-    so that:
-      - DROP SCHEMA (guild deletion) doesn't take locks on public.guilds/users
-        (which the live app is constantly reading), and
-      - deleting the guild row isn't blocked by the schema's NO ACTION FKs.
-    """
-    for fkc in list(table.foreign_key_constraints):
-        if fkc.referred_table.name not in GUILD_SCOPED_TABLES:
-            table.constraints.discard(fkc)
-            for fk in list(fkc.elements):
-                fk.parent.foreign_keys.discard(fk)
-
-
-def _guild_schema_ddl(schema: str) -> str:
-    """One batch of ``CREATE TABLE/INDEX IF NOT EXISTS`` for the guild schema.
-
-    Built from the model so it always matches the manifest, and idempotent
-    (``IF NOT EXISTS``) so a re-run back-fills any newly-manifested table. Enums
-    are shared from public (``create_type=False`` — no per-schema type creation),
-    so it must run with public on the search path. Returned as a single string
-    to execute in one round-trip (per-statement round-trips are what made the
-    old create_all path ~4x slower).
-    """
-    _, tables = _guild_metadata(schema)
-    dialect = postgresql.dialect()
-    stmts: list[str] = []
-    for t in tables:
-        for col in t.columns:
-            if hasattr(col.type, "create_type"):
-                col.type.create_type = False
-        stmts.append(str(CreateTable(t, if_not_exists=True).compile(dialect=dialect)).strip())
-        for idx in t.indexes:
-            stmts.append(str(CreateIndex(idx, if_not_exists=True).compile(dialect=dialect)).strip())
-    return ";\n".join(stmts) + ";"
+    ddl = GUILD_SCHEMA_SQL_PATH.read_text()
+    raw = await conn.get_raw_connection()
+    # search_path so unqualified CREATEs land in the schema and intra-schema FKs
+    # resolve there; reset to public so it doesn't leak onto the pooled connection.
+    await raw.driver_connection.execute(
+        f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
+    )
 
 
 def _grant_statements(schema: str, role: str, ro_role: str) -> list[str]:
@@ -200,13 +143,12 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     """
     schema = guild_schema_name(guild_id)
     role = guild_role_name(guild_id)
-
     ro_role = guild_readonly_role_name(guild_id)
     await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
     await _ensure_role(conn, role)
     await _ensure_role(conn, ro_role)
-    # Tables (IF NOT EXISTS) + grants, in one round-trip.
-    await _exec_batch(conn, [_guild_schema_ddl(schema), *_grant_statements(schema, role, ro_role)])
+    await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
+    await _exec_batch(conn, _grant_statements(schema, role, ro_role))
     return schema
 
 
