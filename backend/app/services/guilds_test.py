@@ -490,3 +490,28 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     # Suppress unused-name warning if linters complain about the user
     # we created for symmetry with other tests in this module.
     _ = user
+
+
+async def test_list_memberships_reads_retention_per_guild(session: AsyncSession):
+    """retention_days lives in each guild's own schema. The guild list must read
+    it per guild with the user's context — a single cross-guild join hits the
+    empty public guild_settings and reports NULL for everyone."""
+    from app.models.guild_setting import GuildSetting
+
+    user = await create_user(session)
+
+    guild_30 = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild_30, role=GuildRole.admin)
+    session.add(GuildSetting(guild_id=guild_30.id, retention_days=30))
+    await session.commit()
+
+    # A guild with no settings row should fall back to the 90-day default.
+    guild_default = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild_default, role=GuildRole.admin)
+    await session.commit()
+
+    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    by_guild = {guild.id: retention for guild, _membership, retention in memberships}
+
+    assert by_guild[guild_30.id] == 30  # read from the guild's own schema
+    assert by_guild[guild_default.id] == 90  # default when no settings row

@@ -193,22 +193,45 @@ async def list_memberships(
     user_id: int,
 ) -> list[tuple[Guild, GuildMembership, int | None]]:
     """Return (guild, membership, retention_days) for each guild the user
-    belongs to. The LEFT JOIN to guild_settings keeps this a single query
-    so the guild list (rendered in the sidebar + every Settings page) doesn't
-    fan out into N+1 lookups."""
-    stmt = (
-        select(Guild, GuildMembership, GuildSetting.retention_days)
-        .join(GuildMembership, GuildMembership.guild_id == Guild.id)
-        .join(GuildSetting, GuildSetting.guild_id == Guild.id, isouter=True)
-        .where(GuildMembership.user_id == user_id)
-        .order_by(
-            GuildMembership.position.asc(),
-            GuildMembership.joined_at.asc(),
-            Guild.id.asc(),
+    belongs to.
+
+    The guild + membership rows are shared (public). ``retention_days`` lives in
+    each guild's own schema (``guild_settings``), so it's read per guild with the
+    user's membership context — a single cross-guild join would hit the empty
+    public table and report NULL for everyone. ``guild_settings.id`` is a
+    per-schema serial that collides across schemas, so each settings row is
+    detached after reading so a cached row can't shadow the next guild's."""
+    from app.db.session import set_rls_context  # lazy: avoids a circular import
+
+    await set_rls_context(session, user_id=user_id)
+    pairs = (
+        await session.exec(
+            select(Guild, GuildMembership)
+            .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+            .where(GuildMembership.user_id == user_id)
+            .order_by(
+                GuildMembership.position.asc(),
+                GuildMembership.joined_at.asc(),
+                Guild.id.asc(),
+            )
         )
-    )
-    result = await session.exec(stmt)
-    return result.all()
+    ).all()
+
+    out: list[tuple[Guild, GuildMembership, int | None]] = []
+    for guild, membership in pairs:
+        await set_rls_context(session, user_id=user_id, guild_id=guild.id)
+        row = (
+            await session.exec(select(GuildSetting).where(GuildSetting.guild_id == guild.id))
+        ).one_or_none()
+        # No row yet → the 90-day default; an explicit NULL is the user's "never".
+        retention = 90 if row is None else row.retention_days
+        if row is not None:
+            session.expunge(row)
+        out.append((guild, membership, retention))
+
+    # Restore the user-only context the caller (UserSessionDep) handed us.
+    await set_rls_context(session, user_id=user_id)
+    return out
 
 
 async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSetting:
