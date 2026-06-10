@@ -10,7 +10,7 @@ pydantic-settings==2.13.1
 python-multipart==0.0.27
 email-validator==2.3.0
 httpx==0.28.1
-google-auth>=2.23.0
+google-auth>=2.53.0
 requests>=2.34.2  # Required by google-auth for requests transport
 alembic==1.18.4
 slowapi==0.1.9
