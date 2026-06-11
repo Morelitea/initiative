@@ -184,7 +184,7 @@ function FloatingLinkEditor({
           if ($isRangeSelection(selection)) {
             const parent = getSelectedNode(selection).getParent();
             if ($isAutoLinkNode(parent)) {
-              const linkNode = $createLinkNode(parent.getURL(), {
+              const linkNode = $createLinkNode(sanitizeUrl(parent.getURL()), {
                 rel: parent.__rel,
                 target: parent.__target,
                 title: parent.__title,
@@ -341,7 +341,9 @@ function useFloatingLinkEditorToolbar(
             const node = getSelectedNode(selection);
             const linkNode = $findMatchingParent(node, $isLinkNode);
             if ($isLinkNode(linkNode) && (payload.metaKey || payload.ctrlKey)) {
-              window.open(linkNode.getURL(), "_blank");
+              // Stored link URLs are cross-user content; sanitize before
+              // navigating so a `javascript:`/`data:` URL opens about:blank.
+              window.open(sanitizeUrl(linkNode.getURL()), "_blank");
               return true;
             }
           }
