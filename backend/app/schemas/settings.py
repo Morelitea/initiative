@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
@@ -21,7 +21,7 @@ class OIDCSettingsUpdate(SanitizedBaseModel):
     enabled: bool
     issuer: Optional[str] = None
     client_id: Optional[str] = None
-    client_secret: Optional[str] = None
+    client_secret: Optional[RawTextStr] = None
     redirect_uri: Optional[str] = None
     post_login_redirect: Optional[str] = None
     provider_name: Optional[str] = None
@@ -73,7 +73,7 @@ class EmailSettingsUpdate(SanitizedBaseModel):
     secure: bool = False
     reject_unauthorized: bool = True
     username: Optional[str] = None
-    password: Optional[str] = None
+    password: Optional[RawTextStr] = None
     from_address: Optional[str] = None
     test_recipient: Optional[EmailStr] = None
 

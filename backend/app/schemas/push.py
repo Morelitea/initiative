@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
 class PushTokenRegisterRequest(SanitizedBaseModel):
@@ -37,5 +37,5 @@ class FCMConfigResponse(SanitizedBaseModel):
     enabled: bool
     project_id: Optional[str] = None
     application_id: Optional[str] = None
-    api_key: Optional[str] = None
+    api_key: Optional[RawTextStr] = None
     sender_id: Optional[str] = None

@@ -23,7 +23,7 @@ class UserCreate(UserBase):
     # ``app.core.password_policy`` and are invoked from the endpoint,
     # so all policy failures surface with a flat error code from
     # ``PasswordMessages`` that ``errors.json`` can map.
-    password: str = Field(max_length=256)
+    password: RawTextStr = Field(max_length=256)
     # Optional IANA timezone forwarded by the SPA on registration so a
     # new account starts at the user's wall clock instead of the model
     # default ``"UTC"``. Validated server-side by ``_normalize_timezone``;
@@ -39,7 +39,7 @@ class UserCreate(UserBase):
 class UserUpdate(SanitizedBaseModel):
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
-    password: Optional[str] = Field(default=None, max_length=256)
+    password: Optional[RawTextStr] = Field(default=None, max_length=256)
     status: Optional[UserStatus] = None
     avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
@@ -169,7 +169,7 @@ class UserInitiativeRole(SanitizedBaseModel):
 
 class UserSelfUpdate(SanitizedBaseModel):
     full_name: Optional[str] = None
-    password: Optional[str] = Field(default=None, max_length=256)
+    password: Optional[RawTextStr] = Field(default=None, max_length=256)
     avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
@@ -213,7 +213,7 @@ class AccountDeletionRequest(SanitizedBaseModel):
     only platform admins can purge a row, and they do so via the admin endpoint.
     """
     action: Literal["deactivate", "soft_delete"]
-    password: str
+    password: RawTextStr
     confirmation_text: str
     project_transfers: Optional[Dict[int, int]] = None  # {project_id: new_owner_id}
 

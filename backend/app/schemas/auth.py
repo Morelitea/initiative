@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
 class VerificationSendResponse(SanitizedBaseModel):
@@ -27,7 +27,7 @@ class PasswordResetSubmit(SanitizedBaseModel):
     # ``app.core.password_policy`` and are invoked from the endpoint,
     # so all policy failures surface with a flat error code from
     # ``PasswordMessages`` that ``errors.json`` can map.
-    password: str = Field(max_length=256)
+    password: RawTextStr = Field(max_length=256)
 
 
 # Device token schemas for mobile app authentication
@@ -37,7 +37,7 @@ class DeviceTokenRequest(SanitizedBaseModel):
     """Request body for creating a device token."""
 
     email: EmailStr
-    password: str = Field(min_length=1)
+    password: RawTextStr = Field(min_length=1)
     device_name: str = Field(min_length=1, max_length=255)
 
 

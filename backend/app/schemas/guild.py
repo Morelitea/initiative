@@ -92,7 +92,7 @@ class GuildDeletionRequest(SanitizedBaseModel):
       OIDC-only users (who have no usable password), mirroring the
       account-deletion endpoint, which is why it defaults to empty.
     """
-    password: str = ""
+    password: RawTextStr = ""
     confirmation_text: str
 
 
