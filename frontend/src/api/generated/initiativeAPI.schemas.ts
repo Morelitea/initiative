@@ -3153,7 +3153,6 @@ export interface UserAISettingsUpdate {
 export interface UserCreate {
   email: string;
   full_name?: string | null;
-  role?: UserRole;
   /** @maxLength 256 */
   password: string;
   timezone?: string | null;

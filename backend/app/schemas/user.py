@@ -17,7 +17,18 @@ class UserBase(SanitizedBaseModel):
     role: UserRole = UserRole.member
 
 
-class UserCreate(UserBase):
+class UserCreate(SanitizedBaseModel):
+    # Deliberately does NOT inherit ``UserBase.role``. Platform role must
+    # never be settable from a create payload: this schema backs both
+    # self-registration (``/auth/register``) and guild-admin user creation
+    # (``POST /users/``), and neither caller is authorized to grant a
+    # platform role from the request body. Registration computes the role
+    # itself (first user = owner, everyone else = member) and the admin
+    # endpoint forces ``member``; standing platform roles change only via
+    # ``/admin/users/{id}/platform-role`` (capability-gated, bounded
+    # delegation). See SEC-1.
+    email: EmailStr
+    full_name: Optional[str] = None
     # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,

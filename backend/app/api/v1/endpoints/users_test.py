@@ -15,6 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.models.guild import GuildRole
+from app.models.user import User, UserRole
 
 from app.testing.factories import (
     create_guild,
@@ -953,3 +954,78 @@ async def test_self_delete_rejects_anonymized_transfer_target(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "USER_INVALID_TRANSFER_RECIPIENT"
+
+
+@pytest.mark.integration
+async def test_create_user_ignores_requested_platform_role(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild admin cannot escalate a new account to a platform role.
+
+    Regression for SEC-1: ``POST /users/`` previously trusted the request
+    body's ``role`` field, letting a guild admin mint a platform ``owner``
+    (config.manage + data.bypass) with a chosen password. The created user
+    must always be a plain platform ``member`` regardless of what the body
+    asks for.
+    """
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    headers = get_guild_headers(guild, admin)
+
+    for requested_role in ("owner", "admin", "moderator", "support"):
+        new_email = f"escalate-{requested_role}@example.com"
+        response = await client.post(
+            "/api/v1/users/",
+            headers=headers,
+            json={
+                "email": new_email,
+                "full_name": "Should Be Member",
+                "password": "testpassword123",
+                "role": requested_role,
+            },
+        )
+
+        # The smuggled ``role`` field is ignored, not rejected: creation
+        # still succeeds, but the resulting platform role is always member.
+        assert response.status_code == 201, response.text
+        assert response.json()["role"] == UserRole.member.value
+
+        created = (
+            await session.exec(
+                select(User).where(User.email_hash == hash_email(new_email))
+            )
+        ).one()
+        assert created.role == UserRole.member
+
+
+@pytest.mark.integration
+async def test_create_user_happy_path_creates_member(
+    client: AsyncClient, session: AsyncSession
+):
+    """Default admin-created account succeeds and is a platform member."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="happy-admin@example.com")
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    headers = get_guild_headers(guild, admin)
+
+    response = await client.post(
+        "/api/v1/users/",
+        headers=headers,
+        json={
+            "email": "newmember@example.com",
+            "full_name": "New Member",
+            "password": "testpassword123",
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["full_name"] == "New Member"
+    assert body["role"] == UserRole.member.value
