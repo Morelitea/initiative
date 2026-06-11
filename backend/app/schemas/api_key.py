@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
 class ApiKeyMetadata(SanitizedBaseModel):
@@ -33,4 +33,4 @@ class ApiKeyCreateResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     api_key: ApiKeyMetadata
-    secret: str
+    secret: RawTextStr

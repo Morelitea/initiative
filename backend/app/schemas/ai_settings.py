@@ -3,7 +3,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
 class AIProvider(str, Enum):
@@ -29,7 +29,7 @@ class PlatformAISettingsResponse(SanitizedBaseModel):
 class PlatformAISettingsUpdate(SanitizedBaseModel):
     enabled: bool
     provider: Optional[AIProvider] = None
-    api_key: Optional[str] = None
+    api_key: Optional[RawTextStr] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
     allow_guild_override: bool = True
@@ -62,7 +62,7 @@ class GuildAISettingsResponse(SanitizedBaseModel):
 class GuildAISettingsUpdate(SanitizedBaseModel):
     enabled: Optional[bool] = None
     provider: Optional[AIProvider] = None
-    api_key: Optional[str] = None
+    api_key: Optional[RawTextStr] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
     allow_user_override: Optional[bool] = None
@@ -97,7 +97,7 @@ class UserAISettingsResponse(SanitizedBaseModel):
 class UserAISettingsUpdate(SanitizedBaseModel):
     enabled: Optional[bool] = None
     provider: Optional[AIProvider] = None
-    api_key: Optional[str] = None
+    api_key: Optional[RawTextStr] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
     clear_settings: bool = Field(
@@ -110,7 +110,7 @@ class UserAISettingsUpdate(SanitizedBaseModel):
 class ResolvedAISettings(SanitizedBaseModel):
     enabled: bool = False
     provider: Optional[AIProvider] = None
-    api_key: Optional[str] = None
+    api_key: Optional[RawTextStr] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
     source: str = "platform"  # Where the settings came from
@@ -131,7 +131,7 @@ class ResolvedAISettingsResponse(SanitizedBaseModel):
 # Test connection schemas
 class AITestConnectionRequest(SanitizedBaseModel):
     provider: AIProvider
-    api_key: Optional[str] = None
+    api_key: Optional[RawTextStr] = None
     base_url: Optional[str] = None
     model: Optional[str] = None
 
@@ -147,7 +147,7 @@ class AITestConnectionResponse(SanitizedBaseModel):
 # Fetch models schemas
 class AIModelsRequest(SanitizedBaseModel):
     provider: AIProvider
-    api_key: Optional[str] = None
+    api_key: Optional[RawTextStr] = None
     base_url: Optional[str] = None
 
 
