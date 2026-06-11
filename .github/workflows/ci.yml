@@ -99,20 +99,19 @@ jobs:
             fi
           fi
 
-      - name: Set up Python
+      - name: Install uv
         if: steps.changes.outputs.skip != 'true'
-        uses: actions/setup-python@v6
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
 
       - name: Install dependencies
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio pytest-cov ruff "pyright>=1.1.410,<2"
+          uv sync --frozen
 
       - name: Run Alembic migrations
         # conftest.py auto-applies migrations before tests run, so this
@@ -121,13 +120,13 @@ jobs:
         if: steps.changes.outputs.skip != 'true' && steps.changes.outputs.alembic_changed == 'true'
         run: |
           cd backend
-          alembic upgrade head
+          uv run alembic upgrade head
 
       - name: Lint with Ruff
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          ruff check app
+          uv run ruff check app
 
       - name: Type-check with Pyright
         # Scoped gate: pyrightconfig.json enforces only reportReturnType
@@ -136,13 +135,13 @@ jobs:
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          pyright app
+          uv run pyright app
 
       - name: Run tests
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          python -m pytest ${{ steps.changes.outputs.scope }} -v --tb=short
+          uv run python -m pytest ${{ steps.changes.outputs.scope }} -v --tb=short
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
@@ -228,25 +227,25 @@ jobs:
             echo "Backend or codegen config changes detected"
           fi
 
-      - name: Set up Python
+      - name: Install uv
         if: steps.filter.outputs.skip != 'true'
-        uses: actions/setup-python@v6
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
 
       - name: Install backend dependencies
         if: steps.filter.outputs.skip != 'true'
         run: |
           cd backend
-          pip install -r requirements.txt
+          uv sync --frozen --no-dev
 
       - name: Export OpenAPI spec
         if: steps.filter.outputs.skip != 'true'
         run: |
           cd backend
-          python scripts/export_openapi.py ../frontend/openapi.json
+          uv run python scripts/export_openapi.py ../frontend/openapi.json
 
       - name: Set up Node.js
         if: steps.filter.outputs.skip != 'true'

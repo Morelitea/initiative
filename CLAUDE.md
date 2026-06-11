@@ -42,8 +42,8 @@ history/
 
 ## Build, Test, and Development Commands
 
-- `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` — install runtime deps.
-- `cd backend && poetry install` — optional, but grabs dev tools (pytest, Ruff) defined in `pyproject.toml`.
+- `cd backend && uv sync` — create the `.venv` and install all runtime + dev deps from `uv.lock` ([uv](https://docs.astral.sh/uv/); `pyproject.toml` is the single source of truth, the lockfile pins exact versions).
+- `cd backend && source .venv/bin/activate` — activate the synced env so bare `pytest`/`alembic`/`uvicorn`/`ruff` work, or prefix one-offs with `uv run` (e.g. `uv run pytest`).
 - `cd backend && uvicorn app.main:app --reload` — run the API on http://localhost:8000.
 - `cd backend && alembic upgrade head` — apply the latest database migrations (or run `python -m app.db.init_db` to migrate plus seed defaults).
 - `cd backend && alembic revision --autogenerate -m "desc"` — generate a migration after SQLModel changes.

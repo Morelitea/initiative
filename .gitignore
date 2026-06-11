@@ -15,7 +15,6 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
-.poetry/
 .pytest_cache/
 
 # Node

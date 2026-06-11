@@ -44,12 +44,12 @@ If you prefer not to use VS Code tasks, you can start each service by hand.
 ```bash
 cd backend
 
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Install uv if you don't have it (https://docs.astral.sh/uv/):
+#   curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install dependencies
-pip install -r requirements.txt
+# Create the .venv and install all dependencies from the lockfile
+uv sync
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Configure environment
 cp .env.example .env
