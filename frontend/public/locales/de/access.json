@@ -1,6 +1,6 @@
 {
   "rolePermissions": "Rollenberechtigungen",
-  "rolePermissionsDescription": "Gewähre Zugriff basierend auf Initiativenrollen.",
+  "rolePermissionsDescription": "Gewähre Zugriff basierend auf Initiativen-Rollen.",
   "userPermissions": "Benutzerberechtigungen",
   "userPermissionsDescription": "Gewähre einzelnen Mitgliedern Zugriff.",
   "roleColumn": "Rolle",
