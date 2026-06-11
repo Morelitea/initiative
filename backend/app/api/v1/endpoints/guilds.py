@@ -48,6 +48,7 @@ def _serialize_guild(
     guild: Guild,
     membership: GuildMembership,
     retention_days: int | None = None,
+    member_count: int = 0,
 ) -> GuildRead:
     return GuildRead(
         id=guild.id,
@@ -59,6 +60,7 @@ def _serialize_guild(
         role=membership.role,
         position=membership.position,
         retention_days=retention_days,
+        member_count=member_count,
     )
 
 
@@ -99,8 +101,12 @@ async def _set_guild_admin_rls(
 async def list_guilds(session: UserSessionDep, current_user: Annotated[User, Depends(get_current_active_user)]) -> List[GuildRead]:
     memberships = await guilds_service.list_memberships(session, user_id=current_user.id)
     payloads: List[GuildRead] = []
-    for guild, membership, retention_days in memberships:
-        payloads.append(_serialize_guild(guild, membership, retention_days=retention_days))
+    for guild, membership, retention_days, member_count in memberships:
+        payloads.append(
+            _serialize_guild(
+                guild, membership, retention_days=retention_days, member_count=member_count
+            )
+        )
     return payloads
 
 
@@ -194,7 +200,8 @@ async def create_guild(
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=GuildMessages.GUILD_MEMBERSHIP_CREATE_FAILED)
-    return _serialize_guild(guild, membership)
+    member_count = await guilds_service.count_members(session, guild_id=guild.id)
+    return _serialize_guild(guild, membership, member_count=member_count)
 
 
 @router.get("/{guild_id}/invites", response_model=List[GuildInviteRead])
@@ -231,8 +238,12 @@ async def update_guild(
         retention_days_provided=retention_days_provided,
     )
     await session.commit()
+    await reapply_rls_context(session)
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
-    return _serialize_guild(guild, membership, retention_days=retention_days)
+    member_count = await guilds_service.count_members(session, guild_id=guild_id)
+    return _serialize_guild(
+        guild, membership, retention_days=retention_days, member_count=member_count
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -404,7 +415,8 @@ async def accept_invite(
     membership = await guilds_service.get_membership(session, guild_id=guild.id, user_id=current_user.id)
     if not membership:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=GuildMessages.GUILD_MEMBERSHIP_MISSING)
-    return _serialize_guild(guild, membership)
+    member_count = await guilds_service.count_members(session, guild_id=guild.id)
+    return _serialize_guild(guild, membership, member_count=member_count)
 
 
 @router.patch("/{guild_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

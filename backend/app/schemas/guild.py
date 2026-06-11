@@ -30,6 +30,7 @@ class GuildRead(GuildBase):
     created_at: datetime
     updated_at: datetime
     retention_days: Optional[int] = None
+    member_count: int = 0
 
 
 class GuildInviteCreate(SanitizedBaseModel):

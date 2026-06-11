@@ -18,7 +18,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useSwipeToClose } from "@/hooks/useSwipeToClose";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -27,6 +26,12 @@ const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+
+// Mobile drawer swipe tuning.
+const SIDEBAR_TRANSITION_MS = 300; // keep in sync with the inline transform transition
+const SIDEBAR_SWIPE_THRESHOLD = 60; // px the finger must travel to commit an open/close
+const SIDEBAR_SWIPE_ENGAGE = 8; // px before a gesture is treated as a horizontal drag
+const SIDEBAR_EDGE_SIZE = 24; // px from the screen edge that starts a swipe-to-open
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -37,6 +42,16 @@ type SidebarContextProps = {
   isMobile: boolean;
   toggleSidebar: () => void;
   sidebarWidthMobile: string;
+  /** Suppress the next navigation-triggered auto-close (e.g. switching guilds
+   * navigates but should leave the sidebar open). Consumed once. */
+  suppressNextAutoClose: () => void;
+  /** Read-and-reset the suppression flag. Used by useAutoCloseSidebar. */
+  consumeAutoCloseSuppression: () => boolean;
+  /** Temporarily disable the mobile drawer's swipe-to-close — e.g. while a
+   * guild reorder drag is in progress so the two gestures don't fight. */
+  setSwipeCloseLocked: (locked: boolean) => void;
+  /** Whether swipe-to-close is currently locked. Read by the drawer gesture. */
+  isSwipeCloseLocked: () => boolean;
 };
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
@@ -103,6 +118,27 @@ const SidebarProvider = React.forwardRef<
       return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
     }, [isMobile, setOpen, setOpenMobile]);
 
+    // One-shot flag so a navigation can opt out of the auto-close (e.g. a guild
+    // switch). Set synchronously before navigating; consumed by the auto-close
+    // effect when the resulting pathname change fires.
+    const suppressAutoCloseRef = React.useRef(false);
+    const suppressNextAutoClose = React.useCallback(() => {
+      suppressAutoCloseRef.current = true;
+    }, []);
+    const consumeAutoCloseSuppression = React.useCallback(() => {
+      const suppressed = suppressAutoCloseRef.current;
+      suppressAutoCloseRef.current = false;
+      return suppressed;
+    }, []);
+
+    // Lets a nested drag gesture (e.g. reordering guilds in the rail) suspend
+    // the drawer's swipe-to-close so the two don't fight.
+    const swipeCloseLockedRef = React.useRef(false);
+    const setSwipeCloseLocked = React.useCallback((locked: boolean) => {
+      swipeCloseLockedRef.current = locked;
+    }, []);
+    const isSwipeCloseLocked = React.useCallback(() => swipeCloseLockedRef.current, []);
+
     // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
@@ -130,8 +166,24 @@ const SidebarProvider = React.forwardRef<
         setOpenMobile,
         toggleSidebar,
         sidebarWidthMobile,
+        suppressNextAutoClose,
+        consumeAutoCloseSuppression,
+        setSwipeCloseLocked,
+        isSwipeCloseLocked,
       }),
-      [state, open, setOpen, isMobile, openMobile, toggleSidebar, sidebarWidthMobile]
+      [
+        state,
+        open,
+        setOpen,
+        isMobile,
+        openMobile,
+        toggleSidebar,
+        sidebarWidthMobile,
+        suppressNextAutoClose,
+        consumeAutoCloseSuppression,
+        setSwipeCloseLocked,
+        isSwipeCloseLocked,
+      ]
     );
 
     return (
@@ -162,12 +214,275 @@ const SidebarProvider = React.forwardRef<
 );
 SidebarProvider.displayName = "SidebarProvider";
 
+type DragState = { base: "open" | "closed"; delta: number };
+
+/**
+ * Mobile off-canvas drawer with finger-following swipe gestures.
+ *
+ * Position is driven entirely by an inline `translateX` so the drawer can be
+ * dragged open from the screen edge and closed from any point — Radix's own
+ * slide keyframes are disabled (`animation: none`) to avoid the two animation
+ * systems fighting (which caused the drawer to snap fully open before sliding
+ * shut). We keep the Sheet mounted for the length of the close transition, then
+ * unmount once it has finished sliding off-screen.
+ */
+const MobileSidebar = ({
+  side,
+  openMobile,
+  setOpenMobile,
+  sidebarWidthMobile,
+  enableSwipeToOpen,
+  isSwipeCloseLocked,
+  children,
+}: {
+  side: "left" | "right";
+  openMobile: boolean;
+  setOpenMobile: (open: boolean) => void;
+  sidebarWidthMobile: string;
+  enableSwipeToOpen: boolean;
+  isSwipeCloseLocked: () => boolean;
+  children: React.ReactNode;
+}) => {
+  const isLeft = side === "left";
+  const closedTx = isLeft ? "-100%" : "100%";
+
+  // `mounted` controls whether the Sheet is rendered; `atOpen` is the resting
+  // position (true = translateX(0)). `drag` overrides position while a finger
+  // is down. They are decoupled so the close transition can play out before we
+  // unmount.
+  const [mounted, setMounted] = React.useState(openMobile);
+  const [atOpen, setAtOpen] = React.useState(false);
+  const [drag, setDrag] = React.useState<DragState | null>(null);
+
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const widthRef = React.useRef(0);
+  const openMobileRef = React.useRef(openMobile);
+
+  React.useEffect(() => {
+    openMobileRef.current = openMobile;
+  }, [openMobile]);
+
+  // Sync the visual state machine to the external openMobile source of truth
+  // (hamburger trigger, overlay click, auto-close-on-navigation).
+  React.useEffect(() => {
+    if (openMobile) {
+      setMounted(true);
+      const id = requestAnimationFrame(() => setAtOpen(true));
+      return () => cancelAnimationFrame(id);
+    }
+    setAtOpen(false);
+    const id = window.setTimeout(() => setMounted(false), SIDEBAR_TRANSITION_MS);
+    return () => clearTimeout(id);
+  }, [openMobile]);
+
+  // Measure the drawer width once it is on screen so drag progress (used for
+  // the overlay fade) is accurate; falls back to the viewport width.
+  React.useEffect(() => {
+    if (mounted && contentRef.current) {
+      widthRef.current = contentRef.current.offsetWidth;
+    }
+  }, [mounted]);
+
+  // Swipe-to-open: listen at the window level so a swipe starting on the page
+  // edge can pull the drawer in even though it is unmounted.
+  React.useEffect(() => {
+    if (!enableSwipeToOpen) return;
+
+    let active = false;
+    let engaged = false;
+    let startX = 0;
+    let startY = 0;
+
+    const onStart = (e: TouchEvent) => {
+      if (openMobileRef.current) return;
+      const touch = e.touches[0];
+      const nearEdge = isLeft
+        ? touch.clientX <= SIDEBAR_EDGE_SIZE
+        : touch.clientX >= window.innerWidth - SIDEBAR_EDGE_SIZE;
+      if (!nearEdge) return;
+      active = true;
+      engaged = false;
+      startX = touch.clientX;
+      startY = touch.clientY;
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (!active) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+
+      if (!engaged) {
+        if (Math.abs(dx) <= Math.abs(dy)) {
+          // Vertical-dominant — let the page scroll.
+          active = false;
+          return;
+        }
+        const opening = isLeft ? dx > 0 : dx < 0;
+        if (!opening) {
+          active = false;
+          return;
+        }
+        if (Math.abs(dx) < SIDEBAR_SWIPE_ENGAGE) return;
+        engaged = true;
+        setMounted(true);
+      }
+
+      e.preventDefault();
+      setDrag({ base: "closed", delta: dx });
+    };
+
+    const onEnd = (e: TouchEvent) => {
+      if (!active) return;
+      active = false;
+      if (!engaged) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      setDrag(null);
+      if (Math.abs(dx) > SIDEBAR_SWIPE_THRESHOLD) {
+        setAtOpen(true);
+        setOpenMobile(true);
+      } else {
+        // Cancelled — slide back closed, then unmount.
+        setAtOpen(false);
+        window.setTimeout(() => {
+          if (!openMobileRef.current) setMounted(false);
+        }, SIDEBAR_TRANSITION_MS);
+      }
+    };
+
+    window.addEventListener("touchstart", onStart, { passive: true });
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onEnd, { passive: true });
+    window.addEventListener("touchcancel", onEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", onStart);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onEnd);
+      window.removeEventListener("touchcancel", onEnd);
+    };
+  }, [enableSwipeToOpen, isLeft, setOpenMobile]);
+
+  // Swipe-to-close: gesture handlers on the drawer itself.
+  const closeGesture = React.useRef({ x: 0, y: 0, active: false, engaged: false });
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    closeGesture.current = { x: touch.clientX, y: touch.clientY, active: true, engaged: false };
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const state = closeGesture.current;
+    if (!state.active) return;
+    if (isSwipeCloseLocked()) {
+      // A nested drag (e.g. reordering guilds) owns this gesture.
+      state.active = false;
+      return;
+    }
+    const touch = e.touches[0];
+    const dx = touch.clientX - state.x;
+    const dy = touch.clientY - state.y;
+
+    if (!state.engaged) {
+      if (Math.abs(dx) <= Math.abs(dy)) return; // allow vertical scrolling
+      const closing = isLeft ? dx < 0 : dx > 0;
+      if (!closing) {
+        state.active = false;
+        return;
+      }
+      if (Math.abs(dx) < SIDEBAR_SWIPE_ENGAGE) return;
+      state.engaged = true;
+    }
+
+    e.preventDefault();
+    setDrag({ base: "open", delta: dx });
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const state = closeGesture.current;
+    if (!state.active) return;
+    state.active = false;
+    if (!state.engaged) return;
+    const dx = e.changedTouches[0].clientX - state.x;
+    const shouldClose = isLeft ? dx < -SIDEBAR_SWIPE_THRESHOLD : dx > SIDEBAR_SWIPE_THRESHOLD;
+    setDrag(null);
+    if (shouldClose) {
+      setAtOpen(false);
+      setOpenMobile(false);
+    }
+    // Otherwise atOpen stays true and the drawer animates back open.
+  };
+
+  if (!mounted) return null;
+
+  const dragging = drag !== null;
+  const transform = dragging
+    ? `translateX(clamp(${isLeft ? closedTx : "0%"}, calc(${
+        drag.base === "open" ? "0%" : closedTx
+      } + ${drag.delta}px), ${isLeft ? "0%" : closedTx}))`
+    : `translateX(${atOpen ? "0%" : closedTx})`;
+
+  // Overlay opacity tracks how open the drawer is.
+  let progress = atOpen ? 1 : 0;
+  if (dragging) {
+    const width = widthRef.current || window.innerWidth;
+    const moved = Math.min(Math.abs(drag.delta), width) / width;
+    progress = drag.base === "closed" ? moved : 1 - moved;
+  }
+
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/80"
+        style={{
+          opacity: progress,
+          transition: dragging ? "none" : `opacity ${SIDEBAR_TRANSITION_MS}ms ease-out`,
+          pointerEvents: progress > 0 ? "auto" : "none",
+        }}
+        onClick={() => setOpenMobile(false)}
+        aria-hidden="true"
+      />
+      <Sheet open={mounted} onOpenChange={setOpenMobile} modal={false}>
+        <SheetContent
+          ref={contentRef}
+          data-sidebar="sidebar"
+          data-mobile="true"
+          className="bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          style={{
+            width: sidebarWidthMobile,
+            maxWidth: sidebarWidthMobile,
+            height: "100vh",
+            maxHeight: "100vh",
+            transform,
+            transition: dragging ? "none" : `transform ${SIDEBAR_TRANSITION_MS}ms ease-out`,
+            animation: "none",
+          }}
+          side={side}
+          // Don't pull focus into the drawer on open: Radix would focus the
+          // first control (the guild expand toggle), and its focus-triggered
+          // tooltip would then stay stuck open until the user taps elsewhere.
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          <SheetHeader className="sr-only">
+            <SheetTitle>Sidebar</SheetTitle>
+            <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+          </SheetHeader>
+          <div className="flex h-full w-full flex-col">{children}</div>
+        </SheetContent>
+      </Sheet>
+    </>
+  );
+};
+
 const Sidebar = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     side?: "left" | "right";
     variant?: "sidebar" | "floating" | "inset";
     collapsible?: "offcanvas" | "icon" | "none";
+    enableSwipeToOpen?: boolean;
   }
 >(
   (
@@ -175,19 +490,15 @@ const Sidebar = React.forwardRef<
       side = "left",
       variant = "sidebar",
       collapsible = "offcanvas",
+      enableSwipeToOpen = side === "left",
       className,
       children,
       ...props
     },
     ref
   ) => {
-    const { isMobile, state, openMobile, setOpenMobile, sidebarWidthMobile } = useSidebar();
-
-    const { handleTouchStart, handleTouchMove, handleTouchEnd, translateX } = useSwipeToClose({
-      onClose: () => setOpenMobile(false),
-      threshold: 75,
-      direction: side === "left" ? "left" : "right",
-    });
+    const { isMobile, state, openMobile, setOpenMobile, sidebarWidthMobile, isSwipeCloseLocked } =
+      useSidebar();
 
     if (collapsible === "none") {
       return (
@@ -206,40 +517,16 @@ const Sidebar = React.forwardRef<
 
     if (isMobile) {
       return (
-        <>
-          {openMobile && (
-            <div
-              className="fade-in-0 fixed inset-0 z-40 animate-in bg-black/80"
-              onClick={() => setOpenMobile(false)}
-              aria-hidden="true"
-            />
-          )}
-          <Sheet open={openMobile} onOpenChange={setOpenMobile} modal={false} {...props}>
-            <SheetContent
-              data-sidebar="sidebar"
-              data-mobile="true"
-              className="bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
-              style={{
-                width: sidebarWidthMobile,
-                maxWidth: sidebarWidthMobile,
-                height: "100vh",
-                maxHeight: "100vh",
-                transform: `translateX(${translateX}px)`,
-                transition: translateX === 0 ? "transform 0.3s ease-out" : "none",
-              }}
-              side={side}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-            >
-              <SheetHeader className="sr-only">
-                <SheetTitle>Sidebar</SheetTitle>
-                <SheetDescription>Displays the mobile sidebar.</SheetDescription>
-              </SheetHeader>
-              <div className="flex h-full w-full flex-col">{children}</div>
-            </SheetContent>
-          </Sheet>
-        </>
+        <MobileSidebar
+          side={side}
+          openMobile={openMobile}
+          setOpenMobile={setOpenMobile}
+          sidebarWidthMobile={sidebarWidthMobile}
+          enableSwipeToOpen={enableSwipeToOpen}
+          isSwipeCloseLocked={isSwipeCloseLocked}
+        >
+          {children}
+        </MobileSidebar>
       );
     }
 

@@ -1289,6 +1289,7 @@ export interface GuildRead {
   created_at: string;
   updated_at: string;
   retention_days: number | null;
+  member_count: number;
 }
 
 /**

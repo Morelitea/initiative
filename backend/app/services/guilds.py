@@ -192,16 +192,22 @@ async def list_memberships(
     session: AsyncSession,
     *,
     user_id: int,
-) -> list[tuple[Guild, GuildMembership, int | None]]:
-    """Return (guild, membership, retention_days) for each guild the user
-    belongs to.
+) -> list[tuple[Guild, GuildMembership, int | None, int]]:
+    """Return (guild, membership, retention_days, member_count) for each guild
+    the user belongs to.
 
     The guild + membership rows are shared (public). ``retention_days`` lives in
     each guild's own schema (``guild_settings``), so it's read per guild with the
     user's membership context — a single cross-guild join would hit the empty
     public table and report NULL for everyone. ``guild_settings.id`` is a
     per-schema serial that collides across schemas, so each settings row is
-    detached after reading so a cached row can't shadow the next guild's."""
+    detached after reading so a cached row can't shadow the next guild's.
+
+    ``member_count`` is the total number of members in the guild. It's read
+    inside the same per-guild loop because the ``guild_memberships_select`` RLS
+    policy only exposes sibling rows while that guild's context is active
+    (``guild_id = current_guild_id``); under the caller's user-only context a
+    cross-guild count would see just the user's own row."""
     from app.db.session import set_rls_context  # lazy: avoids a circular import
 
     await set_rls_context(session, user_id=user_id)
@@ -218,7 +224,7 @@ async def list_memberships(
         )
     ).all()
 
-    out: list[tuple[Guild, GuildMembership, int | None]] = []
+    out: list[tuple[Guild, GuildMembership, int | None, int]] = []
     for guild, membership in pairs:
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         row = (
@@ -228,11 +234,29 @@ async def list_memberships(
         retention = 90 if row is None else row.retention_days
         if row is not None:
             session.expunge(row)
-        out.append((guild, membership, retention))
+        member_count = await count_members(session, guild_id=guild.id)
+        out.append((guild, membership, retention, member_count))
 
     # Restore the user-only context the caller (UserSessionDep) handed us.
     await set_rls_context(session, user_id=user_id)
     return out
+
+
+async def count_members(session: AsyncSession, *, guild_id: int) -> int:
+    """Total number of members in a guild.
+
+    The caller must already hold a session that can see the guild's
+    ``guild_memberships`` rows — an admin (BYPASSRLS) session, or one whose RLS
+    context is set to this guild (``guild_id = current_guild_id``). Under a
+    user-only context the ``guild_memberships_select`` policy would expose only
+    the caller's own row."""
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(GuildMembership.guild_id == guild_id)
+        )
+    ).one()
 
 
 async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSetting:

@@ -217,7 +217,7 @@ async def test_list_memberships(session: AsyncSession):
     memberships = await guild_service.list_memberships(session, user_id=user.id)
 
     assert len(memberships) == 2
-    guild_names = {guild.name for guild, _membership, _retention in memberships}
+    guild_names = {guild.name for guild, _membership, _retention, _count in memberships}
     assert "Guild 1" in guild_names
     assert "Guild 2" in guild_names
 
@@ -244,7 +244,7 @@ async def test_reorder_memberships(session: AsyncSession):
 
     # Verify order
     memberships = await guild_service.list_memberships(session, user_id=user.id)
-    ordered_ids = [guild.id for guild, _membership, _retention in memberships]
+    ordered_ids = [guild.id for guild, _membership, _retention, _count in memberships]
 
     assert ordered_ids == [guild3.id, guild1.id, guild2.id]
 
@@ -511,7 +511,30 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
     await session.commit()
 
     memberships = await guild_service.list_memberships(session, user_id=user.id)
-    by_guild = {guild.id: retention for guild, _membership, retention in memberships}
+    by_guild = {guild.id: retention for guild, _membership, retention, _count in memberships}
 
     assert by_guild[guild_30.id] == 30  # read from the guild's own schema
     assert by_guild[guild_default.id] == 90  # default when no settings row
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_list_memberships_includes_member_count(session: AsyncSession):
+    """The guild list reports each guild's total member count, not just the
+    requesting user's membership (the guild_memberships_select RLS policy only
+    exposes sibling rows while that guild's context is active)."""
+    user = await create_user(session)
+    other = await create_user(session, email="other@example.com")
+
+    shared = await create_guild(session, name="Shared")
+    await create_guild_membership(session, user=user, guild=shared)
+    await create_guild_membership(session, user=other, guild=shared)
+
+    solo = await create_guild(session, name="Solo")
+    await create_guild_membership(session, user=user, guild=solo)
+
+    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    counts = {guild.id: count for guild, _membership, _retention, count in memberships}
+
+    assert counts[shared.id] == 2
+    assert counts[solo.id] == 1
