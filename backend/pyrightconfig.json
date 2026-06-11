@@ -1,7 +1,0 @@
-{
-  "include": ["app"],
-  "exclude": ["**/__pycache__", "**/.venv", "**/migrations"],
-  "typeCheckingMode": "off",
-  "reportReturnType": "error",
-  "reportUndefinedVariable": "none"
-}

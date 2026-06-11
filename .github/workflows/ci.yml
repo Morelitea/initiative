@@ -121,7 +121,8 @@ jobs:
         run: |
           cd backend
           uv run alembic upgrade head
-
+          
+          
       - name: Lint with Ruff
         if: steps.changes.outputs.skip != 'true'
         run: |
@@ -134,14 +135,16 @@ jobs:
           cd backend
           uv run ruff format --check app
 
-      - name: Type-check with Pyright
-        # Scoped gate: pyrightconfig.json enforces only reportReturnType
-        # (the SQLModel-noisy rules are off), so this fails on return-type
-        # regressions without drowning in ORM-expression false positives.
+      - name: Type-check with ty
+        # Scoped gate: only ty's `invalid-return-type` rule is enforced (every
+        # other rule is ignored), mirroring the old Pyright `reportReturnType`
+        # gate — fails on return-type regressions without drowning in the
+        # SQLModel/ORM-expression false positives ty reports by default.
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          uv run pyright app
+          uv run ty check app --ignore all --error invalid-return-type
+
 
       - name: Run tests
         if: steps.changes.outputs.skip != 'true'

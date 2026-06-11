@@ -47,7 +47,7 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
 
 async def get_primary_guild_id(session: AsyncSession) -> int:
     guild = await get_primary_guild(session)
-    return guild.id  # type: ignore[return-value]
+    return guild.id  # ty: ignore[invalid-return-type]
 
 
 async def get_guild(session: AsyncSession, guild_id: int) -> Guild:

@@ -297,7 +297,7 @@ class GuildContext:
 
     @property
     def guild_id(self) -> int:
-        return self.guild.id  # type: ignore[return-value]
+        return self.guild.id  # ty: ignore[invalid-return-type]
 
     @property
     def role(self) -> GuildRole:
