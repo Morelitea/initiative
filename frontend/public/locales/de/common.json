@@ -83,7 +83,7 @@
   "createAccess": {
     "advancedOptions": "Erweiterte Optionen",
     "roleAccess": "Rollenzugriff",
-    "roleAccessHint": "Mitgliedern Zugriff nach Initiativenrolle gewähren",
+    "roleAccessHint": "Mitgliedern Zugriff nach Initiativen-Rolle gewähren",
     "userAccess": "Benutzerzugriff",
     "userAccessHint": "Bestimmten Mitgliedern Zugriff gewähren",
     "selectRoles": "Rollen auswählen…",
