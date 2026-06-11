@@ -26,7 +26,9 @@ async def test_init_superuser_cleans_up_when_guild_seed_fails(engine, monkeypatc
     """
     # init_superuser uses AdminSessionLocal (bound to the prod admin engine);
     # point it (and provisioning, via the autouse harness) at the test DB.
-    test_sessions = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    test_sessions = async_sessionmaker(
+        engine, class_=AsyncSession, expire_on_commit=False
+    )
     monkeypatch.setattr(init_db, "AdminSessionLocal", test_sessions)
 
     email = "init-boot-seedfail@example.com"
@@ -51,6 +53,8 @@ async def test_init_superuser_cleans_up_when_guild_seed_fails(engine, monkeypatc
         user = (
             await check.exec(select(User).where(User.email_hash == hash_email(email)))
         ).one_or_none()
-        assert user is None, "first-boot user must be removed so a restart re-initializes"
+        assert user is None, (
+            "first-boot user must be removed so a restart re-initializes"
+        )
         guilds_after = len((await check.exec(select(Guild))).all())
         assert guilds_after == guilds_before, "the primary guild must be removed too"

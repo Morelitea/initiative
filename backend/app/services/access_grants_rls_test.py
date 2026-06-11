@@ -36,7 +36,9 @@ async def _reset_role(session: AsyncSession) -> None:
 @pytest.mark.integration
 async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
     owner = await create_user(session, email="owner@example.com", role=UserRole.owner)
-    support = await create_user(session, email="support@example.com", role=UserRole.support)
+    support = await create_user(
+        session, email="support@example.com", role=UserRole.support
+    )
 
     guild_a = await create_guild(session, creator=owner)
     init_a = await create_initiative(session, guild_a, owner)
@@ -62,16 +64,24 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
 
         # Live READ grant scoped to guild A.
         await set_rls_context(
-            session, user_id=support.id, pam_guild_id=guild_a.id, pam_read=True, pam_write=False
+            session,
+            user_id=support.id,
+            pam_guild_id=guild_a.id,
+            pam_read=True,
+            pam_write=False,
         )
 
         # The guild row itself must be readable — get_guild_membership fetches
         # it to build the request context, so without this every guild-scoped
         # endpoint 500s for a grantee.
         visible_guild = (
-            await session.execute(text("SELECT id FROM guilds WHERE id = :g"), {"g": guild_a.id})
+            await session.execute(
+                text("SELECT id FROM guilds WHERE id = :g"), {"g": guild_a.id}
+            )
         ).all()
-        assert len(visible_guild) == 1, "grantee must be able to read the granted guild row"
+        assert len(visible_guild) == 1, (
+            "grantee must be able to read the granted guild row"
+        )
 
         # Initiatives of the granted guild are visible (the sidebar list) — this
         # is the exact RLS path the empty-guild bug would break.
@@ -80,10 +90,14 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
                 text("SELECT id FROM initiatives WHERE id = :i"), {"i": init_a.id}
             )
         ).all()
-        assert len(visible_inits) == 1, "read grant should see the granted guild's initiatives"
+        assert len(visible_inits) == 1, (
+            "read grant should see the granted guild's initiatives"
+        )
 
         visible_a = (
-            await session.execute(text("SELECT id FROM projects WHERE id = :p"), {"p": proj_a.id})
+            await session.execute(
+                text("SELECT id FROM projects WHERE id = :p"), {"p": proj_a.id}
+            )
         ).all()
         assert len(visible_a) == 1, "read grant should see the granted guild's project"
 
@@ -94,7 +108,9 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
                 text("SELECT id FROM documents WHERE id = :d"), {"d": doc_a.id}
             )
         ).all()
-        assert len(visible_doc) == 1, "read grant should see the granted guild's documents"
+        assert len(visible_doc) == 1, (
+            "read grant should see the granted guild's documents"
+        )
 
         # Cross-guild isolation: guild B's project lives in another schema, so it
         # is invisible here. (Query by name — its per-schema id collides with A's.)
@@ -122,14 +138,22 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(session: AsyncS
     would violate RLS and 500 the read-only ``/settings/ai/resolved`` (and any
     other settings read). A grantee gets a transient default instead.
     """
-    owner = await create_user(session, email="owner-gs@example.com", role=UserRole.owner)
-    support = await create_user(session, email="support-gs@example.com", role=UserRole.support)
+    owner = await create_user(
+        session, email="owner-gs@example.com", role=UserRole.owner
+    )
+    support = await create_user(
+        session, email="support-gs@example.com", role=UserRole.support
+    )
     guild = await create_guild(session, creator=owner)  # no guild_settings row seeded
 
     try:
         await _set_app_user(session)
         await set_rls_context(
-            session, user_id=support.id, pam_guild_id=guild.id, pam_read=True, pam_write=False
+            session,
+            user_id=support.id,
+            pam_guild_id=guild.id,
+            pam_read=True,
+            pam_write=False,
         )
         set_active_grant(guild.id, "read")
 
@@ -144,14 +168,17 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(session: AsyncS
     # Nothing was written.
     persisted = (
         await session.execute(
-            text("SELECT count(*) FROM guild_settings WHERE guild_id = :g"), {"g": guild.id}
+            text("SELECT count(*) FROM guild_settings WHERE guild_id = :g"),
+            {"g": guild.id},
         )
     ).scalar_one()
     assert persisted == 0, "grantee read must not create a guild_settings row"
 
 
 @pytest.mark.integration
-async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(session: AsyncSession):
+async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
+    session: AsyncSession,
+):
     """Tables with the legacy guild_isolation policy must not 500 for a grantee.
 
     A grantee leaves ``current_guild_id`` unset, so a policy that casts it to
@@ -160,7 +187,9 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(session: As
     ``20260530_0095``.
     """
     owner = await create_user(session, email="owner4@example.com", role=UserRole.owner)
-    support = await create_user(session, email="support4@example.com", role=UserRole.support)
+    support = await create_user(
+        session, email="support4@example.com", role=UserRole.support
+    )
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner)
     queue = await create_queue(session, init, owner, name="Ops Queue")
@@ -177,11 +206,17 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(session: As
     try:
         await _set_app_user(session)
         await set_rls_context(
-            session, user_id=support.id, pam_guild_id=guild.id, pam_read=True, pam_write=False
+            session,
+            user_id=support.id,
+            pam_guild_id=guild.id,
+            pam_read=True,
+            pam_write=False,
         )
         # Each of these would raise InvalidTextRepresentationError pre-0095.
         visible_q = (
-            await session.execute(text("SELECT id FROM queues WHERE id = :q"), {"q": queue.id})
+            await session.execute(
+                text("SELECT id FROM queues WHERE id = :q"), {"q": queue.id}
+            )
         ).all()
         assert len(visible_q) == 1, "read grant should see the granted guild's queues"
         visible_cg = (
@@ -189,7 +224,9 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(session: As
                 text("SELECT id FROM counter_groups WHERE id = :c"), {"c": cg.id}
             )
         ).all()
-        assert len(visible_cg) == 1, "read grant should see the granted guild's counter groups"
+        assert len(visible_cg) == 1, (
+            "read grant should see the granted guild's counter groups"
+        )
     finally:
         await _reset_role(session)
 
@@ -197,7 +234,9 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(session: As
 @pytest.mark.integration
 async def test_no_pam_flag_sees_nothing(session: AsyncSession):
     owner = await create_user(session, email="owner2@example.com", role=UserRole.owner)
-    support = await create_user(session, email="support2@example.com", role=UserRole.support)
+    support = await create_user(
+        session, email="support2@example.com", role=UserRole.support
+    )
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner)
     proj = await create_project(session, init, owner, name="Gamma")
@@ -206,10 +245,16 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
         await _set_app_user(session)
         # Same guild context but NO pam flag — a non-member must see nothing.
         await set_rls_context(
-            session, user_id=support.id, pam_guild_id=guild.id, pam_read=False, pam_write=False
+            session,
+            user_id=support.id,
+            pam_guild_id=guild.id,
+            pam_read=False,
+            pam_write=False,
         )
         rows = (
-            await session.execute(text("SELECT id FROM projects WHERE id = :p"), {"p": proj.id})
+            await session.execute(
+                text("SELECT id FROM projects WHERE id = :p"), {"p": proj.id}
+            )
         ).all()
         assert len(rows) == 0
     finally:
@@ -219,7 +264,9 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
 @pytest.mark.integration
 async def test_pam_write_grant_can_update(session: AsyncSession):
     owner = await create_user(session, email="owner3@example.com", role=UserRole.owner)
-    support = await create_user(session, email="support3@example.com", role=UserRole.support)
+    support = await create_user(
+        session, email="support3@example.com", role=UserRole.support
+    )
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner)
     proj = await create_project(session, init, owner, name="Delta")
@@ -228,7 +275,11 @@ async def test_pam_write_grant_can_update(session: AsyncSession):
         await _set_app_user(session)
         # READ_WRITE grant sets both flags.
         await set_rls_context(
-            session, user_id=support.id, pam_guild_id=guild.id, pam_read=True, pam_write=True
+            session,
+            user_id=support.id,
+            pam_guild_id=guild.id,
+            pam_read=True,
+            pam_write=True,
         )
         result = await session.execute(
             text("UPDATE projects SET name = 'edited' WHERE id = :p"), {"p": proj.id}

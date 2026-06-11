@@ -22,7 +22,10 @@ class TaskAssigneeSummary(SanitizedBaseModel):
     Includes ``status`` so the frontend can render the "Deleted user
     #{id}" placeholder for anonymized assignees inline.
     """
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     full_name: Optional[str] = None
@@ -31,7 +34,9 @@ class TaskAssigneeSummary(SanitizedBaseModel):
     status: UserStatus = UserStatus.active
 
 
-WeekdayLiteral = Literal["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+WeekdayLiteral = Literal[
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+]
 MonthlyModeLiteral = Literal["day_of_month", "weekday"]
 WeekPositionLiteral = Literal["first", "second", "third", "fourth", "last"]
 RecurrenceEndsLiteral = Literal["never", "on_date", "after_occurrences"]
@@ -53,7 +58,9 @@ class TaskRecurrence(SanitizedBaseModel):
     end_date: Optional[datetime] = None
 
     @field_validator("weekdays")
-    def ensure_unique_weekdays(cls, value: List[WeekdayLiteral]) -> List[WeekdayLiteral]:
+    def ensure_unique_weekdays(
+        cls, value: List[WeekdayLiteral]
+    ) -> List[WeekdayLiteral]:
         seen: list[WeekdayLiteral] = []
         for item in value:
             if item not in seen:
@@ -81,7 +88,9 @@ class TaskRecurrence(SanitizedBaseModel):
                 self.weekday = None
             else:
                 if self.weekday_position is None or self.weekday is None:
-                    raise ValueError("Weekday recurrence requires position and weekday.")
+                    raise ValueError(
+                        "Weekday recurrence requires position and weekday."
+                    )
                 self.day_of_month = None
             if self.frequency == "monthly":
                 self.month = None
@@ -142,7 +151,9 @@ class TaskMoveRequest(SanitizedBaseModel):
 
 
 class TaskProjectInitiativeSummary(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     name: str
@@ -150,7 +161,9 @@ class TaskProjectInitiativeSummary(SanitizedBaseModel):
 
 
 class TaskProjectSummary(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     name: str
@@ -162,7 +175,9 @@ class TaskProjectSummary(SanitizedBaseModel):
 
 
 class TaskRead(TaskBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     project_id: int
@@ -185,7 +200,10 @@ class TaskRead(TaskBase):
 
 class TaskListRead(TaskBase):
     """Lightweight schema for task list endpoints - excludes heavy nested data"""
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     project_id: int

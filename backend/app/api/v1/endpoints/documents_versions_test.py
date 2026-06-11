@@ -42,7 +42,9 @@ def _uploads_dir() -> Path:
 async def _setup_guild_with_owner(session: AsyncSession):
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, owner)
     return owner, guild, initiative
 
@@ -76,7 +78,9 @@ async def test_initial_upload_creates_version_one(
 ) -> None:
     """Uploading a file document seeds version 1."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
 
     headers = get_guild_headers(guild, owner)
     resp = await client.get(f"/api/v1/documents/{doc['id']}/versions", headers=headers)
@@ -104,7 +108,9 @@ async def test_upload_version_creates_v2_and_mirrors_document(
     await create_guild_membership(session, user=writer, guild=guild)
     await create_initiative_member(session, initiative, writer)
 
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
     # Grant the writer write access.
     session.add(
         DocumentPermission(
@@ -136,7 +142,9 @@ async def test_upload_version_creates_v2_and_mirrors_document(
     # Two version rows + two Upload rows exist.
     versions = (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all()
     assert {v.version_number for v in versions} == {1, 2}
@@ -160,7 +168,9 @@ async def test_upload_version_read_user_forbidden(
     await create_guild_membership(session, user=reader, guild=guild)
     await create_initiative_member(session, initiative, reader)
 
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
     session.add(
         DocumentPermission(
             document_id=doc["id"],
@@ -181,7 +191,9 @@ async def test_upload_version_read_user_forbidden(
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -193,7 +205,9 @@ async def test_upload_version_type_mismatch_rejected(
 ) -> None:
     """A new version must match the original file type."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
 
     headers = get_guild_headers(guild, owner)
     resp = await client.post(
@@ -206,7 +220,9 @@ async def test_upload_version_type_mismatch_rejected(
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -236,7 +252,9 @@ async def test_upload_version_non_file_document_rejected(
     assert resp.json()["detail"] == "DOCUMENT_NOT_A_FILE_DOCUMENT"
 
     # Listing versions on a non-file document is rejected too.
-    list_resp = await client.get(f"/api/v1/documents/{native_id}/versions", headers=headers)
+    list_resp = await client.get(
+        f"/api/v1/documents/{native_id}/versions", headers=headers
+    )
     assert list_resp.status_code == 400
     assert list_resp.json()["detail"] == "DOCUMENT_NOT_A_FILE_DOCUMENT"
 
@@ -247,20 +265,30 @@ async def test_upload_version_unsupported_file_rejected(
 ) -> None:
     """An unsupported/invalid file is rejected with a coded error."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
 
     headers = get_guild_headers(guild, owner)
     resp = await client.post(
         f"/api/v1/documents/{doc['id']}/versions",
         headers=headers,
-        files={"file": ("evil.exe", b"MZ\x90\x00\x03 not allowed", "application/x-msdownload")},
+        files={
+            "file": (
+                "evil.exe",
+                b"MZ\x90\x00\x03 not allowed",
+                "application/x-msdownload",
+            )
+        },
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "DOCUMENT_INVALID_FILE"
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -276,7 +304,9 @@ async def test_list_versions_read_user_allowed_and_ordered(
     await create_guild_membership(session, user=reader, guild=guild)
     await create_initiative_member(session, initiative, reader)
 
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
     session.add(
         DocumentPermission(
             document_id=doc["id"],
@@ -296,7 +326,9 @@ async def test_list_versions_read_user_allowed_and_ordered(
     )
 
     reader_headers = get_guild_headers(guild, reader)
-    resp = await client.get(f"/api/v1/documents/{doc['id']}/versions", headers=reader_headers)
+    resp = await client.get(
+        f"/api/v1/documents/{doc['id']}/versions", headers=reader_headers
+    )
     assert resp.status_code == 200
     versions = resp.json()
     assert [v["version_number"] for v in versions] == [2, 1]
@@ -305,7 +337,9 @@ async def test_list_versions_read_user_allowed_and_ordered(
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -317,7 +351,9 @@ async def test_download_specific_version_returns_its_bytes(
 ) -> None:
     """Downloading an old version returns that version's bytes, not the current one."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
 
     guild_headers = get_guild_headers(guild, owner)
     await client.post(
@@ -327,24 +363,30 @@ async def test_download_specific_version_returns_its_bytes(
     )
 
     versions = (
-        await client.get(f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers)
+        await client.get(
+            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+        )
     ).json()
     v1 = next(v for v in versions if v["version_number"] == 1)
     v2 = next(v for v in versions if v["version_number"] == 2)
 
     auth_headers = get_auth_headers(owner)
     r1 = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}/download", headers=auth_headers
+        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}/download",
+        headers=auth_headers,
     )
     r2 = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/{v2['id']}/download", headers=auth_headers
+        f"/api/v1/documents/{doc['id']}/versions/{v2['id']}/download",
+        headers=auth_headers,
     )
     assert r1.status_code == 200 and r1.content == PDF_BYTES
     assert r2.status_code == 200 and r2.content == PDF_BYTES_V2
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -356,7 +398,9 @@ async def test_download_version_unknown_returns_404(
 ) -> None:
     """A version id that doesn't belong to the document 404s."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
 
     auth_headers = get_auth_headers(owner)
     resp = await client.get(
@@ -367,7 +411,9 @@ async def test_download_version_unknown_returns_404(
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -379,10 +425,13 @@ async def test_download_version_cross_guild_forbidden(
 ) -> None:
     """A user from another guild cannot download a version."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
     versions = (
         await client.get(
-            f"/api/v1/documents/{doc['id']}/versions", headers=get_guild_headers(guild, owner)
+            f"/api/v1/documents/{doc['id']}/versions",
+            headers=get_guild_headers(guild, owner),
         )
     ).json()
     v1 = versions[0]
@@ -396,7 +445,9 @@ async def test_download_version_cross_guild_forbidden(
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -408,7 +459,9 @@ async def test_delete_non_current_version_owner(
 ) -> None:
     """Owner deletes an old version; current stays, blob + Upload row removed."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
     guild_headers = get_guild_headers(guild, owner)
     await client.post(
         f"/api/v1/documents/{doc['id']}/versions",
@@ -416,7 +469,9 @@ async def test_delete_non_current_version_owner(
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
     versions = (
-        await client.get(f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers)
+        await client.get(
+            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+        )
     ).json()
     v1 = next(v for v in versions if v["version_number"] == 1)
 
@@ -435,7 +490,9 @@ async def test_delete_non_current_version_owner(
 
     remaining = (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all()
     assert [v.version_number for v in remaining] == [2]
@@ -460,7 +517,9 @@ async def test_delete_current_version_promotes_previous(
 ) -> None:
     """Deleting the current version rolls the document back to the prior version."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
     guild_headers = get_guild_headers(guild, owner)
     v2_resp = await client.post(
         f"/api/v1/documents/{doc['id']}/versions",
@@ -481,7 +540,9 @@ async def test_delete_current_version_promotes_previous(
     assert refreshed.original_filename == "v1.pdf"
 
     versions = (
-        await client.get(f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers)
+        await client.get(
+            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+        )
     ).json()
     assert [v["version_number"] for v in versions] == [1]
     assert versions[0]["is_current"] is True
@@ -495,10 +556,14 @@ async def test_delete_last_version_blocked(
 ) -> None:
     """The only remaining version can't be deleted."""
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
     guild_headers = get_guild_headers(guild, owner)
     versions = (
-        await client.get(f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers)
+        await client.get(
+            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+        )
     ).json()
     v1_id = versions[0]["id"]
 
@@ -511,7 +576,9 @@ async def test_delete_last_version_blocked(
     (_uploads_dir() / versions[0]["original_filename"]).unlink(missing_ok=True)
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -527,7 +594,9 @@ async def test_delete_version_non_owner_forbidden(
     await create_guild_membership(session, user=writer, guild=guild)
     await create_initiative_member(session, initiative, writer)
 
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
     session.add(
         DocumentPermission(
             document_id=doc["id"],
@@ -544,7 +613,9 @@ async def test_delete_version_non_owner_forbidden(
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
     versions = (
-        await client.get(f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers)
+        await client.get(
+            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+        )
     ).json()
     v1_id = next(v for v in versions if v["version_number"] == 1)["id"]
 
@@ -556,7 +627,9 @@ async def test_delete_version_non_owner_forbidden(
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
@@ -573,7 +646,9 @@ async def test_upload_version_allowed_when_stored_content_type_is_null(
     with ``VERSION_TYPE_MISMATCH``.
     """
     owner, guild, initiative = await _setup_guild_with_owner(session)
-    doc = await _upload_initial_file_doc(client, guild=guild, user=owner, initiative=initiative)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
 
     # Simulate a legacy / backfilled row where the content type was never recorded.
     db_doc = await session.get(Document, doc["id"])
@@ -592,7 +667,9 @@ async def test_upload_version_allowed_when_stored_content_type_is_null(
 
     for v in (
         await session.exec(
-            select(DocumentFileVersion).where(DocumentFileVersion.document_id == doc["id"])
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
         )
     ).all():
         (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)

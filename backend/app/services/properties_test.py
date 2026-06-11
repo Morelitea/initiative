@@ -400,10 +400,14 @@ def test_parse_property_filters_invalid_json_raises():
 
 @pytest.mark.unit
 def test_parse_property_filters_caps_at_max():
-    raw = "[" + ",".join(
-        f'{{"property_id": {i}, "op": "eq", "value": 1}}'
-        for i in range(MAX_PROPERTY_FILTERS + 1)
-    ) + "]"
+    raw = (
+        "["
+        + ",".join(
+            f'{{"property_id": {i}, "op": "eq", "value": 1}}'
+            for i in range(MAX_PROPERTY_FILTERS + 1)
+        )
+        + "]"
+    )
     with pytest.raises(ValueError):
         parse_property_filters(raw)
 

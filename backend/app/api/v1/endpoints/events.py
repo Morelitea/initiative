@@ -27,7 +27,9 @@ async def _user_from_token(token: str, session: AsyncSession) -> Optional[User]:
     """Validate JWT or device token and return user, or None if invalid."""
     # First try JWT validation
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         token_data = TokenPayload(**payload)
         if token_data.sub:
             statement = select(User).where(User.id == int(token_data.sub))
@@ -95,7 +97,9 @@ async def websocket_updates(websocket: WebSocket):
         # a since-dropped guild role would make every query error) before the auth
         # query — AsyncSessionLocal doesn't run get_session's per-request reset.
         await session.execute(
-            text("SELECT set_config('role', 'none', false), set_config('search_path', 'public', false)")
+            text(
+                "SELECT set_config('role', 'none', false), set_config('search_path', 'public', false)"
+            )
         )
         user = await _user_from_token(token, session)
     if not user:

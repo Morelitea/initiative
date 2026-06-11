@@ -39,7 +39,9 @@ from app.services import ai_settings as ai_settings_service
 
 router = APIRouter()
 
-GuildAdminContext = Annotated[GuildContext, Depends(require_guild_roles(GuildRole.admin))]
+GuildAdminContext = Annotated[
+    GuildContext, Depends(require_guild_roles(GuildRole.admin))
+]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
@@ -102,7 +104,9 @@ async def get_user_ai_settings(
     guild_context: GuildContextDep,
 ) -> UserAISettingsResponse:
     """Get user-level AI settings."""
-    return await ai_settings_service.get_user_ai_settings(session, current_user, guild_context.guild_id)
+    return await ai_settings_service.get_user_ai_settings(
+        session, current_user, guild_context.guild_id
+    )
 
 
 @router.put("/ai/user", response_model=UserAISettingsResponse)
@@ -117,7 +121,11 @@ async def update_user_ai_settings(
         data = payload.model_dump(exclude_unset=True)
         api_key_provided = "api_key" in data
         return await ai_settings_service.update_user_ai_settings(
-            session, current_user, payload, guild_context.guild_id, api_key_provided=api_key_provided
+            session,
+            current_user,
+            payload,
+            guild_context.guild_id,
+            api_key_provided=api_key_provided,
         )
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
@@ -134,7 +142,9 @@ async def get_resolved_ai_settings(
 
     This returns the final computed settings without exposing API keys.
     """
-    return await ai_settings_service.get_resolved_ai_settings_response(session, current_user, guild_context.guild_id)
+    return await ai_settings_service.get_resolved_ai_settings_response(
+        session, current_user, guild_context.guild_id
+    )
 
 
 # Test connection endpoint (any authenticated user)
@@ -152,7 +162,9 @@ async def test_ai_connection(
     """
     api_key = payload.api_key
     if not api_key:
-        resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_context.guild_id)
+        resolved = await ai_settings_service.resolve_ai_settings(
+            session, current_user, guild_context.guild_id
+        )
         api_key = resolved.api_key
 
     bypass_ssrf = user_has_capability(current_user, Capability.CONFIG_MANAGE)
@@ -176,7 +188,9 @@ async def fetch_ai_models(
     """
     api_key = payload.api_key
     if not api_key:
-        resolved = await ai_settings_service.resolve_ai_settings(session, current_user, guild_context.guild_id)
+        resolved = await ai_settings_service.resolve_ai_settings(
+            session, current_user, guild_context.guild_id
+        )
         api_key = resolved.api_key
 
     bypass_ssrf = user_has_capability(current_user, Capability.CONFIG_MANAGE)

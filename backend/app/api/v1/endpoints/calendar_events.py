@@ -41,7 +41,12 @@ from app.schemas.calendar_event import (
     serialize_calendar_event,
     serialize_calendar_event_summary,
 )
-from app.schemas.ical import ICalImportRequest, ICalImportResult, ICalParseRequest, ICalParseResult
+from app.schemas.ical import (
+    ICalImportRequest,
+    ICalImportResult,
+    ICalParseRequest,
+    ICalParseResult,
+)
 from app.schemas.property import PropertyValuesSetRequest
 from app.services import calendar_events as events_service
 from app.services import ical_service
@@ -179,8 +184,7 @@ async def list_global_calendar_events(
 
     def _base_query(stmt):  # type: ignore[no-untyped-def]
         return (
-            stmt
-            .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
+            stmt.join(Initiative, Initiative.id == CalendarEvent.initiative_id)
             .join(
                 GuildMembership,
                 GuildMembership.guild_id == CalendarEvent.guild_id,
@@ -194,22 +198,30 @@ async def list_global_calendar_events(
     total_count = (await session.execute(count_stmt)).scalar_one()
 
     # Data
-    stmt = _base_query(select(CalendarEvent)).options(
-        selectinload(CalendarEvent.attendees).selectinload(
-            CalendarEventAttendee.user,
-        ),
-        selectinload(CalendarEvent.initiative),
-        selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
-        selectinload(CalendarEvent.property_values)
-        .selectinload(CalendarEventPropertyValue.property_definition),
-        selectinload(CalendarEvent.property_values)
-        .selectinload(CalendarEventPropertyValue.value_user),
-    ).order_by(
-        CalendarEvent.start_at.asc(),
-        CalendarEvent.id.asc(),
-    ).offset(
-        (page - 1) * page_size,
-    ).limit(page_size)
+    stmt = (
+        _base_query(select(CalendarEvent))
+        .options(
+            selectinload(CalendarEvent.attendees).selectinload(
+                CalendarEventAttendee.user,
+            ),
+            selectinload(CalendarEvent.initiative),
+            selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
+            selectinload(CalendarEvent.property_values).selectinload(
+                CalendarEventPropertyValue.property_definition
+            ),
+            selectinload(CalendarEvent.property_values).selectinload(
+                CalendarEventPropertyValue.value_user
+            ),
+        )
+        .order_by(
+            CalendarEvent.start_at.asc(),
+            CalendarEvent.id.asc(),
+        )
+        .offset(
+            (page - 1) * page_size,
+        )
+        .limit(page_size)
+    )
 
     result = await session.execute(stmt)
     events = result.unique().scalars().all()
@@ -258,7 +270,9 @@ async def export_calendar_events_ics(
         select(CalendarEvent)
         .where(*conditions)
         .options(
-            selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
+            selectinload(CalendarEvent.attendees).selectinload(
+                CalendarEventAttendee.user
+            ),
         )
         .order_by(CalendarEvent.start_at.asc())
     )
@@ -299,7 +313,9 @@ async def export_global_calendar_events_ics(
         .join(GuildMembership, GuildMembership.guild_id == CalendarEvent.guild_id)
         .where(*conditions)
         .options(
-            selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
+            selectinload(CalendarEvent.attendees).selectinload(
+                CalendarEventAttendee.user
+            ),
         )
         .order_by(CalendarEvent.start_at.asc())
     )
@@ -345,7 +361,11 @@ async def import_ical_events(
     """Import events from an .ics file into an initiative."""
     initiative = await _get_initiative_for_event(session, body.initiative_id)
     await _check_initiative_permission(
-        session, initiative, current_user, guild_context, PermissionKey.create_events,
+        session,
+        initiative,
+        current_user,
+        guild_context,
+        PermissionKey.create_events,
     )
 
     try:
@@ -406,7 +426,11 @@ async def list_calendar_events(
         initiative = await session.get(Initiative, initiative_id)
         if initiative and not initiative.events_enabled:
             return CalendarEventListResponse(
-                items=[], total_count=0, page=page, page_size=page_size, has_next=False,
+                items=[],
+                total_count=0,
+                page=page,
+                page_size=page_size,
+                has_next=False,
             )
         conditions.append(CalendarEvent.initiative_id == initiative_id)
     else:
@@ -450,13 +474,17 @@ async def list_calendar_events(
         select(CalendarEvent)
         .where(*conditions)
         .options(
-            selectinload(CalendarEvent.attendees).selectinload(CalendarEventAttendee.user),
+            selectinload(CalendarEvent.attendees).selectinload(
+                CalendarEventAttendee.user
+            ),
             selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
             selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
-            selectinload(CalendarEvent.property_values)
-            .selectinload(CalendarEventPropertyValue.property_definition),
-            selectinload(CalendarEvent.property_values)
-            .selectinload(CalendarEventPropertyValue.value_user),
+            selectinload(CalendarEvent.property_values).selectinload(
+                CalendarEventPropertyValue.property_definition
+            ),
+            selectinload(CalendarEvent.property_values).selectinload(
+                CalendarEventPropertyValue.value_user
+            ),
         )
         .order_by(CalendarEvent.start_at.asc(), CalendarEvent.id.asc())
         .offset((page - 1) * page_size)
@@ -468,7 +496,11 @@ async def list_calendar_events(
     items = [serialize_calendar_event_summary(e) for e in events]
     has_next = page * page_size < total_count
     return CalendarEventListResponse(
-        items=items, total_count=total_count, page=page, page_size=page_size, has_next=has_next,
+        items=items,
+        total_count=total_count,
+        page=page,
+        page_size=page_size,
+        has_next=has_next,
     )
 
 
@@ -498,7 +530,11 @@ async def create_calendar_event(
             detail=CalendarEventMessages.FEATURE_DISABLED,
         )
     await _check_initiative_permission(
-        session, initiative, current_user, guild_context, PermissionKey.create_events,
+        session,
+        initiative,
+        current_user,
+        guild_context,
+        PermissionKey.create_events,
     )
 
     recurrence_json = None
@@ -523,18 +559,30 @@ async def create_calendar_event(
 
     if event_in.attendee_ids:
         await events_service.set_event_attendees(
-            session, event, event_in.attendee_ids, guild_context.guild_id,
+            session,
+            event,
+            event_in.attendee_ids,
+            guild_context.guild_id,
         )
     if event_in.tag_ids:
         await events_service.set_event_tags(
-            session, event, event_in.tag_ids, guild_context.guild_id,
+            session,
+            event,
+            event_in.tag_ids,
+            guild_context.guild_id,
         )
     if event_in.document_ids:
         await events_service.set_event_documents(
-            session, event, event_in.document_ids, guild_context.guild_id, current_user.id,
+            session,
+            event,
+            event_in.document_ids,
+            guild_context.guild_id,
+            current_user.id,
         )
 
-    invite_ids = [uid for uid in (event_in.attendee_ids or []) if uid != current_user.id]
+    invite_ids = [
+        uid for uid in (event_in.attendee_ids or []) if uid != current_user.id
+    ]
     for attendee in await _fetch_users(session, invite_ids):
         await notifications_service.notify_event_invitation(
             session,
@@ -579,7 +627,15 @@ async def update_calendar_event(
     updated = False
     update_data = event_in.model_dump(exclude_unset=True)
 
-    for field in ("title", "description", "location", "start_at", "end_at", "all_day", "color"):
+    for field in (
+        "title",
+        "description",
+        "location",
+        "start_at",
+        "end_at",
+        "all_day",
+        "color",
+    ):
         if field in update_data:
             value = update_data[field]
             if field == "title" and value is not None:
@@ -657,7 +713,9 @@ async def delete_calendar_event(
         guild_context,
         PermissionKey.create_events,
     )
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(
+        session, guild_context.guild_id
+    )
     for attendee in event.attendees:
         # A declined attendee already isn't attending, so skip the cancellation
         # notice for them (consistent with update/reminder notifications).
@@ -705,7 +763,9 @@ async def set_attendees(
         PermissionKey.create_events,
     )
     old_ids = {a.user_id for a in event.attendees}
-    await events_service.set_event_attendees(session, event, attendee_ids, guild_context.guild_id)
+    await events_service.set_event_attendees(
+        session, event, attendee_ids, guild_context.guild_id
+    )
 
     added_ids = [uid for uid in (set(attendee_ids) - old_ids) if uid != current_user.id]
     for attendee in await _fetch_users(session, added_ids):
@@ -814,7 +874,11 @@ async def set_documents(
         PermissionKey.create_events,
     )
     await events_service.set_event_documents(
-        session, event, document_ids, guild_context.guild_id, current_user.id,
+        session,
+        event,
+        document_ids,
+        guild_context.guild_id,
+        current_user.id,
     )
     await session.commit()
     await reapply_rls_context(session)

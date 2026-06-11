@@ -29,19 +29,27 @@ class Comment(SoftDeleteMixin, table=True):
     )
     content: str = Field(sa_column=Column(Text, nullable=False))
     author_id: int = Field(
-        sa_column=Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa_column=Column(
+            Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
     )
     task_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(
+            Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True
+        ),
     )
     document_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(
+            Integer, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
+        ),
     )
     parent_comment_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True),
+        sa_column=Column(
+            Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
+        ),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

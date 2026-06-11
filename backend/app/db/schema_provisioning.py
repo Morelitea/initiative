@@ -57,7 +57,9 @@ def guild_readonly_role_name(guild_id: int) -> str:
 # The single source for a guild schema's structure: schema-relative DDL generated
 # from the public tables Alembic builds (regenerate with scripts/gen_guild_schema.py
 # after any guild-scoped migration). The model is never used to build the DB.
-GUILD_SCHEMA_SQL_PATH = Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_schema.sql"
+GUILD_SCHEMA_SQL_PATH = (
+    Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_schema.sql"
+)
 
 
 async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
@@ -125,7 +127,9 @@ async def _exec_batch(conn: AsyncConnection, statements: list[str]) -> None:
 
 async def _role_exists(conn: AsyncConnection, role: str) -> bool:
     return (
-        await conn.scalar(text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role})
+        await conn.scalar(
+            text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}
+        )
     ) is not None
 
 

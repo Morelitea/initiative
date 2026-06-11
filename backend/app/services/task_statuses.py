@@ -19,7 +19,9 @@ def defaults_for_category(category: TaskStatusCategory) -> tuple[str, str]:
     return CATEGORY_DEFAULTS[category]
 
 
-def _seeded(name: str, category: TaskStatusCategory, position: int, *, is_default: bool = False) -> dict:
+def _seeded(
+    name: str, category: TaskStatusCategory, position: int, *, is_default: bool = False
+) -> dict:
     color, icon = CATEGORY_DEFAULTS[category]
     return {
         "name": name,
@@ -53,7 +55,9 @@ async def list_statuses(session: AsyncSession, project_id: int) -> Sequence[Task
     return result.all()
 
 
-async def ensure_default_statuses(session: AsyncSession, project_id: int) -> list[TaskStatus]:
+async def ensure_default_statuses(
+    session: AsyncSession, project_id: int
+) -> list[TaskStatus]:
     existing = await list_statuses(session, project_id)
     if existing:
         return _sorted(existing)
@@ -72,14 +76,25 @@ async def get_default_status(session: AsyncSession, project_id: int) -> TaskStat
     for status in statuses:
         if status.is_default:
             return status
-    backlog = next((status for status in statuses if status.category == TaskStatusCategory.backlog), None)
+    backlog = next(
+        (
+            status
+            for status in statuses
+            if status.category == TaskStatusCategory.backlog
+        ),
+        None,
+    )
     if backlog is not None:
         return backlog
     return statuses[0]
 
 
-async def get_project_status(session: AsyncSession, status_id: int, project_id: int) -> TaskStatus | None:
-    stmt = select(TaskStatus).where(TaskStatus.id == status_id, TaskStatus.project_id == project_id)
+async def get_project_status(
+    session: AsyncSession, status_id: int, project_id: int
+) -> TaskStatus | None:
+    stmt = select(TaskStatus).where(
+        TaskStatus.id == status_id, TaskStatus.project_id == project_id
+    )
     result = await session.exec(stmt)
     return result.one_or_none()
 
@@ -100,7 +115,9 @@ async def clone_statuses(
     if not source_statuses:
         return {}
 
-    await session.exec(delete(TaskStatus).where(TaskStatus.project_id == target_project_id))
+    await session.exec(
+        delete(TaskStatus).where(TaskStatus.project_id == target_project_id)
+    )
     await session.flush()
 
     mapping: dict[int, int] = {}

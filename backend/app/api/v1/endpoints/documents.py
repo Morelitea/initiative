@@ -3,7 +3,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, List, Literal, Optional
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Body,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from fastapi.responses import FileResponse
 from sqlalchemy import delete as sa_delete, exists, func
 from sqlalchemy.exc import IntegrityError
@@ -25,9 +36,22 @@ from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
-from app.models.document import Document, DocumentFileVersion, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
+from app.models.document import (
+    Document,
+    DocumentFileVersion,
+    DocumentPermission,
+    DocumentPermissionLevel,
+    DocumentRolePermission,
+    DocumentType,
+    ProjectDocument,
+)
 from app.models.upload import Upload
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
+from app.models.initiative import (
+    Initiative,
+    InitiativeMember,
+    InitiativeRoleModel,
+    PermissionKey,
+)
 from app.models.property import DocumentPropertyValue
 from app.models.tag import Tag, DocumentTag
 from app.models.user import User
@@ -108,7 +132,9 @@ async def _get_initiative_or_404(
     result = await session.exec(stmt)
     initiative = result.one_or_none()
     if not initiative:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=InitiativeMessages.NOT_FOUND
+        )
     return initiative
 
 
@@ -126,7 +152,9 @@ async def _get_document_or_404(
         populate_existing=populate_existing,
     )
     if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
+        )
     return document
 
 
@@ -157,7 +185,10 @@ async def _require_initiative_access(
         user_id=user.id,
     )
     if not membership:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.INITIATIVE_MEMBERSHIP_REQUIRED)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=DocumentMessages.INITIATIVE_MEMBERSHIP_REQUIRED,
+        )
 
     # Check specific permission if requested
     if permission_key is not None:
@@ -182,7 +213,10 @@ async def _require_initiative_access(
             user=user,
         )
         if not is_manager:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=DocumentMessages.MANAGER_REQUIRED)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=DocumentMessages.MANAGER_REQUIRED,
+            )
 
 
 def _compute_my_doc_permission_level(
@@ -223,11 +257,16 @@ def _require_document_access(
             detail=DocumentMessages.GRANT_CANNOT_MANAGE_MEMBERS,
         )
     permissions_service.require_document_access(
-        document, user, access=access, require_owner=require_owner,
+        document,
+        user,
+        access=access,
+        require_owner=require_owner,
     )
 
 
-def _get_document_permission(document: Document, user_id: int) -> DocumentPermission | None:
+def _get_document_permission(
+    document: Document, user_id: int
+) -> DocumentPermission | None:
     """Get a user's permission for a document from the loaded permissions."""
     return permissions_service.get_document_permission(document, user_id)
 
@@ -258,13 +297,19 @@ def _file_download_response(
     headers: dict[str, str] = {"X-Content-Type-Options": "nosniff"}
     ext = (original_filename or filename).rsplit(".", 1)[-1].lower()
     normalized_type = (content_type or "").lower()
-    if ext in ("svg", "html", "htm") or "svg" in normalized_type or "html" in normalized_type:
+    if (
+        ext in ("svg", "html", "htm")
+        or "svg" in normalized_type
+        or "html" in normalized_type
+    ):
         if inline:
             # Disable scripts (stored-XSS hardening) but allow the file to be
             # framed by the same-origin in-app document viewer. X-Frame-Options
             # set here overrides the SecurityHeadersMiddleware global DENY (it
             # uses setdefault); frame-ancestors 'self' is the CSP equivalent.
-            headers["Content-Security-Policy"] = "script-src 'none'; frame-ancestors 'self'"
+            headers["Content-Security-Policy"] = (
+                "script-src 'none'; frame-ancestors 'self'"
+            )
             headers["X-Frame-Options"] = "SAMEORIGIN"
         else:
             # Non-inline downloads are sent as attachments; keep the strict
@@ -273,7 +318,9 @@ def _file_download_response(
 
     if inline:
         return FileResponse(file_path, media_type=content_type or None, headers=headers)
-    return FileResponse(file_path, filename=original_filename or filename, headers=headers)
+    return FileResponse(
+        file_path, filename=original_filename or filename, headers=headers
+    )
 
 
 def _build_visible_docs_filters(
@@ -382,37 +429,55 @@ async def _list_global_documents(
     Visits each guild's schema in turn and merges. Per-schema ids collide, so
     items are distinguished by (guild_id, id) via the nested initiative.
     """
-    target_guilds = await member_guild_ids(session, current_user.id, restrict_to=guild_ids)
+    target_guilds = await member_guild_ids(
+        session, current_user.id, restrict_to=guild_ids
+    )
     conditions = [Document.created_by_id == current_user.id]
     if search:
         normalized = search.strip().lower()
         if normalized:
             conditions.append(func.lower(Document.title).contains(normalized))
 
-    async def _fetch(guild_session: AsyncSession, _guild_id: int) -> list[DocumentSummary]:
-        statement = select(Document).where(*conditions).options(
-            selectinload(Document.initiative).selectinload(Initiative.guild),
-            selectinload(Document.initiative).selectinload(Initiative.memberships).options(
-                selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
-            ),
-            selectinload(Document.project_links).selectinload(ProjectDocument.project),
-            selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
-            selectinload(Document.tag_links).selectinload(DocumentTag.tag),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.property_definition
-            ),
-            selectinload(Document.property_values).selectinload(
-                DocumentPropertyValue.value_user
-            ),
+    async def _fetch(
+        guild_session: AsyncSession, _guild_id: int
+    ) -> list[DocumentSummary]:
+        statement = (
+            select(Document)
+            .where(*conditions)
+            .options(
+                selectinload(Document.initiative).selectinload(Initiative.guild),
+                selectinload(Document.initiative)
+                .selectinload(Initiative.memberships)
+                .options(
+                    selectinload(InitiativeMember.user),
+                    selectinload(InitiativeMember.role_ref).selectinload(
+                        InitiativeRoleModel.permissions
+                    ),
+                ),
+                selectinload(Document.project_links).selectinload(
+                    ProjectDocument.project
+                ),
+                selectinload(Document.permissions),
+                selectinload(Document.role_permissions).selectinload(
+                    DocumentRolePermission.role
+                ),
+                selectinload(Document.tag_links).selectinload(DocumentTag.tag),
+                selectinload(Document.property_values).selectinload(
+                    DocumentPropertyValue.property_definition
+                ),
+                selectinload(Document.property_values).selectinload(
+                    DocumentPropertyValue.value_user
+                ),
+            )
         )
         documents = list((await guild_session.exec(statement)).unique().all())
         await documents_service.annotate_comment_counts(guild_session, documents)
         return [
             serialize_document_summary(
                 document,
-                my_permission_level=_compute_my_doc_permission_level(document, current_user.id),
+                my_permission_level=_compute_my_doc_permission_level(
+                    document, current_user.id
+                ),
             )
             for document in documents
         ]
@@ -440,7 +505,9 @@ async def get_document_counts(
     because counts should reflect all tags.
     """
     if initiative_id is not None:
-        await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
+        await _get_initiative_or_404(
+            session, initiative_id=initiative_id, guild_id=guild_context.guild_id
+        )
 
     conditions = _build_visible_docs_filters(
         guild_context.guild_id,
@@ -451,10 +518,7 @@ async def get_document_counts(
 
     # Subquery: IDs of visible documents
     visible_docs_subq = (
-        select(Document.id)
-        .join(Document.initiative)
-        .where(*conditions)
-        .subquery()
+        select(Document.id).join(Document.initiative).where(*conditions).subquery()
     )
 
     # Total count
@@ -504,12 +568,14 @@ async def list_documents(
     guild_ids: Optional[List[int]] = Query(default=None),
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
-    untagged: Optional[bool] = Query(default=None, description="Filter to documents with no tags"),
+    untagged: Optional[bool] = Query(
+        default=None, description="Filter to documents with no tags"
+    ),
     property_filters: Optional[str] = Query(
         default=None,
         description=(
             "JSON-encoded list of property-value filters, e.g. "
-            "`[{\"property_id\": 12, \"op\": \"eq\", \"value\": \"live\"}]`. "
+            '`[{"property_id": 12, "op": "eq", "value": "live"}]`. '
             "Maximum 5 conditions per request."
         ),
     ),
@@ -554,7 +620,9 @@ async def list_documents(
         )
 
     if initiative_id is not None:
-        await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
+        await _get_initiative_or_404(
+            session, initiative_id=initiative_id, guild_id=guild_context.guild_id
+        )
 
     conditions = _build_visible_docs_filters(
         guild_context.guild_id,
@@ -567,23 +635,20 @@ async def list_documents(
 
     # Parse + apply property filters (capped at MAX_PROPERTY_FILTERS).
     try:
-        parsed_property_filters = properties_service.parse_property_filters(property_filters)
+        parsed_property_filters = properties_service.parse_property_filters(
+            property_filters
+        )
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=QueryMessages.INVALID_CONDITIONS,
         )
-    property_clauses = await _apply_property_filters(
-        session, parsed_property_filters
-    )
+    property_clauses = await _apply_property_filters(session, parsed_property_filters)
     conditions.extend(property_clauses)
 
     # Count query
     count_subq = (
-        select(Document.id)
-        .join(Document.initiative)
-        .where(*conditions)
-        .subquery()
+        select(Document.id).join(Document.initiative).where(*conditions).subquery()
     )
     count_stmt = select(func.count()).select_from(count_subq)
     total_count = (await session.exec(count_stmt)).one()
@@ -594,13 +659,19 @@ async def list_documents(
         .join(Document.initiative)
         .where(*conditions)
         .options(
-            selectinload(Document.initiative).selectinload(Initiative.memberships).options(
+            selectinload(Document.initiative)
+            .selectinload(Initiative.memberships)
+            .options(
                 selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+                selectinload(InitiativeMember.role_ref).selectinload(
+                    InitiativeRoleModel.permissions
+                ),
             ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+            selectinload(Document.role_permissions).selectinload(
+                DocumentRolePermission.role
+            ),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
@@ -623,7 +694,8 @@ async def list_documents(
         serialize_document_summary(
             document,
             my_permission_level=_compute_my_doc_permission_level(
-                document, current_user.id,
+                document,
+                current_user.id,
             ),
         )
         for document in documents
@@ -661,9 +733,13 @@ async def autocomplete_documents(
     Returns lightweight document info (id, title, updated_at) for typeahead.
     Only returns documents the user has permission to access.
     """
-    await _get_initiative_or_404(session, initiative_id=initiative_id, guild_id=guild_context.guild_id)
+    await _get_initiative_or_404(
+        session, initiative_id=initiative_id, guild_id=guild_context.guild_id
+    )
 
-    has_permission_subq = permissions_service.visible_document_ids_subquery(current_user.id)
+    has_permission_subq = permissions_service.visible_document_ids_subquery(
+        current_user.id
+    )
 
     normalized = q.strip().lower()
     stmt = (
@@ -741,7 +817,10 @@ async def create_document(
     )
     title = document_in.title.strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.TITLE_REQUIRED,
+        )
 
     # Check for duplicate title in initiative
     await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
@@ -754,7 +833,9 @@ async def create_document(
             document_type=requested_type,
         )
     except documents_service.DocumentContentError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+        ) from exc
 
     document = Document(
         title=title,
@@ -782,7 +863,11 @@ async def create_document(
     # Process optional role permissions from request
     if document_in.role_permissions:
         # Validate each role belongs to this initiative
-        role_ids = {rp.initiative_role_id for rp in document_in.role_permissions if rp.level != DocumentPermissionLevel.owner}
+        role_ids = {
+            rp.initiative_role_id
+            for rp in document_in.role_permissions
+            if rp.level != DocumentPermissionLevel.owner
+        }
         valid_role_ids: set[int] = set()
         if role_ids:
             result = await session.exec(
@@ -793,18 +878,27 @@ async def create_document(
             )
             valid_role_ids = set(result.all())
         for rp in document_in.role_permissions:
-            if rp.initiative_role_id not in valid_role_ids or rp.level == DocumentPermissionLevel.owner:
+            if (
+                rp.initiative_role_id not in valid_role_ids
+                or rp.level == DocumentPermissionLevel.owner
+            ):
                 continue
-            session.add(DocumentRolePermission(
-                document_id=document.id,
-                initiative_role_id=rp.initiative_role_id,
-                guild_id=guild_context.guild_id,
-                level=rp.level,
-            ))
+            session.add(
+                DocumentRolePermission(
+                    document_id=document.id,
+                    initiative_role_id=rp.initiative_role_id,
+                    guild_id=guild_context.guild_id,
+                    level=rp.level,
+                )
+            )
 
     # Process optional user permissions (batch-validate initiative membership)
     if document_in.user_permissions:
-        requested = {up.user_id for up in document_in.user_permissions if up.user_id != current_user.id}
+        requested = {
+            up.user_id
+            for up in document_in.user_permissions
+            if up.user_id != current_user.id
+        }
         valid_ids: set[int] = set()
         if requested:
             result = await session.exec(
@@ -816,12 +910,14 @@ async def create_document(
             valid_ids = set(result.all())
         for up in document_in.user_permissions:
             if up.user_id in valid_ids and up.level != DocumentPermissionLevel.owner:
-                session.add(DocumentPermission(
-                    document_id=document.id,
-                    user_id=up.user_id,
-                    level=up.level,
-                    guild_id=guild_context.guild_id,
-                ))
+                session.add(
+                    DocumentPermission(
+                        document_id=document.id,
+                        user_id=up.user_id,
+                        level=up.level,
+                        guild_id=guild_context.guild_id,
+                    )
+                )
 
     # Sync wikilinks to document_links table
     await documents_service.sync_document_links(
@@ -834,16 +930,21 @@ async def create_document(
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
+    hydrated = await _get_document_or_404(
+        session, document_id=document.id, guild_id=guild_context.guild_id
+    )
     return serialize_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
-            hydrated, current_user.id,
+            hydrated,
+            current_user.id,
         ),
     )
 
 
-@router.post("/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload", response_model=DocumentRead, status_code=status.HTTP_201_CREATED
+)
 async def upload_document_file(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
@@ -867,7 +968,10 @@ async def upload_document_file(
     )
     title = title.strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.TITLE_REQUIRED,
+        )
 
     # Check for duplicate title in initiative
     await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
@@ -881,7 +985,10 @@ async def upload_document_file(
             content_type=file.content_type,
         )
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.INVALID_FILE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.INVALID_FILE,
+        )
 
     # Save file to uploads directory
     file_url = attachments_service.save_document_file(contents, extension)
@@ -940,11 +1047,14 @@ async def upload_document_file(
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
+    hydrated = await _get_document_or_404(
+        session, document_id=document.id, guild_id=guild_context.guild_id
+    )
     return serialize_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
-            hydrated, current_user.id,
+            hydrated,
+            current_user.id,
         ),
     )
 
@@ -970,9 +1080,14 @@ async def upload_document_version(
     file: UploadFile = File(...),
 ) -> DocumentFileVersionRead:
     """Upload a new version of a file document. Requires write access."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     if document.document_type != DocumentType.file:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.NOT_A_FILE_DOCUMENT)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
+        )
     _require_document_access(document, current_user, access="write")
 
     contents = await file.read()
@@ -983,17 +1098,22 @@ async def upload_document_version(
             content_type=file.content_type,
         )
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.INVALID_FILE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.INVALID_FILE,
+        )
 
     # A new version must keep the document's original file type. Skip the
     # check when the stored type is NULL so legacy documents without a
     # recorded content type aren't permanently locked out of new versions
     # (``_normalize_mime(None)`` returns ``""`` and would always mismatch).
-    if (
-        document.file_content_type is not None
-        and _normalize_mime(mime_type) != _normalize_mime(document.file_content_type)
-    ):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.VERSION_TYPE_MISMATCH)
+    if document.file_content_type is not None and _normalize_mime(
+        mime_type
+    ) != _normalize_mime(document.file_content_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.VERSION_TYPE_MISMATCH,
+        )
 
     file_url = attachments_service.save_document_file(contents, extension)
 
@@ -1063,9 +1183,14 @@ async def list_document_versions(
     guild_context: GuildContextDep,
 ) -> List[DocumentFileVersionRead]:
     """List all stored versions of a file document, newest first. Read access."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     if document.document_type != DocumentType.file:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.NOT_A_FILE_DOCUMENT)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
+        )
     _require_document_access(document, current_user, access="read")
 
     result = await session.exec(
@@ -1090,9 +1215,14 @@ async def delete_document_version(
 ) -> None:
     """Delete a version of a file document. Owner only. Deleting the current
     version promotes the previous one; deleting the last version is blocked."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     if document.document_type != DocumentType.file:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.NOT_A_FILE_DOCUMENT)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
+        )
     _require_document_access(document, current_user, require_owner=True)
 
     # Serialize concurrent deletes against the same document by taking a
@@ -1120,7 +1250,10 @@ async def delete_document_version(
 
     target = next((v for v in versions if v.id == version_id), None)
     if target is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.VERSION_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DocumentMessages.VERSION_NOT_FOUND,
+        )
 
     is_current = target.version_number == versions[0].version_number
     deleted_url = target.file_url
@@ -1164,12 +1297,15 @@ async def read_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="read")
     return serialize_document(
         document,
         my_permission_level=_compute_my_doc_permission_level(
-            document, current_user.id,
+            document,
+            current_user.id,
         ),
     )
 
@@ -1185,7 +1321,9 @@ async def get_backlinks(
 
     Only returns documents the current user has permission to access.
     """
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="read")
 
     backlinks = await documents_service.get_backlinks(
@@ -1212,7 +1350,9 @@ async def update_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_write_access(document, current_user)
     updated = False
     update_data = document_in.model_dump(exclude_unset=True)
@@ -1223,7 +1363,10 @@ async def update_document(
     if "title" in update_data:
         title = (update_data["title"] or "").strip()
         if not title:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=DocumentMessages.TITLE_REQUIRED,
+            )
         # Check for duplicate title in initiative (exclude current document)
         await _check_duplicate_title(
             session,
@@ -1242,7 +1385,9 @@ async def update_document(
                 document_type=document.document_type,
             )
         except documents_service.DocumentContentError as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=exc.code
+            ) from exc
         new_content_urls = attachments_service.extract_upload_urls(document.content)
         removed_upload_urls.update(previous_content_urls - new_content_urls)
         # Clear yjs_state ONLY if there is no active collaboration room.
@@ -1266,7 +1411,10 @@ async def update_document(
 
     if "featured_image_url" in update_data:
         document.featured_image_url = update_data["featured_image_url"]
-        if previous_featured_url and previous_featured_url != document.featured_image_url:
+        if (
+            previous_featured_url
+            and previous_featured_url != document.featured_image_url
+        ):
             removed_upload_urls.add(previous_featured_url)
         updated = True
 
@@ -1296,17 +1444,24 @@ async def update_document(
         # collaborators their in-memory state wins until they disconnect.
         if content_updated:
             await collaboration_manager.invalidate_room_if_empty(document.id)
-    hydrated = await _get_document_or_404(session, document_id=document.id, guild_id=guild_context.guild_id)
+    hydrated = await _get_document_or_404(
+        session, document_id=document.id, guild_id=guild_context.guild_id
+    )
     attachments_service.delete_uploads_by_urls(removed_upload_urls)
     return serialize_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
-            hydrated, current_user.id,
+            hydrated,
+            current_user.id,
         ),
     )
 
 
-@router.post("/{document_id}/duplicate", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{document_id}/duplicate",
+    response_model=DocumentRead,
+    status_code=status.HTTP_201_CREATED,
+)
 async def duplicate_document(
     document_id: int,
     session: RLSSessionDep,
@@ -1314,12 +1469,17 @@ async def duplicate_document(
     guild_context: GuildContextDep,
     payload: DocumentDuplicateRequest | None = Body(default=None),
 ) -> DocumentRead:
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write")
     payload = payload or DocumentDuplicateRequest()
     title = (payload.title or f"{document.title} (Copy)").strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.TITLE_REQUIRED,
+        )
 
     duplicated = await documents_service.duplicate_document(
         session,
@@ -1329,16 +1489,23 @@ async def duplicate_document(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
     )
-    hydrated = await _get_document_or_404(session, document_id=duplicated.id, guild_id=guild_context.guild_id)
+    hydrated = await _get_document_or_404(
+        session, document_id=duplicated.id, guild_id=guild_context.guild_id
+    )
     return serialize_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
-            hydrated, current_user.id,
+            hydrated,
+            current_user.id,
         ),
     )
 
 
-@router.post("/{document_id}/copy", response_model=DocumentRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{document_id}/copy",
+    response_model=DocumentRead,
+    status_code=status.HTTP_201_CREATED,
+)
 async def copy_document(
     document_id: int,
     payload: DocumentCopyRequest,
@@ -1346,7 +1513,9 @@ async def copy_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> DocumentRead:
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     # Templates are starter content meant to be copied — read on the source is enough.
     # Non-templates still require write to prevent silent fork-and-edit of someone else's work.
     required_access = "read" if document.is_template else "write"
@@ -1366,7 +1535,10 @@ async def copy_document(
     )
     title = (payload.title or document.title).strip()
     if not title:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.TITLE_REQUIRED)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.TITLE_REQUIRED,
+        )
 
     duplicated = await documents_service.duplicate_document(
         session,
@@ -1376,16 +1548,23 @@ async def copy_document(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
     )
-    hydrated = await _get_document_or_404(session, document_id=duplicated.id, guild_id=guild_context.guild_id)
+    hydrated = await _get_document_or_404(
+        session, document_id=duplicated.id, guild_id=guild_context.guild_id
+    )
     return serialize_document(
         hydrated,
         my_permission_level=_compute_my_doc_permission_level(
-            hydrated, current_user.id,
+            hydrated,
+            current_user.id,
         ),
     )
 
 
-@router.post("/{document_id}/members", response_model=DocumentPermissionRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{document_id}/members",
+    response_model=DocumentPermissionRead,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_document_member(
     document_id: int,
     member_in: DocumentPermissionCreate,
@@ -1394,10 +1573,15 @@ async def add_document_member(
     guild_context: GuildContextDep,
 ) -> DocumentPermission:
     """Add a member to a document with specified permission level."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write", manage_access=True)
     if member_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.CANNOT_ASSIGN_OWNER,
+        )
 
     # Verify user is an initiative member
     initiative_membership = await initiatives_service.get_initiative_membership(
@@ -1406,13 +1590,19 @@ async def add_document_member(
         user_id=member_in.user_id,
     )
     if not initiative_membership:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.USER_MUST_BE_MEMBER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.USER_MUST_BE_MEMBER,
+        )
 
     # Check if user already has a permission
     existing = _get_document_permission(document, member_in.user_id)
     if existing:
         if existing.level == DocumentPermissionLevel.owner:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_MODIFY_OWNER)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=DocumentMessages.CANNOT_MODIFY_OWNER,
+            )
         existing.level = member_in.level
         session.add(existing)
         await session.commit()
@@ -1433,7 +1623,11 @@ async def add_document_member(
     return permission
 
 
-@router.post("/{document_id}/members/bulk", response_model=List[DocumentPermissionRead], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{document_id}/members/bulk",
+    response_model=List[DocumentPermissionRead],
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_document_members_bulk(
     document_id: int,
     bulk_in: DocumentPermissionBulkCreate,
@@ -1442,10 +1636,15 @@ async def add_document_members_bulk(
     guild_context: GuildContextDep,
 ) -> List[DocumentPermission]:
     """Add multiple members to a document with the same permission level."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write", manage_access=True)
     if bulk_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.CANNOT_ASSIGN_OWNER,
+        )
 
     if not bulk_in.user_ids:
         return []
@@ -1461,7 +1660,11 @@ async def add_document_members_bulk(
 
     # Get existing permissions
     existing_user_ids = {p.user_id for p in (document.permissions or [])}
-    owner_ids = {p.user_id for p in (document.permissions or []) if p.level == DocumentPermissionLevel.owner}
+    owner_ids = {
+        p.user_id
+        for p in (document.permissions or [])
+        if p.level == DocumentPermissionLevel.owner
+    }
 
     created_permissions: List[DocumentPermission] = []
     for user_id in bulk_in.user_ids:
@@ -1473,7 +1676,9 @@ async def add_document_members_bulk(
             continue
         # Update existing permission
         if user_id in existing_user_ids:
-            existing = next((p for p in document.permissions if p.user_id == user_id), None)
+            existing = next(
+                (p for p in document.permissions if p.user_id == user_id), None
+            )
             if existing and existing.level != DocumentPermissionLevel.owner:
                 existing.level = bulk_in.level
                 session.add(existing)
@@ -1496,7 +1701,9 @@ async def add_document_members_bulk(
     return created_permissions
 
 
-@router.post("/{document_id}/members/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{document_id}/members/bulk-delete", status_code=status.HTTP_204_NO_CONTENT
+)
 async def remove_document_members_bulk(
     document_id: int,
     bulk_in: DocumentPermissionBulkDelete,
@@ -1505,14 +1712,20 @@ async def remove_document_members_bulk(
     guild_context: GuildContextDep,
 ) -> None:
     """Remove multiple members from a document."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write", manage_access=True)
 
     if not bulk_in.user_ids:
         return
 
     # Get owner IDs to exclude from deletion
-    owner_ids = {p.user_id for p in (document.permissions or []) if p.level == DocumentPermissionLevel.owner}
+    owner_ids = {
+        p.user_id
+        for p in (document.permissions or [])
+        if p.level == DocumentPermissionLevel.owner
+    }
 
     for user_id in bulk_in.user_ids:
         # Skip owners - cannot remove them
@@ -1535,16 +1748,27 @@ async def update_document_member(
     guild_context: GuildContextDep,
 ) -> DocumentPermission:
     """Update a document member's permission level."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write", manage_access=True)
     if update_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.CANNOT_ASSIGN_OWNER,
+        )
 
     permission = _get_document_permission(document, user_id)
     if not permission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.PERMISSION_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DocumentMessages.PERMISSION_NOT_FOUND,
+        )
     if permission.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_MODIFY_OWNER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.CANNOT_MODIFY_OWNER,
+        )
 
     permission.level = update_in.level
     session.add(permission)
@@ -1554,7 +1778,9 @@ async def update_document_member(
     return permission
 
 
-@router.delete("/{document_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def remove_document_member(
     document_id: int,
     user_id: int,
@@ -1563,13 +1789,18 @@ async def remove_document_member(
     guild_context: GuildContextDep,
 ) -> None:
     """Remove a member's permission from a document."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write", manage_access=True)
     permission = _get_document_permission(document, user_id)
     if not permission:
         return
     if permission.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_REMOVE_OWNER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.CANNOT_REMOVE_OWNER,
+        )
     await session.delete(permission)
     await session.commit()
 
@@ -1590,9 +1821,13 @@ async def delete_document(
     from app.services import guilds as guilds_service
     from app.services.soft_delete import soft_delete_entity
 
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, require_owner=True)
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(
+        session, guild_context.guild_id
+    )
     await soft_delete_entity(
         session,
         document,
@@ -1613,15 +1848,23 @@ async def notify_mentions(
     """Notify users that they were mentioned in a document."""
     if not mentioned_user_ids:
         return
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_write_access(document, current_user)
     initiative = document.initiative
     if not initiative:
         initiative = await _get_initiative_or_404(
-            session, initiative_id=document.initiative_id, guild_id=guild_context.guild_id
+            session,
+            initiative_id=document.initiative_id,
+            guild_id=guild_context.guild_id,
         )
     memberships = getattr(initiative, "memberships", []) or []
-    member_map = {membership.user_id: membership.user for membership in memberships if membership.user}
+    member_map = {
+        membership.user_id: membership.user
+        for membership in memberships
+        if membership.user
+    }
     for user_id in mentioned_user_ids:
         mentioned_user = member_map.get(user_id)
         if not mentioned_user:
@@ -1637,7 +1880,9 @@ async def notify_mentions(
     await session.commit()
 
 
-@router.post("/{document_id}/ai/summary", response_model=GenerateDocumentSummaryResponse)
+@router.post(
+    "/{document_id}/ai/summary", response_model=GenerateDocumentSummaryResponse
+)
 async def generate_summary(
     document_id: int,
     session: RLSSessionDep,
@@ -1649,7 +1894,9 @@ async def generate_summary(
     Requires read access to the document. Only works for native documents
     (not file uploads like PDFs).
     """
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="read")
 
     # Only allow summarization of native documents with content
@@ -1722,7 +1969,9 @@ async def set_document_tags(
         .options(
             selectinload(Document.initiative),
             selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+            selectinload(Document.role_permissions).selectinload(
+                DocumentRolePermission.role
+            ),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
@@ -1740,7 +1989,8 @@ async def set_document_tags(
     return serialize_document(
         doc,
         my_permission_level=_compute_my_doc_permission_level(
-            doc, current_user.id,
+            doc,
+            current_user.id,
         ),
     )
 
@@ -1798,7 +2048,8 @@ async def set_document_properties(
     return serialize_document(
         refreshed,
         my_permission_level=_compute_my_doc_permission_level(
-            refreshed, current_user.id,
+            refreshed,
+            current_user.id,
         ),
     )
 
@@ -1806,7 +2057,11 @@ async def set_document_properties(
 # ── Role-based permission CRUD ───────────────────────────────────
 
 
-@router.post("/{document_id}/role-permissions", response_model=DocumentRolePermissionRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{document_id}/role-permissions",
+    response_model=DocumentRolePermissionRead,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_document_role_permission(
     document_id: int,
     role_perm_in: DocumentRolePermissionCreate,
@@ -1815,18 +2070,28 @@ async def add_document_role_permission(
     guild_context: GuildContextDep,
 ) -> DocumentRolePermissionRead:
     """Add a role-based permission to a document."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write", manage_access=True)
 
     if role_perm_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE,
+        )
 
     # Validate the role belongs to the same initiative as the document
-    stmt = select(InitiativeRoleModel).where(InitiativeRoleModel.id == role_perm_in.initiative_role_id)
+    stmt = select(InitiativeRoleModel).where(
+        InitiativeRoleModel.id == role_perm_in.initiative_role_id
+    )
     result = await session.exec(stmt)
     role = result.one_or_none()
     if not role or role.initiative_id != document.initiative_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.ROLE_WRONG_INITIATIVE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.ROLE_WRONG_INITIATIVE,
+        )
 
     # Check if already exists
     existing_stmt = select(DocumentRolePermission).where(
@@ -1868,7 +2133,10 @@ async def add_document_role_permission(
     )
 
 
-@router.patch("/{document_id}/role-permissions/{role_id}", response_model=DocumentRolePermissionRead)
+@router.patch(
+    "/{document_id}/role-permissions/{role_id}",
+    response_model=DocumentRolePermissionRead,
+)
 async def update_document_role_permission(
     document_id: int,
     role_id: int,
@@ -1878,11 +2146,16 @@ async def update_document_role_permission(
     guild_context: GuildContextDep,
 ) -> DocumentRolePermissionRead:
     """Update a role-based permission level on a document."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write", manage_access=True)
 
     if update_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE,
+        )
 
     stmt = select(DocumentRolePermission).where(
         DocumentRolePermission.document_id == document_id,
@@ -1891,7 +2164,10 @@ async def update_document_role_permission(
     result = await session.exec(stmt)
     role_perm = result.one_or_none()
     if not role_perm:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.ROLE_PERMISSION_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DocumentMessages.ROLE_PERMISSION_NOT_FOUND,
+        )
 
     role_perm.level = update_in.level
     session.add(role_perm)
@@ -1912,7 +2188,9 @@ async def update_document_role_permission(
     )
 
 
-@router.delete("/{document_id}/role-permissions/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}/role-permissions/{role_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def remove_document_role_permission(
     document_id: int,
     role_id: int,
@@ -1921,7 +2199,9 @@ async def remove_document_role_permission(
     guild_context: GuildContextDep,
 ) -> None:
     """Remove a role-based permission from a document."""
-    document = await _get_document_or_404(session, document_id=document_id, guild_id=guild_context.guild_id)
+    document = await _get_document_or_404(
+        session, document_id=document_id, guild_id=guild_context.guild_id
+    )
     _require_document_access(document, current_user, access="write", manage_access=True)
 
     stmt = select(DocumentRolePermission).where(
@@ -1955,7 +2235,9 @@ async def download_document_file(
         .join(Document.initiative)
         .where(
             Initiative.guild_id.in_(
-                select(GuildMembership.guild_id).where(GuildMembership.user_id == current_user.id)
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == current_user.id
+                )
             )
         )
         .options(
@@ -1963,20 +2245,35 @@ async def download_document_file(
             .selectinload(Initiative.memberships)
             .options(
                 selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+                selectinload(InitiativeMember.role_ref).selectinload(
+                    InitiativeRoleModel.permissions
+                ),
             ),
             selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+            selectinload(Document.role_permissions).selectinload(
+                DocumentRolePermission.role
+            ),
         )
     )
     result = await session.exec(stmt)
     document = result.one_or_none()
-    if document is None or document.document_type != DocumentType.file or document.file_url is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND)
+    if (
+        document is None
+        or document.document_type != DocumentType.file
+        or document.file_url is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
+        )
 
     _require_document_access(document, current_user, access="read")
 
-    logger.info("document_download document_id=%d user=%d inline=%s", document_id, current_user.id, inline)
+    logger.info(
+        "document_download document_id=%d user=%d inline=%s",
+        document_id,
+        current_user.id,
+        inline,
+    )
     return _file_download_response(
         file_url=document.file_url,
         content_type=document.file_content_type,
@@ -2005,7 +2302,9 @@ async def download_document_file_version(
         .join(Document.initiative)
         .where(
             Initiative.guild_id.in_(
-                select(GuildMembership.guild_id).where(GuildMembership.user_id == current_user.id)
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == current_user.id
+                )
             )
         )
         .options(
@@ -2013,16 +2312,22 @@ async def download_document_file_version(
             .selectinload(Initiative.memberships)
             .options(
                 selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+                selectinload(InitiativeMember.role_ref).selectinload(
+                    InitiativeRoleModel.permissions
+                ),
             ),
             selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+            selectinload(Document.role_permissions).selectinload(
+                DocumentRolePermission.role
+            ),
         )
     )
     result = await session.exec(stmt)
     document = result.one_or_none()
     if document is None or document.document_type != DocumentType.file:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.NOT_FOUND
+        )
 
     _require_document_access(document, current_user, access="read")
 
@@ -2034,11 +2339,17 @@ async def download_document_file_version(
     )
     version = version_result.one_or_none()
     if version is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=DocumentMessages.VERSION_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=DocumentMessages.VERSION_NOT_FOUND,
+        )
 
     logger.info(
         "document_version_download document_id=%d version_id=%d user=%d inline=%s",
-        document_id, version_id, current_user.id, inline,
+        document_id,
+        version_id,
+        current_user.id,
+        inline,
     )
     return _file_download_response(
         file_url=version.file_url,

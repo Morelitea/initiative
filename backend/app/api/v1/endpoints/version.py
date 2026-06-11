@@ -68,7 +68,9 @@ async def get_latest_dockerhub_version() -> dict[str, Optional[str]]:
 
 
 @router.get("/changelog")
-def get_changelog(version: Optional[str] = None, limit: int = 1) -> dict[str, list[dict]]:
+def get_changelog(
+    version: Optional[str] = None, limit: int = 1
+) -> dict[str, list[dict]]:
     """
     Get changelog entries.
 
@@ -77,11 +79,16 @@ def get_changelog(version: Optional[str] = None, limit: int = 1) -> dict[str, li
     """
     try:
         # Try Docker path first: /app/app/api/v1/endpoints/version.py -> /app/CHANGELOG.md
-        changelog_path = Path(__file__).parent.parent.parent.parent.parent / "CHANGELOG.md"
+        changelog_path = (
+            Path(__file__).parent.parent.parent.parent.parent / "CHANGELOG.md"
+        )
 
         if not changelog_path.exists():
             # Fall back to development path: backend/app/api/v1/endpoints/version.py -> ../../../../../CHANGELOG.md
-            changelog_path = Path(__file__).parent.parent.parent.parent.parent.parent / "CHANGELOG.md"
+            changelog_path = (
+                Path(__file__).parent.parent.parent.parent.parent.parent
+                / "CHANGELOG.md"
+            )
 
         if not changelog_path.exists():
             return {"entries": []}
@@ -102,11 +109,7 @@ def get_changelog(version: Optional[str] = None, limit: int = 1) -> dict[str, li
             if version and version_num != version:
                 continue
 
-            entry = {
-                "version": version_num,
-                "date": date,
-                "changes": changes.strip()
-            }
+            entry = {"version": version_num, "date": date, "changes": changes.strip()}
             entries.append(entry)
 
             # If we've collected enough entries, stop

@@ -15,7 +15,13 @@ from app.db.session import set_rls_context
 from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, RSVPStatus
 from app.models.event_reminder_dispatch import EventReminderDispatch
 from app.models.notification import Notification, NotificationType
-from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory
+from app.models.task import (
+    Task,
+    TaskAssignee,
+    TaskPriority,
+    TaskStatus,
+    TaskStatusCategory,
+)
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.user import User
 from app.services import email as email_service
@@ -69,7 +75,9 @@ async def _add_attendee(session, initiative, event, user, *, rsvp=RSVPStatus.pen
     # guild + initiative member to see the event under RLS (as the real app
     # enforces — you can only attend events in initiatives you belong to).
     guild = await session.get(Guild, event.guild_id)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
     await create_initiative_member(session, initiative, user, role_name="member")
 
 
@@ -137,7 +145,11 @@ async def test_event_reminder_fires_once_within_lead_window(
     # Starts in 10 min; with a 15-min lead the reminder is already due.
     start_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     event = await create_calendar_event(
-        session, initiative, creator, title="Standup", start_at=start_at,
+        session,
+        initiative,
+        creator,
+        title="Standup",
+        start_at=start_at,
         end_at=start_at + timedelta(minutes=30),
     )
     await _add_attendee(session, initiative, event, attendee)
@@ -152,7 +164,9 @@ async def test_event_reminder_fires_once_within_lead_window(
     # The dispatch ledger is guild-scoped; read it under the guild's context.
     await set_rls_context(session, user_id=attendee.id, guild_id=guild.id)
     dispatches = await session.exec(
-        select(EventReminderDispatch).where(EventReminderDispatch.user_id == attendee.id)
+        select(EventReminderDispatch).where(
+            EventReminderDispatch.user_id == attendee.id
+        )
     )
     assert len(list(dispatches.all())) == 1
 
@@ -169,7 +183,11 @@ async def test_event_reminder_skipped_when_lead_time_off(session: AsyncSession):
     _, initiative = await _events_initiative(session, creator)
     start_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     event = await create_calendar_event(
-        session, initiative, creator, title="Sync", start_at=start_at,
+        session,
+        initiative,
+        creator,
+        title="Sync",
+        start_at=start_at,
         end_at=start_at + timedelta(minutes=30),
     )
     await _add_attendee(session, initiative, event, attendee)
@@ -188,7 +206,11 @@ async def test_event_reminder_not_due_when_outside_lead_window(session: AsyncSes
     # Starts in 2 hours; a 15-min lead means the reminder is not yet due.
     start_at = datetime.now(timezone.utc) + timedelta(hours=2)
     event = await create_calendar_event(
-        session, initiative, creator, title="Later", start_at=start_at,
+        session,
+        initiative,
+        creator,
+        title="Later",
+        start_at=start_at,
         end_at=start_at + timedelta(minutes=30),
     )
     await _add_attendee(session, initiative, event, attendee)
@@ -207,7 +229,11 @@ async def test_event_reminder_at_time_of_event_fires_at_start(session: AsyncSess
     # Just started (within the grace window); a 0-minute lead is due now.
     start_at = datetime.now(timezone.utc) - timedelta(seconds=30)
     event = await create_calendar_event(
-        session, initiative, creator, title="Now", start_at=start_at,
+        session,
+        initiative,
+        creator,
+        title="Now",
+        start_at=start_at,
         end_at=start_at + timedelta(minutes=30),
     )
     await _add_attendee(session, initiative, event, attendee)
@@ -225,7 +251,11 @@ async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
     _, initiative = await _events_initiative(session, creator)
     start_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     event = await create_calendar_event(
-        session, initiative, creator, title="Optional", start_at=start_at,
+        session,
+        initiative,
+        creator,
+        title="Optional",
+        start_at=start_at,
         end_at=start_at + timedelta(minutes=30),
     )
     await _add_attendee(session, initiative, event, attendee, rsvp=RSVPStatus.declined)
@@ -235,7 +265,9 @@ async def test_event_reminder_skips_declined_attendees(session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_notify_initiative_membership_carries_guild_context(session: AsyncSession):
+async def test_notify_initiative_membership_carries_guild_context(
+    session: AsyncSession,
+):
     """The initiative_added notification must carry its guild so the merged
     cross-guild inbox can resolve/navigate it after schema-per-guild."""
     creator = await create_user(session, email="ini-creator@example.com")
@@ -274,15 +306,22 @@ async def _overdue_task_in_new_guild(session: AsyncSession, user: User, *, label
     initiative = await create_initiative(session, guild, user, name=label)
     project = await create_project(session, initiative, user, name=f"{label} Project")
     status = TaskStatus(
-        guild_id=guild.id, project_id=project.id, name="Todo",
-        category=TaskStatusCategory.todo, position=0, is_default=True,
+        guild_id=guild.id,
+        project_id=project.id,
+        name="Todo",
+        category=TaskStatusCategory.todo,
+        position=0,
+        is_default=True,
     )
     session.add(status)
     await session.commit()
     await session.refresh(status)
     task = Task(
-        guild_id=guild.id, project_id=project.id, task_status_id=status.id,
-        title=f"{label} overdue", priority=TaskPriority.medium,
+        guild_id=guild.id,
+        project_id=project.id,
+        task_status_id=status.id,
+        title=f"{label} overdue",
+        priority=TaskPriority.medium,
         due_date=datetime.now(timezone.utc) - timedelta(days=1),
     )
     session.add(task)
@@ -294,7 +333,9 @@ async def _overdue_task_in_new_guild(session: AsyncSession, user: User, *, label
 
 
 @pytest.mark.integration
-async def test_overdue_digest_gathers_tasks_across_user_guilds(session: AsyncSession, monkeypatch):
+async def test_overdue_digest_gathers_tasks_across_user_guilds(
+    session: AsyncSession, monkeypatch
+):
     """The overdue digest must collect a user's overdue tasks from EVERY guild
     they belong to. Under schema-per-guild each guild's tasks live in its own
     schema, so a single public-scoped scan (the old behaviour) would miss all
@@ -326,7 +367,9 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(session: AsyncSes
     assert captured.get("titles") == {"Alpha overdue", "Beta overdue"}
 
 
-async def _assignment_item_in_new_guild(session: AsyncSession, user: User, *, label: str):
+async def _assignment_item_in_new_guild(
+    session: AsyncSession, user: User, *, label: str
+):
     """Queue a task-assignment digest item for ``user`` in a brand-new guild."""
     # A prior call left the session in a guild-member context; reset so the new
     # guild INSERT into public.guilds isn't RLS-denied.
@@ -336,15 +379,22 @@ async def _assignment_item_in_new_guild(session: AsyncSession, user: User, *, la
     initiative = await create_initiative(session, guild, user, name=label)
     project = await create_project(session, initiative, user, name=f"{label} Project")
     status = TaskStatus(
-        guild_id=guild.id, project_id=project.id, name="Todo",
-        category=TaskStatusCategory.todo, position=0, is_default=True,
+        guild_id=guild.id,
+        project_id=project.id,
+        name="Todo",
+        category=TaskStatusCategory.todo,
+        position=0,
+        is_default=True,
     )
     session.add(status)
     await session.commit()
     await session.refresh(status)
     task = Task(
-        guild_id=guild.id, project_id=project.id, task_status_id=status.id,
-        title=f"{label} task", priority=TaskPriority.medium,
+        guild_id=guild.id,
+        project_id=project.id,
+        task_status_id=status.id,
+        title=f"{label} task",
+        priority=TaskPriority.medium,
     )
     session.add(task)
     await session.commit()
@@ -353,8 +403,12 @@ async def _assignment_item_in_new_guild(session: AsyncSession, user: User, *, la
     await set_rls_context(session, user_id=user.id, guild_id=guild.id)
     session.add(
         TaskAssignmentDigestItem(
-            user_id=user.id, task_id=task.id, project_id=project.id,
-            task_title=task.title, project_name=project.name, assigned_by_name="Assigner",
+            user_id=user.id,
+            task_id=task.id,
+            project_id=project.id,
+            task_title=task.title,
+            project_name=project.name,
+            assigned_by_name="Assigner",
         )
     )
     await session.commit()
@@ -368,7 +422,9 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
     """The task-assignment digest must collect a user's pending items from every
     guild they belong to and mark them processed in each schema — a single
     public-scoped scan (the old behaviour) would see none of them."""
-    user = await create_user(session, email="multi-digest@example.com")  # opted in by default
+    user = await create_user(
+        session, email="multi-digest@example.com"
+    )  # opted in by default
     guild_a = await _assignment_item_in_new_guild(session, user, label="Alpha")
     guild_b = await _assignment_item_in_new_guild(session, user, label="Beta")
 
@@ -378,7 +434,9 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
         captured["user_id"] = recipient.id
         captured["titles"] = {a["task_title"] for a in assignments}
 
-    monkeypatch.setattr(email_service, "send_task_assignment_digest_email", _capture_email)
+    monkeypatch.setattr(
+        email_service, "send_task_assignment_digest_email", _capture_email
+    )
 
     await set_rls_context(session, is_superadmin=True)
     await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
@@ -408,7 +466,9 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
         session, email="multi-reminder@example.com", event_reminder_minutes_before=15
     )
     for label in ("Alpha", "Beta"):
-        await set_rls_context(session, is_superadmin=True)  # permissive for the guild INSERT
+        await set_rls_context(
+            session, is_superadmin=True
+        )  # permissive for the guild INSERT
         creator = await create_user(session, email=f"organizer-{label}@example.com")
         guild = await create_guild(session, creator=creator)
         initiative = await create_initiative(session, guild, creator, name=label)
@@ -419,8 +479,12 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
         # Starts in 10 min; with the attendee's 15-min lead the reminder is due.
         start_at = datetime.now(timezone.utc) + timedelta(minutes=10)
         event = await create_calendar_event(
-            session, initiative, creator, title=f"{label} Standup",
-            start_at=start_at, end_at=start_at + timedelta(minutes=30),
+            session,
+            initiative,
+            creator,
+            title=f"{label} Standup",
+            start_at=start_at,
+            end_at=start_at + timedelta(minutes=30),
         )
         await _add_attendee(session, initiative, event, attendee)
 

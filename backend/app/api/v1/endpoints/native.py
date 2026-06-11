@@ -40,7 +40,9 @@ def get_bundle_manifest() -> dict[str, object]:
     native app version is older.
     """
     if not _BUNDLE_PATH.is_file() or not _CHECKSUM_PATH.is_file():
-        raise HTTPException(status_code=404, detail=NativeMessages.OTA_BUNDLE_NOT_AVAILABLE)
+        raise HTTPException(
+            status_code=404, detail=NativeMessages.OTA_BUNDLE_NOT_AVAILABLE
+        )
     return {
         "version": __version__,
         "url": f"{settings.API_V1_STR}/native/bundle/download",
@@ -53,7 +55,9 @@ def get_bundle_manifest() -> dict[str, object]:
 def download_bundle() -> FileResponse:
     """Serve the Capacitor web bundle zip (immutable per version)."""
     if not _BUNDLE_PATH.is_file():
-        raise HTTPException(status_code=404, detail=NativeMessages.OTA_BUNDLE_NOT_AVAILABLE)
+        raise HTTPException(
+            status_code=404, detail=NativeMessages.OTA_BUNDLE_NOT_AVAILABLE
+        )
     return FileResponse(
         _BUNDLE_PATH,
         media_type="application/zip",

@@ -30,6 +30,7 @@ from app.models.tag import Tag
 # Query helpers
 # ---------------------------------------------------------------------------
 
+
 async def get_event(
     session: AsyncSession,
     event_id: int,
@@ -41,18 +42,20 @@ async def get_event(
         select(CalendarEvent)
         .where(CalendarEvent.id == event_id)
         .options(
-            selectinload(CalendarEvent.attendees)
-            .selectinload(CalendarEventAttendee.user),
-            selectinload(CalendarEvent.tag_links)
-            .selectinload(CalendarEventTag.tag),
-            selectinload(CalendarEvent.document_links)
-            .selectinload(CalendarEventDocument.document),
-            selectinload(CalendarEvent.initiative)
-            .selectinload(Initiative.memberships),
-            selectinload(CalendarEvent.property_values)
-            .selectinload(CalendarEventPropertyValue.property_definition),
-            selectinload(CalendarEvent.property_values)
-            .selectinload(CalendarEventPropertyValue.value_user),
+            selectinload(CalendarEvent.attendees).selectinload(
+                CalendarEventAttendee.user
+            ),
+            selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
+            selectinload(CalendarEvent.document_links).selectinload(
+                CalendarEventDocument.document
+            ),
+            selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
+            selectinload(CalendarEvent.property_values).selectinload(
+                CalendarEventPropertyValue.property_definition
+            ),
+            selectinload(CalendarEvent.property_values).selectinload(
+                CalendarEventPropertyValue.value_user
+            ),
         )
     )
     if populate_existing:
@@ -64,6 +67,7 @@ async def get_event(
 # ---------------------------------------------------------------------------
 # Attendee helpers
 # ---------------------------------------------------------------------------
+
 
 async def set_event_attendees(
     session: AsyncSession,
@@ -77,6 +81,7 @@ async def set_event_attendees(
     """
     if user_ids:
         from app.models.initiative import InitiativeMember
+
         stmt = select(InitiativeMember.user_id).where(
             InitiativeMember.initiative_id == event.initiative_id,
             InitiativeMember.user_id.in_(user_ids),
@@ -107,6 +112,7 @@ async def set_event_attendees(
 # ---------------------------------------------------------------------------
 # Tag / document attachment helpers
 # ---------------------------------------------------------------------------
+
 
 async def set_event_tags(
     session: AsyncSession,

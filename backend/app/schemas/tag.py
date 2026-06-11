@@ -37,7 +37,10 @@ class TagUpdate(SanitizedBaseModel):
 
 class TagSummary(SanitizedBaseModel):
     """Lightweight tag representation for embedding in other schemas."""
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     name: str
@@ -45,7 +48,9 @@ class TagSummary(SanitizedBaseModel):
 
 
 class TagRead(TagBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     guild_id: int
@@ -55,11 +60,13 @@ class TagRead(TagBase):
 
 class TagSetRequest(SanitizedBaseModel):
     """Request body for setting tags on an entity."""
+
     tag_ids: List[int] = Field(default_factory=list)
 
 
 class TaggedEntitiesResponse(SanitizedBaseModel):
     """Response for GET /tags/{id}/entities - all entities with a given tag."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     tasks: List["TaggedTaskSummary"] = Field(default_factory=list)
@@ -68,7 +75,9 @@ class TaggedEntitiesResponse(SanitizedBaseModel):
 
 
 class TaggedTaskSummary(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     title: str
@@ -77,7 +86,9 @@ class TaggedTaskSummary(SanitizedBaseModel):
 
 
 class TaggedProjectSummary(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     name: str
@@ -86,7 +97,9 @@ class TaggedProjectSummary(SanitizedBaseModel):
 
 
 class TaggedDocumentSummary(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     title: str
@@ -95,7 +108,9 @@ class TaggedDocumentSummary(SanitizedBaseModel):
 
 
 class TaggedEventSummary(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     title: str

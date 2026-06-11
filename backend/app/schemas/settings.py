@@ -4,6 +4,7 @@ from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import RawTextStr, SanitizedBaseModel
 
+
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -83,6 +84,7 @@ class EmailTestRequest(SanitizedBaseModel):
 
 
 # --- OIDC Claim Mapping schemas ---
+
 
 class OIDCClaimMappingCreate(SanitizedBaseModel):
     claim_value: str = Field(min_length=1, max_length=500)

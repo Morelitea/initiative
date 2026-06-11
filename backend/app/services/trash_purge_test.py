@@ -111,12 +111,16 @@ async def test_auto_purge_sweeps_every_guild_schema(session: AsyncSession):
     for label in ("Gamma", "Delta"):
         guild = await create_guild(session, creator=user)
         initiative = await create_initiative(session, guild, user, name=label)
-        await soft_delete_entity(session, initiative, deleted_by_user_id=user.id, retention_days=1)
+        await soft_delete_entity(
+            session, initiative, deleted_by_user_id=user.id, retention_days=1
+        )
         await session.commit()
         # Backdate purge_at so this initiative is due (same guild context).
         refreshed = (
             await session.exec(
-                select_including_deleted(Initiative).where(Initiative.id == initiative.id)
+                select_including_deleted(Initiative).where(
+                    Initiative.id == initiative.id
+                )
             )
         ).one()
         refreshed.purge_at = past
@@ -130,7 +134,8 @@ async def test_auto_purge_sweeps_every_guild_schema(session: AsyncSession):
         await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
         count = (
             await session.execute(
-                text("SELECT COUNT(*) FROM initiatives WHERE id = :id"), {"id": initiative_id}
+                text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
+                {"id": initiative_id},
             )
         ).scalar_one()
         assert count == 0, f"guild {guild_id} initiative {initiative_id} not purged"

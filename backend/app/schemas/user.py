@@ -75,7 +75,10 @@ class UserPublic(SanitizedBaseModel):
     placeholder for anonymized accounts wherever a person appears
     (comment authors, task assignees, mentions, calendar attendees).
     """
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     email: EmailStr
@@ -98,7 +101,9 @@ class UserGuildMember(UserPublic):
 
 
 class UserRead(UserBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     status: UserStatus
@@ -199,6 +204,7 @@ class UserSelfUpdate(SanitizedBaseModel):
 
 class ProjectBasic(SanitizedBaseModel):
     """Basic project information for deletion flow"""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -212,6 +218,7 @@ class AccountDeletionRequest(SanitizedBaseModel):
     `hard_delete` is intentionally not allowed from this self-service endpoint;
     only platform admins can purge a row, and they do so via the admin endpoint.
     """
+
     action: Literal["deactivate", "soft_delete"]
     password: RawTextStr
     confirmation_text: str
@@ -220,6 +227,7 @@ class AccountDeletionRequest(SanitizedBaseModel):
 
 class DeletionEligibilityResponse(SanitizedBaseModel):
     """Response indicating whether user can be deleted and any blockers"""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_delete: bool
@@ -239,6 +247,7 @@ class GuildRemovalProjectInfo(SanitizedBaseModel):
     be a member of every initiative the target user belongs to, so
     that endpoint isn't always callable from this flow.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -257,6 +266,7 @@ class GuildRemovalEligibilityResponse(SanitizedBaseModel):
     this, the existing one-click "remove member" path silently
     orphaned every project where the leaving user was sole owner.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_remove: bool
@@ -276,6 +286,7 @@ class GuildRemovalRequest(SanitizedBaseModel):
     a sole-PM situation would leave the admin with a forever-disabled
     Remove button.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     project_transfers: Dict[int, int] = Field(default_factory=dict)
@@ -284,6 +295,7 @@ class GuildRemovalRequest(SanitizedBaseModel):
 
 class AccountDeletionResponse(SanitizedBaseModel):
     """Response after a deactivate / anonymize / hard-delete action."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     success: bool

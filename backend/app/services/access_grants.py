@@ -69,7 +69,11 @@ def _capped_duration(requested: Optional[int], role: UserRole) -> int:
     """Resolve a requested duration for a grantee of ``role`` to the effective
     one, or raise if it exceeds that role's maximum."""
     cap = max_minutes_for_role(role)
-    minutes = requested if requested is not None else min(settings.PAM_DEFAULT_DURATION_MINUTES, cap)
+    minutes = (
+        requested
+        if requested is not None
+        else min(settings.PAM_DEFAULT_DURATION_MINUTES, cap)
+    )
     if minutes > cap:
         raise AccessGrantError("DURATION_TOO_LONG")
     return minutes
@@ -127,7 +131,9 @@ async def _push_and_email(
     body_vars: dict[str, str] = {"guild": guild_name or "a guild"}
     if access_level is not None:
         level_key = (
-            "accessGrant.levelReadWrite" if access_level == "read_write" else "accessGrant.levelRead"
+            "accessGrant.levelReadWrite"
+            if access_level == "read_write"
+            else "accessGrant.levelRead"
         )
         body_vars["level"] = translate(level_key, locale, namespace="notifications")
     if requester is not None:
@@ -137,11 +143,19 @@ async def _push_and_email(
             session=session,
             user_id=recipient.id,
             notification_type=notification_type,
-            title=translate(f"accessGrant.{push_key}.title", locale, namespace="notifications"),
-            body=translate(
-                f"accessGrant.{push_key}.body", locale, namespace="notifications", **body_vars
+            title=translate(
+                f"accessGrant.{push_key}.title", locale, namespace="notifications"
             ),
-            data={"type": notification_type.value, "target_path": "/settings/admin/access"},
+            body=translate(
+                f"accessGrant.{push_key}.body",
+                locale,
+                namespace="notifications",
+                **body_vars,
+            ),
+            data={
+                "type": notification_type.value,
+                "target_path": "/settings/admin/access",
+            },
         )
     except Exception as exc:  # best effort
         logger.error("PAM push notification failed: %s", exc, exc_info=True)
@@ -252,7 +266,9 @@ async def approve(
     # the recipient's tier).
     grantee = await session.get(User, grant.user_id)
     grantee_role = grantee.role if grantee else UserRole.support
-    duration = _capped_duration(duration_minutes or grant.requested_duration_minutes, grantee_role)
+    duration = _capped_duration(
+        duration_minutes or grant.requested_duration_minutes, grantee_role
+    )
     now = _now()
     grant.status = AccessGrantStatus.approved.value
     grant.approved_by_id = approver.id
@@ -282,7 +298,9 @@ async def approve(
     return grant
 
 
-async def deny(session: AsyncSession, *, grant: AccessGrant, approver: User) -> AccessGrant:
+async def deny(
+    session: AsyncSession, *, grant: AccessGrant, approver: User
+) -> AccessGrant:
     if grant.status != AccessGrantStatus.pending.value:
         raise AccessGrantError("NOT_PENDING")
     now = _now()
@@ -313,7 +331,9 @@ async def deny(session: AsyncSession, *, grant: AccessGrant, approver: User) -> 
     return grant
 
 
-async def revoke(session: AsyncSession, *, grant: AccessGrant, revoker: User) -> AccessGrant:
+async def revoke(
+    session: AsyncSession, *, grant: AccessGrant, revoker: User
+) -> AccessGrant:
     # Revoke is only meaningful for an approved grant (live or not-yet-expired);
     # a pending one should be denied, a terminal one is already over.
     if grant.status != AccessGrantStatus.approved.value:
@@ -346,7 +366,9 @@ async def revoke(session: AsyncSession, *, grant: AccessGrant, revoker: User) ->
     return grant
 
 
-async def cancel_own_pending(session: AsyncSession, *, grant: AccessGrant, user: User) -> None:
+async def cancel_own_pending(
+    session: AsyncSession, *, grant: AccessGrant, user: User
+) -> None:
     """A requester withdraws their own still-pending request."""
     if grant.requested_by_id != user.id:
         raise AccessGrantError("CANNOT_CANCEL_OTHERS")
@@ -438,7 +460,9 @@ async def expire_due(session: AsyncSession) -> int:
     return len(rows)
 
 
-async def to_read(session: AsyncSession, grants: list[AccessGrant]) -> list[AccessGrantRead]:
+async def to_read(
+    session: AsyncSession, grants: list[AccessGrant]
+) -> list[AccessGrantRead]:
     """Serialize grants, batch-loading display enrichment (user/guild names)."""
     if not grants:
         return []

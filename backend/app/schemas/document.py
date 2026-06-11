@@ -66,7 +66,9 @@ class DocumentRolePermissionUpdate(SanitizedBaseModel):
 
 
 class DocumentRolePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     initiative_role_id: int
     role_name: str = ""
@@ -94,7 +96,9 @@ class DocumentPermissionUpdate(SanitizedBaseModel):
 
 
 class DocumentPermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     user_id: int
     level: DocumentPermissionLevel
@@ -103,6 +107,7 @@ class DocumentPermissionRead(SanitizedBaseModel):
 
 class DocumentAutocomplete(SanitizedBaseModel):
     """Lightweight document info for autocomplete/wikilinks."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -112,6 +117,7 @@ class DocumentAutocomplete(SanitizedBaseModel):
 
 class DocumentBacklink(SanitizedBaseModel):
     """Document that links to another document."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -120,7 +126,9 @@ class DocumentBacklink(SanitizedBaseModel):
 
 
 class DocumentSummary(DocumentBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     created_by_id: int
@@ -176,7 +184,10 @@ class DocumentFileVersionRead(SanitizedBaseModel):
     """A single stored version of a file-type document. The binary is fetched
     via the version download endpoint by id — ``file_url`` is intentionally
     not exposed."""
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     version_number: int
@@ -225,7 +236,9 @@ def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]
     ]
 
 
-def _serialize_role_permissions(document: "Document") -> List[DocumentRolePermissionRead]:
+def _serialize_role_permissions(
+    document: "Document",
+) -> List[DocumentRolePermissionRead]:
     """Serialize all document role permissions."""
     role_permissions = getattr(document, "role_permissions", None) or []
     result: List[DocumentRolePermissionRead] = []
@@ -273,7 +286,9 @@ def serialize_document_summary(
     *,
     my_permission_level: Optional[str] = None,
 ) -> DocumentSummary:
-    initiative = serialize_initiative(document.initiative) if document.initiative else None
+    initiative = (
+        serialize_initiative(document.initiative) if document.initiative else None
+    )
     smart_link_url: Optional[str] = None
     if document.document_type == DocumentType.smart_link:
         content = document.content or {}
@@ -297,7 +312,9 @@ def serialize_document_summary(
         role_permissions=_serialize_role_permissions(document),
         tags=_serialize_document_tags(document),
         properties=_serialize_document_properties(document),
-        document_type=document.document_type.value if document.document_type else "native",
+        document_type=document.document_type.value
+        if document.document_type
+        else "native",
         file_url=document.file_url,
         file_content_type=document.file_content_type,
         file_size=document.file_size,
@@ -313,7 +330,9 @@ def serialize_document(
     *,
     my_permission_level: Optional[str] = None,
 ) -> DocumentRead:
-    summary = serialize_document_summary(document, my_permission_level=my_permission_level)
+    summary = serialize_document_summary(
+        document, my_permission_level=my_permission_level
+    )
     return DocumentRead(
         **summary.model_dump(),
         content=document.content or {},
@@ -345,12 +364,16 @@ def serialize_document_file_versions(
         return []
     current_number = max(v.version_number for v in versions)
     return [
-        serialize_document_file_version(v, is_current=v.version_number == current_number)
+        serialize_document_file_version(
+            v, is_current=v.version_number == current_number
+        )
         for v in versions
     ]
 
 
-def serialize_project_document_link(link: "ProjectDocument") -> ProjectDocumentSummary | None:
+def serialize_project_document_link(
+    link: "ProjectDocument",
+) -> ProjectDocumentSummary | None:
     document = getattr(link, "document", None)
     if not document or document.id is None:
         return None

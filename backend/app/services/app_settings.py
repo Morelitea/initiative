@@ -78,7 +78,9 @@ async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSe
     return settings_row
 
 
-async def get_or_create_guild_settings(session: AsyncSession, guild_id: int | None = None) -> GuildSetting:
+async def get_or_create_guild_settings(
+    session: AsyncSession, guild_id: int | None = None
+) -> GuildSetting:
     resolved_guild_id = guild_id or await guilds_service.get_primary_guild_id(session)
     return await _ensure_guild_setting(session, resolved_guild_id)
 
@@ -94,17 +96,28 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         # admins can disable OIDC via the UI without the env var forcing
         # it back on every read.
         if not settings_row.oidc_issuer and app_config.OIDC_ISSUER:
-            settings_row.oidc_issuer = _normalize_optional_string(app_config.OIDC_ISSUER)
+            settings_row.oidc_issuer = _normalize_optional_string(
+                app_config.OIDC_ISSUER
+            )
             updated = True
         if not settings_row.oidc_client_id and app_config.OIDC_CLIENT_ID:
-            settings_row.oidc_client_id = _normalize_optional_string(app_config.OIDC_CLIENT_ID)
+            settings_row.oidc_client_id = _normalize_optional_string(
+                app_config.OIDC_CLIENT_ID
+            )
             updated = True
-        if not settings_row.oidc_client_secret_encrypted and app_config.OIDC_CLIENT_SECRET:
+        if (
+            not settings_row.oidc_client_secret_encrypted
+            and app_config.OIDC_CLIENT_SECRET
+        ):
             v = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
-            settings_row.oidc_client_secret_encrypted = encrypt_field(v, SALT_OIDC_CLIENT_SECRET) if v else None
+            settings_row.oidc_client_secret_encrypted = (
+                encrypt_field(v, SALT_OIDC_CLIENT_SECRET) if v else None
+            )
             updated = True
         if not settings_row.oidc_provider_name and app_config.OIDC_PROVIDER_NAME:
-            settings_row.oidc_provider_name = _normalize_optional_string(app_config.OIDC_PROVIDER_NAME)
+            settings_row.oidc_provider_name = _normalize_optional_string(
+                app_config.OIDC_PROVIDER_NAME
+            )
             updated = True
         env_scopes = _normalize_scopes(app_config.OIDC_SCOPES or [])
         if env_scopes and not settings_row.oidc_scopes:
@@ -123,9 +136,15 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         oidc_enabled=bool(app_config.OIDC_ENABLED),
         oidc_issuer=_normalize_optional_string(app_config.OIDC_ISSUER),
         oidc_client_id=_normalize_optional_string(app_config.OIDC_CLIENT_ID),
-        oidc_client_secret_encrypted=encrypt_field(_oidc_secret, SALT_OIDC_CLIENT_SECRET) if _oidc_secret else None,
+        oidc_client_secret_encrypted=encrypt_field(
+            _oidc_secret, SALT_OIDC_CLIENT_SECRET
+        )
+        if _oidc_secret
+        else None,
         oidc_provider_name=_normalize_optional_string(app_config.OIDC_PROVIDER_NAME),
-        oidc_scopes=_normalize_scopes(app_config.OIDC_SCOPES or ["openid", "profile", "email", "offline_access"]),
+        oidc_scopes=_normalize_scopes(
+            app_config.OIDC_SCOPES or ["openid", "profile", "email", "offline_access"]
+        ),
         light_accent_color="#2563eb",
         dark_accent_color="#60a5fa",
         role_labels=DEFAULT_ROLE_LABELS.copy(),
@@ -134,7 +153,9 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         smtp_secure=bool(app_config.SMTP_SECURE),
         smtp_reject_unauthorized=bool(app_config.SMTP_REJECT_UNAUTHORIZED),
         smtp_username=_normalize_optional_string(app_config.SMTP_USERNAME),
-        smtp_password_encrypted=encrypt_field(_smtp_pw, SALT_SMTP_PASSWORD) if _smtp_pw else None,
+        smtp_password_encrypted=encrypt_field(_smtp_pw, SALT_SMTP_PASSWORD)
+        if _smtp_pw
+        else None,
         smtp_from_address=_normalize_optional_string(app_config.SMTP_FROM_ADDRESS),
         smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
     )
@@ -145,7 +166,9 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     return app_settings
 
 
-async def get_app_settings(session: AsyncSession, *, force_refresh: bool = False) -> AppSetting:
+async def get_app_settings(
+    session: AsyncSession, *, force_refresh: bool = False
+) -> AppSetting:
     if force_refresh:
         stmt = select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
         result = await session.exec(stmt)
@@ -171,7 +194,9 @@ async def update_oidc_settings(
     settings_row.oidc_client_id = _normalize_optional_string(client_id)
     if client_secret is not None:
         normalized = _normalize_optional_string(client_secret)
-        settings_row.oidc_client_secret_encrypted = encrypt_field(normalized, SALT_OIDC_CLIENT_SECRET) if normalized else None
+        settings_row.oidc_client_secret_encrypted = (
+            encrypt_field(normalized, SALT_OIDC_CLIENT_SECRET) if normalized else None
+        )
     settings_row.oidc_provider_name = _normalize_optional_string(provider_name)
     settings_row.oidc_scopes = _normalize_scopes(scopes)
     session.add(settings_row)
@@ -202,7 +227,9 @@ async def update_role_labels(
     labels: Mapping[str, str | None],
 ) -> AppSetting:
     settings_row = await _ensure_app_settings(session)
-    settings_row.role_labels = _normalize_role_labels(labels, base=settings_row.role_labels)
+    settings_row.role_labels = _normalize_role_labels(
+        labels, base=settings_row.role_labels
+    )
     session.add(settings_row)
     await session.commit()
     await reapply_rls_context(session)
@@ -231,7 +258,9 @@ async def update_email_settings(
     settings_row.smtp_username = _normalize_optional_string(username)
     if password_provided:
         normalized = _normalize_optional_string(password)
-        settings_row.smtp_password_encrypted = encrypt_field(normalized, SALT_SMTP_PASSWORD) if normalized else None
+        settings_row.smtp_password_encrypted = (
+            encrypt_field(normalized, SALT_SMTP_PASSWORD) if normalized else None
+        )
     settings_row.smtp_from_address = _normalize_optional_string(from_address)
     settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
     session.add(settings_row)

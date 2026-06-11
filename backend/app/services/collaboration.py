@@ -64,7 +64,9 @@ class DocumentRoom:
         self._initialized = False
         self._pending_updates: list[bytes] = []
 
-    async def initialize_from_db(self, yjs_state: Optional[bytes], lexical_content: Optional[dict]) -> None:
+    async def initialize_from_db(
+        self, yjs_state: Optional[bytes], lexical_content: Optional[dict]
+    ) -> None:
         """Initialize the Y.Doc from database state.
 
         Note: We don't try to convert Lexical content to Yjs here because Lexical's
@@ -82,11 +84,15 @@ class DocumentRoom:
                     self.doc.apply_update(yjs_state)
                     logger.info(f"Document {self.document_id}: restored from Yjs state")
                 except Exception as e:
-                    logger.warning(f"Document {self.document_id}: failed to restore Yjs state: {e}")
+                    logger.warning(
+                        f"Document {self.document_id}: failed to restore Yjs state: {e}"
+                    )
             else:
                 # First time collaborative edit - Yjs doc starts empty
                 # Frontend will bootstrap with existing Lexical content via initialEditorState
-                logger.info(f"Document {self.document_id}: no Yjs state, frontend will bootstrap")
+                logger.info(
+                    f"Document {self.document_id}: no Yjs state, frontend will bootstrap"
+                )
 
             self._initialized = True
 
@@ -129,7 +135,9 @@ class DocumentRoom:
                     f"(total: {len(self.collaborators)})"
                 )
 
-    async def broadcast_update(self, update: bytes, origin_user_id: Optional[int] = None) -> None:
+    async def broadcast_update(
+        self, update: bytes, origin_user_id: Optional[int] = None
+    ) -> None:
         """Broadcast a Yjs update to all collaborators except the origin."""
         async with self._lock:
             collaborators = list(self.collaborators.values())
@@ -163,9 +171,13 @@ class DocumentRoom:
                             f"Document {self.document_id}: removed stale collaborator {collaborator.name}"
                         )
 
-        logger.info(f"Document {self.document_id}: broadcast complete, sent to {sent_count} clients")
+        logger.info(
+            f"Document {self.document_id}: broadcast complete, sent to {sent_count} clients"
+        )
 
-    async def broadcast_awareness(self, awareness_data: dict, origin_user_id: Optional[int] = None) -> None:
+    async def broadcast_awareness(
+        self, awareness_data: dict, origin_user_id: Optional[int] = None
+    ) -> None:
         """Broadcast awareness (cursor, selection) updates."""
         async with self._lock:
             collaborators = list(self.collaborators.values())
@@ -173,7 +185,9 @@ class DocumentRoom:
         # Message format: [MSG_AWARENESS byte] + JSON payload
         # Must include the type prefix for frontend to process correctly
         MSG_AWARENESS = 3
-        json_payload = json.dumps({"type": "awareness", "data": awareness_data}).encode()
+        json_payload = json.dumps(
+            {"type": "awareness", "data": awareness_data}
+        ).encode()
         message = bytes([MSG_AWARENESS]) + json_payload
 
         failed_user_ids: list[int] = []
@@ -276,7 +290,9 @@ class CollaborationManager:
             async with room._lock:
                 if room.is_empty():
                     del self._rooms[document_id]
-                    logger.info(f"Removed empty collaboration room for document {document_id}")
+                    logger.info(
+                        f"Removed empty collaboration room for document {document_id}"
+                    )
 
     async def invalidate_room_if_empty(self, document_id: int) -> bool:
         """Remove a room if it exists and has no active collaborators.
@@ -294,7 +310,9 @@ class CollaborationManager:
                 return True  # No room, nothing to invalidate
             if room.is_empty():
                 del self._rooms[document_id]
-                logger.info(f"Invalidated empty collaboration room for document {document_id}")
+                logger.info(
+                    f"Invalidated empty collaboration room for document {document_id}"
+                )
                 return True
             else:
                 logger.warning(

@@ -1,4 +1,5 @@
 """Tests for AI settings SSRF guard on base_url."""
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException
@@ -34,7 +35,9 @@ async def test_ollama_test_connection_allows_no_base_url():
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"models": [{"name": "llama3"}]}
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=mock_client.return_value)
+        mock_client.return_value.__aenter__ = AsyncMock(
+            return_value=mock_client.return_value
+        )
         mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_client.return_value.get = AsyncMock(return_value=mock_response)
 
@@ -83,7 +86,9 @@ async def test_fetch_ollama_models_allows_no_base_url():
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"models": [{"name": "llama3"}]}
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=mock_client.return_value)
+        mock_client.return_value.__aenter__ = AsyncMock(
+            return_value=mock_client.return_value
+        )
         mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_client.return_value.get = AsyncMock(return_value=mock_response)
 
@@ -134,7 +139,9 @@ async def test_ollama_test_connection_bypass_allows_http_private():
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"models": [{"name": "llama3"}]}
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=mock_client.return_value)
+        mock_client.return_value.__aenter__ = AsyncMock(
+            return_value=mock_client.return_value
+        )
         mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_client.return_value.get = AsyncMock(return_value=mock_response)
 
@@ -151,7 +158,9 @@ async def test_fetch_ollama_models_bypass_allows_http_private():
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {"models": [{"name": "llama3"}]}
-        mock_client.return_value.__aenter__ = AsyncMock(return_value=mock_client.return_value)
+        mock_client.return_value.__aenter__ = AsyncMock(
+            return_value=mock_client.return_value
+        )
         mock_client.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_client.return_value.get = AsyncMock(return_value=mock_response)
 
@@ -174,18 +183,23 @@ async def test_update_guild_ai_settings_allows_clear_settings_with_ollama_unset(
 
     payload = GuildAISettingsUpdate(clear_settings=True, provider=AIProvider.ollama)
 
-    with patch(
-        "app.services.ai_settings.get_app_settings",
-        AsyncMock(return_value=platform_settings),
-    ), patch(
-        "app.services.ai_settings.get_or_create_guild_settings",
-        AsyncMock(return_value=guild_settings),
-    ), patch(
-        "app.services.ai_settings.reapply_rls_context",
-        AsyncMock(),
-    ), patch(
-        "app.services.ai_settings.get_guild_ai_settings",
-        AsyncMock(return_value=MagicMock()),
+    with (
+        patch(
+            "app.services.ai_settings.get_app_settings",
+            AsyncMock(return_value=platform_settings),
+        ),
+        patch(
+            "app.services.ai_settings.get_or_create_guild_settings",
+            AsyncMock(return_value=guild_settings),
+        ),
+        patch(
+            "app.services.ai_settings.reapply_rls_context",
+            AsyncMock(),
+        ),
+        patch(
+            "app.services.ai_settings.get_guild_ai_settings",
+            AsyncMock(return_value=MagicMock()),
+        ),
     ):
         await update_guild_ai_settings(session, 1, payload)
 

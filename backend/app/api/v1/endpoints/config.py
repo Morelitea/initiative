@@ -96,7 +96,9 @@ def get_app_config() -> AppConfig:
         # Always include the iframe's own origin so a misconfigured
         # ALLOWED_ORIGINS list can't lock the SPA out of its own embed.
         url_origin = _origin_from_url(settings.ADVANCED_TOOL_URL)
-        allowed = list(dict.fromkeys([url_origin, *configured]))  # de-dup, preserve order
+        allowed = list(
+            dict.fromkeys([url_origin, *configured])
+        )  # de-dup, preserve order
         advanced_tool = AdvancedToolConfig(
             name=settings.ADVANCED_TOOL_NAME or "Advanced Tool",
             url=settings.ADVANCED_TOOL_URL,

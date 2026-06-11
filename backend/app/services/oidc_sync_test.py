@@ -45,9 +45,15 @@ async def test_pick_fallback_prefers_initiative_manager(session: AsyncSession):
     manager = await create_user(session, email="manager@example.com")
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=manager, guild=guild, role=GuildRole.member)
-    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=manager, guild=guild, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     # ``create_initiative`` auto-adds the creator as project manager.
     # Drop that so the only initiative manager is ``manager`` and the
@@ -81,8 +87,12 @@ async def test_pick_fallback_uses_guild_admin_when_no_manager(session: AsyncSess
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     # The admin is auto-added as the initiative's project manager when
     # the initiative is created via the factory; remove that membership
@@ -115,11 +125,17 @@ async def test_pick_fallback_skips_inactive_candidates(session: AsyncSession):
     """Deactivated / anonymized users can't act on projects, so the
     fallback picker has to skip them — handing a project to a husk
     just shifts the orphan."""
-    admin = await create_user(session, email="admin@example.com", status=UserStatus.deactivated)
+    admin = await create_user(
+        session, email="admin@example.com", status=UserStatus.deactivated
+    )
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
 
     chosen = await _pick_fallback_owner(
@@ -137,8 +153,12 @@ async def test_auto_transfer_reassigns_owner(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     project = await create_project(session, initiative=initiative, owner=leaver)
 
@@ -153,7 +173,9 @@ async def test_auto_transfer_reassigns_owner(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_auto_transfer_leaves_orphan_when_no_fallback(session: AsyncSession, caplog):
+async def test_auto_transfer_leaves_orphan_when_no_fallback(
+    session: AsyncSession, caplog
+):
     """No active fallback → log a warning, leave ``owner_id`` pointing at
     the departing user. The project is still orphaned in this case, but
     we don't crash the sync — there's nothing else to do."""
@@ -165,12 +187,16 @@ async def test_auto_transfer_leaves_orphan_when_no_fallback(session: AsyncSessio
 
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=leaver)
-    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=leaver)
     project = await create_project(session, initiative=initiative, owner=leaver)
 
     with caplog.at_level("WARNING"):
-        await _auto_transfer_owned_projects(session, user_id=leaver.id, guild_id=guild.id)
+        await _auto_transfer_owned_projects(
+            session, user_id=leaver.id, guild_id=guild.id
+        )
 
     refreshed = (
         await session.exec(select(Project).where(Project.id == project.id))
@@ -215,8 +241,12 @@ async def test_auto_transfer_handles_inactive_fallback_race(
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=leaver, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=leaver, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     project = await create_project(session, initiative=initiative, owner=leaver)
 
@@ -262,9 +292,7 @@ async def test_auto_transfer_handles_inactive_fallback_race(
             )
         )
     ).one_or_none() is None
-    assert any(
-        "became inactive" in rec.message for rec in caplog.records
-    )
+    assert any("became inactive" in rec.message for rec in caplog.records)
 
 
 @pytest.mark.integration
@@ -291,7 +319,9 @@ async def test_sync_skips_orphaned_initiative_mapping(session: AsyncSession):
 
     assert result.initiatives_added == []
     members = (
-        await session.exec(select(InitiativeMember).where(InitiativeMember.user_id == user.id))
+        await session.exec(
+            select(InitiativeMember).where(InitiativeMember.user_id == user.id)
+        )
     ).all()
     assert members == []
 
@@ -305,7 +335,9 @@ async def test_sync_nulls_orphaned_role_on_valid_initiative(session: AsyncSessio
     guild = await create_guild(session, creator=admin)
     initiative = await create_initiative(session, guild=guild, creator=admin)
     user = await create_user(session, email="role-user@example.com")
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
     session.add(
         OIDCClaimMapping(
             claim_value="pm",

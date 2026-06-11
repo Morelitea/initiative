@@ -83,7 +83,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Referrer-Policy", "strict-origin-when-cross-origin"
+        )
         # setdefault: preserve any stricter per-response CSP (e.g. the upload
         # route's `script-src 'none'`) instead of overriding it.
         response.headers.setdefault("Content-Security-Policy", _CONTENT_SECURITY_POLICY)
@@ -101,6 +103,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.get("/uploads/{filename:path}", include_in_schema=False)
 @limiter.limit("600/minute")
@@ -234,7 +237,11 @@ def _inject_query_schemas(openapi_schema: dict) -> None:
     for enum_cls in (FilterOp, SortDir):
         schemas.setdefault(
             enum_cls.__name__,
-            {"title": enum_cls.__name__, "type": "string", "enum": [e.value for e in enum_cls]},
+            {
+                "title": enum_cls.__name__,
+                "type": "string",
+                "enum": [e.value for e in enum_cls],
+            },
         )
 
     # Override query parameters to expose their real types instead of the raw
@@ -286,7 +293,9 @@ def custom_openapi() -> dict:
             security = operation.get("security")
             if not security:
                 continue
-            has_api_key = any(isinstance(item, dict) and "ApiKeyAuth" in item for item in security)
+            has_api_key = any(
+                isinstance(item, dict) and "ApiKeyAuth" in item for item in security
+            )
             if not has_api_key:
                 security.append({"ApiKeyAuth": []})
 

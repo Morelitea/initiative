@@ -80,7 +80,9 @@ async def update_platform_ai_settings(
 
     if api_key_provided:
         normalized = _normalize_optional_string(payload.api_key)
-        settings.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
+        settings.ai_api_key_encrypted = (
+            encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
+        )
 
     session.add(settings)
     await session.commit()
@@ -141,13 +143,17 @@ async def get_guild_ai_settings(
 
     return GuildAISettingsResponse(
         enabled=guild_settings.ai_enabled,
-        provider=AIProvider(guild_settings.ai_provider) if guild_settings.ai_provider else None,
+        provider=AIProvider(guild_settings.ai_provider)
+        if guild_settings.ai_provider
+        else None,
         has_api_key=bool(guild_settings.ai_api_key_encrypted),
         base_url=guild_settings.ai_base_url,
         model=guild_settings.ai_model,
         allow_user_override=guild_settings.ai_allow_user_override,
         effective_enabled=effective_enabled,
-        effective_provider=AIProvider(effective_provider) if effective_provider else None,
+        effective_provider=AIProvider(effective_provider)
+        if effective_provider
+        else None,
         effective_base_url=effective_base_url,
         effective_model=effective_model,
         effective_allow_user_override=effective_allow_user_override,
@@ -166,7 +172,9 @@ async def update_guild_ai_settings(
     platform_settings = await get_app_settings(session)
 
     if not platform_settings.ai_allow_guild_override:
-        raise PermissionError("Guild AI settings override is disabled by platform administrator")
+        raise PermissionError(
+            "Guild AI settings override is disabled by platform administrator"
+        )
 
     if not payload.clear_settings and payload.provider == AIProvider.ollama:
         raise HTTPException(status_code=400, detail=AIMessages.PROVIDER_NOT_ALLOWED)
@@ -189,14 +197,18 @@ async def update_guild_ai_settings(
         guild_settings.ai_allow_user_override = None
     else:
         guild_settings.ai_enabled = payload.enabled
-        guild_settings.ai_provider = payload.provider.value if payload.provider else None
+        guild_settings.ai_provider = (
+            payload.provider.value if payload.provider else None
+        )
         guild_settings.ai_base_url = _normalize_optional_string(payload.base_url)
         guild_settings.ai_model = _normalize_optional_string(payload.model)
         guild_settings.ai_allow_user_override = payload.allow_user_override
 
         if api_key_provided:
             normalized = _normalize_optional_string(payload.api_key)
-            guild_settings.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
+            guild_settings.ai_api_key_encrypted = (
+                encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
+            )
 
     session.add(guild_settings)
     await session.commit()
@@ -281,7 +293,9 @@ async def get_user_ai_settings(
         base_url=user.ai_base_url,
         model=user.ai_model,
         effective_enabled=effective_enabled,
-        effective_provider=AIProvider(effective_provider) if effective_provider else None,
+        effective_provider=AIProvider(effective_provider)
+        if effective_provider
+        else None,
         effective_base_url=effective_base_url,
         effective_model=effective_model,
         can_override=can_override,
@@ -334,7 +348,9 @@ async def update_user_ai_settings(
 
         if api_key_provided:
             normalized = _normalize_optional_string(payload.api_key)
-            user.ai_api_key_encrypted = encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
+            user.ai_api_key_encrypted = (
+                encrypt_field(normalized, SALT_AI_API_KEY) if normalized else None
+            )
 
     session.add(user)
     await session.commit()
@@ -361,7 +377,9 @@ async def resolve_ai_settings(
     )
     result = ResolvedAISettings(
         enabled=platform_settings.ai_enabled,
-        provider=AIProvider(platform_settings.ai_provider) if platform_settings.ai_provider else None,
+        provider=AIProvider(platform_settings.ai_provider)
+        if platform_settings.ai_provider
+        else None,
         api_key=_platform_key,
         base_url=platform_settings.ai_base_url,
         model=platform_settings.ai_model,
@@ -378,7 +396,9 @@ async def resolve_ai_settings(
             result.provider = AIProvider(guild_settings.ai_provider)
             result.source = "guild"
         if guild_settings.ai_api_key_encrypted is not None:
-            result.api_key = decrypt_field(guild_settings.ai_api_key_encrypted, SALT_AI_API_KEY)
+            result.api_key = decrypt_field(
+                guild_settings.ai_api_key_encrypted, SALT_AI_API_KEY
+            )
             result.source = "guild"
         if guild_settings.ai_base_url is not None:
             result.base_url = guild_settings.ai_base_url
@@ -473,7 +493,18 @@ def _is_openai_chat_model(model_id: str) -> bool:
     # Include GPT models, O1/O3 reasoning models, and chatgpt models
     chat_prefixes = ("gpt-", "o1", "o3", "chatgpt-")
     # Exclude non-chat models
-    excluded = ("whisper", "tts", "dall-e", "embedding", "davinci", "babbage", "curie", "ada", "image", "audio")
+    excluded = (
+        "whisper",
+        "tts",
+        "dall-e",
+        "embedding",
+        "davinci",
+        "babbage",
+        "curie",
+        "ada",
+        "image",
+        "audio",
+    )
 
     if any(model_lower.startswith(p) for p in chat_prefixes):
         return not any(e in model_lower for e in excluded)
@@ -636,7 +667,9 @@ async def _test_ollama_connection(
         try:
             await assert_target_url_is_public_async(base_url)
         except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as e:
-            return AITestConnectionResponse(success=False, message=f"Invalid base URL: {e}")
+            return AITestConnectionResponse(
+                success=False, message=f"Invalid base URL: {e}"
+            )
     url = (base_url or "http://localhost:11434").rstrip("/")
 
     try:
@@ -704,7 +737,9 @@ async def _test_custom_connection(
         try:
             await assert_target_url_is_public_async(base_url)
         except (WebhookTargetUrlError, WebhookTargetUrlPrivateError) as e:
-            return AITestConnectionResponse(success=False, message=f"Invalid base URL: {e}")
+            return AITestConnectionResponse(
+                success=False, message=f"Invalid base URL: {e}"
+            )
     url = base_url.rstrip("/")
     headers = {}
     if api_key:

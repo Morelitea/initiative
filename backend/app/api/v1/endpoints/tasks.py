@@ -32,14 +32,30 @@ from app.db.session import reapply_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.models.project import Project, ProjectPermission, ProjectRolePermission
 from app.models.initiative import Initiative, InitiativeMember
-from app.models.task import Task, TaskAssignee, TaskPriority, TaskStatus, TaskStatusCategory, Subtask
+from app.models.task import (
+    Task,
+    TaskAssignee,
+    TaskPriority,
+    TaskStatus,
+    TaskStatusCategory,
+    Subtask,
+)
 from app.models.tag import Tag, TaskTag
 from app.models.property import PropertyDefinition, TaskPropertyValue
 from app.models.user import User
 from app.models.comment import Comment
 from pydantic import BaseModel, ValidationError
 
-from app.schemas.task import TaskCreate, TaskListRead, TaskListResponse, TaskMoveRequest, TaskRead, TaskReorderRequest, TaskRecurrence, TaskUpdate
+from app.schemas.task import (
+    TaskCreate,
+    TaskListRead,
+    TaskListResponse,
+    TaskMoveRequest,
+    TaskRead,
+    TaskReorderRequest,
+    TaskRecurrence,
+    TaskUpdate,
+)
 from app.schemas.subtask import (
     SubtaskBatchCreate,
     SubtaskCreate,
@@ -48,7 +64,10 @@ from app.schemas.subtask import (
     SubtaskUpdate,
     TaskSubtaskProgress,
 )
-from app.schemas.ai_generation import GenerateSubtasksResponse, GenerateDescriptionResponse
+from app.schemas.ai_generation import (
+    GenerateSubtasksResponse,
+    GenerateDescriptionResponse,
+)
 from app.schemas.tag import TagSummary, TagSetRequest
 from app.schemas.property import PropertyValuesSetRequest
 from app.services.realtime import broadcast_event
@@ -59,7 +78,12 @@ from app.services.recurrence import get_next_due_date
 from app.services import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
 from app.services import properties as properties_service
-from app.core.messages import ProjectMessages, QueryMessages, TaskMessages, SubtaskMessages
+from app.core.messages import (
+    ProjectMessages,
+    QueryMessages,
+    TaskMessages,
+    SubtaskMessages,
+)
 from app.core.pam_context import has_active_grant
 
 router = APIRouter()
@@ -157,18 +181,13 @@ def _build_task_filter_fields(
     callable handlers that receive ``(op, value)`` and return a SA clause.
     """
     # Auto-populate from model columns
-    fields: dict = {
-        col.name: getattr(Task, col.name)
-        for col in Task.__table__.columns
-    }
+    fields: dict = {col.name: getattr(Task, col.name) for col in Task.__table__.columns}
 
     # Callable overrides for virtual / cross-table fields
     def _status_category_handler(op: FilterOp, value):
         if not value:
             return None
-        subq = select(TaskStatus.id).where(
-            TaskStatus.category.in_(tuple(value))
-        )
+        subq = select(TaskStatus.id).where(TaskStatus.category.in_(tuple(value)))
         return Task.task_status_id.in_(subq)
 
     def _assignee_ids_handler(op: FilterOp, value):
@@ -188,9 +207,8 @@ def _build_task_filter_fields(
                     )
         if not user_ids:
             return None
-        subq = (
-            select(TaskAssignee.task_id)
-            .where(TaskAssignee.user_id.in_(tuple(user_ids)))
+        subq = select(TaskAssignee.task_id).where(
+            TaskAssignee.user_id.in_(tuple(user_ids))
         )
         return Task.id.in_(subq)
 
@@ -211,9 +229,7 @@ def _build_task_filter_fields(
     def _initiative_ids_handler(op: FilterOp, value):
         if not value:
             return None
-        subq = select(Project.id).where(
-            Project.initiative_id.in_(tuple(value))
-        )
+        subq = select(Project.id).where(Project.initiative_id.in_(tuple(value)))
         return Task.project_id.in_(subq)
 
     defs_map: dict[int, PropertyDefinition] = property_definitions or {}
@@ -253,15 +269,14 @@ def _build_task_filter_fields(
     return fields
 
 
-
-
-
 subtasks_router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _next_position(session: SessionDep, project_id: int) -> float:
-    result = await session.exec(select(func.max(Task.position)).where(Task.project_id == project_id))
+    result = await session.exec(
+        select(func.max(Task.position)).where(Task.project_id == project_id)
+    )
     max_value = result.one_or_none()
     return (max_value or 0) + 1
 
@@ -355,7 +370,9 @@ async def _annotate_tasks(session: SessionDep, tasks: list[Task]) -> None:
         select(
             Subtask.task_id.label("task_id"),
             func.count(Subtask.id).label("total"),
-            func.sum(case((Subtask.is_completed.is_(True), 1), else_=0)).label("completed"),
+            func.sum(case((Subtask.is_completed.is_(True), 1), else_=0)).label(
+                "completed"
+            ),
         )
         .where(Subtask.task_id.in_(ids_tuple))
         .group_by(Subtask.task_id)
@@ -379,7 +396,9 @@ async def _annotate_tasks(session: SessionDep, tasks: list[Task]) -> None:
     }
 
     for task in tasks:
-        comment_count, sub_total, sub_completed = annotations.get(task.id, (0, None, None))
+        comment_count, sub_total, sub_completed = annotations.get(
+            task.id, (0, None, None)
+        )
         object.__setattr__(task, "comment_count", comment_count)
         if sub_total is not None:
             progress = TaskSubtaskProgress(
@@ -473,7 +492,9 @@ def _task_to_list_read(task: Task) -> TaskListRead:
     )
 
 
-async def _list_subtasks_for_task(session: SessionDep, task_id: int) -> Sequence[Subtask]:
+async def _list_subtasks_for_task(
+    session: SessionDep, task_id: int
+) -> Sequence[Subtask]:
     stmt = (
         select(Subtask)
         .where(Subtask.task_id == task_id)
@@ -483,7 +504,9 @@ async def _list_subtasks_for_task(session: SessionDep, task_id: int) -> Sequence
     return result.all()
 
 
-async def _clone_subtasks(session: SessionDep, source_task_id: int, target_task_id: int) -> None:
+async def _clone_subtasks(
+    session: SessionDep, source_task_id: int, target_task_id: int
+) -> None:
     subtasks = await _list_subtasks_for_task(session, source_task_id)
     if not subtasks:
         return
@@ -500,7 +523,9 @@ async def _clone_subtasks(session: SessionDep, source_task_id: int, target_task_
 
 
 async def _next_subtask_position(session: SessionDep, task_id: int) -> int:
-    result = await session.exec(select(func.max(Subtask.position)).where(Subtask.task_id == task_id))
+    result = await session.exec(
+        select(func.max(Subtask.position)).where(Subtask.task_id == task_id)
+    )
     max_value = result.one_or_none()
     return (max_value or 0) + 1
 
@@ -511,7 +536,9 @@ def _touch_task(task: Task, *, timestamp: datetime | None = None) -> datetime:
     return now
 
 
-async def _touch_project(session: SessionDep, project_id: int, *, timestamp: datetime | None = None) -> datetime:
+async def _touch_project(
+    session: SessionDep, project_id: int, *, timestamp: datetime | None = None
+) -> datetime:
     """Bump a project's updated_at so task activity surfaces in 'sort by updated'."""
     now = timestamp or datetime.now(timezone.utc)
     result = await session.exec(select(Project).where(Project.id == project_id))
@@ -522,7 +549,9 @@ async def _touch_project(session: SessionDep, project_id: int, *, timestamp: dat
     return now
 
 
-async def _broadcast_task_refresh(session: SessionDep, task_id: int, guild_id: int) -> None:
+async def _broadcast_task_refresh(
+    session: SessionDep, task_id: int, guild_id: int
+) -> None:
     task = await _fetch_task(session, task_id, guild_id)
     if task is None:
         return
@@ -579,7 +608,9 @@ async def _fetch_task(
     return task
 
 
-async def _set_task_assignees(session: SessionDep, task: Task, assignee_ids: list[int] | None) -> None:
+async def _set_task_assignees(
+    session: SessionDep, task: Task, assignee_ids: list[int] | None
+) -> None:
     unique_ids = list(dict.fromkeys(assignee_ids or []))
 
     stmt = select(User).where(User.id.in_(tuple(unique_ids))) if unique_ids else None
@@ -588,13 +619,18 @@ async def _set_task_assignees(session: SessionDep, task: Task, assignee_ids: lis
         result = await session.exec(stmt)
         users = result.all()
         if len(users) != len(unique_ids):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.ASSIGNEES_NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=TaskMessages.ASSIGNEES_NOT_FOUND,
+            )
 
     delete_stmt = delete(TaskAssignee).where(TaskAssignee.task_id == task.id)
     await session.exec(delete_stmt)
 
     if unique_ids:
-        session.add_all([TaskAssignee(task_id=task.id, user_id=user_id) for user_id in unique_ids])
+        session.add_all(
+            [TaskAssignee(task_id=task.id, user_id=user_id) for user_id in unique_ids]
+        )
 
     await session.flush()
     await session.refresh(task, attribute_names=["assignees"])
@@ -692,7 +728,9 @@ async def _advance_recurrence_if_needed(
         duration = task.due_date - task.start_date
     new_start = next_due - duration if duration else None
 
-    default_status = await task_statuses_service.get_default_status(session, task.project_id)
+    default_status = await task_statuses_service.get_default_status(
+        session, task.project_id
+    )
     new_task = Task(
         project_id=task.project_id,
         task_status_id=default_status.id,
@@ -713,10 +751,12 @@ async def _advance_recurrence_if_needed(
     assignee_ids = [assignee.id for assignee in task.assignees]
     await _set_task_assignees(session, new_task, assignee_ids)
     if task.tag_links:
-        session.add_all([
-            TaskTag(task_id=new_task.id, tag_id=link.tag_id)
-            for link in task.tag_links
-        ])
+        session.add_all(
+            [
+                TaskTag(task_id=new_task.id, tag_id=link.tag_id)
+                for link in task.tag_links
+            ]
+        )
         await session.flush()
     await session.refresh(new_task, attribute_names=["assignees", "tag_links"])
     _annotate_task_tags([new_task])
@@ -761,9 +801,13 @@ async def _get_project_with_access(
     project_result = await session.exec(project_stmt)
     project = project_result.one_or_none()
     if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=ProjectMessages.NOT_FOUND
+        )
     if project.is_archived and access == "write":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
+        )
 
     # Ensure permission is loaded (may need fallback query)
     permission = permissions_service.user_permission_from_project(project, user.id)
@@ -814,10 +858,15 @@ async def _allowed_project_ids(
     # of every initiative). Return all of the guild's project ids so the task
     # query stays explicitly guild-scoped; RLS also scopes to the grant guild.
     if has_active_grant(guild_id):
-        grant_conditions = [Initiative.guild_id == guild_id, Project.is_archived == False]  # noqa: E712
+        grant_conditions = [
+            Initiative.guild_id == guild_id,
+            Project.is_archived == False,  # noqa: E712
+        ]
         if not include_templates:
             grant_conditions.append(Project.is_template == False)  # noqa: E712
-        grant_stmt = select(Project.id).join(Project.initiative).where(*grant_conditions)
+        grant_stmt = (
+            select(Project.id).join(Project.initiative).where(*grant_conditions)
+        )
         grant_result = await session.execute(grant_stmt)
         return {row[0] for row in grant_result.all() if row[0] is not None}
 
@@ -899,7 +948,9 @@ def _global_task_options():
         selectinload(Task.assignees),
         selectinload(Task.task_status),
         selectinload(Task.tag_links).selectinload(TaskTag.tag),
-        selectinload(Task.property_values).selectinload(TaskPropertyValue.property_definition),
+        selectinload(Task.property_values).selectinload(
+            TaskPropertyValue.property_definition
+        ),
         selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
     )
 
@@ -920,7 +971,9 @@ async def _gather_global_task_reads(
     order (per-schema ``position`` can't order across guilds). Annotation +
     conversion happen inside each guild's routed context.
     """
-    target_guilds = await member_guild_ids(session, current_user.id, restrict_to=guild_ids)
+    target_guilds = await member_guild_ids(
+        session, current_user.id, restrict_to=guild_ids
+    )
 
     async def _fetch(guild_session: AsyncSession, _guild_id: int) -> list[TaskListRead]:
         tasks = list((await guild_session.exec(build_query())).all())
@@ -988,13 +1041,20 @@ async def _list_global_tasks(
             )
         stmt = stmt.where(*conditions).options(*_global_task_options())
         return apply_sorting(
-            stmt, Task, sort_fields=sort_fields,
-            allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT,
+            stmt,
+            Task,
+            sort_fields=sort_fields,
+            allowed_fields=_task_sort_fields(tz),
+            default_sort=TASK_DEFAULT_SORT,
         )
 
     return await _gather_global_task_reads(
-        session, current_user, build_query=_build,
-        guild_ids=guild_ids, page=page, page_size=page_size,
+        session,
+        current_user,
+        build_query=_build,
+        guild_ids=guild_ids,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -1043,13 +1103,20 @@ async def _list_global_created_tasks(
             )
         stmt = stmt.where(*conditions).options(*_global_task_options())
         return apply_sorting(
-            stmt, Task, sort_fields=sort_fields,
-            allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT,
+            stmt,
+            Task,
+            sort_fields=sort_fields,
+            allowed_fields=_task_sort_fields(tz),
+            default_sort=TASK_DEFAULT_SORT,
         )
 
     return await _gather_global_task_reads(
-        session, current_user, build_query=_build,
-        guild_ids=guild_ids, page=page, page_size=page_size,
+        session,
+        current_user,
+        build_query=_build,
+        guild_ids=guild_ids,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -1062,7 +1129,7 @@ async def list_tasks(
     conditions: Optional[str] = Query(
         default=None,
         description=(
-            'JSON list of filter conditions. Each object: '
+            "JSON list of filter conditions. Each object: "
             '{"field": "<column>", "op": "<operator>", "value": <val>}. '
             "Any Task column is valid plus virtual fields: "
             "status_category, assignee_ids, tag_ids, initiative_ids."
@@ -1145,10 +1212,15 @@ async def list_tasks(
             sort_fields=sort_fields,
             tz=tz,
         )
-        return TaskListResponse(**build_paginated_response(
-            items=items, total_count=total_count, page=actual_page,
-            page_size=page_size, sorting=sorting,
-        ))
+        return TaskListResponse(
+            **build_paginated_response(
+                items=items,
+                total_count=total_count,
+                page=actual_page,
+                page_size=page_size,
+                sorting=sorting,
+            )
+        )
 
     elif scope == "global_created":
         items, total_count, actual_page = await _list_global_created_tasks(
@@ -1167,10 +1239,15 @@ async def list_tasks(
             sort_fields=sort_fields,
             tz=tz,
         )
-        return TaskListResponse(**build_paginated_response(
-            items=items, total_count=total_count, page=actual_page,
-            page_size=page_size, sorting=sorting,
-        ))
+        return TaskListResponse(
+            **build_paginated_response(
+                items=items,
+                total_count=total_count,
+                page=actual_page,
+                page_size=page_size,
+                sorting=sorting,
+            )
+        )
 
     # Non-global (guild-scoped) path
     access_conditions = [Initiative.guild_id == guild_context.guild_id]
@@ -1186,10 +1263,15 @@ async def list_tasks(
     )
     if allowed_ids is not None:
         if not allowed_ids:
-            return TaskListResponse(**build_paginated_response(
-                items=[], total_count=0, page=1,
-                page_size=page_size, sorting=sorting,
-            ))
+            return TaskListResponse(
+                **build_paginated_response(
+                    items=[],
+                    total_count=0,
+                    page=1,
+                    page_size=page_size,
+                    sorting=sorting,
+                )
+            )
         access_conditions.append(Task.project_id.in_(tuple(allowed_ids)))
 
     # ``property_definitions_map`` is pre-loaded above (at function top)
@@ -1220,21 +1302,32 @@ async def list_tasks(
         selectinload(Task.property_values).selectinload(
             TaskPropertyValue.property_definition
         ),
-        selectinload(Task.property_values).selectinload(
-            TaskPropertyValue.value_user
-        ),
+        selectinload(Task.property_values).selectinload(TaskPropertyValue.value_user),
     )
-    statement = apply_sorting(statement, Task, sort_fields=sort_fields, allowed_fields=_task_sort_fields(tz), default_sort=TASK_DEFAULT_SORT)
+    statement = apply_sorting(
+        statement,
+        Task,
+        sort_fields=sort_fields,
+        allowed_fields=_task_sort_fields(tz),
+        default_sort=TASK_DEFAULT_SORT,
+    )
 
-    tasks, total_count, actual_page = await paginated_query(session, statement, count_stmt, page, page_size)
+    tasks, total_count, actual_page = await paginated_query(
+        session, statement, count_stmt, page, page_size
+    )
     await _annotate_tasks(session, tasks)
     _annotate_task_tags(tasks)
     _annotate_task_properties(tasks)
     items = [_task_to_list_read(task) for task in tasks]
-    return TaskListResponse(**build_paginated_response(
-        items=items, total_count=total_count, page=actual_page,
-        page_size=page_size, sorting=sorting,
-    ))
+    return TaskListResponse(
+        **build_paginated_response(
+            items=items,
+            total_count=total_count,
+            page=actual_page,
+            page_size=page_size,
+            sorting=sorting,
+        )
+    )
 
 
 @router.post("/", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
@@ -1262,9 +1355,14 @@ async def create_task(
             project_id=project.id,
         )
         if selected_status is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.STATUS_NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=TaskMessages.STATUS_NOT_FOUND,
+            )
     else:
-        selected_status = await task_statuses_service.get_default_status(session, project.id)
+        selected_status = await task_statuses_service.get_default_status(
+            session, project.id
+        )
 
     task_data = task_in.dict(exclude={"assignee_ids", "task_status_id"})
 
@@ -1277,7 +1375,12 @@ async def create_task(
             recurrence_obj = TaskRecurrence.model_validate(task_data["recurrence"])
             task_data["recurrence"] = recurrence_obj.model_dump(mode="json")
 
-    task = Task(**task_data, position=position, task_status_id=selected_status.id, created_by_id=current_user.id)
+    task = Task(
+        **task_data,
+        position=position,
+        task_status_id=selected_status.id,
+        created_by_id=current_user.id,
+    )
     session.add(task)
     await session.flush()
     await _set_task_assignees(session, task, task_in.assignee_ids)
@@ -1296,7 +1399,10 @@ async def create_task(
     await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_CREATE)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=TaskMessages.MISSING_AFTER_CREATE,
+        )
     await broadcast_event("task", "created", _task_payload(task))
     # Outbound webhook dispatch — fire-and-log; failures don't block the
     # user's write. Only one event source for now (PR2.2 scope); other
@@ -1321,7 +1427,9 @@ async def read_task(
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _get_project_with_access(
         session,
@@ -1343,7 +1451,9 @@ async def update_task(
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     project = await _get_project_with_access(
         session,
@@ -1365,7 +1475,10 @@ async def update_task(
             project_id=task.project_id,
         )
         if selected_status is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.STATUS_NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=TaskMessages.STATUS_NOT_FOUND,
+            )
         task.task_status_id = selected_status.id
         task.task_status = selected_status
 
@@ -1392,7 +1505,11 @@ async def update_task(
     if assignee_ids is not None:
         existing_assignee_ids = {assignee.id for assignee in task.assignees}
         await _set_task_assignees(session, task, assignee_ids)
-        new_assignees = [assignee for assignee in task.assignees if assignee.id not in existing_assignee_ids]
+        new_assignees = [
+            assignee
+            for assignee in task.assignees
+            if assignee.id not in existing_assignee_ids
+        ]
 
     await _advance_recurrence_if_needed(
         session,
@@ -1418,7 +1535,10 @@ async def update_task(
     await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=TaskMessages.MISSING_AFTER_UPDATE,
+        )
     await broadcast_event("task", "updated", _task_payload(task))
     return task
 
@@ -1433,10 +1553,15 @@ async def move_task(
 ) -> Task:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     if task.project_id == move_in.target_project_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.ALREADY_IN_PROJECT)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=TaskMessages.ALREADY_IN_PROJECT,
+        )
 
     await _ensure_can_manage(
         session,
@@ -1453,9 +1578,14 @@ async def move_task(
         access="write",
     )
     if target_project.is_template:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.CANNOT_MOVE_TO_TEMPLATE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=TaskMessages.CANNOT_MOVE_TO_TEMPLATE,
+        )
 
-    default_status = await task_statuses_service.get_default_status(session, target_project.id)
+    default_status = await task_statuses_service.get_default_status(
+        session, target_project.id
+    )
     now = datetime.now(timezone.utc)
     source_project_id = task.project_id
     source_initiative_id = task.project.initiative_id if task.project else None
@@ -1469,7 +1599,10 @@ async def move_task(
     # If the move crosses initiative boundaries, drop property values —
     # their definitions belong to the old initiative and can't resolve in
     # the new one.
-    if source_initiative_id is not None and source_initiative_id != target_project.initiative_id:
+    if (
+        source_initiative_id is not None
+        and source_initiative_id != target_project.initiative_id
+    ):
         await session.execute(
             delete(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
         )
@@ -1481,12 +1614,17 @@ async def move_task(
 
     updated_task = await _fetch_task(session, task.id, guild_context.guild_id)
     if updated_task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_MOVE)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=TaskMessages.MISSING_AFTER_MOVE,
+        )
     await broadcast_event("task", "updated", _task_payload(updated_task))
     return updated_task
 
 
-@router.post("/{task_id}/duplicate", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{task_id}/duplicate", response_model=TaskRead, status_code=status.HTTP_201_CREATED
+)
 async def duplicate_task(
     task_id: int,
     session: RLSSessionDep,
@@ -1510,7 +1648,9 @@ async def duplicate_task(
     task_result = await session.exec(task_stmt)
     original_task = task_result.one_or_none()
     if not original_task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,
@@ -1520,7 +1660,9 @@ async def duplicate_task(
     )
 
     # Fetch subtasks
-    subtasks_stmt = select(Subtask).where(Subtask.task_id == task_id).order_by(Subtask.position)
+    subtasks_stmt = (
+        select(Subtask).where(Subtask.task_id == task_id).order_by(Subtask.position)
+    )
     subtasks_result = await session.exec(subtasks_stmt)
     original_subtasks = list(subtasks_result.all())
 
@@ -1560,10 +1702,12 @@ async def duplicate_task(
 
     # Copy tags
     if original_task.tag_links:
-        session.add_all([
-            TaskTag(task_id=new_task.id, tag_id=link.tag_id)
-            for link in original_task.tag_links
-        ])
+        session.add_all(
+            [
+                TaskTag(task_id=new_task.id, tag_id=link.tag_id)
+                for link in original_task.tag_links
+            ]
+        )
 
     # Copy property values — duplicate stays in the same project and
     # therefore the same initiative, so definitions always resolve.
@@ -1575,29 +1719,38 @@ async def duplicate_task(
     source_values_result = await session.exec(source_values_stmt)
     source_values = source_values_result.all()
     if source_values:
-        session.add_all([
-            TaskPropertyValue(
-                task_id=new_task.id,
-                property_id=row.property_id,
-                value_text=row.value_text,
-                value_number=row.value_number,
-                value_boolean=row.value_boolean,
-                value_date=row.value_date,
-                value_datetime=row.value_datetime,
-                value_user_id=row.value_user_id,
-                value_json=deepcopy(row.value_json) if row.value_json is not None else None,
-            )
-            for row in source_values
-        ])
+        session.add_all(
+            [
+                TaskPropertyValue(
+                    task_id=new_task.id,
+                    property_id=row.property_id,
+                    value_text=row.value_text,
+                    value_number=row.value_number,
+                    value_boolean=row.value_boolean,
+                    value_date=row.value_date,
+                    value_datetime=row.value_datetime,
+                    value_user_id=row.value_user_id,
+                    value_json=deepcopy(row.value_json)
+                    if row.value_json is not None
+                    else None,
+                )
+                for row in source_values
+            ]
+        )
 
     await _touch_project(session, original_task.project_id)
     await session.commit()
     await reapply_rls_context(session)
 
     # Fetch with all relationships for the response
-    task_with_relations = await _fetch_task(session, new_task.id, guild_context.guild_id)
+    task_with_relations = await _fetch_task(
+        session, new_task.id, guild_context.guild_id
+    )
     if not task_with_relations:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.DUPLICATE_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=TaskMessages.DUPLICATE_NOT_FOUND,
+        )
 
     return task_with_relations
 
@@ -1621,7 +1774,9 @@ async def delete_task(
     task_result = await session.exec(task_stmt)
     task = task_result.one_or_none()
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,
@@ -1634,7 +1789,9 @@ async def delete_task(
     from app.services.soft_delete import soft_delete_entity
 
     project_id = task.project_id
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(
+        session, guild_context.guild_id
+    )
     await soft_delete_entity(
         session,
         task,
@@ -1680,15 +1837,22 @@ async def reorder_tasks(
 
     missing_ids = set(task_ids) - set(task_map.keys())
     if missing_ids:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     now = datetime.now(timezone.utc)
     status_cache: dict[int, TaskStatus] = {}
     for item in reorder_in.items:
         task = task_map[item.id]
-        previous_status_category = task.task_status.category if task.task_status else None
+        previous_status_category = (
+            task.task_status.category if task.task_status else None
+        )
         if task.project_id != reorder_in.project_id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskMessages.PROJECT_MISMATCH)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=TaskMessages.PROJECT_MISMATCH,
+            )
 
         if item.task_status_id != task.task_status_id:
             status_obj = status_cache.get(item.task_status_id)
@@ -1761,7 +1925,9 @@ async def archive_done_tasks(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     project_id: int = Query(..., description="Project to archive done tasks from"),
-    task_status_id: Optional[int] = Query(default=None, description="Specific done status to archive (optional)"),
+    task_status_id: Optional[int] = Query(
+        default=None, description="Specific done status to archive (optional)"
+    ),
 ) -> ArchiveDoneResponse:
     """Archive all tasks in 'done' status category for a project."""
     await _ensure_can_manage(
@@ -1800,7 +1966,9 @@ async def archive_done_tasks(
 
     await _touch_project(session, project_id, timestamp=now)
     await session.commit()
-    await broadcast_event("task", "archived", {"project_id": project_id, "count": len(tasks)})
+    await broadcast_event(
+        "task", "archived", {"project_id": project_id, "count": len(tasks)}
+    )
     return ArchiveDoneResponse(archived_count=len(tasks))
 
 
@@ -1813,7 +1981,9 @@ async def list_subtasks(
 ) -> Sequence[Subtask]:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _get_project_with_access(
         session,
@@ -1825,7 +1995,11 @@ async def list_subtasks(
     return await _list_subtasks_for_task(session, task.id)
 
 
-@router.post("/{task_id}/subtasks", response_model=SubtaskRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{task_id}/subtasks",
+    response_model=SubtaskRead,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_subtask(
     task_id: int,
     subtask_in: SubtaskCreate,
@@ -1835,7 +2009,9 @@ async def create_subtask(
 ) -> Subtask:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,
@@ -1846,7 +2022,10 @@ async def create_subtask(
 
     content = subtask_in.content.strip()
     if not content:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=SubtaskMessages.CONTENT_EMPTY)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=SubtaskMessages.CONTENT_EMPTY,
+        )
 
     position = await _next_subtask_position(session, task.id)
     subtask = Subtask(
@@ -1878,7 +2057,9 @@ async def create_subtasks_batch(
     """Create multiple subtasks at once."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,
@@ -1932,7 +2113,9 @@ async def reorder_subtasks(
 ) -> Sequence[Subtask]:
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,
@@ -1953,7 +2136,10 @@ async def reorder_subtasks(
     subtasks = result.all()
     subtask_map = {subtask.id: subtask for subtask in subtasks}
     if len(subtask_map) != len(subtask_ids):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND_FOR_TASK)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=SubtaskMessages.NOT_FOUND_FOR_TASK,
+        )
 
     now = datetime.now(timezone.utc)
     for item in reorder_in.items:
@@ -1980,11 +2166,15 @@ async def update_subtask(
 ) -> Subtask:
     subtask = await session.get(Subtask, subtask_id)
     if not subtask:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
+        )
 
     task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,
@@ -2000,7 +2190,10 @@ async def update_subtask(
     if "content" in update_data and update_data["content"] is not None:
         content_value = update_data["content"].strip()
         if not content_value:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=SubtaskMessages.CONTENT_EMPTY)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=SubtaskMessages.CONTENT_EMPTY,
+            )
         subtask.content = content_value
 
     if "is_completed" in update_data and update_data["is_completed"] is not None:
@@ -2019,7 +2212,9 @@ async def update_subtask(
     return subtask
 
 
-@subtasks_router.delete("/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT)
+@subtasks_router.delete(
+    "/subtasks/{subtask_id}", status_code=status.HTTP_204_NO_CONTENT
+)
 async def delete_subtask(
     subtask_id: int,
     session: RLSSessionDep,
@@ -2028,11 +2223,15 @@ async def delete_subtask(
 ) -> None:
     subtask = await session.get(Subtask, subtask_id)
     if not subtask:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=SubtaskMessages.NOT_FOUND
+        )
 
     task = await _fetch_task(session, subtask.task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,
@@ -2062,7 +2261,9 @@ async def generate_task_subtasks(
     """Generate AI-powered subtask suggestions for a task."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     # Check write access and get project with initiative
     project = await _get_project_with_access(
@@ -2097,7 +2298,9 @@ async def generate_task_description(
     """Generate AI-powered description for a task."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     # Check write access and get project with initiative
     project = await _get_project_with_access(
@@ -2133,7 +2336,9 @@ async def set_task_tags(
     """Set the tags for a task. Replaces all existing tags with the provided list."""
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if not task:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,
@@ -2164,10 +2369,12 @@ async def set_task_tags(
     # Add new task tags
     task_id_to_update = task.id
     if unique_tag_ids:
-        session.add_all([
-            TaskTag(task_id=task_id_to_update, tag_id=tag_id)
-            for tag_id in unique_tag_ids
-        ])
+        session.add_all(
+            [
+                TaskTag(task_id=task_id_to_update, tag_id=tag_id)
+                for tag_id in unique_tag_ids
+            ]
+        )
 
     # Update timestamp via a lightweight select (avoids stale relationship objects)
     ts_stmt = select(Task).where(Task.id == task_id_to_update)
@@ -2182,7 +2389,10 @@ async def set_task_tags(
     # Single fetch with all relationships for the response
     task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=TaskMessages.MISSING_AFTER_UPDATE)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=TaskMessages.MISSING_AFTER_UPDATE,
+        )
     await broadcast_event("task", "updated", _task_payload(task))
     return task
 
@@ -2202,7 +2412,9 @@ async def set_task_properties(
     """
     task = await _fetch_task(session, task_id, guild_context.guild_id)
     if task is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskMessages.NOT_FOUND
+        )
 
     await _ensure_can_manage(
         session,

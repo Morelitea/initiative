@@ -24,7 +24,9 @@ async def list_notifications(
         user_id=current_user.id,
         limit=limit,
     )
-    return NotificationListResponse(notifications=notifications, unread_count=unread_count)
+    return NotificationListResponse(
+        notifications=notifications, unread_count=unread_count
+    )
 
 
 @router.get("/unread-count", response_model=NotificationCountResponse)
@@ -57,8 +59,8 @@ async def mark_all_notifications_read(
     session: SessionDep,
     current_user: User = Depends(get_current_active_user),
 ) -> NotificationCountResponse:
-    await notifications_service.mark_all_notifications_read(session, user_id=current_user.id)
+    await notifications_service.mark_all_notifications_read(
+        session, user_id=current_user.id
+    )
     count = await notifications_service.unread_count(session, user_id=current_user.id)
     return NotificationCountResponse(unread_count=count)
-
-

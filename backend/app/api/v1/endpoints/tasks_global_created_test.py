@@ -50,9 +50,7 @@ async def _create_task(session, project, title="Test Task", *, created_by_id=Non
 async def _setup_guild_with_project(session, user, *, guild_name="Test Guild"):
     """Create a guild, membership, initiative, and project for the user."""
     guild = await create_guild(session, creator=user, name=guild_name)
-    await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.admin
-    )
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name="Initiative")
     project = await create_project(session, initiative, user, name="Project")
     return guild, initiative, project
@@ -85,24 +83,16 @@ async def test_create_task_sets_created_by_id(
 
 
 @pytest.mark.integration
-async def test_list_global_created_tasks(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_list_global_created_tasks(client: AsyncClient, session: AsyncSession):
     """scope=global_created should return tasks created by the current user."""
     creator = await create_user(session, email="creator@example.com")
     guild, _, project = await _setup_guild_with_project(session, creator)
 
-    task1 = await _create_task(
-        session, project, "My Task 1", created_by_id=creator.id
-    )
-    task2 = await _create_task(
-        session, project, "My Task 2", created_by_id=creator.id
-    )
+    task1 = await _create_task(session, project, "My Task 1", created_by_id=creator.id)
+    task2 = await _create_task(session, project, "My Task 2", created_by_id=creator.id)
 
     headers = get_guild_headers(guild, creator)
-    response = await client.get(
-        "/api/v1/tasks/?scope=global_created", headers=headers
-    )
+    response = await client.get("/api/v1/tasks/?scope=global_created", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -122,17 +112,13 @@ async def test_list_global_created_tasks_excludes_others(
     guild, _, project = await _setup_guild_with_project(session, creator)
     await create_guild_membership(session, user=other, guild=guild)
 
-    my_task = await _create_task(
-        session, project, "My Task", created_by_id=creator.id
-    )
+    my_task = await _create_task(session, project, "My Task", created_by_id=creator.id)
     other_task = await _create_task(
         session, project, "Other Task", created_by_id=other.id
     )
 
     headers = get_guild_headers(guild, creator)
-    response = await client.get(
-        "/api/v1/tasks/?scope=global_created", headers=headers
-    )
+    response = await client.get("/api/v1/tasks/?scope=global_created", headers=headers)
 
     assert response.status_code == 200
     task_ids = {t["id"] for t in response.json()["items"]}
@@ -150,14 +136,10 @@ async def test_list_global_created_tasks_excludes_null_created_by(
 
     # Task without created_by_id (simulates pre-migration task)
     legacy_task = await _create_task(session, project, "Legacy Task")
-    my_task = await _create_task(
-        session, project, "My Task", created_by_id=user.id
-    )
+    my_task = await _create_task(session, project, "My Task", created_by_id=user.id)
 
     headers = get_guild_headers(guild, user)
-    response = await client.get(
-        "/api/v1/tasks/?scope=global_created", headers=headers
-    )
+    response = await client.get("/api/v1/tasks/?scope=global_created", headers=headers)
 
     assert response.status_code == 200
     task_ids = {t["id"] for t in response.json()["items"]}
@@ -211,12 +193,8 @@ async def test_list_global_created_tasks_guild_filter(
         session, user, guild_name="Guild 2"
     )
 
-    task1 = await _create_task(
-        session, project1, "Guild 1 Task", created_by_id=user.id
-    )
-    task2 = await _create_task(
-        session, project2, "Guild 2 Task", created_by_id=user.id
-    )
+    task1 = await _create_task(session, project1, "Guild 1 Task", created_by_id=user.id)
+    task2 = await _create_task(session, project2, "Guild 2 Task", created_by_id=user.id)
 
     headers = get_guild_headers(guild1, user)
 
@@ -225,9 +203,7 @@ async def test_list_global_created_tasks_guild_filter(
         return {(t["guild_id"], t["id"]) for t in resp.json()["items"]}
 
     # No filter: created tasks from BOTH guilds are aggregated.
-    response = await client.get(
-        "/api/v1/tasks/?scope=global_created", headers=headers
-    )
+    response = await client.get("/api/v1/tasks/?scope=global_created", headers=headers)
     assert response.status_code == 200
     found = keyed(response)
     assert (guild1.id, task1.id) in found
@@ -255,9 +231,7 @@ async def test_list_global_created_tasks_pagination(
 
     # Create 3 tasks
     for i in range(3):
-        await _create_task(
-            session, project, f"Task {i}", created_by_id=user.id
-        )
+        await _create_task(session, project, f"Task {i}", created_by_id=user.id)
 
     headers = get_guild_headers(guild, user)
 

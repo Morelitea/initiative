@@ -260,9 +260,13 @@ def duplicate_upload(url: str | None) -> str | None:
             shutil.copy2(source_path, destination)
             return f"{UPLOADS_URL_PREFIX}{destination.name}"
         except OSError as exc:
-            logger.error("Failed to duplicate upload %s -> %s: %s", source_path, destination, exc)
+            logger.error(
+                "Failed to duplicate upload %s -> %s: %s", source_path, destination, exc
+            )
             return normalized
-    logger.error("Unable to allocate new filename for duplicated upload %s", source_path)
+    logger.error(
+        "Unable to allocate new filename for duplicated upload %s", source_path
+    )
     return normalized
 
 
@@ -304,6 +308,7 @@ def detect_mime_type(content: bytes, filename: str | None = None) -> str | None:
     """
     try:
         import magic
+
         detected = magic.from_buffer(content, mime=True)
         if detected:
             return detected
@@ -338,7 +343,9 @@ def validate_document_file(
         ValueError: If validation fails
     """
     if len(content) > MAX_DOCUMENT_FILE_SIZE:
-        raise ValueError(f"File exceeds maximum size of {MAX_DOCUMENT_FILE_SIZE // (1024 * 1024)} MB")
+        raise ValueError(
+            f"File exceeds maximum size of {MAX_DOCUMENT_FILE_SIZE // (1024 * 1024)} MB"
+        )
 
     if not content:
         raise ValueError("Uploaded file is empty")
@@ -364,7 +371,9 @@ def validate_document_file(
         if content_type and content_type in ALLOWED_DOCUMENT_MIME_TYPES:
             detected_mime = content_type
         else:
-            raise ValueError("Unable to determine file type. Supported types: PDF, Word, Excel, PowerPoint, TXT, HTML, images, Markdown")
+            raise ValueError(
+                "Unable to determine file type. Supported types: PDF, Word, Excel, PowerPoint, TXT, HTML, images, Markdown"
+            )
 
     # Get extension for the detected MIME type
     extension = ALLOWED_DOCUMENT_MIME_TYPES.get(detected_mime, "")
@@ -372,7 +381,10 @@ def validate_document_file(
     # If we have a filename, prefer its extension if it matches
     if filename:
         file_ext = Path(filename).suffix.lower()
-        if file_ext in EXTENSION_TO_MIME and EXTENSION_TO_MIME[file_ext] == detected_mime:
+        if (
+            file_ext in EXTENSION_TO_MIME
+            and EXTENSION_TO_MIME[file_ext] == detected_mime
+        ):
             extension = file_ext
 
     return detected_mime, extension

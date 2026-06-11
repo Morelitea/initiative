@@ -41,7 +41,9 @@ async def test_create_api_key(client: AsyncClient, session: AsyncSession):
         "expires_at": None,
     }
 
-    response = await client.post("/api/v1/users/me/api-keys", headers=headers, json=payload)
+    response = await client.post(
+        "/api/v1/users/me/api-keys", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -55,7 +57,9 @@ async def test_create_api_key(client: AsyncClient, session: AsyncSession):
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_create_api_key_with_expiration(client: AsyncClient, session: AsyncSession):
+async def test_create_api_key_with_expiration(
+    client: AsyncClient, session: AsyncSession
+):
     """Test creating an API key with expiration date."""
     user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)
@@ -65,7 +69,9 @@ async def test_create_api_key_with_expiration(client: AsyncClient, session: Asyn
         "expires_at": "2025-12-31T23:59:59Z",
     }
 
-    response = await client.post("/api/v1/users/me/api-keys", headers=headers, json=payload)
+    response = await client.post(
+        "/api/v1/users/me/api-keys", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -146,7 +152,9 @@ async def test_delete_nonexistent_api_key(client: AsyncClient, session: AsyncSes
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_cannot_delete_other_users_api_key(client: AsyncClient, session: AsyncSession):
+async def test_cannot_delete_other_users_api_key(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that users cannot delete other users' API keys."""
     user1 = await create_user(session, email="user1@example.com")
     user2 = await create_user(session, email="user2@example.com")
@@ -198,7 +206,9 @@ async def test_authenticate_with_api_key(client: AsyncClient, session: AsyncSess
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_api_key_works_for_non_admin_users(client: AsyncClient, session: AsyncSession):
+async def test_api_key_works_for_non_admin_users(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that non-admin users can create and use API keys."""
     # Create a regular member user (not admin)
     from app.models.user import UserRole
@@ -259,7 +269,9 @@ async def test_delete_api_key_requires_authentication(client: AsyncClient):
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_api_key_prefix_is_masked_in_list(client: AsyncClient, session: AsyncSession):
+async def test_api_key_prefix_is_masked_in_list(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that API key secrets are not exposed in list, only prefix."""
     user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)

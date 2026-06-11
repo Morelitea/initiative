@@ -53,7 +53,13 @@ async def create_user(
             role=UserRole.admin
         )
     """
-    email_raw = overrides.pop("email", f"user-{datetime.now(timezone.utc).timestamp()}@example.com").lower().strip()
+    email_raw = (
+        overrides.pop(
+            "email", f"user-{datetime.now(timezone.utc).timestamp()}@example.com"
+        )
+        .lower()
+        .strip()
+    )
     defaults = {
         "email_hash": hash_email(email_raw),
         "email_encrypted": encrypt_field(email_raw, SALT_EMAIL),

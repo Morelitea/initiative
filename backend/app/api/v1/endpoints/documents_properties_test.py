@@ -200,8 +200,12 @@ async def test_put_properties_on_foreign_guild_document_returns_404(
     user = await create_user(session, email="u@example.com")
     guild_a = await create_guild(session, name="A")
     guild_b = await create_guild(session, name="B")
-    await create_guild_membership(session, user=user, guild=guild_a, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild_b, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild_a, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=user, guild=guild_b, role=GuildRole.admin
+    )
 
     initiative_b = await create_initiative(session, guild_b, user, name="Init B")
     doc_b = await _create_document(session, initiative=initiative_b, owner=user)
@@ -255,7 +259,10 @@ async def test_put_select_unknown_option_rejected(
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     defn = await create_property_definition(
-        session, initiative, name="Phase", type=PropertyType.select,
+        session,
+        initiative,
+        name="Phase",
+        type=PropertyType.select,
         options=[{"value": "draft", "label": "Draft"}],
     )
 
@@ -279,7 +286,10 @@ async def test_put_multi_select_unknown_option_rejected(
     doc = await _create_document(session, initiative=initiative, owner=user)
 
     defn = await create_property_definition(
-        session, initiative, name="Tags", type=PropertyType.multi_select,
+        session,
+        initiative,
+        name="Tags",
+        type=PropertyType.multi_select,
         options=[{"value": "one", "label": "One"}, {"value": "two", "label": "Two"}],
     )
 
@@ -374,8 +384,12 @@ async def test_list_documents_property_filter_text_eq(
         session, initiative, name="Tag", type=PropertyType.text
     )
 
-    doc_match = await _create_document(session, initiative=initiative, owner=user, title="Match")
-    doc_other = await _create_document(session, initiative=initiative, owner=user, title="Other")
+    doc_match = await _create_document(
+        session, initiative=initiative, owner=user, title="Match"
+    )
+    doc_other = await _create_document(
+        session, initiative=initiative, owner=user, title="Other"
+    )
 
     headers = get_guild_headers(guild, user)
     await client.put(
@@ -389,9 +403,7 @@ async def test_list_documents_property_filter_text_eq(
         json={"values": [{"property_id": defn.id, "value": "skip"}]},
     )
 
-    filt = json.dumps([
-        {"property_id": defn.id, "op": "eq", "value": "findme"}
-    ])
+    filt = json.dumps([{"property_id": defn.id, "op": "eq", "value": "findme"}])
     response = await client.get(
         f"/api/v1/documents/?initiative_id={initiative.id}&property_filters={filt}",
         headers=headers,
@@ -452,7 +464,10 @@ async def test_list_documents_property_filter_multi_select_contains(
     initiative = await create_initiative(session, guild, user, name="Init")
 
     defn = await create_property_definition(
-        session, initiative, name="Labels", type=PropertyType.multi_select,
+        session,
+        initiative,
+        name="Labels",
+        type=PropertyType.multi_select,
         options=[
             {"value": "alpha", "label": "Alpha"},
             {"value": "beta", "label": "Beta"},
@@ -460,8 +475,12 @@ async def test_list_documents_property_filter_multi_select_contains(
         ],
     )
 
-    doc_with_alpha = await _create_document(session, initiative=initiative, owner=user, title="A")
-    doc_no_alpha = await _create_document(session, initiative=initiative, owner=user, title="N")
+    doc_with_alpha = await _create_document(
+        session, initiative=initiative, owner=user, title="A"
+    )
+    doc_no_alpha = await _create_document(
+        session, initiative=initiative, owner=user, title="N"
+    )
 
     headers = get_guild_headers(guild, user)
     await client.put(
@@ -513,9 +532,9 @@ async def test_list_documents_too_many_property_filters_returns_400(
     initiative = await create_initiative(session, guild, user, name="Init")
 
     # Fabricate 6 predicates (cap is 5); ids don't need to exist.
-    filt = json.dumps([
-        {"property_id": i, "op": "eq", "value": "x"} for i in range(1, 7)
-    ])
+    filt = json.dumps(
+        [{"property_id": i, "op": "eq", "value": "x"} for i in range(1, 7)]
+    )
     response = await client.get(
         f"/api/v1/documents/?initiative_id={initiative.id}&property_filters={filt}",
         headers=get_guild_headers(guild, user),
@@ -539,7 +558,9 @@ async def test_duplicate_document_same_initiative_carries_property_values(
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name="Init")
 
-    doc = await _create_document(session, initiative=initiative, owner=user, title="Src")
+    doc = await _create_document(
+        session, initiative=initiative, owner=user, title="Src"
+    )
     defn = await create_property_definition(
         session, initiative, name="Tag", type=PropertyType.text
     )
@@ -614,8 +635,6 @@ async def test_copy_document_cross_initiative_drops_property_values(
 
     # Original is untouched.
     original_rows = await session.exec(
-        select(DocumentPropertyValue).where(
-            DocumentPropertyValue.document_id == doc.id
-        )
+        select(DocumentPropertyValue).where(DocumentPropertyValue.document_id == doc.id)
     )
     assert len(original_rows.all()) == 1

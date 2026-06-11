@@ -15,6 +15,7 @@ the next time they change one ("grandfathered"). All new password
 material flows (register, password reset, self-update, admin-update)
 must call ``validate_new_password`` immediately before hashing.
 """
+
 from __future__ import annotations
 
 from fastapi import HTTPException, status

@@ -31,7 +31,9 @@ def get_min_native_version() -> str:
     min_version_file = Path(__file__).parent.parent.parent / "MIN_NATIVE_VERSION"
     if not min_version_file.exists():
         # Fall back to development path: -> repo_root/MIN_NATIVE_VERSION
-        min_version_file = Path(__file__).parent.parent.parent.parent / "MIN_NATIVE_VERSION"
+        min_version_file = (
+            Path(__file__).parent.parent.parent.parent / "MIN_NATIVE_VERSION"
+        )
     try:
         return min_version_file.read_text().strip()
     except FileNotFoundError:

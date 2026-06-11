@@ -53,6 +53,7 @@ def test_encrypt_is_nondeterministic() -> None:
 def test_hash_email_salt_isolation() -> None:
     """hash_email result is different from a generic HMAC with a different salt."""
     from app.core.encryption import SALT_AI_API_KEY
+
     # Using the wrong salt produces a different ciphertext — salt isolation holds
     ct_email = encrypt_field("secret", SALT_EMAIL)
     ct_ai = encrypt_field("secret", SALT_AI_API_KEY)

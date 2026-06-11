@@ -184,7 +184,9 @@ def _option_slugs(defn: PropertyDefinition) -> Set[str]:
     options = defn.options or []
     slugs: Set[str] = set()
     for opt in options:
-        slug = opt.get("value") if isinstance(opt, dict) else getattr(opt, "value", None)
+        slug = (
+            opt.get("value") if isinstance(opt, dict) else getattr(opt, "value", None)
+        )
         if slug:
             slugs.add(slug)
     return slugs
@@ -359,9 +361,7 @@ async def _set_property_values(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=PropertyMessages.DEFINITION_NOT_FOUND,
             )
-        cols = await _validate_value_for_type(
-            session, defn, entry.value, initiative_id
-        )
+        cols = await _validate_value_for_type(session, defn, entry.value, initiative_id)
 
         row = value_model(
             **{fk_name: entity_id, "property_id": defn.id},
@@ -515,7 +515,9 @@ async def serialize_document_properties(
     session: AsyncSession,
     document: Document,
 ) -> List[PropertySummary]:
-    return await _serialize_values(session, entity_kind="document", entity_id=document.id)
+    return await _serialize_values(
+        session, entity_kind="document", entity_id=document.id
+    )
 
 
 async def serialize_task_properties(
@@ -786,9 +788,8 @@ def property_value_presence_predicate(
         # behaves the same way as the UI does for multi-selects.
         non_empty = typed.is_not(None) & (func.jsonb_array_length(typed) > 0)
 
-    subq = (
-        select(entity_id_column)
-        .where(value_model.property_id == property_id, non_empty)
+    subq = select(entity_id_column).where(
+        value_model.property_id == property_id, non_empty
     )
     if is_empty:
         return parent_id_column.not_in(subq)
@@ -821,7 +822,9 @@ def build_single_property_clause(
         # ``value`` to a bool. The tasks inline handler hands us the raw
         # value, so normalize defensively here too.
         try:
-            is_empty = normalize_is_null_value(value) if not isinstance(value, bool) else value
+            is_empty = (
+                normalize_is_null_value(value) if not isinstance(value, bool) else value
+            )
         except ValueError:
             return None
         return property_value_presence_predicate(
@@ -840,9 +843,8 @@ def build_single_property_clause(
     predicate = build_property_value_predicate(column, defn.type, op, value)
     if predicate is None:
         return None
-    subq = (
-        select(binding.fk_column)
-        .where(binding.model.property_id == property_id, predicate)
+    subq = select(binding.fk_column).where(
+        binding.model.property_id == property_id, predicate
     )
     return binding.parent_id_column.in_(subq)
 
@@ -933,9 +935,7 @@ def parse_property_filters(raw: Optional[str]) -> List[ParsedPropertyFilter]:
         raise ValueError("property_filters must be a JSON array")
 
     if len(payload) > MAX_PROPERTY_FILTERS:
-        raise ValueError(
-            f"too many property filters (max {MAX_PROPERTY_FILTERS})"
-        )
+        raise ValueError(f"too many property filters (max {MAX_PROPERTY_FILTERS})")
 
     parsed: List[ParsedPropertyFilter] = []
     for entry in payload:

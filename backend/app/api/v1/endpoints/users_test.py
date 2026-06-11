@@ -116,7 +116,9 @@ async def test_list_users_in_guild(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_list_users_requires_guild_context(client: AsyncClient, session: AsyncSession):
+async def test_list_users_requires_guild_context(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that listing users requires guild context."""
     user = await create_user(session)
     headers = get_auth_headers(user)
@@ -132,10 +134,16 @@ async def test_update_user_by_id_as_admin(client: AsyncClient, session: AsyncSes
     """Test that guild admin can update other users."""
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com", full_name="Old Name")
+    member = await create_user(
+        session, email="member@example.com", full_name="Old Name"
+    )
 
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild, admin)
 
@@ -153,14 +161,20 @@ async def test_update_user_by_id_as_admin(client: AsyncClient, session: AsyncSes
 
 
 @pytest.mark.integration
-async def test_update_user_as_member_forbidden(client: AsyncClient, session: AsyncSession):
+async def test_update_user_as_member_forbidden(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that regular members cannot update other users."""
     guild = await create_guild(session)
     member1 = await create_user(session, email="member1@example.com")
     member2 = await create_user(session, email="member2@example.com")
 
-    await create_guild_membership(session, user=member1, guild=guild, role=GuildRole.member)
-    await create_guild_membership(session, user=member2, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=member1, guild=guild, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=member2, guild=guild, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild, member1)
 
@@ -182,12 +196,18 @@ async def test_check_deletion_eligibility(client: AsyncClient, session: AsyncSes
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
 
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
 
     headers = get_auth_headers(member)
 
-    response = await client.get("/api/v1/users/me/deletion-eligibility", headers=headers)
+    response = await client.get(
+        "/api/v1/users/me/deletion-eligibility", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -203,8 +223,12 @@ async def test_delete_user_as_admin(client: AsyncClient, session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
 
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild, admin)
 
@@ -214,14 +238,20 @@ async def test_delete_user_as_admin(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_delete_user_as_member_forbidden(client: AsyncClient, session: AsyncSession):
+async def test_delete_user_as_member_forbidden(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that regular members cannot delete users."""
     guild = await create_guild(session)
     member1 = await create_user(session, email="member1@example.com")
     member2 = await create_user(session, email="member2@example.com")
 
-    await create_guild_membership(session, user=member1, guild=guild, role=GuildRole.member)
-    await create_guild_membership(session, user=member2, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=member1, guild=guild, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=member2, guild=guild, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild, member1)
 
@@ -242,8 +272,12 @@ async def test_guild_removal_eligibility_lists_owned_projects(
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     project = await create_project(session, initiative=initiative, owner=member)
 
@@ -269,8 +303,12 @@ async def test_delete_user_blocks_when_owned_projects_lack_transfer(
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     await create_project(session, initiative=initiative, owner=member)
 
@@ -300,9 +338,15 @@ async def test_delete_user_with_transfers_reassigns_and_succeeds(
     admin = await create_user(session, email="admin@example.com")
     successor = await create_user(session, email="successor@example.com")
     member = await create_user(session, email="member@example.com")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=successor, guild=guild, role=GuildRole.member)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=successor, guild=guild, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     await create_initiative_member(session, initiative=initiative, user=successor)
     await create_initiative_member(session, initiative=initiative, user=member)
@@ -336,8 +380,12 @@ async def test_delete_user_with_deletion_soft_deletes_project(
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     project = await create_project(session, initiative=initiative, owner=member)
 
@@ -350,14 +398,18 @@ async def test_delete_user_with_deletion_soft_deletes_project(
     assert response.status_code == 204
 
     refreshed = (
-        await session.exec(select_including_deleted(Project).where(Project.id == project.id))
+        await session.exec(
+            select_including_deleted(Project).where(Project.id == project.id)
+        )
     ).one()
     assert refreshed.deleted_at is not None
     assert refreshed.deleted_by == admin.id
 
 
 @pytest.mark.integration
-async def test_user_cannot_update_email_via_patch(client: AsyncClient, session: AsyncSession):
+async def test_user_cannot_update_email_via_patch(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that users cannot change their email via PATCH /me."""
     user = await create_user(session, email="original@example.com")
     headers = get_auth_headers(user)
@@ -388,7 +440,9 @@ async def test_user_can_change_password(client: AsyncClient, session: AsyncSessi
 
 
 @pytest.mark.integration
-async def test_inactive_user_cannot_access_endpoints(client: AsyncClient, session: AsyncSession):
+async def test_inactive_user_cannot_access_endpoints(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that inactive users cannot access protected endpoints."""
     from app.models.user import User, UserStatus
 
@@ -427,7 +481,9 @@ async def test_user_timezone_validation(client: AsyncClient, session: AsyncSessi
 
 
 @pytest.mark.integration
-async def test_user_week_starts_on_validation(client: AsyncClient, session: AsyncSession):
+async def test_user_week_starts_on_validation(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that week_starts_on only accepts 0-6."""
     user = await create_user(session)
     headers = get_auth_headers(user)
@@ -513,7 +569,9 @@ async def test_task_completion_audio_and_haptic_round_trip(
 
 
 @pytest.mark.integration
-async def test_list_users_only_shows_guild_members(client: AsyncClient, session: AsyncSession):
+async def test_list_users_only_shows_guild_members(
+    client: AsyncClient, session: AsyncSession
+):
     """Test that listing users only shows members of the current guild."""
     guild1 = await create_guild(session, name="Guild 1")
     guild2 = await create_guild(session, name="Guild 2")
@@ -553,9 +611,15 @@ async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSess
     """Guild admin can export all members as CSV."""
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com", full_name="Ada Admin")
-    member = await create_user(session, email="member@example.com", full_name="Mel Member")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    member = await create_user(
+        session, email="member@example.com", full_name="Mel Member"
+    )
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild, admin)
     response = await client.get("/api/v1/users/export.csv", headers=headers)
@@ -583,11 +647,15 @@ async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSess
 
 
 @pytest.mark.integration
-async def test_export_users_csv_forbidden_for_member(client: AsyncClient, session: AsyncSession):
+async def test_export_users_csv_forbidden_for_member(
+    client: AsyncClient, session: AsyncSession
+):
     """A plain guild member cannot hit the export endpoint."""
     guild = await create_guild(session)
     member = await create_user(session, email="m@example.com")
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild, member)
     response = await client.get("/api/v1/users/export.csv", headers=headers)
@@ -596,7 +664,9 @@ async def test_export_users_csv_forbidden_for_member(client: AsyncClient, sessio
 
 
 @pytest.mark.integration
-async def test_export_users_csv_requires_guild_context(client: AsyncClient, session: AsyncSession):
+async def test_export_users_csv_requires_guild_context(
+    client: AsyncClient, session: AsyncSession
+):
     """Without the guild header the export is rejected."""
     user = await create_user(session)
     headers = get_auth_headers(user)
@@ -606,13 +676,21 @@ async def test_export_users_csv_requires_guild_context(client: AsyncClient, sess
 
 
 @pytest.mark.integration
-async def test_export_users_csv_single_user_id(client: AsyncClient, session: AsyncSession):
+async def test_export_users_csv_single_user_id(
+    client: AsyncClient, session: AsyncSession
+):
     """Passing one user_id returns exactly that row with a per-user filename."""
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
-    target = await create_user(session, email="target@example.com", full_name="Target User")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=target, guild=guild, role=GuildRole.member)
+    target = await create_user(
+        session, email="target@example.com", full_name="Target User"
+    )
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=target, guild=guild, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild, admin)
     response = await client.get(
@@ -628,13 +706,17 @@ async def test_export_users_csv_single_user_id(client: AsyncClient, session: Asy
 
 
 @pytest.mark.integration
-async def test_export_users_csv_multi_user_id(client: AsyncClient, session: AsyncSession):
+async def test_export_users_csv_multi_user_id(
+    client: AsyncClient, session: AsyncSession
+):
     """Two user_id values return two rows with a bulk-style filename."""
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
     a = await create_user(session, email="a@example.com")
     b = await create_user(session, email="b@example.com")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=a, guild=guild, role=GuildRole.member)
     await create_guild_membership(session, user=b, guild=guild, role=GuildRole.member)
 
@@ -651,13 +733,19 @@ async def test_export_users_csv_multi_user_id(client: AsyncClient, session: Asyn
 
 
 @pytest.mark.integration
-async def test_export_users_csv_partial_miss(client: AsyncClient, session: AsyncSession):
+async def test_export_users_csv_partial_miss(
+    client: AsyncClient, session: AsyncSession
+):
     """Unknown ids are dropped silently; known ids are returned."""
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
     target = await create_user(session, email="target@example.com")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=target, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=target, guild=guild, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild, admin)
     response = await client.get(
@@ -671,11 +759,15 @@ async def test_export_users_csv_partial_miss(client: AsyncClient, session: Async
 
 
 @pytest.mark.integration
-async def test_export_users_csv_no_matches_returns_404(client: AsyncClient, session: AsyncSession):
+async def test_export_users_csv_no_matches_returns_404(
+    client: AsyncClient, session: AsyncSession
+):
     """All requested ids missing/invisible under RLS -> 404."""
     guild = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     headers = get_guild_headers(guild, admin)
     response = await client.get(
@@ -686,14 +778,20 @@ async def test_export_users_csv_no_matches_returns_404(client: AsyncClient, sess
 
 
 @pytest.mark.integration
-async def test_export_users_csv_user_outside_guild(client: AsyncClient, session: AsyncSession):
+async def test_export_users_csv_user_outside_guild(
+    client: AsyncClient, session: AsyncSession
+):
     """A user who exists but isn't in the active guild is not visible."""
     guild1 = await create_guild(session)
     guild2 = await create_guild(session)
     admin = await create_user(session, email="admin@example.com")
     outsider = await create_user(session, email="outsider@example.com")
-    await create_guild_membership(session, user=admin, guild=guild1, role=GuildRole.admin)
-    await create_guild_membership(session, user=outsider, guild=guild2, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild1, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=outsider, guild=guild2, role=GuildRole.member
+    )
 
     headers = get_guild_headers(guild1, admin)
     response = await client.get(
@@ -821,12 +919,19 @@ async def test_self_delete_rejects_anonymized_transfer_target(
     owner = await create_user(session, email="leaving@example.com")
     co_admin = await create_user(session, email="co-admin@example.com")
     guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=co_admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=co_admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild=guild, creator=owner)
     # Add co_admin as another PM so the eligibility check passes.
     await create_initiative_member(
-        session, initiative=initiative, user=co_admin, role_name="project_manager",
+        session,
+        initiative=initiative,
+        user=co_admin,
+        role_name="project_manager",
     )
 
     husk = await create_user(session, email="husk@example.com")

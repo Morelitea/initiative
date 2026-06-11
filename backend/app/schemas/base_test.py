@@ -1,4 +1,5 @@
 """Tests for SanitizedBaseModel."""
+
 from __future__ import annotations
 
 import importlib
@@ -69,7 +70,7 @@ def test_angle_brackets_and_quotes_in_text_preserved() -> None:
 def test_img_onerror_payload_fully_stripped() -> None:
     # The original CRIT-002 demonstrator. nh3's default allowlist would KEEP
     # <img src="x"> (dropping only onerror); an empty allowlist removes it wholly.
-    m = _Model(name='before <img src=x onerror=alert(1)> after')
+    m = _Model(name="before <img src=x onerror=alert(1)> after")
     assert "onerror" not in m.name
     assert "<img" not in m.name
     assert m.name == "before  after"

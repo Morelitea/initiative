@@ -25,7 +25,9 @@ MAX_VALUE_JSON_BYTES = 16 * 1024  # 16 KiB
 class UserViewPreference(SQLModel, table=True):
     __tablename__ = "user_view_preferences"
     __table_args__ = (
-        UniqueConstraint("user_id", "scope_key", name="uq_user_view_preferences_user_scope"),
+        UniqueConstraint(
+            "user_id", "scope_key", name="uq_user_view_preferences_user_scope"
+        ),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)

@@ -18,7 +18,9 @@ class HeatmapDayData(SanitizedBaseModel):
     """Daily activity data for heatmap visualization."""
 
     day: date = Field(..., description="Date of activity", serialization_alias="date")
-    activity_count: int = Field(..., description="Number of task activities on this date")
+    activity_count: int = Field(
+        ..., description="Number of task activities on this date"
+    )
 
 
 class GuildTaskBreakdown(SanitizedBaseModel):
@@ -26,25 +28,45 @@ class GuildTaskBreakdown(SanitizedBaseModel):
 
     guild_id: int = Field(..., description="Guild ID")
     guild_name: str = Field(..., description="Guild name")
-    completed_count: int = Field(..., description="Number of completed tasks in this guild")
+    completed_count: int = Field(
+        ..., description="Number of completed tasks in this guild"
+    )
 
 
 class UserStatsResponse(SanitizedBaseModel):
     """Comprehensive user statistics response."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
-    streak: int = Field(..., description="Current streak of consecutive work days (Mon-Fri) with task activity")
+    streak: int = Field(
+        ...,
+        description="Current streak of consecutive work days (Mon-Fri) with task activity",
+    )
     on_time_rate: float = Field(
-        ..., ge=0, le=100, description="Percentage of completed tasks finished before due date"
+        ...,
+        ge=0,
+        le=100,
+        description="Percentage of completed tasks finished before due date",
     )
     avg_completion_days: Optional[float] = Field(
-        None, description="Average days from start_date to completion (only tasks with start_date)"
+        None,
+        description="Average days from start_date to completion (only tasks with start_date)",
     )
-    tasks_completed_total: int = Field(..., description="Total number of completed tasks")
-    tasks_completed_this_week: int = Field(..., description="Number of tasks completed this week")
+    tasks_completed_total: int = Field(
+        ..., description="Total number of completed tasks"
+    )
+    tasks_completed_this_week: int = Field(
+        ..., description="Number of tasks completed this week"
+    )
     backlog_trend: Literal["Growing", "Shrinking"] = Field(
         ..., description="Trend based on tasks assigned vs completed this week"
     )
-    velocity_data: List[VelocityWeekData] = Field(..., description="Weekly velocity data for last 12 weeks")
-    heatmap_data: List[HeatmapDayData] = Field(..., description="Daily activity data for last 365 days")
-    guild_breakdown: List[GuildTaskBreakdown] = Field(..., description="Task completion breakdown by guild")
+    velocity_data: List[VelocityWeekData] = Field(
+        ..., description="Weekly velocity data for last 12 weeks"
+    )
+    heatmap_data: List[HeatmapDayData] = Field(
+        ..., description="Daily activity data for last 365 days"
+    )
+    guild_breakdown: List[GuildTaskBreakdown] = Field(
+        ..., description="Task completion breakdown by guild"
+    )

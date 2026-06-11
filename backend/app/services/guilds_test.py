@@ -467,25 +467,19 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
         # double-check no setting row exists (factory shouldn't create one)
         select(GuildSetting).where(GuildSetting.guild_id == guild.id)
     )
-    assert (
-        await guild_service.get_guild_retention_days(session, guild.id)
-    ) == 90
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 90
 
     # 2. Row exists with retention_days = 30 -> 30.
     setting = GuildSetting(guild_id=guild.id, retention_days=30)
     session.add(setting)
     await session.commit()
-    assert (
-        await guild_service.get_guild_retention_days(session, guild.id)
-    ) == 30
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 30
 
     # 3. Row exists with retention_days = NULL -> None ("never").
     setting.retention_days = None
     session.add(setting)
     await session.commit()
-    assert (
-        await guild_service.get_guild_retention_days(session, guild.id)
-    ) is None
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) is None
 
     # Suppress unused-name warning if linters complain about the user
     # we created for symmetry with other tests in this module.
@@ -501,17 +495,23 @@ async def test_list_memberships_reads_retention_per_guild(session: AsyncSession)
     user = await create_user(session)
 
     guild_30 = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild_30, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild_30, role=GuildRole.admin
+    )
     session.add(GuildSetting(guild_id=guild_30.id, retention_days=30))
     await session.commit()
 
     # A guild with no settings row should fall back to the 90-day default.
     guild_default = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild_default, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild_default, role=GuildRole.admin
+    )
     await session.commit()
 
     memberships = await guild_service.list_memberships(session, user_id=user.id)
-    by_guild = {guild.id: retention for guild, _membership, retention, _count in memberships}
+    by_guild = {
+        guild.id: retention for guild, _membership, retention, _count in memberships
+    }
 
     assert by_guild[guild_30.id] == 30  # read from the guild's own schema
     assert by_guild[guild_default.id] == 90  # default when no settings row

@@ -92,7 +92,9 @@ def test_effective_permission_level_both_none():
 @pytest.mark.unit
 def test_effective_permission_level_user_only():
     result = effective_permission_level(
-        ProjectPermissionLevel.read, None, PROJECT_LEVEL_ORDER,
+        ProjectPermissionLevel.read,
+        None,
+        PROJECT_LEVEL_ORDER,
     )
     assert result == ProjectPermissionLevel.read
 
@@ -100,7 +102,9 @@ def test_effective_permission_level_user_only():
 @pytest.mark.unit
 def test_effective_permission_level_role_only():
     result = effective_permission_level(
-        None, ProjectPermissionLevel.write, PROJECT_LEVEL_ORDER,
+        None,
+        ProjectPermissionLevel.write,
+        PROJECT_LEVEL_ORDER,
     )
     assert result == ProjectPermissionLevel.write
 
@@ -158,7 +162,9 @@ def test_compute_project_permission_role_elevates():
         user_id=1,
         user_level=ProjectPermissionLevel.read,
         role_permissions=[
-            SimpleNamespace(initiative_role_id=role_id, level=ProjectPermissionLevel.write),
+            SimpleNamespace(
+                initiative_role_id=role_id, level=ProjectPermissionLevel.write
+            ),
         ],
         memberships=[
             SimpleNamespace(user_id=1, role_id=role_id),

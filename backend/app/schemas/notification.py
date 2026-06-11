@@ -9,7 +9,9 @@ from app.models.notification import NotificationType
 
 
 class NotificationRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     type: NotificationType

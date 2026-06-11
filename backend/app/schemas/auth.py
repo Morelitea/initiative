@@ -43,6 +43,7 @@ class DeviceTokenRequest(SanitizedBaseModel):
 
 class DeviceTokenResponse(SanitizedBaseModel):
     """Response containing the device token."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     device_token: str
@@ -51,6 +52,7 @@ class DeviceTokenResponse(SanitizedBaseModel):
 
 class DeviceTokenInfo(SanitizedBaseModel):
     """Information about a device token (for listing/management)."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     id: int

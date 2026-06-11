@@ -73,10 +73,17 @@ def _recurrence_to_rrule(recurrence_json: Optional[str]) -> Optional[dict]:
         if isinstance(rec.end_date, datetime):
             rule["UNTIL"] = [rec.end_date.astimezone(timezone.utc)]
         else:
-            rule["UNTIL"] = [datetime(
-                rec.end_date.year, rec.end_date.month, rec.end_date.day,
-                23, 59, 59, tzinfo=timezone.utc,
-            )]
+            rule["UNTIL"] = [
+                datetime(
+                    rec.end_date.year,
+                    rec.end_date.month,
+                    rec.end_date.day,
+                    23,
+                    59,
+                    59,
+                    tzinfo=timezone.utc,
+                )
+            ]
 
     if rec.ends == "after_occurrences" and rec.end_after_occurrences:
         rule["COUNT"] = [rec.end_after_occurrences]
@@ -115,14 +122,16 @@ def events_to_ical(events: List[CalendarEvent]) -> bytes:
         if rrule:
             vevent.add("rrule", rrule)
 
-        for attendee in (event.attendees or []):
+        for attendee in event.attendees or []:
             user = attendee.user
             if user and user.email:
                 att = icalendar.vCalAddress(f"mailto:{user.email}")
                 if user.full_name:
                     att.params["CN"] = icalendar.vText(user.full_name)
                 partstat = _RSVP_TO_PARTSTAT.get(
-                    attendee.rsvp_status.value if hasattr(attendee.rsvp_status, "value") else attendee.rsvp_status,
+                    attendee.rsvp_status.value
+                    if hasattr(attendee.rsvp_status, "value")
+                    else attendee.rsvp_status,
                     "NEEDS-ACTION",
                 )
                 att.params["PARTSTAT"] = icalendar.vText(partstat)
@@ -196,7 +205,9 @@ def _rrule_to_recurrence(rrule) -> Optional[dict]:
                 rec["end_date"] = end_val.isoformat()
             elif isinstance(end_val, date):
                 rec["end_date"] = datetime(
-                    end_val.year, end_val.month, end_val.day,
+                    end_val.year,
+                    end_val.month,
+                    end_val.day,
                     tzinfo=timezone.utc,
                 ).isoformat()
 
@@ -223,19 +234,25 @@ def _extract_vevent(component) -> Optional[dict]:
 
     if all_day:
         start_dt = datetime(
-            start_val.year, start_val.month, start_val.day,
+            start_val.year,
+            start_val.month,
+            start_val.day,
             tzinfo=timezone.utc,
         )
         if dtend:
             end_val = dtend.dt
             end_dt = datetime(
-                end_val.year, end_val.month, end_val.day,
+                end_val.year,
+                end_val.month,
+                end_val.day,
                 tzinfo=timezone.utc,
             )
         else:
             end_dt = start_dt
     else:
-        start_dt = start_val if start_val.tzinfo else start_val.replace(tzinfo=timezone.utc)
+        start_dt = (
+            start_val if start_val.tzinfo else start_val.replace(tzinfo=timezone.utc)
+        )
         if dtend:
             end_val = dtend.dt
             end_dt = end_val if end_val.tzinfo else end_val.replace(tzinfo=timezone.utc)
@@ -271,13 +288,15 @@ def parse_ical(content: str) -> ICalParseResult:
         has_rec = data["recurrence"] is not None
         if has_rec:
             has_recurring = True
-        events.append(ICalEventPreview(
-            summary=data["summary"],
-            start_at=data["start_at"].isoformat(),
-            end_at=data["end_at"].isoformat() if data["end_at"] else None,
-            all_day=data["all_day"],
-            has_recurrence=has_rec,
-        ))
+        events.append(
+            ICalEventPreview(
+                summary=data["summary"],
+                start_at=data["start_at"].isoformat(),
+                end_at=data["end_at"].isoformat() if data["end_at"] else None,
+                all_day=data["all_day"],
+                has_recurrence=has_rec,
+            )
+        )
 
     return ICalParseResult(
         event_count=len(events),
@@ -320,7 +339,9 @@ def build_calendar_events(
                 start_at=data["start_at"],
                 end_at=data["end_at"],
                 all_day=data["all_day"],
-                recurrence=json.dumps(data["recurrence"]) if data["recurrence"] else None,
+                recurrence=json.dumps(data["recurrence"])
+                if data["recurrence"]
+                else None,
                 created_by_id=created_by_id,
             )
             events.append(event)

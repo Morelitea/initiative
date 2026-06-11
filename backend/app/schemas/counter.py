@@ -26,7 +26,9 @@ class CounterGroupPermissionCreate(SanitizedBaseModel):
 
 
 class CounterGroupPermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     user_id: int
     level: CounterPermissionLevel
@@ -39,7 +41,9 @@ class CounterGroupRolePermissionCreate(SanitizedBaseModel):
 
 
 class CounterGroupRolePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     initiative_role_id: int
     role_name: str = ""
@@ -135,7 +139,10 @@ class CounterRead(SanitizedBaseModel):
     PostgreSQL's exponent notation (``0E-10``) from ``Numeric(20, 10)``
     columns.
     """
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     counter_group_id: int
@@ -179,7 +186,9 @@ class CounterGroupDuplicateRequest(SanitizedBaseModel):
 
 
 class CounterGroupSummary(CounterGroupBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     initiative_id: int
@@ -217,7 +226,9 @@ class CounterGroupPermissionsUpdate(SanitizedBaseModel):
 
 
 class CounterGroupRolePermissionsUpdate(SanitizedBaseModel):
-    role_permissions: List[CounterGroupRolePermissionCreate] = Field(default_factory=list)
+    role_permissions: List[CounterGroupRolePermissionCreate] = Field(
+        default_factory=list
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -266,23 +277,29 @@ def serialize_counter(counter: "Counter") -> CounterRead:
 def _serialize_permissions(group: "CounterGroup") -> List[CounterGroupPermissionRead]:
     perms = getattr(group, "permissions", None) or []
     return [
-        CounterGroupPermissionRead(user_id=p.user_id, level=p.level, created_at=p.created_at)
+        CounterGroupPermissionRead(
+            user_id=p.user_id, level=p.level, created_at=p.created_at
+        )
         for p in perms
     ]
 
 
-def _serialize_role_permissions(group: "CounterGroup") -> List[CounterGroupRolePermissionRead]:
+def _serialize_role_permissions(
+    group: "CounterGroup",
+) -> List[CounterGroupRolePermissionRead]:
     role_perms = getattr(group, "role_permissions", None) or []
     result: List[CounterGroupRolePermissionRead] = []
     for rp in role_perms:
         role = getattr(rp, "role", None)
-        result.append(CounterGroupRolePermissionRead(
-            initiative_role_id=rp.initiative_role_id,
-            role_name=getattr(role, "name", "") if role else "",
-            role_display_name=getattr(role, "display_name", "") if role else "",
-            level=rp.level,
-            created_at=rp.created_at,
-        ))
+        result.append(
+            CounterGroupRolePermissionRead(
+                initiative_role_id=rp.initiative_role_id,
+                role_name=getattr(role, "name", "") if role else "",
+                role_display_name=getattr(role, "display_name", "") if role else "",
+                level=rp.level,
+                created_at=rp.created_at,
+            )
+        )
     return result
 
 
@@ -315,7 +332,9 @@ def serialize_counter_group(
     *,
     my_permission_level: Optional[str] = None,
 ) -> CounterGroupRead:
-    summary = serialize_counter_group_summary(group, my_permission_level=my_permission_level)
+    summary = serialize_counter_group_summary(
+        group, my_permission_level=my_permission_level
+    )
     counters = sorted(_active_counters(group), key=lambda c: c.position)
     return CounterGroupRead(
         **summary.model_dump(),

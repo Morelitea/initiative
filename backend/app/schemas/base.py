@@ -1,4 +1,5 @@
 """Base schema with automatic HTML sanitization for str fields."""
+
 from __future__ import annotations
 
 import html
@@ -111,9 +112,7 @@ def _is_enum_type(annotation: Any) -> bool:
     # Handle Optional[SomeEnum], Union[SomeEnum, None], etc.
     args = getattr(annotation, "__args__", None)
     if args:
-        return any(
-            isinstance(a, type) and issubclass(a, Enum) for a in args
-        )
+        return any(isinstance(a, type) and issubclass(a, Enum) for a in args)
     return False
 
 

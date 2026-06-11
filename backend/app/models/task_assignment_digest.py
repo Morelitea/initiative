@@ -17,7 +17,9 @@ class TaskAssignmentDigestItem(SQLModel, table=True):
     assigned_by_name: str = Field(sa_column=Column(String(255), nullable=False))
     assigned_by_id: Optional[int] = Field(
         default=None,
-        sa_column=Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa_column=Column(
+            Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

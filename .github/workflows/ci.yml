@@ -121,12 +121,19 @@ jobs:
         run: |
           cd backend
           uv run alembic upgrade head
-
+          
+          
       - name: Lint with Ruff
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
           uv run ruff check app
+
+      - name: Check formatting with Ruff
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          cd backend
+          uv run ruff format --check app
 
       - name: Type-check with ty
         # Scoped gate: only ty's `invalid-return-type` rule is enforced (every
@@ -137,6 +144,7 @@ jobs:
         run: |
           cd backend
           uv run ty check app --ignore all --error invalid-return-type
+
 
       - name: Run tests
         if: steps.changes.outputs.skip != 'true'

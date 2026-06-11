@@ -74,7 +74,9 @@ BRAND_LOGO_SVG = """
 """.strip()
 
 
-def _build_html_layout(title: str, body: str, accent_color: str, locale: str = "en") -> str:
+def _build_html_layout(
+    title: str, body: str, accent_color: str, locale: str = "en"
+) -> str:
     footer_disclaimer = email_t("layout.footerDisclaimer", locale=locale)
     update_link_text = email_t("layout.updateNotifications", locale=locale)
     return f"""\
@@ -126,7 +128,9 @@ def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
         secure=bool(settings_obj.smtp_secure),
         reject_unauthorized=bool(settings_obj.smtp_reject_unauthorized),
         username=settings_obj.smtp_username,
-        password=decrypt_field(settings_obj.smtp_password_encrypted, SALT_SMTP_PASSWORD) if settings_obj.smtp_password_encrypted else None,
+        password=decrypt_field(settings_obj.smtp_password_encrypted, SALT_SMTP_PASSWORD)
+        if settings_obj.smtp_password_encrypted
+        else None,
         from_address=from_address,
     )
 
@@ -152,11 +156,17 @@ def _deliver(config: SMTPConfig, message: EmailMessage) -> None:
                 client.starttls(context=context)
                 client.ehlo()
             except smtplib.SMTPException:
-                logger.debug("STARTTLS not available for SMTP host %s:%s", config.host, config.port)
+                logger.debug(
+                    "STARTTLS not available for SMTP host %s:%s",
+                    config.host,
+                    config.port,
+                )
             _send_via_client(client, config, message)
 
 
-def _send_via_client(client: smtplib.SMTP, config: SMTPConfig, message: EmailMessage) -> None:
+def _send_via_client(
+    client: smtplib.SMTP, config: SMTPConfig, message: EmailMessage
+) -> None:
     if config.username and config.password:
         client.login(config.username, config.password)
     client.send_message(message)
@@ -173,7 +183,7 @@ def _display_name(user: User) -> str:
 def _cta_button(label: str, link: str, accent: str) -> str:
     return (
         f'<a href="{link}" style="background-color:{accent};color:#ffffff;'
-        f'padding:12px 18px;border-radius:8px;text-decoration:none;'
+        f"padding:12px 18px;border-radius:8px;text-decoration:none;"
         f'font-weight:600;display:inline-block;">{label}</a>'
     )
 
@@ -234,12 +244,16 @@ def _frontend_url(path: str) -> str:
     return f"{base}{path}"
 
 
-async def send_verification_email(session: AsyncSession, user: User, token: str) -> None:
+async def send_verification_email(
+    session: AsyncSession, user: User, token: str
+) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url(f"/verify-email?token={token}")
-    button = _cta_button(email_t("verification.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("verification.buttonLabel", locale=locale), link, accent
+    )
     body = f"""
     <p>{email_t("verification.greeting", locale=locale, name=name)}</p>
     <p>{email_t("verification.body", locale=locale)}</p>
@@ -260,12 +274,16 @@ async def send_verification_email(session: AsyncSession, user: User, token: str)
     )
 
 
-async def send_password_reset_email(session: AsyncSession, user: User, token: str) -> None:
+async def send_password_reset_email(
+    session: AsyncSession, user: User, token: str
+) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url(f"/reset-password?token={token}")
-    button = _cta_button(email_t("passwordReset.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("passwordReset.buttonLabel", locale=locale), link, accent
+    )
     body = f"""
     <p>{email_t("passwordReset.greeting", locale=locale, name=name)}</p>
     <p>{email_t("passwordReset.body", locale=locale)}</p>
@@ -286,12 +304,16 @@ async def send_password_reset_email(session: AsyncSession, user: User, token: st
     )
 
 
-async def send_initiative_added_email(session: AsyncSession, user: User, initiative_name: str) -> None:
+async def send_initiative_added_email(
+    session: AsyncSession, user: User, initiative_name: str
+) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url("/initiatives")
-    button = _cta_button(email_t("initiativeAdded.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("initiativeAdded.buttonLabel", locale=locale), link, accent
+    )
     body = f"""
     <p>{email_t("initiativeAdded.greeting", locale=locale, name=name)}</p>
     <p>{email_t("initiativeAdded.body", locale=locale, initiativeName=initiative_name)}</p>
@@ -301,12 +323,17 @@ async def send_initiative_added_email(session: AsyncSession, user: User, initiat
         email_t("initiativeAdded.title", locale=locale), body, accent, locale=locale
     )
     text_body = email_t(
-        "initiativeAdded.textBody", locale=locale, initiativeName=initiative_name, link=link
+        "initiativeAdded.textBody",
+        locale=locale,
+        initiativeName=initiative_name,
+        link=link,
     )
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t("initiativeAdded.subject", locale=locale, initiativeName=initiative_name),
+        subject=email_t(
+            "initiativeAdded.subject", locale=locale, initiativeName=initiative_name
+        ),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -325,7 +352,9 @@ async def send_project_added_to_initiative_email(
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url(f"/projects/{project_id}")
-    button = _cta_button(email_t("projectAdded.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("projectAdded.buttonLabel", locale=locale), link, accent
+    )
     body = f"""
     <p>{email_t("projectAdded.greeting", locale=locale, name=name)}</p>
     <p>{email_t("projectAdded.body", locale=locale, projectName=project_name, initiativeName=initiative_name)}</p>
@@ -344,7 +373,9 @@ async def send_project_added_to_initiative_email(
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t("projectAdded.subject", locale=locale, initiativeName=initiative_name),
+        subject=email_t(
+            "projectAdded.subject", locale=locale, initiativeName=initiative_name
+        ),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -370,15 +401,23 @@ async def send_access_grant_email(
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url("/settings/admin/access")
-    button = _cta_button(email_t("accessGrant.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("accessGrant.buttonLabel", locale=locale), link, accent
+    )
     level_label = ""
     if access_level:
         level_key = (
-            "accessGrant.levelReadWrite" if access_level == "read_write" else "accessGrant.levelRead"
+            "accessGrant.levelReadWrite"
+            if access_level == "read_write"
+            else "accessGrant.levelRead"
         )
         level_label = email_t(level_key, locale=locale)
     base = f"accessGrant.{event}"
-    vars_ = {"guildName": guild_name, "level": level_label, "requester": requester or ""}
+    vars_ = {
+        "guildName": guild_name,
+        "level": level_label,
+        "requester": requester or "",
+    }
     body = f"""
     <p>{email_t("accessGrant.greeting", locale=locale, name=name)}</p>
     <p>{email_t(f"{base}.body", locale=locale, **vars_)}</p>
@@ -414,7 +453,11 @@ async def send_task_assignment_digest_email(
         project_name = item.get("project_name") or "a project"
         assigned_by = item.get("assigned_by_name")
         link = item.get("link")
-        title_markup = f'<a href="{link}"><strong>{title}</strong></a>' if link else f"<strong>{title}</strong>"
+        title_markup = (
+            f'<a href="{link}"><strong>{title}</strong></a>'
+            if link
+            else f"<strong>{title}</strong>"
+        )
         assigned_fragment = (
             f" ({email_t('taskAssignment.assignedBy', locale=locale, name=assigned_by)})"
             if assigned_by
@@ -473,7 +516,9 @@ async def send_mention_email(
     locale = _user_locale(user)
     name = _display_name(user)
     if link:
-        button = _cta_button(email_t("mention.buttonLabel", locale=locale), link, accent)
+        button = _cta_button(
+            email_t("mention.buttonLabel", locale=locale), link, accent
+        )
         body = f"""
     <p>{email_t("mention.greeting", locale=locale, name=name)}</p>
     <p>{body_text}</p>
@@ -514,8 +559,17 @@ async def send_overdue_tasks_email(
         project_name = item.get("project_name") or "a project"
         due_date = item.get("due_date") or "N/A"
         link = item.get("link")
-        title_markup = f'<a href="{link}"><strong>{title}</strong></a>' if link else f"<strong>{title}</strong>"
-        detail = email_t("overdue.taskDetail", locale=locale, projectName=project_name, dueDate=due_date)
+        title_markup = (
+            f'<a href="{link}"><strong>{title}</strong></a>'
+            if link
+            else f"<strong>{title}</strong>"
+        )
+        detail = email_t(
+            "overdue.taskDetail",
+            locale=locale,
+            projectName=project_name,
+            dueDate=due_date,
+        )
         return f"<li>{title_markup} ({detail})</li>"
 
     def overdue_text(item: dict) -> str:
@@ -523,7 +577,12 @@ async def send_overdue_tasks_email(
         project_name = item.get("project_name") or "a project"
         due_date = item.get("due_date") or "N/A"
         link = item.get("link")
-        detail = email_t("overdue.taskDetail", locale=locale, projectName=project_name, dueDate=due_date)
+        detail = email_t(
+            "overdue.taskDetail",
+            locale=locale,
+            projectName=project_name,
+            dueDate=due_date,
+        )
         line = f"- {title} ({detail})"
         if link:
             line += f" -> {link}"

@@ -47,7 +47,9 @@ async def list_view_preferences(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> UserViewPreferencesMap:
     """Return every preference for the current user as a ``{scope_key: value}`` map."""
-    stmt = select(UserViewPreference).where(UserViewPreference.user_id == current_user.id)
+    stmt = select(UserViewPreference).where(
+        UserViewPreference.user_id == current_user.id
+    )
     result = await session.exec(stmt)
     rows = result.all()
     return UserViewPreferencesMap(items={row.scope_key: row.value for row in rows})

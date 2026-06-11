@@ -117,7 +117,11 @@ class ProjectExportTask(SanitizedBaseModel):
         # Exports created before the task ``sort_order`` field was renamed to
         # ``position`` carry the old key. Map it through so those files import
         # with their ordering intact instead of silently defaulting to 0.0.
-        if isinstance(data, dict) and data.get("position") is None and "sort_order" in data:
+        if (
+            isinstance(data, dict)
+            and data.get("position") is None
+            and "sort_order" in data
+        ):
             data = {**data, "position": data["sort_order"]}
         return data
 

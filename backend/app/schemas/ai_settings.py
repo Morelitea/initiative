@@ -68,7 +68,7 @@ class GuildAISettingsUpdate(SanitizedBaseModel):
     allow_user_override: Optional[bool] = None
     clear_settings: bool = Field(
         default=False,
-        description="If true, clears all guild AI settings to inherit from platform"
+        description="If true, clears all guild AI settings to inherit from platform",
     )
 
 
@@ -102,7 +102,7 @@ class UserAISettingsUpdate(SanitizedBaseModel):
     model: Optional[str] = None
     clear_settings: bool = Field(
         default=False,
-        description="If true, clears all user AI settings to inherit from guild/platform"
+        description="If true, clears all user AI settings to inherit from guild/platform",
     )
 
 

@@ -158,7 +158,9 @@ async def test_list_property_definitions_scoped_by_initiative_id_query(
     """
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     init_a = await create_initiative(session, guild, admin, name="A")
     init_b = await create_initiative(session, guild, admin, name="B")
@@ -230,8 +232,12 @@ async def test_create_rejected_when_not_initiative_member(
     alice = await create_user(session, email="alice@example.com")
     bob = await create_user(session, email="bob@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=alice, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=alice, guild=guild, role=GuildRole.member
+    )
     await create_guild_membership(session, user=bob, guild=guild, role=GuildRole.member)
 
     # Alice's initiative; Bob is NOT a member.
@@ -461,9 +467,7 @@ async def test_patch_removing_option_reports_orphaned_values(
 
     # Attach a document value that uses the "live" slug.
     doc = await _create_document(session, initiative=initiative, owner=user)
-    await create_document_property_value(
-        session, doc, defn, value_text="live"
-    )
+    await create_document_property_value(session, doc, defn, value_text="live")
 
     headers = get_guild_headers(guild, user)
     # Remove "live" from the option list.
@@ -551,7 +555,9 @@ async def test_get_entities_returns_attached_docs_and_tasks(
 
     project = await create_project(session, initiative, user, name="Proj")
     task = await _create_task(session, project, "Task 1")
-    doc = await _create_document(session, initiative=initiative, owner=user, title="Doc 1")
+    doc = await _create_document(
+        session, initiative=initiative, owner=user, title="Doc 1"
+    )
 
     await create_document_property_value(session, doc, defn, value_text="x")
     await create_task_property_value(session, task, defn, value_text="y")
@@ -566,5 +572,3 @@ async def test_get_entities_returns_attached_docs_and_tasks(
     doc_ids = {entry["id"] for entry in data["documents"]}
     assert task.id in task_ids
     assert doc.id in doc_ids
-
-

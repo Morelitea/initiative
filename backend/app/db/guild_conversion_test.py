@@ -14,7 +14,8 @@ async def _seed_public_guild(conn, label: str) -> tuple[int, int]:
     router): a guild + a default initiative + an initiative role (the role has no
     guild_id, so it exercises the chain partition predicate)."""
     gid = await conn.scalar(
-        text("INSERT INTO public.guilds (name) VALUES (:n) RETURNING id"), {"n": f"Conv {label}"}
+        text("INSERT INTO public.guilds (name) VALUES (:n) RETURNING id"),
+        {"n": f"Conv {label}"},
     )
     init_id = await conn.scalar(
         text(
@@ -47,14 +48,28 @@ async def test_convert_moves_public_data_into_guild_schemas(engine):
         async with engine.connect() as conn:
             for gid, init_id in seeded.values():
                 schema = guild_schema_name(gid)
-                inits = (await conn.execute(text(f'SELECT id FROM "{schema}".initiatives'))).scalars().all()
+                inits = (
+                    (await conn.execute(text(f'SELECT id FROM "{schema}".initiatives')))
+                    .scalars()
+                    .all()
+                )
                 assert list(inits) == [init_id]  # only this guild's initiative
                 roles = (
-                    await conn.execute(text(f'SELECT name FROM "{schema}".initiative_roles'))
-                ).scalars().all()
+                    (
+                        await conn.execute(
+                            text(f'SELECT name FROM "{schema}".initiative_roles')
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
                 assert list(roles) == ["member"]  # chain predicate copied the role
                 # sequence was advanced past the copied id, so new inserts don't collide
-                next_id = await conn.scalar(text(f"SELECT nextval(pg_get_serial_sequence('\"{schema}\".initiatives','id'))"))
+                next_id = await conn.scalar(
+                    text(
+                        f"SELECT nextval(pg_get_serial_sequence('\"{schema}\".initiatives','id'))"
+                    )
+                )
                 assert next_id > init_id
 
         # Second run is a no-op (idempotent / resumable).
@@ -71,8 +86,13 @@ async def test_convert_moves_public_data_into_guild_schemas(engine):
                     ),
                     {"g": gid},
                 )
-                await conn.execute(text("DELETE FROM public.initiatives WHERE guild_id = :g"), {"g": gid})
-                await conn.execute(text("DELETE FROM public.guilds WHERE id = :g"), {"g": gid})
+                await conn.execute(
+                    text("DELETE FROM public.initiatives WHERE guild_id = :g"),
+                    {"g": gid},
+                )
+                await conn.execute(
+                    text("DELETE FROM public.guilds WHERE id = :g"), {"g": gid}
+                )
 
 
 async def test_convert_handles_guild_without_initiatives(engine):
@@ -82,7 +102,9 @@ async def test_convert_handles_guild_without_initiatives(engine):
     try:
         async with engine.begin() as conn:
             gid = await conn.scalar(
-                text("INSERT INTO public.guilds (name) VALUES ('No Inits') RETURNING id")
+                text(
+                    "INSERT INTO public.guilds (name) VALUES ('No Inits') RETURNING id"
+                )
             )
             # guild-scoped data that doesn't hang off an initiative
             await conn.execute(
@@ -96,12 +118,20 @@ async def test_convert_handles_guild_without_initiatives(engine):
         assert await convert_public_to_guild_schemas() == 1
         async with engine.connect() as conn:
             schema = guild_schema_name(gid)
-            tags = (await conn.execute(text(f'SELECT name FROM "{schema}".tags'))).scalars().all()
+            tags = (
+                (await conn.execute(text(f'SELECT name FROM "{schema}".tags')))
+                .scalars()
+                .all()
+            )
             assert list(tags) == ["orphan"]
         assert await convert_public_to_guild_schemas() == 0  # marker set -> skipped
     finally:
         if gid is not None:
             async with engine.begin() as conn:
                 await drop_guild_schema(conn, gid)
-                await conn.execute(text("DELETE FROM public.tags WHERE guild_id = :g"), {"g": gid})
-                await conn.execute(text("DELETE FROM public.guilds WHERE id = :g"), {"g": gid})
+                await conn.execute(
+                    text("DELETE FROM public.tags WHERE guild_id = :g"), {"g": gid}
+                )
+                await conn.execute(
+                    text("DELETE FROM public.guilds WHERE id = :g"), {"g": gid}
+                )

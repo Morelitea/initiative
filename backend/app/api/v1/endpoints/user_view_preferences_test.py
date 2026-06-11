@@ -30,9 +30,7 @@ async def test_put_then_get_roundtrip(client: AsyncClient, session: AsyncSession
     )
     assert put_resp.status_code == 204
 
-    get_resp = await client.get(
-        "/api/v1/user-view-preferences", headers=headers
-    )
+    get_resp = await client.get("/api/v1/user-view-preferences", headers=headers)
     assert get_resp.status_code == 200
     assert get_resp.json() == {"items": {"my-tasks": payload["value"]}}
 
@@ -131,7 +129,9 @@ async def test_scope_key_pattern_rejects_invalid(
             headers=headers,
             json={"value": {}},
         )
-        assert resp.status_code == 422, f"expected 422 for key={key!r}, got {resp.status_code}"
+        assert resp.status_code == 422, (
+            f"expected 422 for key={key!r}, got {resp.status_code}"
+        )
 
 
 @pytest.mark.integration

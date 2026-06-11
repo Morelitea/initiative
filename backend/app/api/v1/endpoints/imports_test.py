@@ -1,4 +1,5 @@
 """Tests for import parse endpoints — error response shape."""
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -7,7 +8,9 @@ from app.testing import create_user, get_auth_headers
 
 
 @pytest.mark.integration
-async def test_todoist_parse_bad_csv_opaque_error(client: AsyncClient, session: AsyncSession):
+async def test_todoist_parse_bad_csv_opaque_error(
+    client: AsyncClient, session: AsyncSession
+):
     """Todoist CSV with a non-numeric INDENT triggers ValueError, returns the opaque constant."""
     user = await create_user(session)
     response = await client.post(
@@ -23,7 +26,9 @@ async def test_todoist_parse_bad_csv_opaque_error(client: AsyncClient, session: 
 
 
 @pytest.mark.integration
-async def test_vikunja_parse_bad_json_opaque_error(client: AsyncClient, session: AsyncSession):
+async def test_vikunja_parse_bad_json_opaque_error(
+    client: AsyncClient, session: AsyncSession
+):
     """Malformed Vikunja JSON returns the constant, not a raw exception."""
     user = await create_user(session)
     response = await client.post(
@@ -36,7 +41,9 @@ async def test_vikunja_parse_bad_json_opaque_error(client: AsyncClient, session:
 
 
 @pytest.mark.integration
-async def test_ticktick_parse_bad_csv_opaque_error(client: AsyncClient, session: AsyncSession):
+async def test_ticktick_parse_bad_csv_opaque_error(
+    client: AsyncClient, session: AsyncSession
+):
     """Malformed TickTick CSV returns the constant, not a raw exception."""
     user = await create_user(session)
     response = await client.post(

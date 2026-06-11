@@ -35,6 +35,7 @@ _dummy_table = Table(
 
 class _DummyModel:
     """Attribute-access wrapper around the dummy table columns."""
+
     id = _dummy_table.c.id
     name = _dummy_table.c.name
     priority = _dummy_table.c.priority
@@ -45,6 +46,7 @@ class _DummyModel:
 # ---------------------------------------------------------------------------
 # apply_filters
 # ---------------------------------------------------------------------------
+
 
 class TestApplyFilters:
     """Tests for apply_filters."""
@@ -59,7 +61,9 @@ class TestApplyFilters:
     def test_negate_eq(self):
         """negate=True on eq negates the comparison."""
         stmt = select(_dummy_table)
-        conditions = [FilterCondition(field="name", op=FilterOp.eq, value="bob", negate=True)]
+        conditions = [
+            FilterCondition(field="name", op=FilterOp.eq, value="bob", negate=True)
+        ]
         result = apply_filters(stmt, _DummyModel, conditions)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
         # SA optimizes NOT(x = y) into x != y
@@ -68,7 +72,11 @@ class TestApplyFilters:
     def test_negate_in(self):
         """negate=True on in negates the IN clause."""
         stmt = select(_dummy_table)
-        conditions = [FilterCondition(field="priority", op=FilterOp.in_, value=["low", "medium"], negate=True)]
+        conditions = [
+            FilterCondition(
+                field="priority", op=FilterOp.in_, value=["low", "medium"], negate=True
+            )
+        ]
         result = apply_filters(stmt, _DummyModel, conditions)
         sql = str(result.compile(compile_kwargs={"literal_binds": True})).upper()
         # SA may render as NOT IN or NOT (... IN ...)
@@ -78,7 +86,9 @@ class TestApplyFilters:
     def test_negate_gt(self):
         """negate=True on gt negates to <= (SA optimizes)."""
         stmt = select(_dummy_table)
-        conditions = [FilterCondition(field="score", op=FilterOp.gt, value=5, negate=True)]
+        conditions = [
+            FilterCondition(field="score", op=FilterOp.gt, value=5, negate=True)
+        ]
         result = apply_filters(stmt, _DummyModel, conditions)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
         # SA optimizes NOT(score > 5) into score <= 5
@@ -87,7 +97,9 @@ class TestApplyFilters:
     def test_negate_false_is_normal(self):
         """negate=False (default) behaves like a normal filter."""
         stmt = select(_dummy_table)
-        conditions = [FilterCondition(field="name", op=FilterOp.eq, value="alice", negate=False)]
+        conditions = [
+            FilterCondition(field="name", op=FilterOp.eq, value="alice", negate=False)
+        ]
         result = apply_filters(stmt, _DummyModel, conditions)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "name = 'alice'" in sql
@@ -105,7 +117,9 @@ class TestApplyFilters:
 
     def test_in_filter(self):
         stmt = select(_dummy_table)
-        conditions = [FilterCondition(field="priority", op=FilterOp.in_, value=["high", "urgent"])]
+        conditions = [
+            FilterCondition(field="priority", op=FilterOp.in_, value=["high", "urgent"])
+        ]
         result = apply_filters(stmt, _DummyModel, conditions)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "IN" in sql
@@ -189,6 +203,7 @@ class TestApplyFilters:
 # FilterGroup (and / or)
 # ---------------------------------------------------------------------------
 
+
 class TestFilterGroup:
     """Tests for AND/OR grouping via FilterGroup."""
 
@@ -236,7 +251,9 @@ class TestFilterGroup:
                 logic="or",
                 conditions=[
                     FilterCondition(field="name", op=FilterOp.eq, value="alice"),
-                    FilterCondition(field="score", op=FilterOp.gt, value=5),  # not allowed
+                    FilterCondition(
+                        field="score", op=FilterOp.gt, value=5
+                    ),  # not allowed
                 ],
             )
         ]
@@ -417,16 +434,22 @@ class TestFilterGroup:
 # Callable filter handlers
 # ---------------------------------------------------------------------------
 
+
 class TestCallableFilterHandler:
     """Tests for callable handler support in allowed_fields."""
 
     def test_callable_handler_basic(self):
         """A callable handler returning an IN clause is applied."""
+
         def status_handler(op, value):
             return _dummy_table.c.priority.in_(tuple(value))
 
         stmt = select(_dummy_table)
-        conditions = [FilterCondition(field="status_category", op=FilterOp.in_, value=["active", "done"])]
+        conditions = [
+            FilterCondition(
+                field="status_category", op=FilterOp.in_, value=["active", "done"]
+            )
+        ]
         allowed = {"status_category": status_handler}
         result = apply_filters(stmt, _DummyModel, conditions, allowed_fields=allowed)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
@@ -436,11 +459,14 @@ class TestCallableFilterHandler:
 
     def test_callable_handler_negate(self):
         """negate=True wraps the handler result in NOT."""
+
         def handler(op, value):
             return _dummy_table.c.name == value
 
         stmt = select(_dummy_table)
-        conditions = [FilterCondition(field="custom", op=FilterOp.eq, value="alice", negate=True)]
+        conditions = [
+            FilterCondition(field="custom", op=FilterOp.eq, value="alice", negate=True)
+        ]
         allowed = {"custom": handler}
         result = apply_filters(stmt, _DummyModel, conditions, allowed_fields=allowed)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
@@ -448,6 +474,7 @@ class TestCallableFilterHandler:
 
     def test_callable_handler_returns_none_skipped(self):
         """When handler returns None, no WHERE clause is added."""
+
         def handler(op, value):
             return None
 
@@ -460,6 +487,7 @@ class TestCallableFilterHandler:
 
     def test_callable_handler_in_or_group(self):
         """Callable inside a FilterGroup with OR logic."""
+
         def handler(op, value):
             return _dummy_table.c.score > value
 
@@ -482,6 +510,7 @@ class TestCallableFilterHandler:
 
     def test_callable_mixed_with_column(self):
         """Dict with both column refs and callables works together."""
+
         def handler(op, value):
             return _dummy_table.c.score >= value
 
@@ -517,6 +546,7 @@ class TestCallableFilterHandler:
 # apply_sorting
 # ---------------------------------------------------------------------------
 
+
 class TestApplySorting:
     """Tests for apply_sorting."""
 
@@ -536,7 +566,9 @@ class TestApplySorting:
 
     def test_multi_sort_by_string(self):
         stmt = select(_dummy_table)
-        result = apply_sorting(stmt, _DummyModel, sort_by="name,score", sort_dir="asc,desc")
+        result = apply_sorting(
+            stmt, _DummyModel, sort_by="name,score", sort_dir="asc,desc"
+        )
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
         assert "ORDER BY" in sql
         assert "name" in sql
@@ -566,8 +598,10 @@ class TestApplySorting:
         stmt = select(_dummy_table)
         default = [(_DummyModel.score, "desc")]
         result = apply_sorting(
-            stmt, _DummyModel,
-            sort_by="name", sort_dir="asc",
+            stmt,
+            _DummyModel,
+            sort_by="name",
+            sort_dir="asc",
             default_sort=default,
         )
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
@@ -578,8 +612,10 @@ class TestApplySorting:
         allowed = {"name": _DummyModel.name}
         default = [(_DummyModel.id, "asc")]
         result = apply_sorting(
-            stmt, _DummyModel,
-            sort_by="nonexistent", sort_dir="asc",
+            stmt,
+            _DummyModel,
+            sort_by="nonexistent",
+            sort_dir="asc",
             allowed_fields=allowed,
             default_sort=default,
         )
@@ -603,6 +639,7 @@ class TestApplySorting:
 # ---------------------------------------------------------------------------
 # apply_pagination
 # ---------------------------------------------------------------------------
+
 
 class TestApplyPagination:
     """Tests for apply_pagination."""
@@ -638,6 +675,7 @@ class TestApplyPagination:
 # ---------------------------------------------------------------------------
 # build_paginated_response
 # ---------------------------------------------------------------------------
+
 
 class TestBuildPaginatedResponse:
     """Tests for build_paginated_response helper."""
@@ -716,6 +754,7 @@ class TestBuildPaginatedResponse:
 # _clamp_page
 # ---------------------------------------------------------------------------
 
+
 class TestClampPage:
     """Tests for page clamping when page overshoots results."""
 
@@ -749,22 +788,26 @@ class TestClampPage:
 # Schema validation
 # ---------------------------------------------------------------------------
 
+
 class TestSchemas:
     """Tests for query schema validation."""
 
     def test_pagination_params_defaults(self):
         from app.schemas.query import PaginationParams
+
         params = PaginationParams()
         assert params.page == 1
         assert params.page_size == 20
 
     def test_pagination_params_validation(self):
         from app.schemas.query import PaginationParams
+
         with pytest.raises(Exception):
             PaginationParams(page=0)  # ge=1
 
     def test_pagination_params_max_page_size(self):
         from app.schemas.query import PaginationParams
+
         with pytest.raises(Exception):
             PaginationParams(page_size=101)  # le=100
 
@@ -781,6 +824,7 @@ class TestSchemas:
 # ---------------------------------------------------------------------------
 # parse_conditions (security & validation)
 # ---------------------------------------------------------------------------
+
 
 class TestParseConditions:
     """Tests for parse_conditions including security hardening."""
@@ -835,12 +879,14 @@ class TestParseConditions:
     def test_rejects_too_many_conditions(self):
         items = [{"field": "f", "value": i} for i in range(51)]
         import json
+
         with pytest.raises(ValueError, match="too many conditions"):
             parse_conditions(json.dumps(items))
 
     def test_custom_max_conditions(self):
         items = [{"field": "f", "value": i} for i in range(3)]
         import json
+
         with pytest.raises(ValueError, match="too many conditions"):
             parse_conditions(json.dumps(items), max_conditions=2)
 
@@ -855,6 +901,7 @@ class TestParseConditions:
     def test_at_exact_limit_succeeds(self):
         items = [{"field": "f", "value": i} for i in range(50)]
         import json
+
         result = parse_conditions(json.dumps(items))
         assert len(result) == 50
 
@@ -862,6 +909,7 @@ class TestParseConditions:
 # ---------------------------------------------------------------------------
 # extract_condition_value
 # ---------------------------------------------------------------------------
+
 
 class TestExtractConditionValue:
     """Tests for extract_condition_value helper."""
@@ -891,6 +939,7 @@ class TestExtractConditionValue:
 # ---------------------------------------------------------------------------
 # parse_sort_fields (security & validation)
 # ---------------------------------------------------------------------------
+
 
 class TestParseSortFields:
     """Tests for parse_sort_fields including security hardening."""
@@ -935,6 +984,7 @@ class TestParseSortFields:
     def test_rejects_too_many_fields(self):
         items = [{"field": f"f{i}"} for i in range(11)]
         import json
+
         with pytest.raises(ValueError, match="too many sort fields"):
             parse_sort_fields(json.dumps(items))
 
@@ -949,11 +999,13 @@ class TestParseSortFields:
     def test_at_exact_limit_succeeds(self):
         items = [{"field": f"f{i}"} for i in range(10)]
         import json
+
         result = parse_sort_fields(json.dumps(items))
         assert len(result) == 10
 
     def test_custom_max_fields(self):
         items = [{"field": f"f{i}"} for i in range(3)]
         import json
+
         with pytest.raises(ValueError, match="too many sort fields"):
             parse_sort_fields(json.dumps(items), max_fields=2)

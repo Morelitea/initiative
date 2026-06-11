@@ -14,7 +14,9 @@ DEFAULT_TOKEN_TTL_MINUTES = 60
 DEVICE_TOKEN_TTL_DAYS = 36500
 
 
-async def _delete_existing_tokens(session: AsyncSession, user_id: int, purpose: UserTokenPurpose) -> None:
+async def _delete_existing_tokens(
+    session: AsyncSession, user_id: int, purpose: UserTokenPurpose
+) -> None:
     """Delete existing tokens for a user with a specific purpose (except device_auth)."""
     # For device tokens, we allow multiple devices per user
     if purpose == UserTokenPurpose.device_auth:
@@ -122,7 +124,9 @@ async def get_device_token(
     token: str,
 ) -> Optional[UserToken]:
     """Get a valid device token (not consumed, not expired)."""
-    return await get_valid_token(session, token=token, purpose=UserTokenPurpose.device_auth)
+    return await get_valid_token(
+        session, token=token, purpose=UserTokenPurpose.device_auth
+    )
 
 
 async def get_user_device_tokens(
@@ -132,12 +136,16 @@ async def get_user_device_tokens(
 ) -> List[UserToken]:
     """Get all device tokens for a user."""
     now = datetime.now(timezone.utc)
-    stmt = select(UserToken).where(
-        UserToken.user_id == user_id,
-        UserToken.purpose == UserTokenPurpose.device_auth,
-        UserToken.consumed_at.is_(None),
-        UserToken.expires_at > now,
-    ).order_by(UserToken.created_at.desc())
+    stmt = (
+        select(UserToken)
+        .where(
+            UserToken.user_id == user_id,
+            UserToken.purpose == UserTokenPurpose.device_auth,
+            UserToken.consumed_at.is_(None),
+            UserToken.expires_at > now,
+        )
+        .order_by(UserToken.created_at.desc())
+    )
     result = await session.exec(stmt)
     return list(result.all())
 

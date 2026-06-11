@@ -45,7 +45,10 @@ async def test_get_or_create_system_user(session: AsyncSession):
 
     # Verify only one system user exists
     from app.core.encryption import hash_email
-    stmt = select(User).where(User.email_hash == hash_email(user_service.SYSTEM_USER_EMAIL))
+
+    stmt = select(User).where(
+        User.email_hash == hash_email(user_service.SYSTEM_USER_EMAIL)
+    )
     result = await session.exec(stmt)
     all_system_users = result.all()
     assert len(all_system_users) == 1
@@ -81,8 +84,12 @@ async def test_is_last_guild_admin_false_multiple_admins(session: AsyncSession):
     admin2 = await create_user(session, email="admin2@example.com")
     guild = await create_guild(session, creator=admin1)
 
-    await create_guild_membership(session, user=admin1, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=admin2, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin1, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=admin2, guild=guild, role=GuildRole.admin
+    )
 
     # Check if admin1 is last admin (should be False)
     last_admin_guilds = await user_service.is_last_guild_admin(session, admin1.id)
@@ -99,8 +106,12 @@ async def test_is_last_guild_admin_false_only_member(session: AsyncSession):
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session, creator=admin)
 
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
 
     # Check if member is last admin (should be False)
     last_admin_guilds = await user_service.is_last_guild_admin(session, member.id)
@@ -116,13 +127,19 @@ async def test_is_last_guild_admin_multiple_guilds(session: AsyncSession):
 
     # Guild 1: admin is last admin
     guild1 = await create_guild(session, name="Guild 1", creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild1, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild1, role=GuildRole.admin
+    )
 
     # Guild 2: admin is one of two admins
     other_admin = await create_user(session, email="other@example.com")
     guild2 = await create_guild(session, name="Guild 2", creator=other_admin)
-    await create_guild_membership(session, user=admin, guild=guild2, role=GuildRole.admin)
-    await create_guild_membership(session, user=other_admin, guild=guild2, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild2, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=other_admin, guild=guild2, role=GuildRole.admin
+    )
 
     # Check which guilds admin is last admin of
     last_admin_guilds = await user_service.is_last_guild_admin(session, admin.id)
@@ -141,11 +158,20 @@ async def test_check_deletion_eligibility_can_delete(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
 
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=member, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
 
     # Check deletion eligibility
-    can_delete, blockers, _warnings, owned_projects = await user_service.check_deletion_eligibility(
+    (
+        can_delete,
+        blockers,
+        _warnings,
+        owned_projects,
+    ) = await user_service.check_deletion_eligibility(
         session,
         member.id,
     )
@@ -162,10 +188,17 @@ async def test_check_deletion_eligibility_blocked_last_admin(session: AsyncSessi
     # Create a guild where user is the only admin
     admin = await create_user(session)
     guild = await create_guild(session, name="My Guild", creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     # Check deletion eligibility
-    can_delete, blockers, _warnings, _owned_projects = await user_service.check_deletion_eligibility(
+    (
+        can_delete,
+        blockers,
+        _warnings,
+        _owned_projects,
+    ) = await user_service.check_deletion_eligibility(
         session,
         admin.id,
     )
@@ -187,8 +220,12 @@ async def test_deactivate_user(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
 
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
 
     original_token_version = user.token_version
 
@@ -226,8 +263,12 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
 
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
 
     # Seed auth artifacts that should be revoked.
     session.add(
@@ -278,9 +319,15 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     assert anonymized.token_version >= original_token_version + 1
 
     # Auth artifacts revoked.
-    api_keys = (await session.exec(select(UserApiKey).where(UserApiKey.user_id == original_id))).all()
-    user_tokens_left = (await session.exec(select(UserToken).where(UserToken.user_id == original_id))).all()
-    push_tokens_left = (await session.exec(select(PushToken).where(PushToken.user_id == original_id))).all()
+    api_keys = (
+        await session.exec(select(UserApiKey).where(UserApiKey.user_id == original_id))
+    ).all()
+    user_tokens_left = (
+        await session.exec(select(UserToken).where(UserToken.user_id == original_id))
+    ).all()
+    push_tokens_left = (
+        await session.exec(select(PushToken).where(PushToken.user_id == original_id))
+    ).all()
     assert api_keys == []
     assert user_tokens_left == []
     assert push_tokens_left == []
@@ -297,7 +344,9 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     from sqlalchemy import text
 
     rls_enabled = await session.exec(
-        text("SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'users'")
+        text(
+            "SELECT relrowsecurity, relforcerowsecurity FROM pg_class WHERE relname = 'users'"
+        )
     )
     enabled, forced = rls_enabled.one()
     assert enabled is True
@@ -368,7 +417,9 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
     from app.models.user import UserRole
 
     await create_user(session, email="owner@example.com", role=UserRole.owner)
-    plain_admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    plain_admin = await create_user(
+        session, email="admin@example.com", role=UserRole.admin
+    )
 
     assert await user_service.is_last_platform_admin(session, plain_admin.id) is False
 
@@ -391,9 +442,15 @@ async def test_transfer_project_ownership_drops_previous_owners_permission_row(
     successor = await create_user(session, email="successor@example.com")
     departing = await create_user(session, email="departing@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=successor, guild=guild, role=GuildRole.member)
-    await create_guild_membership(session, user=departing, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=successor, guild=guild, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=departing, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild=guild, creator=admin)
     project = await create_project(session, initiative=initiative, owner=departing)
 
@@ -445,7 +502,9 @@ async def test_reassign_user_content_moves_file_version_uploads(session: AsyncSe
 
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, owner)
 
     doc = Document(

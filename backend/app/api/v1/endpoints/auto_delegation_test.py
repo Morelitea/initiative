@@ -39,10 +39,14 @@ _PRIVATE_PEM = _keypair.private_bytes(
     serialization.PrivateFormat.PKCS8,
     serialization.NoEncryption(),
 ).decode()
-_PUBLIC_PEM = _keypair.public_key().public_bytes(
-    serialization.Encoding.PEM,
-    serialization.PublicFormat.SubjectPublicKeyInfo,
-).decode()
+_PUBLIC_PEM = (
+    _keypair.public_key()
+    .public_bytes(
+        serialization.Encoding.PEM,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    .decode()
+)
 
 
 def _mint_delegation(
@@ -77,7 +81,9 @@ def _enable_delegation(monkeypatch):
     Without it, ``_authenticate_auto_delegation`` short-circuits to None
     and the tests fall through to standard-JWT auth, which is not what
     we're exercising here."""
-    monkeypatch.setattr(config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", _PUBLIC_PEM)
+    monkeypatch.setattr(
+        config_module.settings, "AUTO_DELEGATION_PUBLIC_KEY_PEM", _PUBLIC_PEM
+    )
 
 
 @pytest.mark.integration
@@ -205,7 +211,9 @@ async def test_delegation_rejects_wrong_audience(
     Stops a regular session JWT (or any other audience) from being
     re-presented as a delegation."""
     user = await create_user(session, email="wrong-aud@example.com")
-    token = _mint_delegation(user_id=user.id, guild_id=1, aud="initiative:something-else")
+    token = _mint_delegation(
+        user_id=user.id, guild_id=1, aud="initiative:something-else"
+    )
 
     response = await client.get(
         "/api/v1/users/me",

@@ -26,7 +26,9 @@ def _parse_csv(body: bytes) -> tuple[list[str], list[list[str]]]:
 
 
 @pytest.mark.integration
-async def test_export_platform_users_csv_as_admin(client: AsyncClient, session: AsyncSession):
+async def test_export_platform_users_csv_as_admin(
+    client: AsyncClient, session: AsyncSession
+):
     """Platform admins can export all users as CSV."""
     admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
     await create_user(session, email="user1@example.com", full_name="One")
@@ -274,7 +276,9 @@ async def test_platform_role_change_rejected_on_inactive_users(
     assert refreshed.role == UserRole.member
 
     # 2. Deactivated admin user — demote attempt rejected.
-    second_admin = await create_user(session, email="second-admin@example.com", role=UserRole.admin)
+    second_admin = await create_user(
+        session, email="second-admin@example.com", role=UserRole.admin
+    )
     await users_service.deactivate_user(session, second_admin.id)
     response = await client.patch(
         f"/api/v1/admin/users/{second_admin.id}/platform-role",
@@ -300,9 +304,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
-    refreshed = (
-        await session.exec(select(User).where(User.id == anon.id))
-    ).one()
+    refreshed = (await session.exec(select(User).where(User.id == anon.id))).one()
     assert refreshed.role == UserRole.member
 
     # 3b. Demote attempt (admin → member). soft_delete_user already
@@ -319,9 +321,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
-    refreshed = (
-        await session.exec(select(User).where(User.id == anon.id))
-    ).one()
+    refreshed = (await session.exec(select(User).where(User.id == anon.id))).one()
     assert refreshed.role == UserRole.admin
 
 
@@ -339,8 +339,12 @@ async def test_demote_admin_uses_for_update_path_without_postgres_error(
     from sqlmodel import select
     from app.models.user import User
 
-    deleter = await create_user(session, email="deleter@example.com", role=UserRole.admin)
-    target = await create_user(session, email="demoteme@example.com", role=UserRole.admin)
+    deleter = await create_user(
+        session, email="deleter@example.com", role=UserRole.admin
+    )
+    target = await create_user(
+        session, email="demoteme@example.com", role=UserRole.admin
+    )
 
     response = await client.patch(
         f"/api/v1/admin/users/{target.id}/platform-role",

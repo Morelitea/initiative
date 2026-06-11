@@ -31,10 +31,14 @@ from app.services import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False
+)
 
 
-async def _authenticate_device_token(session: AsyncSession, token: str) -> Optional[User]:
+async def _authenticate_device_token(
+    session: AsyncSession, token: str
+) -> Optional[User]:
     """Authenticate using a device token and return the associated user."""
     device_token = await user_tokens.get_device_token(session, token=token)
     if not device_token:
@@ -192,7 +196,9 @@ async def get_current_user(
     # 401 interceptor depends on this to auto-redirect to /welcome when
     # the access token expires.
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError as exc:
         raise HTTPException(
@@ -212,9 +218,13 @@ async def get_current_user(
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
     if token_data.ver is None or token_data.ver != user.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
+        )
     return user
 
 
@@ -231,17 +241,24 @@ async def get_current_user_optional(
 
 
 async def get_current_active_user(
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     if current_user.status != UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
     return current_user
 
 
 def require_roles(*roles: UserRole) -> Callable:
-    async def dependency(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+    async def dependency(
+        current_user: Annotated[User, Depends(get_current_active_user)],
+    ) -> User:
         if roles and current_user.role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INSUFFICIENT_PRIVILEGES)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
+            )
         return current_user
 
     return dependency
@@ -255,9 +272,14 @@ def require_capability(capability: Capability) -> Callable:
     role name (see ``app.core.capabilities``).
     """
 
-    async def dependency(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+    async def dependency(
+        current_user: Annotated[User, Depends(get_current_active_user)],
+    ) -> User:
         if not user_has_capability(current_user, capability):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INSUFFICIENT_PRIVILEGES)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
+            )
         return current_user
 
     return dependency
@@ -325,7 +347,10 @@ async def get_guild_membership(
             session, user_id=current_user.id, guild_id=guild_id
         )
         if grant is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_ACCESS_DENIED)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_ACCESS_DENIED,
+            )
         # Apply the pam context now so the grantee can actually read the guild
         # row (and below, get_guild_session re-applies the full context). The
         # guilds table has an additive pam_read policy keyed on pam_guild_id.
@@ -346,9 +371,14 @@ async def get_guild_membership(
 
 
 def require_guild_roles(*roles: GuildRole) -> Callable:
-    async def dependency(context: Annotated[GuildContext, Depends(get_guild_membership)]) -> GuildContext:
+    async def dependency(
+        context: Annotated[GuildContext, Depends(get_guild_membership)],
+    ) -> GuildContext:
         if roles and context.membership.role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_PERMISSION_REQUIRED)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_PERMISSION_REQUIRED,
+            )
         return context
 
     return dependency
@@ -376,7 +406,9 @@ async def get_guild_session(
         # writes. guild_role is left unset so guild-role-gated paths don't treat
         # the grantee as a member.
         grant = guild_context.grant
-        access_level = grant.access_level if grant is not None else AccessLevel.read.value
+        access_level = (
+            grant.access_level if grant is not None else AccessLevel.read.value
+        )
         # Mirror the grant into the request-scoped PAM context so the app-layer
         # resource access checks (require_*_access) honor it consistently with
         # RLS — what the grantee can list, they can also open/edit per level.
@@ -452,7 +484,10 @@ async def get_upload_user(
         user = await _authenticate_device_token(session, device_token)
         if user:
             if user.status != UserStatus.active:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=AuthMessages.INACTIVE_USER,
+                )
             return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -473,7 +508,10 @@ async def get_upload_user(
     user = await api_keys_service.authenticate_api_key(session, token)
     if user:
         if user.status != UserStatus.active:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AuthMessages.INACTIVE_USER,
+            )
         return user
 
     # Try delegation JWT from initiative-auto. Same chain placement as
@@ -491,7 +529,9 @@ async def get_upload_user(
     # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
     # so the SPA can auto-redirect to /welcome when the session lapses.
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError:
         # JWT decode failed — if token came from query param, also try as device token
@@ -500,7 +540,10 @@ async def get_upload_user(
             user = await _authenticate_device_token(session, token_param)
             if user:
                 if user.status != UserStatus.active:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=AuthMessages.INACTIVE_USER,
+                    )
                 return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -519,11 +562,17 @@ async def get_upload_user(
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
     if token_data.ver is None or token_data.ver != user.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
+        )
     if user.status != UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
     return user
 
 

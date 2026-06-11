@@ -73,9 +73,7 @@ async def test_create_status_respects_explicit_color_icon(
 
 
 @pytest.mark.integration
-async def test_patch_updates_color_and_icon(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_patch_updates_color_and_icon(client: AsyncClient, session: AsyncSession):
     project, headers = await _setup_project(session)
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
     await session.commit()

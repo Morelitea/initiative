@@ -34,7 +34,9 @@ class QueueConnectionManager:
                 if not self._rooms[queue_id]:
                     del self._rooms[queue_id]
 
-    async def broadcast(self, queue_id: int, event_type: str, data: Dict[str, Any]) -> None:
+    async def broadcast(
+        self, queue_id: int, event_type: str, data: Dict[str, Any]
+    ) -> None:
         """Send a JSON message to all connections in a queue room."""
         async with self._lock:
             connections = list(self._rooms.get(queue_id, set()))

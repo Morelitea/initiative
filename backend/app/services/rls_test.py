@@ -96,7 +96,9 @@ async def test_require_guild_membership_found(session: AsyncSession):
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
 
-    membership = await require_guild_membership(session, guild_id=guild.id, user_id=user.id)
+    membership = await require_guild_membership(
+        session, guild_id=guild.id, user_id=user.id
+    )
 
     assert membership is not None
     assert membership.user_id == user.id
@@ -126,7 +128,9 @@ async def test_is_initiative_manager_with_pm_role(session: AsyncSession):
     initiative = await create_initiative(session, guild, user)
     # create_initiative already adds the creator as project_manager
 
-    result = await is_initiative_manager(session, initiative_id=initiative.id, user=user)
+    result = await is_initiative_manager(
+        session, initiative_id=initiative.id, user=user
+    )
 
     assert result is True
 
@@ -135,14 +139,18 @@ async def test_is_initiative_manager_with_pm_role(session: AsyncSession):
 async def test_is_initiative_manager_with_member_role(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, admin)
 
     member = await create_user(session, email="member@example.com")
     await create_guild_membership(session, user=member, guild=guild)
     await create_initiative_member(session, initiative, member, role_name="member")
 
-    result = await is_initiative_manager(session, initiative_id=initiative.id, user=member)
+    result = await is_initiative_manager(
+        session, initiative_id=initiative.id, user=member
+    )
 
     assert result is False
 
@@ -151,13 +159,19 @@ async def test_is_initiative_manager_with_member_role(session: AsyncSession):
 async def test_is_initiative_manager_app_admin_bypasses(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, admin)
 
     # Create a platform-level admin who is NOT an initiative member
-    app_admin = await create_user(session, email="appadmin@example.com", role=UserRole.admin)
+    app_admin = await create_user(
+        session, email="appadmin@example.com", role=UserRole.admin
+    )
 
-    result = await is_initiative_manager(session, initiative_id=initiative.id, user=app_admin)
+    result = await is_initiative_manager(
+        session, initiative_id=initiative.id, user=app_admin
+    )
 
     assert result is True
 
@@ -166,7 +180,9 @@ async def test_is_initiative_manager_app_admin_bypasses(session: AsyncSession):
 async def test_assert_initiative_manager_raises_for_member(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, admin)
 
     member = await create_user(session, email="member@example.com")
@@ -174,7 +190,9 @@ async def test_assert_initiative_manager_raises_for_member(session: AsyncSession
     await create_initiative_member(session, initiative, member, role_name="member")
 
     with pytest.raises(PermissionError, match=InitiativeMessages.MANAGER_REQUIRED):
-        await assert_initiative_manager(session, initiative_id=initiative.id, user=member)
+        await assert_initiative_manager(
+            session, initiative_id=initiative.id, user=member
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -186,13 +204,19 @@ async def test_assert_initiative_manager_raises_for_member(session: AsyncSession
 async def test_check_initiative_permission_admin_bypasses(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, admin)
 
-    app_admin = await create_user(session, email="appadmin@example.com", role=UserRole.admin)
+    app_admin = await create_user(
+        session, email="appadmin@example.com", role=UserRole.admin
+    )
 
     result = await check_initiative_permission(
-        session, initiative_id=initiative.id, user=app_admin,
+        session,
+        initiative_id=initiative.id,
+        user=app_admin,
         permission_key=PermissionKey.create_projects,
     )
 
@@ -208,7 +232,9 @@ async def test_check_initiative_permission_manager_has_all(session: AsyncSession
     # creator is PM (is_manager=True)
 
     result = await check_initiative_permission(
-        session, initiative_id=initiative.id, user=user,
+        session,
+        initiative_id=initiative.id,
+        user=user,
         permission_key=PermissionKey.create_docs,
     )
 
@@ -216,10 +242,14 @@ async def test_check_initiative_permission_manager_has_all(session: AsyncSession
 
 
 @pytest.mark.service
-async def test_check_initiative_permission_member_explicit_enabled(session: AsyncSession):
+async def test_check_initiative_permission_member_explicit_enabled(
+    session: AsyncSession,
+):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, admin)
 
     member = await create_user(session, email="member@example.com")
@@ -228,7 +258,9 @@ async def test_check_initiative_permission_member_explicit_enabled(session: Asyn
 
     # The member role has docs_enabled=True and projects_enabled=True by default
     result = await check_initiative_permission(
-        session, initiative_id=initiative.id, user=member,
+        session,
+        initiative_id=initiative.id,
+        user=member,
         permission_key=PermissionKey.docs_enabled,
     )
 
@@ -236,10 +268,14 @@ async def test_check_initiative_permission_member_explicit_enabled(session: Asyn
 
 
 @pytest.mark.service
-async def test_check_initiative_permission_member_explicit_disabled(session: AsyncSession):
+async def test_check_initiative_permission_member_explicit_disabled(
+    session: AsyncSession,
+):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, admin)
 
     member = await create_user(session, email="member@example.com")
@@ -248,7 +284,9 @@ async def test_check_initiative_permission_member_explicit_disabled(session: Asy
 
     # The member role has create_docs=False and create_projects=False by default
     result = await check_initiative_permission(
-        session, initiative_id=initiative.id, user=member,
+        session,
+        initiative_id=initiative.id,
+        user=member,
         permission_key=PermissionKey.create_docs,
     )
 
@@ -259,7 +297,9 @@ async def test_check_initiative_permission_member_explicit_disabled(session: Asy
 async def test_check_initiative_permission_falls_back_to_default(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, admin)
 
     member = await create_user(session, email="member@example.com")
@@ -273,7 +313,9 @@ async def test_check_initiative_permission_falls_back_to_default(session: AsyncS
     # to DEFAULT_PERMISSION_VALUES.
     for perm_key, expected in DEFAULT_PERMISSION_VALUES.items():
         result = await check_initiative_permission(
-            session, initiative_id=initiative.id, user=member,
+            session,
+            initiative_id=initiative.id,
+            user=member,
             permission_key=perm_key,
         )
         # The explicit member role values happen to match the defaults for
@@ -285,13 +327,17 @@ async def test_check_initiative_permission_falls_back_to_default(session: AsyncS
 async def test_check_initiative_permission_non_member(session: AsyncSession):
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(session, guild, admin)
 
     outsider = await create_user(session, email="outsider@example.com")
 
     result = await check_initiative_permission(
-        session, initiative_id=initiative.id, user=outsider,
+        session,
+        initiative_id=initiative.id,
+        user=outsider,
         permission_key=PermissionKey.docs_enabled,
     )
 
@@ -311,7 +357,10 @@ async def test_has_feature_access_docs(session: AsyncSession):
     initiative = await create_initiative(session, guild, user)
 
     result = await has_feature_access(
-        session, initiative_id=initiative.id, user=user, feature="docs",
+        session,
+        initiative_id=initiative.id,
+        user=user,
+        feature="docs",
     )
 
     assert result is True
@@ -325,7 +374,10 @@ async def test_has_feature_access_projects(session: AsyncSession):
     initiative = await create_initiative(session, guild, user)
 
     result = await has_feature_access(
-        session, initiative_id=initiative.id, user=user, feature="projects",
+        session,
+        initiative_id=initiative.id,
+        user=user,
+        feature="projects",
     )
 
     assert result is True

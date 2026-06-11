@@ -58,8 +58,12 @@ def password_needs_rehash(hashed_password: str) -> bool:
         return True
 
 
-def create_access_token(subject: str, *, token_version: int, expires_delta: timedelta | None = None) -> str:
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+def create_access_token(
+    subject: str, *, token_version: int, expires_delta: timedelta | None = None
+) -> str:
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     to_encode: dict[str, Any] = {"sub": subject, "exp": expire, "ver": token_version}
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -227,7 +231,9 @@ def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:
 
     initiative_id = payload.get("initiative_id")
     if initiative_id is not None and not isinstance(initiative_id, int):
-        raise AutoDelegationVerificationError("initiative_id must be an int when present")
+        raise AutoDelegationVerificationError(
+            "initiative_id must be an int when present"
+        )
 
     workflow_id = payload.get("workflow_id")
     if workflow_id is not None and not isinstance(workflow_id, int):
