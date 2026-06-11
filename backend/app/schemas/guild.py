@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
 from app.models.guild import GuildRole
 from app.schemas.user import GuildRemovalProjectInfo
@@ -14,7 +14,7 @@ from app.schemas.user import GuildRemovalProjectInfo
 class GuildBase(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[str] = None
+    icon_base64: Optional[RawTextStr] = None
 
 
 class GuildCreate(GuildBase):
@@ -72,7 +72,7 @@ class GuildInviteStatus(SanitizedBaseModel):
 class GuildUpdate(SanitizedBaseModel):
     name: Optional[str] = None
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[str] = None
+    icon_base64: Optional[RawTextStr] = None
     # Trash retention period in days. None means "never auto-purge".
     # Sentinel "unset" semantics: explicitly omit the field to leave the
     # current setting untouched; set null to switch to never-purge.
@@ -106,7 +106,7 @@ class GuildSummary(SanitizedBaseModel):
 
     id: int
     name: str
-    icon_base64: Optional[str] = None
+    icon_base64: Optional[RawTextStr] = None
 
 
 class GuildMembershipUpdate(SanitizedBaseModel):
