@@ -129,20 +129,25 @@ async def serve_upload_file(
     if not file_path.is_file():
         raise HTTPException(status_code=404)
 
-    # Guild authorization: look up upload record and verify membership
+    # Guild authorization: look up upload record and verify membership.
+    # Fail closed: a blob on disk without a matching Upload row has no owning
+    # guild to authorize against, so we 404 (don't confirm existence) rather
+    # than serve it to any authenticated user cross-guild. Every legitimate
+    # write path inserts an Upload row, so a row-less blob is never expected.
     record_result = await session.exec(
         select(Upload).where(Upload.filename == FilePath(filename).name)
     )
     record = record_result.one_or_none()
-    if record is not None:
-        membership_result = await session.exec(
-            select(GuildMembership).where(
-                GuildMembership.guild_id == record.guild_id,
-                GuildMembership.user_id == current_user.id,
-            )
+    if record is None:
+        raise HTTPException(status_code=404)
+    membership_result = await session.exec(
+        select(GuildMembership).where(
+            GuildMembership.guild_id == record.guild_id,
+            GuildMembership.user_id == current_user.id,
         )
-        if membership_result.one_or_none() is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    )
+    if membership_result.one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     headers: dict[str, str] = {}
     if filename.lower().endswith((".svg", ".html", ".htm")):

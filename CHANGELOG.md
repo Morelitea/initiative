@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Plain-text fields are length-capped (CRIT-002 DoS).** String fields are rejected past 8 KiB, bounding stored size and the entity-decode work. Fields that legitimately hold large data (base64 avatars, CSV/JSON import payloads, AI-generated text) opt out via a new `RawTextStr` marker — which also stops import payloads from being HTML-mangled on the way in.
 - **Rich-text opt-out now works through `Optional[...]`.** A field typed `Optional[RichTextStr]` (every task/project/initiative/guild `description` and queue `notes`) was silently still being stripped, because the opt-out marker was nested inside the `Optional` union and invisible to the field metadata. The detector now walks the annotation, so these fields are preserved as intended (matching non-optional rich-text like comment content).
 - Document file and version uploads now read at most the configured size limit instead of buffering unbounded request bodies in memory; over-limit uploads return 413 with a machine-readable code.
+- Guild admins can no longer assign a platform role when creating a user; admin-created accounts are always platform members, closing a privilege-escalation path to `owner`.
+- Uploaded files with no matching database record now return 404 instead of being served to any authenticated user, closing a fail-open cross-guild access path.
 
 ## [0.50.2] - 2026-06-08
 

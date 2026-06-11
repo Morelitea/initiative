@@ -40,12 +40,26 @@ async def test_upload_accessible_with_auth_header(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """GET /uploads/<file> with Authorization Bearer header returns 200."""
+    from app.models.upload import Upload
+
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_auth_header.txt"
     test_file.write_text("hello")
     try:
         user = await create_user(session)
-        headers = get_auth_headers(user)
+        guild = await create_guild(session, creator=user)
+        await create_guild_membership(session, user=user, guild=guild)
+        session.add(
+            Upload(
+                filename="test_auth_header.txt",
+                guild_id=guild.id,
+                uploader_user_id=user.id,
+                size_bytes=5,
+            )
+        )
+        await session.commit()
+
+        headers = {**get_auth_headers(user), "X-Guild-ID": str(guild.id)}
         response = await client.get("/uploads/test_auth_header.txt", headers=headers)
         assert response.status_code == 200
     finally:
@@ -57,13 +71,30 @@ async def test_upload_accessible_with_query_token(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """GET /uploads/<file>?token=<jwt> returns 200."""
+    from app.models.upload import Upload
+
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_query_token.txt"
     test_file.write_text("hello")
     try:
         user = await create_user(session)
+        guild = await create_guild(session, creator=user)
+        await create_guild_membership(session, user=user, guild=guild)
+        session.add(
+            Upload(
+                filename="test_query_token.txt",
+                guild_id=guild.id,
+                uploader_user_id=user.id,
+                size_bytes=5,
+            )
+        )
+        await session.commit()
+
         token = get_auth_token(user)
-        response = await client.get(f"/uploads/test_query_token.txt?token={token}")
+        response = await client.get(
+            f"/uploads/test_query_token.txt?token={token}",
+            headers={"X-Guild-ID": str(guild.id)},
+        )
         assert response.status_code == 200
     finally:
         test_file.unlink(missing_ok=True)
@@ -158,18 +189,23 @@ async def test_upload_non_member_cannot_access_file(
 
 
 @pytest.mark.integration
-async def test_upload_legacy_file_accessible_to_any_authenticated_user(
+async def test_upload_without_db_record_returns_404(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """A file with no DB record (legacy) is accessible to any authenticated user."""
+    """A blob on disk with no Upload row fails closed (404), not the bytes.
+
+    Without an Upload row there is no owning guild to authorize against, so
+    serving the file would leak it to any authenticated user cross-guild.
+    """
     uploads_dir = _uploads_dir()
-    test_file = uploads_dir / "test_legacy_file.txt"
-    test_file.write_text("legacy content")
+    test_file = uploads_dir / "test_orphan_file.txt"
+    test_file.write_text("orphan content")
     try:
         user = await create_user(session)
         headers = get_auth_headers(user)
-        response = await client.get("/uploads/test_legacy_file.txt", headers=headers)
-        assert response.status_code == 200
+        response = await client.get("/uploads/test_orphan_file.txt", headers=headers)
+        assert response.status_code == 404
+        assert b"orphan content" not in response.content
     finally:
         test_file.unlink(missing_ok=True)
 
