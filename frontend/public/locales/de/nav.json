@@ -45,7 +45,7 @@
   "prideAuto": "Automatisch (Juni)",
   "prideOn": "An",
   "prideOff": "Aus",
-  "queues": "Warteschlangen",
+  "queues": "Abläufe (Queues)",
   "allQueues": "Alle Warteschlangen",
   "createQueue": "Neue Warteschlange",
   "counters": "Zähler",
