@@ -6,7 +6,7 @@ import logging
 import secrets
 import time
 from typing import Any, Annotated
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -525,7 +525,18 @@ async def oidc_login(
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
     }
-    authorize_url = f"{metadata['authorization_endpoint']}?{urlencode(params)}"
+    # The authorization endpoint comes from the IdP's remote discovery
+    # document. Require an absolute https URL before redirecting the user
+    # there, so a malformed or tampered discovery doc can't send them to a
+    # non-TLS or non-http(s) location (CodeQL py/url-redirection).
+    authorization_endpoint = metadata["authorization_endpoint"]
+    parsed_endpoint = urlsplit(authorization_endpoint)
+    if parsed_endpoint.scheme != "https" or not parsed_endpoint.hostname:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=OidcMessages.OIDC_METADATA_INCOMPLETE,
+        )
+    authorize_url = f"{authorization_endpoint}?{urlencode(params)}"
     return RedirectResponse(authorize_url)
 
 
