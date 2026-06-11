@@ -109,7 +109,7 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio pytest-cov ruff pyright
+          pip install pytest pytest-asyncio pytest-cov ruff "pyright>=1.1.410,<2"
 
       - name: Run Alembic migrations
         # conftest.py auto-applies migrations before tests run, so this
