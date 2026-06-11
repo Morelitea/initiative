@@ -30,7 +30,9 @@ async def _make_user_with_guild_and_initiative(session, email="user@example.com"
 
 
 @pytest.mark.integration
-async def test_record_and_list_recent_project(client: AsyncClient, session: AsyncSession):
+async def test_record_and_list_recent_project(
+    client: AsyncClient, session: AsyncSession
+):
     user, guild, initiative = await _make_user_with_guild_and_initiative(session)
     project = await create_project(session, initiative, user, name="P1")
 
@@ -133,9 +135,7 @@ async def test_recents_scoped_to_guild(client: AsyncClient, session: AsyncSessio
     headers_a = get_guild_headers(guild_a, user)
     headers_b = get_guild_headers(guild_b, user)
 
-    r = await client.post(
-        f"/api/v1/projects/{project_a.id}/view", headers=headers_a
-    )
+    r = await client.post(f"/api/v1/projects/{project_a.id}/view", headers=headers_a)
     assert r.status_code == 200
 
     # Guild B should not see the entry recorded under Guild A.

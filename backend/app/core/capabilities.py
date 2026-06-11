@@ -85,9 +85,12 @@ _ADMIN: FrozenSet[Capability] = _MODERATOR | {
     Capability.ACCESS_READ,
 }
 
-_OWNER: FrozenSet[Capability] = (_ADMIN | {
-    Capability.CONFIG_MANAGE,
-}) - {
+_OWNER: FrozenSet[Capability] = (
+    _ADMIN
+    | {
+        Capability.CONFIG_MANAGE,
+    }
+) - {
     # Owners approve access requests; they don't request elevated access for
     # themselves (they already hold the standing all-guild bypass).
     Capability.ACCESS_REQUEST,
@@ -114,7 +117,9 @@ def roles_with_capability(capability: Capability) -> FrozenSet[UserRole]:
     Used to translate a capability into a role filter for queries (e.g.
     "how many users can still manage platform config").
     """
-    return frozenset(role for role, caps in ROLE_CAPABILITIES.items() if capability in caps)
+    return frozenset(
+        role for role, caps in ROLE_CAPABILITIES.items() if capability in caps
+    )
 
 
 def user_has_capability(user: "User", capability: Capability) -> bool:

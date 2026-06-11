@@ -14,12 +14,26 @@ from typing import Optional
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 import jwt
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.api.deps import RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership, GuildContext
+from app.api.deps import (
+    RLSSessionDep,
+    SessionDep,
+    get_current_active_user,
+    get_guild_membership,
+    GuildContext,
+)
 from app.core.config import settings
 from app.core.pam_context import grant_satisfies, set_active_grant
 from app.db.session import AsyncSessionLocal, set_rls_context
@@ -54,7 +68,9 @@ async def _get_user_from_token(token: str, session) -> Optional[User]:
     """Validate JWT or device token and return the user."""
     # First try JWT validation
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         token_data = TokenPayload(**payload)
         if token_data.sub:
             statement = select(User).where(User.id == int(token_data.sub))
@@ -91,8 +107,9 @@ async def _get_document_with_permissions(
             .selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.role_ref),
             selectinload(Document.permissions),
-            selectinload(Document.role_permissions)
-            .selectinload(DocumentRolePermission.role),
+            selectinload(Document.role_permissions).selectinload(
+                DocumentRolePermission.role
+            ),
         )
     )
     result = await session.exec(stmt)
@@ -176,7 +193,9 @@ async def websocket_collaborate(
     try:
         auth_data = await websocket.receive_bytes()
         if len(auth_data) < 2 or auth_data[0] != MSG_AUTH:
-            logger.warning(f"Collaboration: Expected MSG_AUTH as first message for document {document_id}")
+            logger.warning(
+                f"Collaboration: Expected MSG_AUTH as first message for document {document_id}"
+            )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
@@ -192,12 +211,16 @@ async def websocket_collaborate(
                 raise ValueError("Missing token or guild_id")
             guild_id = int(guild_id)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.warning(f"Collaboration: Invalid auth payload for document {document_id}: {e}")
+            logger.warning(
+                f"Collaboration: Invalid auth payload for document {document_id}: {e}"
+            )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
     except WebSocketDisconnect:
-        logger.info(f"Collaboration: Client disconnected before auth for document {document_id}")
+        logger.info(
+            f"Collaboration: Client disconnected before auth for document {document_id}"
+        )
         return
 
     # Authenticate and check permissions using a short-lived session
@@ -241,13 +264,19 @@ async def websocket_collaborate(
         # Get document and check permissions
         document = await _get_document_with_permissions(session, document_id, guild_id)
         if not document:
-            logger.warning(f"Collaboration: Document {document_id} not found or not in guild {guild_id}")
+            logger.warning(
+                f"Collaboration: Document {document_id} not found or not in guild {guild_id}"
+            )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        can_read, can_write = await _check_document_access(session, document, user, guild_id)
+        can_read, can_write = await _check_document_access(
+            session, document, user, guild_id
+        )
         if not can_read:
-            logger.warning(f"Collaboration: User {user.email} has no read access to document {document_id}")
+            logger.warning(
+                f"Collaboration: User {user.email} has no read access to document {document_id}"
+            )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
@@ -273,14 +302,18 @@ async def websocket_collaborate(
         # Send initial sync state
         state = room.get_state()
         sync_message = bytes([MSG_SYNC_STEP2]) + state
-        logger.info(f"Collaboration: Sending initial sync to {user.email}, state size: {len(state)} bytes")
+        logger.info(
+            f"Collaboration: Sending initial sync to {user.email}, state size: {len(state)} bytes"
+        )
         await websocket.send_bytes(sync_message)
 
         # Send current collaborator list
-        collaborators_message = json.dumps({
-            "type": "collaborators",
-            "data": room.get_collaborator_list(),
-        }).encode()
+        collaborators_message = json.dumps(
+            {
+                "type": "collaborators",
+                "data": room.get_collaborator_list(),
+            }
+        ).encode()
         await websocket.send_bytes(bytes([MSG_AWARENESS]) + collaborators_message)
 
         # Broadcast that a new user joined
@@ -309,22 +342,32 @@ async def websocket_collaborate(
             if msg_type == MSG_SYNC_STEP1:
                 # Client requesting sync with their state vector
                 # Use state vector to compute diff - only send updates client is missing
-                logger.info(f"Collaboration: Received SYNC_STEP1 from {user.email}, state vector size: {len(payload)}")
+                logger.info(
+                    f"Collaboration: Received SYNC_STEP1 from {user.email}, state vector size: {len(payload)}"
+                )
                 state = room.get_state_diff(payload) if payload else room.get_state()
                 sync_message = bytes([MSG_SYNC_STEP2]) + state
-                logger.info(f"Collaboration: Sending SYNC_STEP2 to {user.email}, diff size: {len(state)}")
+                logger.info(
+                    f"Collaboration: Sending SYNC_STEP2 to {user.email}, diff size: {len(state)}"
+                )
                 await websocket.send_bytes(sync_message)
 
             elif msg_type == MSG_UPDATE:
                 # Yjs update from client
                 if not can_write:
-                    logger.warning(f"Collaboration: Read-only user {user.email} tried to send update")
+                    logger.warning(
+                        f"Collaboration: Read-only user {user.email} tried to send update"
+                    )
                     continue
 
                 try:
-                    logger.info(f"Collaboration: Received MSG_UPDATE from {user.email}, payload size: {len(payload)}")
+                    logger.info(
+                        f"Collaboration: Received MSG_UPDATE from {user.email}, payload size: {len(payload)}"
+                    )
                     room.apply_update(payload, origin=user.id)
-                    logger.info(f"Collaboration: Applied update, broadcasting to {len(room.collaborators) - 1} other clients")
+                    logger.info(
+                        f"Collaboration: Applied update, broadcasting to {len(room.collaborators) - 1} other clients"
+                    )
                     # Broadcast to other clients
                     await room.broadcast_update(
                         bytes([MSG_UPDATE]) + payload,
@@ -347,16 +390,22 @@ async def websocket_collaborate(
 
             elif msg_type == MSG_AWARENESS_BINARY:
                 # y-protocols awareness update - relay as-is to other clients
-                logger.debug(f"Collaboration: Relaying awareness update from {user.email}, size: {len(payload)}")
+                logger.debug(
+                    f"Collaboration: Relaying awareness update from {user.email}, size: {len(payload)}"
+                )
                 await room.broadcast_update(
                     bytes([MSG_AWARENESS_BINARY]) + payload,
                     origin_user_id=user.id,
                 )
 
     except WebSocketDisconnect:
-        logger.info(f"Collaboration: {user.email} disconnected from document {document_id}")
+        logger.info(
+            f"Collaboration: {user.email} disconnected from document {document_id}"
+        )
     except Exception as e:
-        logger.error(f"Collaboration error for {user.email} on document {document_id}: {e}")
+        logger.error(
+            f"Collaboration error for {user.email} on document {document_id}: {e}"
+        )
     finally:
         # Remove from room
         await room.remove_collaborator(user.id)
@@ -426,9 +475,13 @@ async def sync_document_content(
         logger.warning(f"Sync content: Document {document_id} not found")
         return {"status": "error", "message": "Document not found"}
 
-    can_read, can_write = await _check_document_access(session, document, user, guild_id)
+    can_read, can_write = await _check_document_access(
+        session, document, user, guild_id
+    )
     if not can_write:
-        logger.warning(f"Sync content: User {user.email} has no write access to document {document_id}")
+        logger.warning(
+            f"Sync content: User {user.email} has no write access to document {document_id}"
+        )
         return {"status": "error", "message": "No write access"}
 
     # Update the content column
@@ -446,7 +499,9 @@ async def sync_document_content(
         document.content = fixed_content if fixed_content else content
         session.add(document)
         await session.commit()
-        logger.info(f"Sync content: Updated content for document {document_id} by {user.email}")
+        logger.info(
+            f"Sync content: Updated content for document {document_id} by {user.email}"
+        )
         return {"status": "ok"}
     except Exception as e:
         # Log the full error server-side; return a generic message so internal

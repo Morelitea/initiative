@@ -33,7 +33,9 @@ class TaskStatus(SQLModel, table=True):
     __tablename__ = "task_statuses"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     project_id: int = Field(foreign_key="projects.id", nullable=False)
     name: str = Field(
         sa_column=Column(String(length=100), nullable=False),
@@ -43,7 +45,9 @@ class TaskStatus(SQLModel, table=True):
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
     category: TaskStatusCategory = Field(
-        sa_column=Column(SQLEnum(TaskStatusCategory, name="task_status_category"), nullable=False),
+        sa_column=Column(
+            SQLEnum(TaskStatusCategory, name="task_status_category"), nullable=False
+        ),
     )
     is_default: bool = Field(
         default=False,
@@ -55,7 +59,9 @@ class TaskStatus(SQLModel, table=True):
     )
     icon: str = Field(
         default="circle-dashed",
-        sa_column=Column(String(length=64), nullable=False, server_default="circle-dashed"),
+        sa_column=Column(
+            String(length=64), nullable=False, server_default="circle-dashed"
+        ),
     )
 
     project: Optional["Project"] = Relationship(back_populates="task_statuses")
@@ -67,14 +73,18 @@ class TaskAssignee(SQLModel, table=True):
 
     task_id: int = Field(foreign_key="tasks.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
 
 
 class Subtask(SQLModel, table=True):
     __tablename__ = "subtasks"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     task_id: int = Field(foreign_key="tasks.id", nullable=False)
     content: str = Field(sa_column=Column(Text, nullable=False))
     is_completed: bool = Field(
@@ -102,7 +112,9 @@ class Task(SoftDeleteMixin, table=True):
     _owner_field = "created_by_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     project_id: int = Field(foreign_key="projects.id", nullable=False)
     task_status_id: int = Field(foreign_key="task_statuses.id", nullable=False)
     title: str = Field(nullable=False)
@@ -111,9 +123,15 @@ class Task(SoftDeleteMixin, table=True):
         default=TaskPriority.medium,
         sa_column=Column(SQLEnum(TaskPriority, name="task_priority"), nullable=False),
     )
-    start_date: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
-    due_date: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
-    recurrence: Optional[dict] = Field(default=None, sa_column=Column(JSON, nullable=True))
+    start_date: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    due_date: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    recurrence: Optional[dict] = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
     recurrence_strategy: str = Field(
         default="fixed",
         sa_column=Column(String(length=20), nullable=False, server_default="fixed"),
@@ -124,13 +142,17 @@ class Task(SoftDeleteMixin, table=True):
     )
     position: float = Field(
         default=0,
-        sa_column=Column(Numeric(20, 10, asdecimal=False), nullable=False, server_default="0"),
+        sa_column=Column(
+            Numeric(20, 10, asdecimal=False), nullable=False, server_default="0"
+        ),
     )
     is_archived: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
-    created_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
+    created_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -142,7 +164,9 @@ class Task(SoftDeleteMixin, table=True):
 
     project: Optional["Project"] = Relationship(back_populates="tasks")
     task_status: Optional[TaskStatus] = Relationship(back_populates="tasks")
-    assignees: List["User"] = Relationship(back_populates="tasks_assigned", link_model=TaskAssignee)
+    assignees: List["User"] = Relationship(
+        back_populates="tasks_assigned", link_model=TaskAssignee
+    )
     subtasks: List["Subtask"] = Relationship(
         back_populates="task",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},

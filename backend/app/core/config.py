@@ -7,9 +7,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Origins used by the Capacitor native mobile app (iOS and Android).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.
 CAPACITOR_NATIVE_ORIGINS = [
-    "https://com.morelitea.initiative",      # Capacitor custom hostname (Android + iOS with iosScheme=https)
+    "https://com.morelitea.initiative",  # Capacitor custom hostname (Android + iOS with iosScheme=https)
     "capacitor://com.morelitea.initiative",  # Capacitor default iOS scheme with custom hostname
-    "capacitor://localhost",                 # Capacitor fallback (no custom hostname)
+    "capacitor://localhost",  # Capacitor fallback (no custom hostname)
 ]
 
 # Third-party origins the built SPA legitimately embeds in iframes, used to build
@@ -53,8 +53,12 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Initiative API"
     API_V1_STR: str = "/api/v1"
 
-    DATABASE_URL: str = "postgresql+asyncpg://initiative:initiative@localhost:5432/initiative"
-    DATABASE_URL_APP: str  # Non-superuser connection for RLS-enforced queries (required)
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://initiative:initiative@localhost:5432/initiative"
+    )
+    DATABASE_URL_APP: (
+        str  # Non-superuser connection for RLS-enforced queries (required)
+    )
     DATABASE_URL_ADMIN: str  # Admin connection with BYPASSRLS for migrations (required)
 
     SECRET_KEY: str
@@ -92,7 +96,11 @@ class Settings(BaseSettings):
         cross-origin request is silently rejected.
         """
         origins: list[str] = []
-        for candidate in [self.APP_URL, *self.CORS_ALLOWED_ORIGINS, *CAPACITOR_NATIVE_ORIGINS]:
+        for candidate in [
+            self.APP_URL,
+            *self.CORS_ALLOWED_ORIGINS,
+            *CAPACITOR_NATIVE_ORIGINS,
+        ]:
             origin = _origin_of(candidate) if candidate else None
             if origin and origin not in origins:
                 origins.append(origin)
@@ -175,10 +183,14 @@ class Settings(BaseSettings):
     # FCM Push Notifications
     FCM_ENABLED: bool = False
     FCM_PROJECT_ID: str | None = None
-    FCM_APPLICATION_ID: str | None = None  # Android: 1:123:android:abc, iOS: 1:123:ios:def
+    FCM_APPLICATION_ID: str | None = (
+        None  # Android: 1:123:android:abc, iOS: 1:123:ios:def
+    )
     FCM_API_KEY: str | None = None  # Firebase API key (public, safe to expose)
     FCM_SENDER_ID: str | None = None  # FCM sender ID (numeric)
-    FCM_SERVICE_ACCOUNT_JSON: str | None = None  # Service account for backend sending (private)
+    FCM_SERVICE_ACCOUNT_JSON: str | None = (
+        None  # Service account for backend sending (private)
+    )
 
     UPLOADS_DIR: str = "uploads"
     STATIC_DIR: str = "static"
@@ -187,7 +199,9 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER_PASSWORD: str | None = None
     FIRST_SUPERUSER_FULL_NAME: str | None = None
     DISABLE_GUILD_CREATION: bool = False
-    ENABLE_PUBLIC_REGISTRATION: bool = True  # When False, requires invite code to register
+    ENABLE_PUBLIC_REGISTRATION: bool = (
+        True  # When False, requires invite code to register
+    )
 
     # Prefix for per-guild Postgres ROLE names (not schemas). Roles are
     # cluster-global, so a test suite sharing a cluster with a seeded dev DB would
@@ -263,7 +277,9 @@ class Settings(BaseSettings):
     # the signature header and forge payloads.
     WEBHOOK_ALLOW_PRIVATE_TARGETS: bool = False
 
-    BEHIND_PROXY: bool = False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
+    BEHIND_PROXY: bool = (
+        False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
+    )
 
     # Reject passwords that appear in the HaveIBeenPwned breach corpus
     # when a user sets one (registration, reset, change). Uses the

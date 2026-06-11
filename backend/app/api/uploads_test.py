@@ -149,7 +149,9 @@ async def test_upload_non_member_cannot_access_file(
         # A second user not in that guild
         outsider = await create_user(session)
         headers = get_auth_headers(outsider)
-        response = await client.get("/uploads/test_guild_forbidden.png", headers=headers)
+        response = await client.get(
+            "/uploads/test_guild_forbidden.png", headers=headers
+        )
         assert response.status_code == 403
     finally:
         test_file.unlink(missing_ok=True)

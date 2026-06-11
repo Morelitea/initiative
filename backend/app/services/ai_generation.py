@@ -30,6 +30,7 @@ _MAX_SUMMARY_LENGTH = 5000
 
 class AIGenerationError(Exception):
     """Raised when AI generation fails."""
+
     pass
 
 
@@ -313,7 +314,9 @@ def _build_subtasks_prompt(
 
     context_parts = []
     if initiative_name:
-        context_parts.append(f"  <initiative>{html.escape(initiative_name)}</initiative>")
+        context_parts.append(
+            f"  <initiative>{html.escape(initiative_name)}</initiative>"
+        )
     if project_name:
         context_parts.append(f"  <project>{html.escape(project_name)}</project>")
     context_xml = (
@@ -355,7 +358,9 @@ def _build_description_prompt(
 
     context_parts = []
     if initiative_name:
-        context_parts.append(f"  <initiative>{html.escape(initiative_name)}</initiative>")
+        context_parts.append(
+            f"  <initiative>{html.escape(initiative_name)}</initiative>"
+        )
     if project_name:
         context_parts.append(f"  <project>{html.escape(project_name)}</project>")
     context_xml = (
@@ -386,7 +391,7 @@ def _parse_subtasks_response(text: str) -> list[str]:
     end_idx = text.rfind("]")
 
     if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-        json_text = text[start_idx:end_idx + 1]
+        json_text = text[start_idx : end_idx + 1]
         try:
             subtasks = json.loads(json_text)
             if isinstance(subtasks, list):
@@ -406,7 +411,7 @@ def _parse_subtasks_response(text: str) -> list[str]:
         # Remove common list prefixes
         for prefix in ["- ", "* ", "• "]:
             if line.startswith(prefix):
-                line = line[len(prefix):]
+                line = line[len(prefix) :]
                 break
         # Remove numbered prefixes like "1. " or "1) "
         if line and line[0].isdigit():
@@ -432,9 +437,7 @@ def _is_openai_new_api_model(model: str) -> bool:
     return model_lower.startswith(("o1", "o3", "gpt-5"))
 
 
-def _openai_messages(
-    system_prompt: str, user_content: str
-) -> list[dict[str, str]]:
+def _openai_messages(system_prompt: str, user_content: str) -> list[dict[str, str]]:
     """Build a messages array for OpenAI-compatible APIs."""
     return [
         {"role": "system", "content": system_prompt},
@@ -485,7 +488,9 @@ async def _generate_openai_subtasks(
             elif response.status_code != 200:
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get("error", {}).get("message", f"Status {response.status_code}")
+                    error_msg = error_data.get("error", {}).get(
+                        "message", f"Status {response.status_code}"
+                    )
                 except Exception:
                     error_msg = f"Status {response.status_code}"
                 raise AIGenerationError(f"OpenAI API error: {error_msg}")
@@ -539,7 +544,9 @@ async def _generate_openai_description(
             elif response.status_code != 200:
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get("error", {}).get("message", f"Status {response.status_code}")
+                    error_msg = error_data.get("error", {}).get(
+                        "message", f"Status {response.status_code}"
+                    )
                 except Exception:
                     error_msg = f"Status {response.status_code}"
                 raise AIGenerationError(f"OpenAI API error: {error_msg}")
@@ -591,7 +598,9 @@ async def _generate_openai_summary(
             elif response.status_code != 200:
                 try:
                     error_data = response.json()
-                    error_msg = error_data.get("error", {}).get("message", f"Status {response.status_code}")
+                    error_msg = error_data.get("error", {}).get(
+                        "message", f"Status {response.status_code}"
+                    )
                 except Exception:
                     error_msg = f"Status {response.status_code}"
                 raise AIGenerationError(f"OpenAI API error: {error_msg}")

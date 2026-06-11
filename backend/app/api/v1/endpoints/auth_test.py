@@ -454,7 +454,9 @@ async def test_login_email_case_insensitive(client: AsyncClient, session: AsyncS
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_login_rehashes_legacy_bcrypt_password(client: AsyncClient, session: AsyncSession):
+async def test_login_rehashes_legacy_bcrypt_password(
+    client: AsyncClient, session: AsyncSession
+):
     """A user whose stored hash predates the argon2 migration should still
     log in successfully, and the hash should be rewritten as argon2id on
     the way out so the bcrypt verify path eventually disappears for active
@@ -463,7 +465,9 @@ async def test_login_rehashes_legacy_bcrypt_password(client: AsyncClient, sessio
     import bcrypt as _bcrypt
 
     password = "legacy-bcrypt-password"
-    legacy_hash = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode("utf-8")
+    legacy_hash = _bcrypt.hashpw(password.encode("utf-8"), _bcrypt.gensalt()).decode(
+        "utf-8"
+    )
     assert legacy_hash.startswith("$2"), "test setup expected a real bcrypt hash"
 
     user = User(
@@ -513,9 +517,7 @@ async def test_malformed_jwt_returns_401(client: AsyncClient):
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_expired_jwt_returns_401(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_expired_jwt_returns_401(client: AsyncClient, session: AsyncSession):
     """An expired JWT (the common case when the access token lifetime
     elapses mid-session) must return 401, not 403. Regression guard
     for the 403 -> 401 fix in get_current_user."""
@@ -575,9 +577,7 @@ async def test_logout_persists_token_version_bump(
     user = await create_user(session)
     initial_version = user.token_version
 
-    response = await client.post(
-        "/api/v1/auth/logout", headers=get_auth_headers(user)
-    )
+    response = await client.post("/api/v1/auth/logout", headers=get_auth_headers(user))
     assert response.status_code == 204
 
     # Re-read from the database to prove the bump was persisted.
@@ -619,16 +619,12 @@ async def test_logout_invalidates_existing_jwt(
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_logout_clears_session_cookie(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_logout_clears_session_cookie(client: AsyncClient, session: AsyncSession):
     """The logout response must set an expired session_token cookie so
     browsers using HttpOnly cookie auth (the web default) actually
     forget the session."""
     user = await create_user(session)
-    response = await client.post(
-        "/api/v1/auth/logout", headers=get_auth_headers(user)
-    )
+    response = await client.post("/api/v1/auth/logout", headers=get_auth_headers(user))
     assert response.status_code == 204
     set_cookie = response.headers.get("set-cookie", "")
     assert "session_token=" in set_cookie
@@ -654,7 +650,9 @@ async def test_oidc_callback_blocks_new_user_when_registration_disabled(
     from app.core import config as cfg
     import app.api.v1.endpoints.auth as auth_module
 
-    monkeypatch.setattr(cfg.settings, "ENABLE_PUBLIC_REGISTRATION", public_registration_enabled)
+    monkeypatch.setattr(
+        cfg.settings, "ENABLE_PUBLIC_REGISTRATION", public_registration_enabled
+    )
     monkeypatch.setattr(cfg.settings, "DISABLE_GUILD_CREATION", guild_creation_disabled)
     # Must have at least one existing user so is_first_user is False
     await create_user(session)
@@ -663,32 +661,57 @@ async def test_oidc_callback_blocks_new_user_when_registration_disabled(
 
     class _FakeTokenResp:
         status_code = 200
-        def raise_for_status(self): pass
+
+        def raise_for_status(self):
+            pass
+
         def json(self):
             return {"access_token": "tok", "sub": "sub-new"}
 
     class _FakeUserinfoResp:
         status_code = 200
-        def raise_for_status(self): pass
+
+        def raise_for_status(self):
+            pass
+
         def json(self):
-            return {"email": "brandnew@example.com", "name": "Brand New", "sub": "sub-new"}
+            return {
+                "email": "brandnew@example.com",
+                "name": "Brand New",
+                "sub": "sub-new",
+            }
 
     class _FakeHttpxClient:
-        async def __aenter__(self): return self
-        async def __aexit__(self, *a): pass
-        async def post(self, *a, **kw): return _FakeTokenResp()
-        async def get(self, *a, **kw): return _FakeUserinfoResp()
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            pass
+
+        async def post(self, *a, **kw):
+            return _FakeTokenResp()
+
+        async def get(self, *a, **kw):
+            return _FakeUserinfoResp()
 
     import httpx
+
     monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: _FakeHttpxClient())
 
     async def _fake_runtime_config(s):
-        settings_obj = type("S", (), {
-            "oidc_enabled": True, "oidc_issuer": "https://id.example.com",
-            "oidc_client_id": "cid", "oidc_client_secret_encrypted": None,
-            "oidc_scopes": ["openid"], "oidc_provider_name": "Test",
-            "oidc_role_claim_path": None,
-        })()
+        settings_obj = type(
+            "S",
+            (),
+            {
+                "oidc_enabled": True,
+                "oidc_issuer": "https://id.example.com",
+                "oidc_client_id": "cid",
+                "oidc_client_secret_encrypted": None,
+                "oidc_scopes": ["openid"],
+                "oidc_provider_name": "Test",
+                "oidc_role_claim_path": None,
+            },
+        )()
         metadata = {
             "authorization_endpoint": "https://id.example.com/auth",
             "token_endpoint": "https://id.example.com/token",
@@ -720,11 +743,18 @@ async def test_oidc_login_rejects_non_https_authorization_endpoint(
     import app.api.v1.endpoints.auth as auth_module
 
     async def _fake_runtime_config(s):
-        settings_obj = type("S", (), {
-            "oidc_enabled": True, "oidc_issuer": "https://id.example.com",
-            "oidc_client_id": "cid", "oidc_client_secret_encrypted": None,
-            "oidc_scopes": ["openid"], "oidc_provider_name": "Test",
-        })()
+        settings_obj = type(
+            "S",
+            (),
+            {
+                "oidc_enabled": True,
+                "oidc_issuer": "https://id.example.com",
+                "oidc_client_id": "cid",
+                "oidc_client_secret_encrypted": None,
+                "oidc_scopes": ["openid"],
+                "oidc_provider_name": "Test",
+            },
+        )()
         metadata = {
             "authorization_endpoint": "http://evil.example.com/auth",
             "token_endpoint": "https://id.example.com/token",
@@ -750,11 +780,18 @@ async def test_oidc_login_rejects_null_authorization_endpoint(
     import app.api.v1.endpoints.auth as auth_module
 
     async def _fake_runtime_config(s):
-        settings_obj = type("S", (), {
-            "oidc_enabled": True, "oidc_issuer": "https://id.example.com",
-            "oidc_client_id": "cid", "oidc_client_secret_encrypted": None,
-            "oidc_scopes": ["openid"], "oidc_provider_name": "Test",
-        })()
+        settings_obj = type(
+            "S",
+            (),
+            {
+                "oidc_enabled": True,
+                "oidc_issuer": "https://id.example.com",
+                "oidc_client_id": "cid",
+                "oidc_client_secret_encrypted": None,
+                "oidc_scopes": ["openid"],
+                "oidc_provider_name": "Test",
+            },
+        )()
         metadata = {
             "authorization_endpoint": None,
             "token_endpoint": "https://id.example.com/token",
@@ -779,11 +816,18 @@ async def test_oidc_login_redirects_to_https_authorization_endpoint(
     import app.api.v1.endpoints.auth as auth_module
 
     async def _fake_runtime_config(s):
-        settings_obj = type("S", (), {
-            "oidc_enabled": True, "oidc_issuer": "https://id.example.com",
-            "oidc_client_id": "cid", "oidc_client_secret_encrypted": None,
-            "oidc_scopes": ["openid"], "oidc_provider_name": "Test",
-        })()
+        settings_obj = type(
+            "S",
+            (),
+            {
+                "oidc_enabled": True,
+                "oidc_issuer": "https://id.example.com",
+                "oidc_client_id": "cid",
+                "oidc_client_secret_encrypted": None,
+                "oidc_scopes": ["openid"],
+                "oidc_provider_name": "Test",
+            },
+        )()
         metadata = {
             "authorization_endpoint": "https://id.example.com/auth",
             "token_endpoint": "https://id.example.com/token",
@@ -914,6 +958,7 @@ async def test_password_reset_rejects_short_password(
 
     # Reset token must still be redeemable — we failed before consuming it.
     from sqlmodel import select
+
     fresh = (
         await session.exec(select(UserToken).where(UserToken.token == token))
     ).one()
@@ -959,7 +1004,9 @@ async def test_register_rolls_back_when_guild_seed_fails(
 
     # Neither the user nor its guild may survive a failed registration.
     users = (
-        await session.exec(select(User).where(User.email_hash == hash_email("seedfail@example.com")))
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("seedfail@example.com"))
+        )
     ).all()
     assert users == [], "user row must be rolled back when guild seeding fails"
     guilds = (await session.exec(select(Guild))).all()

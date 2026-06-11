@@ -109,9 +109,7 @@ async def test_config_strips_default_ports_to_match_browser_origin(
     explicitly writes ``https://embed.example.com:443`` ends up with an
     allowlist entry that never matches the browser's normalized
     ``event.origin``. Non-default ports are preserved as-is."""
-    monkeypatch.setattr(
-        settings, "ADVANCED_TOOL_URL", "https://embed.example.com:443"
-    )
+    monkeypatch.setattr(settings, "ADVANCED_TOOL_URL", "https://embed.example.com:443")
     monkeypatch.setattr(settings, "ADVANCED_TOOL_NAME", "Automations")
     monkeypatch.setattr(settings, "ADVANCED_TOOL_ALLOWED_ORIGINS", [])
 
@@ -120,15 +118,11 @@ async def test_config_strips_default_ports_to_match_browser_origin(
     assert response.status_code == 200
     body = response.json()
     # Default port stripped — matches what the browser produces
-    assert body["advanced_tool"]["allowed_origins"] == [
-        "https://embed.example.com"
-    ]
+    assert body["advanced_tool"]["allowed_origins"] == ["https://embed.example.com"]
 
 
 @pytest.mark.integration
-async def test_config_preserves_non_default_ports(
-    client: AsyncClient, monkeypatch
-):
+async def test_config_preserves_non_default_ports(client: AsyncClient, monkeypatch):
     """Non-default ports must round-trip — a localhost-with-port deploy
     (e.g. dev) breaks if the port disappears."""
     monkeypatch.setattr(settings, "ADVANCED_TOOL_URL", "http://localhost:9001")
@@ -167,9 +161,7 @@ async def test_config_dedupes_iframe_origin_in_allowlist(
 
 
 @pytest.mark.integration
-async def test_config_endpoint_is_unauthenticated(
-    client: AsyncClient, monkeypatch
-):
+async def test_config_endpoint_is_unauthenticated(client: AsyncClient, monkeypatch):
     """The SPA needs to read this before any user is logged in. No
     cookie, no Authorization header — must still return 200."""
     monkeypatch.setattr(settings, "ADVANCED_TOOL_URL", None)

@@ -6,7 +6,12 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
-from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import (
+    GuildContext,
+    RLSSessionDep,
+    get_current_active_user,
+    get_guild_membership,
+)
 from app.core.messages import AttachmentMessages
 from app.core.config import settings
 from app.models.upload import Upload
@@ -27,7 +32,9 @@ def _ensure_upload_dir() -> Path:
     return upload_path
 
 
-@router.post("/", response_model=AttachmentUploadResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=AttachmentUploadResponse, status_code=status.HTTP_201_CREATED
+)
 async def upload_attachment(
     current_user: ImageUploadUser,
     session: RLSSessionDep,
@@ -53,7 +60,10 @@ async def upload_attachment(
         )
 
     # Detect image format from magic bytes (imghdr was removed in Python 3.13)
-    is_svg = file.content_type == "image/svg+xml" or contents.lstrip()[:4] in (b"<?xm", b"<svg")
+    is_svg = file.content_type == "image/svg+xml" or contents.lstrip()[:4] in (
+        b"<?xm",
+        b"<svg",
+    )
     detected_format: str | None = None
     if is_svg:
         detected_format = "svg"

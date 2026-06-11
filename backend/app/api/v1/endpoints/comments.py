@@ -5,7 +5,12 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.api.deps import GuildContext, RLSSessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import (
+    GuildContext,
+    RLSSessionDep,
+    get_current_active_user,
+    get_guild_membership,
+)
 from app.core.pam_context import has_active_grant
 from app.db.session import reapply_rls_context
 from app.models.comment import Comment
@@ -14,7 +19,10 @@ from app.models.initiative import Initiative, InitiativeMember
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User, UserStatus
-from app.services.permissions import visible_document_ids_subquery, visible_project_ids_subquery
+from app.services.permissions import (
+    visible_document_ids_subquery,
+    visible_project_ids_subquery,
+)
 from app.schemas.comment import (
     CommentAuthor,
     CommentCreate,
@@ -50,11 +58,17 @@ async def create_comment(
             parent_comment_id=comment_in.parent_comment_id,
         )
     except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except comments_service.CommentPermissionError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     except comments_service.CommentValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
     await session.commit()
     await reapply_rls_context(session)
@@ -132,12 +146,16 @@ async def recent_comments(
 
         project_ids = {t.project_id for t in tasks_by_id.values()}
         if project_ids:
-            proj_result = await session.exec(select(Project).where(Project.id.in_(project_ids)))
+            proj_result = await session.exec(
+                select(Project).where(Project.id.in_(project_ids))
+            )
             for proj in proj_result.all():
                 projects_by_id[proj.id] = proj
 
     if doc_ids:
-        doc_result = await session.exec(select(Document).where(Document.id.in_(doc_ids)))
+        doc_result = await session.exec(
+            select(Document).where(Document.id.in_(doc_ids))
+        )
         for doc in doc_result.all():
             docs_by_id[doc.id] = doc
 
@@ -183,11 +201,17 @@ async def list_comments(
             document_id=document_id,
         )
     except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except comments_service.CommentPermissionError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     except comments_service.CommentValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
     return [CommentRead.model_validate(comment) for comment in comments]
 
@@ -210,9 +234,13 @@ async def update_comment(
             content=comment_in.content,
         )
     except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except comments_service.CommentPermissionError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     # Note: Content validation (empty string) is handled by Pydantic schema (422).
     # CommentValidationError from service indicates data integrity issues (500).
 
@@ -240,11 +268,17 @@ async def delete_comment(
             guild_role=guild_context.role,
         )
     except comments_service.CommentNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+        ) from exc
     except comments_service.CommentPermissionError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     except comments_service.CommentValidationError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
 
     await session.commit()
     await broadcast_event(
@@ -298,9 +332,7 @@ async def search_mentionables(
             )
         )
         if query:
-            stmt = stmt.where(
-                User.full_name.ilike(f"%{query}%")
-            )
+            stmt = stmt.where(User.full_name.ilike(f"%{query}%"))
         stmt = stmt.limit(limit)
         result = await session.exec(stmt)
         users = result.all()

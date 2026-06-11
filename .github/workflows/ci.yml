@@ -128,6 +128,12 @@ jobs:
           cd backend
           uv run ruff check app
 
+      - name: Check formatting with Ruff
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          cd backend
+          uv run ruff format --check app
+
       - name: Type-check with Pyright
         # Scoped gate: pyrightconfig.json enforces only reportReturnType
         # (the SQLModel-noisy rules are off), so this fails on return-type

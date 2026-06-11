@@ -291,7 +291,10 @@ def _normalize_format(value: Any) -> dict[str, Any] | None:
             "decimals": _clamp_decimals(value.get("decimals"), default=1),
         }
     # fixed
-    out = {"type": "fixed", "decimals": _clamp_decimals(value.get("decimals"), default=2)}
+    out = {
+        "type": "fixed",
+        "decimals": _clamp_decimals(value.get("decimals"), default=2),
+    }
     if has_grouping:
         out["grouping"] = grouping
     if has_negatives:
@@ -299,9 +302,7 @@ def _normalize_format(value: Any) -> dict[str, Any] | None:
     return out
 
 
-def _normalize_index_map(
-    value: Any, *, cap: int, allow_width: bool
-) -> dict[str, Any]:
+def _normalize_index_map(value: Any, *, cap: int, allow_width: bool) -> dict[str, Any]:
     """Normalize a ``columns`` / ``rows`` map keyed by index strings.
 
     ``allow_width`` selects the sizing key: ``width`` (columns) clamped

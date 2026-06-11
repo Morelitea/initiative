@@ -69,7 +69,9 @@ async def test_list_projects_as_admin_shows_all(
     """Test that guild admin can see all projects."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     initiative = await _create_initiative_with_member(session, guild, admin)
     await _create_project(session, initiative, admin)
@@ -99,19 +101,23 @@ async def test_list_projects_member_sees_initiative_projects(
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=member, guild=guild)
 
     initiative = await _create_initiative_with_member(session, guild, admin)
 
     # Add member to initiative
     from app.testing.factories import create_initiative_member
+
     await create_initiative_member(session, initiative, member, role_name="member")
 
     project = await _create_project(session, initiative, admin)
 
     # Give member read access to the project (pure DAC requires explicit permission)
     from app.models.project import ProjectPermission, ProjectPermissionLevel
+
     member_permission = ProjectPermission(
         project_id=project.id,
         user_id=member.id,
@@ -137,7 +143,9 @@ async def test_list_projects_excludes_archived_by_default(
     """Test that archived projects are excluded by default."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     initiative = await _create_initiative_with_member(session, guild, admin)
     project = await _create_project(session, initiative, admin)
@@ -163,7 +171,9 @@ async def test_list_projects_with_archived_filter(
     """Test listing projects with archived filter."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     initiative = await _create_initiative_with_member(session, guild, admin)
     project = await _create_project(session, initiative, admin)
@@ -185,7 +195,9 @@ async def test_create_project(client: AsyncClient, session: AsyncSession):
     """Test creating a new project."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     initiative = await _create_initiative_with_member(session, guild, admin)
 
@@ -235,7 +247,9 @@ async def test_create_project_not_in_initiative_forbidden(
     admin = await create_user(session, email="admin@example.com")
     outsider = await create_user(session, email="outsider@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=outsider, guild=guild)
 
     initiative = await _create_initiative_with_member(session, guild, admin)
@@ -256,7 +270,9 @@ async def test_get_project_by_id(client: AsyncClient, session: AsyncSession):
     """Test getting a project by ID."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     initiative = await _create_initiative_with_member(session, guild, admin)
     project = await _create_project(session, initiative, admin)
@@ -275,7 +291,9 @@ async def test_get_project_not_found(client: AsyncClient, session: AsyncSession)
     """Test getting non-existent project."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     headers = get_guild_headers(guild, admin)
     response = await client.get("/api/v1/projects/99999", headers=headers)
@@ -312,7 +330,9 @@ async def test_update_project_as_admin(client: AsyncClient, session: AsyncSessio
     admin = await create_user(session, email="admin@example.com")
     owner = await create_user(session, email="owner@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=owner, guild=guild)
 
     initiative = await _create_initiative_with_member(session, guild, owner)
@@ -320,6 +340,7 @@ async def test_update_project_as_admin(client: AsyncClient, session: AsyncSessio
 
     # Give admin write access to the project (pure DAC requires explicit permission)
     from app.models.project import ProjectPermission, ProjectPermissionLevel
+
     admin_permission = ProjectPermission(
         project_id=project.id,
         user_id=admin.id,
@@ -387,7 +408,9 @@ async def test_delete_project_as_admin(client: AsyncClient, session: AsyncSessio
     admin = await create_user(session, email="admin@example.com")
     owner = await create_user(session, email="owner@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=owner, guild=guild)
 
     initiative = await _create_initiative_with_member(session, guild, owner)
@@ -395,6 +418,7 @@ async def test_delete_project_as_admin(client: AsyncClient, session: AsyncSessio
 
     # Give admin owner access to the project (pure DAC requires explicit permission)
     from app.models.project import ProjectPermission, ProjectPermissionLevel
+
     admin_permission = ProjectPermission(
         project_id=project.id,
         user_id=admin.id,
@@ -441,7 +465,9 @@ async def test_archive_project(client: AsyncClient, session: AsyncSession):
     project = await _create_project(session, initiative, owner)
 
     headers = get_guild_headers(guild, owner)
-    response = await client.post(f"/api/v1/projects/{project.id}/archive", headers=headers)
+    response = await client.post(
+        f"/api/v1/projects/{project.id}/archive", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -462,7 +488,9 @@ async def test_unarchive_project(client: AsyncClient, session: AsyncSession):
     await session.commit()
 
     headers = get_guild_headers(guild, owner)
-    response = await client.post(f"/api/v1/projects/{project.id}/unarchive", headers=headers)
+    response = await client.post(
+        f"/api/v1/projects/{project.id}/unarchive", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -480,7 +508,9 @@ async def test_add_project_favorite(client: AsyncClient, session: AsyncSession):
     project = await _create_project(session, initiative, user)
 
     headers = get_guild_headers(guild, user)
-    response = await client.post(f"/api/v1/projects/{project.id}/favorite", headers=headers)
+    response = await client.post(
+        f"/api/v1/projects/{project.id}/favorite", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -505,7 +535,9 @@ async def test_remove_project_favorite(client: AsyncClient, session: AsyncSessio
     await session.commit()
 
     headers = get_guild_headers(guild, user)
-    response = await client.delete(f"/api/v1/projects/{project.id}/favorite", headers=headers)
+    response = await client.delete(
+        f"/api/v1/projects/{project.id}/favorite", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -571,6 +603,7 @@ async def test_add_project_member(client: AsyncClient, session: AsyncSession):
 
     # Add new_member to initiative
     from app.testing.factories import create_initiative_member
+
     await create_initiative_member(session, initiative, new_member, role_name="member")
 
     project = await _create_project(session, initiative, owner)
@@ -625,8 +658,12 @@ async def test_project_guild_isolation(client: AsyncClient, session: AsyncSessio
     user = await create_user(session, email="user@example.com")
     guild1 = await create_guild(session, name="Guild 1")
     guild2 = await create_guild(session, name="Guild 2")
-    await create_guild_membership(session, user=user, guild=guild1, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild2, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild1, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=user, guild=guild2, role=GuildRole.admin
+    )
 
     from app.testing.factories import create_project as factory_create_project
 
@@ -635,7 +672,9 @@ async def test_project_guild_isolation(client: AsyncClient, session: AsyncSessio
 
     # Distinct names so the cross-guild check below can tell them apart even when
     # their per-schema ids collide.
-    project1 = await factory_create_project(session, initiative1, user, name="Guild 1 Project")
+    project1 = await factory_create_project(
+        session, initiative1, user, name="Guild 1 Project"
+    )
     await factory_create_project(session, initiative2, user, name="Guild 2 Project")
 
     # Request with guild1 context
@@ -670,7 +709,9 @@ async def test_create_project_with_user_permissions(
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=member, guild=guild)
 
     initiative = await _create_initiative_with_member(session, guild, admin)
@@ -708,7 +749,9 @@ async def test_create_project_with_role_permissions(
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     initiative = await _create_initiative_with_member(session, guild, admin)
 
@@ -746,7 +789,9 @@ async def test_create_project_without_permissions(
     """Test creating a project without any explicit permissions yields only owner."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     initiative = await _create_initiative_with_member(session, guild, admin)
 
@@ -777,7 +822,9 @@ async def test_create_project_skips_owner_level_grants(
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=member, guild=guild)
 
     initiative = await _create_initiative_with_member(session, guild, admin)
@@ -812,10 +859,14 @@ async def test_create_project_rejects_foreign_initiative_role(
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     initiative_a = await _create_initiative_with_member(session, guild, admin)
-    initiative_b = await create_initiative(session, guild, admin, name="Other Initiative")
+    initiative_b = await create_initiative(
+        session, guild, admin, name="Other Initiative"
+    )
 
     # Get a role that belongs to initiative_b, not initiative_a
     result = await session.exec(

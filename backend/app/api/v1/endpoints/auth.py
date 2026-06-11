@@ -21,10 +21,22 @@ from app.db.session import get_admin_session
 from app.core.config import settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.rate_limit import limiter
-from app.core.encryption import decrypt_field, encrypt_field, encrypt_token, hash_email, SALT_EMAIL, SALT_OIDC_CLIENT_SECRET
+from app.core.encryption import (
+    decrypt_field,
+    encrypt_field,
+    encrypt_token,
+    hash_email,
+    SALT_EMAIL,
+    SALT_OIDC_CLIENT_SECRET,
+)
 from app.core.messages import AuthMessages, OidcMessages
 from app.core.password_policy import enforce_password_policy
-from app.core.security import create_access_token, get_password_hash, password_needs_rehash, verify_password
+from app.core.security import (
+    create_access_token,
+    get_password_hash,
+    password_needs_rehash,
+    verify_password,
+)
 from app.core.user_input_validators import normalize_timezone
 from app.models.user import User, UserRole, UserStatus
 from app.models.guild import Guild, GuildRole
@@ -70,13 +82,18 @@ async def register_user(
     smtp_configured = False
     try:
         app_settings = await app_settings_service.get_app_settings(session)
-        smtp_configured = bool(app_settings.smtp_host and app_settings.smtp_from_address)
+        smtp_configured = bool(
+            app_settings.smtp_host and app_settings.smtp_from_address
+        )
 
         normalized_email = user_in.email.lower().strip()
         statement = select(User).where(User.email_hash == hash_email(normalized_email))
         existing = await session.exec(statement)
         if existing.one_or_none():
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_ALREADY_REGISTERED)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AuthMessages.EMAIL_ALREADY_REGISTERED,
+            )
 
         user_count_result = await session.exec(select(func.count(User.id)))
         user_count = user_count_result.one()
@@ -86,8 +103,15 @@ async def register_user(
         # - Public registration disabled OR guild creation disabled
         # - AND no invite code provided
         # - AND not the first user (bootstrap always allowed)
-        if (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION) and not normalized_invite and not is_first_user:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.REGISTRATION_REQUIRES_INVITE)
+        if (
+            (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION)
+            and not normalized_invite
+            and not is_first_user
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AuthMessages.REGISTRATION_REQUIRES_INVITE,
+            )
 
         # Captcha gate (no-op when ``CAPTCHA_PROVIDER`` isn't configured;
         # see ``app.services.captcha``). Skipped on the bootstrap
@@ -149,7 +173,9 @@ async def register_user(
                     user=user,
                 )
             except guilds_service.GuildInviteError as exc:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+                ) from exc
             # Joining an existing (already-provisioned) guild — just record membership.
             await guilds_service.ensure_membership(
                 session,
@@ -159,26 +185,38 @@ async def register_user(
             )
             await session.commit()
         else:
-            guild_name_source = (user.full_name or user.email.split("@", 1)[0]).strip() or user.email
-            guild_name = guild_name_source if guild_name_source.lower().endswith("guild") else f"{guild_name_source}'s Guild"
+            guild_name_source = (
+                user.full_name or user.email.split("@", 1)[0]
+            ).strip() or user.email
+            guild_name = (
+                guild_name_source
+                if guild_name_source.lower().endswith("guild")
+                else f"{guild_name_source}'s Guild"
+            )
             # create_guild makes the shared rows (guild + admin membership). Commit
             # them — together with the user — then provision + seed the schema
             # (settings + default initiative). On failure, undo the whole registration.
-            guild = await guilds_service.create_guild(session, name=guild_name, creator=user)
+            guild = await guilds_service.create_guild(
+                session, name=guild_name, creator=user
+            )
             await session.commit()
             # Capture ids before the seed: the rollback in the failure path expires
             # the ORM objects, so reading guild.id / user.id afterwards would reload.
             guild_id = guild.id
             user_id = user.id
             try:
-                await guilds_service.seed_guild_content(session, guild_id=guild_id, creator=user)
+                await guilds_service.seed_guild_content(
+                    session, guild_id=guild_id, creator=user
+                )
                 await session.commit()
             except Exception:
                 from contextlib import suppress as _suppress
 
                 from app.db.schema_provisioning import deprovision_guild
 
-                logger.exception("Guild %s setup failed during registration; rolling back", guild_id)
+                logger.exception(
+                    "Guild %s setup failed during registration; rolling back", guild_id
+                )
                 # Roll back FIRST. If the seed failed on a DB error the session is
                 # aborted; without this rollback every cleanup query below raises
                 # PendingRollbackError and the already-committed user + guild rows
@@ -201,7 +239,10 @@ async def register_user(
     except IntegrityError as exc:  # pragma: no cover
         await session.rollback()
         logger.exception("Failed to register user due to integrity error")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.UNABLE_TO_CREATE_USER) from exc
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.UNABLE_TO_CREATE_USER,
+        ) from exc
 
     await session.refresh(user)
 
@@ -217,7 +258,9 @@ async def register_user(
             )
             await email_service.send_verification_email(session, user, token)
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping verification email for user %s", user.id)
+            logger.warning(
+                "SMTP not configured; skipping verification email for user %s", user.id
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send verification email: %s", exc)
     return user
@@ -246,12 +289,20 @@ async def login_access_token(
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INCORRECT_CREDENTIALS)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.INCORRECT_CREDENTIALS,
+        )
 
     if user.status != UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
     if not user.email_verified:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_NOT_VERIFIED)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_NOT_VERIFIED,
+        )
 
     if password_needs_rehash(user.hashed_password):
         # Best-effort: a transient DB error or argon2 hashing failure here
@@ -266,7 +317,9 @@ async def login_access_token(
             await session.rollback()
             logger.exception("Failed to upgrade password hash for user %s", user.id)
 
-    access_token = create_access_token(subject=str(user.id), token_version=user.token_version)
+    access_token = create_access_token(
+        subject=str(user.id), token_version=user.token_version
+    )
     response.set_cookie(
         key=settings.COOKIE_NAME,
         value=access_token,
@@ -301,7 +354,9 @@ async def logout(
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("DeviceToken "):
             device_token_str = auth_header[12:]
-            device_token = await user_tokens.get_device_token(session, token=device_token_str)
+            device_token = await user_tokens.get_device_token(
+                session, token=device_token_str
+            )
             if device_token:
                 device_token.consumed_at = datetime.now(timezone.utc)
                 session.add(device_token)
@@ -332,12 +387,20 @@ async def create_device_token(
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INCORRECT_CREDENTIALS)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.INCORRECT_CREDENTIALS,
+        )
 
     if user.status != UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
     if not user.email_verified:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.EMAIL_NOT_VERIFIED)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.EMAIL_NOT_VERIFIED,
+        )
 
     if password_needs_rehash(user.hashed_password):
         # Best-effort upgrade — see login_access_token for rationale.
@@ -387,7 +450,9 @@ async def revoke_device_token(
         user_id=current_user.id,
     )
     if not success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.TOKEN_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.TOKEN_NOT_FOUND
+        )
 
 
 def _generate_state(mobile: bool = False, device_name: str = "") -> str:
@@ -396,7 +461,9 @@ def _generate_state(mobile: bool = False, device_name: str = "") -> str:
     encoded_device_name = base64.urlsafe_b64encode(device_name.encode()).decode()
     code_verifier = secrets.token_urlsafe(32)
     payload = f"{timestamp}.{mobile_flag}.{encoded_device_name}.{code_verifier}"
-    signature = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    signature = hmac.new(
+        settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
     return f"{payload}.{signature}"
 
 
@@ -416,7 +483,9 @@ def _validate_state(value: str | None) -> tuple[bool, bool, str, str]:
     except ValueError:
         return (False, False, "", "")
     payload = f"{ts_str}.{mobile_flag}.{encoded_device_name}.{code_verifier}"
-    expected = hmac.new(settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    expected = hmac.new(
+        settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256
+    ).hexdigest()
     if not hmac.compare_digest(signature, expected):
         return (False, False, "", "")
     try:
@@ -471,13 +540,18 @@ async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, 
         and app_settings.oidc_client_id
         and app_settings.oidc_client_secret_encrypted
     ):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
+        )
 
     metadata = await _fetch_oidc_metadata(app_settings.oidc_issuer)
     required = ["authorization_endpoint", "token_endpoint"]
     for key in required:
         if key not in metadata:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=OidcMessages.OIDC_METADATA_INCOMPLETE)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=OidcMessages.OIDC_METADATA_INCOMPLETE,
+            )
     return app_settings, metadata
 
 
@@ -537,7 +611,11 @@ async def oidc_login(
         if isinstance(authorization_endpoint, str)
         else None
     )
-    if parsed_endpoint is None or parsed_endpoint.scheme != "https" or not parsed_endpoint.hostname:
+    if (
+        parsed_endpoint is None
+        or parsed_endpoint.scheme != "https"
+        or not parsed_endpoint.hostname
+    ):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=OidcMessages.OIDC_METADATA_INCOMPLETE,
@@ -580,7 +658,11 @@ async def oidc_callback(
         "code": code,
         "redirect_uri": _backend_redirect_uri(),
         "client_id": app_settings.oidc_client_id,
-        "client_secret": decrypt_field(app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET) if app_settings.oidc_client_secret_encrypted else None,
+        "client_secret": decrypt_field(
+            app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
+        )
+        if app_settings.oidc_client_secret_encrypted
+        else None,
         "code_verifier": code_verifier,
     }
     async with httpx.AsyncClient(timeout=10) as client:
@@ -627,7 +709,9 @@ async def oidc_callback(
             return _error_redirect(is_mobile, "profile_missing_identity")
         email = f"{sub}@oidc.local"
     normalized_email = email.lower().strip()
-    full_name = profile.get("name") or profile.get("preferred_username") or normalized_email
+    full_name = (
+        profile.get("name") or profile.get("preferred_username") or normalized_email
+    )
     avatar_url = profile.get("picture")
 
     statement = select(User).where(User.email_hash == hash_email(normalized_email))
@@ -643,7 +727,9 @@ async def oidc_callback(
         count_result = await session.exec(select(func.count(User.id)))
         is_first_user = count_result.one() == 0
 
-        if (not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION) and not is_first_user:
+        if (
+            not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION
+        ) and not is_first_user:
             return _error_redirect(is_mobile, OidcMessages.REGISTRATION_DISABLED)
 
         random_password = secrets.token_urlsafe(32)
@@ -702,7 +788,11 @@ async def oidc_callback(
 
     # OIDC claim-to-role sync
     try:
-        claim_path = app_settings.oidc_role_claim_path if hasattr(app_settings, "oidc_role_claim_path") else None
+        claim_path = (
+            app_settings.oidc_role_claim_path
+            if hasattr(app_settings, "oidc_role_claim_path")
+            else None
+        )
         if claim_path:
             # Decode id_token claims (without signature verification — we trust the token endpoint)
             id_token_claims = None
@@ -710,11 +800,14 @@ async def oidc_callback(
             if raw_id_token:
                 try:
                     import json as _json
+
                     parts = raw_id_token.split(".")
                     if len(parts) >= 2:
                         payload_b64 = parts[1]
                         payload_b64 += "=" * (-len(payload_b64) % 4)
-                        id_token_claims = _json.loads(base64.urlsafe_b64decode(payload_b64))
+                        id_token_claims = _json.loads(
+                            base64.urlsafe_b64decode(payload_b64)
+                        )
                 except Exception:
                     pass  # id_token decode is best-effort
 
@@ -748,7 +841,9 @@ async def oidc_callback(
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
     else:
-        app_token = create_access_token(subject=str(user.id), token_version=user.token_version)
+        app_token = create_access_token(
+            subject=str(user.id), token_version=user.token_version
+        )
         oidc_response = RedirectResponse(_frontend_redirect_uri())
         oidc_response.set_cookie(
             key=settings.COOKIE_NAME,
@@ -780,27 +875,39 @@ async def resend_verification_email(
         )
         await email_service.send_verification_email(session, current_user, token)
     except email_service.EmailNotConfiguredError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.SMTP_NOT_CONFIGURED) from None
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.SMTP_NOT_CONFIGURED,
+        ) from None
     except RuntimeError as exc:  # pragma: no cover
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
     return VerificationSendResponse(status="sent")
 
 
 @router.post("/verification/confirm", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
-async def confirm_verification(request: Request, session: SessionDep, payload: VerificationConfirmRequest) -> VerificationSendResponse:
+async def confirm_verification(
+    request: Request, session: SessionDep, payload: VerificationConfirmRequest
+) -> VerificationSendResponse:
     record = await user_tokens.consume_token(
         session,
         token=payload.token,
         purpose=UserTokenPurpose.email_verification,
     )
     if not record:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INVALID_OR_EXPIRED_TOKEN)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.INVALID_OR_EXPIRED_TOKEN,
+        )
     user_stmt = select(User).where(User.id == record.user_id)
     user_result = await session.exec(user_stmt)
     user = user_result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
     if not user.email_verified:
         user.email_verified = True
         user.updated_at = datetime.now(timezone.utc)
@@ -812,7 +919,9 @@ async def confirm_verification(request: Request, session: SessionDep, payload: V
 
 @router.post("/password/forgot", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
-async def request_password_reset(request: Request, payload: PasswordResetRequest, session: SessionDep) -> VerificationSendResponse:
+async def request_password_reset(
+    request: Request, payload: PasswordResetRequest, session: SessionDep
+) -> VerificationSendResponse:
     normalized_email = payload.email.lower().strip()
     stmt = select(User).where(User.email_hash == hash_email(normalized_email))
     result = await session.exec(stmt)
@@ -828,15 +937,22 @@ async def request_password_reset(request: Request, payload: PasswordResetRequest
         )
         await email_service.send_password_reset_email(session, user, token)
     except email_service.EmailNotConfiguredError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.SMTP_NOT_CONFIGURED) from None
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.SMTP_NOT_CONFIGURED,
+        ) from None
     except RuntimeError as exc:  # pragma: no cover
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
     return VerificationSendResponse(status="sent")
 
 
 @router.post("/password/reset", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
-async def reset_password(request: Request, payload: PasswordResetSubmit, session: SessionDep) -> VerificationSendResponse:
+async def reset_password(
+    request: Request, payload: PasswordResetSubmit, session: SessionDep
+) -> VerificationSendResponse:
     # Run the policy first so an invalid candidate doesn't burn the
     # reset token; ``consume_token`` is one-shot.
     await enforce_password_policy(payload.password)
@@ -846,12 +962,17 @@ async def reset_password(request: Request, payload: PasswordResetSubmit, session
         purpose=UserTokenPurpose.password_reset,
     )
     if not record:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INVALID_OR_EXPIRED_TOKEN)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AuthMessages.INVALID_OR_EXPIRED_TOKEN,
+        )
     stmt = select(User).where(User.id == record.user_id)
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
     user.hashed_password = get_password_hash(payload.password)
     user.token_version += 1
     if not user.email_verified:

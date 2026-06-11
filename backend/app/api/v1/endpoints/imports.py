@@ -63,7 +63,8 @@ async def _validate_project_write_access(
 
     if not project:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=ImportMessages.PROJECT_NOT_FOUND
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ImportMessages.PROJECT_NOT_FOUND,
         )
 
     if project.is_archived:
@@ -123,9 +124,7 @@ async def import_from_todoist(
     await task_statuses_service.ensure_default_statuses(session, project.id)
 
     # Validate that all mapped status IDs belong to the project
-    project_statuses = await task_statuses_service.list_statuses(
-        session, project.id
-    )
+    project_statuses = await task_statuses_service.list_statuses(session, project.id)
     valid_status_ids = {s.id for s in project_statuses}
 
     for section_name, status_id in request.section_mapping.items():
@@ -191,9 +190,7 @@ async def import_from_vikunja(
     await task_statuses_service.ensure_default_statuses(session, project.id)
 
     # Validate that all mapped status IDs belong to the project
-    project_statuses = await task_statuses_service.list_statuses(
-        session, project.id
-    )
+    project_statuses = await task_statuses_service.list_statuses(session, project.id)
     valid_status_ids = {s.id for s in project_statuses}
 
     for bucket_id, status_id in request.bucket_mapping.items():
@@ -260,9 +257,7 @@ async def import_from_ticktick(
     await task_statuses_service.ensure_default_statuses(session, project.id)
 
     # Validate that all mapped status IDs belong to the project
-    project_statuses = await task_statuses_service.list_statuses(
-        session, project.id
-    )
+    project_statuses = await task_statuses_service.list_statuses(session, project.id)
     valid_status_ids = {s.id for s in project_statuses}
 
     for column_name, status_id in request.column_mapping.items():

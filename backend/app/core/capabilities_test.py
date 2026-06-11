@@ -18,7 +18,9 @@ class _Actor:
 
 @pytest.mark.unit
 def test_config_manage_is_owner_only():
-    assert roles_with_capability(Capability.CONFIG_MANAGE) == frozenset({UserRole.owner})
+    assert roles_with_capability(Capability.CONFIG_MANAGE) == frozenset(
+        {UserRole.owner}
+    )
 
 
 @pytest.mark.unit

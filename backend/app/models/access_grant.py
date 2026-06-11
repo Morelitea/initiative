@@ -31,7 +31,9 @@ class AccessGrantStatus(str, Enum):
 # Mirror the CHECK constraints declared in the migration. Keep in sync with
 # ``20260530_0092_create_access_grants.py``.
 ACCESS_LEVELS: tuple[str, ...] = tuple(level.value for level in AccessLevel)
-ACCESS_GRANT_STATUSES: tuple[str, ...] = tuple(status.value for status in AccessGrantStatus)
+ACCESS_GRANT_STATUSES: tuple[str, ...] = tuple(
+    status.value for status in AccessGrantStatus
+)
 
 
 class AccessGrant(SQLModel, table=True):
@@ -56,7 +58,9 @@ class AccessGrant(SQLModel, table=True):
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
 
     access_level: str = Field(
-        sa_column=Column(String(16), nullable=False, server_default=AccessLevel.read.value)
+        sa_column=Column(
+            String(16), nullable=False, server_default=AccessLevel.read.value
+        )
     )
     status: str = Field(
         sa_column=Column(
@@ -77,8 +81,12 @@ class AccessGrant(SQLModel, table=True):
     # but is kept distinct so an approver could later request on someone's
     # behalf without schema changes.
     requested_by_id: int = Field(foreign_key="users.id", nullable=False)
-    approved_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
-    revoked_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
+    approved_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
+    revoked_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
 
     requested_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

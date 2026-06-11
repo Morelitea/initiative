@@ -69,9 +69,13 @@ class OIDCClaimMapping(SQLModel, table=True):
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa_column=Column(
+            DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa_column=Column(
+            DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )

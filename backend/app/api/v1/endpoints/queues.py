@@ -10,7 +10,15 @@ from typing import Annotated, List, Optional
 import json
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from sqlalchemy import delete as sa_delete, func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -31,7 +39,12 @@ from app.models.queue import (
     QueueRolePermission,
 )
 from app.models.guild import GuildMembership
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel, PermissionKey
+from app.models.initiative import (
+    Initiative,
+    InitiativeMember,
+    InitiativeRoleModel,
+    PermissionKey,
+)
 from app.models.user import User, UserStatus
 from app.schemas.token import TokenPayload
 from app.core.messages import QueueMessages, InitiativeMessages
@@ -162,7 +175,9 @@ async def _get_item_for_queue(
     return item
 
 
-def _compute_my_permission(queue: Queue, user: User, guild_context: GuildContext) -> str | None:
+def _compute_my_permission(
+    queue: Queue, user: User, guild_context: GuildContext
+) -> str | None:
     """Compute effective permission level for the current user on a queue."""
     if rls_service.is_guild_admin(guild_context.role):
         return QueuePermissionLevel.owner.value
@@ -213,7 +228,11 @@ async def list_queues(
         initiative = await session.get(Initiative, initiative_id)
         if initiative and not initiative.queues_enabled:
             return QueueListResponse(
-                items=[], total_count=0, page=page, page_size=page_size, has_next=False,
+                items=[],
+                total_count=0,
+                page=page,
+                page_size=page_size,
+                has_next=False,
             )
         conditions.append(Queue.initiative_id == initiative_id)
     else:
@@ -280,7 +299,9 @@ async def read_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Get a queue with all items, permissions, and current state."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="read")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="read"
+    )
     return serialize_queue(
         queue,
         my_permission_level=_compute_my_permission(queue, current_user, guild_context),
@@ -334,7 +355,11 @@ async def create_queue(
 
     # Process optional role permissions
     if queue_in.role_permissions:
-        role_ids = {rp.initiative_role_id for rp in queue_in.role_permissions if rp.level != QueuePermissionLevel.owner}
+        role_ids = {
+            rp.initiative_role_id
+            for rp in queue_in.role_permissions
+            if rp.level != QueuePermissionLevel.owner
+        }
         valid_role_ids: set[int] = set()
         if role_ids:
             result = await session.exec(
@@ -345,18 +370,27 @@ async def create_queue(
             )
             valid_role_ids = set(result.all())
         for rp in queue_in.role_permissions:
-            if rp.initiative_role_id not in valid_role_ids or rp.level == QueuePermissionLevel.owner:
+            if (
+                rp.initiative_role_id not in valid_role_ids
+                or rp.level == QueuePermissionLevel.owner
+            ):
                 continue
-            session.add(QueueRolePermission(
-                queue_id=queue.id,
-                initiative_role_id=rp.initiative_role_id,
-                guild_id=guild_context.guild_id,
-                level=rp.level,
-            ))
+            session.add(
+                QueueRolePermission(
+                    queue_id=queue.id,
+                    initiative_role_id=rp.initiative_role_id,
+                    guild_id=guild_context.guild_id,
+                    level=rp.level,
+                )
+            )
 
     # Process optional user permissions
     if queue_in.user_permissions:
-        requested = {up.user_id for up in queue_in.user_permissions if up.user_id != current_user.id}
+        requested = {
+            up.user_id
+            for up in queue_in.user_permissions
+            if up.user_id != current_user.id
+        }
         valid_ids: set[int] = set()
         if requested:
             result = await session.exec(
@@ -368,12 +402,14 @@ async def create_queue(
             valid_ids = set(result.all())
         for up in queue_in.user_permissions:
             if up.user_id in valid_ids and up.level != QueuePermissionLevel.owner:
-                session.add(QueuePermission(
-                    queue_id=queue.id,
-                    user_id=up.user_id,
-                    guild_id=guild_context.guild_id,
-                    level=up.level,
-                ))
+                session.add(
+                    QueuePermission(
+                        queue_id=queue.id,
+                        user_id=up.user_id,
+                        guild_id=guild_context.guild_id,
+                        level=up.level,
+                    )
+                )
 
     await session.commit()
     await reapply_rls_context(session)
@@ -381,7 +417,9 @@ async def create_queue(
     hydrated = await _refetch_queue(session, queue.id)
     return serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
 
 
@@ -394,7 +432,9 @@ async def update_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Update queue name/description. Requires write access."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     updated = False
     update_data = queue_in.model_dump(exclude_unset=True)
 
@@ -414,10 +454,14 @@ async def update_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
     if updated:
-        await queue_manager.broadcast(queue_id, "queue_updated", result.model_dump(mode="json"))
+        await queue_manager.broadcast(
+            queue_id, "queue_updated", result.model_dump(mode="json")
+        )
     return result
 
 
@@ -433,10 +477,14 @@ async def delete_queue(
     from app.services import guilds as guilds_service
     from app.services.soft_delete import soft_delete_entity
 
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="read")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="read"
+    )
     if not rls_service.is_guild_admin(guild_context.role):
         queues_service.require_queue_access(queue, current_user, require_owner=True)
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(
+        session, guild_context.guild_id
+    )
     await soft_delete_entity(
         session,
         queue,
@@ -452,7 +500,11 @@ async def delete_queue(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{queue_id}/items", response_model=QueueItemRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{queue_id}/items",
+    response_model=QueueItemRead,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_queue_item(
     queue_id: int,
     item_in: QueueItemCreate,
@@ -461,7 +513,9 @@ async def add_queue_item(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Add an item to a queue. Requires write access."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
 
     item = QueueItem(
         guild_id=queue.guild_id,
@@ -479,32 +533,47 @@ async def add_queue_item(
     # Set tags if provided
     if item_in.tag_ids:
         await queues_service.set_queue_item_tags(
-            session, item, item_in.tag_ids, queue.guild_id,
+            session,
+            item,
+            item_in.tag_ids,
+            queue.guild_id,
         )
 
     # Set document links if provided
     if item_in.document_ids:
         await queues_service.set_queue_item_documents(
-            session, item, item_in.document_ids, queue.guild_id, current_user.id,
+            session,
+            item,
+            item_in.document_ids,
+            queue.guild_id,
+            current_user.id,
         )
 
     # Set task links if provided
     if item_in.task_ids:
         await queues_service.set_queue_item_tasks(
-            session, item, item_in.task_ids, queue.guild_id, current_user.id,
+            session,
+            item,
+            item_in.task_ids,
+            queue.guild_id,
+            current_user.id,
         )
 
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
+    hydrated_item = await queues_service.get_queue_item(
+        session, item.id, populate_existing=True
+    )
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(queue_id, "item_added", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "item_added", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -518,7 +587,9 @@ async def update_queue_item(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Update a queue item. Requires write access on the queue."""
-    await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
     updated = False
@@ -534,14 +605,18 @@ async def update_queue_item(
         await session.commit()
         await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
+    hydrated_item = await queues_service.get_queue_item(
+        session, item.id, populate_existing=True
+    )
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(queue_id, "item_updated", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "item_updated", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -557,14 +632,18 @@ async def delete_queue_item(
     from app.services import guilds as guilds_service
     from app.services.soft_delete import soft_delete_entity
 
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
     if queue.current_item_id == item.id:
         queue.current_item_id = None
         session.add(queue)
 
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(
+        session, guild_context.guild_id
+    )
     await soft_delete_entity(
         session,
         item,
@@ -584,7 +663,9 @@ async def reorder_queue_items(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Bulk reorder queue items. Requires write access."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
 
     # Build a map of existing items for validation
     existing_items = {item.id: item for item in (queue.items or [])}
@@ -603,9 +684,13 @@ async def reorder_queue_items(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
-    await queue_manager.broadcast(queue_id, "items_reordered", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "items_reordered", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -622,7 +707,9 @@ async def start_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Start the queue: set active, reset to first item, round 1."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     await queues_service.start_queue(session, queue)
     await session.commit()
     await reapply_rls_context(session)
@@ -630,9 +717,13 @@ async def start_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
-    await queue_manager.broadcast(queue_id, "queue_started", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "queue_started", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -644,7 +735,9 @@ async def stop_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Stop the queue: set inactive but keep current position."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     await queues_service.stop_queue(session, queue)
     await session.commit()
     await reapply_rls_context(session)
@@ -652,9 +745,13 @@ async def stop_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
-    await queue_manager.broadcast(queue_id, "queue_stopped", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "queue_stopped", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -666,7 +763,9 @@ async def advance_turn(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Advance to the next visible item. Wraps around and increments round."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     await queues_service.advance_turn(session, queue)
     await session.commit()
     await reapply_rls_context(session)
@@ -674,9 +773,13 @@ async def advance_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
-    await queue_manager.broadcast(queue_id, "turn_advance", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "turn_advance", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -688,7 +791,9 @@ async def previous_turn(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Move to the previous visible item. Wraps around and decrements round."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     await queues_service.previous_turn(session, queue)
     await session.commit()
     await reapply_rls_context(session)
@@ -696,9 +801,13 @@ async def previous_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
-    await queue_manager.broadcast(queue_id, "turn_previous", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "turn_previous", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -711,7 +820,9 @@ async def set_active_item(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Jump to a specific item in the queue."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     await queues_service.set_active_item(session, queue, item_id)
     await session.commit()
     await reapply_rls_context(session)
@@ -719,9 +830,13 @@ async def set_active_item(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
-    await queue_manager.broadcast(queue_id, "turn_set_active", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "turn_set_active", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -733,7 +848,9 @@ async def reset_queue(
     guild_context: GuildContextDep,
 ) -> QueueRead:
     """Reset the queue to round 1, first visible item."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     await queues_service.reset_queue(session, queue)
     await session.commit()
     await reapply_rls_context(session)
@@ -741,9 +858,13 @@ async def reset_queue(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
-    await queue_manager.broadcast(queue_id, "queue_reset", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "queue_reset", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -760,7 +881,9 @@ async def hold_current_turn(
     auto-releases it when its natural position-desc slot comes back around in
     a later round. Users can also call ``/release/{item_id}`` to act sooner.
     """
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     await queues_service.hold_current(session, queue)
     await session.commit()
     await reapply_rls_context(session)
@@ -768,7 +891,9 @@ async def hold_current_turn(
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
     await queue_manager.broadcast(queue_id, "turn_held", result.model_dump(mode="json"))
     return result
@@ -796,17 +921,25 @@ async def release_held_item(
     position so it acts at its natural slot next time the rotation reaches
     it.
     """
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
-    await queues_service.release_held(session, queue, item_id, reposition=options.reposition)
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
+    await queues_service.release_held(
+        session, queue, item_id, reposition=options.reposition
+    )
     await session.commit()
     await reapply_rls_context(session)
 
     hydrated = await _refetch_queue(session, queue.id)
     result = serialize_queue(
         hydrated,
-        my_permission_level=_compute_my_permission(hydrated, current_user, guild_context),
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
     )
-    await queue_manager.broadcast(queue_id, "turn_released", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "turn_released", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -825,21 +958,27 @@ async def set_queue_item_tags(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Set tags on a queue item. Replaces all existing tags."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
     await queues_service.set_queue_item_tags(session, item, tag_ids, queue.guild_id)
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
+    hydrated_item = await queues_service.get_queue_item(
+        session, item.id, populate_existing=True
+    )
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(queue_id, "tags_changed", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "tags_changed", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -858,23 +997,33 @@ async def set_queue_item_documents(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Set document links on a queue item. Replaces all existing links."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
     await queues_service.set_queue_item_documents(
-        session, item, document_ids, queue.guild_id, current_user.id,
+        session,
+        item,
+        document_ids,
+        queue.guild_id,
+        current_user.id,
     )
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
+    hydrated_item = await queues_service.get_queue_item(
+        session, item.id, populate_existing=True
+    )
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(queue_id, "documents_changed", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "documents_changed", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -888,23 +1037,33 @@ async def set_queue_item_tasks(
     guild_context: GuildContextDep,
 ) -> QueueItemRead:
     """Set task links on a queue item. Replaces all existing links."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="write")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="write"
+    )
     item = await _get_item_for_queue(session, queue_id, item_id)
 
     await queues_service.set_queue_item_tasks(
-        session, item, task_ids, queue.guild_id, current_user.id,
+        session,
+        item,
+        task_ids,
+        queue.guild_id,
+        current_user.id,
     )
     await session.commit()
     await reapply_rls_context(session)
 
-    hydrated_item = await queues_service.get_queue_item(session, item.id, populate_existing=True)
+    hydrated_item = await queues_service.get_queue_item(
+        session, item.id, populate_existing=True
+    )
     if not hydrated_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(queue_id, "tasks_changed", result.model_dump(mode="json"))
+    await queue_manager.broadcast(
+        queue_id, "tasks_changed", result.model_dump(mode="json")
+    )
     return result
 
 
@@ -921,7 +1080,9 @@ async def list_queue_permissions(
     guild_context: GuildContextDep,
 ) -> dict:
     """List user and role permissions on a queue. Requires read access."""
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="read")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="read"
+    )
 
     permissions = [
         QueuePermissionRead(
@@ -933,15 +1094,17 @@ async def list_queue_permissions(
     ]
 
     role_permissions = []
-    for rp in (queue.role_permissions or []):
+    for rp in queue.role_permissions or []:
         role = getattr(rp, "role", None)
-        role_permissions.append(QueueRolePermissionRead(
-            initiative_role_id=rp.initiative_role_id,
-            role_name=getattr(role, "name", "") if role else "",
-            role_display_name=getattr(role, "display_name", "") if role else "",
-            level=rp.level,
-            created_at=rp.created_at,
-        ))
+        role_permissions.append(
+            QueueRolePermissionRead(
+                initiative_role_id=rp.initiative_role_id,
+                role_name=getattr(role, "name", "") if role else "",
+                role_display_name=getattr(role, "display_name", "") if role else "",
+                level=rp.level,
+                created_at=rp.created_at,
+            )
+        )
 
     return {
         "permissions": permissions,
@@ -961,13 +1124,15 @@ async def set_queue_permissions(
 
     Replaces all non-owner permissions. The owner's permission cannot be changed.
     """
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="read")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="read"
+    )
     if not rls_service.is_guild_admin(guild_context.role):
         queues_service.require_queue_access(queue, current_user, require_owner=True)
 
     # Find the owner's user_id
     owner_user_id: int | None = None
-    for p in (queue.permissions or []):
+    for p in queue.permissions or []:
         if p.level == QueuePermissionLevel.owner:
             owner_user_id = p.user_id
             break
@@ -991,12 +1156,14 @@ async def set_queue_permissions(
             continue
         if perm_in.level == QueuePermissionLevel.owner:
             continue
-        session.add(QueuePermission(
-            queue_id=queue.id,
-            user_id=perm_in.user_id,
-            guild_id=queue.guild_id,
-            level=perm_in.level,
-        ))
+        session.add(
+            QueuePermission(
+                queue_id=queue.id,
+                user_id=perm_in.user_id,
+                guild_id=queue.guild_id,
+                level=perm_in.level,
+            )
+        )
 
     await session.commit()
     await reapply_rls_context(session)
@@ -1011,13 +1178,16 @@ async def set_queue_permissions(
         for p in (hydrated.permissions or [])
     ]
     await queue_manager.broadcast(
-        queue_id, "permissions_changed",
+        queue_id,
+        "permissions_changed",
         {"permissions": [p.model_dump(mode="json") for p in perms_result]},
     )
     return perms_result
 
 
-@router.put("/{queue_id}/role-permissions", response_model=List[QueueRolePermissionRead])
+@router.put(
+    "/{queue_id}/role-permissions", response_model=List[QueueRolePermissionRead]
+)
 async def set_queue_role_permissions(
     queue_id: int,
     role_permissions_in: List[QueueRolePermissionCreate],
@@ -1029,7 +1199,9 @@ async def set_queue_role_permissions(
 
     Replaces all existing role permissions.
     """
-    queue = await _get_queue_with_access(session, queue_id, current_user, guild_context, access="read")
+    queue = await _get_queue_with_access(
+        session, queue_id, current_user, guild_context, access="read"
+    )
     if not rls_service.is_guild_admin(guild_context.role):
         queues_service.require_queue_access(queue, current_user, require_owner=True)
 
@@ -1043,29 +1215,34 @@ async def set_queue_role_permissions(
     for rp_in in role_permissions_in:
         if rp_in.level == QueuePermissionLevel.owner:
             continue
-        session.add(QueueRolePermission(
-            queue_id=queue.id,
-            initiative_role_id=rp_in.initiative_role_id,
-            guild_id=queue.guild_id,
-            level=rp_in.level,
-        ))
+        session.add(
+            QueueRolePermission(
+                queue_id=queue.id,
+                initiative_role_id=rp_in.initiative_role_id,
+                guild_id=queue.guild_id,
+                level=rp_in.level,
+            )
+        )
 
     await session.commit()
     await reapply_rls_context(session)
 
     hydrated = await _refetch_queue(session, queue.id)
     role_perms_result: List[QueueRolePermissionRead] = []
-    for rp in (hydrated.role_permissions or []):
+    for rp in hydrated.role_permissions or []:
         role = getattr(rp, "role", None)
-        role_perms_result.append(QueueRolePermissionRead(
-            initiative_role_id=rp.initiative_role_id,
-            role_name=getattr(role, "name", "") if role else "",
-            role_display_name=getattr(role, "display_name", "") if role else "",
-            level=rp.level,
-            created_at=rp.created_at,
-        ))
+        role_perms_result.append(
+            QueueRolePermissionRead(
+                initiative_role_id=rp.initiative_role_id,
+                role_name=getattr(role, "name", "") if role else "",
+                role_display_name=getattr(role, "display_name", "") if role else "",
+                level=rp.level,
+                created_at=rp.created_at,
+            )
+        )
     await queue_manager.broadcast(
-        queue_id, "permissions_changed",
+        queue_id,
+        "permissions_changed",
         {"role_permissions": [rp.model_dump(mode="json") for rp in role_perms_result]},
     )
     return role_perms_result
@@ -1079,7 +1256,9 @@ async def set_queue_role_permissions(
 async def _ws_authenticate(token: str, session) -> Optional[User]:
     """Validate JWT or device token and return the user."""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         token_data = TokenPayload(**payload)
         if token_data.sub:
             stmt = select(User).where(User.id == int(token_data.sub))
@@ -1173,7 +1352,9 @@ async def websocket_queue(
         if not is_admin:
             level = queues_service.compute_queue_permission(queue, user.id)
             if level is None:
-                logger.warning(f"Queue WS: user {user.id} has no access to queue {queue_id}")
+                logger.warning(
+                    f"Queue WS: user {user.id} has no access to queue {queue_id}"
+                )
                 await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
                 return
 

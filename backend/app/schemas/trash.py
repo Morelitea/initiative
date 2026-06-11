@@ -24,7 +24,9 @@ EntityType = Literal[
 
 
 class TrashItem(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     entity_type: EntityType
     entity_id: int

@@ -226,7 +226,10 @@ async def test_put_task_multi_select_unknown_slug_rejected(
     task = await _create_task(session, project)
 
     defn = await create_property_definition(
-        session, initiative, name="M", type=PropertyType.multi_select,
+        session,
+        initiative,
+        name="M",
+        type=PropertyType.multi_select,
         options=[{"value": "a", "label": "A"}, {"value": "b", "label": "B"}],
     )
 
@@ -281,8 +284,12 @@ async def test_put_task_properties_cross_guild_task_returns_404(
     user = await create_user(session, email="u@example.com")
     guild_a = await create_guild(session, name="A")
     guild_b = await create_guild(session, name="B")
-    await create_guild_membership(session, user=user, guild=guild_a, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild_b, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild_a, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=user, guild=guild_b, role=GuildRole.admin
+    )
 
     initiative_b = await create_initiative(session, guild_b, user, name="Init B")
     project_b = await create_project(session, initiative_b, user, name="P")
@@ -391,9 +398,7 @@ async def test_duplicate_task_same_project_carries_property_values(
         json={"values": [{"property_id": defn.id, "value": "carry"}]},
     )
 
-    dup_resp = await client.post(
-        f"/api/v1/tasks/{task.id}/duplicate", headers=headers
-    )
+    dup_resp = await client.post(f"/api/v1/tasks/{task.id}/duplicate", headers=headers)
     assert dup_resp.status_code == 201
     dup = dup_resp.json()
     props = {p["property_id"]: p["value"] for p in dup["properties"]}
@@ -439,14 +444,16 @@ async def test_list_tasks_filter_by_property_text_eq(
         json={"values": [{"property_id": defn.id, "value": "skip"}]},
     )
 
-    conditions = json.dumps([
-        {"field": "project_id", "op": "eq", "value": project.id},
-        {
-            "field": "property_values",
-            "op": "eq",
-            "value": {"property_id": defn.id, "value": "findme"},
-        },
-    ])
+    conditions = json.dumps(
+        [
+            {"field": "project_id", "op": "eq", "value": project.id},
+            {
+                "field": "property_values",
+                "op": "eq",
+                "value": {"property_id": defn.id, "value": "findme"},
+            },
+        ]
+    )
     response = await client.get(
         f"/api/v1/tasks/?conditions={conditions}", headers=headers
     )
@@ -469,8 +476,14 @@ async def test_list_tasks_filter_by_property_multi_select(
     task_b = await _create_task(session, project, "B")
 
     defn = await create_property_definition(
-        session, initiative, name="Labels", type=PropertyType.multi_select,
-        options=[{"value": "alpha", "label": "Alpha"}, {"value": "beta", "label": "Beta"}],
+        session,
+        initiative,
+        name="Labels",
+        type=PropertyType.multi_select,
+        options=[
+            {"value": "alpha", "label": "Alpha"},
+            {"value": "beta", "label": "Beta"},
+        ],
     )
     headers = get_guild_headers(guild, user)
 
@@ -485,14 +498,16 @@ async def test_list_tasks_filter_by_property_multi_select(
         json={"values": [{"property_id": defn.id, "value": ["beta"]}]},
     )
 
-    conditions = json.dumps([
-        {"field": "project_id", "op": "eq", "value": project.id},
-        {
-            "field": "property_values",
-            "op": "eq",
-            "value": {"property_id": defn.id, "value": ["alpha"]},
-        },
-    ])
+    conditions = json.dumps(
+        [
+            {"field": "project_id", "op": "eq", "value": project.id},
+            {
+                "field": "property_values",
+                "op": "eq",
+                "value": {"property_id": defn.id, "value": ["alpha"]},
+            },
+        ]
+    )
     response = await client.get(
         f"/api/v1/tasks/?conditions={conditions}", headers=headers
     )

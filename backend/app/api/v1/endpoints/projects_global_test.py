@@ -23,9 +23,7 @@ from app.testing.factories import (
 async def _setup_guild_with_project(session, user, *, guild_name="Test Guild"):
     """Create a guild, membership, initiative, and project for the user."""
     guild = await create_guild(session, creator=user, name=guild_name)
-    await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.admin
-    )
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name="Initiative")
     project = await create_project(session, initiative, user, name="Project")
     return guild, initiative, project
@@ -163,9 +161,7 @@ async def test_list_global_projects_guild_filter(
 
 
 @pytest.mark.integration
-async def test_list_global_projects_search(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_list_global_projects_search(client: AsyncClient, session: AsyncSession):
     """search parameter should filter projects by name."""
     user = await create_user(session, email="user@example.com")
     guild, initiative, _ = await _setup_guild_with_project(session, user)
@@ -174,9 +170,7 @@ async def test_list_global_projects_search(
     beta = await create_project(session, initiative, user, name="Beta Project")
 
     headers = get_guild_headers(guild, user)
-    response = await client.get(
-        "/api/v1/projects/global?search=alpha", headers=headers
-    )
+    response = await client.get("/api/v1/projects/global?search=alpha", headers=headers)
 
     assert response.status_code == 200
     project_ids = {p["id"] for p in response.json()["items"]}

@@ -27,7 +27,9 @@ class CounterConnectionManager:
                 if not self._rooms[group_id]:
                     del self._rooms[group_id]
 
-    async def broadcast(self, group_id: int, event_type: str, data: Dict[str, Any]) -> None:
+    async def broadcast(
+        self, group_id: int, event_type: str, data: Dict[str, Any]
+    ) -> None:
         async with self._lock:
             connections = list(self._rooms.get(group_id, set()))
 

@@ -122,7 +122,9 @@ async def test_dispatch_skips_when_no_subscribers(session):
     from app.testing.factories import create_guild
 
     guild = await create_guild(session)
-    with patch("app.services.webhook_dispatcher._deliver", new=AsyncMock()) as mock_deliver:
+    with patch(
+        "app.services.webhook_dispatcher._deliver", new=AsyncMock()
+    ) as mock_deliver:
         await dispatch_event(
             session,
             event_type="task.created",
@@ -141,14 +143,20 @@ async def test_dispatch_matches_only_active_subscriptions(session):
     user = await create_user(session, email="dispatcher-active@example.com")
     guild = await create_guild(session)
     await _make_subscription(
-        session, guild=guild, user=user,
+        session,
+        guild=guild,
+        user=user,
         target_url="https://active.example.com/hook",
-        event_types=["task.created"], active=True,
+        event_types=["task.created"],
+        active=True,
     )
     await _make_subscription(
-        session, guild=guild, user=user,
+        session,
+        guild=guild,
+        user=user,
         target_url="https://inactive.example.com/hook",
-        event_types=["task.created"], active=False,
+        event_types=["task.created"],
+        active=False,
     )
 
     delivered_to: list[str] = []
@@ -158,7 +166,10 @@ async def test_dispatch_matches_only_active_subscriptions(session):
 
     with patch("app.services.webhook_dispatcher._deliver", new=fake_deliver):
         await dispatch_event(
-            session, event_type="task.created", guild_id=guild.id, payload={"id": 1},
+            session,
+            event_type="task.created",
+            guild_id=guild.id,
+            payload={"id": 1},
         )
 
     assert delivered_to == ["https://active.example.com/hook"]
@@ -172,14 +183,21 @@ async def test_dispatch_filters_by_event_type(session):
     user = await create_user(session, email="dispatcher-filter@example.com")
     guild = await create_guild(session)
     await _make_subscription(
-        session, guild=guild, user=user,
+        session,
+        guild=guild,
+        user=user,
         target_url="https://updated.example.com/hook",
         event_types=["task.updated"],
     )
 
-    with patch("app.services.webhook_dispatcher._deliver", new=AsyncMock()) as mock_deliver:
+    with patch(
+        "app.services.webhook_dispatcher._deliver", new=AsyncMock()
+    ) as mock_deliver:
         await dispatch_event(
-            session, event_type="task.created", guild_id=guild.id, payload={"id": 1},
+            session,
+            event_type="task.created",
+            guild_id=guild.id,
+            payload={"id": 1},
         )
         assert mock_deliver.await_count == 0
 
@@ -198,19 +216,28 @@ async def test_dispatch_initiative_scope_matches_correctly(session):
     init_b = await create_initiative(session, guild, user, name="B")
 
     await _make_subscription(
-        session, guild=guild, user=user,
+        session,
+        guild=guild,
+        user=user,
         target_url="https://guild-wide.example.com",
-        event_types=["task.created"], initiative_id=None,
+        event_types=["task.created"],
+        initiative_id=None,
     )
     await _make_subscription(
-        session, guild=guild, user=user,
+        session,
+        guild=guild,
+        user=user,
         target_url="https://init-a.example.com",
-        event_types=["task.created"], initiative_id=init_a.id,
+        event_types=["task.created"],
+        initiative_id=init_a.id,
     )
     await _make_subscription(
-        session, guild=guild, user=user,
+        session,
+        guild=guild,
+        user=user,
         target_url="https://init-b.example.com",
-        event_types=["task.created"], initiative_id=init_b.id,
+        event_types=["task.created"],
+        initiative_id=init_b.id,
     )
 
     delivered_to: list[str] = []
@@ -220,8 +247,11 @@ async def test_dispatch_initiative_scope_matches_correctly(session):
 
     with patch("app.services.webhook_dispatcher._deliver", new=fake_deliver):
         await dispatch_event(
-            session, event_type="task.created", guild_id=guild.id,
-            initiative_id=init_a.id, payload={"id": 1},
+            session,
+            event_type="task.created",
+            guild_id=guild.id,
+            initiative_id=init_a.id,
+            payload={"id": 1},
         )
 
     assert sorted(delivered_to) == [
@@ -242,12 +272,18 @@ async def test_each_subscription_gets_unique_event_id(session):
     user = await create_user(session, email="dispatcher-eventid@example.com")
     guild = await create_guild(session, creator=user)
     await _make_subscription(
-        session, guild=guild, user=user,
-        target_url="https://a.example.com", event_types=["task.created"],
+        session,
+        guild=guild,
+        user=user,
+        target_url="https://a.example.com",
+        event_types=["task.created"],
     )
     await _make_subscription(
-        session, guild=guild, user=user,
-        target_url="https://b.example.com", event_types=["task.created"],
+        session,
+        guild=guild,
+        user=user,
+        target_url="https://b.example.com",
+        event_types=["task.created"],
     )
 
     seen_event_ids: list[str] = []
@@ -257,7 +293,10 @@ async def test_each_subscription_gets_unique_event_id(session):
 
     with patch("app.services.webhook_dispatcher._deliver", new=fake_deliver):
         await dispatch_event(
-            session, event_type="task.created", guild_id=guild.id, payload={"id": 1},
+            session,
+            event_type="task.created",
+            guild_id=guild.id,
+            payload={"id": 1},
         )
 
     assert len(seen_event_ids) == 2
@@ -274,13 +313,20 @@ async def test_dispatch_does_not_cross_guilds(session):
     guild_a = await create_guild(session, name="A")
     guild_b = await create_guild(session, name="B")
     await _make_subscription(
-        session, guild=guild_b, user=user,
+        session,
+        guild=guild_b,
+        user=user,
         target_url="https://other-guild.example.com",
         event_types=["task.created"],
     )
 
-    with patch("app.services.webhook_dispatcher._deliver", new=AsyncMock()) as mock_deliver:
+    with patch(
+        "app.services.webhook_dispatcher._deliver", new=AsyncMock()
+    ) as mock_deliver:
         await dispatch_event(
-            session, event_type="task.created", guild_id=guild_a.id, payload={"id": 1},
+            session,
+            event_type="task.created",
+            guild_id=guild_a.id,
+            payload={"id": 1},
         )
         assert mock_deliver.await_count == 0

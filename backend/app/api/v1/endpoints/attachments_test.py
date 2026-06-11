@@ -1,11 +1,17 @@
 """Tests for the attachment upload endpoint."""
+
 import io
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.testing import create_guild, create_guild_membership, create_user, get_guild_headers
+from app.testing import (
+    create_guild,
+    create_guild_membership,
+    create_user,
+    get_guild_headers,
+)
 from app.models.guild import GuildRole
 
 

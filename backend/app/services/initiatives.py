@@ -55,7 +55,9 @@ async def get_pm_role(
     initiative_id: int,
 ) -> InitiativeRoleModel | None:
     """Get the project_manager role for an initiative."""
-    return await get_role_by_name(session, initiative_id=initiative_id, role_name="project_manager")
+    return await get_role_by_name(
+        session, initiative_id=initiative_id, role_name="project_manager"
+    )
 
 
 async def get_member_role(
@@ -64,7 +66,9 @@ async def get_member_role(
     initiative_id: int,
 ) -> InitiativeRoleModel | None:
     """Get the member role for an initiative."""
-    return await get_role_by_name(session, initiative_id=initiative_id, role_name="member")
+    return await get_role_by_name(
+        session, initiative_id=initiative_id, role_name="member"
+    )
 
 
 async def create_builtin_roles(
@@ -102,25 +106,31 @@ async def create_builtin_roles(
 
     # Add permissions for PM role
     for perm_key, enabled in BUILTIN_ROLE_PERMISSIONS["project_manager"].items():
-        session.add(InitiativeRolePermission(
-            initiative_role_id=pm_role.id,
-            permission_key=perm_key,
-            enabled=enabled,
-        ))
+        session.add(
+            InitiativeRolePermission(
+                initiative_role_id=pm_role.id,
+                permission_key=perm_key,
+                enabled=enabled,
+            )
+        )
 
     # Add permissions for Member role
     for perm_key, enabled in BUILTIN_ROLE_PERMISSIONS["member"].items():
-        session.add(InitiativeRolePermission(
-            initiative_role_id=member_role.id,
-            permission_key=perm_key,
-            enabled=enabled,
-        ))
+        session.add(
+            InitiativeRolePermission(
+                initiative_role_id=member_role.id,
+                permission_key=perm_key,
+                enabled=enabled,
+            )
+        )
 
     await session.flush()
     return pm_role, member_role
 
 
-async def ensure_default_initiative(session: AsyncSession, admin_user: User, *, guild_id: int) -> Initiative:
+async def ensure_default_initiative(
+    session: AsyncSession, admin_user: User, *, guild_id: int
+) -> Initiative:
     statement = select(Initiative).where(
         Initiative.guild_id == guild_id,
         Initiative.is_default.is_(True),
@@ -151,7 +161,9 @@ async def ensure_default_initiative(session: AsyncSession, admin_user: User, *, 
     await session.flush()
 
     # Create built-in roles for this initiative
-    pm_role, _member_role = await create_builtin_roles(session, initiative_id=default_initiative.id)
+    pm_role, _member_role = await create_builtin_roles(
+        session, initiative_id=default_initiative.id
+    )
 
     # Add admin as PM
     session.add(
@@ -167,7 +179,9 @@ async def ensure_default_initiative(session: AsyncSession, admin_user: User, *, 
     return default_initiative
 
 
-async def load_user_initiative_roles(session: AsyncSession, users: Sequence[User]) -> None:
+async def load_user_initiative_roles(
+    session: AsyncSession, users: Sequence[User]
+) -> None:
     """Load initiative role information for users (for display purposes)."""
     user_ids = [user.id for user in users if user.id is not None]
     if not user_ids:
@@ -180,16 +194,28 @@ async def load_user_initiative_roles(session: AsyncSession, users: Sequence[User
             Initiative.name,
         )
         .join(Initiative, Initiative.id == InitiativeMember.initiative_id)
-        .outerjoin(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
+        .outerjoin(
+            InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
+        )
         .where(InitiativeMember.user_id.in_(tuple(user_ids)))
     )
     result = await session.exec(stmt)
-    assignments: dict[int, list[UserInitiativeRole]] = {user_id: [] for user_id in user_ids}
+    assignments: dict[int, list[UserInitiativeRole]] = {
+        user_id: [] for user_id in user_ids
+    }
     for user_id, role_name, initiative_id, initiative_name in result.all():
         # Convert role_name to legacy enum for backward compatibility
-        legacy_role = InitiativeRole.project_manager if role_name == "project_manager" else InitiativeRole.member
+        legacy_role = (
+            InitiativeRole.project_manager
+            if role_name == "project_manager"
+            else InitiativeRole.member
+        )
         assignments.setdefault(user_id, []).append(
-            UserInitiativeRole(initiative_id=initiative_id, initiative_name=initiative_name, role=legacy_role)
+            UserInitiativeRole(
+                initiative_id=initiative_id,
+                initiative_name=initiative_name,
+                role=legacy_role,
+            )
         )
     for user in users:
         user_assignments = assignments.get(user.id or 0, [])
@@ -207,7 +233,9 @@ async def _ensure_membership_as_pm(
     pm_role = await get_pm_role(session, initiative_id=initiative_id)
     if not pm_role:
         # Create roles if they don't exist (migration safety)
-        pm_role, _member_role = await create_builtin_roles(session, initiative_id=initiative_id)
+        pm_role, _member_role = await create_builtin_roles(
+            session, initiative_id=initiative_id
+        )
 
     stmt = select(InitiativeMember).where(
         InitiativeMember.initiative_id == initiative_id,
@@ -255,7 +283,11 @@ async def get_initiative_membership_with_role(
     """Get membership with role eagerly loaded."""
     stmt = (
         select(InitiativeMember)
-        .options(selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions))
+        .options(
+            selectinload(InitiativeMember.role_ref).selectinload(
+                InitiativeRoleModel.permissions
+            )
+        )
         .where(
             InitiativeMember.initiative_id == initiative_id,
             InitiativeMember.user_id == user_id,
@@ -282,7 +314,9 @@ async def ensure_managers_remain(
         )
     )
     result = await session.exec(stmt)
-    managers = [membership for membership in result.all() if membership.user_id not in excluded]
+    managers = [
+        membership for membership in result.all() if membership.user_id not in excluded
+    ]
     if not managers:
         raise ValueError(InitiativeMessages.MUST_HAVE_PM)
 
@@ -318,7 +352,10 @@ async def initiatives_requiring_new_pm(
 
     stmt = (
         select(Initiative)
-        .join(manager_count_subquery, manager_count_subquery.c.initiative_id == Initiative.id)
+        .join(
+            manager_count_subquery,
+            manager_count_subquery.c.initiative_id == Initiative.id,
+        )
         .where(
             Initiative.id.in_(user_manager_initiatives),
             manager_count_subquery.c.manager_count == 1,
@@ -336,7 +373,9 @@ async def ensure_user_not_sole_pm(
     *,
     guild_id: int | None = None,
 ) -> None:
-    initiatives = await initiatives_requiring_new_pm(session, user_id, guild_id=guild_id)
+    initiatives = await initiatives_requiring_new_pm(
+        session, user_id, guild_id=guild_id
+    )
     if initiatives:
         names = ", ".join(initiative.name for initiative in initiatives)
         raise ValueError(f"User is the sole project manager for: {names}")
@@ -405,10 +444,14 @@ async def remove_user_from_guild_initiatives(
     # before dropping the membership rows.
     for init_id in initiative_ids:
         await clear_user_task_assignments_for_initiative(
-            session, initiative_id=init_id, user_id=user_id,
+            session,
+            initiative_id=init_id,
+            user_id=user_id,
         )
         await documents_service.handle_owner_removal(
-            session, initiative_id=init_id, user_id=user_id,
+            session,
+            initiative_id=init_id,
+            user_id=user_id,
         )
 
     # Remove initiative memberships
@@ -486,11 +529,13 @@ async def create_custom_role(
     # Add permissions (default to member permissions if not specified)
     perms = permissions or dict(BUILTIN_ROLE_PERMISSIONS["member"])
     for perm_key, enabled in perms.items():
-        session.add(InitiativeRolePermission(
-            initiative_role_id=role.id,
-            permission_key=perm_key,
-            enabled=enabled,
-        ))
+        session.add(
+            InitiativeRolePermission(
+                initiative_role_id=role.id,
+                permission_key=perm_key,
+                enabled=enabled,
+            )
+        )
 
     await session.flush()
     await session.refresh(role, attribute_names=["permissions"])
@@ -514,11 +559,13 @@ async def update_role_permissions(
             existing.enabled = enabled
             session.add(existing)
         else:
-            session.add(InitiativeRolePermission(
-                initiative_role_id=role.id,
-                permission_key=perm_key,
-                enabled=enabled,
-            ))
+            session.add(
+                InitiativeRolePermission(
+                    initiative_role_id=role.id,
+                    permission_key=perm_key,
+                    enabled=enabled,
+                )
+            )
     await session.flush()
     await session.refresh(role, attribute_names=["permissions"])
     return role

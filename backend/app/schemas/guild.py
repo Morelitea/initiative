@@ -22,7 +22,9 @@ class GuildCreate(GuildBase):
 
 
 class GuildRead(GuildBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     role: GuildRole
@@ -40,7 +42,9 @@ class GuildInviteCreate(SanitizedBaseModel):
 
 
 class GuildInviteRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     code: str
@@ -93,6 +97,7 @@ class GuildDeletionRequest(SanitizedBaseModel):
       OIDC-only users (who have no usable password), mirroring the
       account-deletion endpoint, which is why it defaults to empty.
     """
+
     password: RawTextStr = ""
     confirmation_text: str
 
@@ -103,7 +108,9 @@ class GuildOrderUpdate(SanitizedBaseModel):
 
 
 class GuildSummary(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     name: str
@@ -112,6 +119,7 @@ class GuildSummary(SanitizedBaseModel):
 
 class GuildMembershipUpdate(SanitizedBaseModel):
     """Schema for updating a user's guild membership role."""
+
     role: GuildRole
 
 
@@ -127,6 +135,7 @@ class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     endpoint requires a transfer-or-delete disposition for each entry
     on this list before it will proceed.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
@@ -146,6 +155,7 @@ class LeaveGuildRequest(SanitizedBaseModel):
     nothing; rejected by the endpoint with
     ``CANNOT_LEAVE_OWNS_PROJECTS`` otherwise.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     project_transfers: dict[int, int] = Field(default_factory=dict)

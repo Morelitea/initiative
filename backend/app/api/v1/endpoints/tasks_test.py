@@ -158,6 +158,7 @@ async def test_create_task_requires_project_access(
     project = await _create_project(session, initiative, owner)
 
     from app.services import task_statuses as task_statuses_service
+
     await task_statuses_service.ensure_default_statuses(session, project.id)
     status = await task_statuses_service.get_default_status(session, project.id)
     await session.commit()
@@ -307,6 +308,7 @@ async def test_assign_user_to_task(client: AsyncClient, session: AsyncSession):
 
     # Add assignee to initiative
     from app.testing.factories import create_initiative_member
+
     await create_initiative_member(session, initiative, assignee, role_name="member")
 
     project = await _create_project(session, initiative, user)
@@ -344,6 +346,7 @@ async def test_move_task_to_different_project(
     task = await _create_task(session, project1)
 
     from app.services import task_statuses as task_statuses_service
+
     await task_statuses_service.ensure_default_statuses(session, project2.id)
     target_status = await task_statuses_service.get_default_status(session, project2.id)
     await session.commit()
@@ -502,7 +505,7 @@ async def test_reorder_tasks(client: AsyncClient, session: AsyncSession):
             {"id": task3.id, "task_status_id": task3.task_status_id, "position": 0},
             {"id": task1.id, "task_status_id": task1.task_status_id, "position": 1},
             {"id": task2.id, "task_status_id": task2.task_status_id, "position": 2},
-        ]
+        ],
     }
 
     response = await client.post("/api/v1/tasks/reorder", headers=headers, json=payload)
@@ -619,6 +622,7 @@ async def test_reorder_rebalances_on_precision_exhaustion(
     # Rebalanced to evenly spaced integers across the project.
     assert data[task2.id]["position"] == 2.0
     assert data[task3.id]["position"] == 3.0
+
     # task2 was only renumbered, not explicitly moved -> updated_at must not churn.
     # (Normalize the trailing 'Z' — datetime.fromisoformat rejects it on <3.11.)
     def _parse(ts: str) -> datetime:
@@ -635,8 +639,12 @@ async def test_task_guild_isolation(client: AsyncClient, session: AsyncSession):
     user = await create_user(session, email="user@example.com")
     guild1 = await create_guild(session, name="Guild 1")
     guild2 = await create_guild(session, name="Guild 2")
-    await create_guild_membership(session, user=user, guild=guild1, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild2, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild1, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=user, guild=guild2, role=GuildRole.admin
+    )
 
     initiative1 = await _create_initiative(session, guild1, user)
     project1 = await _create_project(session, initiative1, user)
@@ -674,7 +682,9 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession):
 
     headers = get_guild_headers(guild, user)
     conditions = json.dumps([{"field": "assignee_ids", "op": "in_", "value": ["me"]}])
-    response = await client.get(f"/api/v1/tasks/?conditions={conditions}", headers=headers)
+    response = await client.get(
+        f"/api/v1/tasks/?conditions={conditions}", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()["items"]
@@ -765,21 +775,30 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
 
     # Create tasks with different statuses
     from app.models.task import Task
+
     task1 = Task(
-        title="Todo Task", project_id=project.id, task_status_id=todo_status.id, guild_id=guild.id
+        title="Todo Task",
+        project_id=project.id,
+        task_status_id=todo_status.id,
+        guild_id=guild.id,
     )
     task2 = Task(
-        title="Done Task", project_id=project.id, task_status_id=done_status.id, guild_id=guild.id
+        title="Done Task",
+        project_id=project.id,
+        task_status_id=done_status.id,
+        guild_id=guild.id,
     )
     session.add(task1)
     session.add(task2)
     await session.commit()
 
     headers = get_guild_headers(guild, user)
-    conditions = json.dumps([
-        {"field": "project_id", "op": "eq", "value": project.id},
-        {"field": "task_status_id", "op": "in_", "value": [todo_status.id]},
-    ])
+    conditions = json.dumps(
+        [
+            {"field": "project_id", "op": "eq", "value": project.id},
+            {"field": "task_status_id", "op": "in_", "value": [todo_status.id]},
+        ]
+    )
     response = await client.get(
         f"/api/v1/tasks/?conditions={conditions}",
         headers=headers,

@@ -34,9 +34,7 @@ async def _create_document(client, guild, user, initiative, title="Test Doc"):
 async def _setup_guild_with_initiative(session, user, *, guild_name="Test Guild"):
     """Create a guild, membership, and initiative for the user."""
     guild = await create_guild(session, creator=user, name=guild_name)
-    await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.admin
-    )
+    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name="Initiative")
     return guild, initiative
 
@@ -70,9 +68,7 @@ async def test_list_global_documents_excludes_others(
     await create_guild_membership(session, user=other, guild=guild)
 
     # Admin creates a doc (via API, so created_by_id is set)
-    admin_doc = await _create_document(
-        client, guild, admin, initiative, "Admin's Doc"
-    )
+    admin_doc = await _create_document(client, guild, admin, initiative, "Admin's Doc")
 
     # Other user queries global docs — should not see admin's doc
     headers = get_guild_headers(guild, other)
@@ -123,9 +119,7 @@ async def test_list_global_documents_guild_filter(
 
 
 @pytest.mark.integration
-async def test_list_global_documents_search(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_list_global_documents_search(client: AsyncClient, session: AsyncSession):
     """scope=global with search should filter by document title."""
     user = await create_user(session, email="user@example.com")
     guild, initiative = await _setup_guild_with_initiative(session, user)

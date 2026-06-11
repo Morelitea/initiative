@@ -5,6 +5,7 @@ These were originally module-private helpers in
 endpoint (``app.api.v1.endpoints.auth``) reuse the same rules without
 reaching across to a sibling endpoint's underscore-prefixed symbol.
 """
+
 from __future__ import annotations
 
 import re

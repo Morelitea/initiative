@@ -210,7 +210,9 @@ async def test_guild_role_can_write_in_its_own_schema(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
-            await conn.execute(text("DELETE FROM public.guilds WHERE id = :id"), {"id": gid})
+            await conn.execute(
+                text("DELETE FROM public.guilds WHERE id = :id"), {"id": gid}
+            )
 
 
 async def test_reprovision_backfills_missing_tables_with_grants(engine):
@@ -237,10 +239,14 @@ async def test_reprovision_backfills_missing_tables_with_grants(engine):
             await provision_guild_schema(conn, gid)  # back-fill
 
         async with engine.connect() as conn:
-            recreated = await conn.scalar(text(f"SELECT to_regclass('{schema}.subtasks')"))
+            recreated = await conn.scalar(
+                text(f"SELECT to_regclass('{schema}.subtasks')")
+            )
             # and the role's grant reaches the back-filled table
             await conn.exec_driver_sql(f'SET ROLE "{role}"')
-            readable = await conn.scalar(text(f'SELECT count(*) FROM "{schema}".subtasks'))
+            readable = await conn.scalar(
+                text(f'SELECT count(*) FROM "{schema}".subtasks')
+            )
             await conn.exec_driver_sql("RESET ROLE")
         assert recreated is not None, "subtasks should be back-filled"
         assert readable == 0, "role should be able to read the back-filled table"
@@ -274,7 +280,9 @@ async def test_reprovision_preserves_existing_rows(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
-            await conn.execute(text("DELETE FROM public.guilds WHERE id = :id"), {"id": gid})
+            await conn.execute(
+                text("DELETE FROM public.guilds WHERE id = :id"), {"id": gid}
+            )
 
 
 async def test_drop_guild_schema_is_safe_when_absent(engine):
@@ -297,7 +305,9 @@ def _norm_default(d):
 def _norm_constraint(s):
     # PG re-renders array casts on round-trip; strip cast/paren/space noise so a
     # semantically identical CHECK doesn't read as drift.
-    s = re.sub(r"::(?:text|character varying|varchar|bpchar|integer|bigint)(?:\[\])?", "", s)
+    s = re.sub(
+        r"::(?:text|character varying|varchar|bpchar|integer|bigint)(?:\[\])?", "", s
+    )
     return re.sub(r"[\s()\[\]]", "", s)
 
 
@@ -314,44 +324,62 @@ async def test_guild_schema_matches_alembic_public(engine):
             await provision_guild_schema(conn, _GID_DRIFT)
 
         async with engine.connect() as conn:
+
             async def cols(ns, t):
-                r = await conn.execute(text(
-                    "SELECT a.attname a, format_type(a.atttypid,a.atttypmod) ty, a.attnotnull n, "
-                    "pg_get_expr(ad.adbin,ad.adrelid) d FROM pg_attribute a "
-                    "LEFT JOIN pg_attrdef ad ON ad.adrelid=a.attrelid AND ad.adnum=a.attnum "
-                    "WHERE a.attrelid=(:ns||'.'||:t)::regclass AND a.attnum>0 AND NOT a.attisdropped"
-                ), {"ns": ns, "t": t})
+                r = await conn.execute(
+                    text(
+                        "SELECT a.attname a, format_type(a.atttypid,a.atttypmod) ty, a.attnotnull n, "
+                        "pg_get_expr(ad.adbin,ad.adrelid) d FROM pg_attribute a "
+                        "LEFT JOIN pg_attrdef ad ON ad.adrelid=a.attrelid AND ad.adnum=a.attnum "
+                        "WHERE a.attrelid=(:ns||'.'||:t)::regclass AND a.attnum>0 AND NOT a.attisdropped"
+                    ),
+                    {"ns": ns, "t": t},
+                )
                 return {x.a: (x.ty, x.n, _norm_default(x.d)) for x in r}
 
             async def cons(ns, t):  # CHECK/PK/UNIQUE
-                r = await conn.execute(text(
-                    "SELECT pg_get_constraintdef(oid) d FROM pg_constraint "
-                    "WHERE conrelid=(:ns||'.'||:t)::regclass AND contype IN ('c','p','u')"
-                ), {"ns": ns, "t": t})
+                r = await conn.execute(
+                    text(
+                        "SELECT pg_get_constraintdef(oid) d FROM pg_constraint "
+                        "WHERE conrelid=(:ns||'.'||:t)::regclass AND contype IN ('c','p','u')"
+                    ),
+                    {"ns": ns, "t": t},
+                )
                 return sorted(_norm_constraint(x.d) for x in r)
 
             async def intra_fks(ns, t):  # (target, ON DELETE) for guild->guild FKs only
-                r = await conn.execute(text(
-                    "SELECT tgt.relname g, con.confdeltype::text d FROM pg_constraint con "
-                    "JOIN pg_class tgt ON tgt.oid=con.confrelid "
-                    "WHERE con.conrelid=(:ns||'.'||:t)::regclass AND con.contype='f' "
-                    "AND tgt.relname = ANY(:gs)"
-                ), {"ns": ns, "t": t, "gs": list(GUILD_SCOPED_TABLES)})
+                r = await conn.execute(
+                    text(
+                        "SELECT tgt.relname g, con.confdeltype::text d FROM pg_constraint con "
+                        "JOIN pg_class tgt ON tgt.oid=con.confrelid "
+                        "WHERE con.conrelid=(:ns||'.'||:t)::regclass AND con.contype='f' "
+                        "AND tgt.relname = ANY(:gs)"
+                    ),
+                    {"ns": ns, "t": t, "gs": list(GUILD_SCOPED_TABLES)},
+                )
                 return {(x.g, x.d) for x in r}
 
             async def idx(ns, t):  # the USING ... part is schema-independent
-                r = await conn.execute(text(
-                    "SELECT indexdef i FROM pg_indexes WHERE schemaname=:ns AND tablename=:t"
-                ), {"ns": ns, "t": t})
+                r = await conn.execute(
+                    text(
+                        "SELECT indexdef i FROM pg_indexes WHERE schemaname=:ns AND tablename=:t"
+                    ),
+                    {"ns": ns, "t": t},
+                )
                 return sorted(x.i.split(" USING ", 1)[1] for x in r if " USING " in x.i)
 
             async def trig(ns, t):  # guild_id denorm triggers (functions stay shared)
-                r = await conn.execute(text(
-                    "SELECT pg_get_triggerdef(tg.oid) d FROM pg_trigger tg "
-                    "JOIN pg_class cl ON cl.oid=tg.tgrelid "
-                    "WHERE cl.oid=(:ns||'.'||:t)::regclass AND NOT tg.tgisinternal"
-                ), {"ns": ns, "t": t})
-                return sorted(re.sub(r"\bON \w+\.", "ON ", x.d) for x in r)  # strip table schema
+                r = await conn.execute(
+                    text(
+                        "SELECT pg_get_triggerdef(tg.oid) d FROM pg_trigger tg "
+                        "JOIN pg_class cl ON cl.oid=tg.tgrelid "
+                        "WHERE cl.oid=(:ns||'.'||:t)::regclass AND NOT tg.tgisinternal"
+                    ),
+                    {"ns": ns, "t": t},
+                )
+                return sorted(
+                    re.sub(r"\bON \w+\.", "ON ", x.d) for x in r
+                )  # strip table schema
 
             drift = []
             for t in sorted(GUILD_SCOPED_TABLES):

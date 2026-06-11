@@ -154,7 +154,9 @@ def test_handoff_token_signs_with_rs256_when_private_key_configured(monkeypatch)
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
-    monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", private_pem)
+    monkeypatch.setattr(
+        security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", private_pem
+    )
     monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_KEY_ID", "test-rotation-1")
 
     token, _ = create_advanced_tool_handoff_token(

@@ -20,7 +20,9 @@ class Guild(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(nullable=False)
     description: Optional[str] = Field(default=None)
-    icon_base64: Optional[str] = Field(default=None, sa_column=Column(String, nullable=True))
+    icon_base64: Optional[str] = Field(
+        default=None, sa_column=Column(String, nullable=True)
+    )
     created_by_user_id: Optional[int] = Field(default=None, foreign_key="users.id")
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -88,10 +90,14 @@ class GuildInvite(SQLModel, table=True):
     code: str = Field(index=True, unique=True, nullable=False, max_length=64)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False)
     created_by_user_id: Optional[int] = Field(foreign_key="users.id", nullable=True)
-    expires_at: Optional[datetime] = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    expires_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
     max_uses: Optional[int] = Field(default=1, nullable=True)
     uses: int = Field(default=0, nullable=False)
-    invitee_email_encrypted: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
+    invitee_email_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(2000), nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -103,6 +109,7 @@ class GuildInvite(SQLModel, table=True):
         if not self.invitee_email_encrypted:
             return None
         from app.core.encryption import decrypt_field, SALT_EMAIL
+
         return decrypt_field(self.invitee_email_encrypted, SALT_EMAIL)
 
     guild: Optional[Guild] = Relationship()

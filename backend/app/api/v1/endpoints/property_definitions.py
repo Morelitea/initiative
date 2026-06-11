@@ -175,12 +175,16 @@ async def list_property_definitions(
     stmt = select(PropertyDefinition)
     if initiative_id is not None:
         stmt = stmt.where(PropertyDefinition.initiative_id == initiative_id)
-    stmt = stmt.order_by(PropertyDefinition.position.asc(), PropertyDefinition.name.asc())
+    stmt = stmt.order_by(
+        PropertyDefinition.position.asc(), PropertyDefinition.name.asc()
+    )
     result = await session.exec(stmt)
     return result.all()
 
 
-@router.post("/", response_model=PropertyDefinitionRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/", response_model=PropertyDefinitionRead, status_code=status.HTTP_201_CREATED
+)
 async def create_property_definition(
     payload: PropertyDefinitionCreate,
     session: RLSSessionDep,
@@ -310,7 +314,9 @@ async def get_property_entities(
     """
     defn = await _get_definition_or_404(session, definition_id)
 
-    project_access_subq = permissions_service.visible_project_ids_subquery(current_user.id)
+    project_access_subq = permissions_service.visible_project_ids_subquery(
+        current_user.id
+    )
     doc_access_subq = permissions_service.visible_document_ids_subquery(current_user.id)
 
     tasks_stmt = (

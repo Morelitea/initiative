@@ -59,9 +59,7 @@ def _get_user_role_ids(
     if not memberships:
         return set()
     return {
-        m.role_id
-        for m in memberships
-        if m.user_id == user_id and m.role_id is not None
+        m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None
     }
 
 
@@ -163,12 +161,15 @@ def lift_level_for_grant(dac_level: str | None, guild_id: int | None) -> str | N
     grant_level = "write" if grant == "read_write" else "read"
     if dac_level is None:
         return grant_level
-    return dac_level if _LEVEL_RANK[dac_level] >= _LEVEL_RANK[grant_level] else grant_level
+    return (
+        dac_level if _LEVEL_RANK[dac_level] >= _LEVEL_RANK[grant_level] else grant_level
+    )
 
 
 # ── Visibility subqueries ────────────────────────────────────────
 # Reusable subqueries that return IDs of entities a user can see.
 # These eliminate the duplicated UNION pattern across endpoints.
+
 
 def visible_project_ids_subquery(user_id: int):
     """Return a subquery of project IDs the user can access.
@@ -176,17 +177,13 @@ def visible_project_ids_subquery(user_id: int):
     Combines user-specific ``ProjectPermission`` rows with role-based
     ``ProjectRolePermission`` rows matched via ``InitiativeMember``.
     """
-    user_perm_subq = (
-        select(ProjectPermission.project_id)
-        .where(ProjectPermission.user_id == user_id)
+    user_perm_subq = select(ProjectPermission.project_id).where(
+        ProjectPermission.user_id == user_id
     )
-    role_perm_subq = (
-        select(ProjectRolePermission.project_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user_id),
-        )
+    role_perm_subq = select(ProjectRolePermission.project_id).join(
+        InitiativeMember,
+        (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
+        & (InitiativeMember.user_id == user_id),
     )
     return user_perm_subq.union(role_perm_subq)
 
@@ -197,22 +194,19 @@ def visible_document_ids_subquery(user_id: int):
     Combines user-specific ``DocumentPermission`` rows with role-based
     ``DocumentRolePermission`` rows matched via ``InitiativeMember``.
     """
-    user_perm_subq = (
-        select(DocumentPermission.document_id)
-        .where(DocumentPermission.user_id == user_id)
+    user_perm_subq = select(DocumentPermission.document_id).where(
+        DocumentPermission.user_id == user_id
     )
-    role_perm_subq = (
-        select(DocumentRolePermission.document_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user_id),
-        )
+    role_perm_subq = select(DocumentRolePermission.document_id).join(
+        InitiativeMember,
+        (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
+        & (InitiativeMember.user_id == user_id),
     )
     return user_perm_subq.union(role_perm_subq)
 
 
 # ── High-level helpers for projects ─────────────────────────────
+
 
 def user_permission_from_project(
     project: Any,
@@ -265,7 +259,9 @@ def compute_project_permission(
     user_level = user_perm.level if user_perm else None
     role_level = project_role_permission_level(project, user_id)
     effective = effective_project_permission(user_level, role_level)
-    return lift_level_for_grant(effective.value if effective else None, getattr(project, "guild_id", None))
+    return lift_level_for_grant(
+        effective.value if effective else None, getattr(project, "guild_id", None)
+    )
 
 
 def _effective_project_level(
@@ -330,6 +326,7 @@ def has_project_write_access(
 
 
 # ── High-level helpers for documents ─────────────────────────────
+
 
 def document_role_permission_level(
     document: Any,
@@ -442,7 +439,9 @@ def require_document_access(
         )
 
 
-def get_document_permission(document: Document, user_id: int) -> DocumentPermission | None:
+def get_document_permission(
+    document: Document, user_id: int
+) -> DocumentPermission | None:
     """Get a user's permission for a document from the loaded permissions."""
     return next(
         (p for p in _get_loaded_document_permissions(document) if p.user_id == user_id),

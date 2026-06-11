@@ -74,7 +74,9 @@ def extract_task_list_items(html: str) -> tuple[list[dict], str]:
             items.append({"content": content, "is_completed": is_completed})
 
     # Remove task lists from HTML
-    remaining = re.sub(r'<ul[^>]*data-type="taskList"[^>]*>.*?</ul>', "", html, flags=re.DOTALL)
+    remaining = re.sub(
+        r'<ul[^>]*data-type="taskList"[^>]*>.*?</ul>', "", html, flags=re.DOTALL
+    )
 
     return items, remaining
 
@@ -113,15 +115,21 @@ def html_to_markdown(html: str) -> str:
     text = re.sub(r"<strike[^>]*>(.*?)</strike>", r"~~\1~~", text, flags=re.DOTALL)
 
     # Links and images
-    text = re.sub(r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', r"[\2](\1)", text, flags=re.DOTALL)
-    text = re.sub(r'<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*/?>',r"![\2](\1)", text)
-    text = re.sub(r'<img[^>]*src="([^"]*)"[^>]*/?>',r"![](\1)", text)
+    text = re.sub(
+        r'<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>', r"[\2](\1)", text, flags=re.DOTALL
+    )
+    text = re.sub(
+        r'<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*/?>', r"![\2](\1)", text
+    )
+    text = re.sub(r'<img[^>]*src="([^"]*)"[^>]*/?>', r"![](\1)", text)
 
     # Code blocks
     text = re.sub(r"<pre[^>]*>(.*?)</pre>", r"```\n\1\n```\n", text, flags=re.DOTALL)
 
     # Blockquotes
-    text = re.sub(r"<blockquote[^>]*>(.*?)</blockquote>", r"> \1\n", text, flags=re.DOTALL)
+    text = re.sub(
+        r"<blockquote[^>]*>(.*?)</blockquote>", r"> \1\n", text, flags=re.DOTALL
+    )
 
     # Horizontal rules
     text = re.sub(r"<hr\s*/?>", "\n---\n", text)
@@ -321,7 +329,9 @@ async def import_todoist_tasks(
                 result.subtasks_created += 1
 
         except Exception as e:
-            result.errors.append(f"Failed to import task '{task_data.get('title', 'unknown')}': {str(e)}")
+            result.errors.append(
+                f"Failed to import task '{task_data.get('title', 'unknown')}': {str(e)}"
+            )
             result.tasks_failed += 1
 
     try:
@@ -480,7 +490,9 @@ async def import_vikunja_tasks(
             subtask_items: list[dict] = []
             description: Optional[str] = None
             if description_html:
-                subtask_items, remaining_html = extract_task_list_items(description_html)
+                subtask_items, remaining_html = extract_task_list_items(
+                    description_html
+                )
                 description = html_to_markdown(remaining_html) or None
 
             task = Task(
@@ -661,7 +673,9 @@ async def import_ticktick_tasks(
             "title": title,
             "content": row.get("Content", "").strip(),
             "column": row.get("Column Name", "").strip() or "No Column",
-            "priority": int(p) if (p := row.get("Priority", "0") or "0").isdigit() else 0,
+            "priority": int(p)
+            if (p := row.get("Priority", "0") or "0").isdigit()
+            else 0,
             "status": int(s) if (s := row.get("Status", "0") or "0").isdigit() else 0,
             "parent_id": parent_id,
         }

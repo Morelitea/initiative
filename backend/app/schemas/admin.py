@@ -14,11 +14,13 @@ from app.schemas.user import ProjectBasic, UserPublic
 
 class PlatformRoleUpdate(SanitizedBaseModel):
     """Schema for updating a user's platform role."""
+
     role: UserRole
 
 
 class PlatformAdminCountResponse(SanitizedBaseModel):
     """Response schema for platform admin count."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     count: int
@@ -26,12 +28,14 @@ class PlatformAdminCountResponse(SanitizedBaseModel):
 
 class AdminUserDeleteRequest(SanitizedBaseModel):
     """Request to deactivate, anonymize (soft delete), or hard delete a user as platform admin."""
+
     action: Literal["deactivate", "soft_delete", "hard_delete"]
     project_transfers: Optional[Dict[int, int]] = None  # {project_id: new_owner_id}
 
 
 class GuildBlockerInfo(SanitizedBaseModel):
     """Info about a guild blocking user deletion."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     guild_id: int
@@ -41,6 +45,7 @@ class GuildBlockerInfo(SanitizedBaseModel):
 
 class InitiativeBlockerInfo(SanitizedBaseModel):
     """Info about an initiative blocking user deletion."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     initiative_id: int
@@ -51,6 +56,7 @@ class InitiativeBlockerInfo(SanitizedBaseModel):
 
 class AdminDeletionEligibilityResponse(SanitizedBaseModel):
     """Enhanced eligibility response with actionable blocker details."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_delete: bool
@@ -63,9 +69,11 @@ class AdminDeletionEligibilityResponse(SanitizedBaseModel):
 
 class AdminGuildRoleUpdate(SanitizedBaseModel):
     """Schema for updating a user's guild role via admin endpoint."""
+
     role: GuildRole
 
 
 class AdminInitiativeRoleUpdate(SanitizedBaseModel):
     """Schema for updating a user's initiative role via admin endpoint."""
+
     role: InitiativeRole

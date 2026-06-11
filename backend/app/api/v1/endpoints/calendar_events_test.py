@@ -41,8 +41,12 @@ async def _setup_organizer_and_attendee(session: AsyncSession):
     organizer = await create_user(session, email="organizer@example.com")
     attendee = await create_user(session, email="attendee@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=organizer, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=attendee, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=organizer, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=attendee, guild=guild, role=GuildRole.member
+    )
     initiative = await create_initiative(session, guild, organizer, name="Events")
     initiative.events_enabled = True
     session.add(initiative)
@@ -118,7 +122,9 @@ async def test_list_events_summary_tags_default_empty(
 async def test_create_event_notifies_attendees_not_creator(
     client: AsyncClient, session: AsyncSession
 ):
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
+        session
+    )
     headers = get_guild_headers(guild, organizer)
 
     response = await client.post(
@@ -135,12 +141,19 @@ async def test_create_event_notifies_attendees_not_creator(
     )
     assert response.status_code == 201
 
-    invites = await _notifications_for(session, attendee.id, NotificationType.event_invitation)
+    invites = await _notifications_for(
+        session, attendee.id, NotificationType.event_invitation
+    )
     assert len(invites) == 1
     assert invites[0].data["event_title"] == "Kickoff"
     assert invites[0].data["event_id"] == response.json()["id"]
     # The creator should not be notified about their own event.
-    assert await _notifications_for(session, organizer.id, NotificationType.event_invitation) == []
+    assert (
+        await _notifications_for(
+            session, organizer.id, NotificationType.event_invitation
+        )
+        == []
+    )
 
 
 @pytest.mark.integration
@@ -148,7 +161,9 @@ async def test_create_multi_day_timed_event_is_allowed(
     client: AsyncClient, session: AsyncSession
 ):
     """A timed (non-all-day) event may now span more than 24 hours / cross days."""
-    organizer, _attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    organizer, _attendee, guild, initiative = await _setup_organizer_and_attendee(
+        session
+    )
     headers = get_guild_headers(guild, organizer)
 
     response = await client.post(
@@ -173,7 +188,9 @@ async def test_create_event_rejects_end_before_start(
     client: AsyncClient, session: AsyncSession
 ):
     """end_at before start_at is still rejected."""
-    organizer, _attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    organizer, _attendee, guild, initiative = await _setup_organizer_and_attendee(
+        session
+    )
     headers = get_guild_headers(guild, organizer)
 
     response = await client.post(
@@ -194,7 +211,9 @@ async def test_create_event_rejects_end_before_start(
 async def test_update_event_time_notifies_attendees_as_rescheduled(
     client: AsyncClient, session: AsyncSession
 ):
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
+        session
+    )
     headers = get_guild_headers(guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Review")
     await client.put(
@@ -210,7 +229,9 @@ async def test_update_event_time_notifies_attendees_as_rescheduled(
     )
     assert response.status_code == 200
 
-    updates = await _notifications_for(session, attendee.id, NotificationType.event_updated)
+    updates = await _notifications_for(
+        session, attendee.id, NotificationType.event_updated
+    )
     assert len(updates) == 1
     assert updates[0].data["time_changed"] is True
 
@@ -219,7 +240,9 @@ async def test_update_event_time_notifies_attendees_as_rescheduled(
 async def test_delete_event_notifies_attendees(
     client: AsyncClient, session: AsyncSession
 ):
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
+        session
+    )
     headers = get_guild_headers(guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Retro")
     await client.put(
@@ -228,10 +251,14 @@ async def test_delete_event_notifies_attendees(
         json=[attendee.id],
     )
 
-    response = await client.delete(f"/api/v1/calendar-events/{event.id}", headers=headers)
+    response = await client.delete(
+        f"/api/v1/calendar-events/{event.id}", headers=headers
+    )
     assert response.status_code == 204
 
-    cancels = await _notifications_for(session, attendee.id, NotificationType.event_cancelled)
+    cancels = await _notifications_for(
+        session, attendee.id, NotificationType.event_cancelled
+    )
     assert len(cancels) == 1
 
 
@@ -240,7 +267,9 @@ async def test_update_event_skips_declined_attendees(
     client: AsyncClient, session: AsyncSession
 ):
     """An attendee who declined doesn't get reschedule/update notifications."""
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
+        session
+    )
     headers = get_guild_headers(guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Review")
     await client.put(
@@ -262,7 +291,9 @@ async def test_update_event_skips_declined_attendees(
     )
     assert response.status_code == 200
 
-    updates = await _notifications_for(session, attendee.id, NotificationType.event_updated)
+    updates = await _notifications_for(
+        session, attendee.id, NotificationType.event_updated
+    )
     assert updates == []
 
 
@@ -271,7 +302,9 @@ async def test_delete_event_skips_declined_attendees(
     client: AsyncClient, session: AsyncSession
 ):
     """An attendee who declined doesn't get the cancellation notice."""
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
+        session
+    )
     headers = get_guild_headers(guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Retro")
     await client.put(
@@ -286,18 +319,22 @@ async def test_delete_event_skips_declined_attendees(
     )
     assert declined.status_code == 200
 
-    response = await client.delete(f"/api/v1/calendar-events/{event.id}", headers=headers)
+    response = await client.delete(
+        f"/api/v1/calendar-events/{event.id}", headers=headers
+    )
     assert response.status_code == 204
 
-    cancels = await _notifications_for(session, attendee.id, NotificationType.event_cancelled)
+    cancels = await _notifications_for(
+        session, attendee.id, NotificationType.event_cancelled
+    )
     assert cancels == []
 
 
 @pytest.mark.integration
-async def test_rsvp_notifies_organizer(
-    client: AsyncClient, session: AsyncSession
-):
-    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(session)
+async def test_rsvp_notifies_organizer(client: AsyncClient, session: AsyncSession):
+    organizer, attendee, guild, initiative = await _setup_organizer_and_attendee(
+        session
+    )
     organizer_headers = get_guild_headers(guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Demo")
     await client.put(

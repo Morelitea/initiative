@@ -2,7 +2,18 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, LargeBinary, String, UniqueConstraint, text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
@@ -19,6 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class DocumentType(str, Enum):
     """Discriminator for document type."""
+
     native = "native"  # Lexical editor document
     file = "file"  # Uploaded file (PDF, DOCX, etc.)
     whiteboard = "whiteboard"  # Excalidraw scene stored in content JSONB
@@ -31,7 +43,9 @@ class Document(SoftDeleteMixin, table=True):
     _owner_field = "created_by_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False)
     title: str = Field(nullable=False, index=True, max_length=255)
     content: dict = Field(
@@ -143,7 +157,9 @@ class DocumentFileVersion(SQLModel, table=True):
 
     __tablename__ = "document_file_versions"
     __table_args__ = (
-        UniqueConstraint("document_id", "version_number", name="uq_dfv_document_version"),
+        UniqueConstraint(
+            "document_id", "version_number", name="uq_dfv_document_version"
+        ),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -155,7 +171,9 @@ class DocumentFileVersion(SQLModel, table=True):
             index=True,
         )
     )
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     version_number: int = Field(nullable=False)
     file_url: str = Field(sa_column=Column(String(length=512), nullable=False))
     file_content_type: Optional[str] = Field(
@@ -184,8 +202,12 @@ class ProjectDocument(SQLModel, table=True):
 
     project_id: int = Field(foreign_key="projects.id", primary_key=True)
     document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
-    attached_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
+    attached_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
     attached_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -206,7 +228,9 @@ class DocumentPermission(SQLModel, table=True):
 
     document_id: int = Field(foreign_key="documents.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     level: DocumentPermissionLevel = Field(
         default=DocumentPermissionLevel.write,
         sa_column=Column(
@@ -260,11 +284,14 @@ class DocumentRolePermission(SQLModel, table=True):
 
 class DocumentLink(SQLModel, table=True):
     """Tracks wikilinks between documents for backlinks queries."""
+
     __tablename__ = "document_links"
 
     source_document_id: int = Field(foreign_key="documents.id", primary_key=True)
     target_document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

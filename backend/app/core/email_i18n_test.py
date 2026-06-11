@@ -36,7 +36,13 @@ def test_notifications_namespace_holds_terse_push_copy():
         == "New event invitation"
     )
     assert (
-        translate("event.invitation.body", "en", namespace="notifications", event="Raid", when="8pm")
+        translate(
+            "event.invitation.body",
+            "en",
+            namespace="notifications",
+            event="Raid",
+            when="8pm",
+        )
         == "Raid (8pm)"
     )
 
@@ -47,14 +53,17 @@ def test_translate_localizes_per_locale():
         translate("comment.reply.title", "es", namespace="notifications")
         == "Respuesta a tu comentario"
     )
-    assert translate(
-        "mention.task.body",
-        "fr",
-        namespace="notifications",
-        actor="Léa",
-        task="Donjon",
-        context="Quête",
-    ) == "Léa a mentionné Donjon dans Quête"
+    assert (
+        translate(
+            "mention.task.body",
+            "fr",
+            namespace="notifications",
+            actor="Léa",
+            task="Donjon",
+            context="Quête",
+        )
+        == "Léa a mentionné Donjon dans Quête"
+    )
 
 
 @pytest.mark.unit

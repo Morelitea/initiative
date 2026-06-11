@@ -42,7 +42,10 @@ class InitiativeUpdate(SanitizedBaseModel):
 # Role schemas
 class InitiativeRolePermissionRead(SanitizedBaseModel):
     """Permission entry for a role."""
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     permission_key: PermissionKey
     enabled: bool
@@ -50,7 +53,10 @@ class InitiativeRolePermissionRead(SanitizedBaseModel):
 
 class InitiativeRoleRead(SanitizedBaseModel):
     """Role definition with permissions."""
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     name: str
@@ -64,6 +70,7 @@ class InitiativeRoleRead(SanitizedBaseModel):
 
 class InitiativeRoleCreate(SanitizedBaseModel):
     """Create a new custom role."""
+
     name: str = Field(..., min_length=1, max_length=100)
     display_name: str = Field(..., min_length=1, max_length=100)
     is_manager: bool = False
@@ -72,6 +79,7 @@ class InitiativeRoleCreate(SanitizedBaseModel):
 
 class InitiativeRoleUpdate(SanitizedBaseModel):
     """Update a role's display name and/or permissions."""
+
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     is_manager: Optional[bool] = None
     permissions: Optional[Dict[PermissionKey, bool]] = None
@@ -100,6 +108,7 @@ class AdvancedToolHandoffResponse(SanitizedBaseModel):
 
 class MyInitiativePermissions(SanitizedBaseModel):
     """Current user's permissions for an initiative."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     role_id: Optional[int] = None
@@ -123,18 +132,23 @@ class InitiativeMemberBase(SanitizedBaseModel):
 
 class InitiativeMemberAdd(SanitizedBaseModel):
     """Add a member to an initiative."""
+
     user_id: int
     role_id: Optional[int] = None
 
 
 class InitiativeMemberUpdate(SanitizedBaseModel):
     """Update a member's role."""
+
     role_id: int
 
 
 class InitiativeMemberRead(SanitizedBaseModel):
     """Member info including their role."""
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     user: UserPublic
     role_id: Optional[int] = None
@@ -161,7 +175,9 @@ class InitiativeMemberRead(SanitizedBaseModel):
 
 
 class InitiativeRead(InitiativeBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     guild_id: int
@@ -171,11 +187,12 @@ class InitiativeRead(InitiativeBase):
     members: List[InitiativeMemberRead] = Field(default_factory=list)
 
 
-def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> InitiativeRoleRead:
+def serialize_role(
+    role: "InitiativeRoleModel", member_count: int = 0
+) -> InitiativeRoleRead:
     """Serialize a role model to a read schema."""
     permissions = {
-        perm.permission_key: perm.enabled
-        for perm in (role.permissions or [])
+        perm.permission_key: perm.enabled for perm in (role.permissions or [])
     }
     return InitiativeRoleRead(
         id=role.id,
@@ -192,7 +209,9 @@ def serialize_role(role: "InitiativeRoleModel", member_count: int = 0) -> Initia
 def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
     initiative_queues_enabled = getattr(initiative, "queues_enabled", False)
     initiative_events_enabled = getattr(initiative, "events_enabled", False)
-    initiative_advanced_tool_enabled = getattr(initiative, "advanced_tool_enabled", False)
+    initiative_advanced_tool_enabled = getattr(
+        initiative, "advanced_tool_enabled", False
+    )
     initiative_counters_enabled = getattr(initiative, "counters_enabled", False)
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
@@ -241,21 +260,34 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                     can_view_queues = perm.enabled
                 elif perm.permission_key == PermissionKey.create_docs and perm.enabled:
                     can_create_docs = True
-                elif perm.permission_key == PermissionKey.create_projects and perm.enabled:
+                elif (
+                    perm.permission_key == PermissionKey.create_projects
+                    and perm.enabled
+                ):
                     can_create_projects = True
-                elif perm.permission_key == PermissionKey.create_queues and perm.enabled:
+                elif (
+                    perm.permission_key == PermissionKey.create_queues and perm.enabled
+                ):
                     can_create_queues = True
                 elif perm.permission_key == PermissionKey.events_enabled:
                     can_view_events = perm.enabled
-                elif perm.permission_key == PermissionKey.create_events and perm.enabled:
+                elif (
+                    perm.permission_key == PermissionKey.create_events and perm.enabled
+                ):
                     can_create_events = True
                 elif perm.permission_key == PermissionKey.advanced_tool_enabled:
                     can_view_advanced_tool = perm.enabled
-                elif perm.permission_key == PermissionKey.create_advanced_tool and perm.enabled:
+                elif (
+                    perm.permission_key == PermissionKey.create_advanced_tool
+                    and perm.enabled
+                ):
                     can_create_advanced_tool = True
                 elif perm.permission_key == PermissionKey.counters_enabled:
                     can_view_counters = perm.enabled
-                elif perm.permission_key == PermissionKey.create_counters and perm.enabled:
+                elif (
+                    perm.permission_key == PermissionKey.create_counters
+                    and perm.enabled
+                ):
                     can_create_counters = True
 
         # Initiative-level master switch overrides role-level queue permissions

@@ -135,11 +135,13 @@ async def test_put_event_properties_attach_without_value_persists_row(
         json={"values": [{"property_id": defn.id, "value": None}]},
     )
     assert response.status_code == 200
-    rows = (await session.exec(
-        select(CalendarEventPropertyValue).where(
-            CalendarEventPropertyValue.event_id == event.id
+    rows = (
+        await session.exec(
+            select(CalendarEventPropertyValue).where(
+                CalendarEventPropertyValue.event_id == event.id
+            )
         )
-    )).all()
+    ).all()
     assert len(rows) == 1
 
 
@@ -244,9 +246,7 @@ async def test_event_read_embeds_property_values(
         json={"values": [{"property_id": defn.id, "value": "onboarding"}]},
     )
 
-    read_resp = await client.get(
-        f"/api/v1/calendar-events/{event.id}", headers=headers
-    )
+    read_resp = await client.get(f"/api/v1/calendar-events/{event.id}", headers=headers)
     assert read_resp.status_code == 200
     body = read_resp.json()
     assert body["property_values"][0]["value"] == "onboarding"

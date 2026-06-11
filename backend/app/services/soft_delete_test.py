@@ -30,7 +30,9 @@ from app.testing.factories import (
 pytestmark = pytest.mark.integration
 
 
-async def _create_task(session: AsyncSession, project: Project, *, title: str = "T") -> Task:
+async def _create_task(
+    session: AsyncSession, project: Project, *, title: str = "T"
+) -> Task:
     """Build a task with a fresh status. The project factory does not seed
     task statuses, so we create one on first use per-project."""
     from sqlmodel import select
@@ -143,9 +145,7 @@ async def test_restore_project_unstamps_only_matching_descendants(
         )
     ).one()
     refreshed_cascaded = (
-        await session.exec(
-            select_including_deleted(Task).where(Task.id == cascaded.id)
-        )
+        await session.exec(select_including_deleted(Task).where(Task.id == cascaded.id))
     ).one()
 
     assert refreshed_indep.deleted_at is not None  # still trashed
@@ -253,18 +253,22 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
         "queue_items",
         "calendar_events",
     }
-    result = await session.execute(text(
-        "SELECT tablename, policyname, cmd, permissive "
-        "FROM pg_policies "
-        "WHERE policyname LIKE '%_delete_admin_only'"
-    ))
+    result = await session.execute(
+        text(
+            "SELECT tablename, policyname, cmd, permissive "
+            "FROM pg_policies "
+            "WHERE policyname LIKE '%_delete_admin_only'"
+        )
+    )
     rows = result.all()
     found_tables = {row[0] for row in rows}
     assert expected.issubset(found_tables), f"missing on: {expected - found_tables}"
     for tname, pname, cmd, permissive in rows:
         if tname in expected:
             assert cmd == "DELETE", f"{tname}: {pname} cmd={cmd}"
-            assert permissive == "RESTRICTIVE", f"{tname}: {pname} permissive={permissive}"
+            assert permissive == "RESTRICTIVE", (
+                f"{tname}: {pname} permissive={permissive}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +306,9 @@ async def test_soft_delete_document_preserves_uploads(session: AsyncSession):
     await session.commit()
     await session.refresh(doc)
 
-    await soft_delete_entity(session, doc, deleted_by_user_id=user.id, retention_days=30)
+    await soft_delete_entity(
+        session, doc, deleted_by_user_id=user.id, retention_days=30
+    )
     await session.commit()
 
     # Upload row + filename still present after soft-delete.
@@ -439,9 +445,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     response = await client.get("/api/v1/trash/?scope=guild", headers=headers)
     assert response.status_code == 200, response.text
     body = response.json()
-    comment_items = [
-        item for item in body["items"] if item["entity_type"] == "comment"
-    ]
+    comment_items = [item for item in body["items"] if item["entity_type"] == "comment"]
     ids = {item["entity_id"] for item in comment_items}
     assert ids == {parent.id}, f"reply leaked into trash listing: {ids}"
 
@@ -464,7 +468,12 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
     old_name = "doc_v1.pdf"
     for name in (current_name, old_name):
         session.add(
-            Upload(filename=name, guild_id=guild.id, uploader_user_id=user.id, size_bytes=10)
+            Upload(
+                filename=name,
+                guild_id=guild.id,
+                uploader_user_id=user.id,
+                size_bytes=10,
+            )
         )
     doomed = Document(
         guild_id=guild.id,

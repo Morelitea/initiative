@@ -29,7 +29,9 @@ async def init_superuser() -> None:
 
     async with AdminSessionLocal() as session:
         existing = await session.exec(
-            select(User).where(User.email_hash == hash_email(settings.FIRST_SUPERUSER_EMAIL))
+            select(User).where(
+                User.email_hash == hash_email(settings.FIRST_SUPERUSER_EMAIL)
+            )
         )
         if existing.one_or_none() is not None:
             return  # already seeded
@@ -49,14 +51,18 @@ async def init_superuser() -> None:
         # ...and their guild the same way the API does: create the shared rows,
         # commit, then provision the schema and seed its content (settings +
         # default initiative). No bespoke seeding path — it's a real guild.
-        guild = await guilds_service.create_guild(session, name="Primary Guild", creator=user)
+        guild = await guilds_service.create_guild(
+            session, name="Primary Guild", creator=user
+        )
         await session.commit()
         # Capture ids before the seed: the rollback in the failure path expires the
         # ORM objects, so reading guild.id / user.id afterwards would reload.
         guild_id = guild.id
         user_id = user.id
         try:
-            await guilds_service.seed_guild_content(session, guild_id=guild_id, creator=user)
+            await guilds_service.seed_guild_content(
+                session, guild_id=guild_id, creator=user
+            )
             await session.commit()
         except Exception:
             # Undo the whole first-boot seed so a restart re-initializes cleanly.
@@ -111,9 +117,7 @@ async def check_pre_baseline_db() -> None:
         # BASELINE_REVISION, so we also check for the app_user role which
         # the baseline creates.
         has_roles = await conn.fetchval(
-            "SELECT EXISTS ("
-            "  SELECT 1 FROM pg_roles WHERE rolname = 'app_user'"
-            ")"
+            "SELECT EXISTS (  SELECT 1 FROM pg_roles WHERE rolname = 'app_user')"
         )
 
         if revision == BASELINE_REVISION:
@@ -122,7 +126,9 @@ async def check_pre_baseline_db() -> None:
             # stamp so the baseline migration re-runs — it's idempotent
             # and will create roles, RLS policies, and grants as needed.
             if not has_roles:
-                print("Baseline stamped but database roles missing. Re-running baseline migration...")
+                print(
+                    "Baseline stamped but database roles missing. Re-running baseline migration..."
+                )
                 await conn.execute("DELETE FROM alembic_version")
             return
 
@@ -137,7 +143,7 @@ async def check_pre_baseline_db() -> None:
             f"  curl -fsSL {UPGRADE_SCRIPT_URL} \\\n"
             f"    -o upgrade-to-baseline.sql\n\n"
             f"  psql -v ON_ERROR_STOP=1 \\\n"
-            f"    -f upgrade-to-baseline.sql \"$DATABASE_URL\"\n\n"
+            f'    -f upgrade-to-baseline.sql "$DATABASE_URL"\n\n'
             f"If psql is not available (e.g. Synology, Unraid), pipe through\n"
             f"the Postgres container:\n\n"
             f"  curl -fsSL {UPGRADE_SCRIPT_URL} | \\\n"
@@ -167,7 +173,9 @@ async def init() -> None:
         # provisions the guild if it has to create it (no-FIRST_SUPERUSER path).
         primary_id = await guilds_service.get_primary_guild_id(session)
         await set_rls_context(session, guild_id=primary_id)
-        await app_settings_service.get_or_create_guild_settings(session, guild_id=primary_id)
+        await app_settings_service.get_or_create_guild_settings(
+            session, guild_id=primary_id
+        )
 
 
 if __name__ == "__main__":  # pragma: no cover

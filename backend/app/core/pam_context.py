@@ -19,8 +19,8 @@ from typing import Optional, Tuple
 
 # (guild_id, access_level) for the active grant, or None when the request isn't
 # served via a grant. access_level is "read" | "read_write".
-_active_grant: contextvars.ContextVar[Optional[Tuple[int, str]]] = contextvars.ContextVar(
-    "pam_active_grant", default=None
+_active_grant: contextvars.ContextVar[Optional[Tuple[int, str]]] = (
+    contextvars.ContextVar("pam_active_grant", default=None)
 )
 
 
@@ -51,7 +51,9 @@ def has_active_grant(guild_id: int) -> bool:
     return active_grant_level(guild_id) is not None
 
 
-def grant_satisfies(guild_id: int, *, access: str = "read", require_owner: bool = False) -> bool:
+def grant_satisfies(
+    guild_id: int, *, access: str = "read", require_owner: bool = False
+) -> bool:
     """Whether a live grant covers ``guild_id`` at the requested access level.
 
     A grant never confers ownership (owner-only operations stay gated on real

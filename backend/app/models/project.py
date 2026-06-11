@@ -24,7 +24,9 @@ class Project(SoftDeleteMixin, table=True):
     _owner_field = "owner_id"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     name: str = Field(index=True, nullable=False)
     icon: Optional[str] = Field(default=None, max_length=8)
     description: Optional[str] = Field(default=None)
@@ -97,7 +99,9 @@ class ProjectPermission(SQLModel, table=True):
 
     project_id: int = Field(foreign_key="projects.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     level: ProjectPermissionLevel = Field(
         default=ProjectPermissionLevel.write,
         sa_column=Column(
@@ -129,7 +133,11 @@ class ProjectRolePermission(SQLModel, table=True):
     level: ProjectPermissionLevel = Field(
         default=ProjectPermissionLevel.read,
         sa_column=Column(
-            SQLEnum(ProjectPermissionLevel, name="project_permission_level", create_type=False),
+            SQLEnum(
+                ProjectPermissionLevel,
+                name="project_permission_level",
+                create_type=False,
+            ),
             nullable=False,
         ),
     )

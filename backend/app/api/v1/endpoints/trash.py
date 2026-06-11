@@ -181,7 +181,10 @@ async def list_trash(
     the guild's trash and is admin-only.
     """
     if scope == "guild" and guild_context.role != GuildRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TrashMessages.PURGE_REQUIRES_ADMIN)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=TrashMessages.PURGE_REQUIRES_ADMIN,
+        )
 
     only_deleted_by = current_user.id if scope == "mine" else None
     name_cache: dict[Optional[int], str] = {}
@@ -211,8 +214,12 @@ async def list_trash(
             )
 
     items.sort(key=lambda i: i.deleted_at, reverse=True)
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
-    return TrashListResponse(items=items, total=len(items), retention_days=retention_days)
+    retention_days = await guilds_service.get_guild_retention_days(
+        session, guild_context.guild_id
+    )
+    return TrashListResponse(
+        items=items, total=len(items), retention_days=retention_days
+    )
 
 
 async def _load_trash_entity(
@@ -224,7 +231,10 @@ async def _load_trash_entity(
 ) -> SQLModel:
     spec = ENTITY_REGISTRY.get(entity_type)
     if spec is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TrashMessages.UNKNOWN_ENTITY_TYPE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=TrashMessages.UNKNOWN_ENTITY_TYPE,
+        )
     model, _ = spec
     stmt = (
         select_including_deleted(model)
@@ -234,7 +244,9 @@ async def _load_trash_entity(
     result = await session.exec(stmt)
     entity = result.one_or_none()
     if entity is None or entity.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TrashMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TrashMessages.NOT_FOUND
+        )
     return entity
 
 
@@ -267,8 +279,14 @@ async def restore_trash_entity(
     )
 
     # Permission: regular users can only restore their own deletions.
-    if guild_context.role != GuildRole.admin and getattr(entity, "deleted_by", None) != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TrashMessages.PURGE_REQUIRES_ADMIN)
+    if (
+        guild_context.role != GuildRole.admin
+        and getattr(entity, "deleted_by", None) != current_user.id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=TrashMessages.PURGE_REQUIRES_ADMIN,
+        )
 
     try:
         result: RestoreResult = await restore_entity(
@@ -278,7 +296,10 @@ async def restore_trash_entity(
         )
     except ValueError as exc:
         if str(exc) == "TRASH_INVALID_OWNER":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TrashMessages.INVALID_OWNER)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=TrashMessages.INVALID_OWNER,
+            )
         raise
 
     if result.needs_reassignment:
@@ -298,7 +319,11 @@ async def restore_trash_entity(
     return {"restored": True}
 
 
-@router.delete("/{entity_type}/{entity_id}/purge", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete(
+    "/{entity_type}/{entity_id}/purge",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
 async def purge_trash_entity(
     entity_type: EntityType,
     entity_id: int,
@@ -311,7 +336,10 @@ async def purge_trash_entity(
     AdminSessionDep so the RESTRICTIVE FOR DELETE policy passes (BYPASSRLS
     role) and so the upload-cleanup helper can DELETE Upload rows."""
     if guild_context.role != GuildRole.admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TrashMessages.PURGE_REQUIRES_ADMIN)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=TrashMessages.PURGE_REQUIRES_ADMIN,
+        )
 
     # Look up the entity via the user's RLS session first so we get a 404 if
     # the entity isn't actually in this guild's trash. Then re-resolve it on
@@ -332,7 +360,9 @@ async def purge_trash_entity(
     admin_result = await admin_session.exec(admin_stmt)
     admin_entity = admin_result.one_or_none()
     if admin_entity is None or admin_entity.deleted_at is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TrashMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TrashMessages.NOT_FOUND
+        )
 
     await hard_purge_entity(admin_session, admin_entity)
     await admin_session.commit()

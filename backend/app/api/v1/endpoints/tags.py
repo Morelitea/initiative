@@ -6,7 +6,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import (
+    GuildContext,
+    RLSSessionDep,
+    SessionDep,
+    get_current_active_user,
+    get_guild_membership,
+)
 from app.core.messages import TagMessages
 from app.db.session import reapply_rls_context
 from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
@@ -38,7 +44,9 @@ async def _get_tag_or_404(session: SessionDep, tag_id: int, guild_id: int) -> Ta
     result = await session.exec(stmt)
     tag = result.one_or_none()
     if tag is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TagMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TagMessages.NOT_FOUND
+        )
     return tag
 
 
@@ -154,7 +162,9 @@ async def delete_tag(
     """Soft-delete a tag. The tag moves to the guild's trash; on hard-purge
     its junction rows fall via FK CASCADE."""
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
-    retention_days = await guilds_service.get_guild_retention_days(session, guild_context.guild_id)
+    retention_days = await guilds_service.get_guild_retention_days(
+        session, guild_context.guild_id
+    )
     await soft_delete_entity(
         session,
         tag,
@@ -178,7 +188,9 @@ async def get_tag_entities(
     tag = await _get_tag_or_404(session, tag_id, guild_context.guild_id)
 
     # Build project access subquery (user + role)
-    project_access_subq = permissions_service.visible_project_ids_subquery(current_user.id)
+    project_access_subq = permissions_service.visible_project_ids_subquery(
+        current_user.id
+    )
 
     # Get tasks with this tag that user can access
     tasks_stmt = (

@@ -65,7 +65,11 @@ def test_cors_origins_no_duplicates():
     # Listing APP_URL / native origins explicitly must not duplicate them.
     settings = _settings(
         CORS_ALLOWED_ORIGINS=", ".join(
-            ["https://app.example.com", "https://prod.example.com", *CAPACITOR_NATIVE_ORIGINS]
+            [
+                "https://app.example.com",
+                "https://prod.example.com",
+                *CAPACITOR_NATIVE_ORIGINS,
+            ]
         ),
     )
 

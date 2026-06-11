@@ -53,23 +53,20 @@ QUEUE_LEVEL_ORDER: dict[QueuePermissionLevel, int] = {
 # Visibility subquery
 # ---------------------------------------------------------------------------
 
+
 def visible_queue_ids_subquery(user_id: int):
     """Return a subquery of queue IDs the user can access.
 
     Combines user-specific ``QueuePermission`` rows with role-based
     ``QueueRolePermission`` rows matched via ``InitiativeMember``.
     """
-    user_perm_subq = (
-        select(QueuePermission.queue_id)
-        .where(QueuePermission.user_id == user_id)
+    user_perm_subq = select(QueuePermission.queue_id).where(
+        QueuePermission.user_id == user_id
     )
-    role_perm_subq = (
-        select(QueueRolePermission.queue_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == QueueRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user_id),
-        )
+    role_perm_subq = select(QueueRolePermission.queue_id).join(
+        InitiativeMember,
+        (InitiativeMember.role_id == QueueRolePermission.initiative_role_id)
+        & (InitiativeMember.user_id == user_id),
     )
     return user_perm_subq.union(role_perm_subq)
 
@@ -77,6 +74,7 @@ def visible_queue_ids_subquery(user_id: int):
 # ---------------------------------------------------------------------------
 # DAC helpers (mirror the project/document pattern in permissions.py)
 # ---------------------------------------------------------------------------
+
 
 def queue_role_permission_level(
     queue: Any,
@@ -184,6 +182,7 @@ def require_queue_access(
 # Query helpers
 # ---------------------------------------------------------------------------
 
+
 async def get_queue(
     session: AsyncSession,
     queue_id: int,
@@ -204,13 +203,10 @@ async def get_queue(
             selectinload(Queue.items)
             .selectinload(QueueItem.task_links)
             .selectinload(QueueItemTask.task),
-            selectinload(Queue.items)
-            .selectinload(QueueItem.user),
+            selectinload(Queue.items).selectinload(QueueItem.user),
             selectinload(Queue.permissions),
-            selectinload(Queue.role_permissions)
-            .selectinload(QueueRolePermission.role),
-            selectinload(Queue.initiative)
-            .selectinload(Initiative.memberships),
+            selectinload(Queue.role_permissions).selectinload(QueueRolePermission.role),
+            selectinload(Queue.initiative).selectinload(Initiative.memberships),
         )
     )
     if populate_existing:
@@ -230,12 +226,11 @@ async def get_queue_item(
         select(QueueItem)
         .where(QueueItem.id == item_id)
         .options(
-            selectinload(QueueItem.tag_links)
-            .selectinload(QueueItemTag.tag),
-            selectinload(QueueItem.document_links)
-            .selectinload(QueueItemDocument.document),
-            selectinload(QueueItem.task_links)
-            .selectinload(QueueItemTask.task),
+            selectinload(QueueItem.tag_links).selectinload(QueueItemTag.tag),
+            selectinload(QueueItem.document_links).selectinload(
+                QueueItemDocument.document
+            ),
+            selectinload(QueueItem.task_links).selectinload(QueueItemTask.task),
             selectinload(QueueItem.user),
         )
     )
@@ -248,6 +243,7 @@ async def get_queue_item(
 # ---------------------------------------------------------------------------
 # Turn management
 # ---------------------------------------------------------------------------
+
 
 def _visible_items_desc(queue: Queue) -> list[QueueItem]:
     """Return visible items sorted by position descending (highest first).
@@ -426,7 +422,9 @@ async def set_active_item(
     current pointer references a held item.
     """
     items = getattr(queue, "items", None) or []
-    target: QueueItem | None = next((item for item in items if item.id == item_id), None)
+    target: QueueItem | None = next(
+        (item for item in items if item.id == item_id), None
+    )
     if target is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -538,7 +536,11 @@ async def release_held(
 
     target.held_at_round = None
 
-    if reposition and queue.current_item_id is not None and queue.current_item_id != target.id:
+    if (
+        reposition
+        and queue.current_item_id is not None
+        and queue.current_item_id != target.id
+    ):
         current = next((x for x in items if x.id == queue.current_item_id), None)
         if current is not None:
             # Next active item whose position is strictly above current's
@@ -575,6 +577,7 @@ async def release_held(
 # ---------------------------------------------------------------------------
 # Tag / document / task attachment helpers
 # ---------------------------------------------------------------------------
+
 
 async def set_queue_item_tags(
     session: AsyncSession,

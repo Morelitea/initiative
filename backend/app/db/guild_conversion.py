@@ -126,7 +126,9 @@ async def _copy_guild(
     (atomic) transaction via ``engine.begin()``."""
     # Transaction-local: FK checks + guild_id triggers off for the bulk copy,
     # auto-reverted at commit/rollback (superuser-only; provisioning is super).
-    await conn.execute(text("SELECT set_config('session_replication_role', 'replica', true)"))
+    await conn.execute(
+        text("SELECT set_config('session_replication_role', 'replica', true)")
+    )
     for table in sorted(GUILD_SCOPED_TABLES):
         # Name columns explicitly (not SELECT *) so a column-order difference can't
         # silently misassign data; a missing column fails loudly instead.
@@ -156,12 +158,14 @@ async def _copy_guild(
     for seq, tbl, col in seqs.all():
         await conn.execute(
             text(
-                f"SELECT setval('\"{schema}\".\"{seq}\"', "
+                f'SELECT setval(\'"{schema}"."{seq}"\', '
                 f'GREATEST((SELECT COALESCE(max("{col}"), 0) FROM "{schema}"."{tbl}"), 1))'
             )
         )
     # Mark the guild converted in the same transaction (constant literal, safe).
-    await conn.execute(text(f"COMMENT ON SCHEMA \"{schema}\" IS '{_CONVERSION_MARKER}'"))
+    await conn.execute(
+        text(f"COMMENT ON SCHEMA \"{schema}\" IS '{_CONVERSION_MARKER}'")
+    )
 
 
 async def convert_public_to_guild_schemas() -> int:
@@ -176,17 +180,29 @@ async def convert_public_to_guild_schemas() -> int:
     async with engine.connect() as conn:
         await _assert_predicates_cover_schema(conn)
         columns = await _public_columns(conn)
-        guild_ids = (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id"))).scalars().all()
+        guild_ids = (
+            (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
+            .scalars()
+            .all()
+        )
         to_convert = [
-            gid for gid in guild_ids if await _needs_conversion(conn, guild_schema_name(gid))
+            gid
+            for gid in guild_ids
+            if await _needs_conversion(conn, guild_schema_name(gid))
         ]
 
     for gid in to_convert:
         schema = guild_schema_name(gid)
-        await provision_guild(gid)  # idempotent: ensure schema + roles exist (own transaction)
+        await provision_guild(
+            gid
+        )  # idempotent: ensure schema + roles exist (own transaction)
         async with engine.begin() as conn:  # atomic per guild
             await _copy_guild(conn, gid, schema, columns)
-        logger.info("schema-per-guild conversion: migrated guild %s into %s", gid, schema)
+        logger.info(
+            "schema-per-guild conversion: migrated guild %s into %s", gid, schema
+        )
     if to_convert:
-        logger.info("schema-per-guild conversion: migrated %d guild(s)", len(to_convert))
+        logger.info(
+            "schema-per-guild conversion: migrated %d guild(s)", len(to_convert)
+        )
     return len(to_convert)

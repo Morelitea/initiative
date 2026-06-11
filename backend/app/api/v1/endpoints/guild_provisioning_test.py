@@ -29,7 +29,9 @@ async def _schema_exists(engine: AsyncEngine, schema: str) -> bool:
     async with engine.connect() as conn:
         return (
             await conn.scalar(
-                text("SELECT 1 FROM information_schema.schemata WHERE schema_name = :s"),
+                text(
+                    "SELECT 1 FROM information_schema.schemata WHERE schema_name = :s"
+                ),
                 {"s": schema},
             )
         ) == 1
@@ -38,7 +40,9 @@ async def _schema_exists(engine: AsyncEngine, schema: str) -> bool:
 async def _role_exists(engine: AsyncEngine, role: str) -> bool:
     async with engine.connect() as conn:
         return (
-            await conn.scalar(text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role})
+            await conn.scalar(
+                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}
+            )
         ) == 1
 
 
@@ -48,7 +52,9 @@ async def test_create_guild_provisions_schema_and_role(
     user = await create_user(session, email="prov-create@example.com")
     headers = get_auth_headers(user)
 
-    resp = await client.post("/api/v1/guilds/", headers=headers, json={"name": "Prov Guild"})
+    resp = await client.post(
+        "/api/v1/guilds/", headers=headers, json={"name": "Prov Guild"}
+    )
     assert resp.status_code == 201
     gid = resp.json()["id"]
     schema = guild_schema_name(gid)
@@ -56,7 +62,9 @@ async def test_create_guild_provisions_schema_and_role(
     assert await _schema_exists(engine, schema)
     assert await _role_exists(engine, guild_role_name(gid))
     async with engine.connect() as conn:
-        assert await conn.scalar(text(f"SELECT to_regclass('{schema}.tasks')")) is not None
+        assert (
+            await conn.scalar(text(f"SELECT to_regclass('{schema}.tasks')")) is not None
+        )
 
 
 async def test_delete_guild_deprovisions_schema_and_role(
@@ -65,7 +73,9 @@ async def test_delete_guild_deprovisions_schema_and_role(
     user = await create_user(session, email="prov-delete@example.com")
     headers = get_auth_headers(user)
 
-    resp = await client.post("/api/v1/guilds/", headers=headers, json={"name": "Del Prov"})
+    resp = await client.post(
+        "/api/v1/guilds/", headers=headers, json={"name": "Del Prov"}
+    )
     gid = resp.json()["id"]
     schema, role = guild_schema_name(gid), guild_role_name(gid)
     assert await _schema_exists(engine, schema), "precondition: schema provisioned"
@@ -74,7 +84,10 @@ async def test_delete_guild_deprovisions_schema_and_role(
         "DELETE",
         f"/api/v1/guilds/{gid}",
         headers=headers,
-        json={"password": "testpassword123", "confirmation_text": "DELETE GUILD DEL PROV"},
+        json={
+            "password": "testpassword123",
+            "confirmation_text": "DELETE GUILD DEL PROV",
+        },
     )
     assert resp.status_code == 204
 
@@ -95,7 +108,9 @@ async def test_create_guild_rolls_back_when_provisioning_fails(
 
     user = await create_user(session, email="rollback@example.com")
     headers = get_auth_headers(user)
-    resp = await client.post("/api/v1/guilds/", headers=headers, json={"name": "Rollback Guild"})
+    resp = await client.post(
+        "/api/v1/guilds/", headers=headers, json={"name": "Rollback Guild"}
+    )
 
     assert resp.status_code == 500
     assert resp.json()["detail"] == "GUILD_PROVISION_FAILED"
@@ -114,7 +129,9 @@ async def test_delete_guild_succeeds_even_if_deprovision_fails(
     harmless (reclaimed on retry / next provision)."""
     user = await create_user(session, email="deprov-fail@example.com")
     headers = get_auth_headers(user)
-    resp = await client.post("/api/v1/guilds/", headers=headers, json={"name": "Teardown Fail"})
+    resp = await client.post(
+        "/api/v1/guilds/", headers=headers, json={"name": "Teardown Fail"}
+    )
     gid = resp.json()["id"]
 
     async def boom(_guild_id):
@@ -125,7 +142,10 @@ async def test_delete_guild_succeeds_even_if_deprovision_fails(
         "DELETE",
         f"/api/v1/guilds/{gid}",
         headers=headers,
-        json={"password": "testpassword123", "confirmation_text": "DELETE GUILD TEARDOWN FAIL"},
+        json={
+            "password": "testpassword123",
+            "confirmation_text": "DELETE GUILD TEARDOWN FAIL",
+        },
     )
 
     assert resp.status_code == 204
@@ -165,7 +185,9 @@ async def test_existing_public_schema_guild_is_usable(
     guild = Guild(name="Legacy Guild")
     session.add(guild)
     await session.commit()
-    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
 
     # Its guild-scoped data still lives in public (the pre-migration layout). Insert
     # straight into public.tags, bypassing the ORM schema-router, to mimic a legacy

@@ -46,7 +46,9 @@ async def test_list_initiatives_as_admin_shows_all(
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     # Create multiple initiatives (factory creates builtin roles + PM membership)
     await create_initiative(session, guild, admin, name="Initiative 1")
@@ -73,7 +75,9 @@ async def test_list_initiatives_as_member_shows_only_membership(
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
@@ -82,9 +86,7 @@ async def test_list_initiatives_as_member_shows_only_membership(
     initiative1 = await create_initiative(
         session, guild, admin, name="Member's Initiative"
     )
-    await create_initiative(
-        session, guild, admin, name="Other Initiative"
-    )
+    await create_initiative(session, guild, admin, name="Other Initiative")
 
     # Add member to only initiative1
     await create_initiative_member(session, initiative1, member, role_name="member")
@@ -104,7 +106,9 @@ async def test_create_initiative_as_admin(client: AsyncClient, session: AsyncSes
     """Test that guild admin can create initiatives."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     headers = get_guild_headers(guild, admin)
     payload = {
@@ -150,12 +154,12 @@ async def test_create_initiative_duplicate_name_fails(
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     # Create first initiative
-    await create_initiative(
-        session, guild, admin, name="Existing Initiative"
-    )
+    await create_initiative(session, guild, admin, name="Existing Initiative")
 
     headers = get_guild_headers(guild, admin)
     payload = {"name": "Existing Initiative"}
@@ -173,7 +177,9 @@ async def test_create_initiative_makes_creator_manager(
     """Test that creating an initiative makes the creator a manager."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     headers = get_guild_headers(guild, admin)
     payload = {"name": "New Initiative"}
@@ -188,9 +194,7 @@ async def test_create_initiative_makes_creator_manager(
 
 
 @pytest.mark.integration
-async def test_update_initiative_as_manager(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_update_initiative_as_manager(client: AsyncClient, session: AsyncSession):
     """Test that initiative manager can update initiative."""
     from app.testing.factories import create_initiative
 
@@ -225,7 +229,9 @@ async def test_update_initiative_as_admin(client: AsyncClient, session: AsyncSes
     admin = await create_user(session, email="admin@example.com")
     manager = await create_user(session, email="manager@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(
         session, user=manager, guild=guild, role=GuildRole.member
     )
@@ -256,14 +262,14 @@ async def test_update_initiative_as_regular_member_forbidden(
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
 
-    initiative = await create_initiative(
-        session, guild, admin, name="Test Initiative"
-    )
+    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
     await create_initiative_member(session, initiative, member, role_name="member")
 
     headers = get_guild_headers(guild, member)
@@ -285,14 +291,12 @@ async def test_update_initiative_duplicate_name_fails(
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
-    initiative1 = await create_initiative(
-        session, guild, admin, name="Initiative 1"
-    )
-    await create_initiative(
-        session, guild, admin, name="Initiative 2"
-    )
+    initiative1 = await create_initiative(session, guild, admin, name="Initiative 1")
+    await create_initiative(session, guild, admin, name="Initiative 2")
 
     headers = get_guild_headers(guild, admin)
     payload = {"name": "Initiative 2"}
@@ -311,14 +315,16 @@ async def test_delete_initiative_as_admin(client: AsyncClient, session: AsyncSes
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-
-    initiative = await create_initiative(
-        session, guild, admin, name="To Delete"
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
     )
 
+    initiative = await create_initiative(session, guild, admin, name="To Delete")
+
     headers = get_guild_headers(guild, admin)
-    response = await client.delete(f"/api/v1/initiatives/{initiative.id}", headers=headers)
+    response = await client.delete(
+        f"/api/v1/initiatives/{initiative.id}", headers=headers
+    )
 
     assert response.status_code == 204
 
@@ -341,7 +347,9 @@ async def test_delete_initiative_as_manager_forbidden(
     )
 
     headers = get_guild_headers(guild, manager)
-    response = await client.delete(f"/api/v1/initiatives/{initiative.id}", headers=headers)
+    response = await client.delete(
+        f"/api/v1/initiatives/{initiative.id}", headers=headers
+    )
 
     assert response.status_code == 403
 
@@ -355,7 +363,9 @@ async def test_delete_default_initiative_forbidden(
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     # Create and mark as default
     initiative = await create_initiative(
@@ -363,7 +373,9 @@ async def test_delete_default_initiative_forbidden(
     )
 
     headers = get_guild_headers(guild, admin)
-    response = await client.delete(f"/api/v1/initiatives/{initiative.id}", headers=headers)
+    response = await client.delete(
+        f"/api/v1/initiatives/{initiative.id}", headers=headers
+    )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "INITIATIVE_CANNOT_DELETE_DEFAULT"
@@ -375,16 +387,20 @@ async def test_get_initiative_members(client: AsyncClient, session: AsyncSession
     from app.testing.factories import create_initiative
 
     admin = await create_user(session, email="admin@example.com")
-    member1 = await create_user(session, email="member1@example.com", full_name="Member One")
-    member2 = await create_user(session, email="member2@example.com", full_name="Member Two")
+    member1 = await create_user(
+        session, email="member1@example.com", full_name="Member One"
+    )
+    member2 = await create_user(
+        session, email="member2@example.com", full_name="Member Two"
+    )
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=member1, guild=guild)
     await create_guild_membership(session, user=member2, guild=guild)
 
-    initiative = await create_initiative(
-        session, guild, admin, name="Test Initiative"
-    )
+    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
     await create_initiative_member(session, initiative, member1, role_name="member")
     await create_initiative_member(session, initiative, member2, role_name="member")
 
@@ -445,13 +461,13 @@ async def test_add_initiative_member_as_regular_member_forbidden(
     member = await create_user(session, email="member@example.com")
     new_member = await create_user(session, email="newmember@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=member, guild=guild)
     await create_guild_membership(session, user=new_member, guild=guild)
 
-    initiative = await create_initiative(
-        session, guild, admin, name="Test Initiative"
-    )
+    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
     await create_initiative_member(session, initiative, member, role_name="member")
 
     headers = get_guild_headers(guild, member)
@@ -472,11 +488,11 @@ async def test_add_user_not_in_guild_fails(client: AsyncClient, session: AsyncSe
     admin = await create_user(session, email="admin@example.com")
     outsider = await create_user(session, email="outsider@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
-
-    initiative = await create_initiative(
-        session, guild, admin, name="Test Initiative"
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
     )
+
+    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
 
     headers = get_guild_headers(guild, admin)
     payload = {"user_id": outsider.id, "role": "member"}
@@ -499,12 +515,12 @@ async def test_update_initiative_member_role(
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=member, guild=guild)
 
-    initiative = await create_initiative(
-        session, guild, admin, name="Test Initiative"
-    )
+    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
     await create_initiative_member(session, initiative, member, role_name="member")
 
     # Look up the PM role ID for this initiative
@@ -540,12 +556,12 @@ async def test_remove_initiative_member(client: AsyncClient, session: AsyncSessi
     admin = await create_user(session, email="admin@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(session, user=member, guild=guild)
 
-    initiative = await create_initiative(
-        session, guild, admin, name="Test Initiative"
-    )
+    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
     await create_initiative_member(session, initiative, member, role_name="member")
 
     headers = get_guild_headers(guild, admin)
@@ -629,15 +645,17 @@ async def test_initiative_guild_isolation(client: AsyncClient, session: AsyncSes
     user = await create_user(session, email="user@example.com")
     guild1 = await create_guild(session, name="Guild 1")
     guild2 = await create_guild(session, name="Guild 2")
-    await create_guild_membership(session, user=user, guild=guild1, role=GuildRole.admin)
-    await create_guild_membership(session, user=user, guild=guild2, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=user, guild=guild1, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=user, guild=guild2, role=GuildRole.admin
+    )
 
     initiative1 = await create_initiative(
         session, guild1, user, name="Guild 1 Initiative"
     )
-    await create_initiative(
-        session, guild2, user, name="Guild 2 Initiative"
-    )
+    await create_initiative(session, guild2, user, name="Guild 2 Initiative")
 
     # Request with guild1 context
     headers1 = get_guild_headers(guild1, user)
@@ -653,7 +671,9 @@ async def test_initiative_guild_isolation(client: AsyncClient, session: AsyncSes
     # ids are per-schema (not globally unique), so initiative1.id may collide with
     # a guild2 initiative — but it must never resolve to guild1's initiative.
     headers2 = get_guild_headers(guild2, user)
-    response2 = await client.get(f"/api/v1/initiatives/{initiative1.id}", headers=headers2)
+    response2 = await client.get(
+        f"/api/v1/initiatives/{initiative1.id}", headers=headers2
+    )
 
     if response2.status_code == 200:
         assert response2.json()["name"] != "Guild 1 Initiative"
@@ -687,7 +707,9 @@ async def test_advanced_tool_handoff_returns_404_when_url_unset(
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(
         session, guild, admin, name="Init", advanced_tool_enabled=True
     )
@@ -715,7 +737,9 @@ async def test_advanced_tool_handoff_returns_403_when_master_switch_off(
 
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     initiative = await create_initiative(
         session, guild, admin, name="Init", advanced_tool_enabled=False
     )
@@ -744,7 +768,9 @@ async def test_advanced_tool_handoff_returns_403_for_non_member(
     admin = await create_user(session, email="admin@example.com")
     outsider = await create_user(session, email="outsider@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(
         session, user=outsider, guild=guild, role=GuildRole.member
     )
@@ -777,9 +803,7 @@ async def test_advanced_tool_handoff_returns_403_when_role_lacks_view_permission
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
     # Both users are guild members (not admins) so guild-admin bypass doesn't apply
-    await create_guild_membership(
-        session, user=pm, guild=guild, role=GuildRole.member
-    )
+    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
     await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
@@ -876,9 +900,7 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
     pm = await create_user(session, email="pm@example.com")
     viewer = await create_user(session, email="viewer@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=pm, guild=guild, role=GuildRole.member
-    )
+    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
     await create_guild_membership(
         session, user=viewer, guild=guild, role=GuildRole.member
     )

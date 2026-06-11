@@ -29,8 +29,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 router = APIRouter()
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
-AccessRequestDep = Annotated[User, Depends(require_capability(Capability.ACCESS_REQUEST))]
-AccessApproveDep = Annotated[User, Depends(require_capability(Capability.ACCESS_APPROVE))]
+AccessRequestDep = Annotated[
+    User, Depends(require_capability(Capability.ACCESS_REQUEST))
+]
+AccessApproveDep = Annotated[
+    User, Depends(require_capability(Capability.ACCESS_APPROVE))
+]
 
 # Map service error codes to (status, detail). All details are machine-readable
 # codes the frontend localizes via errors.json.
@@ -76,7 +80,9 @@ async def create_access_request(
 ) -> AccessGrantRead:
     """Request time-bound access to a guild (requires ``access.request``)."""
     try:
-        grant = await service.request_grant(session, requester=current_user, payload=payload)
+        grant = await service.request_grant(
+            session, requester=current_user, payload=payload
+        )
     except service.AccessGrantError as exc:
         _raise(exc)
     read = await _one(session, grant)
@@ -117,7 +123,9 @@ async def list_access_grants(
         )
     else:
         if not user_has_capability(current_user, Capability.ACCESS_READ):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="INSUFFICIENT_PRIVILEGES")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="INSUFFICIENT_PRIVILEGES"
+            )
         grants = await service.list_grants(
             session,
             statuses=[grant_status] if grant_status else None,
@@ -136,12 +144,16 @@ async def get_access_grant(
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
     if grant is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
+        )
     # Owners of the request, or approvers, may view it.
     if grant.user_id != current_user.id and not user_has_capability(
         current_user, Capability.ACCESS_READ
     ):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="INSUFFICIENT_PRIVILEGES")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="INSUFFICIENT_PRIVILEGES"
+        )
     return await _one(session, grant)
 
 
@@ -154,10 +166,15 @@ async def approve_access_grant(
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
     if grant is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
+        )
     try:
         grant = await service.approve(
-            session, grant=grant, approver=current_user, duration_minutes=payload.duration_minutes
+            session,
+            grant=grant,
+            approver=current_user,
+            duration_minutes=payload.duration_minutes,
         )
     except service.AccessGrantError as exc:
         _raise(exc)
@@ -174,7 +191,9 @@ async def deny_access_grant(
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
     if grant is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
+        )
     try:
         grant = await service.deny(session, grant=grant, approver=current_user)
     except service.AccessGrantError as exc:
@@ -192,7 +211,9 @@ async def revoke_access_grant(
 ) -> AccessGrantRead:
     grant = await service.get_grant(session, grant_id)
     if grant is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
+        )
     try:
         grant = await service.revoke(session, grant=grant, revoker=current_user)
     except service.AccessGrantError as exc:
@@ -202,7 +223,9 @@ async def revoke_access_grant(
     return read
 
 
-@router.delete("/{grant_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete(
+    "/{grant_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
+)
 async def cancel_access_request(
     grant_id: int,
     session: AdminSessionDep,
@@ -211,7 +234,9 @@ async def cancel_access_request(
     """Withdraw your own still-pending request."""
     grant = await service.get_grant(session, grant_id)
     if grant is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AccessGrantMessages.NOT_FOUND
+        )
     try:
         await service.cancel_own_pending(session, grant=grant, user=current_user)
     except service.AccessGrantError as exc:

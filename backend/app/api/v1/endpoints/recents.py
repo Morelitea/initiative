@@ -113,7 +113,9 @@ async def list_recents(
             .options(
                 selectinload(CounterGroup.permissions),
                 selectinload(CounterGroup.role_permissions),
-                selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
+                selectinload(CounterGroup.initiative).selectinload(
+                    Initiative.memberships
+                ),
             )
         )
         result = await session.exec(stmt)

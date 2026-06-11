@@ -55,9 +55,13 @@ async def get_push_tokens_for_user(
     user_id: int,
 ) -> List[PushToken]:
     """Get all active push tokens for a user."""
-    stmt = select(PushToken).where(
-        PushToken.user_id == user_id,
-    ).order_by(PushToken.created_at.desc())
+    stmt = (
+        select(PushToken)
+        .where(
+            PushToken.user_id == user_id,
+        )
+        .order_by(PushToken.created_at.desc())
+    )
     result = await session.exec(stmt)
     return list(result.all())
 

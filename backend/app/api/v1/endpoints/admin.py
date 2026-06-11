@@ -59,7 +59,11 @@ async def list_all_users(
     """List all users in the platform (admin only)."""
     from app.services.users import SYSTEM_USER_EMAIL
 
-    stmt = select(User).where(User.email_hash != hash_email(SYSTEM_USER_EMAIL)).order_by(User.created_at.asc())
+    stmt = (
+        select(User)
+        .where(User.email_hash != hash_email(SYSTEM_USER_EMAIL))
+        .order_by(User.created_at.asc())
+    )
     result = await session.exec(stmt)
     users = result.all()
     await initiatives_service.load_user_initiative_roles(session, users)
@@ -103,25 +107,29 @@ async def export_platform_users_csv(
     users = list(result.all())
 
     if user_id and not users:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
 
     await initiatives_service.load_user_initiative_roles(session, users)
 
     rows = []
     for user in users:
-        rows.append([
-            user.id,
-            user.email,
-            user.full_name or "",
-            user.role.value if hasattr(user.role, "value") else user.role,
-            user.status.value if hasattr(user.status, "value") else user.status,
-            user.email_verified,
-            user.created_at.isoformat() if user.created_at else "",
-            user.updated_at.isoformat() if user.updated_at else "",
-            user.timezone or "",
-            user.locale or "",
-            csv_export.format_initiative_roles(user),
-        ])
+        rows.append(
+            [
+                user.id,
+                user.email,
+                user.full_name or "",
+                user.role.value if hasattr(user.role, "value") else user.role,
+                user.status.value if hasattr(user.status, "value") else user.status,
+                user.email_verified,
+                user.created_at.isoformat() if user.created_at else "",
+                user.updated_at.isoformat() if user.updated_at else "",
+                user.timezone or "",
+                user.locale or "",
+                csv_export.format_initiative_roles(user),
+            ]
+        )
 
     csv_bytes = csv_export.build_csv(_PLATFORM_CSV_HEADERS, rows)
 
@@ -150,10 +158,15 @@ async def trigger_password_reset(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
 
     if user.status != UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AdminMessages.CANNOT_RESET_INACTIVE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_RESET_INACTIVE,
+        )
 
     try:
         token = await user_tokens.create_token(
@@ -166,12 +179,11 @@ async def trigger_password_reset(
     except email_service.EmailNotConfiguredError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=SettingsMessages.SMTP_INCOMPLETE
+            detail=SettingsMessages.SMTP_INCOMPLETE,
         ) from None
     except RuntimeError as exc:
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc)
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
         ) from exc
     return VerificationSendResponse(status="sent")
 
@@ -187,10 +199,15 @@ async def reactivate_user(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
 
     if user.status == UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AdminMessages.USER_ALREADY_ACTIVE)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.USER_ALREADY_ACTIVE,
+        )
 
     if user.status == UserStatus.anonymized:
         raise HTTPException(
@@ -240,7 +257,9 @@ async def update_platform_role(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
 
     # Refuse role changes on non-active accounts. A deactivated row's role
     # change is meaningless until the user is reactivated, and an
@@ -257,7 +276,9 @@ async def update_platform_role(
     # Bounded delegation: you may only assign a role whose capabilities are a
     # subset of your own, and you may not modify a user who already outranks
     # you (an admin can't touch an owner, in either direction).
-    if not can_assign_role(current_user, payload.role) or not can_assign_role(current_user, user.role):
+    if not can_assign_role(current_user, payload.role) or not can_assign_role(
+        current_user, user.role
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AdminMessages.CANNOT_ASSIGN_HIGHER_ROLE,
@@ -265,10 +286,9 @@ async def update_platform_role(
 
     # Don't strip config-management from the last user who has it — that would
     # lock the platform out of its own configuration. (FOR UPDATE acquired above.)
-    losing_config = (
-        Capability.CONFIG_MANAGE in capabilities_for(user.role)
-        and Capability.CONFIG_MANAGE not in capabilities_for(payload.role)
-    )
+    losing_config = Capability.CONFIG_MANAGE in capabilities_for(
+        user.role
+    ) and Capability.CONFIG_MANAGE not in capabilities_for(payload.role)
     if losing_config:
         if await users_service.is_last_capability_holder(
             session, user_id, Capability.CONFIG_MANAGE, for_update=True
@@ -287,7 +307,10 @@ async def update_platform_role(
     return user
 
 
-@router.get("/users/{user_id}/deletion-eligibility", response_model=AdminDeletionEligibilityResponse)
+@router.get(
+    "/users/{user_id}/deletion-eligibility",
+    response_model=AdminDeletionEligibilityResponse,
+)
 async def check_user_deletion_eligibility(
     user_id: int,
     session: AdminSessionDep,
@@ -308,21 +331,36 @@ async def check_user_deletion_eligibility(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
 
-    can_delete, blockers, warnings, owned_projects = await users_service.check_deletion_eligibility(
+    (
+        can_delete,
+        blockers,
+        warnings,
+        owned_projects,
+    ) = await users_service.check_deletion_eligibility(
         session, user_id, admin_context=True
     )
 
     # Check if target is the last platform owner (last config manager)
     if Capability.CONFIG_MANAGE in capabilities_for(user.role):
-        if await users_service.is_last_capability_holder(session, user_id, Capability.CONFIG_MANAGE):
-            blockers.append("User is the last platform owner. Promote another user first.")
+        if await users_service.is_last_capability_holder(
+            session, user_id, Capability.CONFIG_MANAGE
+        ):
+            blockers.append(
+                "User is the last platform owner. Promote another user first."
+            )
             can_delete = False
 
     # Get detailed blocker info for guild and initiative blockers
-    guild_blocker_details = await users_service.get_guild_blocker_details(session, user_id)
-    initiative_blocker_details = await users_service.get_initiative_blocker_details(session, user_id)
+    guild_blocker_details = await users_service.get_guild_blocker_details(
+        session, user_id
+    )
+    initiative_blocker_details = await users_service.get_initiative_blocker_details(
+        session, user_id
+    )
 
     return AdminDeletionEligibilityResponse(
         can_delete=can_delete,
@@ -402,7 +440,9 @@ async def delete_user(
     result = await session.exec(stmt)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
 
     # Check if target is the last platform owner (last config manager)
     if Capability.CONFIG_MANAGE in capabilities_for(user.role):
@@ -415,7 +455,12 @@ async def delete_user(
             )
 
     # Check deletion eligibility
-    can_delete, blockers, _, owned_projects = await users_service.check_deletion_eligibility(
+    (
+        can_delete,
+        blockers,
+        _,
+        owned_projects,
+    ) = await users_service.check_deletion_eligibility(
         session, user_id, admin_context=True
     )
 
@@ -516,7 +561,11 @@ async def delete_user(
     )
 
 
-@router.delete("/guilds/{guild_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete(
+    "/guilds/{guild_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
 async def admin_delete_guild(
     guild_id: int,
     session: AdminSessionDep,
@@ -531,14 +580,20 @@ async def admin_delete_guild(
     result = await session.exec(stmt)
     guild = result.one_or_none()
     if not guild:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND
+        )
 
     await guilds_service.delete_guild(session, guild)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.delete("/initiatives/{initiative_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete(
+    "/initiatives/{initiative_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
 async def admin_delete_initiative(
     initiative_id: int,
     session: AdminSessionDep,
@@ -602,18 +657,25 @@ async def admin_update_guild_member_role(
     result = await session.exec(stmt)
     guild = result.one_or_none()
     if not guild:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND
+        )
 
     # Get target membership with lock
     target_membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user_id, for_update=True
     )
     if target_membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_IN_GUILD)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.USER_NOT_IN_GUILD,
+        )
 
     # Check if demoting the last guild admin
     if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
-        if await users_service.is_last_admin_of_guild(session, guild_id, user_id, for_update=True):
+        if await users_service.is_last_admin_of_guild(
+            session, guild_id, user_id, for_update=True
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AdminMessages.CANNOT_DEMOTE_LAST_GUILD_ADMIN,
@@ -639,7 +701,10 @@ async def admin_get_initiative_members(
     stmt = select(Initiative).where(Initiative.id == initiative_id)
     result = await session.exec(stmt)
     if not result.one_or_none():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.INITIATIVE_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+        )
 
     # Active members only — anonymized rows are husks of departed users
     # and deactivated rows are locked, so neither can be a valid project
@@ -684,7 +749,10 @@ async def admin_update_initiative_member_role(
     result = await session.exec(stmt)
     initiative = result.one_or_none()
     if not initiative:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.INITIATIVE_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+        )
 
     # Get target membership with lock
     membership_stmt = (
@@ -698,11 +766,16 @@ async def admin_update_initiative_member_role(
     membership_result = await session.exec(membership_stmt)
     target_membership = membership_result.one_or_none()
     if target_membership is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_IN_INITIATIVE)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.USER_NOT_IN_INITIATIVE,
+        )
 
     # Resolve the target role by name
     new_role = await initiatives_service.get_role_by_name(
-        session, initiative_id=initiative_id, role_name=payload.role.value,
+        session,
+        initiative_id=initiative_id,
+        role_name=payload.role.value,
     )
     if not new_role:
         raise HTTPException(
@@ -711,9 +784,15 @@ async def admin_update_initiative_member_role(
         )
 
     # Check if demoting the last PM
-    current_role = await initiatives_service.get_role_by_id(
-        session, role_id=target_membership.role_id, initiative_id=initiative_id,
-    ) if target_membership.role_id else None
+    current_role = (
+        await initiatives_service.get_role_by_id(
+            session,
+            role_id=target_membership.role_id,
+            initiative_id=initiative_id,
+        )
+        if target_membership.role_id
+        else None
+    )
     if current_role and current_role.is_manager and not new_role.is_manager:
         try:
             await initiatives_service.ensure_managers_remain(

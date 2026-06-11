@@ -3,7 +3,16 @@ from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
 from app.models._mixins import SoftDeleteMixin
@@ -18,6 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 class Queue(SoftDeleteMixin, table=True):
     """Initiative-scoped queue for turn/priority tracking."""
+
     __tablename__ = "queues"
     _owner_field = "created_by_id"
 
@@ -72,6 +82,7 @@ class Queue(SoftDeleteMixin, table=True):
 
 class QueueItem(SoftDeleteMixin, table=True):
     """Standalone entry in a queue (character, creature, etc.)."""
+
     __tablename__ = "queue_items"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -144,6 +155,7 @@ class QueueItem(SoftDeleteMixin, table=True):
 
 class QueueItemTag(SQLModel, table=True):
     """Junction table linking queue items to tags."""
+
     __tablename__ = "queue_item_tags"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -167,6 +179,7 @@ class QueuePermissionLevel(str, Enum):
 
 class QueuePermission(SQLModel, table=True):
     """Per-user permission on a queue."""
+
     __tablename__ = "queue_permissions"
 
     queue_id: int = Field(foreign_key="queues.id", primary_key=True)
@@ -193,6 +206,7 @@ class QueuePermission(SQLModel, table=True):
 
 class QueueRolePermission(SQLModel, table=True):
     """Per-initiative-role permission on a queue."""
+
     __tablename__ = "queue_role_permissions"
 
     queue_id: int = Field(foreign_key="queues.id", primary_key=True)
@@ -226,12 +240,15 @@ class QueueRolePermission(SQLModel, table=True):
 
 class QueueItemDocument(SQLModel, table=True):
     """Junction table linking queue items to documents."""
+
     __tablename__ = "queue_item_documents"
 
     queue_item_id: int = Field(foreign_key="queue_items.id", primary_key=True)
     document_id: int = Field(foreign_key="documents.id", primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    attached_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
+    attached_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
     attached_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -243,12 +260,15 @@ class QueueItemDocument(SQLModel, table=True):
 
 class QueueItemTask(SQLModel, table=True):
     """Junction table linking queue items to tasks."""
+
     __tablename__ = "queue_item_tasks"
 
     queue_item_id: int = Field(foreign_key="queue_items.id", primary_key=True)
     task_id: int = Field(foreign_key="tasks.id", primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    attached_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
+    attached_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
     attached_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

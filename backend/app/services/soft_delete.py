@@ -63,7 +63,9 @@ def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _compute_purge_at(deleted_at: datetime, retention_days: Optional[int]) -> Optional[datetime]:
+def _compute_purge_at(
+    deleted_at: datetime, retention_days: Optional[int]
+) -> Optional[datetime]:
     if retention_days is None:
         return None
     return deleted_at + timedelta(days=retention_days)
@@ -190,11 +192,16 @@ async def _resolve_initiative_scope(
     parent chain when necessary. None for guild-level entities (Tag) or
     when the parent row can't be resolved."""
     # Direct initiative_id on the entity itself.
-    if hasattr(entity, "initiative_id") and getattr(entity, "initiative_id") is not None:
+    if (
+        hasattr(entity, "initiative_id")
+        and getattr(entity, "initiative_id") is not None
+    ):
         return int(entity.initiative_id)
     # Project-scoped → look up project.initiative_id.
     if isinstance(entity, Task) and entity.project_id is not None:
-        stmt = select_including_deleted(Project.initiative_id).where(Project.id == entity.project_id)
+        stmt = select_including_deleted(Project.initiative_id).where(
+            Project.id == entity.project_id
+        )
         result = await session.exec(stmt)
         row = result.one_or_none()
         return int(row) if row is not None else None
@@ -245,7 +252,9 @@ async def restore_entity(
         current_owner_id = getattr(entity, owner_field)
         scope_initiative_id = await _resolve_initiative_scope(session, entity)
         if scope_initiative_id is not None:
-            valid_ids = await _initiative_member_ids(session, initiative_id=scope_initiative_id)
+            valid_ids = await _initiative_member_ids(
+                session, initiative_id=scope_initiative_id
+            )
             if new_owner_id is not None:
                 if new_owner_id not in valid_ids:
                     raise ValueError("TRASH_INVALID_OWNER")

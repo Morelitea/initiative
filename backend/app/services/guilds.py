@@ -69,7 +69,9 @@ async def resolve_user_guild_id(
         return guild_id
     if user and getattr(user, "id", None):
         result = await session.exec(
-            select(GuildMembership.guild_id).where(GuildMembership.user_id == user.id).limit(1)
+            select(GuildMembership.guild_id)
+            .where(GuildMembership.user_id == user.id)
+            .limit(1)
         )
         membership_guild_id = result.first()
         if membership_guild_id:
@@ -119,7 +121,9 @@ async def ensure_membership(
 
 async def _next_membership_position(session: AsyncSession, *, user_id: int) -> int:
     result = await session.exec(
-        select(func.max(GuildMembership.position)).where(GuildMembership.user_id == user_id)
+        select(func.max(GuildMembership.position)).where(
+            GuildMembership.user_id == user_id
+        )
     )
     max_value = result.one_or_none()
     highest = max_value if max_value is not None else -1
@@ -141,7 +145,9 @@ async def reorder_memberships(
     if not memberships:
         return
 
-    membership_by_guild = {membership.guild_id: membership for membership in memberships}
+    membership_by_guild = {
+        membership.guild_id: membership for membership in memberships
+    }
     seen: set[int] = set()
     position = 0
 
@@ -156,7 +162,9 @@ async def reorder_memberships(
         seen.add(guild_id)
         position += 1
 
-    remaining = [membership for membership in memberships if membership.guild_id not in seen]
+    remaining = [
+        membership for membership in memberships if membership.guild_id not in seen
+    ]
     remaining.sort(
         key=lambda membership: (
             membership.position if membership.position is not None else 0,
@@ -228,7 +236,9 @@ async def list_memberships(
     for guild, membership in pairs:
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         row = (
-            await session.exec(select(GuildSetting).where(GuildSetting.guild_id == guild.id))
+            await session.exec(
+                select(GuildSetting).where(GuildSetting.guild_id == guild.id)
+            )
         ).one_or_none()
         # No row yet → the 90-day default; an explicit NULL is the user's "never".
         retention = 90 if row is None else row.retention_days
@@ -285,7 +295,9 @@ async def create_guild(
     now = datetime.now(timezone.utc)
     guild = Guild(
         name=name.strip(),
-        description=description.strip() if description and description.strip() else None,
+        description=description.strip()
+        if description and description.strip()
+        else None,
         icon_base64=icon_base64,
         created_by_user_id=creator.id if creator else None,
         created_at=now,
@@ -330,7 +342,9 @@ async def seed_guild_content(
         is_superadmin=is_superadmin,
     )
     await create_guild_settings(session, guild_id)
-    await initiatives_service.ensure_default_initiative(session, creator, guild_id=guild_id)
+    await initiatives_service.ensure_default_initiative(
+        session, creator, guild_id=guild_id
+    )
 
 
 async def update_guild(
@@ -405,8 +419,14 @@ async def _generate_unique_invite_code(session: AsyncSession) -> str:
     raise RuntimeError("Unable to generate unique invite code")
 
 
-async def list_guild_invites(session: AsyncSession, *, guild_id: int) -> Sequence[GuildInvite]:
-    stmt = select(GuildInvite).where(GuildInvite.guild_id == guild_id).order_by(GuildInvite.created_at.desc())
+async def list_guild_invites(
+    session: AsyncSession, *, guild_id: int
+) -> Sequence[GuildInvite]:
+    stmt = (
+        select(GuildInvite)
+        .where(GuildInvite.guild_id == guild_id)
+        .order_by(GuildInvite.created_at.desc())
+    )
     result = await session.exec(stmt)
     return result.all()
 
@@ -422,23 +442,31 @@ async def create_guild_invite(
 ) -> GuildInvite:
     code = await _generate_unique_invite_code(session)
     if expires_at is None:
-        expiry = datetime.now(timezone.utc) + timedelta(days=DEFAULT_INVITE_EXPIRATION_DAYS)
+        expiry = datetime.now(timezone.utc) + timedelta(
+            days=DEFAULT_INVITE_EXPIRATION_DAYS
+        )
     else:
-        expiry = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        expiry = (
+            expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        )
     invite = GuildInvite(
         code=code,
         guild_id=guild_id,
         created_by_user_id=created_by_user_id,
         expires_at=expiry,
         max_uses=max_uses,
-        invitee_email_encrypted=encrypt_field(invitee_email, SALT_EMAIL) if invitee_email else None,
+        invitee_email_encrypted=encrypt_field(invitee_email, SALT_EMAIL)
+        if invitee_email
+        else None,
     )
     session.add(invite)
     await session.flush()
     return invite
 
 
-async def delete_guild_invite(session: AsyncSession, *, guild_id: int, invite_id: int) -> None:
+async def delete_guild_invite(
+    session: AsyncSession, *, guild_id: int, invite_id: int
+) -> None:
     stmt = select(GuildInvite).where(
         GuildInvite.id == invite_id,
         GuildInvite.guild_id == guild_id,

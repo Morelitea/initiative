@@ -28,7 +28,9 @@ def _validate_value_size(value: Any) -> Any:
     except (TypeError, ValueError) as exc:
         raise ValueError("value must be JSON-serializable") from exc
     if len(serialized.encode("utf-8")) > MAX_VALUE_JSON_BYTES:
-        raise ValueError(f"value exceeds {MAX_VALUE_JSON_BYTES} bytes when serialized as JSON")
+        raise ValueError(
+            f"value exceeds {MAX_VALUE_JSON_BYTES} bytes when serialized as JSON"
+        )
     return value
 
 

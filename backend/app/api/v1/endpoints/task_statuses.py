@@ -4,7 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlmodel import select, delete, update
 
-from app.api.deps import GuildContext, RLSSessionDep, SessionDep, get_current_active_user, get_guild_membership
+from app.api.deps import (
+    GuildContext,
+    RLSSessionDep,
+    SessionDep,
+    get_current_active_user,
+    get_guild_membership,
+)
 from app.db.session import reapply_rls_context
 from app.api.v1.endpoints.tasks import _get_project_with_access, _ensure_can_manage
 from app.models.task import Task, TaskStatus, TaskStatusCategory
@@ -19,7 +25,9 @@ from app.schemas.task_status import (
 from app.core.messages import TaskStatusMessages
 from app.services import task_statuses as task_statuses_service
 
-router = APIRouter(prefix="/projects/{project_id}/task-statuses", tags=["task-statuses"])
+router = APIRouter(
+    prefix="/projects/{project_id}/task-statuses", tags=["task-statuses"]
+)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -44,12 +52,18 @@ def _ensure_default(statuses: List[TaskStatus]) -> None:
         statuses[0].is_default = True
 
 
-async def _load_status_or_404(session: SessionDep, project_id: int, status_id: int) -> TaskStatus:
-    stmt = select(TaskStatus).where(TaskStatus.project_id == project_id, TaskStatus.id == status_id)
+async def _load_status_or_404(
+    session: SessionDep, project_id: int, status_id: int
+) -> TaskStatus:
+    stmt = select(TaskStatus).where(
+        TaskStatus.project_id == project_id, TaskStatus.id == status_id
+    )
     result = await session.exec(stmt)
     status_obj = result.one_or_none()
     if status_obj is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskStatusMessages.NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=TaskStatusMessages.NOT_FOUND
+        )
     return status_obj
 
 
@@ -61,9 +75,8 @@ async def _ensure_category_not_last(
 ) -> None:
     if target.category not in {TaskStatusCategory.backlog, TaskStatusCategory.done}:
         return
-    stmt = (
-        select(func.count(TaskStatus.id))
-        .where(TaskStatus.project_id == project_id, TaskStatus.category == target.category)
+    stmt = select(func.count(TaskStatus.id)).where(
+        TaskStatus.project_id == project_id, TaskStatus.category == target.category
     )
     result = await session.exec(stmt)
     count = result.one()
@@ -109,7 +122,9 @@ async def create_task_status(
     statuses = await task_statuses_service.list_statuses(session, project.id)
     insert_at = status_in.position if status_in.position is not None else len(statuses)
     insert_at = max(0, min(insert_at, len(statuses)))
-    default_color, default_icon = task_statuses_service.defaults_for_category(status_in.category)
+    default_color, default_icon = task_statuses_service.defaults_for_category(
+        status_in.category
+    )
     new_status = TaskStatus(
         project_id=project.id,
         name=status_in.name,
@@ -200,7 +215,6 @@ async def reorder_task_statuses(
         guild_id=guild_context.guild_id,
     )
 
-
     if not reorder_in.items:
         return await task_statuses_service.list_statuses(session, project.id)
 
@@ -210,10 +224,16 @@ async def reorder_task_statuses(
     ordered: list[TaskStatus] = []
     for item in sorted(reorder_in.items, key=lambda entry: entry.position):
         if item.id in seen:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskStatusMessages.DUPLICATE_ID)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=TaskStatusMessages.DUPLICATE_ID,
+            )
         status_obj = status_map.get(item.id)
         if status_obj is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=TaskStatusMessages.NOT_FOUND)
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=TaskStatusMessages.NOT_FOUND,
+            )
         ordered.append(status_obj)
         seen.add(item.id)
     remaining = [status for status in statuses if status.id not in seen]
@@ -251,10 +271,18 @@ async def delete_task_status(
     fallback_obj: TaskStatus | None = None
     if task_count:
         if delete_in.fallback_status_id is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskStatusMessages.FALLBACK_REQUIRED)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=TaskStatusMessages.FALLBACK_REQUIRED,
+            )
         if delete_in.fallback_status_id == target.id:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=TaskStatusMessages.FALLBACK_MUST_DIFFER)
-        fallback_obj = await _load_status_or_404(session, project_id, delete_in.fallback_status_id)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=TaskStatusMessages.FALLBACK_MUST_DIFFER,
+            )
+        fallback_obj = await _load_status_or_404(
+            session, project_id, delete_in.fallback_status_id
+        )
         if fallback_obj.category != target.category:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

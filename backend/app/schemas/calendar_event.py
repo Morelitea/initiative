@@ -26,7 +26,9 @@ class CalendarEventAttendeeCreate(SanitizedBaseModel):
 
 
 class CalendarEventAttendeeRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     user_id: int
     user: Optional[UserPublic] = None
@@ -60,7 +62,9 @@ class EventRecurrence(SanitizedBaseModel):
     frequency: str = Field(..., pattern="^(daily|weekly|monthly|yearly)$")
     interval: int = Field(default=1, ge=1, le=365)
     weekdays: Optional[List[str]] = None
-    monthly_mode: Optional[str] = Field(default=None, pattern="^(day_of_month|weekday)$")
+    monthly_mode: Optional[str] = Field(
+        default=None, pattern="^(day_of_month|weekday)$"
+    )
     day_of_month: Optional[int] = Field(default=None, ge=1, le=31)
     weekday_position: Optional[str] = Field(
         default=None, pattern="^(first|second|third|fourth|last)$"
@@ -121,7 +125,9 @@ class CalendarEventAttendeePreview(SanitizedBaseModel):
     still exposed on the detail endpoint.
     """
 
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     user_id: int
     name: str
@@ -130,7 +136,9 @@ class CalendarEventAttendeePreview(SanitizedBaseModel):
 
 
 class CalendarEventSummary(CalendarEventBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     initiative_id: int
@@ -180,11 +188,13 @@ def _serialize_documents(event: "CalendarEvent") -> List[CalendarEventDocumentRe
     result: List[CalendarEventDocumentRead] = []
     for link in doc_links:
         doc = getattr(link, "document", None)
-        result.append(CalendarEventDocumentRead(
-            document_id=link.document_id,
-            title=getattr(doc, "title", "") if doc else "",
-            attached_at=link.attached_at,
-        ))
+        result.append(
+            CalendarEventDocumentRead(
+                document_id=link.document_id,
+                title=getattr(doc, "title", "") if doc else "",
+                attached_at=link.attached_at,
+            )
+        )
     return result
 
 
@@ -193,12 +203,14 @@ def _serialize_attendees(event: "CalendarEvent") -> List[CalendarEventAttendeeRe
     result: List[CalendarEventAttendeeRead] = []
     for att in attendees_list:
         user = getattr(att, "user", None)
-        result.append(CalendarEventAttendeeRead(
-            user_id=att.user_id,
-            user=UserPublic.model_validate(user) if user else None,
-            rsvp_status=att.rsvp_status,
-            created_at=att.created_at,
-        ))
+        result.append(
+            CalendarEventAttendeeRead(
+                user_id=att.user_id,
+                user=UserPublic.model_validate(user) if user else None,
+                rsvp_status=att.rsvp_status,
+                created_at=att.created_at,
+            )
+        )
     return result
 
 
@@ -221,6 +233,7 @@ def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
     if not raw:
         return None
     import json
+
     try:
         data = json.loads(raw) if isinstance(raw, str) else raw
         return EventRecurrence(**data)

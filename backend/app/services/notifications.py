@@ -140,7 +140,12 @@ async def enqueue_task_assignment_event(
                 user_id=assignee.id,
                 notification_type=NotificationType.task_assignment,
                 title=_nt("task.assignment.title", locale),
-                body=_nt("task.assignment.body", locale, title=task.title, project=project_name),
+                body=_nt(
+                    "task.assignment.body",
+                    locale,
+                    title=task.title,
+                    project=project_name,
+                ),
                 data={
                     "type": "task_assignment",
                     "task_id": str(task.id),
@@ -152,7 +157,9 @@ async def enqueue_task_assignment_event(
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
-async def clear_task_assignment_queue_for_user(session: AsyncSession, user_id: int) -> None:
+async def clear_task_assignment_queue_for_user(
+    session: AsyncSession, user_id: int
+) -> None:
     stmt = delete(TaskAssignmentDigestItem).where(
         TaskAssignmentDigestItem.user_id == user_id,
         TaskAssignmentDigestItem.processed_at.is_(None),
@@ -184,9 +191,14 @@ async def notify_initiative_membership(
     # Email
     if user.email_initiative_addition is not False:
         try:
-            await email_service.send_initiative_added_email(session, user, initiative_name)
+            await email_service.send_initiative_added_email(
+                session, user, initiative_name
+            )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping initiative notification for %s", user.email)
+            logger.warning(
+                "SMTP not configured; skipping initiative notification for %s",
+                user.email,
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send initiative notification: %s", exc)
     # Push notification
@@ -251,7 +263,9 @@ async def notify_project_added(
                 project_id=project_id,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping project notification for %s", user.email)
+            logger.warning(
+                "SMTP not configured; skipping project notification for %s", user.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send project notification: %s", exc)
     # Push notification
@@ -263,7 +277,12 @@ async def notify_project_added(
                 user_id=user.id,
                 notification_type=NotificationType.project_added,
                 title=_nt("project.added.title", locale),
-                body=_nt("project.added.body", locale, project=project_name, initiative=initiative_name),
+                body=_nt(
+                    "project.added.body",
+                    locale,
+                    project=project_name,
+                    initiative=initiative_name,
+                ),
                 data={
                     "type": "project_added",
                     "project_id": str(project_id),
@@ -278,7 +297,9 @@ async def notify_project_added(
 
 async def notify_admins_pending_user(session: AsyncSession, pending_user: User) -> None:
     manager_roles = list(roles_with_capability(Capability.USERS_MANAGE))
-    stmt = select(User).where(User.role.in_(manager_roles), User.status == UserStatus.active)
+    stmt = select(User).where(
+        User.role.in_(manager_roles), User.status == UserStatus.active
+    )
     result = await session.exec(stmt)
     admins = result.scalars().all()
     if not admins:
@@ -330,15 +351,23 @@ async def notify_document_mention(
             await email_service.send_mention_email(
                 session,
                 mentioned_user,
-                subject=email_t("mention.document.subject", locale, document=document_title),
+                subject=email_t(
+                    "mention.document.subject", locale, document=document_title
+                ),
                 headline=email_t("mention.document.title", locale),
                 body_text=email_t(
-                    "mention.document.body", locale, actor=mentioned_by_name, document=document_title
+                    "mention.document.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    document=document_title,
                 ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping mention email for %s", mentioned_user.email)
+            logger.warning(
+                "SMTP not configured; skipping mention email for %s",
+                mentioned_user.email,
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
     # Push notification
@@ -350,7 +379,10 @@ async def notify_document_mention(
                 notification_type=NotificationType.mention,
                 title=_nt("mention.document.title", locale),
                 body=_nt(
-                    "mention.document.body", locale, actor=mentioned_by_name, document=document_title
+                    "mention.document.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    document=document_title,
                 ),
                 data={
                     "type": "mention",
@@ -415,12 +447,18 @@ async def notify_comment_mention(
                 subject=email_t("mention.comment.subject", locale),
                 headline=email_t("mention.comment.title", locale),
                 body_text=email_t(
-                    "mention.comment.body", locale, actor=mentioned_by_name, context=context_title
+                    "mention.comment.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    context=context_title,
                 ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping mention email for %s", mentioned_user.email)
+            logger.warning(
+                "SMTP not configured; skipping mention email for %s",
+                mentioned_user.email,
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
     # Push notification
@@ -432,7 +470,10 @@ async def notify_comment_mention(
                 notification_type=NotificationType.mention,
                 title=_nt("mention.comment.title", locale),
                 body=_nt(
-                    "mention.comment.body", locale, actor=mentioned_by_name, context=context_title
+                    "mention.comment.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    context=context_title,
                 ),
                 data={
                     "type": "mention",
@@ -512,7 +553,9 @@ async def notify_task_mentioned_in_comment(
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping mention email for %s", assignee.email)
+            logger.warning(
+                "SMTP not configured; skipping mention email for %s", assignee.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
     # Push notification
@@ -587,11 +630,15 @@ async def notify_comment_on_task(
                 assignee,
                 subject=email_t("comment.onTask.subject", locale, task=task_title),
                 headline=email_t("comment.onTask.title", locale),
-                body_text=email_t("comment.onTask.body", locale, actor=commenter_name, task=task_title),
+                body_text=email_t(
+                    "comment.onTask.body", locale, actor=commenter_name, task=task_title
+                ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping comment email for %s", assignee.email)
+            logger.warning(
+                "SMTP not configured; skipping comment email for %s", assignee.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
     # Push notification
@@ -602,7 +649,9 @@ async def notify_comment_on_task(
                 user_id=assignee.id,
                 notification_type=NotificationType.comment_on_task,
                 title=_nt("comment.onTask.title", locale),
-                body=_nt("comment.onTask.body", locale, actor=commenter_name, task=task_title),
+                body=_nt(
+                    "comment.onTask.body", locale, actor=commenter_name, task=task_title
+                ),
                 data={
                     "type": "comment_on_task",
                     "comment_id": str(comment_id),
@@ -656,15 +705,22 @@ async def notify_comment_on_document(
             await email_service.send_mention_email(
                 session,
                 author,
-                subject=email_t("comment.onDocument.subject", locale, document=document_title),
+                subject=email_t(
+                    "comment.onDocument.subject", locale, document=document_title
+                ),
                 headline=email_t("comment.onDocument.title", locale),
                 body_text=email_t(
-                    "comment.onDocument.body", locale, actor=commenter_name, document=document_title
+                    "comment.onDocument.body",
+                    locale,
+                    actor=commenter_name,
+                    document=document_title,
                 ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping comment email for %s", author.email)
+            logger.warning(
+                "SMTP not configured; skipping comment email for %s", author.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
     # Push notification
@@ -676,7 +732,10 @@ async def notify_comment_on_document(
                 notification_type=NotificationType.comment_on_document,
                 title=_nt("comment.onDocument.title", locale),
                 body=_nt(
-                    "comment.onDocument.body", locale, actor=commenter_name, document=document_title
+                    "comment.onDocument.body",
+                    locale,
+                    actor=commenter_name,
+                    document=document_title,
                 ),
                 data={
                     "type": "comment_on_document",
@@ -742,12 +801,17 @@ async def notify_comment_reply(
                 subject=email_t("comment.reply.subject", locale),
                 headline=email_t("comment.reply.title", locale),
                 body_text=email_t(
-                    "comment.reply.body", locale, actor=replier_name, context=context_title
+                    "comment.reply.body",
+                    locale,
+                    actor=replier_name,
+                    context=context_title,
                 ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping reply email for %s", parent_author.email)
+            logger.warning(
+                "SMTP not configured; skipping reply email for %s", parent_author.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send reply email: %s", exc)
     # Push notification
@@ -758,7 +822,12 @@ async def notify_comment_reply(
                 user_id=parent_author.id,
                 notification_type=NotificationType.comment_reply,
                 title=_nt("comment.reply.title", locale),
-                body=_nt("comment.reply.body", locale, actor=replier_name, context=context_title),
+                body=_nt(
+                    "comment.reply.body",
+                    locale,
+                    actor=replier_name,
+                    context=context_title,
+                ),
                 data={
                     "type": "comment_reply",
                     "comment_id": str(comment_id),
@@ -829,7 +898,9 @@ async def _deliver_event_notification(
                 link=data.get("smart_link"),
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping event email for %s", recipient.email)
+            logger.warning(
+                "SMTP not configured; skipping event email for %s", recipient.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send event email: %s", exc)
     if push_enabled:
@@ -889,7 +960,11 @@ async def notify_event_invitation(
         email_subject=email_t("event.invitation.subject", locale, event=event.title),
         email_headline=email_t("event.invitation.title", locale),
         email_body=email_t(
-            "event.invitation.body", locale, organizer=organizer_name, event=event.title, when=when
+            "event.invitation.body",
+            locale,
+            organizer=organizer_name,
+            event=event.title,
+            when=when,
         ),
         push_title=_nt("event.invitation.title", locale),
         push_body=_nt("event.invitation.body", locale, event=event.title, when=when),
@@ -923,7 +998,9 @@ async def notify_event_updated(
         push_enabled=attendee.push_events is not False,
         email_subject=email_t(f"{key}.subject", locale, event=event.title),
         email_headline=email_t(f"{key}.title", locale),
-        email_body=email_t(f"{key}.body", locale, editor=editor_name, event=event.title, when=when),
+        email_body=email_t(
+            f"{key}.body", locale, editor=editor_name, event=event.title, when=when
+        ),
         push_title=_nt(f"{key}.title", locale),
         push_body=_nt(f"{key}.body", locale, event=event.title, when=when),
     )
@@ -953,7 +1030,11 @@ async def notify_event_cancelled(
         email_subject=email_t("event.cancelled.subject", locale, event=event.title),
         email_headline=email_t("event.cancelled.title", locale),
         email_body=email_t(
-            "event.cancelled.body", locale, canceller=canceller_name, event=event.title, when=when
+            "event.cancelled.body",
+            locale,
+            canceller=canceller_name,
+            event=event.title,
+            when=when,
         ),
         push_title=_nt("event.cancelled.title", locale),
         push_body=_nt("event.cancelled.body", locale, event=event.title, when=when),
@@ -973,7 +1054,9 @@ async def notify_event_rsvp(
     if organizer.id == responder.id:
         return
     responder_name = responder.full_name or responder.email
-    status_value = rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
+    status_value = (
+        rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
+    )
     locale = _recipient_locale(organizer)
     await _deliver_event_notification(
         session,
@@ -990,11 +1073,19 @@ async def notify_event_rsvp(
         email_subject=email_t("event.rsvp.subject", locale, event=event.title),
         email_headline=email_t("event.rsvp.title", locale),
         email_body=email_t(
-            "event.rsvp.body", locale, responder=responder_name, status=status_value, event=event.title
+            "event.rsvp.body",
+            locale,
+            responder=responder_name,
+            status=status_value,
+            event=event.title,
         ),
         push_title=_nt("event.rsvp.title", locale),
         push_body=_nt(
-            "event.rsvp.body", locale, responder=responder_name, status=status_value, event=event.title
+            "event.rsvp.body",
+            locale,
+            responder=responder_name,
+            status=status_value,
+            event=event.title,
         ),
     )
 
@@ -1032,7 +1123,9 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
     schemas, so they're gathered with the user's membership context (no
     superadmin) and the items are marked processed back in each schema.
     """
-    result = await session.exec(select(User).where(User.email_task_assignment.is_not(False)))
+    result = await session.exec(
+        select(User).where(User.email_task_assignment.is_not(False))
+    )
     users = result.scalars().all()
     if not users:
         logger.debug("task-digest: no opted-in users")
@@ -1047,17 +1140,23 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         # Capture user_id / per_guild_items as defaults so this closure doesn't
         # bind the loop variables by reference (B023) — safe even if the call
         # site is ever refactored to defer the closures.
-        async def _fetch(routed: AsyncSession, gid: int, *, _uid=user_id, _items=per_guild_items) -> list[dict]:
+        async def _fetch(
+            routed: AsyncSession, gid: int, *, _uid=user_id, _items=per_guild_items
+        ) -> list[dict]:
             items = (
-                await routed.exec(
-                    select(TaskAssignmentDigestItem)
-                    .where(
-                        TaskAssignmentDigestItem.user_id == _uid,
-                        TaskAssignmentDigestItem.processed_at.is_(None),
+                (
+                    await routed.exec(
+                        select(TaskAssignmentDigestItem)
+                        .where(
+                            TaskAssignmentDigestItem.user_id == _uid,
+                            TaskAssignmentDigestItem.processed_at.is_(None),
+                        )
+                        .order_by(TaskAssignmentDigestItem.created_at.asc())
                     )
-                    .order_by(TaskAssignmentDigestItem.created_at.asc())
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             _items[gid] = [item.id for item in items]
             return [
                 {
@@ -1079,12 +1178,20 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
         # Send: re-load the user (gather expunged it) in a shared-table context.
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
-        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one_or_none()
-        if user is None:  # deleted between the snapshot and now — skip, don't abort the pass
+        user = (
+            await session.exec(select(User).where(User.id == user_id))
+        ).scalar_one_or_none()
+        if (
+            user is None
+        ):  # deleted between the snapshot and now — skip, don't abort the pass
             continue
         try:
-            await email_service.send_task_assignment_digest_email(session, user, assignments)
-            logger.info("task-digest: sent %d assignment(s) to user %s", len(assignments), email)
+            await email_service.send_task_assignment_digest_email(
+                session, user, assignments
+            )
+            logger.info(
+                "task-digest: sent %d assignment(s) to user %s", len(assignments), email
+            )
         except email_service.EmailNotConfiguredError:
             logger.warning("SMTP not configured; skipping task digest for %s", email)
             continue
@@ -1103,10 +1210,14 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
                 .values(processed_at=now)
             )
             await session.commit()
-            await reapply_rls_context(session)  # commit may have dropped the connection's context
+            await reapply_rls_context(
+                session
+            )  # commit may have dropped the connection's context
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
-        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one_or_none()
+        user = (
+            await session.exec(select(User).where(User.id == user_id))
+        ).scalar_one_or_none()
         if user is None:
             continue
         user.last_task_assignment_digest_at = now
@@ -1157,7 +1268,9 @@ async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[d
             {
                 "title": task.title,
                 "project_name": project_name,
-                "due_date": task.due_date.strftime("%Y-%m-%d %H:%M UTC") if task.due_date else "N/A",
+                "due_date": task.due_date.strftime("%Y-%m-%d %H:%M UTC")
+                if task.due_date
+                else "N/A",
                 "link": _build_smart_link(target_path=target_path, guild_id=guild_id),
             }
         )
@@ -1180,7 +1293,13 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
     # Capture plain fields up front: gathering routes per guild and expunges the
     # identity map, which would detach these ORM rows.
     candidates = [
-        (u.id, u.email, u.timezone, u.overdue_notification_time, u.last_overdue_notification_at)
+        (
+            u.id,
+            u.email,
+            u.timezone,
+            u.overdue_notification_time,
+            u.last_overdue_notification_at,
+        )
         for u in users
     ]
     for user_id, email, user_tz, notify_time, last_at in candidates:
@@ -1190,7 +1309,9 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
             hour, minute = map(int, notify_time.split(":"))
         except Exception:
             hour, minute = 21, 0
-        target_local = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        target_local = now_local.replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        )
         if now_local < target_local:
             continue
         if last_at and last_at.astimezone(tz).date() == now_local.date():
@@ -1199,7 +1320,9 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         # membership context (no superadmin) and collect their overdue tasks.
         guild_ids = await member_guild_ids(session, user_id)
         tasks = await gather_across_guilds(
-            session, user_id, guild_ids,
+            session,
+            user_id,
+            guild_ids,
             # _uid default-binds user_id so the closure doesn't capture the loop
             # variable by reference (B023).
             lambda routed, _gid, _uid=user_id: _overdue_tasks_for_user(routed, _uid),
@@ -1210,12 +1333,18 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         # email/stamp touch only shared tables, so the user-only context is fine.
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
-        user = (await session.exec(select(User).where(User.id == user_id))).scalar_one_or_none()
-        if user is None:  # deleted between the snapshot and now — skip, don't abort the pass
+        user = (
+            await session.exec(select(User).where(User.id == user_id))
+        ).scalar_one_or_none()
+        if (
+            user is None
+        ):  # deleted between the snapshot and now — skip, don't abort the pass
             continue
         try:
             await email_service.send_overdue_tasks_email(session, user, tasks)
-            logger.info("overdue-digest: sent %d overdue task(s) to user %s", len(tasks), email)
+            logger.info(
+                "overdue-digest: sent %d overdue task(s) to user %s", len(tasks), email
+            )
         except email_service.EmailNotConfiguredError:
             logger.warning("SMTP not configured; skipping overdue digest for %s", email)
             continue
@@ -1245,8 +1374,14 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
     # ("at the time of the event") reminder still fires on the next poll.
     lower = now - EVENT_REMINDER_GRACE
     users = (
-        await session.exec(select(User).where(User.event_reminder_minutes_before.is_not(None)))
-    ).scalars().all()
+        (
+            await session.exec(
+                select(User).where(User.event_reminder_minutes_before.is_not(None))
+            )
+        )
+        .scalars()
+        .all()
+    )
     candidates = [(u.id, u.event_reminder_minutes_before) for u in users]
     for user_id, minutes in candidates:
         if minutes is None:
@@ -1255,21 +1390,25 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
             session.expunge_all()
             await set_rls_context(session, user_id=user_id, guild_id=guild_id)
             events = (
-                await session.exec(
-                    select(CalendarEvent)
-                    .join(
-                        CalendarEventAttendee,
-                        CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
-                    )
-                    .where(
-                        CalendarEventAttendee.user_id == user_id,
-                        CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
-                        CalendarEvent.deleted_at.is_(None),
-                        CalendarEvent.start_at > lower,
-                        CalendarEvent.start_at <= horizon,
+                (
+                    await session.exec(
+                        select(CalendarEvent)
+                        .join(
+                            CalendarEventAttendee,
+                            CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
+                        )
+                        .where(
+                            CalendarEventAttendee.user_id == user_id,
+                            CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
+                            CalendarEvent.deleted_at.is_(None),
+                            CalendarEvent.start_at > lower,
+                            CalendarEvent.start_at <= horizon,
+                        )
                     )
                 )
-            ).scalars().all()
+                .scalars()
+                .all()
+            )
             # Capture before the per-reminder commits expire/detach the rows.
             due = [
                 (e.id, e.start_at, e.guild_id)
@@ -1299,7 +1438,9 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
                     await session.exec(select(User).where(User.id == user_id))
                 ).scalar_one_or_none()
                 event = (
-                    await session.exec(select(CalendarEvent).where(CalendarEvent.id == event_id))
+                    await session.exec(
+                        select(CalendarEvent).where(CalendarEvent.id == event_id)
+                    )
                 ).scalar_one_or_none()
                 if recipient is None or event is None:
                     continue  # deleted mid-run; dedup row stays so we don't retry
@@ -1321,5 +1462,3 @@ async def process_event_reminders() -> None:
     """
     async with AdminSessionLocal() as session:
         await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
-
-

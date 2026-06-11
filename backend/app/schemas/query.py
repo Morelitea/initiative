@@ -19,6 +19,7 @@ class FilterOp(str, Enum):
     Negation is handled by the ``negate`` flag on FilterCondition,
     not by separate operators.
     """
+
     eq = "eq"
     lt = "lt"
     lte = "lte"
@@ -45,6 +46,7 @@ class FilterCondition(SanitizedBaseModel):
         # priority NOT IN ('low', 'medium')
         FilterCondition(field="priority", op=FilterOp.in_, value=["low", "medium"], negate=True)
     """
+
     field: str
     op: FilterOp = FilterOp.eq
     value: Any = None
@@ -83,6 +85,7 @@ class FilterGroup(SanitizedBaseModel):
             ],
         )
     """
+
     logic: Literal["and", "or"] = "and"
     negate: bool = False
     conditions: list[FilterCondition | FilterGroup]

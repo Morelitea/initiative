@@ -11,6 +11,7 @@ class PushToken(SQLModel, table=True):
     Stores FCM (Firebase Cloud Messaging) tokens for both Android and iOS.
     iOS tokens are forwarded through FCM to APNS.
     """
+
     __tablename__ = "push_tokens"
 
     id: Optional[int] = Field(default=None, primary_key=True)

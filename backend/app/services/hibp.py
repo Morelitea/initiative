@@ -12,6 +12,7 @@ treated as "not breached". A flaky HIBP outage shouldn't block all
 password changes; the length floor in ``app.core.password_policy``
 still applies as a hard gate.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -54,12 +55,18 @@ async def is_password_breached(password: str) -> bool:
     # this flag, the exception escapes the ``httpx.HTTPError`` handler
     # below and turns every password change into a 500 instead of
     # failing open.
-    sha1 = hashlib.sha1(password.encode("utf-8"), usedforsecurity=False).hexdigest().upper()
+    sha1 = (
+        hashlib.sha1(password.encode("utf-8"), usedforsecurity=False)
+        .hexdigest()
+        .upper()
+    )
     prefix, suffix = sha1[:5], sha1[5:]
 
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            response = await client.get(_RANGE_URL.format(prefix=prefix), headers=_HEADERS)
+            response = await client.get(
+                _RANGE_URL.format(prefix=prefix), headers=_HEADERS
+            )
             response.raise_for_status()
             body = response.text
     except httpx.HTTPError as exc:

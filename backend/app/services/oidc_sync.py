@@ -106,7 +106,9 @@ async def sync_oidc_assignments(
         role = mapping.guild_role
         if gid not in guild_roles:
             guild_roles[gid] = role
-        elif _GUILD_ROLE_PRIORITY.get(role, 0) > _GUILD_ROLE_PRIORITY.get(guild_roles[gid], 0):
+        elif _GUILD_ROLE_PRIORITY.get(role, 0) > _GUILD_ROLE_PRIORITY.get(
+            guild_roles[gid], 0
+        ):
             guild_roles[gid] = role
 
     # Resolve initiative mappings: collect candidate role_ids per initiative,
@@ -115,10 +117,15 @@ async def sync_oidc_assignments(
     initiative_guild: dict[int, int] = {}  # initiative_id -> guild_id
     initiative_role_candidates: dict[int, list[int]] = {}  # initiative_id -> role_ids
     for mapping in matched:
-        if mapping.target_type == OIDCMappingTargetType.initiative and mapping.initiative_id is not None:
+        if (
+            mapping.target_type == OIDCMappingTargetType.initiative
+            and mapping.initiative_id is not None
+        ):
             initiative_guild[mapping.initiative_id] = mapping.guild_id
             if mapping.initiative_role_id is not None:
-                initiative_role_candidates.setdefault(mapping.initiative_id, []).append(mapping.initiative_role_id)
+                initiative_role_candidates.setdefault(mapping.initiative_id, []).append(
+                    mapping.initiative_role_id
+                )
             else:
                 initiative_role_candidates.setdefault(mapping.initiative_id, [])
 
@@ -155,9 +162,13 @@ async def sync_oidc_assignments(
             initiative_roles[key] = unique_ids[0]
             continue
         # Multiple different roles: pick manager first, then lowest position
-        roles = (await session.exec(
-            select(InitiativeRoleModel).where(InitiativeRoleModel.id.in_(unique_ids))
-        )).all()
+        roles = (
+            await session.exec(
+                select(InitiativeRoleModel).where(
+                    InitiativeRoleModel.id.in_(unique_ids)
+                )
+            )
+        ).all()
         if not roles:
             initiative_roles[key] = unique_ids[0]
             continue
@@ -185,7 +196,9 @@ async def sync_oidc_assignments(
     # --- Guild memberships ---
     for guild_id, role_str in guild_roles.items():
         role = GuildRole(role_str)
-        membership = await _get_guild_membership(session, user_id=user_id, guild_id=guild_id)
+        membership = await _get_guild_membership(
+            session, user_id=user_id, guild_id=guild_id
+        )
         if membership:
             if not membership.oidc_managed:
                 # Manual membership — never overwrite
@@ -195,21 +208,29 @@ async def sync_oidc_assignments(
                 session.add(membership)
                 result.guilds_updated.append(guild_id)
         else:
-            await _create_guild_membership(session, user_id=user_id, guild_id=guild_id, role=role)
+            await _create_guild_membership(
+                session, user_id=user_id, guild_id=guild_id, role=role
+            )
             result.guilds_added.append(guild_id)
 
     # --- Initiative memberships ---
     for initiative_id, role_id in initiative_roles.items():
         guild_id = initiative_guild[initiative_id]
         # Ensure guild membership exists first (handled above or create here)
-        guild_membership = await _get_guild_membership(session, user_id=user_id, guild_id=guild_id)
+        guild_membership = await _get_guild_membership(
+            session, user_id=user_id, guild_id=guild_id
+        )
         if not guild_membership:
             # Create guild membership as member if not in guild_roles
             g_role = GuildRole(guild_roles.get(guild_id, GuildRole.member.value))
-            await _create_guild_membership(session, user_id=user_id, guild_id=guild_id, role=g_role)
+            await _create_guild_membership(
+                session, user_id=user_id, guild_id=guild_id, role=g_role
+            )
             result.guilds_added.append(guild_id)
 
-        im = await _get_initiative_membership(session, user_id=user_id, initiative_id=initiative_id)
+        im = await _get_initiative_membership(
+            session, user_id=user_id, initiative_id=initiative_id
+        )
         if im:
             if not im.oidc_managed:
                 continue
@@ -243,7 +264,9 @@ async def sync_oidc_assignments(
     for im in stale_initiatives.all():
         if im.initiative_id not in matched_initiative_ids:
             await clear_user_task_assignments_for_initiative(
-                session, initiative_id=im.initiative_id, user_id=user_id,
+                session,
+                initiative_id=im.initiative_id,
+                user_id=user_id,
             )
             await session.delete(im)
             result.initiatives_removed.append(im.initiative_id)
@@ -263,10 +286,14 @@ async def sync_oidc_assignments(
             # has no UI to ask, so we pick a fallback (initiative
             # manager → guild admin) and log if neither exists.
             await _auto_transfer_owned_projects(
-                session, user_id=user_id, guild_id=gm.guild_id,
+                session,
+                user_id=user_id,
+                guild_id=gm.guild_id,
             )
             await remove_user_from_guild_initiatives(
-                session, guild_id=gm.guild_id, user_id=user_id,
+                session,
+                guild_id=gm.guild_id,
+                user_id=user_id,
             )
             await session.delete(gm)
             result.guilds_removed.append(gm.guild_id)

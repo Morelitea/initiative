@@ -124,12 +124,9 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
     Returns list of guild names where user is the last admin.
     """
     # Get all guilds where user is an admin
-    stmt = (
-        select(GuildMembership)
-        .where(
-            GuildMembership.user_id == user_id,
-            GuildMembership.role == GuildRole.admin,
-        )
+    stmt = select(GuildMembership).where(
+        GuildMembership.user_id == user_id,
+        GuildMembership.role == GuildRole.admin,
     )
     result = await session.exec(stmt)
     user_admin_memberships = result.all()
@@ -138,13 +135,10 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
 
     for membership in user_admin_memberships:
         # Count other admins in this guild
-        count_stmt = (
-            select(func.count(GuildMembership.user_id))
-            .where(
-                GuildMembership.guild_id == membership.guild_id,
-                GuildMembership.role == GuildRole.admin,
-                GuildMembership.user_id != user_id,
-            )
+        count_stmt = select(func.count(GuildMembership.user_id)).where(
+            GuildMembership.guild_id == membership.guild_id,
+            GuildMembership.role == GuildRole.admin,
+            GuildMembership.user_id != user_id,
         )
         count_result = await session.exec(count_stmt)
         other_admin_count = count_result.one()
@@ -152,6 +146,7 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
         if other_admin_count == 0:
             # User is the last admin, get guild name
             from app.models.guild import Guild
+
             guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
             guild_result = await session.exec(guild_stmt)
             guild = guild_result.one_or_none()
@@ -161,21 +156,16 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
     return last_admin_guild_names
 
 
-async def get_guild_blocker_details(
-    session: AsyncSession, user_id: int
-) -> List[dict]:
+async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
     """
     Get detailed info about guilds where user is the last admin.
     Returns list of dicts with guild_id, guild_name, and other_members who could be promoted.
     """
     from app.models.guild import Guild
 
-    stmt = (
-        select(GuildMembership)
-        .where(
-            GuildMembership.user_id == user_id,
-            GuildMembership.role == GuildRole.admin,
-        )
+    stmt = select(GuildMembership).where(
+        GuildMembership.user_id == user_id,
+        GuildMembership.role == GuildRole.admin,
     )
     result = await session.exec(stmt)
     user_admin_memberships = result.all()
@@ -184,13 +174,10 @@ async def get_guild_blocker_details(
 
     for membership in user_admin_memberships:
         # Count other admins in this guild
-        count_stmt = (
-            select(func.count(GuildMembership.user_id))
-            .where(
-                GuildMembership.guild_id == membership.guild_id,
-                GuildMembership.role == GuildRole.admin,
-                GuildMembership.user_id != user_id,
-            )
+        count_stmt = select(func.count(GuildMembership.user_id)).where(
+            GuildMembership.guild_id == membership.guild_id,
+            GuildMembership.role == GuildRole.admin,
+            GuildMembership.user_id != user_id,
         )
         count_result = await session.exec(count_stmt)
         other_admin_count = count_result.one()
@@ -216,11 +203,13 @@ async def get_guild_blocker_details(
             members_result = await session.exec(members_stmt)
             other_members = members_result.all()
 
-            blockers.append({
-                "guild_id": guild.id,
-                "guild_name": guild.name,
-                "other_members": other_members,
-            })
+            blockers.append(
+                {
+                    "guild_id": guild.id,
+                    "guild_name": guild.name,
+                    "other_members": other_members,
+                }
+            )
 
     return blockers
 
@@ -259,7 +248,10 @@ async def get_initiative_blocker_details(
 
     stmt = (
         select(Initiative)
-        .join(manager_count_subquery, manager_count_subquery.c.initiative_id == Initiative.id)
+        .join(
+            manager_count_subquery,
+            manager_count_subquery.c.initiative_id == Initiative.id,
+        )
         .where(
             Initiative.id.in_(user_manager_initiatives),
             manager_count_subquery.c.pm_count == 1,
@@ -284,12 +276,14 @@ async def get_initiative_blocker_details(
         members_result = await session.exec(members_stmt)
         other_members = members_result.all()
 
-        blockers.append({
-            "initiative_id": initiative.id,
-            "initiative_name": initiative.name,
-            "guild_id": initiative.guild_id,
-            "other_members": other_members,
-        })
+        blockers.append(
+            {
+                "initiative_id": initiative.id,
+                "initiative_name": initiative.name,
+                "guild_id": initiative.guild_id,
+                "other_members": other_members,
+            }
+        )
 
     return blockers
 
@@ -418,9 +412,13 @@ async def check_deletion_eligibility(
     owned_projects = await get_owned_projects(session, user_id)
     if owned_projects:
         if admin_context:
-            warnings.append(f"User owns {len(owned_projects)} project(s) that must be transferred")
+            warnings.append(
+                f"User owns {len(owned_projects)} project(s) that must be transferred"
+            )
         else:
-            warnings.append(f"You own {len(owned_projects)} project(s) that must be transferred")
+            warnings.append(
+                f"You own {len(owned_projects)} project(s) that must be transferred"
+            )
 
     can_delete = len(blockers) == 0
 
@@ -518,7 +516,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # yields a string that's obviously not a real email. Domain is
     # RFC 2606 example.com so EmailStr serialization on user-facing
     # endpoints (admin user list, etc.) doesn't reject the row.
-    sentinel_email = f"anonymized-{user_id}-{secrets.token_hex(8)}@anonymized.example.com"
+    sentinel_email = (
+        f"anonymized-{user_id}-{secrets.token_hex(8)}@anonymized.example.com"
+    )
     user.email_hash = hash_email(sentinel_email)
     user.email_encrypted = encrypt_field(sentinel_email, SALT_EMAIL)
 
@@ -589,7 +589,9 @@ async def transfer_project_ownership(
     owner-level permissions and the access dropdown can't reconcile
     the value.
     """
-    project = (await session.exec(select(Project).where(Project.id == project_id))).one()
+    project = (
+        await session.exec(select(Project).where(Project.id == project_id))
+    ).one()
 
     new_owner = (
         await session.exec(select(User).where(User.id == new_owner_id))
@@ -627,10 +629,12 @@ async def transfer_project_ownership(
 
     if permission:
         from app.models.project import ProjectPermissionLevel
+
         permission.level = ProjectPermissionLevel.owner
         session.add(permission)
     else:
         from app.models.project import ProjectPermissionLevel
+
         permission = ProjectPermission(
             project_id=project_id,
             user_id=new_owner_id,
@@ -730,10 +734,14 @@ async def count_capability_holders(
         return 0
     if for_update:
         # Lock the matching users to prevent a race when demoting/deleting.
-        stmt = select(User).where(
-            User.role.in_(roles),
-            User.status == UserStatus.active,
-        ).with_for_update()
+        stmt = (
+            select(User)
+            .where(
+                User.role.in_(roles),
+                User.status == UserStatus.active,
+            )
+            .with_for_update()
+        )
         result = await session.exec(stmt)
         return len(result.all())
     stmt = select(func.count(User.id)).where(
@@ -745,7 +753,11 @@ async def count_capability_holders(
 
 
 async def is_last_capability_holder(
-    session: AsyncSession, user_id: int, capability: Capability, *, for_update: bool = False
+    session: AsyncSession,
+    user_id: int,
+    capability: Capability,
+    *,
+    for_update: bool = False,
 ) -> bool:
     """True iff removing this user would leave zero active holders of ``capability``.
 
@@ -790,9 +802,13 @@ async def is_last_capability_holder(
 # Backwards-compatible wrappers. The invariant we protect is "can the platform
 # still manage its own configuration", i.e. at least one ``owner`` remains
 # (``config.manage`` is owner-only).
-async def count_platform_admins(session: AsyncSession, *, for_update: bool = False) -> int:
+async def count_platform_admins(
+    session: AsyncSession, *, for_update: bool = False
+) -> int:
     """Count active users who can manage platform configuration (owners)."""
-    return await count_capability_holders(session, Capability.CONFIG_MANAGE, for_update=for_update)
+    return await count_capability_holders(
+        session, Capability.CONFIG_MANAGE, for_update=for_update
+    )
 
 
 async def is_last_platform_admin(
@@ -824,7 +840,9 @@ async def hard_delete_user(
     owned_projects = await get_owned_projects(session, user_id)
     for project in owned_projects:
         if project.id not in project_transfers:
-            raise ValueError(f"No transfer recipient specified for project {project.id}")
+            raise ValueError(
+                f"No transfer recipient specified for project {project.id}"
+            )
 
         new_owner_id = project_transfers[project.id]
         await transfer_project_ownership(session, project.id, new_owner_id)
@@ -841,7 +859,9 @@ async def hard_delete_user(
     guild_ids = list((await session.exec(guild_memberships_stmt)).all())
     for gid in guild_ids:
         await initiatives_service.remove_user_from_guild_initiatives(
-            session, guild_id=gid, user_id=user_id,
+            session,
+            guild_id=gid,
+            user_id=user_id,
         )
 
     # Reassign user content to system user
@@ -854,7 +874,9 @@ async def hard_delete_user(
 
     # Project UI state
     await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))
-    await session.exec(delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id))
+    await session.exec(
+        delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id)
+    )
     await session.exec(delete(RecentView).where(RecentView.user_id == user_id))
 
     # User API keys
@@ -864,7 +886,11 @@ async def hard_delete_user(
     await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
 
     # Task assignment digest items
-    await session.exec(delete(TaskAssignmentDigestItem).where(TaskAssignmentDigestItem.user_id == user_id))
+    await session.exec(
+        delete(TaskAssignmentDigestItem).where(
+            TaskAssignmentDigestItem.user_id == user_id
+        )
+    )
 
     # Update TaskAssignmentDigestItem assigned_by to NULL (nullable field)
     await session.exec(
@@ -874,7 +900,9 @@ async def hard_delete_user(
     )
 
     # Delete associations with composite keys (must be explicit)
-    await session.exec(delete(ProjectPermission).where(ProjectPermission.user_id == user_id))
+    await session.exec(
+        delete(ProjectPermission).where(ProjectPermission.user_id == user_id)
+    )
     await session.exec(delete(TaskAssignee).where(TaskAssignee.user_id == user_id))
 
     # Other per-user state without ON DELETE CASCADE on the FK.
@@ -888,13 +916,17 @@ async def hard_delete_user(
         CalendarEventPropertyValue,
     )
 
-    await session.exec(delete(QueuePermission).where(QueuePermission.user_id == user_id))
+    await session.exec(
+        delete(QueuePermission).where(QueuePermission.user_id == user_id)
+    )
     # Queue items: assigned-to is nullable, so just clear the pointer
     # rather than dropping the queue entry.
     await session.exec(
         update(QueueItem).where(QueueItem.user_id == user_id).values(user_id=None)
     )
-    await session.exec(delete(DocumentPermission).where(DocumentPermission.user_id == user_id))
+    await session.exec(
+        delete(DocumentPermission).where(DocumentPermission.user_id == user_id)
+    )
     await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
     await session.exec(
         delete(CalendarEventAttendee).where(CalendarEventAttendee.user_id == user_id)

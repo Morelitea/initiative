@@ -28,14 +28,10 @@ def _force_prod_flag(monkeypatch):
     semantics regardless of local ``.env``."""
     from app.core import config as config_module
 
-    monkeypatch.setattr(
-        config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False
-    )
+    monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False)
 
 
-async def _authed_post(
-    client: AsyncClient, *, headers: dict[str, str], body: dict
-):
+async def _authed_post(client: AsyncClient, *, headers: dict[str, str], body: dict):
     return await client.post("/api/v1/auto/subscriptions", json=body, headers=headers)
 
 
@@ -139,8 +135,12 @@ async def test_non_owner_member_cannot_delete(client: AsyncClient, session):
     creator = await create_user(session, email="hook-creator@example.com")
     other = await create_user(session, email="hook-other@example.com")
     guild = await create_guild(session, creator=creator)
-    await create_guild_membership(session, user=creator, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=other, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=creator, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=other, guild=guild, role=GuildRole.member
+    )
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
     with patch(
@@ -173,8 +173,12 @@ async def test_non_owner_member_cannot_update(client: AsyncClient, session):
     creator = await create_user(session, email="hook-creator2@example.com")
     other = await create_user(session, email="hook-other2@example.com")
     guild = await create_guild(session, creator=creator)
-    await create_guild_membership(session, user=creator, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=other, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=creator, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=other, guild=guild, role=GuildRole.member
+    )
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
     with patch(
@@ -202,17 +206,19 @@ async def test_non_owner_member_cannot_update(client: AsyncClient, session):
 
 
 @pytest.mark.integration
-async def test_guild_admin_can_delete_others_subscription(
-    client: AsyncClient, session
-):
+async def test_guild_admin_can_delete_others_subscription(client: AsyncClient, session):
     """Guild admins are the explicit exception to the creator-only rule
     — they can clean up subscriptions left behind by members who left
     or had access revoked."""
     creator = await create_user(session, email="hook-creator3@example.com")
     admin = await create_user(session, email="hook-admin3@example.com")
     guild = await create_guild(session, creator=creator)
-    await create_guild_membership(session, user=creator, guild=guild, role=GuildRole.member)
-    await create_guild_membership(session, user=admin, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=creator, guild=guild, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
     with patch(
@@ -242,7 +248,9 @@ async def test_creator_can_update_own_subscription(client: AsyncClient, session)
     """The happy path: the creator can mutate their own subscription."""
     user = await create_user(session, email="hook-self@example.com")
     guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.member)
+    await create_guild_membership(
+        session, user=user, guild=guild, role=GuildRole.member
+    )
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
     with patch(

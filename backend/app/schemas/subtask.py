@@ -22,6 +22,7 @@ class SubtaskUpdate(SanitizedBaseModel):
 
 class SubtaskBatchCreate(SanitizedBaseModel):
     """Create multiple subtasks at once."""
+
     contents: list[str] = Field(min_length=1, max_length=50)
 
 
@@ -35,7 +36,9 @@ class SubtaskReorderRequest(SanitizedBaseModel):
 
 
 class SubtaskRead(SubtaskBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     task_id: int

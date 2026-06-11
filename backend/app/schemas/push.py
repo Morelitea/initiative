@@ -21,6 +21,7 @@ class PushTokenUnregisterRequest(SanitizedBaseModel):
 
 class PushTokenResponse(SanitizedBaseModel):
     """Generic response for push token operations."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     status: str
@@ -32,6 +33,7 @@ class FCMConfigResponse(SanitizedBaseModel):
     Only exposes public fields (API key, project ID, sender ID).
     Does NOT expose service account credentials.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     enabled: bool

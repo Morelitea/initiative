@@ -324,6 +324,7 @@ def _clamp_page(page: int, page_size: int, total_count: int) -> int:
     if total_count == 0:
         return 1
     import math
+
     total_pages = math.ceil(total_count / page_size)
     if page > total_pages:
         return 1

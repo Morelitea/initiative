@@ -4,7 +4,17 @@ from enum import Enum
 from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
@@ -301,7 +311,9 @@ class CalendarEventPropertyValue(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    calendar_event: Optional["CalendarEvent"] = Relationship(back_populates="property_values")
+    calendar_event: Optional["CalendarEvent"] = Relationship(
+        back_populates="property_values"
+    )
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="event_values"
     )

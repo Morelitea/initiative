@@ -157,7 +157,9 @@ async def _ensure_document_access(
     # Check user-specific permission
     permissions = getattr(document, "permissions", None)
     if permissions is None:
-        stmt = select(DocumentPermission).where(DocumentPermission.document_id == document.id)
+        stmt = select(DocumentPermission).where(
+            DocumentPermission.document_id == document.id
+        )
         result = await session.exec(stmt)
         permissions = result.all()
     for permission in permissions or []:
@@ -370,7 +372,9 @@ async def _process_comment_notifications(
     # 3. Process #task mentions → notify assignees
     mentioned_task_ids = extract_mentioned_task_ids(content)
     for mentioned_task_id in mentioned_task_ids:
-        task_data = await _load_task_with_assignees(session, mentioned_task_id, guild_id)
+        task_data = await _load_task_with_assignees(
+            session, mentioned_task_id, guild_id
+        )
         if not task_data:
             continue
         mentioned_task, assignees, _ = task_data
@@ -420,7 +424,11 @@ async def _process_comment_notifications(
     # 5. Document comment → notify author (if not already notified)
     if document:
         doc_author = await _load_user(session, document.created_by_id)
-        if doc_author and doc_author.id != author.id and doc_author.id not in notified_user_ids:
+        if (
+            doc_author
+            and doc_author.id != author.id
+            and doc_author.id not in notified_user_ids
+        ):
             await notifications.notify_comment_on_document(
                 session,
                 author=doc_author,
@@ -506,7 +514,9 @@ async def delete_comment(
     initiative_id: int | None = None
 
     if comment.task_id is not None:
-        context = await _get_task_context(session, task_id=comment.task_id, guild_id=guild_id)
+        context = await _get_task_context(
+            session, task_id=comment.task_id, guild_id=guild_id
+        )
         if not context:
             raise CommentNotFoundError(CommentMessages.NOT_FOUND)
         object.__setattr__(comment, "project_id", context.project.id)
@@ -578,7 +588,9 @@ async def update_comment(
 
     # Verify access to the linked entity (same checks as delete_comment)
     if comment.task_id is not None:
-        context = await _get_task_context(session, task_id=comment.task_id, guild_id=guild_id)
+        context = await _get_task_context(
+            session, task_id=comment.task_id, guild_id=guild_id
+        )
         if not context:
             raise CommentNotFoundError(CommentMessages.NOT_FOUND)
         await _ensure_task_access(session, project=context.project, user=user)

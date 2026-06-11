@@ -25,7 +25,11 @@ def _generate_secret() -> str:
 
 
 async def list_api_keys(session: AsyncSession, *, user: User) -> Sequence[UserApiKey]:
-    statement = select(UserApiKey).where(UserApiKey.user_id == user.id).order_by(UserApiKey.created_at.desc())
+    statement = (
+        select(UserApiKey)
+        .where(UserApiKey.user_id == user.id)
+        .order_by(UserApiKey.created_at.desc())
+    )
     result = await session.exec(statement)
     return result.all()
 
@@ -56,7 +60,9 @@ async def create_api_key(
 
 
 async def delete_api_key(session: AsyncSession, *, user: User, api_key_id: int) -> bool:
-    statement = select(UserApiKey).where(UserApiKey.id == api_key_id, UserApiKey.user_id == user.id)
+    statement = select(UserApiKey).where(
+        UserApiKey.id == api_key_id, UserApiKey.user_id == user.id
+    )
     result = await session.exec(statement)
     api_key = result.one_or_none()
     if not api_key:
@@ -69,7 +75,9 @@ async def delete_api_key(session: AsyncSession, *, user: User, api_key_id: int) 
 
 async def authenticate_api_key(session: AsyncSession, token: str) -> Optional[User]:
     token_hash = _hash_token(token)
-    statement = select(UserApiKey).where(UserApiKey.token_hash == token_hash, UserApiKey.is_active.is_(True))
+    statement = select(UserApiKey).where(
+        UserApiKey.token_hash == token_hash, UserApiKey.is_active.is_(True)
+    )
     result = await session.exec(statement)
     api_key = result.one_or_none()
     if not api_key:

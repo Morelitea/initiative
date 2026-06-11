@@ -26,7 +26,9 @@ class QueuePermissionCreate(SanitizedBaseModel):
 
 
 class QueuePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     user_id: int
     level: QueuePermissionLevel
@@ -39,7 +41,9 @@ class QueueRolePermissionCreate(SanitizedBaseModel):
 
 
 class QueueRolePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     initiative_role_id: int
     role_name: str = ""
@@ -99,7 +103,9 @@ class QueueItemUpdate(SanitizedBaseModel):
 
 
 class QueueItemRead(QueueItemBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     queue_id: int
@@ -156,7 +162,9 @@ class QueueUpdate(SanitizedBaseModel):
 
 
 class QueueSummary(QueueBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     initiative_id: int
@@ -207,11 +215,13 @@ def _serialize_queue_item_documents(item: "QueueItem") -> List[QueueItemDocument
     result: List[QueueItemDocumentRead] = []
     for link in doc_links:
         doc = getattr(link, "document", None)
-        result.append(QueueItemDocumentRead(
-            document_id=link.document_id,
-            title=getattr(doc, "title", "") if doc else "",
-            attached_at=link.attached_at,
-        ))
+        result.append(
+            QueueItemDocumentRead(
+                document_id=link.document_id,
+                title=getattr(doc, "title", "") if doc else "",
+                attached_at=link.attached_at,
+            )
+        )
     return result
 
 
@@ -220,11 +230,13 @@ def _serialize_queue_item_tasks(item: "QueueItem") -> List[QueueItemTaskRead]:
     result: List[QueueItemTaskRead] = []
     for link in task_links:
         task = getattr(link, "task", None)
-        result.append(QueueItemTaskRead(
-            task_id=link.task_id,
-            title=getattr(task, "title", "") if task else "",
-            attached_at=link.attached_at,
-        ))
+        result.append(
+            QueueItemTaskRead(
+                task_id=link.task_id,
+                title=getattr(task, "title", "") if task else "",
+                attached_at=link.attached_at,
+            )
+        )
     return result
 
 
@@ -261,13 +273,15 @@ def _serialize_role_permissions(queue: "Queue") -> List[QueueRolePermissionRead]
     result: List[QueueRolePermissionRead] = []
     for rp in role_permissions:
         role = getattr(rp, "role", None)
-        result.append(QueueRolePermissionRead(
-            initiative_role_id=rp.initiative_role_id,
-            role_name=getattr(role, "name", "") if role else "",
-            role_display_name=getattr(role, "display_name", "") if role else "",
-            level=rp.level,
-            created_at=rp.created_at,
-        ))
+        result.append(
+            QueueRolePermissionRead(
+                initiative_role_id=rp.initiative_role_id,
+                role_name=getattr(role, "name", "") if role else "",
+                role_display_name=getattr(role, "display_name", "") if role else "",
+                level=rp.level,
+                created_at=rp.created_at,
+            )
+        )
     return result
 
 

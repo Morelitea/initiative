@@ -68,7 +68,9 @@ async def test_create_spreadsheet_round_trips_cells(
         },
     }
 
-    response = await client.post("/api/v1/documents/", headers=env.headers, json=payload)
+    response = await client.post(
+        "/api/v1/documents/", headers=env.headers, json=payload
+    )
     assert response.status_code == 201, response.text
     data = response.json()
     doc_id = data["id"]
@@ -324,7 +326,10 @@ async def test_v2_formatting_round_trips(client: AsyncClient, env: _SpreadsheetE
         },
         "rows": {"0": {"height": 32, "style": {"bold": True}}},
         "cellStyles": {
-            "1:0": {"style": {"fill": "#ffeecc"}, "format": {"type": "fixed", "decimals": 1}}
+            "1:0": {
+                "style": {"fill": "#ffeecc"},
+                "format": {"type": "fixed", "decimals": 1},
+            }
         },
         "frozen": {"rows": 1, "cols": 1},
     }
@@ -350,7 +355,10 @@ async def test_v2_formatting_round_trips(client: AsyncClient, env: _SpreadsheetE
     }
     assert content["rows"] == {"0": {"height": 32, "style": {"bold": True}}}
     assert content["cellStyles"] == {
-        "1:0": {"style": {"fill": "#ffeecc"}, "format": {"type": "fixed", "decimals": 1}}
+        "1:0": {
+            "style": {"fill": "#ffeecc"},
+            "format": {"type": "fixed", "decimals": 1},
+        }
     }
     assert content["frozen"] == {"rows": 1, "cols": 1}
 

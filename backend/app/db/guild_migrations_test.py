@@ -55,7 +55,8 @@ async def test_apply_to_all_guild_schemas_hits_every_guild(engine):
         async with engine.begin() as conn:
             await conn.run_sync(
                 lambda c: apply_to_all_guild_schemas(
-                    c, f"ALTER TABLE tags ADD COLUMN IF NOT EXISTS {_COLUMN} boolean",
+                    c,
+                    f"ALTER TABLE tags ADD COLUMN IF NOT EXISTS {_COLUMN} boolean",
                     include_public=False,
                 )
             )
@@ -70,7 +71,8 @@ async def test_apply_to_all_guild_schemas_hits_every_guild(engine):
         async with engine.begin() as conn:
             await conn.run_sync(
                 lambda c: apply_to_all_guild_schemas(
-                    c, f"ALTER TABLE tags DROP COLUMN IF EXISTS {_COLUMN}",
+                    c,
+                    f"ALTER TABLE tags DROP COLUMN IF EXISTS {_COLUMN}",
                     include_public=False,
                 )
             )
@@ -82,7 +84,8 @@ async def test_apply_to_all_guild_schemas_hits_every_guild(engine):
         async with engine.begin() as conn:
             await conn.run_sync(
                 lambda c: apply_to_all_guild_schemas(
-                    c, f"ALTER TABLE tags DROP COLUMN IF EXISTS {_COLUMN}",
+                    c,
+                    f"ALTER TABLE tags DROP COLUMN IF EXISTS {_COLUMN}",
                     include_public=False,
                 )
             )
@@ -127,7 +130,9 @@ async def test_apply_to_all_guild_schemas_failure_propagates_and_reverts(engine)
             with pytest.raises(Exception) as exc_info:
                 await conn.run_sync(
                     lambda c: apply_to_all_guild_schemas(
-                        c, "ALTER TABLE tags ADD COLUMN _boom bogus_type_xyz", include_public=False
+                        c,
+                        "ALTER TABLE tags ADD COLUMN _boom bogus_type_xyz",
+                        include_public=False,
                     )
                 )
             # The original DDL error, not a 'current transaction is aborted' mask.
