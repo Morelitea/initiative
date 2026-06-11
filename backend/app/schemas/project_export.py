@@ -13,7 +13,7 @@ from typing import Any, List, Optional
 
 from pydantic import Field, model_validator
 
-from app.schemas.base import RawTextStr, SanitizedBaseModel
+from app.schemas.base import SanitizedBaseModel
 
 from app.models.property import PropertyType
 from app.models.task import TaskPriority, TaskStatusCategory
@@ -84,7 +84,7 @@ class ProjectExportPropertyValue(SanitizedBaseModel):
 
 
 class ProjectExportSubtask(SanitizedBaseModel):
-    content: RawTextStr
+    content: str
     is_completed: bool = False
     position: int = 0
 
