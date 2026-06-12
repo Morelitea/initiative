@@ -1,12 +1,15 @@
 import { Capacitor } from "@capacitor/core";
 
-import { apiClient, getAuthToken } from "@/api/client";
+import { apiClient } from "@/api/client";
+import { getUploadToken } from "@/lib/uploadToken";
 
 /**
  * Resolve an `/api/v1/...` path for a download served via iframe/window.open.
- * On native platforms, prepends the API server origin and appends ?token= for
- * auth (native WebViews can't send Authorization headers or HttpOnly cookies).
- * On web, returns the API path as-is (same-origin, session cookie handles auth).
+ * On native platforms, prepends the API server origin and appends a SHORT-LIVED,
+ * uploads-scoped ?token= for auth (native WebViews can't send Authorization
+ * headers or HttpOnly cookies). The long-lived session JWT is never put in a URL
+ * — see {@link getUploadToken}. On web, returns the API path as-is (same-origin,
+ * session cookie handles auth).
  */
 function resolveDownloadApiPath(apiPath: string): string {
   if (!Capacitor.isNativePlatform()) {
@@ -23,7 +26,7 @@ function resolveDownloadApiPath(apiPath: string): string {
     }
   }
   const resolved = origin ? `${origin}${apiPath}` : apiPath;
-  const token = getAuthToken();
+  const token = getUploadToken();
   if (token) {
     const sep = resolved.includes("?") ? "&" : "?";
     return `${resolved}${sep}token=${encodeURIComponent(token)}`;
@@ -105,11 +108,13 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
     resolved = normalizedPath;
   }
 
-  // On native: append auth token for /uploads/ paths so <img> src attributes work
-  // (native WebViews can't send Authorization headers or rely on HttpOnly cookies for media)
+  // On native: append a short-lived, uploads-scoped token for /uploads/ paths so
+  // <img> src attributes work (native WebViews can't send Authorization headers
+  // or rely on HttpOnly cookies for media). The long-lived session JWT is never
+  // placed in a URL — see getUploadToken.
   // On web: the HttpOnly session cookie is sent automatically by the browser — no token needed
   if (normalizedPath.startsWith("/uploads/") && Capacitor.isNativePlatform()) {
-    const token = getAuthToken();
+    const token = getUploadToken();
     if (token) {
       const sep = resolved.includes("?") ? "&" : "?";
       return `${resolved}${sep}token=${encodeURIComponent(token)}`;

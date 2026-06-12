@@ -71,6 +71,7 @@ export const DocumentCard = ({ document, className, hideInitiative }: DocumentCa
             src={resolveUploadUrl(document.featured_image_url) ?? undefined}
             alt=""
             loading="lazy"
+            referrerPolicy="no-referrer"
             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
           />
         ) : (

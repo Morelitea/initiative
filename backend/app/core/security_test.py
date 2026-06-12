@@ -14,11 +14,19 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from datetime import timedelta
+
 from app.core import security
 from app.core.security import (
     ADVANCED_TOOL_AUDIENCE,
     ADVANCED_TOOL_HANDOFF_LIFETIME,
+    UPLOAD_TOKEN_AUDIENCE,
+    UPLOAD_TOKEN_LIFETIME,
+    UPLOAD_TOKEN_SCOPE,
+    UploadTokenError,
     create_advanced_tool_handoff_token,
+    create_upload_token,
+    verify_upload_token,
 )
 
 
@@ -203,3 +211,63 @@ def test_handoff_token_falls_back_to_hs256_without_private_key(monkeypatch):
     header = jwt.get_unverified_header(token)
     assert header["alg"] == "HS256"
     assert "kid" not in header
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Scoped upload tokens (SEC-12)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_upload_token_round_trips_to_user_id():
+    """A freshly minted upload token verifies back to the user it names."""
+    token, seconds = create_upload_token(user_id=123)
+    assert isinstance(token, str) and token.count(".") == 2
+    assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
+    assert verify_upload_token(token) == 123
+
+
+@pytest.mark.unit
+def test_upload_token_carries_scope_and_audience_but_no_ver():
+    """The token must carry the uploads aud/scope and deliberately omit
+    ``ver`` — the general session-JWT path keys on ``ver`` and so will
+    reject this token as an API credential."""
+    token, _ = create_upload_token(user_id=7)
+    payload = _decode_unverified(token)
+    assert payload["aud"] == UPLOAD_TOKEN_AUDIENCE
+    assert payload["scope"] == UPLOAD_TOKEN_SCOPE
+    assert payload["sub"] == "7"
+    assert "ver" not in payload
+
+
+@pytest.mark.unit
+def test_verify_upload_token_rejects_session_jwt():
+    """A normal session JWT (different shape, no uploads aud) must not pass
+    upload-token verification."""
+    session_jwt = security.create_access_token(subject="7", token_version=1)
+    with pytest.raises(UploadTokenError):
+        verify_upload_token(session_jwt)
+
+
+@pytest.mark.unit
+def test_verify_upload_token_rejects_expired_token():
+    """An expired upload token is rejected."""
+    token, _ = create_upload_token(user_id=7, expires_in=timedelta(seconds=-1))
+    with pytest.raises(UploadTokenError):
+        verify_upload_token(token)
+
+
+@pytest.mark.unit
+def test_verify_upload_token_rejects_wrong_audience():
+    """A token signed with our secret but carrying a foreign audience (e.g. the
+    advanced-tool handoff) must not be honored as an upload token."""
+    handoff, _ = create_advanced_tool_handoff_token(
+        user_id=1,
+        guild_id=2,
+        guild_role="admin",
+        is_manager=True,
+        can_create=True,
+        scope="guild",
+    )
+    with pytest.raises(UploadTokenError):
+        verify_upload_token(handoff)

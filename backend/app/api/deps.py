@@ -16,7 +16,9 @@ from app.core.messages import AuthMessages, GuildMessages
 from app.core.security import (
     AutoDelegationClaims,
     AutoDelegationVerificationError,
+    UploadTokenError,
     verify_auto_delegation_token,
+    verify_upload_token,
 )
 from app.db.session import get_session, set_rls_context
 from app.models.access_grant import AccessGrant, AccessLevel
@@ -464,6 +466,67 @@ async def get_user_session(
 UserSessionDep = Annotated[AsyncSession, Depends(get_user_session)]
 
 
+async def _load_active_user_by_id(session: AsyncSession, user_id: int) -> User:
+    """Load a user by id for the uploads route, enforcing active status.
+
+    Shared by the scoped-upload-token path so a deactivated account can't
+    keep pulling media with a still-valid token.
+    """
+    statement = select(User).where(User.id == user_id)
+    result = await session.exec(statement)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if user.status != UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
+    return user
+
+
+async def _authenticate_upload_query_token(
+    session: AsyncSession, token_param: str
+) -> User:
+    """Resolve a ``?token=`` query-param credential for /uploads/*.
+
+    Query params leak via logs, browser history, and Referer headers, so this
+    path deliberately accepts ONLY URL-safe, narrowly-scoped credentials:
+
+      1. A short-lived, uploads-scoped JWT minted by ``POST /auth/upload-token``
+         (native <img>/<iframe> media loads can't send headers or cookies).
+      2. A device token (native long-lived credential, already used this way).
+
+    It intentionally does NOT accept a full session JWT or an API key — those
+    are long-lived, full-API credentials that must never ride in a URL. A
+    session JWT presented here therefore 401s.
+    """
+    # 1. Scoped upload token (preferred for native media).
+    try:
+        user_id = verify_upload_token(token_param)
+    except UploadTokenError:
+        pass
+    else:
+        return await _load_active_user_by_id(session, user_id)
+
+    # 2. Device token fallback (native apps historically pass these as ?token=).
+    user = await _authenticate_device_token(session, token_param)
+    if user:
+        if user.status != UserStatus.active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AuthMessages.INACTIVE_USER,
+            )
+        return user
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 async def get_upload_user(
     request: Request,
     session: SessionDep,
@@ -471,10 +534,19 @@ async def get_upload_user(
     token_param: Annotated[Optional[str], Query(alias="token")] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
 ) -> User:
-    """Auth dependency for /uploads/* — accepts token from Authorization header OR ?token= query param.
+    """Auth dependency for /uploads/* and authenticated document downloads.
 
-    Supports all three auth schemes so that <img> and <iframe> tags (which can't
-    send Authorization headers) work by appending ?token=<jwt> to the URL.
+    Two trust tiers, by where the credential arrives:
+
+      * Authorization header or HttpOnly cookie — not exposed in URLs, so the
+        full credential set is honored (session JWT, API key, delegation JWT,
+        DeviceToken scheme). This is the web <img> path (cookie) and direct API
+        callers.
+      * ``?token=`` query param — leaks via logs/history/Referer, so only a
+        short-lived uploads-scoped token or a device token is accepted (see
+        ``_authenticate_upload_query_token``). A full session JWT here is
+        rejected; native clients fetch a scoped token from
+        ``POST /auth/upload-token`` instead.
     """
     auth_header = request.headers.get("Authorization", "")
 
@@ -495,14 +567,19 @@ async def get_upload_user(
             headers={"WWW-Authenticate": "DeviceToken"},
         )
 
-    # 2. Bearer token (Authorization header), ?token= query param, or HttpOnly cookie (web sessions)
-    token = bearer_token or token_param or session_cookie
-    if not token:
+    # 2. Header bearer or cookie carries the full-trust credential. A ?token=
+    #    query param, by contrast, is restricted to URL-safe scoped credentials.
+    header_token = bearer_token or session_cookie
+    if not header_token:
+        if token_param:
+            return await _authenticate_upload_query_token(session, token_param)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    token = header_token
 
     # Try API key authentication first
     user = await api_keys_service.authenticate_api_key(session, token)
@@ -534,17 +611,6 @@ async def get_upload_user(
         )
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError:
-        # JWT decode failed — if token came from query param, also try as device token
-        # (native app users may pass their device token as a query param)
-        if token_param and not bearer_token:
-            user = await _authenticate_device_token(session, token_param)
-            if user:
-                if user.status != UserStatus.active:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=AuthMessages.INACTIVE_USER,
-                    )
-                return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,

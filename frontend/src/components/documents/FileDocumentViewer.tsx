@@ -472,6 +472,7 @@ export const FileDocumentViewer = ({
             className="w-full bg-muted"
             style={{ height: "70vh", minHeight: 500 }}
             title={originalFilename || t("viewer.textDocument")}
+            referrerPolicy="no-referrer"
           />
         ) : isHtml ? (
           // Use sandboxed iframe for HTML files
@@ -481,6 +482,7 @@ export const FileDocumentViewer = ({
             style={{ height: "70vh", minHeight: 500 }}
             title={originalFilename || t("viewer.htmlDocument")}
             sandbox=""
+            referrerPolicy="no-referrer"
           />
         ) : isImage ? (
           <>
@@ -494,6 +496,7 @@ export const FileDocumentViewer = ({
                 src={inlineUrl}
                 alt={originalFilename || t("viewer.imageDocument")}
                 className="max-h-full max-w-full object-contain"
+                referrerPolicy="no-referrer"
               />
             </button>
             <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
@@ -506,6 +509,7 @@ export const FileDocumentViewer = ({
                   src={inlineUrl}
                   alt={originalFilename || ""}
                   className="max-h-[90vh] max-w-[90vw] object-contain"
+                  referrerPolicy="no-referrer"
                 />
               </DialogContent>
             </Dialog>

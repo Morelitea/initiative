@@ -33,6 +33,7 @@ from app.core.messages import AuthMessages, OidcMessages
 from app.core.password_policy import enforce_password_policy
 from app.core.security import (
     create_access_token,
+    create_upload_token,
     get_password_hash,
     password_needs_rehash,
     verify_password,
@@ -47,6 +48,7 @@ from app.schemas.auth import (
     DeviceTokenResponse,
     PasswordResetRequest,
     PasswordResetSubmit,
+    UploadTokenResponse,
     VerificationConfirmRequest,
     VerificationSendResponse,
 )
@@ -369,6 +371,24 @@ async def logout(
         secure=settings.cookie_secure,
         samesite="lax",
     )
+
+
+@router.post("/upload-token", response_model=UploadTokenResponse)
+@limiter.limit("60/minute")
+async def issue_upload_token(
+    request: Request,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> UploadTokenResponse:
+    """Mint a short-lived, uploads-scoped token for the authenticated user.
+
+    Native (Capacitor) clients call this to load ``/uploads/*`` media and
+    document downloads via ``?token=`` without putting the long-lived session
+    JWT in the URL (which would leak through logs, history, and Referer). The
+    token is accepted only by the uploads/download routes and is useless as a
+    general API credential.
+    """
+    token, expires_in = create_upload_token(user_id=current_user.id)
+    return UploadTokenResponse(upload_token=token, expires_in=expires_in)
 
 
 @router.post("/device-token", response_model=DeviceTokenResponse)

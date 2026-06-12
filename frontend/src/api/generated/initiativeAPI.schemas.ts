@@ -3126,6 +3126,22 @@ export interface TrashListResponse {
   retention_days: number | null;
 }
 
+/**
+ * Short-lived, uploads-scoped credential for native media loads.
+ *
+ * Native (Capacitor) <img>/<iframe> tags can't send the Authorization header
+ * or the HttpOnly session cookie, so they carry auth as a ``?token=`` query
+ * param. This token is accepted only by the /uploads + document-download
+ * routes and expires quickly, so a leak via logs/history/Referer is harmless
+ * compared with putting the 7-day session JWT in the URL. ``expires_in`` is
+ * the lifetime in seconds so the SPA can refresh before it lapses.
+ */
+export interface UploadTokenResponse {
+  upload_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
 export interface UserAISettingsResponse {
   enabled: boolean | null;
   provider: AIProvider | null;

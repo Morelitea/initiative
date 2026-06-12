@@ -58,3 +58,21 @@ class DeviceTokenInfo(SanitizedBaseModel):
     id: int
     device_name: Optional[str]
     created_at: datetime
+
+
+class UploadTokenResponse(SanitizedBaseModel):
+    """Short-lived, uploads-scoped credential for native media loads.
+
+    Native (Capacitor) <img>/<iframe> tags can't send the Authorization header
+    or the HttpOnly session cookie, so they carry auth as a ``?token=`` query
+    param. This token is accepted only by the /uploads + document-download
+    routes and expires quickly, so a leak via logs/history/Referer is harmless
+    compared with putting the 7-day session JWT in the URL. ``expires_in`` is
+    the lifetime in seconds so the SPA can refresh before it lapses.
+    """
+
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    upload_token: str
+    token_type: str = "upload_token"
+    expires_in: int
