@@ -31,6 +31,7 @@ from app.api.deps import (
     GuildContext,
 )
 from app.core.config import settings
+from app.db.query import unbounded_page_limit
 from app.core.messages import DocumentMessages, InitiativeMessages, QueryMessages
 from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
@@ -491,7 +492,7 @@ async def _list_global_documents(
     else:
         # "all rows" is still capped server-side (SEC-14): never return an
         # unbounded merged list across every guild.
-        items = items[: settings.MAX_UNBOUNDED_PAGE_SIZE]
+        items = items[: unbounded_page_limit()]
     return items, total_count
 
 
@@ -692,7 +693,7 @@ async def list_documents(
     else:
         # "all rows" is still capped server-side (SEC-14) so the query can't
         # dump an entire guild's document table in one response.
-        stmt = stmt.limit(settings.MAX_UNBOUNDED_PAGE_SIZE)
+        stmt = stmt.limit(unbounded_page_limit())
 
     result = await session.exec(stmt)
     documents = result.unique().all()
