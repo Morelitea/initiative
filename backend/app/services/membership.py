@@ -22,6 +22,7 @@ from sqlalchemy import ColumnElement, exists, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
+from app.core.pam_context import active_grant_guild
 from app.models.guild import GuildMembership, GuildRole
 from app.models.initiative import InitiativeMember
 from app.models.user import User
@@ -95,13 +96,23 @@ def initiative_scope_clause(
     ``is_initiative_member(...) OR IS_ADMIN OR IS_SUPER``, evaluated per row in
     SQL so it stays correct inside cross-guild gathers and arbitrary batch
     sizes: initiative member, OR admin of the row's guild, OR a platform role
-    holding ``data.bypass``.
+    holding ``data.bypass``, OR a live PAM grant covering the row's guild.
+
+    The PAM leg mirrors the old ``is_initiative_member()`` SQL function (which
+    honored the ``app.pam_*`` GUCs): the request's active grant — if any — is
+    embedded as a literal guild predicate at build time, keeping this clause
+    consistent with the loaded-data gate (``initiative_scope_ok``). Build the
+    clause per request, inside the request's context.
     """
     bypass_roles = tuple(roles_with_capability(Capability.DATA_BYPASS))
-    return or_(
+    legs = [
         initiative_access_clause(user_id, initiative_id_col, guild_id_col),
         exists(select(1).where(User.id == user_id, User.role.in_(bypass_roles))),
-    )
+    ]
+    granted_guild = active_grant_guild()
+    if granted_guild is not None:
+        legs.append(guild_id_col == granted_guild)
+    return or_(*legs)
 
 
 def member_initiative_ids_select(user_id: int):

@@ -127,3 +127,28 @@ async def test_initiative_scope_clause_legs(session: AsyncSession):
     assert await scoped_ids(admin) == [initiative.id]  # guild-admin leg
     assert await scoped_ids(outsider) == []  # no leg
     assert await scoped_ids(platform_admin) == [initiative.id]  # data.bypass leg
+
+
+@pytest.mark.integration
+async def test_initiative_scope_clause_pam_leg(session: AsyncSession):
+    """A live PAM grant covering the row's guild satisfies the scope clause
+    (and a grant for a different guild does not)."""
+    from app.core.pam_context import set_active_grant
+
+    _admin, _member, outsider, guild, initiative = await _setup(session)
+
+    def stmt():
+        return select(Initiative.id).where(
+            membership_service.initiative_scope_clause(
+                outsider.id, Initiative.id, Initiative.guild_id
+            )
+        )
+
+    try:
+        set_active_grant(guild.id, "read")
+        assert list((await session.execute(stmt())).scalars().all()) == [initiative.id]
+
+        set_active_grant(guild.id + 999, "read")  # other guild's grant
+        assert list((await session.execute(stmt())).scalars().all()) == []
+    finally:
+        set_active_grant(None, None)

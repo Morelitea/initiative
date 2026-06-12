@@ -32,6 +32,17 @@ def set_active_grant(guild_id: Optional[int], access_level: Optional[str]) -> No
         _active_grant.set((guild_id, access_level))
 
 
+def active_grant_guild() -> Optional[int]:
+    """The guild covered by this request's live grant, or None.
+
+    Lets request-time SQL builders (e.g. ``initiative_scope_clause``) embed
+    the granted guild as a literal predicate, mirroring how the old
+    ``is_initiative_member()`` SQL function honored ``app.pam_*`` GUCs.
+    """
+    current = _active_grant.get()
+    return current[0] if current is not None else None
+
+
 def active_grant_level(guild_id: int) -> Optional[str]:
     """The grant access level covering ``guild_id`` this request, or None."""
     current = _active_grant.get()
