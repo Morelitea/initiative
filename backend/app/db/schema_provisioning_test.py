@@ -432,7 +432,11 @@ async def test_backfill_provisions_a_guild_missing_its_schema(engine):
         assert before is None, "precondition: missing guild has no schema yet"
 
         summary = await backfill_guild_schemas()
-        assert summary.failed == 0
+        # Assert about OUR guilds only — the sweep covers every guild row in the
+        # shared test DB, and an unrelated broken guild must not fail this test.
+        assert done not in summary.failed_guild_ids
+        assert missing not in summary.failed_guild_ids
+        assert summary.provisioned >= 2
 
         async with engine.connect() as conn:
             tables = await conn.scalar(
@@ -470,7 +474,10 @@ async def test_backfill_repairs_a_dropped_table(engine):
         assert gone is None, "precondition: subtasks dropped"
 
         summary = await backfill_guild_schemas()
-        assert summary.failed == 0
+        # Scoped to our guild — unrelated broken guilds in the shared test DB
+        # must not fail this test.
+        assert gid not in summary.failed_guild_ids
+        assert summary.provisioned >= 1
 
         async with engine.connect() as conn:
             recreated = await conn.scalar(
@@ -516,7 +523,9 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
 
         # The bad guild is counted as failed but doesn't abort the sweep; both
         # healthy guilds (plus any other real guild rows) still get provisioned.
-        assert summary.failed >= 1
+        assert bad in summary.failed_guild_ids
+        assert ok_a not in summary.failed_guild_ids
+        assert ok_b not in summary.failed_guild_ids
         assert summary.provisioned >= 2
 
         async with engine.connect() as conn:

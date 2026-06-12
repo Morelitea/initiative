@@ -402,12 +402,22 @@ async def on_startup() -> None:
     from app.db.schema_provisioning import backfill_guild_schemas
 
     backfill = await backfill_guild_schemas()
-    logger.info(
-        "guild schema back-fill: %d provisioned, %d failed (of %d)",
-        backfill.provisioned,
-        backfill.failed,
-        backfill.total,
-    )
+    if backfill.failed:
+        # WARNING so partial failure survives INFO-filtered logs (per-guild
+        # tracebacks were already logged inside the back-fill).
+        logger.warning(
+            "guild schema back-fill: %d provisioned, %d FAILED (of %d) — guilds %s",
+            backfill.provisioned,
+            backfill.failed,
+            backfill.total,
+            backfill.failed_guild_ids,
+        )
+    else:
+        logger.info(
+            "guild schema back-fill: %d provisioned (of %d)",
+            backfill.provisioned,
+            backfill.total,
+        )
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
     app.state.notification_tasks = background_tasks_service.start_background_tasks()

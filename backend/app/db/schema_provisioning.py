@@ -21,7 +21,7 @@ plain sequential loop heals both with no extra bookkeeping.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from sqlalchemy import text
@@ -209,6 +209,7 @@ class BackfillSummary:
     total: int
     provisioned: int
     failed: int
+    failed_guild_ids: list[int] = field(default_factory=list)
 
 
 async def backfill_guild_schemas() -> BackfillSummary:
@@ -236,13 +237,18 @@ async def backfill_guild_schemas() -> BackfillSummary:
         )
 
     provisioned = 0
-    failed = 0
+    failed_guild_ids: list[int] = []
     for gid in guild_ids:
         try:
             await provision_guild(gid)
             provisioned += 1
         except Exception:  # noqa: BLE001 — one broken guild must not block boot
-            failed += 1
+            failed_guild_ids.append(gid)
             logger.exception("guild schema back-fill failed for guild %s", gid)
 
-    return BackfillSummary(total=len(guild_ids), provisioned=provisioned, failed=failed)
+    return BackfillSummary(
+        total=len(guild_ids),
+        provisioned=provisioned,
+        failed=len(failed_guild_ids),
+        failed_guild_ids=failed_guild_ids,
+    )
