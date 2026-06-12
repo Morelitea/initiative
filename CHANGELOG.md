@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Corrected malformed stored defaults for tag/task-status colors and the task-status icon (an extra pair of quotes had been baked into the default value).
 - The "added to initiative" notification now carries its guild (id + guild-qualified deep link), like every other guild-scoped notification — so it resolves correctly in the cross-guild inbox under schema-per-guild tenancy.
 - **The Initiative logo now appears in emails.** It was an inline SVG, which Gmail, Outlook, and Yahoo strip from email bodies; it's now shipped as a raster PNG embedded inline (via a Content-ID reference) so it renders without an external image fetch. Also removed a stray period that trailed the "Update notification settings" footer link.
+- **Uploaded images no longer 404.** The `/uploads` route looked for the file's database record only in the `public` schema, but under schema-per-guild routing new uploads are recorded in the guild's own schema — so freshly uploaded images failed to serve (intermittently masked by connection reuse). The route now resolves the record across the requester's own guild schemas, fail-closed; non-members always get 404 so file existence is never confirmed.
 
 ### Security
 

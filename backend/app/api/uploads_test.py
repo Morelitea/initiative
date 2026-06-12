@@ -263,7 +263,9 @@ async def test_upload_non_member_cannot_access_file(
         response = await client.get(
             "/uploads/test_guild_forbidden.png", headers=headers
         )
-        assert response.status_code == 403
+        # 404, not 403: existence is never confirmed to non-members,
+        # matching the guild-schema lookup path.
+        assert response.status_code == 404
     finally:
         test_file.unlink(missing_ok=True)
 
@@ -298,3 +300,64 @@ async def test_security_headers_on_api_response(client: AsyncClient):
     assert response.headers.get("x-content-type-options") == "nosniff"
     assert response.headers.get("x-frame-options") == "DENY"
     assert response.headers.get("referrer-policy") == "strict-origin-when-cross-origin"
+
+
+@pytest.mark.integration
+async def test_upload_row_in_guild_schema_is_served(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Regression: under schema-per-guild, Upload rows written through a guild
+    request live in guild_<id>.uploads — NOT public.uploads. The serve route
+    runs on the admin session (search_path=public) and must still find the row
+    by probing the requester's own guild schemas, otherwise every newly
+    uploaded image 404s (fail-closed SEC-6 turned the old silent fail-open
+    into a visible regression)."""
+    from sqlalchemy import text
+
+    from app.db.schema_provisioning import guild_schema_name
+
+    uploads_dir = _uploads_dir()
+    test_file = uploads_dir / "test_guild_schema_row.txt"
+    test_file.write_text("hello")
+    try:
+        user = await create_user(session)
+        guild = await create_guild(session, creator=user)
+        await create_guild_membership(session, user=user, guild=guild)
+        schema = guild_schema_name(guild.id)
+        # Insert the row into the guild schema ONLY (mimicking the production
+        # request path, where set_rls_context routes search_path there).
+        await session.execute(
+            text(
+                f'INSERT INTO "{schema}".uploads'
+                " (filename, guild_id, uploader_user_id, size_bytes, created_at)"
+                " VALUES (:fn, :gid, :uid, 5, now())"
+            ),
+            {"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
+        )
+        await session.commit()
+        # Prove the row is invisible from public.uploads.
+        public_hit = (
+            await session.execute(
+                text("SELECT 1 FROM public.uploads WHERE filename = :fn"),
+                {"fn": "test_guild_schema_row.txt"},
+            )
+        ).first()
+        assert public_hit is None
+
+        response = await client.get(
+            "/uploads/test_guild_schema_row.txt",
+            headers=get_auth_headers(user),
+        )
+        assert response.status_code == 200
+        assert response.text == "hello"
+
+        # A user outside the guild never has that schema probed → 404
+        # (existence not confirmed), not the file.
+        outsider = await create_user(session, email="outsider-schema@example.com")
+        response = await client.get(
+            "/uploads/test_guild_schema_row.txt",
+            headers=get_auth_headers(outsider),
+        )
+        assert response.status_code == 404
+    finally:
+        test_file.unlink(missing_ok=True)

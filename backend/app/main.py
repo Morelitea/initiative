@@ -141,10 +141,10 @@ async def serve_upload_file(
     """Serve an uploaded file — requires authentication and guild membership."""
     from pathlib import Path as FilePath
 
+    from sqlalchemy import text
     from sqlmodel import select
 
     from app.models.guild import GuildMembership
-    from app.models.upload import Upload
 
     try:
         file_path = (uploads_path / filename).resolve()
@@ -154,25 +154,89 @@ async def serve_upload_file(
     if not file_path.is_file():
         raise HTTPException(status_code=404)
 
-    # Guild authorization: look up upload record and verify membership.
+    # Guild authorization: look up the Upload record and verify membership.
     # Fail closed: a blob on disk without a matching Upload row has no owning
     # guild to authorize against, so we 404 (don't confirm existence) rather
-    # than serve it to any authenticated user cross-guild. Every legitimate
-    # write path inserts an Upload row, so a row-less blob is never expected.
-    record_result = await session.exec(
-        select(Upload).where(Upload.filename == FilePath(filename).name)
-    )
-    record = record_result.one_or_none()
-    if record is None:
-        raise HTTPException(status_code=404)
-    membership_result = await session.exec(
-        select(GuildMembership).where(
-            GuildMembership.guild_id == record.guild_id,
-            GuildMembership.user_id == current_user.id,
+    # than serve it to any authenticated user cross-guild.
+    #
+    # ``uploads`` is guild-scoped under schema-per-guild: rows written through
+    # a guild request live in ``guild_<id>.uploads``, which this route's admin
+    # session (default ``search_path=public``) cannot see. Every lookup is
+    # therefore schema-qualified explicitly: first ``public.uploads`` (legacy
+    # rows and guilds without a provisioned schema), then — inverting row →
+    # membership into membership → row — each of the REQUESTER'S OWN guild
+    # schemas. Probing only the requester's guilds keeps the tenancy boundary:
+    # a row in a guild the user doesn't belong to is never even looked at, so
+    # the response stays 404 without confirming existence.
+    fname = FilePath(filename).name
+    public_row = (
+        await session.execute(
+            text("SELECT guild_id FROM public.uploads WHERE filename = :fn LIMIT 1"),
+            {"fn": fname},
         )
-    )
-    if membership_result.one_or_none() is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    ).first()
+    if public_row is not None:
+        membership_result = await session.exec(
+            select(GuildMembership).where(
+                GuildMembership.guild_id == public_row.guild_id,
+                GuildMembership.user_id == current_user.id,
+            )
+        )
+        if membership_result.one_or_none() is None:
+            # 404, not 403: a non-member must not learn the file exists. This
+            # also matches the guild-schema path below, where an outsider's
+            # guilds are never probed and the lookup simply misses.
+            raise HTTPException(status_code=404)
+    else:
+        from app.db.schema_provisioning import guild_schema_name
+
+        member_guild_ids = [
+            row.guild_id
+            for row in (
+                await session.execute(
+                    text(
+                        "SELECT guild_id FROM public.guild_memberships"
+                        " WHERE user_id = :uid"
+                    ),
+                    {"uid": current_user.id},
+                )
+            ).all()
+        ]
+        # int() + guild_schema_name make the identifiers injection-safe; only
+        # schemas that actually exist are probed (unprovisioned guilds fall
+        # back to public.uploads, already checked above).
+        schema_by_gid = {
+            int(gid): guild_schema_name(int(gid)) for gid in member_guild_ids
+        }
+        existing = {
+            row.nspname
+            for row in (
+                await session.execute(
+                    text("SELECT nspname FROM pg_namespace WHERE nspname = ANY(:ns)"),
+                    {"ns": list(schema_by_gid.values())},
+                )
+            ).all()
+        }
+        found = False
+        for gid, schema in schema_by_gid.items():
+            if schema not in existing:
+                continue
+            hit = (
+                await session.execute(
+                    text(
+                        f'SELECT 1 FROM "{schema}".uploads'  # noqa: S608 — schema from int()
+                        " WHERE filename = :fn LIMIT 1"
+                    ),
+                    {"fn": fname},
+                )
+            ).first()
+            if hit is not None:
+                # Row found in a guild the requester belongs to — membership
+                # is established by construction.
+                found = True
+                break
+        if not found:
+            raise HTTPException(status_code=404)
 
     headers: dict[str, str] = {}
     if filename.lower().endswith((".svg", ".html", ".htm")):
