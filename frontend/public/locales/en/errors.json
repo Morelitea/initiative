@@ -161,6 +161,7 @@
   "COMMENT_NOT_LINKED": "Comment is not linked to a task or document",
   "SETTINGS_PROVIDE_TEST_EMAIL": "Provide a test email address",
   "SETTINGS_SMTP_INCOMPLETE": "SMTP settings are incomplete",
+  "SETTINGS_EMAIL_SEND_FAILED": "Failed to send the test email. Check the server logs for details.",
   "SETTINGS_MAPPING_NOT_FOUND": "Mapping not found",
   "SETTINGS_INVALID_TARGET_TYPE": "Target type must be 'guild' or 'initiative'",
   "SETTINGS_INVALID_GUILD_ROLE": "Guild role must be 'admin' or 'member'",

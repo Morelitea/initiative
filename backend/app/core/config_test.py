@@ -159,3 +159,30 @@ def test_csp_advanced_tool_origin_only_when_configured():
     csp = on.content_security_policy
     assert "https://tool.example.com" in _directive(csp, "frame-src")
     assert "https://tool.example.com" in _directive(csp, "connect-src")
+
+
+def test_app_url_is_https_true_for_https():
+    # Drives both the Secure cookie flag and the HSTS header (pentest SEC-16).
+    assert _settings(APP_URL="https://app.example.com").app_url_is_https is True
+    assert _settings(APP_URL="https://app.example.com").cookie_secure is True
+
+
+def test_app_url_is_https_false_for_http():
+    s = _settings(APP_URL="http://localhost:5173")
+    assert s.app_url_is_https is False
+    assert s.cookie_secure is False
+
+
+def test_app_url_is_https_ignores_substring_scheme():
+    # A host that merely contains "https" must not be treated as https — only
+    # the URL scheme counts.
+    assert _settings(APP_URL="http://https.example.com").app_url_is_https is False
+
+
+def test_enable_api_docs_defaults_true():
+    # Default on for dev ergonomics; operators set it False in production.
+    assert _settings().ENABLE_API_DOCS is True
+
+
+def test_enable_api_docs_can_be_disabled():
+    assert _settings(ENABLE_API_DOCS=False).ENABLE_API_DOCS is False

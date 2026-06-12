@@ -4,6 +4,7 @@
   "REGISTRATION_REQUIRES_INVITE": "Für die Registrierung ist ein Einladungscode erforderlich",
   "CAPTCHA_REQUIRED": "Bitte schließe das Captcha ab und versuche es erneut.",
   "CAPTCHA_INVALID": "Captcha-Überprüfung fehlgeschlagen. Bitte versuche es erneut.",
+  "SETTINGS_EMAIL_SEND_FAILED": "Die Test-E-Mail konnte nicht gesendet werden. Details stehen im Serverprotokoll.",
   "UNABLE_TO_CREATE_USER": "Benutzer konnte nicht erstellt werden",
   "INCORRECT_CREDENTIALS": "Falsche E-Mail-Adresse oder falsches Passwort",
   "PASSWORD_TOO_SHORT": "Das Passwort muss mindestens 12 Zeichen lang sein.",

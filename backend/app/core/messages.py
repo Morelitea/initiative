@@ -217,6 +217,10 @@ class CommentMessages:
 class SettingsMessages:
     PROVIDE_TEST_EMAIL = "SETTINGS_PROVIDE_TEST_EMAIL"
     SMTP_INCOMPLETE = "SETTINGS_SMTP_INCOMPLETE"
+    # Generic code for a failed SMTP delivery — the raw exception (which can
+    # carry the SMTP host, port, or server banner) is logged server-side only
+    # and never returned to the client (pentest SEC-16).
+    EMAIL_SEND_FAILED = "SETTINGS_EMAIL_SEND_FAILED"
     MAPPING_NOT_FOUND = "SETTINGS_MAPPING_NOT_FOUND"
     INVALID_TARGET_TYPE = "SETTINGS_INVALID_TARGET_TYPE"
     INVALID_GUILD_ROLE = "SETTINGS_INVALID_GUILD_ROLE"
