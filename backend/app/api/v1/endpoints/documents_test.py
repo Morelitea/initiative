@@ -10,6 +10,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.security import create_upload_token
 from app.models.document import (
     Document,
     DocumentPermission,
@@ -599,10 +600,11 @@ async def test_download_non_inline_html_svg_keeps_global_deny(
 
 
 @pytest.mark.integration
-async def test_download_query_token_auth(
+async def test_download_scoped_upload_token_auth(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """?token= query param auth works (for native WebViews)."""
+    """A short-lived, uploads-scoped ?token= authenticates the download (the
+    credential native WebViews carry in the URL). SEC-12."""
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner)
     await create_guild_membership(session, user=owner, guild=guild)
@@ -612,13 +614,37 @@ async def test_download_query_token_auth(
         session, initiative=initiative, owner=owner, filename="dl_token.pdf"
     )
     try:
-        token = get_auth_token(owner)
+        token, _ = create_upload_token(user_id=owner.id)
         response = await client.get(
             f"/api/v1/documents/{doc.id}/download?token={token}"
         )
         assert response.status_code == 200
     finally:
         (_uploads_dir() / "dl_token.pdf").unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_download_session_jwt_rejected_in_query_param(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """The long-lived session JWT must NOT authenticate a download via ?token=
+    (it would leak a full-API credential through the URL). SEC-12."""
+    owner = await create_user(session)
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await create_initiative(session, guild, owner)
+
+    doc = await _create_file_document(
+        session, initiative=initiative, owner=owner, filename="dl_session_jwt.pdf"
+    )
+    try:
+        token = get_auth_token(owner)
+        response = await client.get(
+            f"/api/v1/documents/{doc.id}/download?token={token}"
+        )
+        assert response.status_code == 401
+    finally:
+        (_uploads_dir() / "dl_session_jwt.pdf").unlink(missing_ok=True)
 
 
 @pytest.mark.integration

@@ -7,6 +7,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.core.security import create_upload_token
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -67,37 +68,116 @@ async def test_upload_accessible_with_auth_header(
 
 
 @pytest.mark.integration
-async def test_upload_accessible_with_query_token(
+async def test_upload_session_jwt_rejected_in_query_param(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """GET /uploads/<file>?token=<jwt> returns 200."""
-    from app.models.upload import Upload
-
+    """The long-lived session JWT must NOT be accepted via ?token= (it would
+    leak a full-API credential through logs/history/Referer). SEC-12."""
     uploads_dir = _uploads_dir()
-    test_file = uploads_dir / "test_query_token.txt"
+    test_file = uploads_dir / "test_query_session_jwt.txt"
     test_file.write_text("hello")
     try:
         user = await create_user(session)
+        token = get_auth_token(user)  # full 7-day session JWT
+        response = await client.get(
+            f"/uploads/test_query_session_jwt.txt?token={token}"
+        )
+        assert response.status_code == 401
+    finally:
+        test_file.unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_upload_accessible_with_scoped_upload_token(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A short-lived, uploads-scoped token IS accepted via ?token=. SEC-12."""
+    from app.models.upload import Upload
+
+    uploads_dir = _uploads_dir()
+    test_file = uploads_dir / "test_query_upload_token.txt"
+    test_file.write_text("hello")
+    try:
+        user = await create_user(session)
+        # SEC-6 (merged): files are only served with a matching Upload row and
+        # guild membership — the scoped token answers "who", not "may".
         guild = await create_guild(session, creator=user)
         await create_guild_membership(session, user=user, guild=guild)
         session.add(
             Upload(
-                filename="test_query_token.txt",
+                filename="test_query_upload_token.txt",
                 guild_id=guild.id,
                 uploader_user_id=user.id,
                 size_bytes=5,
             )
         )
         await session.commit()
-
-        token = get_auth_token(user)
+        token, _ = create_upload_token(user_id=user.id)
         response = await client.get(
-            f"/uploads/test_query_token.txt?token={token}",
+            f"/uploads/test_query_upload_token.txt?token={token}",
             headers={"X-Guild-ID": str(guild.id)},
         )
         assert response.status_code == 200
     finally:
         test_file.unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_scoped_upload_token_rejected_as_general_api_credential(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A scoped upload token must not authenticate general API calls. SEC-12."""
+    user = await create_user(session)
+    token, _ = create_upload_token(user_id=user.id)
+    response = await client.get(
+        "/api/v1/users/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+async def test_issue_upload_token_endpoint(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """POST /auth/upload-token mints a token that opens /uploads. SEC-12."""
+    from app.models.upload import Upload
+
+    uploads_dir = _uploads_dir()
+    test_file = uploads_dir / "test_minted_token.txt"
+    test_file.write_text("hello")
+    try:
+        user = await create_user(session)
+        # SEC-6 (merged): serving requires a matching Upload row + membership.
+        guild = await create_guild(session, creator=user)
+        await create_guild_membership(session, user=user, guild=guild)
+        session.add(
+            Upload(
+                filename="test_minted_token.txt",
+                guild_id=guild.id,
+                uploader_user_id=user.id,
+                size_bytes=5,
+            )
+        )
+        await session.commit()
+        mint = await client.post(
+            "/api/v1/auth/upload-token", headers=get_auth_headers(user)
+        )
+        assert mint.status_code == 200
+        body = mint.json()
+        assert body["token_type"] == "upload_token"
+        assert body["expires_in"] > 0
+        token = body["upload_token"]
+        response = await client.get(f"/uploads/test_minted_token.txt?token={token}")
+        assert response.status_code == 200
+    finally:
+        test_file.unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_issue_upload_token_requires_auth(client: AsyncClient) -> None:
+    """The mint endpoint itself requires an authenticated session. SEC-12."""
+    response = await client.post("/api/v1/auth/upload-token")
+    assert response.status_code == 401
 
 
 @pytest.mark.integration

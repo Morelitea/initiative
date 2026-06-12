@@ -68,6 +68,88 @@ def create_access_token(
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# Scoped upload tokens
+#
+# Native (Capacitor) WebViews can't attach an Authorization header or send the
+# HttpOnly session cookie to <img>/<iframe> media loads, so the URL has to carry
+# the credential as a ``?token=`` query param. Putting the 7-day session JWT
+# there leaks a full-API credential into logs, history, and Referer headers.
+# Instead the app mints one of these: a short-lived, uploads-only JWT that the
+# /uploads route (and document download routes) accept via ``?token=`` but that
+# is useless for any other API call (it carries no ``ver`` and a distinct
+# ``aud``/``scope``, so ``get_current_user`` rejects it).
+# ──────────────────────────────────────────────────────────────────────────
+
+# Audience + scope claims that mark a token as a scoped upload credential. The
+# uploads auth dependency MUST verify both before honoring a query-param token,
+# and the general session-JWT path MUST reject any token carrying this audience.
+UPLOAD_TOKEN_AUDIENCE = "initiative:uploads"
+UPLOAD_TOKEN_SCOPE = "uploads"
+
+# Short lifetime: long enough to render a page's worth of media after the SPA
+# fetches one, short enough that a leak (history, Referer, proxy log) is stale
+# fast. The SPA refreshes it transparently when it expires.
+UPLOAD_TOKEN_LIFETIME = timedelta(minutes=10)
+
+
+class UploadTokenError(Exception):
+    """Raised when a presented upload token fails verification."""
+
+
+def create_upload_token(
+    *,
+    user_id: int,
+    expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
+) -> tuple[str, int]:
+    """Mint a short-lived, uploads-scoped JWT for ``user_id``.
+
+    Returns ``(token, expires_in_seconds)`` so the SPA can schedule a refresh
+    before the token lapses. Signed with the same HS256 ``SECRET_KEY`` as the
+    session JWT but distinguished by its ``aud``/``scope`` claims and the
+    absence of ``ver`` — the general auth path will not accept it.
+    """
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "sub": str(user_id),
+        "aud": UPLOAD_TOKEN_AUDIENCE,
+        "scope": UPLOAD_TOKEN_SCOPE,
+        "iat": int(now.timestamp()),
+        "exp": now + expires_in,
+    }
+    token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return token, int(expires_in.total_seconds())
+
+
+def verify_upload_token(token: str) -> int:
+    """Verify a scoped upload token and return the user id it names.
+
+    Raises :class:`UploadTokenError` on any failure (bad signature, expired,
+    wrong audience, missing/extra-scoped claims). The caller treats that as
+    "this isn't a valid upload token" and 401s — it never falls back to
+    accepting it as a session credential.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            audience=UPLOAD_TOKEN_AUDIENCE,
+            options={"require": ["exp", "iat", "sub", "aud"]},
+        )
+    except jwt.PyJWTError as exc:
+        raise UploadTokenError(str(exc)) from exc
+
+    if payload.get("scope") != UPLOAD_TOKEN_SCOPE:
+        raise UploadTokenError("not an uploads-scoped token")
+
+    sub = payload.get("sub")
+    try:
+        return int(sub)
+    except (TypeError, ValueError) as exc:
+        raise UploadTokenError("sub must be a numeric user id") from exc
+
+
 # Audience claim for tokens minted for the embedded advanced-tool iframe.
 # The receiving service MUST verify ``aud`` matches this value before
 # trusting the token. Setting it prevents replay of regular session

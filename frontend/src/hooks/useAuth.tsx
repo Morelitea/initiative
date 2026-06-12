@@ -13,6 +13,7 @@ import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { queryClient } from "@/lib/queryClient";
 import { getItem, removeItem, setItem } from "@/lib/storage";
+import { clearUploadToken } from "@/lib/uploadToken";
 
 interface LoginPayload {
   email: string;
@@ -213,6 +214,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setTokenState(null);
     setIsDeviceToken(false);
     setAuthToken(null);
+    clearUploadToken();
     removeItem(TOKEN_STORAGE_KEY);
     removeItem(DEVICE_TOKEN_KEY);
     queryClient.clear();

@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uploaded files with no matching database record now return 404 instead of being served to any authenticated user, closing a fail-open cross-guild access path.
 - **Real-time updates are now scoped to your active guild.** The live update stream no longer broadcasts every guild's task, comment, and project changes to every connected user — a socket only receives events for the guild it authenticates against, and only if you're a member of (or hold an access grant for) that guild.
 - **Resetting a member's password now ends their other sessions.** When a guild admin resets a user's password, that user's existing logins and device tokens are now invalidated, matching the self-service and forgot-password flows — so resetting a compromised account actually locks the attacker out.
+- **Avatar payloads are bounded and media tokens are scoped (SEC-12).** `avatar_base64` (which opts out of the 8 KiB cap) is now capped at ~700 KB so a single profile can't amplify storage echoed to every guild member via presence; and the `/uploads` route no longer accepts the long-lived session JWT as a `?token=` query param — native media loads now use a short-lived, uploads-only scoped token minted by `POST /auth/upload-token` (web keeps using the HttpOnly cookie), with `referrerPolicy="no-referrer"` on the carrying `<img>`/`<iframe>` elements so the token can't leak via Referer.
 
 ## [0.50.2] - 2026-06-08
 
