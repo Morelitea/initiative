@@ -16,7 +16,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import FileResponse
-from sqlalchemy import delete as sa_delete, exists, func, text
+from sqlalchemy import delete as sa_delete, exists, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -36,7 +36,11 @@ from app.core.messages import DocumentMessages, InitiativeMessages, QueryMessage
 from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
-from app.services.cross_guild import gather_across_guilds, member_guild_ids
+from app.services.cross_guild import (
+    gather_across_guilds,
+    member_guild_ids,
+    resolve_across_guilds,
+)
 from app.models.document import (
     Document,
     DocumentFileVersion,
@@ -2273,112 +2277,66 @@ async def _load_download_document(
     current_user,
     document_id: int,
     *,
-    guild_id: Optional[int] = None,
-):
-    """Load a file ``Document`` by id from whichever of the REQUESTER'S OWN guild
-    schemas holds it (schema-per-guild), with the eager loads the access check
-    needs.
+    guild_id: int,
+) -> Optional[Document]:
+    """Resolve a download to THE document the request addresses — never a guess.
 
-    Served via iframe/window.open with no X-Guild-ID header, so we can't route
-    by request context. Documents live in per-guild schemas, so we probe the
-    user's guild schemas (membership is shared/public) — never the frozen
-    ``public`` backup, which holds every guild's documents and would 404 new docs
-    or serve stale ones. The probe pins ``Document.guild_id == gid`` so that even
-    if a probed schema is missing the ``documents`` table (provisioning drift)
-    and ``search_path`` falls through to ``public``, a cross-guild row can never
-    match.
+    Served via iframe/window.open with no X-Guild-ID header, so the guild
+    arrives as a REQUIRED query parameter instead (every download URL the SPA
+    builds carries it — see ``frontend/src/lib/uploadUrl.ts``). A bare document
+    id is inherently ambiguous under schema-per-guild (per-schema ids collide
+    across guilds), so there is deliberately no probe-and-guess fallback: a
+    ``(guild_id, document_id)`` pair is the only valid address.
 
-    Per-schema serial ids COLLIDE across guilds (document id 42 can exist in
-    several schemas at once), so we cannot stop at the first schema that holds the
-    id — a user in guilds A and B both holding that id could be served/blocked on
-    the wrong one. Instead we probe ALL of the requester's member guild schemas,
-    collect every ``(guild_id, Document)`` candidate, and pick the first one the
-    user can actually READ. The identity map is expunged between schemas because a
-    cached object with this id (from a prior guild) would otherwise shadow the next
-    guild's row (see ``gather_across_guilds`` in ``app/services/cross_guild.py``).
-    If none is readable we fall back to the first candidate so the caller still
-    raises its normal 403 (we never convert a permission failure into a 404).
+    Fail-closed: the requester must be a member of ``guild_id`` (returns
+    ``None`` → 404 without confirming existence) and must hold read on the
+    document (403 raised here, with the member's guild role feeding the
+    initiative-scope gate — guild admins read everything in their guild).
 
-    When ``guild_id`` is provided we probe ONLY that guild, and only if it is one
-    of the requester's member guilds — a non-member guild fails closed (returns
-    ``None`` → 404). This lets the frontend disambiguate explicitly; absent, the
-    multi-probe behaviour above applies.
-
-    Leaves the session routed (superadmin) into the chosen document's guild so a
-    follow-up version query on the same session runs in the right schema. Returns
-    the Document or ``None``.
+    Resolution goes through
+    :func:`app.services.cross_guild.resolve_across_guilds`, which owns the
+    cross-schema discipline even for this single-guild case: the probe pins
+    ``Document.guild_id == gid`` (a ``search_path`` fall-through to the frozen
+    ``public`` backup can never match), the returned instance is structurally
+    guaranteed to be ATTACHED to the session, and the session is left routed
+    to the document's schema for follow-up queries (version download).
     """
-    from app.db.session import set_rls_context
-    from app.db.schema_provisioning import guild_schema_name
-
-    # Sorted so the probe order — and therefore the no-readable-candidate
-    # fallback — is deterministic across requests.
-    member_guild_ids = sorted(
-        int(g)
-        for g in (
-            await session.exec(
-                select(GuildMembership.guild_id).where(
-                    GuildMembership.user_id == current_user.id
-                )
+    role = (
+        await session.exec(
+            select(GuildMembership.role).where(
+                GuildMembership.guild_id == guild_id,
+                GuildMembership.user_id == current_user.id,
             )
-        ).all()
-    )
-    if guild_id is not None:
-        # Explicit disambiguation: fail closed if the user isn't a member.
-        if guild_id not in member_guild_ids:
-            return None
-        member_guild_ids = [guild_id]
+        )
+    ).one_or_none()
+    if role is None:
+        return None
 
-    schema_by_gid = {gid: guild_schema_name(gid) for gid in member_guild_ids}
-    existing = {
-        row.nspname
-        for row in (
-            await session.execute(
-                text("SELECT nspname FROM pg_namespace WHERE nspname = ANY(:ns)"),
-                {"ns": list(schema_by_gid.values())},
-            )
-        ).all()
-    }
-
-    candidates: list[tuple[int, Document]] = []
-    for gid, schema in schema_by_gid.items():
-        if schema not in existing:
-            continue
-        # Expunge BEFORE each probe: ids collide across schemas, so an object
-        # cached from a prior guild would be returned by the identity map instead
-        # of this guild's row.
-        session.expunge_all()
-        await set_rls_context(session, guild_id=gid, is_superadmin=True)
-        doc = (
-            await session.exec(
+    async def _fetch(s: AsyncSession, gid: int) -> Optional[Document]:
+        return (
+            await s.exec(
                 select(Document)
                 .where(Document.id == document_id, Document.guild_id == gid)
                 .options(*_download_document_options())
             )
         ).one_or_none()
-        if doc is not None:
-            candidates.append((gid, doc))
 
-    if not candidates:
-        return None
+    def _choose(candidates: list[tuple[int, Document]]) -> int:
+        gid, doc = candidates[0]
+        # Raises 403 for an unreadable document — a permission failure must
+        # never become a 404.
+        _require_document_access(doc, current_user, access="read", guild_role=role)
+        return gid
 
-    # Pick the first candidate the user can actually read. Fall back to the first
-    # candidate (not None) so the caller still raises its normal 403 — a
-    # permission failure must stay a 403, not become a 404.
-    winner_gid, winner_doc = candidates[0]
-    for gid, doc in candidates:
-        try:
-            _require_document_access(doc, current_user, access="read")
-        except HTTPException:
-            continue
-        winner_gid, winner_doc = gid, doc
-        break
-
-    # Re-route the session into the winner's guild so a follow-up version query
-    # (download_document_file_version) hits the right schema. The winner may not be
-    # the last guild probed.
-    await set_rls_context(session, guild_id=winner_gid, is_superadmin=True)
-    return winner_doc
+    resolved = await resolve_across_guilds(
+        session,
+        current_user.id,
+        [guild_id],
+        _fetch,
+        _choose,
+        superadmin=True,
+    )
+    return resolved[1] if resolved is not None else None
 
 
 @router.get("/{document_id}/download", include_in_schema=False)
@@ -2392,9 +2350,10 @@ async def download_document_file(
     # isolation is enforced by probing only the requester's own guild schemas.
     session: Annotated[AsyncSession, Depends(get_admin_session)],
     inline: bool = False,
-    # Optional explicit disambiguation when the same document id exists in
-    # multiple of the user's guild schemas. A non-member guild fails closed (404).
-    guild_id: Optional[int] = Query(None),
+    # REQUIRED: per-schema document ids collide across guilds, so a bare id is
+    # not a valid address — every SPA download URL carries the guild. A
+    # non-member guild fails closed (404).
+    guild_id: int = Query(...),
 ) -> FileResponse:
     """Download a file-type document — requires read permission on the document."""
     document = await _load_download_document(
@@ -2447,9 +2406,9 @@ async def download_document_file_version(
     # guild isolation directly in the query.
     session: Annotated[AsyncSession, Depends(get_admin_session)],
     inline: bool = False,
-    # Optional explicit disambiguation when the same document id exists in
-    # multiple of the user's guild schemas. A non-member guild fails closed (404).
-    guild_id: Optional[int] = Query(None),
+    # REQUIRED: same addressing rule as download_document_file — a bare
+    # document id is not a valid address under schema-per-guild.
+    guild_id: int = Query(...),
 ) -> FileResponse:
     """Download a specific stored version of a file document — read permission."""
     document = await _load_download_document(

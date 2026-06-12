@@ -373,11 +373,13 @@ async def test_download_specific_version_returns_its_bytes(
 
     auth_headers = get_auth_headers(owner)
     r1 = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}/download",
+        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}/download"
+        f"?guild_id={guild.id}",
         headers=auth_headers,
     )
     r2 = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/{v2['id']}/download",
+        f"/api/v1/documents/{doc['id']}/versions/{v2['id']}/download"
+        f"?guild_id={guild.id}",
         headers=auth_headers,
     )
     assert r1.status_code == 200 and r1.content == PDF_BYTES
@@ -405,7 +407,9 @@ async def test_download_version_unknown_returns_404(
 
     auth_headers = get_auth_headers(owner)
     resp = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/99999/download", headers=auth_headers
+        f"/api/v1/documents/{doc['id']}/versions/99999/download"
+        f"?guild_id={guild.id}",
+        headers=auth_headers,
     )
     assert resp.status_code == 404
     assert resp.json()["detail"] == "DOCUMENT_VERSION_NOT_FOUND"
@@ -439,7 +443,8 @@ async def test_download_version_cross_guild_forbidden(
 
     outsider = await create_user(session)
     resp = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}/download",
+        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}/download"
+        f"?guild_id={guild.id}",
         headers=get_auth_headers(outsider),
     )
     assert resp.status_code == 404

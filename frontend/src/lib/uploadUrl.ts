@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 
-import { apiClient } from "@/api/client";
+import { apiClient, getCurrentGuildId } from "@/api/client";
 import { getUploadToken } from "@/lib/uploadToken";
 
 /**
@@ -35,14 +35,37 @@ function resolveDownloadApiPath(apiPath: string): string {
 }
 
 /**
+ * Build the query string for a document download. `guild_id` is REQUIRED by
+ * the backend: per-schema document ids collide across guilds, so a bare id is
+ * not a valid address — `(guild_id, document_id)` is. The guild comes from the
+ * active guild context (documents are always viewed under their own guild).
+ */
+function documentDownloadQuery(inline: boolean): string | null {
+  const guildId = getCurrentGuildId();
+  if (guildId === null) {
+    return null;
+  }
+  const params = new URLSearchParams({ guild_id: String(guildId) });
+  if (inline) {
+    params.set("inline", "1");
+  }
+  return params.toString();
+}
+
+/**
  * Resolve a document ID to its authorized download URL (current version).
+ * Returns null when no active guild is set — a download URL without guild
+ * context would be rejected by the backend.
  */
 export function resolveDocumentDownloadUrl(documentId: number, inline = false): string | null {
   if (!documentId) {
     return null;
   }
-  const base = `/api/v1/documents/${documentId}/download`;
-  return resolveDownloadApiPath(inline ? `${base}?inline=1` : base);
+  const query = documentDownloadQuery(inline);
+  if (query === null) {
+    return null;
+  }
+  return resolveDownloadApiPath(`/api/v1/documents/${documentId}/download?${query}`);
 }
 
 /**
@@ -58,8 +81,13 @@ export function resolveDocumentVersionDownloadUrl(
   if (!documentId || !versionId) {
     return null;
   }
-  const base = `/api/v1/documents/${documentId}/versions/${versionId}/download`;
-  return resolveDownloadApiPath(inline ? `${base}?inline=1` : base);
+  const query = documentDownloadQuery(inline);
+  if (query === null) {
+    return null;
+  }
+  return resolveDownloadApiPath(
+    `/api/v1/documents/${documentId}/versions/${versionId}/download?${query}`
+  );
 }
 
 /**

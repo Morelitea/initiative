@@ -1,12 +1,13 @@
 """
 Integration tests for the document download endpoints under schema-per-guild.
 
-These cover the cross-guild id-collision behaviour of ``_load_download_document``:
-per-schema serial ids mean the same document id can exist in several of a user's
-guild schemas at once. The download endpoints carry no ``X-Guild-ID`` header (they
-are served via iframe/window.open), so the loader must probe every member guild
-schema, pin ``Document.guild_id`` per probe, and serve the candidate the user can
-actually read — never the wrong guild's row, and never the frozen ``public`` copy.
+Downloads are GUILD-ADDRESSED: per-schema serial ids mean the same document id
+can exist in several of a user's guild schemas at once, so a bare id is not a
+valid address — ``guild_id`` is a REQUIRED query parameter (the endpoints are
+served via iframe/window.open and carry no ``X-Guild-ID`` header). The loader
+resolves strictly within the addressed guild, pins ``Document.guild_id`` so the
+frozen ``public`` copy can never be served, fails closed for non-members, and
+raises 403 (never 404) for unreadable documents.
 """
 
 from pathlib import Path
@@ -117,13 +118,14 @@ B_BYTES = b"%PDF-1.4 guild B readable body"
 
 
 @pytest.mark.integration
-async def test_download_collision_serves_readable_guild(
+async def test_download_collision_serves_addressed_guild(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Same doc id in guilds A and B; the user can read only B's doc.
 
-    GET /documents/{id}/download (no guild_id) must serve B's bytes, not 403 from
-    A's inaccessible doc.
+    GET /documents/{id}/download?guild_id=B must serve B's bytes — A's same-id
+    doc must play no part in resolution. A guild-less request is rejected
+    outright (422): there is no legacy bare-id format.
     """
     user, owner_a, guild_a, init_a, guild_b, init_b = await _setup_member_in_two_guilds(
         session
@@ -152,8 +154,15 @@ async def test_download_collision_serves_readable_guild(
     assert doc_a.id == doc_b.id, "test requires colliding ids across schemas"
 
     try:
-        response = await client.get(
+        # No legacy format: a guild-less download URL is not a valid address.
+        bare = await client.get(
             f"/api/v1/documents/{doc_b.id}/download", headers=get_auth_headers(user)
+        )
+        assert bare.status_code == 422
+
+        response = await client.get(
+            f"/api/v1/documents/{doc_b.id}/download?guild_id={guild_b.id}",
+            headers=get_auth_headers(user),
         )
         assert response.status_code == 200, response.text
         assert response.content == B_BYTES
@@ -276,11 +285,11 @@ async def test_download_explicit_guild_id_non_member_404(
 async def test_version_download_follows_winner_schema(
     client: AsyncClient, session: AsyncSession
 ) -> None:
-    """A version download under id-collision serves the readable guild's version.
+    """A version download under id-collision serves the addressed guild's version.
 
-    A and B both hold a doc with the same id; the user can read only B's. The
-    file version lives in B's schema — the follow-up DocumentFileVersion query
-    must run in B's schema (the re-routed winner), not A's.
+    A and B both hold a doc with the same id; the request addresses B. The file
+    version lives in B's schema — the follow-up DocumentFileVersion query must
+    run in B's schema (the resolver leaves the session routed there), not A's.
     """
     user, owner_a, guild_a, init_a, guild_b, init_b = await _setup_member_in_two_guilds(
         session
@@ -317,7 +326,8 @@ async def test_version_download_follows_winner_schema(
 
     try:
         response = await client.get(
-            f"/api/v1/documents/{doc_b['id']}/versions/{v1['id']}/download",
+            f"/api/v1/documents/{doc_b['id']}/versions/{v1['id']}/download"
+            f"?guild_id={guild_b.id}",
             headers=get_auth_headers(user),
         )
         assert response.status_code == 200, response.text

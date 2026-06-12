@@ -400,7 +400,7 @@ async def test_download_owner_can_download(
     try:
         headers = get_auth_headers(owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}", headers=headers
         )
         assert response.status_code == 200
         assert "attachment" in response.headers.get("content-disposition", "")
@@ -423,7 +423,9 @@ async def test_download_unauthenticated_returns_401(
         session, initiative=initiative, owner=owner, filename="dl_unauth.pdf"
     )
     try:
-        response = await client.get(f"/api/v1/documents/{doc.id}/download")
+        response = await client.get(
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}"
+        )
         assert response.status_code == 401
     finally:
         (_uploads_dir() / "dl_unauth.pdf").unlink(missing_ok=True)
@@ -448,7 +450,7 @@ async def test_download_guild_member_without_permission_returns_403(
     try:
         headers = get_auth_headers(other)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}", headers=headers
         )
         assert response.status_code == 403
     finally:
@@ -472,7 +474,7 @@ async def test_download_non_guild_member_returns_404(
     try:
         headers = get_auth_headers(outsider)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}", headers=headers
         )
         assert response.status_code == 404
     finally:
@@ -507,7 +509,7 @@ async def test_download_read_permission_grants_access(
     try:
         headers = get_auth_headers(reader)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}", headers=headers
         )
         assert response.status_code == 200
     finally:
@@ -530,7 +532,7 @@ async def test_download_inline_returns_no_attachment_header(
     try:
         headers = get_auth_headers(owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download?inline=1", headers=headers
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}&inline=1", headers=headers
         )
         assert response.status_code == 200
         assert "attachment" not in response.headers.get("content-disposition", "")
@@ -555,7 +557,7 @@ async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     try:
         headers = get_auth_headers(owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download?inline=1", headers=headers
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}&inline=1", headers=headers
         )
         assert response.status_code == 200
         # Same-origin framing allowed (overrides the global DENY middleware)
@@ -586,7 +588,7 @@ async def test_download_non_inline_html_svg_keeps_global_deny(
     try:
         headers = get_auth_headers(owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}", headers=headers
         )
         assert response.status_code == 200
         # Served as an attachment; the framing relaxation must not apply here
@@ -616,7 +618,7 @@ async def test_download_scoped_upload_token_auth(
     try:
         token, _ = create_upload_token(user_id=owner.id)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download?token={token}"
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}&token={token}"
         )
         assert response.status_code == 200
     finally:
@@ -640,7 +642,7 @@ async def test_download_session_jwt_rejected_in_query_param(
     try:
         token = get_auth_token(owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download?token={token}"
+            f"/api/v1/documents/{doc.id}/download?guild_id={guild.id}&token={token}"
         )
         assert response.status_code == 401
     finally:
@@ -667,7 +669,8 @@ async def test_download_native_document_returns_404(
     doc_id = response.json()["id"]
 
     response = await client.get(
-        f"/api/v1/documents/{doc_id}/download", headers=get_auth_headers(owner)
+        f"/api/v1/documents/{doc_id}/download?guild_id={guild.id}",
+        headers=get_auth_headers(owner),
     )
     assert response.status_code == 404
 

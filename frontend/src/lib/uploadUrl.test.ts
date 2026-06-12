@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { apiClient } from "@/api/client";
+import { apiClient, setCurrentGuildId } from "@/api/client";
 
 import { getUploadToken } from "./uploadToken";
 import {
@@ -21,20 +21,42 @@ const getUploadTokenMock = vi.mocked(getUploadToken);
 // Capacitor.isNativePlatform() is globally mocked to `false` in test setup,
 // so the default-path tests cover the web (same-origin, cookie-auth) flow.
 
-describe("resolveDocumentVersionDownloadUrl", () => {
-  it("builds the version download path", () => {
-    expect(resolveDocumentVersionDownloadUrl(5, 3)).toBe("/api/v1/documents/5/versions/3/download");
+describe("document download URLs", () => {
+  beforeEach(() => {
+    // Download URLs are guild-addressed: (guild_id, document_id) is the only
+    // valid address since per-schema document ids collide across guilds.
+    setCurrentGuildId(7);
+  });
+
+  afterEach(() => {
+    setCurrentGuildId(null);
+  });
+
+  it("builds the version download path with the active guild", () => {
+    expect(resolveDocumentVersionDownloadUrl(5, 3)).toBe(
+      "/api/v1/documents/5/versions/3/download?guild_id=7"
+    );
   });
 
   it("appends inline=1 when requested", () => {
     expect(resolveDocumentVersionDownloadUrl(5, 3, true)).toBe(
-      "/api/v1/documents/5/versions/3/download?inline=1"
+      "/api/v1/documents/5/versions/3/download?guild_id=7&inline=1"
     );
+  });
+
+  it("builds the current-document download path with the active guild", () => {
+    expect(resolveDocumentDownloadUrl(5)).toBe("/api/v1/documents/5/download?guild_id=7");
   });
 
   it("returns null when ids are missing", () => {
     expect(resolveDocumentVersionDownloadUrl(0, 3)).toBeNull();
     expect(resolveDocumentVersionDownloadUrl(5, 0)).toBeNull();
+  });
+
+  it("returns null without an active guild — a guild-less URL is not a valid address", () => {
+    setCurrentGuildId(null);
+    expect(resolveDocumentDownloadUrl(5)).toBeNull();
+    expect(resolveDocumentVersionDownloadUrl(5, 3)).toBeNull();
   });
 
   it("differs from the current-document download path", () => {
@@ -62,9 +84,7 @@ describe("resolveUploadUrl (native)", () => {
 
   it("stamps the SHORT-LIVED scoped upload token (not the session JWT) into the URL", () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue(
-      "http://10.0.2.2:8000/api/v1"
-    );
+    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue("http://10.0.2.2:8000/api/v1");
     getUploadTokenMock.mockReturnValue("scoped-upload-token");
 
     const url = resolveUploadUrl("/uploads/avatars/abc.png");
@@ -75,9 +95,7 @@ describe("resolveUploadUrl (native)", () => {
 
   it("omits the token when none is available yet", () => {
     vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
-    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue(
-      "http://10.0.2.2:8000/api/v1"
-    );
+    vi.spyOn(apiClient.defaults, "baseURL", "get").mockReturnValue("http://10.0.2.2:8000/api/v1");
     getUploadTokenMock.mockReturnValue(null);
 
     expect(resolveUploadUrl("/uploads/avatars/abc.png")).toBe(
