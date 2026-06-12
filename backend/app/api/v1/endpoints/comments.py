@@ -74,7 +74,9 @@ async def create_comment(
     await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
-    await broadcast_event("comment", "created", response.model_dump(mode="json"))
+    await broadcast_event(
+        guild_context.guild_id, "comment", "created", response.model_dump(mode="json")
+    )
     return response
 
 
@@ -248,7 +250,9 @@ async def update_comment(
     await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
-    await broadcast_event("comment", "updated", response.model_dump(mode="json"))
+    await broadcast_event(
+        guild_context.guild_id, "comment", "updated", response.model_dump(mode="json")
+    )
     return response
 
 
@@ -282,6 +286,7 @@ async def delete_comment(
 
     await session.commit()
     await broadcast_event(
+        guild_context.guild_id,
         "comment",
         "deleted",
         {

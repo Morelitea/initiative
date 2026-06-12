@@ -13,6 +13,7 @@ import {
 } from "@/api/query-keys";
 
 import { useAuth } from "./useAuth";
+import { useGuilds } from "./useGuilds";
 
 // Message type for authentication (must match backend)
 const MSG_AUTH = 5;
@@ -46,9 +47,17 @@ const buildWebsocketUrl = () => {
 /**
  * Send authentication message over WebSocket.
  * Must be sent immediately after connection opens.
+ *
+ * The guild id scopes the socket: the backend only streams events for the
+ * declared guild (which the user must belong to), so events never cross the
+ * tenancy boundary.
  */
-const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
-  const payload = JSON.stringify({ token });
+const sendAuthMessage = (
+  websocket: WebSocket,
+  token: string | null,
+  guildId: number,
+) => {
+  const payload = JSON.stringify({ token, guild_id: guildId });
   const payloadBytes = new TextEncoder().encode(payload);
   const message = new Uint8Array(1 + payloadBytes.length);
   message[0] = MSG_AUTH;
@@ -89,12 +98,15 @@ const handleCommentEvent = (data?: Record<string, unknown>) => {
 
 export const useRealtimeUpdates = () => {
   const { token, user, logout } = useAuth();
+  const { activeGuildId } = useGuilds();
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const authFailureCountRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!user) {
+    // The socket is scoped to a single guild — without an active guild there's
+    // nothing to subscribe to, and the backend would reject the auth payload.
+    if (!user || !activeGuildId) {
       if (websocketRef.current) {
         websocketRef.current.close();
         websocketRef.current = null;
@@ -133,8 +145,9 @@ export const useRealtimeUpdates = () => {
       websocketRef.current = websocket;
 
       websocket.onopen = () => {
-        // Send auth message immediately after connection (token not in URL for security)
-        sendAuthMessage(websocket, token);
+        // Send auth message immediately after connection (token not in URL for
+        // security). The guild id scopes the stream to the active guild.
+        sendAuthMessage(websocket, token, activeGuildId);
         // Reset failure count on successful connection
         authFailureCountRef.current = 0;
       };
@@ -201,5 +214,5 @@ export const useRealtimeUpdates = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, user, logout]);
+  }, [token, user, activeGuildId, logout]);
 };

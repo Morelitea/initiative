@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Optional, Sequence
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlmodel import select, update as sql_update
+from sqlmodel import select
 
 from app.api.deps import (
     RLSSessionDep,
@@ -28,7 +28,6 @@ from app.models.guild import GuildRole, GuildMembership
 from app.models.initiative import InitiativeMember
 from app.core.capabilities import Capability, user_has_capability
 from app.models.user import User, UserRole, UserStatus
-from app.models.user_token import UserToken, UserTokenPurpose
 from app.schemas.user import (
     UserCreate,
     UserGuildMember,
@@ -58,6 +57,7 @@ from app.services import users as users_service
 from app.services import api_keys as api_keys_service
 from app.services import csv_export
 from app.services import stats_service
+from app.services import user_tokens as user_tokens_service
 
 # Allowed values for the optional "task completion visual feedback" effect.
 # Mirrored on the frontend in src/lib/taskCompletionVisualFeedback.ts; keep
@@ -289,17 +289,9 @@ async def update_users_me(
     if password:
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
-        current_user.token_version += 1
-        # Bulk-revoke all active device tokens
-        await session.exec(
-            sql_update(UserToken)
-            .where(
-                UserToken.user_id == current_user.id,
-                UserToken.purpose == UserTokenPurpose.device_auth,
-                UserToken.consumed_at.is_(None),
-            )
-            .values(consumed_at=datetime.now(timezone.utc))
-        )
+        # Bump token_version and revoke active device tokens so a stale
+        # JWT/device token can't survive the password change.
+        await user_tokens_service.revoke_user_sessions(session, user=current_user)
 
     if "avatar_base64" in update_data:
         avatar_value = update_data["avatar_base64"]
@@ -429,6 +421,11 @@ async def update_user(
     if password := update_data.pop("password", None):
         await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
+        # Resetting a compromised account must invalidate the attacker's
+        # outstanding sessions: bump token_version (kills unexpired JWTs)
+        # and revoke active device tokens, mirroring the self-service and
+        # forgot-password reset paths.
+        await user_tokens_service.revoke_user_sessions(session, user=user)
     if "avatar_base64" in update_data:
         user.avatar_base64 = update_data.pop("avatar_base64")
         if user.avatar_base64:

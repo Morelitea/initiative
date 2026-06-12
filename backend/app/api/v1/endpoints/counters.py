@@ -44,7 +44,7 @@ from app.models.initiative import (
     InitiativeRoleModel,
     PermissionKey,
 )
-from app.models.user import User, UserStatus
+from app.models.user import User
 from app.schemas.counter import (
     CounterCreate,
     CounterGroupCreate,
@@ -65,15 +65,13 @@ from app.schemas.counter import (
     serialize_counter_group_summary,
     _validate_counter_constraints,
 )
-from app.schemas.token import TokenPayload
 from app.services import counters as counters_service
 from app.services import recent_views as recent_views_service
 from app.services import rls as rls_service
-from app.services import user_tokens
 from app.services.counter_realtime import counter_manager
+from app.services.ws_auth import authenticate_ws_token
 from app.schemas.recent_view import RecentViewWrite
 
-import jwt
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -1030,28 +1028,13 @@ async def set_counter_group_role_permissions(
 
 
 async def _ws_authenticate(token: str, session) -> Optional[User]:
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        token_data = TokenPayload(**payload)
-        if token_data.sub:
-            stmt = select(User).where(User.id == int(token_data.sub))
-            result = await session.exec(stmt)
-            user = result.one_or_none()
-            if user and user.status == UserStatus.active:
-                return user
-    except jwt.PyJWTError:
-        pass
+    """Validate a session JWT or device token and return the user, or None.
 
-    device_token = await user_tokens.get_device_token(session, token=token)
-    if device_token:
-        stmt = select(User).where(User.id == device_token.user_id)
-        result = await session.exec(stmt)
-        user = result.one_or_none()
-        if user and user.status == UserStatus.active:
-            return user
-    return None
+    Delegates to the shared ``authenticate_ws_token`` helper so the
+    ``token_version`` revocation check stays in lockstep with the HTTP auth
+    path and the other realtime WebSocket endpoints (SEC-4).
+    """
+    return await authenticate_ws_token(token, session)
 
 
 @router.websocket("/{group_id}/ws")

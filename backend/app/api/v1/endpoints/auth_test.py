@@ -1135,6 +1135,61 @@ async def test_password_reset_rejects_short_password(
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_password_reset_revokes_sessions_and_device_tokens(
+    client: AsyncClient, session: AsyncSession
+):
+    """A successful forgot-password reset must invalidate the user's
+    outstanding JWT (token_version bump) and active device tokens, so a
+    stolen-but-unexpired credential can't survive the reset."""
+    from sqlmodel import select
+
+    from app.models.user_token import UserToken, UserTokenPurpose
+    from app.services import user_tokens
+
+    user = await create_user(session, email="reset-revoke@example.com")
+    old_jwt = get_auth_token(user)
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Reset phone"
+    )
+    reset_token = await user_tokens.create_token(
+        session,
+        user_id=user.id,
+        purpose=UserTokenPurpose.password_reset,
+    )
+
+    response = await client.post(
+        "/api/v1/auth/password/reset",
+        json={"token": reset_token, "password": "brand-new-secret-123"},
+    )
+    assert response.status_code == 200
+
+    # Old JWT rejected (token_version bumped).
+    post_jwt = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {old_jwt}"},
+    )
+    assert post_jwt.status_code == 401
+
+    # Device token rejected (consumed).
+    post_device = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"DeviceToken {device_token}"},
+    )
+    assert post_device.status_code == 401
+
+    token_row = (
+        await session.exec(
+            select(UserToken).where(
+                UserToken.user_id == user.id,
+                UserToken.purpose == UserTokenPurpose.device_auth,
+            )
+        )
+    ).one()
+    assert token_row.consumed_at is not None
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_register_rolls_back_when_guild_seed_fails(
     client: AsyncClient, session: AsyncSession, monkeypatch
 ):

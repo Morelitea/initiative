@@ -10,6 +10,17 @@ from app.models.initiative import InitiativeRole
 from app.models.user import UserRole, UserStatus
 from app.core.config import settings
 
+# ``avatar_base64`` is a ``RawTextStr`` so it skips the global 8 KiB plain-text
+# cap (it holds an inline data URI, not free text). Left unbounded it is a
+# stored-amplification vector: the SPA sends whatever image the user picks with
+# no client-side downscale (``UserSettingsProfilePage`` reads the file straight
+# through ``FileReader.readAsDataURL``), and the value is echoed to every guild
+# member via presence/member listings. ~700 KB of base64 decodes to ~512 KB of
+# image bytes (4/3 inflation) once the ``data:image/...;base64,`` prefix is
+# accounted for — generous for any reasonable avatar while bounding the blast
+# radius. Oversized payloads are rejected with 422.
+MAX_AVATAR_BASE64_LENGTH = 700_000
+
 
 class UserBase(SanitizedBaseModel):
     email: EmailStr
@@ -52,7 +63,9 @@ class UserUpdate(SanitizedBaseModel):
     role: Optional[UserRole] = None
     password: Optional[RawTextStr] = Field(default=None, max_length=256)
     status: Optional[UserStatus] = None
-    avatar_base64: Optional[RawTextStr] = None
+    avatar_base64: Optional[RawTextStr] = Field(
+        default=None, max_length=MAX_AVATAR_BASE64_LENGTH
+    )
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
     timezone: Optional[str] = None
@@ -94,6 +107,11 @@ class UserPublic(SanitizedBaseModel):
     id: int
     email: EmailStr
     full_name: Optional[str] = None
+    # No max_length here: this is a RESPONSE schema, and FastAPI validates
+    # response models, so a cap would 500 every endpoint returning a user whose
+    # avatar predates the write-side cap. The bound is enforced on the write
+    # schemas (UserUpdate / UserSelfUpdate); legacy oversized rows shrink as
+    # they are next updated.
     avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
@@ -121,6 +139,7 @@ class UserRead(UserBase):
     email_verified: bool
     created_at: datetime
     updated_at: datetime
+    # Response schema — uncapped for the same legacy-row reason as UserPublic.
     avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     week_starts_on: int = 0
@@ -186,7 +205,9 @@ class UserInitiativeRole(SanitizedBaseModel):
 class UserSelfUpdate(SanitizedBaseModel):
     full_name: Optional[str] = None
     password: Optional[RawTextStr] = Field(default=None, max_length=256)
-    avatar_base64: Optional[RawTextStr] = None
+    avatar_base64: Optional[RawTextStr] = Field(
+        default=None, max_length=MAX_AVATAR_BASE64_LENGTH
+    )
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
     timezone: Optional[str] = None

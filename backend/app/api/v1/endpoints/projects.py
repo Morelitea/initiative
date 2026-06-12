@@ -1239,6 +1239,7 @@ async def create_project(
             )
     await _attach_task_summaries(session, [project])
     await broadcast_event(
+        guild_context.guild_id,
         "project",
         "created",
         _project_payload(
@@ -1280,6 +1281,7 @@ async def archive_project(
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
     await broadcast_event(
+        guild_context.guild_id,
         "project",
         "updated",
         _project_payload(
@@ -1420,6 +1422,7 @@ async def duplicate_project(
             )
     await _attach_task_summaries(session, [new_project])
     await broadcast_event(
+        guild_context.guild_id,
         "project",
         "created",
         _project_payload(
@@ -1461,6 +1464,7 @@ async def unarchive_project(
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
     await broadcast_event(
+        guild_context.guild_id,
         "project",
         "updated",
         _project_payload(
@@ -1742,6 +1746,7 @@ async def update_project(
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [project])
     await broadcast_event(
+        guild_context.guild_id,
         "project",
         "updated",
         _project_payload(
@@ -1802,6 +1807,7 @@ async def attach_project_document(
     )
     await _attach_task_summaries(session, [updated_project])
     await broadcast_event(
+        guild_context.guild_id,
         "project",
         "updated",
         _project_payload(
@@ -1861,6 +1867,7 @@ async def detach_project_document(
     )
     await _attach_task_summaries(session, [updated_project])
     await broadcast_event(
+        guild_context.guild_id,
         "project",
         "updated",
         _project_payload(
@@ -2261,7 +2268,9 @@ async def delete_project(
         retention_days=retention_days,
     )
     await session.commit()
-    await broadcast_event("project", "deleted", {"id": project_id})
+    await broadcast_event(
+        guild_context.guild_id, "project", "deleted", {"id": project_id}
+    )
 
 
 @router.put("/{project_id}/tags", response_model=ProjectRead)

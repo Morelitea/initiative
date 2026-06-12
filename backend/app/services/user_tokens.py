@@ -3,10 +3,11 @@ from hashlib import sha256
 import secrets
 from typing import Optional, List
 
-from sqlmodel import select, delete
+from sqlmodel import select, delete, update as sql_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import reapply_rls_context
+from app.models.user import User
 from app.models.user_token import UserToken, UserTokenPurpose
 
 
@@ -210,3 +211,44 @@ async def revoke_device_token(
     session.add(token)
     await session.commit()
     return True
+
+
+async def revoke_active_device_tokens(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> None:
+    """Mark every active device token for a user as consumed.
+
+    Used after a password change/reset so previously-issued long-lived
+    device tokens can no longer authenticate. Does not commit — the caller
+    owns the surrounding transaction.
+    """
+    await session.exec(
+        sql_update(UserToken)
+        .where(
+            UserToken.user_id == user_id,
+            UserToken.purpose == UserTokenPurpose.device_auth,
+            UserToken.consumed_at.is_(None),
+        )
+        .values(consumed_at=datetime.now(timezone.utc))
+    )
+
+
+async def revoke_user_sessions(
+    session: AsyncSession,
+    *,
+    user: User,
+) -> None:
+    """Invalidate every outstanding session for ``user`` after a credential
+    change.
+
+    Bumps ``token_version`` (which the JWT/WS authenticators compare against,
+    invalidating any still-unexpired access token) and bulk-revokes the
+    user's active ``device_auth`` tokens. Shared by the self-service password
+    change, the forgot-password reset, and the admin password reset so the
+    three paths can't drift. Does not commit — the caller owns the transaction
+    and is responsible for ``session.add(user)``/``commit``.
+    """
+    user.token_version += 1
+    await revoke_active_device_tokens(session, user_id=user.id)

@@ -34,6 +34,7 @@ import type {
   PasswordResetSubmit,
   RegisterUserApiV1AuthRegisterPostParams,
   Token,
+  UploadTokenResponse,
   UserCreate,
   UserRead,
   VerificationConfirmRequest,
@@ -460,6 +461,94 @@ export const useLogoutApiV1AuthLogoutPost = <
   TContext
 > => {
   return useMutation(getLogoutApiV1AuthLogoutPostMutationOptions(options), queryClient);
+};
+/**
+ * Mint a short-lived, uploads-scoped token for the authenticated user.
+ *
+ * Native (Capacitor) clients call this to load ``/uploads/*`` media and
+ * document downloads via ``?token=`` without putting the long-lived session
+ * JWT in the URL (which would leak through logs, history, and Referer). The
+ * token is accepted only by the uploads/download routes and is useless as a
+ * general API credential.
+ * @summary Issue Upload Token
+ */
+export const issueUploadTokenApiV1AuthUploadTokenPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<UploadTokenResponse>(
+    { url: `/api/v1/auth/upload-token`, method: "POST", signal },
+    options
+  );
+};
+
+export const getIssueUploadTokenApiV1AuthUploadTokenPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof issueUploadTokenApiV1AuthUploadTokenPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof issueUploadTokenApiV1AuthUploadTokenPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["issueUploadTokenApiV1AuthUploadTokenPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof issueUploadTokenApiV1AuthUploadTokenPost>>,
+    void
+  > = () => {
+    return issueUploadTokenApiV1AuthUploadTokenPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IssueUploadTokenApiV1AuthUploadTokenPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof issueUploadTokenApiV1AuthUploadTokenPost>>
+>;
+
+export type IssueUploadTokenApiV1AuthUploadTokenPostMutationError = ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Issue Upload Token
+ */
+export const useIssueUploadTokenApiV1AuthUploadTokenPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof issueUploadTokenApiV1AuthUploadTokenPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof issueUploadTokenApiV1AuthUploadTokenPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getIssueUploadTokenApiV1AuthUploadTokenPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Create a long-lived device token for mobile app authentication.

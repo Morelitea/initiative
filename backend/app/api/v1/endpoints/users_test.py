@@ -22,6 +22,7 @@ from app.testing.factories import (
     create_guild_membership,
     create_user,
     get_auth_headers,
+    get_auth_token,
     get_guild_headers,
 )
 
@@ -159,6 +160,129 @@ async def test_update_user_by_id_as_admin(client: AsyncClient, session: AsyncSes
     assert response.status_code == 200
     data = response.json()
     assert data["full_name"] == "New Name"
+
+
+@pytest.mark.integration
+async def test_admin_password_reset_revokes_sessions_and_device_tokens(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild admin resetting a member's password must invalidate the
+    member's outstanding JWT and active device tokens. Otherwise an
+    attacker who compromised the account keeps a working session after
+    the admin's "fix"."""
+    from app.models.user_token import UserToken, UserTokenPurpose
+    from app.services import user_tokens
+
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+
+    # The member's pre-reset session: a JWT bound to the current
+    # token_version and a long-lived device token.
+    member_jwt = get_auth_token(member)
+    device_token = await user_tokens.create_device_token(
+        session, user_id=member.id, device_name="Member's phone"
+    )
+
+    # Sanity check: both credentials work before the reset.
+    pre_jwt = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {member_jwt}"},
+    )
+    assert pre_jwt.status_code == 200
+    pre_device = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"DeviceToken {device_token}"},
+    )
+    assert pre_device.status_code == 200
+
+    # Admin resets the member's password.
+    reset = await client.patch(
+        f"/api/v1/users/{member.id}",
+        headers=get_guild_headers(guild, admin),
+        json={"password": "brand-new-secret-123"},
+    )
+    assert reset.status_code == 200
+
+    # The member's old JWT is now rejected (token_version bumped).
+    post_jwt = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {member_jwt}"},
+    )
+    assert post_jwt.status_code == 401
+
+    # The member's device token is now rejected (consumed).
+    post_device = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"DeviceToken {device_token}"},
+    )
+    assert post_device.status_code == 401
+
+    # The device token row is marked consumed in the DB.
+    token_row = (
+        await session.exec(
+            select(UserToken).where(
+                UserToken.user_id == member.id,
+                UserToken.purpose == UserTokenPurpose.device_auth,
+            )
+        )
+    ).one()
+    assert token_row.consumed_at is not None
+
+
+@pytest.mark.integration
+async def test_self_service_password_change_revokes_sessions_and_device_tokens(
+    client: AsyncClient, session: AsyncSession
+):
+    """Changing your own password via PATCH /users/me must invalidate other
+    outstanding JWTs and active device tokens — completing the three-path
+    symmetry with the admin-reset and forgot-password flows (all share
+    ``revoke_user_sessions`` / ``revoke_active_device_tokens``)."""
+    from app.models.user_token import UserToken, UserTokenPurpose
+    from app.services import user_tokens
+
+    user = await create_user(session, email="self-change@example.com")
+    old_jwt = get_auth_token(user)
+    device_token = await user_tokens.create_device_token(
+        session, user_id=user.id, device_name="Old phone"
+    )
+
+    response = await client.patch(
+        "/api/v1/users/me",
+        json={"password": "brand-new-secret-123"},
+        headers={"Authorization": f"Bearer {old_jwt}"},
+    )
+    assert response.status_code == 200
+
+    # The pre-change JWT is rejected (token_version bumped).
+    stale = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {old_jwt}"},
+    )
+    assert stale.status_code == 401
+
+    # The device token was revoked (consumed).
+    stale_device = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"DeviceToken {device_token}"},
+    )
+    assert stale_device.status_code == 401
+    token_row = (
+        await session.exec(
+            select(UserToken).where(
+                UserToken.user_id == user.id,
+                UserToken.purpose == UserTokenPurpose.device_auth,
+            )
+        )
+    ).one()
+    assert token_row.consumed_at is not None
 
 
 @pytest.mark.integration

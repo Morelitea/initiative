@@ -555,7 +555,7 @@ async def _broadcast_task_refresh(
     task = await _fetch_task(session, task_id, guild_id)
     if task is None:
         return
-    await broadcast_event("task", "updated", _task_payload(task))
+    await broadcast_event(guild_id, "task", "updated", _task_payload(task))
 
 
 def _task_payload(task: Task) -> dict:
@@ -760,7 +760,7 @@ async def _advance_recurrence_if_needed(
         await session.flush()
     await session.refresh(new_task, attribute_names=["assignees", "tag_links"])
     _annotate_task_tags([new_task])
-    await broadcast_event("task", "created", _task_payload(new_task))
+    await broadcast_event(new_task.guild_id, "task", "created", _task_payload(new_task))
 
     task.recurrence = None
     task.recurrence_strategy = "fixed"
@@ -1403,7 +1403,9 @@ async def create_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_CREATE,
         )
-    await broadcast_event("task", "created", _task_payload(task))
+    await broadcast_event(
+        guild_context.guild_id, "task", "created", _task_payload(task)
+    )
     # Outbound webhook dispatch — fire-and-log; failures don't block the
     # user's write. Only one event source for now (PR2.2 scope); other
     # mutators get the same one-liner in follow-up PRs once the contract
@@ -1539,7 +1541,9 @@ async def update_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await broadcast_event("task", "updated", _task_payload(task))
+    await broadcast_event(
+        guild_context.guild_id, "task", "updated", _task_payload(task)
+    )
     return task
 
 
@@ -1618,7 +1622,9 @@ async def move_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_MOVE,
         )
-    await broadcast_event("task", "updated", _task_payload(updated_task))
+    await broadcast_event(
+        guild_context.guild_id, "task", "updated", _task_payload(updated_task)
+    )
     return updated_task
 
 
@@ -1800,7 +1806,12 @@ async def delete_task(
     )
     await _touch_project(session, project_id)
     await session.commit()
-    await broadcast_event("task", "deleted", {"id": task_id, "project_id": project_id})
+    await broadcast_event(
+        guild_context.guild_id,
+        "task",
+        "deleted",
+        {"id": task_id, "project_id": project_id},
+    )
 
 
 @router.post("/reorder", response_model=List[TaskRead])
@@ -1911,7 +1922,12 @@ async def reorder_tasks(
     tasks = refreshed_result.all()
     await _annotate_tasks(session, tasks)
     _annotate_task_guild(tasks)
-    await broadcast_event("task", "reordered", {"project_id": reorder_in.project_id})
+    await broadcast_event(
+        guild_context.guild_id,
+        "task",
+        "reordered",
+        {"project_id": reorder_in.project_id},
+    )
     return tasks
 
 
@@ -1967,7 +1983,10 @@ async def archive_done_tasks(
     await _touch_project(session, project_id, timestamp=now)
     await session.commit()
     await broadcast_event(
-        "task", "archived", {"project_id": project_id, "count": len(tasks)}
+        guild_context.guild_id,
+        "task",
+        "archived",
+        {"project_id": project_id, "count": len(tasks)},
     )
     return ArchiveDoneResponse(archived_count=len(tasks))
 
@@ -2393,7 +2412,9 @@ async def set_task_tags(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await broadcast_event("task", "updated", _task_payload(task))
+    await broadcast_event(
+        guild_context.guild_id, "task", "updated", _task_payload(task)
+    )
     return task
 
 
@@ -2470,5 +2491,7 @@ async def set_task_properties(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await broadcast_event("task", "updated", _task_payload(refreshed))
+    await broadcast_event(
+        guild_context.guild_id, "task", "updated", _task_payload(refreshed)
+    )
     return refreshed

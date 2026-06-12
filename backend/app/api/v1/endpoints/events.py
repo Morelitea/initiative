@@ -3,18 +3,17 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
-import jwt
 from sqlalchemy import text
-from sqlmodel import select
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.db.session import AsyncSessionLocal
-from app.models.user import User, UserStatus
-from app.schemas.token import TokenPayload
+from app.db.session import AsyncSessionLocal, set_rls_context
+from app.models.user import User
+from app.services import access_grants as access_grants_service
+from app.services import guilds as guilds_service
 from app.services.realtime import manager
-from app.services import user_tokens
+from app.services.ws_auth import authenticate_ws_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -24,41 +23,48 @@ MSG_AUTH = 5
 
 
 async def _user_from_token(token: str, session: AsyncSession) -> Optional[User]:
-    """Validate JWT or device token and return user, or None if invalid."""
-    # First try JWT validation
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        token_data = TokenPayload(**payload)
-        if token_data.sub:
-            statement = select(User).where(User.id == int(token_data.sub))
-            result = await session.exec(statement)
-            user = result.one_or_none()
-            if user and user.status == UserStatus.active:
-                return user
-    except jwt.PyJWTError:
-        pass
+    """Validate a session JWT or device token and return the user, or None.
 
-    # Fall back to device token validation
-    device_token = await user_tokens.get_device_token(session, token=token)
-    if device_token:
-        statement = select(User).where(User.id == device_token.user_id)
-        result = await session.exec(statement)
-        user = result.one_or_none()
-        if user and user.status == UserStatus.active:
-            return user
+    Delegates to the shared ``authenticate_ws_token`` helper so the
+    ``token_version`` revocation check stays in lockstep with the HTTP auth
+    path and the other realtime WebSocket endpoints (SEC-4).
+    """
+    return await authenticate_ws_token(token, session)
 
-    return None
+
+async def _user_can_access_guild(
+    session: AsyncSession, *, user: User, guild_id: int
+) -> bool:
+    """True if the user may subscribe to ``guild_id``'s event stream.
+
+    A standing guild membership qualifies; so does a currently-live PAM read
+    grant for that guild (mirrors how get_guild_membership in deps.py falls back
+    to a live grant). RLS context is set first so the membership lookup runs
+    against the right guild's policies.
+    """
+    await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=user.id
+    )
+    if membership is not None:
+        return True
+    grant = await access_grants_service.get_live_grant(
+        session, user_id=user.id, guild_id=guild_id
+    )
+    return grant is not None
 
 
 @router.websocket("/updates")
 async def websocket_updates(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time updates.
+    WebSocket endpoint for real-time updates, scoped to a single guild.
 
-    Authentication is done via MSG_AUTH message sent immediately after connection,
-    not via URL query parameters (for security - prevents token leakage in logs).
+    Authentication is done via MSG_AUTH message sent immediately after
+    connection, not via URL query parameters (for security - prevents token
+    leakage in logs). The auth payload must declare the guild the socket wants
+    events for: ``{"token": "...", "guild_id": <int>}``. The server verifies the
+    user belongs to (or holds a live PAM grant for) that guild and only then
+    registers the socket under it, so events never cross the tenancy boundary.
     """
     await websocket.accept()
 
@@ -79,7 +85,11 @@ async def websocket_updates(websocket: WebSocket):
                 token = websocket.cookies.get(settings.COOKIE_NAME)
             if not token:
                 raise ValueError("Missing token")
-        except (json.JSONDecodeError, ValueError) as e:
+            guild_id = auth_payload.get("guild_id")
+            if guild_id is None:
+                raise ValueError("Missing guild_id")
+            guild_id = int(guild_id)
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             logger.warning(f"Events WebSocket: Invalid auth payload: {e}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
@@ -102,18 +112,33 @@ async def websocket_updates(websocket: WebSocket):
             )
         )
         user = await _user_from_token(token, session)
+        # Scope the socket to the declared guild — only a member (or live PAM
+        # grantee) may subscribe, so events for a guild never reach outsiders.
+        # Checked inside this session block: after the ``async with`` exits the
+        # session would silently re-acquire a pooled connection WITHOUT the GUC
+        # reset above.
+        authorized = user is not None and await _user_can_access_guild(
+            session, user=user, guild_id=guild_id
+        )
     if not user:
         logger.warning("Events WebSocket: Auth failed")
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
+    if not authorized:
+        logger.warning(
+            f"Events WebSocket: user {user.id} not authorized for guild {guild_id}"
+        )
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
 
-    await manager.add_connection(websocket)
+    await manager.connect(guild_id, websocket)
+    logger.info(f"Events WS: user {user.id} subscribed to guild {guild_id}")
     try:
         while True:
             # Keep the connection alive by awaiting incoming messages
             await websocket.receive_text()
     except WebSocketDisconnect:
-        await manager.disconnect(websocket)
+        await manager.disconnect(guild_id, websocket)
     except Exception:
-        await manager.disconnect(websocket)
+        await manager.disconnect(guild_id, websocket)
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)

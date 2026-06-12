@@ -85,6 +85,9 @@ function LazyImage({
       }}
       onError={onError}
       draggable="false"
+      // Inline document images can resolve to an authenticated ``/uploads/`` URL
+      // (which carries a token query param on native); keep that out of Referer.
+      referrerPolicy="no-referrer"
     />
   );
 }
