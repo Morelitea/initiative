@@ -8,7 +8,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { useGuilds } from "@/hooks/useGuilds";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId")({
-  beforeLoad: async ({ context, params }) => {
+  beforeLoad: async ({ context, params, cause }) => {
     const guildId = Number(params.guildId);
     const { guilds } = context;
 
@@ -31,6 +31,15 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
     if (!guild) {
       // Let the component render a "not a member" message
       return { urlGuildId: guildId, urlGuild: null };
+    }
+
+    // beforeLoad ALSO runs for link PRELOADS (defaultPreload: "intent" —
+    // hovering any cross-guild link, e.g. a recents tab). A preload must be
+    // side-effect free: switching the server-held context + resetting caches
+    // on hover ping-pongs the whole app between guilds. Only a real
+    // navigation may move the context.
+    if (cause === "preload") {
+      return { urlGuildId: guildId, urlGuild: guild };
     }
 
     setCurrentGuildId(guildId);

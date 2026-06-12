@@ -3903,7 +3903,6 @@ export type GetDocumentCollaboratorsApiV1CollaborationDocumentsDocumentIdCollabo
 
 export type SyncDocumentContentApiV1CollaborationDocumentsDocumentIdSyncContentPostParams = {
   token: string;
-  guild_id: number;
 };
 
 export type ListQueuesApiV1QueuesGetParams = {

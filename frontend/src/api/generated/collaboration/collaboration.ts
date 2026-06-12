@@ -271,7 +271,9 @@ export function useGetDocumentCollaboratorsApiV1CollaborationDocumentsDocumentId
  * Sync Lexical content from the frontend to the database.
  *
  * This endpoint is called via navigator.sendBeacon when the page unloads
- * to ensure the content column stays in sync with yjs_state.
+ * to ensure the content column stays in sync with yjs_state. The guild
+ * comes from the user's server-held context (``users.active_guild_id``) —
+ * the document being synced was open inside its guild.
  *
  * The request body should contain the Lexical serialized state as JSON.
  * @summary Sync Document Content

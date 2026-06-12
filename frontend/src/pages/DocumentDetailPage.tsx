@@ -466,7 +466,7 @@ export const DocumentDetailPage = () => {
           const isAbsolute =
             API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
           const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
-          const syncUrl = `${baseUrl}/collaboration/documents/${sourceDocumentId}/sync-content?token=${encodeURIComponent(token)}&guild_id=${activeGuildId}`;
+          const syncUrl = `${baseUrl}/collaboration/documents/${sourceDocumentId}/sync-content?token=${encodeURIComponent(token)}`;
           fetch(syncUrl, {
             method: "POST",
             body: JSON.stringify(stored.content),
@@ -849,7 +849,7 @@ export const DocumentDetailPage = () => {
       // Build the sync URL
       const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
       const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
-      const syncUrl = `${baseUrl}/collaboration/documents/${parsedId}/sync-content?token=${encodeURIComponent(token)}&guild_id=${activeGuildId}`;
+      const syncUrl = `${baseUrl}/collaboration/documents/${parsedId}/sync-content?token=${encodeURIComponent(token)}`;
 
       // Send content via fetch with keepalive (more reliable than sendBeacon, less likely to be blocked)
       fetch(syncUrl, {
