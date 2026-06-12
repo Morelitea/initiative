@@ -170,6 +170,7 @@ async def serve_upload_file(
     # at, so an outsider always 404s without existence being confirmed, and a
     # hit in one of the requester's schemas establishes membership by
     # construction.
+    from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
 
     fname = FilePath(filename).name
@@ -183,8 +184,11 @@ async def serve_upload_file(
             )
         ).all()
     ]
-    # int() + guild_schema_name keep the identifiers injection-safe; only
-    # schemas that actually exist are probed.
+    # Only probe guilds whose schema actually exists (pg_namespace is a system
+    # catalog readable by any role). The admin login role has NO table grants on
+    # a guild schema, so we must SET ROLE into the guild role to read it —
+    # ``set_rls_context`` does that. A bare ``SELECT FROM "guild_<id>".uploads``
+    # as the admin role fails with "permission denied for schema".
     schema_by_gid = {int(gid): guild_schema_name(int(gid)) for gid in member_guild_ids}
     existing = {
         row.nspname
@@ -196,15 +200,13 @@ async def serve_upload_file(
         ).all()
     }
     found = False
-    for schema in schema_by_gid.values():
+    for gid, schema in schema_by_gid.items():
         if schema not in existing:
             continue
+        await set_rls_context(session, guild_id=gid, is_superadmin=True)
         hit = (
             await session.execute(
-                text(
-                    f'SELECT 1 FROM "{schema}".uploads'  # noqa: S608 — schema from int()
-                    " WHERE filename = :fn LIMIT 1"
-                ),
+                text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),
                 {"fn": fname},
             )
         ).first()

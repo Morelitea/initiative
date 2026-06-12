@@ -558,26 +558,14 @@ async def get_backlog_trend(
     return "Growing" if assigned_count > completed_count else "Shrinking"
 
 
-async def get_user_stats(
+async def _compute_guild_stats(
     session: AsyncSession,
     user: User,
-    guild_id: Optional[int] = None,
-    days: int = 90,
+    guild_id: int,
+    days: int,
 ) -> UserStatsResponse:
-    """
-    Get comprehensive user statistics.
-
-    Args:
-        session: Database session
-        user: User object
-        guild_id: Optional guild ID to filter stats
-        days: Number of days to include in analysis (not currently used, for future extension)
-
-    Returns:
-        UserStatsResponse with all metrics
-    """
-    # Execute all metric calculations sequentially
-    # Note: SQLAlchemy async sessions don't support concurrent operations on the same session
+    """Compute all stats for ONE guild. Assumes the session is already routed
+    into that guild's schema (set_rls_context)."""
     streak = await calculate_user_streak(session, user.id, user.timezone, guild_id)
     on_time_rate = await calculate_on_time_rate(session, user.id, guild_id)
     avg_completion_days = await calculate_avg_completion_days(
@@ -594,11 +582,6 @@ async def get_user_stats(
     backlog_trend = await get_backlog_trend(
         session, user.id, user.timezone, user.week_starts_on, guild_id
     )
-
-    # If guild_id is specified, filter guild_breakdown to only show that guild
-    if guild_id:
-        guild_breakdown = [g for g in guild_breakdown if g.guild_id == guild_id]
-
     return UserStatsResponse(
         streak=streak,
         on_time_rate=round(on_time_rate, 1),
@@ -612,3 +595,118 @@ async def get_user_stats(
         heatmap_data=heatmap_data,
         guild_breakdown=guild_breakdown,
     )
+
+
+def _merge_stats(parts: List[UserStatsResponse]) -> UserStatsResponse:
+    """Merge per-guild stats for the cross-guild ("all guilds") view. Additive
+    metrics sum exactly; rate-style metrics are weighted by completed volume."""
+    total_completed = sum(p.tasks_completed_total for p in parts)
+    weight = total_completed or 1
+
+    # Velocity: same week boundaries across guilds (derived from the user's tz/
+    # week start, not the guild), so sum by week_start.
+    vel: dict = {}
+    for p in parts:
+        for w in p.velocity_data:
+            cur = vel.get(w.week_start)
+            if cur is None:
+                vel[w.week_start] = VelocityWeekData(
+                    week_start=w.week_start,
+                    assigned=w.assigned,
+                    completed=w.completed,
+                )
+            else:
+                cur.assigned += w.assigned
+                cur.completed += w.completed
+    velocity_data = [vel[k] for k in sorted(vel)]
+
+    heat: dict = {}
+    for p in parts:
+        for h in p.heatmap_data:
+            cur = heat.get(h.day)
+            if cur is None:
+                heat[h.day] = HeatmapDayData(day=h.day, activity_count=h.activity_count)
+            else:
+                cur.activity_count += h.activity_count
+    heatmap_data = [heat[k] for k in sorted(heat)]
+
+    acd_pairs = [
+        (p.avg_completion_days, p.tasks_completed_total)
+        for p in parts
+        if p.avg_completion_days is not None and p.tasks_completed_total
+    ]
+    avg_completion_days = (
+        round(sum(v * w for v, w in acd_pairs) / sum(w for _, w in acd_pairs), 1)
+        if acd_pairs
+        else None
+    )
+
+    tot_assigned = sum(w.assigned for w in velocity_data)
+    tot_completed = sum(w.completed for w in velocity_data)
+
+    return UserStatsResponse(
+        # Best-effort across guilds; exact when a single guild is selected.
+        streak=max(p.streak for p in parts),
+        on_time_rate=round(
+            sum(p.on_time_rate * p.tasks_completed_total for p in parts) / weight, 1
+        ),
+        avg_completion_days=avg_completion_days,
+        tasks_completed_total=total_completed,
+        tasks_completed_this_week=sum(p.tasks_completed_this_week for p in parts),
+        backlog_trend="Growing" if tot_assigned > tot_completed else "Shrinking",
+        velocity_data=velocity_data,
+        heatmap_data=heatmap_data,
+        guild_breakdown=[g for p in parts for g in p.guild_breakdown],
+    )
+
+
+async def get_user_stats(
+    session: AsyncSession,
+    user: User,
+    guild_id: Optional[int] = None,
+    days: int = 90,
+) -> UserStatsResponse:
+    """Get comprehensive user statistics, routed per guild.
+
+    Tasks/projects/initiatives live in per-guild schemas, so a single query on
+    the unrouted (public) session reads the frozen backup and returns zeros.
+    We route into each target guild's schema and compute there: one guild when
+    ``guild_id`` is given (exact), otherwise every guild the user belongs to,
+    merged.
+    """
+    from app.db.session import set_rls_context
+    from app.services.cross_guild import member_guild_ids
+
+    # Always restrict to the user's own guilds (membership is the access gate);
+    # a guild_id the user isn't in yields no stats rather than routing into a
+    # foreign schema.
+    target_guilds = await member_guild_ids(
+        session, user.id, restrict_to=[guild_id] if guild_id is not None else None
+    )
+
+    parts: List[UserStatsResponse] = []
+    for gid in target_guilds:
+        session.expunge_all()
+        await set_rls_context(session, user_id=user.id, guild_id=gid)
+        parts.append(await _compute_guild_stats(session, user, gid, days))
+
+    # Reset to the user-only (public) baseline so the caller's session isn't
+    # left routed into the last guild.
+    session.expunge_all()
+    await set_rls_context(session, user_id=user.id)
+
+    if not parts:
+        return UserStatsResponse(
+            streak=0,
+            on_time_rate=0.0,
+            avg_completion_days=None,
+            tasks_completed_total=0,
+            tasks_completed_this_week=0,
+            backlog_trend="Shrinking",
+            velocity_data=[],
+            heatmap_data=[],
+            guild_breakdown=[],
+        )
+    if len(parts) == 1:
+        return parts[0]
+    return _merge_stats(parts)
