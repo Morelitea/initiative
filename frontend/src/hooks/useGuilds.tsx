@@ -356,7 +356,13 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
       try {
         contextChanged = await pushServerContext(guildId);
       } catch (err) {
+        // Abort: flipping the local UI into a guild the server context never
+        // reached would have every guild-scoped request resolving under the
+        // OLD context — wrong guild, no error indication. Leave local state
+        // alone so UI and server stay consistent; the user can retry.
         console.error("Failed to set guild context", err);
+        toast.error("Unable to enter guild. Please try again.");
+        return;
       }
 
       if (guildId === activeGuildIdRef.current) {
