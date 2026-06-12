@@ -1,16 +1,50 @@
 """Tests for application settings parsing."""
 
+import pytest
+from pydantic import ValidationError
+
 from app.core.config import CAPACITOR_NATIVE_ORIGINS, Settings
+
+# Test-only key satisfying the SECRET_KEY validator (64 hex chars). Not a secret.
+TEST_SECRET_KEY = "f2d8a1c4b7e90365d4a2f8c1b6e3079a5c8d2e4f6a1b3c5d7e9f0a2b4c6d8e1f"
 
 
 def _settings(**overrides) -> Settings:
     overrides.setdefault("APP_URL", "https://app.example.com")
+    overrides.setdefault("SECRET_KEY", TEST_SECRET_KEY)
     return Settings(
-        SECRET_KEY="test-secret",
         DATABASE_URL_APP="postgresql+asyncpg://app:app@localhost/app",
         DATABASE_URL_ADMIN="postgresql+asyncpg://admin:admin@localhost/app",
         **overrides,
     )
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    [
+        "",
+        "   ",
+        "change-me",
+        "CHANGE-ME",
+        "super-secret-key",
+        "changeme",
+        "secret",
+        "tooshort1234567890",  # < 32 chars
+        # Padded otherwise-valid key: rejected rather than silently stripped,
+        # since normalizing would rotate the effective HMAC/Fernet key.
+        " f2d8a1c4b7e90365d4a2f8c1b6e3079a5c8d2e4f6a1b3c5d7e9f0a2b4c6d8e1f ",
+    ],
+)
+def test_secret_key_rejects_weak_values(bad_key):
+    # SEC-3: known placeholders and short keys must fail closed at startup —
+    # this one key signs JWTs and the OIDC state HMAC and roots all Fernet
+    # field encryption.
+    with pytest.raises(ValidationError, match="SECRET_KEY"):
+        _settings(SECRET_KEY=bad_key)
+
+
+def test_secret_key_accepts_strong_value():
+    assert _settings().SECRET_KEY == TEST_SECRET_KEY
 
 
 def test_cors_allowed_origins_accepts_comma_separated_string():
@@ -159,3 +193,30 @@ def test_csp_advanced_tool_origin_only_when_configured():
     csp = on.content_security_policy
     assert "https://tool.example.com" in _directive(csp, "frame-src")
     assert "https://tool.example.com" in _directive(csp, "connect-src")
+
+
+def test_app_url_is_https_true_for_https():
+    # Drives both the Secure cookie flag and the HSTS header (pentest SEC-16).
+    assert _settings(APP_URL="https://app.example.com").app_url_is_https is True
+    assert _settings(APP_URL="https://app.example.com").cookie_secure is True
+
+
+def test_app_url_is_https_false_for_http():
+    s = _settings(APP_URL="http://localhost:5173")
+    assert s.app_url_is_https is False
+    assert s.cookie_secure is False
+
+
+def test_app_url_is_https_ignores_substring_scheme():
+    # A host that merely contains "https" must not be treated as https — only
+    # the URL scheme counts.
+    assert _settings(APP_URL="http://https.example.com").app_url_is_https is False
+
+
+def test_enable_api_docs_defaults_true():
+    # Default on for dev ergonomics; operators set it False in production.
+    assert _settings().ENABLE_API_DOCS is True
+
+
+def test_enable_api_docs_can_be_disabled():
+    assert _settings(ENABLE_API_DOCS=False).ENABLE_API_DOCS is False

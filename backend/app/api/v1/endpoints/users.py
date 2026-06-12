@@ -27,7 +27,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
 from app.models.initiative import InitiativeMember
 from app.core.capabilities import Capability, user_has_capability
-from app.models.user import User, UserStatus
+from app.models.user import User, UserRole, UserStatus
 from app.models.user_token import UserToken, UserTokenPurpose
 from app.schemas.user import (
     UserCreate,
@@ -246,7 +246,13 @@ async def create_user(
         email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
         full_name=user_in.full_name,
         hashed_password=get_password_hash(user_in.password),
-        role=user_in.role,
+        # Always a plain platform ``member`` — a guild admin must never be
+        # able to mint an elevated platform role (owner/admin/...) from this
+        # endpoint. Platform roles are changed only via the capability-gated,
+        # bounded-delegation flow at ``/admin/users/{id}/platform-role``.
+        # ``UserCreate`` no longer carries a ``role`` field, so there is
+        # nothing in the request body to honour here. See SEC-1.
+        role=UserRole.member,
         email_verified=True,
     )
     session.add(user)

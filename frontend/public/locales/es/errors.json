@@ -1,8 +1,12 @@
 {
+  "ATTACHMENT_TOO_LARGE": "La imagen es demasiado grande (máx. 10 MB)",
+  "DOCUMENT_FILE_TOO_LARGE": "El archivo es demasiado grande (máx. 50 MB)",
   "EMAIL_ALREADY_REGISTERED": "Email ya registrado",
+  "INVITE_EMAIL_MISMATCH": "Esta invitación se emitió para otra dirección de correo electrónico",
   "REGISTRATION_REQUIRES_INVITE": "El registro requiere un código de invitación",
   "CAPTCHA_REQUIRED": "Por favor completa el captcha e inténtalo de nuevo.",
   "CAPTCHA_INVALID": "La verificación del captcha falló. Inténtalo de nuevo.",
+  "SETTINGS_EMAIL_SEND_FAILED": "No se pudo enviar el correo de prueba. Consulta los registros del servidor para más detalles.",
   "UNABLE_TO_CREATE_USER": "No se pudo crear el usuario",
   "INCORRECT_CREDENTIALS": "Email o contraseña incorrectos",
   "PASSWORD_TOO_SHORT": "La contraseña debe tener al menos 12 caracteres.",

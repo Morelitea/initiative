@@ -11,6 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
+from app.services import attachments as attachments_service
 from app.models.document import (
     Document,
     DocumentFileVersion,
@@ -697,3 +698,153 @@ async def test_delete_version_non_file_document_rejected(
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "DOCUMENT_NOT_A_FILE_DOCUMENT"
+
+
+# ---------------------------------------------------------------------------
+# Bounded upload reads (SEC-7): over-limit bodies are rejected with 413 before
+# the whole payload is buffered into memory. The size cap is shrunk via
+# monkeypatch so the test payloads stay tiny.
+# ---------------------------------------------------------------------------
+
+# A small PDF that comfortably fits under the shrunk cap below.
+_TINY_PDF = b"%PDF-1.4 tiny body for size tests"
+
+
+@pytest.mark.integration
+async def test_upload_document_file_over_limit_rejected(
+    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /documents/upload rejects a body over the cap with 413."""
+    cap = 1024
+    monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
+
+    owner, guild, initiative = await _setup_guild_with_owner(session)
+    headers = get_guild_headers(guild, owner)
+
+    oversized = b"%PDF-1.4 " + b"A" * (cap + 1)
+    resp = await client.post(
+        "/api/v1/documents/upload",
+        headers=headers,
+        data={"title": "Too big", "initiative_id": str(initiative.id)},
+        files={"file": ("big.pdf", oversized, "application/pdf")},
+    )
+
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "DOCUMENT_FILE_TOO_LARGE"
+
+    # Nothing was persisted.
+    docs = (
+        await session.exec(
+            select(Document).where(Document.initiative_id == initiative.id)
+        )
+    ).all()
+    assert all(d.title != "Too big" for d in docs)
+
+
+@pytest.mark.integration
+async def test_upload_document_file_just_under_limit_succeeds(
+    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /documents/upload accepts a body at/under the cap."""
+    cap = 4096
+    monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
+
+    owner, guild, initiative = await _setup_guild_with_owner(session)
+    headers = get_guild_headers(guild, owner)
+
+    under = _TINY_PDF + b" " + b"B" * (cap - len(_TINY_PDF) - 1)
+    assert len(under) == cap
+    resp = await client.post(
+        "/api/v1/documents/upload",
+        headers=headers,
+        data={"title": "Under cap", "initiative_id": str(initiative.id)},
+        files={"file": ("under.pdf", under, "application/pdf")},
+    )
+
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["file_size"] == cap
+
+    for v in (
+        await session.exec(
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == body["id"]
+            )
+        )
+    ).all():
+        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_upload_document_version_over_limit_rejected(
+    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /documents/{id}/versions rejects a body over the cap with 413."""
+    owner, guild, initiative = await _setup_guild_with_owner(session)
+    # Seed v1 while the cap is still large so the document exists.
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
+
+    cap = 1024
+    monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
+
+    headers = get_guild_headers(guild, owner)
+    oversized = b"%PDF-1.4 " + b"A" * (cap + 1)
+    resp = await client.post(
+        f"/api/v1/documents/{doc['id']}/versions",
+        headers=headers,
+        files={"file": ("big.pdf", oversized, "application/pdf")},
+    )
+
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "DOCUMENT_FILE_TOO_LARGE"
+
+    # Only the original v1 exists; the oversized upload created no version.
+    versions = (
+        await session.exec(
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
+        )
+    ).all()
+    assert {v.version_number for v in versions} == {1}
+    for v in versions:
+        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+async def test_upload_document_version_just_under_limit_succeeds(
+    client: AsyncClient, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /documents/{id}/versions accepts a body at/under the cap."""
+    owner, guild, initiative = await _setup_guild_with_owner(session)
+    doc = await _upload_initial_file_doc(
+        client, guild=guild, user=owner, initiative=initiative
+    )
+
+    cap = 4096
+    monkeypatch.setattr(attachments_service, "MAX_DOCUMENT_FILE_SIZE", cap)
+
+    headers = get_guild_headers(guild, owner)
+    under = _TINY_PDF + b" " + b"B" * (cap - len(_TINY_PDF) - 1)
+    assert len(under) == cap
+    resp = await client.post(
+        f"/api/v1/documents/{doc['id']}/versions",
+        headers=headers,
+        files={"file": ("v2.pdf", under, "application/pdf")},
+    )
+
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["version_number"] == 2
+    assert body["file_size"] == cap
+
+    for v in (
+        await session.exec(
+            select(DocumentFileVersion).where(
+                DocumentFileVersion.document_id == doc["id"]
+            )
+        )
+    ).all():
+        (_uploads_dir() / v.file_url.split("/")[-1]).unlink(missing_ok=True)

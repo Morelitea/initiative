@@ -41,11 +41,17 @@ reserved_prefixes = [
     if prefix and prefix.strip("/")
 ]
 
+# Gate the interactive docs + raw OpenAPI schema behind a setting (pentest
+# SEC-16). When disabled, FastAPI serves no /docs and no /openapi.json, so the
+# full route/parameter/error map isn't handed out. Defaults to on for dev
+# ergonomics; recommend ENABLE_API_DOCS=False in production.
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=__version__,
-    docs_url=f"{settings.API_V1_STR}/docs",
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    docs_url=f"{settings.API_V1_STR}/docs" if settings.ENABLE_API_DOCS else None,
+    openapi_url=(
+        f"{settings.API_V1_STR}/openapi.json" if settings.ENABLE_API_DOCS else None
+    ),
     redoc_url=None,
 )
 
@@ -77,6 +83,14 @@ async def validation_exception_handler(
 # Computed once — Settings are fixed for the process lifetime (pentest MED-001).
 _CONTENT_SECURITY_POLICY = settings.content_security_policy
 
+# Emit HSTS only when the public origin is HTTPS (pentest SEC-16): the header is
+# inert over plain HTTP and pinning a dev http:// origin to HTTPS would break it.
+# Two years + includeSubDomains is the preload-eligible baseline; computed once
+# since Settings are immutable for the process lifetime.
+_STRICT_TRANSPORT_SECURITY = (
+    "max-age=63072000; includeSubDomains" if settings.app_url_is_https else None
+)
+
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Any) -> Response:
@@ -89,6 +103,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # setdefault: preserve any stricter per-response CSP (e.g. the upload
         # route's `script-src 'none'`) instead of overriding it.
         response.headers.setdefault("Content-Security-Policy", _CONTENT_SECURITY_POLICY)
+        if _STRICT_TRANSPORT_SECURITY is not None:
+            # Unconditional (not setdefault): unlike CSP there is no legitimate
+            # per-route reason to weaken HSTS, so the middleware always wins.
+            response.headers["Strict-Transport-Security"] = _STRICT_TRANSPORT_SECURITY
         return response
 
 
@@ -129,20 +147,25 @@ async def serve_upload_file(
     if not file_path.is_file():
         raise HTTPException(status_code=404)
 
-    # Guild authorization: look up upload record and verify membership
+    # Guild authorization: look up upload record and verify membership.
+    # Fail closed: a blob on disk without a matching Upload row has no owning
+    # guild to authorize against, so we 404 (don't confirm existence) rather
+    # than serve it to any authenticated user cross-guild. Every legitimate
+    # write path inserts an Upload row, so a row-less blob is never expected.
     record_result = await session.exec(
         select(Upload).where(Upload.filename == FilePath(filename).name)
     )
     record = record_result.one_or_none()
-    if record is not None:
-        membership_result = await session.exec(
-            select(GuildMembership).where(
-                GuildMembership.guild_id == record.guild_id,
-                GuildMembership.user_id == current_user.id,
-            )
+    if record is None:
+        raise HTTPException(status_code=404)
+    membership_result = await session.exec(
+        select(GuildMembership).where(
+            GuildMembership.guild_id == record.guild_id,
+            GuildMembership.user_id == current_user.id,
         )
-        if membership_result.one_or_none() is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+    )
+    if membership_result.one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
 
     headers: dict[str, str] = {}
     if filename.lower().endswith((".svg", ".html", ".htm")):

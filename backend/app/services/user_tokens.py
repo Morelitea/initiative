@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
 import secrets
 from typing import Optional, List
 
@@ -10,8 +11,27 @@ from app.models.user_token import UserToken, UserTokenPurpose
 
 
 DEFAULT_TOKEN_TTL_MINUTES = 60
-# Device tokens last 100 years (effectively never expire)
-DEVICE_TOKEN_TTL_DAYS = 36500
+# Device tokens are sliding-window: capped at this many days from last use.
+# Presenting the token (see ``get_device_token``) refreshes the expiry, so an
+# actively-used device stays logged in indefinitely while an abandoned token
+# dies within the cap.
+DEVICE_TOKEN_TTL_DAYS = 90
+# Refreshing expiry on every single request would write to the DB on every
+# authenticated call. The window is only re-slid once the previous slide is
+# more than a day old — i.e. when the remaining lifetime has dropped below
+# ``TTL - 1 day`` — so an active device writes at most ~once/day while its
+# expiry still tracks last use to within a day.
+DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD = timedelta(days=DEVICE_TOKEN_TTL_DAYS - 1)
+
+
+def _hash_token(token: str) -> str:
+    """Hash a token for storage/lookup.
+
+    Tokens are high-entropy random secrets (``secrets.token_urlsafe(48)``), so a
+    single unsalted SHA-256 is sufficient and keeps lookups indexable — this
+    mirrors ``app.services.api_keys._hash_token``.
+    """
+    return sha256(token.encode("utf-8")).hexdigest()
 
 
 async def _delete_existing_tokens(
@@ -40,12 +60,13 @@ async def create_token(
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
     token = UserToken(
         user_id=user_id,
-        token=token_value,
+        token=_hash_token(token_value),
         purpose=purpose,
         expires_at=expires_at,
     )
     session.add(token)
     await session.commit()
+    # Return the raw token exactly once; only its hash is persisted.
     return token_value
 
 
@@ -56,7 +77,7 @@ async def get_valid_token(
     purpose: UserTokenPurpose,
 ) -> Optional[UserToken]:
     stmt = select(UserToken).where(
-        UserToken.token == token,
+        UserToken.token == _hash_token(token),
         UserToken.purpose == purpose,
     )
     result = await session.exec(stmt)
@@ -103,18 +124,19 @@ async def create_device_token(
     user_id: int,
     device_name: str,
 ) -> str:
-    """Create a long-lived device token for mobile app authentication."""
+    """Create a sliding-window device token for mobile app authentication."""
     token_value = secrets.token_urlsafe(48)
     expires_at = datetime.now(timezone.utc) + timedelta(days=DEVICE_TOKEN_TTL_DAYS)
     token = UserToken(
         user_id=user_id,
-        token=token_value,
+        token=_hash_token(token_value),
         purpose=UserTokenPurpose.device_auth,
         device_name=device_name,
         expires_at=expires_at,
     )
     session.add(token)
     await session.commit()
+    # Return the raw token exactly once; only its hash is persisted.
     return token_value
 
 
@@ -123,10 +145,28 @@ async def get_device_token(
     *,
     token: str,
 ) -> Optional[UserToken]:
-    """Get a valid device token (not consumed, not expired)."""
-    return await get_valid_token(
+    """Get a valid device token (not consumed, not expired) and slide its expiry.
+
+    Device tokens use a sliding 90-day window: each successful presentation
+    pushes ``expires_at`` to now + ``DEVICE_TOKEN_TTL_DAYS`` so an actively-used
+    device never has to re-authenticate, while an abandoned token expires within
+    the cap. The write is throttled (only once the remaining lifetime falls below
+    ``DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD``, i.e. at most ~once/day) to avoid
+    a DB write on every call.
+    """
+    record = await get_valid_token(
         session, token=token, purpose=UserTokenPurpose.device_auth
     )
+    if record is None:
+        return None
+    now = datetime.now(timezone.utc)
+    if record.expires_at - now < DEVICE_TOKEN_SLIDING_REFRESH_THRESHOLD:
+        record.expires_at = now + timedelta(days=DEVICE_TOKEN_TTL_DAYS)
+        session.add(record)
+        await session.commit()
+        await reapply_rls_context(session)
+        await session.refresh(record)
+    return record
 
 
 async def get_user_device_tokens(

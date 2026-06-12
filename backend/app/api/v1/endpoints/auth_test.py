@@ -957,10 +957,15 @@ async def test_password_reset_rejects_short_password(
     assert response.json()["detail"] == "PASSWORD_TOO_SHORT"
 
     # Reset token must still be redeemable — we failed before consuming it.
+    # Tokens are stored hashed (SEC-13), so look the row up by its hash.
     from sqlmodel import select
 
+    from app.services.user_tokens import _hash_token
+
     fresh = (
-        await session.exec(select(UserToken).where(UserToken.token == token))
+        await session.exec(
+            select(UserToken).where(UserToken.token == _hash_token(token))
+        )
     ).one()
     assert fresh.consumed_at is None
 

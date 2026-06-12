@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.models.upload import Upload
 from app.models.user import User
 from app.schemas.attachment import AttachmentUploadResponse
+from app.services.attachments import FileTooLargeError, read_upload_bounded
 
 router = APIRouter()
 
@@ -47,8 +48,9 @@ async def upload_attachment(
             detail=AttachmentMessages.IMAGE_ONLY,
         )
 
-    contents = await file.read(MAX_IMAGE_BYTES + 1)
-    if len(contents) > MAX_IMAGE_BYTES:
+    try:
+        contents = await read_upload_bounded(file, MAX_IMAGE_BYTES)
+    except FileTooLargeError:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail=AttachmentMessages.TOO_LARGE,

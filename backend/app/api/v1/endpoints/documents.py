@@ -976,8 +976,17 @@ async def upload_document_file(
     # Check for duplicate title in initiative
     await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
 
-    # Read and validate file content
-    contents = await file.read()
+    # Read the body with a hard cap so an over-limit upload is rejected before
+    # the whole payload is buffered into memory (memory-exhaustion DoS guard).
+    try:
+        contents = await attachments_service.read_upload_bounded(
+            file, attachments_service.MAX_DOCUMENT_FILE_SIZE
+        )
+    except attachments_service.FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=DocumentMessages.FILE_TOO_LARGE,
+        )
     try:
         mime_type, extension = attachments_service.validate_document_file(
             content=contents,
@@ -1090,7 +1099,17 @@ async def upload_document_version(
         )
     _require_document_access(document, current_user, access="write")
 
-    contents = await file.read()
+    # Read the body with a hard cap so an over-limit upload is rejected before
+    # the whole payload is buffered into memory (memory-exhaustion DoS guard).
+    try:
+        contents = await attachments_service.read_upload_bounded(
+            file, attachments_service.MAX_DOCUMENT_FILE_SIZE
+        )
+    except attachments_service.FileTooLargeError:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=DocumentMessages.FILE_TOO_LARGE,
+        )
     try:
         mime_type, extension = attachments_service.validate_document_file(
             content=contents,

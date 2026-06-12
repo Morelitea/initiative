@@ -7,6 +7,8 @@ from typing import Any, Dict, Iterable, Mapping, Set, Tuple
 from urllib.parse import urlparse
 from uuid import uuid4
 
+from fastapi import UploadFile
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,33 @@ UPLOADS_URL_PREFIX = "/uploads/"
 
 # Maximum file size for document uploads: 50 MB
 MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024
+
+
+class FileTooLargeError(Exception):
+    """Raised when an uploaded file exceeds the allowed byte limit.
+
+    Carries the limit so callers can build an accurate error response without
+    re-deriving it.
+    """
+
+    def __init__(self, max_size: int) -> None:
+        self.max_size = max_size
+        super().__init__(f"File exceeds maximum size of {max_size} bytes")
+
+
+async def read_upload_bounded(file: UploadFile, max_size: int) -> bytes:
+    """Read an upload without buffering more than ``max_size`` bytes.
+
+    Reads ``max_size + 1`` bytes so an over-limit body is detected from the
+    single extra byte instead of materializing the whole payload in memory
+    (which would let a large upload exhaust process memory). Returns the file
+    bytes when within the limit; raises :class:`FileTooLargeError` otherwise.
+    """
+    contents = await file.read(max_size + 1)
+    if len(contents) > max_size:
+        raise FileTooLargeError(max_size)
+    return contents
+
 
 # Supported MIME types for document file uploads (based on react-doc-viewer support)
 ALLOWED_DOCUMENT_MIME_TYPES: Dict[str, str] = {

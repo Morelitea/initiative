@@ -8,7 +8,7 @@ from sqlalchemy import func
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import encrypt_field, SALT_EMAIL
+from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.guild import Guild, GuildInvite, GuildMembership, GuildRole
 from app.models.guild_setting import GuildSetting
@@ -522,6 +522,18 @@ async def redeem_invite_for_user(
         raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
     if not invite_is_active(invite):
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
+
+    # Email binding. ``invitee_email`` is advisory-when-absent: an invite with no
+    # bound address (``invitee_email_encrypted`` is NULL) is a shareable link and
+    # any authenticated user may redeem it. When it *is* set, the invite is bound
+    # to that address and only the matching user may redeem it — otherwise the
+    # binding is decorative and gives a false sense of security (SEC-15). We
+    # compare via ``hash_email`` so normalization (lowercase/strip) matches the
+    # users.email_hash unique-constraint exactly; ``user.email_hash`` is already
+    # populated in both the register and accept-invite flows.
+    bound_email = invite.invitee_email
+    if bound_email and user.email_hash != hash_email(bound_email):
+        raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
 
     await ensure_membership(
         session,

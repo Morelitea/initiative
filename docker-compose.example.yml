@@ -39,8 +39,9 @@ services:
       DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:${APP_ADMIN_PASSWORD:-app_admin_password}@db:5432/${POSTGRES_DB:-initiative}
       # Superuser connection (used for migrations and role creation)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-initiative}:${POSTGRES_PASSWORD:-initiative}@db:5432/${POSTGRES_DB:-initiative}
-      SECRET_KEY: super-secret-key
-      ACCESS_TOKEN_EXPIRE_MINUTES: 10080
+      # REQUIRED: generate with `openssl rand -hex 32`. The stack refuses to start without it.
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set - generate with openssl rand -hex 32}
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
       APP_URL: ${APP_URL:-http://localhost:8173}
       # Optional: Enable OIDC authentication
       # OIDC_ENABLED: true

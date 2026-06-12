@@ -418,6 +418,110 @@ async def test_redeem_invite_expired_raises_error(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_redeem_email_bound_invite_wrong_user_rejected(session: AsyncSession):
+    """An email-bound invite must reject a user whose email differs (SEC-15)."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    wrong_user = await create_user(session, email="someone-else@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email="invitee@example.com",
+        max_uses=5,
+    )
+
+    with pytest.raises(guild_service.GuildInviteError, match="INVITE_EMAIL_MISMATCH"):
+        await guild_service.redeem_invite_for_user(
+            session,
+            code=invite.code,
+            user=wrong_user,
+        )
+
+    # Membership must NOT have been created and the use count must be untouched.
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=wrong_user.id
+    )
+    assert membership is None
+
+    stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
+    result = await session.exec(stmt)
+    assert result.one().uses == 0
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_email_bound_invite_matching_user_succeeds(
+    session: AsyncSession,
+):
+    """An email-bound invite admits the matching user, case-insensitively."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    # User's stored email is normalized (lowercased) by create_user; the invite
+    # carries a mixed-case form to prove normalization is applied on both sides.
+    invitee = await create_user(session, email="invitee@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email="Invitee@Example.com",
+        max_uses=5,
+    )
+
+    redeemed_guild = await guild_service.redeem_invite_for_user(
+        session,
+        code=invite.code,
+        user=invitee,
+    )
+
+    assert redeemed_guild.id == guild.id
+
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=invitee.id
+    )
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+    stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
+    result = await session.exec(stmt)
+    assert result.one().uses == 1
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_unbound_invite_any_user_succeeds(session: AsyncSession):
+    """An invite with no bound email stays a shareable link (unchanged behavior)."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    redeemer = await create_user(session, email="random@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email=None,
+        max_uses=5,
+    )
+
+    redeemed_guild = await guild_service.redeem_invite_for_user(
+        session,
+        code=invite.code,
+        user=redeemer,
+    )
+
+    assert redeemed_guild.id == guild.id
+
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=redeemer.id
+    )
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+
+@pytest.mark.unit
+@pytest.mark.service
 async def test_delete_guild_invite(session: AsyncSession):
     """Test deleting a guild invite."""
     guild = await create_guild(session)

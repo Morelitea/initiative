@@ -66,9 +66,50 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     COOKIE_NAME: str = "session_token"
 
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def _validate_secret_key(cls, value: str) -> str:
+        # SECRET_KEY signs session JWTs and the OIDC state HMAC, and roots all
+        # Fernet field encryption (SMTP password, OIDC client secret, AI keys,
+        # refresh tokens) plus the email_hash HMAC. A known placeholder or
+        # short key makes every one of those forgeable/decryptable, so fail
+        # closed at startup rather than booting with a guessable key.
+        known_placeholders = {"change-me", "changeme", "super-secret-key", "secret"}
+        normalized = value.strip()
+        if not normalized or normalized.lower() in known_placeholders:
+            raise ValueError(
+                "SECRET_KEY is unset or a known placeholder. Generate a real "
+                "key with: openssl rand -hex 32"
+            )
+        # Reject (rather than silently strip) surrounding whitespace: every
+        # byte of this value feeds HMAC/Fernet key derivation, so quietly
+        # normalizing it would rotate the effective key out from under a
+        # deployment whose env var carried stray whitespace.
+        if normalized != value:
+            raise ValueError(
+                "SECRET_KEY has leading or trailing whitespace. Remove it — "
+                "the exact value is used for key derivation."
+            )
+        if len(normalized) < 32:
+            raise ValueError(
+                "SECRET_KEY must be at least 32 characters. Generate one "
+                "with: openssl rand -hex 32"
+            )
+        return value
+
+    @property
+    def app_url_is_https(self) -> bool:
+        """True when the public app origin is served over HTTPS.
+
+        Drives both the ``Secure`` cookie flag and whether the
+        ``Strict-Transport-Security`` header is emitted — HSTS over plain HTTP
+        is meaningless and would needlessly pin a dev origin to HTTPS.
+        """
+        return urlsplit(self.APP_URL.strip()).scheme == "https"
+
     @property
     def cookie_secure(self) -> bool:
-        return self.APP_URL.startswith("https")
+        return self.app_url_is_https
 
     AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
@@ -280,6 +321,17 @@ class Settings(BaseSettings):
     BEHIND_PROXY: bool = (
         False  # Set True when behind nginx/load balancer to trust X-Forwarded-For
     )
+
+    # Expose the interactive API docs (Swagger UI at ``{API_V1_STR}/docs``) and
+    # the raw OpenAPI schema (``{API_V1_STR}/openapi.json``). Defaults to True so
+    # local development keeps its self-documenting API and the frontend's Orval
+    # type generation against a running backend keeps working out of the box.
+    # Operators SHOULD set this to ``False`` in production: the schema enumerates
+    # every route, parameter, and error shape, handing an attacker a free map of
+    # the attack surface (pentest SEC-16). The committed
+    # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
+    # generation never needs a live ``/openapi.json`` in CI or prod.
+    ENABLE_API_DOCS: bool = True
 
     # Reject passwords that appear in the HaveIBeenPwned breach corpus
     # when a user sets one (registration, reset, change). Uses the

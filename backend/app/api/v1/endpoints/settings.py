@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -40,6 +41,8 @@ from app.schemas.push import FCMConfigResponse
 from app.core.messages import SettingsMessages
 from app.services import app_settings as app_settings_service
 from app.services import email as email_service
+
+logger = logging.getLogger(__name__)
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
@@ -223,8 +226,13 @@ async def send_test_email(
             detail=SettingsMessages.SMTP_INCOMPLETE,
         ) from None
     except RuntimeError as exc:
+        # Log the real cause (may include SMTP host/port/server banner) for the
+        # operator, but return only a generic machine-readable code so the
+        # response never leaks internal mail-server details (pentest SEC-16).
+        logger.warning("Test email delivery failed: %s", str(exc))
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=SettingsMessages.EMAIL_SEND_FAILED,
         ) from exc
     return {"status": "sent"}
 
