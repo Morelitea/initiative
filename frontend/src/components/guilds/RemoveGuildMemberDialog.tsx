@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 
 import type { GuildRemovalEligibilityResponse } from "@/api/generated/initiativeAPI.schemas";
 import {
-  checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet,
-  deleteUserApiV1UsersUserIdDelete,
+  checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet,
+  deleteUserApiV1GGuildIdUsersUserIdDelete,
 } from "@/api/generated/users/users";
 import { invalidateUsersList } from "@/api/query-keys";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
@@ -65,6 +66,7 @@ export const RemoveGuildMemberDialog = ({
   onSuccess,
 }: RemoveGuildMemberDialogProps) => {
   const { t } = useTranslation(["guilds", "common"]);
+  const guildId = useActiveGuildId();
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState(false);
   const [eligibility, setEligibility] = useState<GuildRemovalEligibilityResponse | null>(null);
@@ -92,9 +94,11 @@ export const RemoveGuildMemberDialog = ({
       setLoading(true);
       setError(null);
       try {
-        const data = (await checkGuildRemovalEligibilityApiV1UsersUserIdGuildRemovalEligibilityGet(
-          userId
-        )) as unknown as GuildRemovalEligibilityResponse;
+        const data =
+          (await checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet(
+            guildId,
+            userId
+          )) as unknown as GuildRemovalEligibilityResponse;
         setEligibility(data);
         setProjectDispositions(
           Object.fromEntries(
@@ -113,7 +117,7 @@ export const RemoveGuildMemberDialog = ({
     };
 
     void checkEligibility();
-  }, [open, userId, t]);
+  }, [open, userId, guildId, t]);
 
   const ownedProjects = eligibility?.owned_projects ?? [];
   const hasOwnedProjects = ownedProjects.length > 0;
@@ -140,7 +144,7 @@ export const RemoveGuildMemberDialog = ({
           transfers[project.id] = projectTransfers[project.id];
         }
       }
-      await deleteUserApiV1UsersUserIdDelete(userId, {
+      await deleteUserApiV1GGuildIdUsersUserIdDelete(guildId, userId, {
         project_transfers: transfers,
         project_deletions: deletions,
       });

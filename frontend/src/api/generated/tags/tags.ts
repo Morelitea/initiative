@@ -37,56 +37,70 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * List all tags in the current guild.
  * @summary List Tags
  */
-export const listTagsApiV1TagsGet = (
+export const listTagsApiV1GGuildIdTagsGet = (
+  guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<TagRead[]>({ url: `/api/v1/tags/`, method: "GET", signal }, options);
+  return apiMutator<TagRead[]>(
+    { url: `/api/v1/g/${guildId}/tags/`, method: "GET", signal },
+    options
+  );
 };
 
-export const getListTagsApiV1TagsGetQueryKey = () => {
-  return [`/api/v1/tags/`] as const;
+export const getListTagsApiV1GGuildIdTagsGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/tags/`] as const;
 };
 
-export const getListTagsApiV1TagsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listTagsApiV1TagsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1TagsGet>>, TError, TData>>;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getListTagsApiV1TagsGetQueryKey();
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTagsApiV1TagsGet>>> = ({ signal }) =>
-    listTagsApiV1TagsGet(requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listTagsApiV1TagsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListTagsApiV1TagsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listTagsApiV1TagsGet>>
->;
-export type ListTagsApiV1TagsGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListTagsApiV1TagsGet<
-  TData = Awaited<ReturnType<typeof listTagsApiV1TagsGet>>,
+export const getListTagsApiV1GGuildIdTagsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListTagsApiV1GGuildIdTagsGetQueryKey(guildId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>> = ({
+    signal,
+  }) => listTagsApiV1GGuildIdTagsGet(guildId, requestOptions, signal);
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type ListTagsApiV1GGuildIdTagsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>
+>;
+export type ListTagsApiV1GGuildIdTagsGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListTagsApiV1GGuildIdTagsGet<
+  TData = Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1TagsGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listTagsApiV1TagsGet>>,
+          Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>,
           TError,
-          Awaited<ReturnType<typeof listTagsApiV1TagsGet>>
+          Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>
         >,
         "initialData"
       >;
@@ -94,19 +108,20 @@ export function useListTagsApiV1TagsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListTagsApiV1TagsGet<
-  TData = Awaited<ReturnType<typeof listTagsApiV1TagsGet>>,
+export function useListTagsApiV1GGuildIdTagsGet<
+  TData = Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1TagsGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listTagsApiV1TagsGet>>,
+          Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>,
           TError,
-          Awaited<ReturnType<typeof listTagsApiV1TagsGet>>
+          Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>
         >,
         "initialData"
       >;
@@ -114,13 +129,14 @@ export function useListTagsApiV1TagsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListTagsApiV1TagsGet<
-  TData = Awaited<ReturnType<typeof listTagsApiV1TagsGet>>,
+export function useListTagsApiV1GGuildIdTagsGet<
+  TData = Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1TagsGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -130,19 +146,20 @@ export function useListTagsApiV1TagsGet<
  * @summary List Tags
  */
 
-export function useListTagsApiV1TagsGet<
-  TData = Awaited<ReturnType<typeof listTagsApiV1TagsGet>>,
+export function useListTagsApiV1GGuildIdTagsGet<
+  TData = Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1TagsGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listTagsApiV1GGuildIdTagsGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListTagsApiV1TagsGetQueryOptions(options);
+  const queryOptions = getListTagsApiV1GGuildIdTagsGetQueryOptions(guildId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -155,14 +172,15 @@ export function useListTagsApiV1TagsGet<
  * Create a new tag in the current guild.
  * @summary Create Tag
  */
-export const createTagApiV1TagsPost = (
+export const createTagApiV1GGuildIdTagsPost = (
+  guildId: number,
   tagCreate: BodyType<TagCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TagRead>(
     {
-      url: `/api/v1/tags/`,
+      url: `/api/v1/g/${guildId}/tags/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: tagCreate,
@@ -172,24 +190,24 @@ export const createTagApiV1TagsPost = (
   );
 };
 
-export const getCreateTagApiV1TagsPostMutationOptions = <
+export const getCreateTagApiV1GGuildIdTagsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createTagApiV1TagsPost>>,
+    Awaited<ReturnType<typeof createTagApiV1GGuildIdTagsPost>>,
     TError,
-    { data: BodyType<TagCreate> },
+    { guildId: number; data: BodyType<TagCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createTagApiV1TagsPost>>,
+  Awaited<ReturnType<typeof createTagApiV1GGuildIdTagsPost>>,
   TError,
-  { data: BodyType<TagCreate> },
+  { guildId: number; data: BodyType<TagCreate> },
   TContext
 > => {
-  const mutationKey = ["createTagApiV1TagsPost"];
+  const mutationKey = ["createTagApiV1GGuildIdTagsPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -197,113 +215,122 @@ export const getCreateTagApiV1TagsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createTagApiV1TagsPost>>,
-    { data: BodyType<TagCreate> }
+    Awaited<ReturnType<typeof createTagApiV1GGuildIdTagsPost>>,
+    { guildId: number; data: BodyType<TagCreate> }
   > = (props) => {
-    const { data } = props ?? {};
+    const { guildId, data } = props ?? {};
 
-    return createTagApiV1TagsPost(data, requestOptions);
+    return createTagApiV1GGuildIdTagsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateTagApiV1TagsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createTagApiV1TagsPost>>
+export type CreateTagApiV1GGuildIdTagsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createTagApiV1GGuildIdTagsPost>>
 >;
-export type CreateTagApiV1TagsPostMutationBody = BodyType<TagCreate>;
-export type CreateTagApiV1TagsPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateTagApiV1GGuildIdTagsPostMutationBody = BodyType<TagCreate>;
+export type CreateTagApiV1GGuildIdTagsPostMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Create Tag
  */
-export const useCreateTagApiV1TagsPost = <
+export const useCreateTagApiV1GGuildIdTagsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createTagApiV1TagsPost>>,
+      Awaited<ReturnType<typeof createTagApiV1GGuildIdTagsPost>>,
       TError,
-      { data: BodyType<TagCreate> },
+      { guildId: number; data: BodyType<TagCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createTagApiV1TagsPost>>,
+  Awaited<ReturnType<typeof createTagApiV1GGuildIdTagsPost>>,
   TError,
-  { data: BodyType<TagCreate> },
+  { guildId: number; data: BodyType<TagCreate> },
   TContext
 > => {
-  return useMutation(getCreateTagApiV1TagsPostMutationOptions(options), queryClient);
+  return useMutation(getCreateTagApiV1GGuildIdTagsPostMutationOptions(options), queryClient);
 };
 /**
  * Get a specific tag by ID.
  * @summary Get Tag
  */
-export const getTagApiV1TagsTagIdGet = (
+export const getTagApiV1GGuildIdTagsTagIdGet = (
+  guildId: number,
   tagId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<TagRead>({ url: `/api/v1/tags/${tagId}`, method: "GET", signal }, options);
+  return apiMutator<TagRead>(
+    { url: `/api/v1/g/${guildId}/tags/${tagId}`, method: "GET", signal },
+    options
+  );
 };
 
-export const getGetTagApiV1TagsTagIdGetQueryKey = (tagId: number) => {
-  return [`/api/v1/tags/${tagId}`] as const;
+export const getGetTagApiV1GGuildIdTagsTagIdGetQueryKey = (guildId: number, tagId: number) => {
+  return [`/api/v1/g/${guildId}/tags/${tagId}`] as const;
 };
 
-export const getGetTagApiV1TagsTagIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>,
+export const getGetTagApiV1GGuildIdTagsTagIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetTagApiV1TagsTagIdGetQueryKey(tagId);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetTagApiV1GGuildIdTagsTagIdGetQueryKey(guildId, tagId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>> = ({
     signal,
-  }) => getTagApiV1TagsTagIdGet(tagId, requestOptions, signal);
+  }) => getTagApiV1GGuildIdTagsTagIdGet(guildId, tagId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: tagId !== null && tagId !== undefined,
+    enabled: guildId !== null && guildId !== undefined && tagId !== null && tagId !== undefined,
     ...queryOptions,
-  } as UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>, TError, TData> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetTagApiV1TagsTagIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>
+export type GetTagApiV1GGuildIdTagsTagIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>
 >;
-export type GetTagApiV1TagsTagIdGetQueryError = ErrorType<HTTPValidationError>;
+export type GetTagApiV1GGuildIdTagsTagIdGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetTagApiV1TagsTagIdGet<
-  TData = Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>,
+export function useGetTagApiV1GGuildIdTagsTagIdGet<
+  TData = Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>,
+          Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>,
           TError,
-          Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>
+          Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>
         >,
         "initialData"
       >;
@@ -311,20 +338,21 @@ export function useGetTagApiV1TagsTagIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetTagApiV1TagsTagIdGet<
-  TData = Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>,
+export function useGetTagApiV1GGuildIdTagsTagIdGet<
+  TData = Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>,
+          Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>,
           TError,
-          Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>
+          Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>
         >,
         "initialData"
       >;
@@ -332,14 +360,15 @@ export function useGetTagApiV1TagsTagIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetTagApiV1TagsTagIdGet<
-  TData = Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>,
+export function useGetTagApiV1GGuildIdTagsTagIdGet<
+  TData = Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -349,20 +378,21 @@ export function useGetTagApiV1TagsTagIdGet<
  * @summary Get Tag
  */
 
-export function useGetTagApiV1TagsTagIdGet<
-  TData = Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>,
+export function useGetTagApiV1GGuildIdTagsTagIdGet<
+  TData = Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1TagsTagIdGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof getTagApiV1GGuildIdTagsTagIdGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetTagApiV1TagsTagIdGetQueryOptions(tagId, options);
+  const queryOptions = getGetTagApiV1GGuildIdTagsTagIdGetQueryOptions(guildId, tagId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -375,7 +405,8 @@ export function useGetTagApiV1TagsTagIdGet<
  * Update a tag's name or color.
  * @summary Update Tag
  */
-export const updateTagApiV1TagsTagIdPatch = (
+export const updateTagApiV1GGuildIdTagsTagIdPatch = (
+  guildId: number,
   tagId: number,
   tagUpdate: BodyType<TagUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -383,7 +414,7 @@ export const updateTagApiV1TagsTagIdPatch = (
 ) => {
   return apiMutator<TagRead>(
     {
-      url: `/api/v1/tags/${tagId}`,
+      url: `/api/v1/g/${guildId}/tags/${tagId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: tagUpdate,
@@ -393,24 +424,24 @@ export const updateTagApiV1TagsTagIdPatch = (
   );
 };
 
-export const getUpdateTagApiV1TagsTagIdPatchMutationOptions = <
+export const getUpdateTagApiV1GGuildIdTagsTagIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateTagApiV1TagsTagIdPatch>>,
+    Awaited<ReturnType<typeof updateTagApiV1GGuildIdTagsTagIdPatch>>,
     TError,
-    { tagId: number; data: BodyType<TagUpdate> },
+    { guildId: number; tagId: number; data: BodyType<TagUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateTagApiV1TagsTagIdPatch>>,
+  Awaited<ReturnType<typeof updateTagApiV1GGuildIdTagsTagIdPatch>>,
   TError,
-  { tagId: number; data: BodyType<TagUpdate> },
+  { guildId: number; tagId: number; data: BodyType<TagUpdate> },
   TContext
 > => {
-  const mutationKey = ["updateTagApiV1TagsTagIdPatch"];
+  const mutationKey = ["updateTagApiV1GGuildIdTagsTagIdPatch"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -418,79 +449,83 @@ export const getUpdateTagApiV1TagsTagIdPatchMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateTagApiV1TagsTagIdPatch>>,
-    { tagId: number; data: BodyType<TagUpdate> }
+    Awaited<ReturnType<typeof updateTagApiV1GGuildIdTagsTagIdPatch>>,
+    { guildId: number; tagId: number; data: BodyType<TagUpdate> }
   > = (props) => {
-    const { tagId, data } = props ?? {};
+    const { guildId, tagId, data } = props ?? {};
 
-    return updateTagApiV1TagsTagIdPatch(tagId, data, requestOptions);
+    return updateTagApiV1GGuildIdTagsTagIdPatch(guildId, tagId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateTagApiV1TagsTagIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateTagApiV1TagsTagIdPatch>>
+export type UpdateTagApiV1GGuildIdTagsTagIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTagApiV1GGuildIdTagsTagIdPatch>>
 >;
-export type UpdateTagApiV1TagsTagIdPatchMutationBody = BodyType<TagUpdate>;
-export type UpdateTagApiV1TagsTagIdPatchMutationError = ErrorType<HTTPValidationError>;
+export type UpdateTagApiV1GGuildIdTagsTagIdPatchMutationBody = BodyType<TagUpdate>;
+export type UpdateTagApiV1GGuildIdTagsTagIdPatchMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Tag
  */
-export const useUpdateTagApiV1TagsTagIdPatch = <
+export const useUpdateTagApiV1GGuildIdTagsTagIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateTagApiV1TagsTagIdPatch>>,
+      Awaited<ReturnType<typeof updateTagApiV1GGuildIdTagsTagIdPatch>>,
       TError,
-      { tagId: number; data: BodyType<TagUpdate> },
+      { guildId: number; tagId: number; data: BodyType<TagUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateTagApiV1TagsTagIdPatch>>,
+  Awaited<ReturnType<typeof updateTagApiV1GGuildIdTagsTagIdPatch>>,
   TError,
-  { tagId: number; data: BodyType<TagUpdate> },
+  { guildId: number; tagId: number; data: BodyType<TagUpdate> },
   TContext
 > => {
-  return useMutation(getUpdateTagApiV1TagsTagIdPatchMutationOptions(options), queryClient);
+  return useMutation(getUpdateTagApiV1GGuildIdTagsTagIdPatchMutationOptions(options), queryClient);
 };
 /**
  * Soft-delete a tag. The tag moves to the guild's trash; on hard-purge
  * its junction rows fall via FK CASCADE.
  * @summary Delete Tag
  */
-export const deleteTagApiV1TagsTagIdDelete = (
+export const deleteTagApiV1GGuildIdTagsTagIdDelete = (
+  guildId: number,
   tagId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>({ url: `/api/v1/tags/${tagId}`, method: "DELETE", signal }, options);
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/tags/${tagId}`, method: "DELETE", signal },
+    options
+  );
 };
 
-export const getDeleteTagApiV1TagsTagIdDeleteMutationOptions = <
+export const getDeleteTagApiV1GGuildIdTagsTagIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteTagApiV1TagsTagIdDelete>>,
+    Awaited<ReturnType<typeof deleteTagApiV1GGuildIdTagsTagIdDelete>>,
     TError,
-    { tagId: number },
+    { guildId: number; tagId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteTagApiV1TagsTagIdDelete>>,
+  Awaited<ReturnType<typeof deleteTagApiV1GGuildIdTagsTagIdDelete>>,
   TError,
-  { tagId: number },
+  { guildId: number; tagId: number },
   TContext
 > => {
-  const mutationKey = ["deleteTagApiV1TagsTagIdDelete"];
+  const mutationKey = ["deleteTagApiV1GGuildIdTagsTagIdDelete"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -498,47 +533,47 @@ export const getDeleteTagApiV1TagsTagIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteTagApiV1TagsTagIdDelete>>,
-    { tagId: number }
+    Awaited<ReturnType<typeof deleteTagApiV1GGuildIdTagsTagIdDelete>>,
+    { guildId: number; tagId: number }
   > = (props) => {
-    const { tagId } = props ?? {};
+    const { guildId, tagId } = props ?? {};
 
-    return deleteTagApiV1TagsTagIdDelete(tagId, requestOptions);
+    return deleteTagApiV1GGuildIdTagsTagIdDelete(guildId, tagId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteTagApiV1TagsTagIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteTagApiV1TagsTagIdDelete>>
+export type DeleteTagApiV1GGuildIdTagsTagIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteTagApiV1GGuildIdTagsTagIdDelete>>
 >;
 
-export type DeleteTagApiV1TagsTagIdDeleteMutationError = ErrorType<HTTPValidationError>;
+export type DeleteTagApiV1GGuildIdTagsTagIdDeleteMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete Tag
  */
-export const useDeleteTagApiV1TagsTagIdDelete = <
+export const useDeleteTagApiV1GGuildIdTagsTagIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteTagApiV1TagsTagIdDelete>>,
+      Awaited<ReturnType<typeof deleteTagApiV1GGuildIdTagsTagIdDelete>>,
       TError,
-      { tagId: number },
+      { guildId: number; tagId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteTagApiV1TagsTagIdDelete>>,
+  Awaited<ReturnType<typeof deleteTagApiV1GGuildIdTagsTagIdDelete>>,
   TError,
-  { tagId: number },
+  { guildId: number; tagId: number },
   TContext
 > => {
-  return useMutation(getDeleteTagApiV1TagsTagIdDeleteMutationOptions(options), queryClient);
+  return useMutation(getDeleteTagApiV1GGuildIdTagsTagIdDeleteMutationOptions(options), queryClient);
 };
 /**
  * Get all entities (tasks, projects, documents) with this tag.
@@ -546,30 +581,35 @@ export const useDeleteTagApiV1TagsTagIdDelete = <
  * Only returns entities the user has permission to access.
  * @summary Get Tag Entities
  */
-export const getTagEntitiesApiV1TagsTagIdEntitiesGet = (
+export const getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet = (
+  guildId: number,
   tagId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TaggedEntitiesResponse>(
-    { url: `/api/v1/tags/${tagId}/entities`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/tags/${tagId}/entities`, method: "GET", signal },
     options
   );
 };
 
-export const getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryKey = (tagId: number) => {
-  return [`/api/v1/tags/${tagId}/entities`] as const;
+export const getGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryKey = (
+  guildId: number,
+  tagId: number
+) => {
+  return [`/api/v1/g/${guildId}/tags/${tagId}/entities`] as const;
 };
 
-export const getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+export const getGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+        Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
         TError,
         TData
       >
@@ -580,47 +620,51 @@ export const getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryKey(tagId);
+    queryOptions?.queryKey ??
+    getGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryKey(guildId, tagId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>
-  > = ({ signal }) => getTagEntitiesApiV1TagsTagIdEntitiesGet(tagId, requestOptions, signal);
+    Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>
+  > = ({ signal }) =>
+    getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet(guildId, tagId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: tagId !== null && tagId !== undefined,
+    enabled: guildId !== null && guildId !== undefined && tagId !== null && tagId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+    Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetTagEntitiesApiV1TagsTagIdEntitiesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>
+export type GetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>
 >;
-export type GetTagEntitiesApiV1TagsTagIdEntitiesGetQueryError = ErrorType<HTTPValidationError>;
+export type GetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-export function useGetTagEntitiesApiV1TagsTagIdEntitiesGet<
-  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+export function useGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet<
+  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+        Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+          Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
           TError,
-          Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>
+          Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>
         >,
         "initialData"
       >;
@@ -628,24 +672,25 @@ export function useGetTagEntitiesApiV1TagsTagIdEntitiesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetTagEntitiesApiV1TagsTagIdEntitiesGet<
-  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+export function useGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet<
+  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+        Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+          Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
           TError,
-          Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>
+          Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>
         >,
         "initialData"
       >;
@@ -653,15 +698,16 @@ export function useGetTagEntitiesApiV1TagsTagIdEntitiesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetTagEntitiesApiV1TagsTagIdEntitiesGet<
-  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+export function useGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet<
+  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+        Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
         TError,
         TData
       >
@@ -674,15 +720,16 @@ export function useGetTagEntitiesApiV1TagsTagIdEntitiesGet<
  * @summary Get Tag Entities
  */
 
-export function useGetTagEntitiesApiV1TagsTagIdEntitiesGet<
-  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+export function useGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet<
+  TData = Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   tagId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getTagEntitiesApiV1TagsTagIdEntitiesGet>>,
+        Awaited<ReturnType<typeof getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet>>,
         TError,
         TData
       >
@@ -691,7 +738,11 @@ export function useGetTagEntitiesApiV1TagsTagIdEntitiesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryOptions(tagId, options);
+  const queryOptions = getGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryOptions(
+    guildId,
+    tagId,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

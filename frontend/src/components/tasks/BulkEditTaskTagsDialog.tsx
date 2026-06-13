@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
-import { setTaskTagsApiV1TasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
+import { setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut } from "@/api/generated/tasks/tasks";
 import { invalidateAllTasks } from "@/api/query-keys";
 import { BulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 interface BulkEditTaskTagsDialogProps extends DialogWithSuccessProps {
@@ -13,6 +14,7 @@ interface BulkEditTaskTagsDialogProps extends DialogWithSuccessProps {
 
 export function BulkEditTaskTagsDialog({ tasks, ...dialogProps }: BulkEditTaskTagsDialogProps) {
   const { t } = useTranslation(["tasks", "common"]);
+  const guildId = useActiveGuildId();
 
   const labels = useMemo(
     () => ({
@@ -38,7 +40,9 @@ export function BulkEditTaskTagsDialog({ tasks, ...dialogProps }: BulkEditTaskTa
     <BulkEditTagsDialog
       {...dialogProps}
       items={tasks}
-      setTags={(taskId, tagIds) => setTaskTagsApiV1TasksTaskIdTagsPut(taskId, { tag_ids: tagIds })}
+      setTags={(taskId, tagIds) =>
+        setTaskTagsApiV1GGuildIdTasksTaskIdTagsPut(guildId, taskId, { tag_ids: tagIds })
+      }
       onInvalidate={() => void invalidateAllTasks()}
       labels={labels}
     />

@@ -4,7 +4,7 @@ import type {
   ArchiveDoneResponse,
   GenerateDescriptionResponse,
   GenerateSubtasksResponse,
-  ListTasksApiV1TasksGetParams,
+  ListTasksApiV1GGuildIdTasksGetParams,
   SubtaskRead,
   SubtaskReorderItem,
   TaskListRead,
@@ -13,31 +13,32 @@ import type {
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  deleteSubtaskApiV1SubtasksSubtaskIdDelete,
-  updateSubtaskApiV1SubtasksSubtaskIdPatch,
+  deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete,
+  updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch,
 } from "@/api/generated/subtasks/subtasks";
-import { getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey } from "@/api/generated/task-statuses/task-statuses";
+import { getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey } from "@/api/generated/task-statuses/task-statuses";
 import {
-  archiveDoneTasksApiV1TasksArchiveDonePost,
-  createSubtaskApiV1TasksTaskIdSubtasksPost,
-  createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost,
-  createTaskApiV1TasksPost,
-  deleteTaskApiV1TasksTaskIdDelete,
-  duplicateTaskApiV1TasksTaskIdDuplicatePost,
-  generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost,
-  generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost,
-  getListSubtasksApiV1TasksTaskIdSubtasksGetQueryKey,
-  getListTasksApiV1TasksGetQueryKey,
-  getReadTaskApiV1TasksTaskIdGetQueryKey,
-  listSubtasksApiV1TasksTaskIdSubtasksGet,
-  listTasksApiV1TasksGet,
-  moveTaskApiV1TasksTaskIdMovePost,
-  readTaskApiV1TasksTaskIdGet,
-  reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut,
-  reorderTasksApiV1TasksReorderPost,
-  updateTaskApiV1TasksTaskIdPatch,
+  archiveDoneTasksApiV1GGuildIdTasksArchiveDonePost,
+  createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost,
+  createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost,
+  createTaskApiV1GGuildIdTasksPost,
+  deleteTaskApiV1GGuildIdTasksTaskIdDelete,
+  duplicateTaskApiV1GGuildIdTasksTaskIdDuplicatePost,
+  generateTaskDescriptionApiV1GGuildIdTasksTaskIdAiDescriptionPost,
+  generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost,
+  getListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryKey,
+  getListTasksApiV1GGuildIdTasksGetQueryKey,
+  getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
+  listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet,
+  listTasksApiV1GGuildIdTasksGet,
+  moveTaskApiV1GGuildIdTasksTaskIdMovePost,
+  readTaskApiV1GGuildIdTasksTaskIdGet,
+  reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut,
+  reorderTasksApiV1GGuildIdTasksReorderPost,
+  updateTaskApiV1GGuildIdTasksTaskIdPatch,
 } from "@/api/generated/tasks/tasks";
 import { invalidateAllTasks, invalidateTask, invalidateTaskSubtasks } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -49,41 +50,47 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 export const useTask = (taskId: number | null, options?: QueryOpts<TaskListRead>) => {
+  const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TaskListRead>({
-    queryKey: getReadTaskApiV1TasksTaskIdGetQueryKey(taskId!),
-    queryFn: castQueryFn<TaskListRead>(() => readTaskApiV1TasksTaskIdGet(taskId!)),
+    queryKey: getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, taskId!),
+    queryFn: castQueryFn<TaskListRead>(() => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, taskId!)),
     enabled: taskId !== null && Number.isFinite(taskId) && userEnabled,
     ...rest,
   });
 };
 
 export const useTasks = (
-  params: ListTasksApiV1TasksGetParams,
+  params: ListTasksApiV1GGuildIdTasksGetParams,
   options?: QueryOpts<TaskListResponse>
 ) => {
+  const guildId = useActiveGuildId();
   return useQuery<TaskListResponse>({
-    queryKey: getListTasksApiV1TasksGetQueryKey(params),
-    queryFn: castQueryFn<TaskListResponse>(() => listTasksApiV1TasksGet(params)),
+    queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, params),
+    queryFn: castQueryFn<TaskListResponse>(() => listTasksApiV1GGuildIdTasksGet(guildId, params)),
     ...options,
   });
 };
 
 export const usePrefetchTasks = () => {
   const qc = useQueryClient();
-  return (params: ListTasksApiV1TasksGetParams) => {
+  const guildId = useActiveGuildId();
+  return (params: ListTasksApiV1GGuildIdTasksGetParams) => {
     return qc.prefetchQuery({
-      queryKey: getListTasksApiV1TasksGetQueryKey(params),
-      queryFn: castQueryFn<TaskListResponse>(() => listTasksApiV1TasksGet(params)),
+      queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, params),
+      queryFn: castQueryFn<TaskListResponse>(() => listTasksApiV1GGuildIdTasksGet(guildId, params)),
       staleTime: 30_000,
     });
   };
 };
 
 export const useSubtasks = (taskId: number, options?: QueryOpts<SubtaskRead[]>) => {
+  const guildId = useActiveGuildId();
   return useQuery<SubtaskRead[]>({
-    queryKey: getListSubtasksApiV1TasksTaskIdSubtasksGetQueryKey(taskId),
-    queryFn: castQueryFn<SubtaskRead[]>(() => listSubtasksApiV1TasksTaskIdSubtasksGet(taskId)),
+    queryKey: getListSubtasksApiV1GGuildIdTasksTaskIdSubtasksGetQueryKey(guildId, taskId),
+    queryFn: castQueryFn<SubtaskRead[]>(() =>
+      listSubtasksApiV1GGuildIdTasksTaskIdSubtasksGet(guildId, taskId)
+    ),
     ...options,
   });
 };
@@ -91,14 +98,15 @@ export const useSubtasks = (taskId: number, options?: QueryOpts<SubtaskRead[]>) 
 // ── Task Mutations ──────────────────────────────────────────────────────────
 
 export const useCreateTask = (
-  options?: MutationOpts<TaskListRead, Parameters<typeof createTaskApiV1TasksPost>[0]>
+  options?: MutationOpts<TaskListRead, Parameters<typeof createTaskApiV1GGuildIdTasksPost>[1]>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
-    mutationFn: async (data: Parameters<typeof createTaskApiV1TasksPost>[0]) => {
-      return createTaskApiV1TasksPost(data) as unknown as Promise<TaskListRead>;
+    mutationFn: async (data: Parameters<typeof createTaskApiV1GGuildIdTasksPost>[1]) => {
+      return createTaskApiV1GGuildIdTasksPost(guildId, data) as unknown as Promise<TaskListRead>;
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();
@@ -118,18 +126,19 @@ export const useCreateTask = (
 // task_status.category before a status-changing PATCH so the success path can
 // detect "transitioned into done" and fire the visual-feedback effect.
 const findCachedTask = (
+  guildId: number,
   queryClient: ReturnType<typeof useQueryClient>,
   taskId: number
 ): TaskListRead | null => {
   const direct = queryClient.getQueryData<TaskListRead>(
-    getReadTaskApiV1TasksTaskIdGetQueryKey(taskId)
+    getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, taskId)
   );
   if (direct?.task_status) return direct;
 
   const entries = queryClient.getQueriesData<TaskListResponse>({
     predicate: (query) => {
       const first = query.queryKey[0];
-      return typeof first === "string" && first.startsWith("/api/v1/tasks/");
+      return typeof first === "string" && first.startsWith(`/api/v1/g/${guildId}/tasks/`);
     },
   });
   for (const [, value] of entries) {
@@ -146,15 +155,17 @@ export const useUpdateTask = (
     TaskListRead,
     {
       taskId: number;
-      data: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[1];
-      /** Explicit guild address for cross-guild updates from personal-mode
-       * surfaces (e.g. My Tasks status changes). Omit on guild pages. */
-      params?: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[2];
+      data: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2];
+      /** Passthrough request options (e.g. AbortSignal). The guild is the
+       * active route's guild (path param). For cross-guild updates from
+       * personal surfaces use useUpdateTaskInGuild instead. */
+      params?: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[3];
     }
   >
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
+  const guildId = useActiveGuildId();
   const { user } = useAuth();
 
   return useMutation({
@@ -165,10 +176,11 @@ export const useUpdateTask = (
       params,
     }: {
       taskId: number;
-      data: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[1];
-      params?: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[2];
+      data: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2];
+      params?: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[3];
     }) => {
-      return updateTaskApiV1TasksTaskIdPatch(
+      return updateTaskApiV1GGuildIdTasksTaskIdPatch(
+        guildId,
         taskId,
         data,
         params
@@ -177,7 +189,7 @@ export const useUpdateTask = (
     onMutate: ({ taskId }) => {
       // Snapshot the task's previous status category so onSuccess can detect
       // the non-done -> done transition that fires the celebratory effect.
-      const cached = findCachedTask(queryClient, taskId);
+      const cached = findCachedTask(guildId, queryClient, taskId);
       return { previousCategory: cached?.task_status?.category ?? null };
     },
     onSuccess: (...args) => {
@@ -208,13 +220,79 @@ export const useUpdateTask = (
   });
 };
 
+/**
+ * Cross-guild task update for personal/My-Tasks surfaces. The task lives in its
+ * OWN guild (per-guild task ids collide), so the guild is passed EXPLICITLY in
+ * the mutation variables rather than read from the active route. This is a
+ * separate endpoint call from {@link useUpdateTask}, which is guild-page bound.
+ */
+export const useUpdateTaskInGuild = (
+  options?: MutationOpts<
+    TaskListRead,
+    {
+      guildId: number;
+      taskId: number;
+      data: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2];
+    }
+  >
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({
+      guildId,
+      taskId,
+      data,
+    }: {
+      guildId: number;
+      taskId: number;
+      data: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2];
+    }) => {
+      return updateTaskApiV1GGuildIdTasksTaskIdPatch(
+        guildId,
+        taskId,
+        data
+      ) as unknown as Promise<TaskListRead>;
+    },
+    onMutate: ({ guildId, taskId }) => {
+      const cached = findCachedTask(guildId, queryClient, taskId);
+      return { previousCategory: cached?.task_status?.category ?? null };
+    },
+    onSuccess: (...args) => {
+      const [updated, vars, context] = args;
+      void invalidateAllTasks();
+      void invalidateTask(vars.taskId);
+
+      const previousCategory = (context as { previousCategory?: string | null } | undefined)
+        ?.previousCategory;
+      const newCategory = updated?.task_status?.category;
+      const movedIntoDone = newCategory === "done" && previousCategory !== "done";
+      if (movedIntoDone && user) {
+        const isAssigned = updated.assignees?.some((assignee) => assignee.id === user.id) ?? false;
+        fireTaskCompletionFeedback(user, { isAssigned });
+      }
+
+      onSuccess?.(...args);
+    },
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "tasks:errors.statusUpdate"));
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
 export const useDeleteTask = (options?: MutationOpts<void, number>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async (taskId: number) => {
-      await deleteTaskApiV1TasksTaskIdDelete(taskId);
+      await deleteTaskApiV1GGuildIdTasksTaskIdDelete(guildId, taskId);
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();
@@ -230,11 +308,12 @@ export const useDeleteTask = (options?: MutationOpts<void, number>) => {
 
 export const useBulkDeleteTasks = (options?: MutationOpts<void, number[]>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async (taskIds: number[]) => {
-      await Promise.all(taskIds.map((id) => deleteTaskApiV1TasksTaskIdDelete(id)));
+      await Promise.all(taskIds.map((id) => deleteTaskApiV1GGuildIdTasksTaskIdDelete(guildId, id)));
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();
@@ -251,10 +330,11 @@ export const useBulkDeleteTasks = (options?: MutationOpts<void, number[]>) => {
 export const useBulkUpdateTasks = (
   options?: MutationOpts<
     TaskListRead[],
-    { taskIds: number[]; changes: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[1] }
+    { taskIds: number[]; changes: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2] }
   >
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -263,12 +343,16 @@ export const useBulkUpdateTasks = (
       changes,
     }: {
       taskIds: number[];
-      changes: Parameters<typeof updateTaskApiV1TasksTaskIdPatch>[1];
+      changes: Parameters<typeof updateTaskApiV1GGuildIdTasksTaskIdPatch>[2];
     }) => {
       const results = await Promise.all(
         taskIds.map(
           (taskId) =>
-            updateTaskApiV1TasksTaskIdPatch(taskId, changes) as unknown as Promise<TaskListRead>
+            updateTaskApiV1GGuildIdTasksTaskIdPatch(
+              guildId,
+              taskId,
+              changes
+            ) as unknown as Promise<TaskListRead>
         )
       );
       return results;
@@ -287,6 +371,7 @@ export const useBulkUpdateTasks = (
 
 export const useBulkArchiveTasks = (options?: MutationOpts<TaskListRead[], number[]>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -294,11 +379,11 @@ export const useBulkArchiveTasks = (options?: MutationOpts<TaskListRead[], numbe
       const results = await Promise.all(
         taskIds.map(
           (taskId) =>
-            updateTaskApiV1TasksTaskIdPatch(taskId, {
+            updateTaskApiV1GGuildIdTasksTaskIdPatch(guildId, taskId, {
               is_archived: true,
             } as Parameters<
-              typeof updateTaskApiV1TasksTaskIdPatch
-            >[1]) as unknown as Promise<TaskListRead>
+              typeof updateTaskApiV1GGuildIdTasksTaskIdPatch
+            >[2]) as unknown as Promise<TaskListRead>
         )
       );
       return results;
@@ -319,6 +404,7 @@ export const useMoveTask = (
   options?: MutationOpts<TaskListRead, { taskId: number; targetProjectId: number }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -329,7 +415,7 @@ export const useMoveTask = (
       taskId: number;
       targetProjectId: number;
     }) => {
-      return moveTaskApiV1TasksTaskIdMovePost(taskId, {
+      return moveTaskApiV1GGuildIdTasksTaskIdMovePost(guildId, taskId, {
         target_project_id: targetProjectId,
       }) as unknown as Promise<TaskListRead>;
     },
@@ -347,11 +433,15 @@ export const useMoveTask = (
 
 export const useDuplicateTask = (options?: MutationOpts<TaskListRead, number>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async (taskId: number) => {
-      return duplicateTaskApiV1TasksTaskIdDuplicatePost(taskId) as unknown as Promise<TaskListRead>;
+      return duplicateTaskApiV1GGuildIdTasksTaskIdDuplicatePost(
+        guildId,
+        taskId
+      ) as unknown as Promise<TaskListRead>;
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();
@@ -368,13 +458,15 @@ export const useDuplicateTask = (options?: MutationOpts<TaskListRead, number>) =
 export const useReorderTasks = (options?: MutationOpts<TaskListRead[], TaskReorderRequest>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
+  const guildId = useActiveGuildId();
   const { user } = useAuth();
 
   return useMutation({
     ...rest,
     mutationFn: async (payload: TaskReorderRequest) => {
-      return reorderTasksApiV1TasksReorderPost(
-        payload as Parameters<typeof reorderTasksApiV1TasksReorderPost>[0]
+      return reorderTasksApiV1GGuildIdTasksReorderPost(
+        guildId,
+        payload as Parameters<typeof reorderTasksApiV1GGuildIdTasksReorderPost>[1]
       ) as unknown as Promise<TaskListRead[]>;
     },
     onMutate: (payload) => {
@@ -392,13 +484,16 @@ export const useReorderTasks = (options?: MutationOpts<TaskListRead[], TaskReord
       let assignedTransitionToDone = false;
       if (user) {
         for (const item of payload.items) {
-          const cached = findCachedTask(queryClient, item.id);
+          const cached = findCachedTask(guildId, queryClient, item.id);
           if (!cached) continue;
           if (cached.task_status_id === item.task_status_id) continue; // unchanged
           if (cached.task_status?.category === "done") continue; // already done
           const newStatus = queryClient
             .getQueryData<TaskStatusRead[]>(
-              getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(cached.project_id)
+              getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
+                guildId,
+                cached.project_id
+              )
             )
             ?.find((s) => s.id === item.task_status_id);
           if (newStatus?.category !== "done") continue; // not moving into done
@@ -436,6 +531,7 @@ export const useArchiveDoneTasks = (
   options?: MutationOpts<ArchiveDoneResponse, { projectId: number; taskStatusId?: number }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -446,12 +542,12 @@ export const useArchiveDoneTasks = (
       projectId: number;
       taskStatusId?: number;
     }) => {
-      return archiveDoneTasksApiV1TasksArchiveDonePost({
+      return archiveDoneTasksApiV1GGuildIdTasksArchiveDonePost(guildId, {
         project_id: projectId,
         ...(taskStatusId !== undefined && { task_status_id: taskStatusId }),
       } as Parameters<
-        typeof archiveDoneTasksApiV1TasksArchiveDonePost
-      >[0]) as unknown as Promise<ArchiveDoneResponse>;
+        typeof archiveDoneTasksApiV1GGuildIdTasksArchiveDonePost
+      >[1]) as unknown as Promise<ArchiveDoneResponse>;
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();
@@ -469,11 +565,13 @@ export const useGenerateTaskDescription = (
   options?: MutationOpts<GenerateDescriptionResponse, number>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async (taskId: number) => {
-      return generateTaskDescriptionApiV1TasksTaskIdAiDescriptionPost(
+      return generateTaskDescriptionApiV1GGuildIdTasksTaskIdAiDescriptionPost(
+        guildId,
         taskId
       ) as unknown as Promise<GenerateDescriptionResponse>;
     },
@@ -500,11 +598,12 @@ export const useCreateSubtask = (
   options?: MutationOpts<SubtaskRead, { taskId: number; content: string }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async ({ taskId, content }: { taskId: number; content: string }) => {
-      return createSubtaskApiV1TasksTaskIdSubtasksPost(taskId, {
+      return createSubtaskApiV1GGuildIdTasksTaskIdSubtasksPost(guildId, taskId, {
         content,
       }) as unknown as Promise<SubtaskRead>;
     },
@@ -524,11 +623,12 @@ export const useCreateSubtasksBatch = (
   options?: MutationOpts<SubtaskRead[], { taskId: number; contents: string[] }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async ({ taskId, contents }: { taskId: number; contents: string[] }) => {
-      return createSubtasksBatchApiV1TasksTaskIdSubtasksBatchPost(taskId, {
+      return createSubtasksBatchApiV1GGuildIdTasksTaskIdSubtasksBatchPost(guildId, taskId, {
         contents,
       }) as unknown as Promise<SubtaskRead[]>;
     },
@@ -550,11 +650,12 @@ export const useUpdateSubtask = (
     {
       subtaskId: number;
       taskId: number;
-      data: Parameters<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>[1];
+      data: Parameters<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>[2];
     }
   >
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -564,9 +665,10 @@ export const useUpdateSubtask = (
     }: {
       subtaskId: number;
       taskId: number;
-      data: Parameters<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>[1];
+      data: Parameters<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>[2];
     }) => {
-      return updateSubtaskApiV1SubtasksSubtaskIdPatch(
+      return updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch(
+        guildId,
         subtaskId,
         data
       ) as unknown as Promise<SubtaskRead>;
@@ -587,11 +689,12 @@ export const useDeleteSubtask = (
   options?: MutationOpts<void, { subtaskId: number; taskId: number }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async ({ subtaskId }: { subtaskId: number; taskId: number }) => {
-      await deleteSubtaskApiV1SubtasksSubtaskIdDelete(subtaskId);
+      await deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete(guildId, subtaskId);
     },
     onSuccess: (...args) => {
       invalidateSubtaskRelated(args[1].taskId);
@@ -609,11 +712,12 @@ export const useReorderSubtasks = (
   options?: MutationOpts<SubtaskRead[], { taskId: number; items: SubtaskReorderItem[] }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async ({ taskId, items }: { taskId: number; items: SubtaskReorderItem[] }) => {
-      return reorderSubtasksApiV1TasksTaskIdSubtasksOrderPut(taskId, {
+      return reorderSubtasksApiV1GGuildIdTasksTaskIdSubtasksOrderPut(guildId, taskId, {
         items,
       }) as unknown as Promise<SubtaskRead[]>;
     },
@@ -631,11 +735,13 @@ export const useReorderSubtasks = (
 
 export const useGenerateSubtasks = (options?: MutationOpts<GenerateSubtasksResponse, number>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async (taskId: number) => {
-      return generateTaskSubtasksApiV1TasksTaskIdAiSubtasksPost(
+      return generateTaskSubtasksApiV1GGuildIdTasksTaskIdAiSubtasksPost(
+        guildId,
         taskId
       ) as unknown as Promise<GenerateSubtasksResponse>;
     },

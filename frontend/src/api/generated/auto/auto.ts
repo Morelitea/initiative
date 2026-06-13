@@ -51,14 +51,15 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * or cloud-metadata endpoints.
  * @summary Create Subscription
  */
-export const createSubscriptionApiV1AutoSubscriptionsPost = (
+export const createSubscriptionApiV1GGuildIdAutoSubscriptionsPost = (
+  guildId: number,
   webhookSubscriptionCreate: BodyType<WebhookSubscriptionCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<WebhookSubscriptionCreated>(
     {
-      url: `/api/v1/auto/subscriptions`,
+      url: `/api/v1/g/${guildId}/auto/subscriptions`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: webhookSubscriptionCreate,
@@ -68,24 +69,24 @@ export const createSubscriptionApiV1AutoSubscriptionsPost = (
   );
 };
 
-export const getCreateSubscriptionApiV1AutoSubscriptionsPostMutationOptions = <
+export const getCreateSubscriptionApiV1GGuildIdAutoSubscriptionsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createSubscriptionApiV1AutoSubscriptionsPost>>,
+    Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdAutoSubscriptionsPost>>,
     TError,
-    { data: BodyType<WebhookSubscriptionCreate> },
+    { guildId: number; data: BodyType<WebhookSubscriptionCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createSubscriptionApiV1AutoSubscriptionsPost>>,
+  Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdAutoSubscriptionsPost>>,
   TError,
-  { data: BodyType<WebhookSubscriptionCreate> },
+  { guildId: number; data: BodyType<WebhookSubscriptionCreate> },
   TContext
 > => {
-  const mutationKey = ["createSubscriptionApiV1AutoSubscriptionsPost"];
+  const mutationKey = ["createSubscriptionApiV1GGuildIdAutoSubscriptionsPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -93,50 +94,50 @@ export const getCreateSubscriptionApiV1AutoSubscriptionsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createSubscriptionApiV1AutoSubscriptionsPost>>,
-    { data: BodyType<WebhookSubscriptionCreate> }
+    Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdAutoSubscriptionsPost>>,
+    { guildId: number; data: BodyType<WebhookSubscriptionCreate> }
   > = (props) => {
-    const { data } = props ?? {};
+    const { guildId, data } = props ?? {};
 
-    return createSubscriptionApiV1AutoSubscriptionsPost(data, requestOptions);
+    return createSubscriptionApiV1GGuildIdAutoSubscriptionsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateSubscriptionApiV1AutoSubscriptionsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createSubscriptionApiV1AutoSubscriptionsPost>>
+export type CreateSubscriptionApiV1GGuildIdAutoSubscriptionsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdAutoSubscriptionsPost>>
 >;
-export type CreateSubscriptionApiV1AutoSubscriptionsPostMutationBody =
+export type CreateSubscriptionApiV1GGuildIdAutoSubscriptionsPostMutationBody =
   BodyType<WebhookSubscriptionCreate>;
-export type CreateSubscriptionApiV1AutoSubscriptionsPostMutationError =
+export type CreateSubscriptionApiV1GGuildIdAutoSubscriptionsPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Create Subscription
  */
-export const useCreateSubscriptionApiV1AutoSubscriptionsPost = <
+export const useCreateSubscriptionApiV1GGuildIdAutoSubscriptionsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createSubscriptionApiV1AutoSubscriptionsPost>>,
+      Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdAutoSubscriptionsPost>>,
       TError,
-      { data: BodyType<WebhookSubscriptionCreate> },
+      { guildId: number; data: BodyType<WebhookSubscriptionCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createSubscriptionApiV1AutoSubscriptionsPost>>,
+  Awaited<ReturnType<typeof createSubscriptionApiV1GGuildIdAutoSubscriptionsPost>>,
   TError,
-  { data: BodyType<WebhookSubscriptionCreate> },
+  { guildId: number; data: BodyType<WebhookSubscriptionCreate> },
   TContext
 > => {
   return useMutation(
-    getCreateSubscriptionApiV1AutoSubscriptionsPostMutationOptions(options),
+    getCreateSubscriptionApiV1GGuildIdAutoSubscriptionsPostMutationOptions(options),
     queryClient
   );
 };
@@ -145,71 +146,84 @@ export const useCreateSubscriptionApiV1AutoSubscriptionsPost = <
  * intentionally absent from the response.
  * @summary List Subscriptions
  */
-export const listSubscriptionsApiV1AutoSubscriptionsGet = (
+export const listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet = (
+  guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<WebhookSubscriptionRead[]>(
-    { url: `/api/v1/auto/subscriptions`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/auto/subscriptions`, method: "GET", signal },
     options
   );
 };
 
-export const getListSubscriptionsApiV1AutoSubscriptionsGetQueryKey = () => {
-  return [`/api/v1/auto/subscriptions`] as const;
+export const getListSubscriptionsApiV1GGuildIdAutoSubscriptionsGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/auto/subscriptions`] as const;
 };
 
-export const getListSubscriptionsApiV1AutoSubscriptionsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+export const getListSubscriptionsApiV1GGuildIdAutoSubscriptionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
->(options?: {
-  query?: Partial<
-    UseQueryOptions<
-      Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
-      TError,
-      TData
-    >
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}) => {
+>(
+  guildId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListSubscriptionsApiV1AutoSubscriptionsGetQueryKey();
+    queryOptions?.queryKey ??
+    getListSubscriptionsApiV1GGuildIdAutoSubscriptionsGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>
-  > = ({ signal }) => listSubscriptionsApiV1AutoSubscriptionsGet(requestOptions, signal);
+    Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>
+  > = ({ signal }) =>
+    listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet(guildId, requestOptions, signal);
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListSubscriptionsApiV1AutoSubscriptionsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>
+export type ListSubscriptionsApiV1GGuildIdAutoSubscriptionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>
 >;
-export type ListSubscriptionsApiV1AutoSubscriptionsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListSubscriptionsApiV1GGuildIdAutoSubscriptionsGetQueryError =
+  ErrorType<HTTPValidationError>;
 
-export function useListSubscriptionsApiV1AutoSubscriptionsGet<
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+export function useListSubscriptionsApiV1GGuildIdAutoSubscriptionsGet<
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+          Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>
+          Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>
         >,
         "initialData"
       >;
@@ -217,23 +231,24 @@ export function useListSubscriptionsApiV1AutoSubscriptionsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListSubscriptionsApiV1AutoSubscriptionsGet<
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+export function useListSubscriptionsApiV1GGuildIdAutoSubscriptionsGet<
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+          Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>
+          Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>
         >,
         "initialData"
       >;
@@ -241,14 +256,15 @@ export function useListSubscriptionsApiV1AutoSubscriptionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListSubscriptionsApiV1AutoSubscriptionsGet<
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+export function useListSubscriptionsApiV1GGuildIdAutoSubscriptionsGet<
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
         TError,
         TData
       >
@@ -261,14 +277,15 @@ export function useListSubscriptionsApiV1AutoSubscriptionsGet<
  * @summary List Subscriptions
  */
 
-export function useListSubscriptionsApiV1AutoSubscriptionsGet<
-  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+export function useListSubscriptionsApiV1GGuildIdAutoSubscriptionsGet<
+  TData = Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listSubscriptionsApiV1AutoSubscriptionsGet>>,
+        Awaited<ReturnType<typeof listSubscriptionsApiV1GGuildIdAutoSubscriptionsGet>>,
         TError,
         TData
       >
@@ -277,7 +294,10 @@ export function useListSubscriptionsApiV1AutoSubscriptionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListSubscriptionsApiV1AutoSubscriptionsGetQueryOptions(options);
+  const queryOptions = getListSubscriptionsApiV1GGuildIdAutoSubscriptionsGetQueryOptions(
+    guildId,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -293,7 +313,8 @@ export function useListSubscriptionsApiV1AutoSubscriptionsGet<
  * provided) is re-validated against the SSRF allowlist.
  * @summary Update Subscription
  */
-export const updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch = (
+export const updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch = (
+  guildId: number,
   subscriptionId: number,
   webhookSubscriptionUpdate: BodyType<WebhookSubscriptionUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -301,7 +322,7 @@ export const updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch = (
 ) => {
   return apiMutator<WebhookSubscriptionRead>(
     {
-      url: `/api/v1/auto/subscriptions/${subscriptionId}`,
+      url: `/api/v1/g/${guildId}/auto/subscriptions/${subscriptionId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: webhookSubscriptionUpdate,
@@ -311,79 +332,85 @@ export const updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch = (
   );
 };
 
-export const getUpdateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatchMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch>>,
+export const getUpdateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatchMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch>
+      >,
+      TError,
+      { guildId: number; subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch>>,
     TError,
-    { subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> },
+    { guildId: number; subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> },
     TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch>>,
-  TError,
-  { subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> },
-  TContext
-> => {
-  const mutationKey = ["updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = ["updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch>>,
-    { subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> }
-  > = (props) => {
-    const { subscriptionId, data } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch>
+      >,
+      { guildId: number; subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> }
+    > = (props) => {
+      const { guildId, subscriptionId, data } = props ?? {};
 
-    return updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch(
-      subscriptionId,
-      data,
-      requestOptions
-    );
+      return updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch(
+        guildId,
+        subscriptionId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch>>
->;
-export type UpdateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatchMutationBody =
+export type UpdateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatchMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch>>
+  >;
+export type UpdateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatchMutationBody =
   BodyType<WebhookSubscriptionUpdate>;
-export type UpdateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatchMutationError =
+export type UpdateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Subscription
  */
-export const useUpdateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch = <
+export const useUpdateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch>>,
+      Awaited<
+        ReturnType<typeof updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch>
+      >,
       TError,
-      { subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> },
+      { guildId: number; subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch>>,
+  Awaited<ReturnType<typeof updateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatch>>,
   TError,
-  { subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> },
+  { guildId: number; subscriptionId: number; data: BodyType<WebhookSubscriptionUpdate> },
   TContext
 > => {
   return useMutation(
-    getUpdateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatchMutationOptions(options),
+    getUpdateSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdPatchMutationOptions(options),
     queryClient
   );
 };
@@ -392,89 +419,97 @@ export const useUpdateSubscriptionApiV1AutoSubscriptionsSubscriptionIdPatch = <
  * non-admin attempts 403.
  * @summary Delete Subscription
  */
-export const deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete = (
+export const deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete = (
+  guildId: number,
   subscriptionId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/auto/subscriptions/${subscriptionId}`, method: "DELETE", signal },
+    { url: `/api/v1/g/${guildId}/auto/subscriptions/${subscriptionId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete>>,
+export const getDeleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete>
+      >,
+      TError,
+      { guildId: number; subscriptionId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete>
+    >,
     TError,
-    { subscriptionId: number },
+    { guildId: number; subscriptionId: number },
     TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete>>,
-  TError,
-  { subscriptionId: number },
-  TContext
-> => {
-  const mutationKey = ["deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = ["deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete>>,
-    { subscriptionId: number }
-  > = (props) => {
-    const { subscriptionId } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete>
+      >,
+      { guildId: number; subscriptionId: number }
+    > = (props) => {
+      const { guildId, subscriptionId } = props ?? {};
 
-    return deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete(
-      subscriptionId,
-      requestOptions
-    );
+      return deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete(
+        guildId,
+        subscriptionId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDeleteMutationResult =
+export type DeleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete>>
+    Awaited<ReturnType<typeof deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete>>
   >;
 
-export type DeleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDeleteMutationError =
+export type DeleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete Subscription
  */
-export const useDeleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete = <
+export const useDeleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete>>,
+      Awaited<
+        ReturnType<typeof deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete>
+      >,
       TError,
-      { subscriptionId: number },
+      { guildId: number; subscriptionId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDelete>>,
+  Awaited<ReturnType<typeof deleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDelete>>,
   TError,
-  { subscriptionId: number },
+  { guildId: number; subscriptionId: number },
   TContext
 > => {
   return useMutation(
-    getDeleteSubscriptionApiV1AutoSubscriptionsSubscriptionIdDeleteMutationOptions(options),
+    getDeleteSubscriptionApiV1GGuildIdAutoSubscriptionsSubscriptionIdDeleteMutationOptions(options),
     queryClient
   );
 };

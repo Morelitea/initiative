@@ -22,11 +22,11 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.api.deps import (
-    AddressedRLSSessionDep,
     GuildContext,
+    RLSSessionDep,
     UserSessionDep,
-    get_addressed_guild_membership,
     get_current_active_user,
+    get_guild_membership,
 )
 from app.models.counter import CounterGroup
 from app.models.document import Document
@@ -47,10 +47,12 @@ from app.services.recent_views import RecentEntityType
 
 
 router = APIRouter()
+# Guild-scoped sub-router: closing a tab (the delete) is the one guild-scoped
+# recents operation and mounts under /g/{guild_id}/recents. The cross-guild
+# tabs-bar list stays on the top-level router above — fully separate endpoints.
+guild_router = APIRouter()
 
-AddressedGuildContextDep = Annotated[
-    GuildContext, Depends(get_addressed_guild_membership)
-]
+GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 async def _enrich_recent_rows(
@@ -274,22 +276,22 @@ async def list_recents(
     return items[: recent_views_service.MAX_RECENT_VIEWS]
 
 
-@router.delete(
+@guild_router.delete(
     "/{entity_type}/{entity_id}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def clear_recent(
     entity_type: RecentEntityType,
     entity_id: int,
-    session: AddressedRLSSessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: AddressedGuildContextDep,
+    guild_context: GuildContextDep,
 ) -> None:
     """Close a tab: delete the caller's own recent-view row.
 
-    Guild-ADDRESSED (``?guild_id=``) because a tab can belong to any of the
-    user's guilds regardless of current context, and per-schema ids are only
-    unique within a guild. Idempotent.
+    Guild-scoped — mounted under /g/{guild_id}/recents because a tab can belong
+    to any of the user's guilds and per-schema ids are only unique within a
+    guild. Idempotent.
     """
     del guild_context  # validation + routing happen in the dependency
     await recent_views_service.clear_view(

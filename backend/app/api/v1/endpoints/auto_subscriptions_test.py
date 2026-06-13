@@ -13,7 +13,7 @@ from unittest.mock import patch
 import pytest
 from httpx import AsyncClient
 
-from app.models.guild import GuildRole
+from app.models.guild import Guild, GuildRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -31,8 +31,12 @@ def _force_prod_flag(monkeypatch):
     monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False)
 
 
-async def _authed_post(client: AsyncClient, *, headers: dict[str, str], body: dict):
-    return await client.post("/api/v1/auto/subscriptions", json=body, headers=headers)
+async def _authed_post(
+    client: AsyncClient, *, guild: Guild, headers: dict[str, str], body: dict
+):
+    return await client.post(
+        f"/api/v1/g/{guild.id}/auto/subscriptions", json=body, headers=headers
+    )
 
 
 @pytest.mark.integration
@@ -46,6 +50,7 @@ async def test_create_rejects_loopback_target_url(client: AsyncClient, session):
 
     response = await _authed_post(
         client,
+        guild=guild,
         headers=await get_guild_headers(session, guild, user),
         body={
             "target_url": "https://127.0.0.1/hook",
@@ -66,6 +71,7 @@ async def test_create_rejects_metadata_endpoint(client: AsyncClient, session):
 
     response = await _authed_post(
         client,
+        guild=guild,
         headers=await get_guild_headers(session, guild, user),
         body={
             "target_url": "https://169.254.169.254/latest/meta-data/iam/",
@@ -86,6 +92,7 @@ async def test_create_rejects_plain_http(client: AsyncClient, session):
 
     response = await _authed_post(
         client,
+        guild=guild,
         headers=await get_guild_headers(session, guild, user),
         body={
             "target_url": "http://hooks.example.com/in",
@@ -114,6 +121,7 @@ async def test_create_accepts_public_target_when_dns_resolves_public(
     ):
         response = await _authed_post(
             client,
+            guild=guild,
             headers=await get_guild_headers(session, guild, user),
             body={
                 "target_url": "https://hooks.example.com/in",
@@ -149,6 +157,7 @@ async def test_non_owner_member_cannot_delete(client: AsyncClient, session):
     ):
         created = await _authed_post(
             client,
+            guild=guild,
             headers=await get_guild_headers(session, guild, creator),
             body={
                 "target_url": "https://hooks.example.com/in",
@@ -159,7 +168,7 @@ async def test_non_owner_member_cannot_delete(client: AsyncClient, session):
     sub_id = created.json()["id"]
 
     response = await client.delete(
-        f"/api/v1/auto/subscriptions/{sub_id}",
+        f"/api/v1/g/{guild.id}/auto/subscriptions/{sub_id}",
         headers=await get_guild_headers(session, guild, other),
     )
     assert response.status_code == 403
@@ -187,6 +196,7 @@ async def test_non_owner_member_cannot_update(client: AsyncClient, session):
     ):
         created = await _authed_post(
             client,
+            guild=guild,
             headers=await get_guild_headers(session, guild, creator),
             body={
                 "target_url": "https://hooks.example.com/in",
@@ -197,7 +207,7 @@ async def test_non_owner_member_cannot_update(client: AsyncClient, session):
     sub_id = created.json()["id"]
 
     response = await client.patch(
-        f"/api/v1/auto/subscriptions/{sub_id}",
+        f"/api/v1/g/{guild.id}/auto/subscriptions/{sub_id}",
         json={"active": False},
         headers=await get_guild_headers(session, guild, other),
     )
@@ -227,6 +237,7 @@ async def test_guild_admin_can_delete_others_subscription(client: AsyncClient, s
     ):
         created = await _authed_post(
             client,
+            guild=guild,
             headers=await get_guild_headers(session, guild, creator),
             body={
                 "target_url": "https://hooks.example.com/in",
@@ -237,7 +248,7 @@ async def test_guild_admin_can_delete_others_subscription(client: AsyncClient, s
     sub_id = created.json()["id"]
 
     response = await client.delete(
-        f"/api/v1/auto/subscriptions/{sub_id}",
+        f"/api/v1/g/{guild.id}/auto/subscriptions/{sub_id}",
         headers=await get_guild_headers(session, guild, admin),
     )
     assert response.status_code == 204
@@ -259,6 +270,7 @@ async def test_creator_can_update_own_subscription(client: AsyncClient, session)
     ):
         created = await _authed_post(
             client,
+            guild=guild,
             headers=await get_guild_headers(session, guild, user),
             body={
                 "target_url": "https://hooks.example.com/in",
@@ -269,7 +281,7 @@ async def test_creator_can_update_own_subscription(client: AsyncClient, session)
     sub_id = created.json()["id"]
 
     response = await client.patch(
-        f"/api/v1/auto/subscriptions/{sub_id}",
+        f"/api/v1/g/{guild.id}/auto/subscriptions/{sub_id}",
         json={"active": False},
         headers=await get_guild_headers(session, guild, user),
     )

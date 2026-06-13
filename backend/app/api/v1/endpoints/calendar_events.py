@@ -334,6 +334,7 @@ async def export_my_calendar_events_ics(
 async def parse_ical_file(
     current_user: Annotated[User, Depends(get_current_active_user)],
     body: ICalParseRequest,
+    _guild_context: GuildContextDep,
 ) -> ICalParseResult:
     """Parse an .ics file and return a preview of found events."""
     try:

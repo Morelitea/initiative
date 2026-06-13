@@ -2,19 +2,19 @@ import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import {
-  createCalendarEventApiV1CalendarEventsPost,
-  deleteCalendarEventApiV1CalendarEventsEventIdDelete,
-  getListCalendarEventsApiV1CalendarEventsGetQueryKey,
+  createCalendarEventApiV1GGuildIdCalendarEventsPost,
+  deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete,
+  getListCalendarEventsApiV1GGuildIdCalendarEventsGetQueryKey,
   getListMyCalendarEventsApiV1MeCalendarEventsGetQueryKey,
-  getReadCalendarEventApiV1CalendarEventsEventIdGetQueryKey,
-  listCalendarEventsApiV1CalendarEventsGet,
+  getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey,
+  listCalendarEventsApiV1GGuildIdCalendarEventsGet,
   listMyCalendarEventsApiV1MeCalendarEventsGet,
-  readCalendarEventApiV1CalendarEventsEventIdGet,
-  setAttendeesApiV1CalendarEventsEventIdAttendeesPut,
-  setDocumentsApiV1CalendarEventsEventIdDocumentsPut,
-  setTagsApiV1CalendarEventsEventIdTagsPut,
-  updateCalendarEventApiV1CalendarEventsEventIdPatch,
-  updateRsvpApiV1CalendarEventsEventIdRsvpPatch,
+  readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet,
+  setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut,
+  setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut,
+  setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut,
+  updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch,
+  updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch,
 } from "@/api/generated/calendar-events/calendar-events";
 import type {
   CalendarEventCreate,
@@ -22,10 +22,11 @@ import type {
   CalendarEventRead,
   CalendarEventRSVPUpdate,
   CalendarEventUpdate,
-  ListCalendarEventsApiV1CalendarEventsGetParams,
+  ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCalendarEvents, invalidateCalendarEvent } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -33,13 +34,15 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 export const useCalendarEventsList = (
-  params: ListCalendarEventsApiV1CalendarEventsGetParams,
+  params: ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
   options?: QueryOpts<CalendarEventListResponse>
 ) => {
+  const guildId = useActiveGuildId();
   return useQuery<CalendarEventListResponse>({
-    queryKey: getListCalendarEventsApiV1CalendarEventsGetQueryKey(params),
+    queryKey: getListCalendarEventsApiV1GGuildIdCalendarEventsGetQueryKey(guildId, params),
     queryFn: () =>
-      listCalendarEventsApiV1CalendarEventsGet(
+      listCalendarEventsApiV1GGuildIdCalendarEventsGet(
+        guildId,
         params
       ) as unknown as Promise<CalendarEventListResponse>,
     placeholderData: keepPreviousData,
@@ -66,11 +69,13 @@ export const useCalendarEvent = (
   eventId: number | null,
   options?: QueryOpts<CalendarEventRead>
 ) => {
+  const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<CalendarEventRead>({
-    queryKey: getReadCalendarEventApiV1CalendarEventsEventIdGetQueryKey(eventId!),
+    queryKey: getReadCalendarEventApiV1GGuildIdCalendarEventsEventIdGetQueryKey(guildId, eventId!),
     queryFn: () =>
-      readCalendarEventApiV1CalendarEventsEventIdGet(
+      readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet(
+        guildId,
         eventId!
       ) as unknown as Promise<CalendarEventRead>,
     enabled: eventId !== null && Number.isFinite(eventId) && userEnabled,
@@ -83,13 +88,15 @@ export const useCalendarEvent = (
 export const useCreateCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, CalendarEventCreate>
 ) => {
+  const guildId = useActiveGuildId();
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: CalendarEventCreate) => {
-      return createCalendarEventApiV1CalendarEventsPost(
+      return createCalendarEventApiV1GGuildIdCalendarEventsPost(
+        guildId,
         data
       ) as unknown as Promise<CalendarEventRead>;
     },
@@ -109,13 +116,15 @@ export const useUpdateCalendarEvent = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, CalendarEventUpdate>
 ) => {
+  const guildId = useActiveGuildId();
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: CalendarEventUpdate) => {
-      return updateCalendarEventApiV1CalendarEventsEventIdPatch(
+      return updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(
+        guildId,
         eventId,
         data
       ) as unknown as Promise<CalendarEventRead>;
@@ -141,13 +150,15 @@ export const useUpdateCalendarEvent = (
 export const useRescheduleCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>
 ) => {
+  const guildId = useActiveGuildId();
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ eventId, data }: { eventId: number; data: CalendarEventUpdate }) =>
-      updateCalendarEventApiV1CalendarEventsEventIdPatch(
+      updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch(
+        guildId,
         eventId,
         data
       ) as unknown as Promise<CalendarEventRead>,
@@ -165,13 +176,14 @@ export const useRescheduleCalendarEvent = (
 };
 
 export const useDeleteCalendarEvent = (options?: MutationOpts<void, number>) => {
+  const guildId = useActiveGuildId();
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (eventId: number) => {
-      await deleteCalendarEventApiV1CalendarEventsEventIdDelete(eventId);
+      await deleteCalendarEventApiV1GGuildIdCalendarEventsEventIdDelete(guildId, eventId);
     },
     onSuccess: (...args) => {
       void invalidateAllCalendarEvents();
@@ -191,13 +203,15 @@ export const useSetEventAttendees = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, number[]>
 ) => {
+  const guildId = useActiveGuildId();
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (userIds: number[]) => {
-      return setAttendeesApiV1CalendarEventsEventIdAttendeesPut(
+      return setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut(
+        guildId,
         eventId,
         userIds
       ) as unknown as Promise<CalendarEventRead>;
@@ -219,13 +233,15 @@ export const useUpdateEventRSVP = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, CalendarEventRSVPUpdate>
 ) => {
+  const guildId = useActiveGuildId();
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: CalendarEventRSVPUpdate) => {
-      return updateRsvpApiV1CalendarEventsEventIdRsvpPatch(
+      return updateRsvpApiV1GGuildIdCalendarEventsEventIdRsvpPatch(
+        guildId,
         eventId,
         data
       ) as unknown as Promise<CalendarEventRead>;
@@ -247,13 +263,15 @@ export const useSetEventTags = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, number[]>
 ) => {
+  const guildId = useActiveGuildId();
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (tagIds: number[]) => {
-      return setTagsApiV1CalendarEventsEventIdTagsPut(
+      return setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut(
+        guildId,
         eventId,
         tagIds
       ) as unknown as Promise<CalendarEventRead>;
@@ -275,13 +293,15 @@ export const useSetEventDocuments = (
   eventId: number,
   options?: MutationOpts<CalendarEventRead, number[]>
 ) => {
+  const guildId = useActiveGuildId();
   const { t } = useTranslation("events");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (documentIds: number[]) => {
-      return setDocumentsApiV1CalendarEventsEventIdDocumentsPut(
+      return setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut(
+        guildId,
         eventId,
         documentIds
       ) as unknown as Promise<CalendarEventRead>;

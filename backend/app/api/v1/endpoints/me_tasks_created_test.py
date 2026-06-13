@@ -75,7 +75,9 @@ async def test_create_task_sets_created_by_id(
         "project_id": project.id,
         "task_status_id": status.id,
     }
-    response = await client.post("/api/v1/tasks/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/tasks/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()

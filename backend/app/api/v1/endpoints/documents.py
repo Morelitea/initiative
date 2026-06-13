@@ -23,15 +23,12 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
-    FlexSessionDep,
     RLSSessionDep,
     SessionDep,
     UploadUserDep,
     UserSessionDep,
-    ensure_guild_context,
     get_current_active_user,
     get_guild_membership,
-    get_optional_guild_membership,
     GuildContext,
 )
 from app.core.config import settings
@@ -109,11 +106,6 @@ router = APIRouter()
 me_router = APIRouter()
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-# Optional context: the list endpoint is guild-scoped and 409s in personal
-# mode (None). Cross-guild "my documents" lives under /me/documents instead.
-OptionalGuildContextDep = Annotated[
-    Optional[GuildContext], Depends(get_optional_guild_membership)
-]
 
 DOCUMENT_SORT_FIELDS = {
     "title": Document.title,
@@ -621,9 +613,9 @@ async def list_my_documents(
 
 @router.get("/", response_model=DocumentListResponse)
 async def list_documents(
-    session: FlexSessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: OptionalGuildContextDep,
+    guild_context: GuildContextDep,
     initiative_id: Optional[int] = Query(default=None),
     search: Optional[str] = Query(default=None),
     tag_ids: Optional[List[int]] = Query(default=None, description="Filter by tag IDs"),
@@ -651,8 +643,6 @@ async def list_documents(
 
     Cross-guild "my documents" lives under /me/documents (see list_my_documents).
     """
-    # Guild-scoped path — requires a guild context (409 in personal mode).
-    guild_context = ensure_guild_context(guild_context)
 
     if initiative_id is not None:
         await _get_initiative_or_404(

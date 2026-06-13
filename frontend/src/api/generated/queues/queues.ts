@@ -22,8 +22,8 @@ import type {
 
 import type {
   HTTPValidationError,
-  ListQueuePermissionsApiV1QueuesQueueIdPermissionsGet200,
-  ListQueuesApiV1QueuesGetParams,
+  ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet200,
+  ListQueuesApiV1GGuildIdQueuesGetParams,
   QueueCreate,
   QueueItemCreate,
   QueueItemRead,
@@ -52,67 +52,79 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * Guild admins see all queues.
  * @summary List Queues
  */
-export const listQueuesApiV1QueuesGet = (
-  params?: ListQueuesApiV1QueuesGetParams,
+export const listQueuesApiV1GGuildIdQueuesGet = (
+  guildId: number,
+  params?: ListQueuesApiV1GGuildIdQueuesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueListResponse>(
-    { url: `/api/v1/queues/`, method: "GET", params, signal },
+    { url: `/api/v1/g/${guildId}/queues/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListQueuesApiV1QueuesGetQueryKey = (params?: ListQueuesApiV1QueuesGetParams) => {
-  return [`/api/v1/queues/`, ...(params ? [params] : [])] as const;
+export const getListQueuesApiV1GGuildIdQueuesGetQueryKey = (
+  guildId: number,
+  params?: ListQueuesApiV1GGuildIdQueuesGetParams
+) => {
+  return [`/api/v1/g/${guildId}/queues/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListQueuesApiV1QueuesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>,
+export const getListQueuesApiV1GGuildIdQueuesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListQueuesApiV1QueuesGetParams,
+  guildId: number,
+  params?: ListQueuesApiV1GGuildIdQueuesGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListQueuesApiV1QueuesGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getListQueuesApiV1GGuildIdQueuesGetQueryKey(guildId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>> = ({
     signal,
-  }) => listQueuesApiV1QueuesGet(params, requestOptions, signal);
+  }) => listQueuesApiV1GGuildIdQueuesGet(guildId, params, requestOptions, signal);
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>,
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListQueuesApiV1QueuesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>
+export type ListQueuesApiV1GGuildIdQueuesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>
 >;
-export type ListQueuesApiV1QueuesGetQueryError = ErrorType<HTTPValidationError>;
+export type ListQueuesApiV1GGuildIdQueuesGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListQueuesApiV1QueuesGet<
-  TData = Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>,
+export function useListQueuesApiV1GGuildIdQueuesGet<
+  TData = Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListQueuesApiV1QueuesGetParams,
+  guildId: number,
+  params: undefined | ListQueuesApiV1GGuildIdQueuesGetParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>, TError, TData>
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>,
+          Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>,
           TError,
-          Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>
+          Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>
         >,
         "initialData"
       >;
@@ -120,20 +132,21 @@ export function useListQueuesApiV1QueuesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListQueuesApiV1QueuesGet<
-  TData = Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>,
+export function useListQueuesApiV1GGuildIdQueuesGet<
+  TData = Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListQueuesApiV1QueuesGetParams,
+  guildId: number,
+  params?: ListQueuesApiV1GGuildIdQueuesGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>, TError, TData>
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>,
+          Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>,
           TError,
-          Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>
+          Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>
         >,
         "initialData"
       >;
@@ -141,14 +154,15 @@ export function useListQueuesApiV1QueuesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListQueuesApiV1QueuesGet<
-  TData = Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>,
+export function useListQueuesApiV1GGuildIdQueuesGet<
+  TData = Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListQueuesApiV1QueuesGetParams,
+  guildId: number,
+  params?: ListQueuesApiV1GGuildIdQueuesGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -158,20 +172,21 @@ export function useListQueuesApiV1QueuesGet<
  * @summary List Queues
  */
 
-export function useListQueuesApiV1QueuesGet<
-  TData = Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>,
+export function useListQueuesApiV1GGuildIdQueuesGet<
+  TData = Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListQueuesApiV1QueuesGetParams,
+  guildId: number,
+  params?: ListQueuesApiV1GGuildIdQueuesGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1QueuesGet>>, TError, TData>
+      UseQueryOptions<Awaited<ReturnType<typeof listQueuesApiV1GGuildIdQueuesGet>>, TError, TData>
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListQueuesApiV1QueuesGetQueryOptions(params, options);
+  const queryOptions = getListQueuesApiV1GGuildIdQueuesGetQueryOptions(guildId, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -187,14 +202,15 @@ export function useListQueuesApiV1QueuesGet<
  * The creator automatically gets owner-level permission.
  * @summary Create Queue
  */
-export const createQueueApiV1QueuesPost = (
+export const createQueueApiV1GGuildIdQueuesPost = (
+  guildId: number,
   queueCreate: BodyType<QueueCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
     {
-      url: `/api/v1/queues/`,
+      url: `/api/v1/g/${guildId}/queues/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: queueCreate,
@@ -204,24 +220,24 @@ export const createQueueApiV1QueuesPost = (
   );
 };
 
-export const getCreateQueueApiV1QueuesPostMutationOptions = <
+export const getCreateQueueApiV1GGuildIdQueuesPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createQueueApiV1QueuesPost>>,
+    Awaited<ReturnType<typeof createQueueApiV1GGuildIdQueuesPost>>,
     TError,
-    { data: BodyType<QueueCreate> },
+    { guildId: number; data: BodyType<QueueCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createQueueApiV1QueuesPost>>,
+  Awaited<ReturnType<typeof createQueueApiV1GGuildIdQueuesPost>>,
   TError,
-  { data: BodyType<QueueCreate> },
+  { guildId: number; data: BodyType<QueueCreate> },
   TContext
 > => {
-  const mutationKey = ["createQueueApiV1QueuesPost"];
+  const mutationKey = ["createQueueApiV1GGuildIdQueuesPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -229,118 +245,134 @@ export const getCreateQueueApiV1QueuesPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createQueueApiV1QueuesPost>>,
-    { data: BodyType<QueueCreate> }
+    Awaited<ReturnType<typeof createQueueApiV1GGuildIdQueuesPost>>,
+    { guildId: number; data: BodyType<QueueCreate> }
   > = (props) => {
-    const { data } = props ?? {};
+    const { guildId, data } = props ?? {};
 
-    return createQueueApiV1QueuesPost(data, requestOptions);
+    return createQueueApiV1GGuildIdQueuesPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateQueueApiV1QueuesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createQueueApiV1QueuesPost>>
+export type CreateQueueApiV1GGuildIdQueuesPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createQueueApiV1GGuildIdQueuesPost>>
 >;
-export type CreateQueueApiV1QueuesPostMutationBody = BodyType<QueueCreate>;
-export type CreateQueueApiV1QueuesPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateQueueApiV1GGuildIdQueuesPostMutationBody = BodyType<QueueCreate>;
+export type CreateQueueApiV1GGuildIdQueuesPostMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Create Queue
  */
-export const useCreateQueueApiV1QueuesPost = <
+export const useCreateQueueApiV1GGuildIdQueuesPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createQueueApiV1QueuesPost>>,
+      Awaited<ReturnType<typeof createQueueApiV1GGuildIdQueuesPost>>,
       TError,
-      { data: BodyType<QueueCreate> },
+      { guildId: number; data: BodyType<QueueCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createQueueApiV1QueuesPost>>,
+  Awaited<ReturnType<typeof createQueueApiV1GGuildIdQueuesPost>>,
   TError,
-  { data: BodyType<QueueCreate> },
+  { guildId: number; data: BodyType<QueueCreate> },
   TContext
 > => {
-  return useMutation(getCreateQueueApiV1QueuesPostMutationOptions(options), queryClient);
+  return useMutation(getCreateQueueApiV1GGuildIdQueuesPostMutationOptions(options), queryClient);
 };
 /**
  * Get a queue with all items, permissions, and current state.
  * @summary Read Queue
  */
-export const readQueueApiV1QueuesQueueIdGet = (
+export const readQueueApiV1GGuildIdQueuesQueueIdGet = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
-    { url: `/api/v1/queues/${queueId}`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}`, method: "GET", signal },
     options
   );
 };
 
-export const getReadQueueApiV1QueuesQueueIdGetQueryKey = (queueId: number) => {
-  return [`/api/v1/queues/${queueId}`] as const;
+export const getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey = (
+  guildId: number,
+  queueId: number
+) => {
+  return [`/api/v1/g/${guildId}/queues/${queueId}`] as const;
 };
 
-export const getReadQueueApiV1QueuesQueueIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>,
+export const getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getReadQueueApiV1QueuesQueueIdGetQueryKey(queueId);
+  const queryKey =
+    queryOptions?.queryKey ?? getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey(guildId, queueId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>> = ({
-    signal,
-  }) => readQueueApiV1QueuesQueueIdGet(queueId, requestOptions, signal);
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>
+  > = ({ signal }) =>
+    readQueueApiV1GGuildIdQueuesQueueIdGet(guildId, queueId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: queueId !== null && queueId !== undefined,
+    enabled: guildId !== null && guildId !== undefined && queueId !== null && queueId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>,
+    Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ReadQueueApiV1QueuesQueueIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>
+export type ReadQueueApiV1GGuildIdQueuesQueueIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>
 >;
-export type ReadQueueApiV1QueuesQueueIdGetQueryError = ErrorType<HTTPValidationError>;
+export type ReadQueueApiV1GGuildIdQueuesQueueIdGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useReadQueueApiV1QueuesQueueIdGet<
-  TData = Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>,
+export function useReadQueueApiV1GGuildIdQueuesQueueIdGet<
+  TData = Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>,
+          Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>
+          Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>
         >,
         "initialData"
       >;
@@ -348,20 +380,25 @@ export function useReadQueueApiV1QueuesQueueIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadQueueApiV1QueuesQueueIdGet<
-  TData = Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>,
+export function useReadQueueApiV1GGuildIdQueuesQueueIdGet<
+  TData = Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>,
+          Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
           TError,
-          Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>
+          Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>
         >,
         "initialData"
       >;
@@ -369,14 +406,19 @@ export function useReadQueueApiV1QueuesQueueIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useReadQueueApiV1QueuesQueueIdGet<
-  TData = Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>,
+export function useReadQueueApiV1GGuildIdQueuesQueueIdGet<
+  TData = Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -386,20 +428,29 @@ export function useReadQueueApiV1QueuesQueueIdGet<
  * @summary Read Queue
  */
 
-export function useReadQueueApiV1QueuesQueueIdGet<
-  TData = Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>,
+export function useReadQueueApiV1GGuildIdQueuesQueueIdGet<
+  TData = Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof readQueueApiV1QueuesQueueIdGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof readQueueApiV1GGuildIdQueuesQueueIdGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getReadQueueApiV1QueuesQueueIdGetQueryOptions(queueId, options);
+  const queryOptions = getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryOptions(
+    guildId,
+    queueId,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -412,7 +463,8 @@ export function useReadQueueApiV1QueuesQueueIdGet<
  * Update queue name/description. Requires write access.
  * @summary Update Queue
  */
-export const updateQueueApiV1QueuesQueueIdPatch = (
+export const updateQueueApiV1GGuildIdQueuesQueueIdPatch = (
+  guildId: number,
   queueId: number,
   queueUpdate: BodyType<QueueUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -420,7 +472,7 @@ export const updateQueueApiV1QueuesQueueIdPatch = (
 ) => {
   return apiMutator<QueueRead>(
     {
-      url: `/api/v1/queues/${queueId}`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: queueUpdate,
@@ -430,24 +482,24 @@ export const updateQueueApiV1QueuesQueueIdPatch = (
   );
 };
 
-export const getUpdateQueueApiV1QueuesQueueIdPatchMutationOptions = <
+export const getUpdateQueueApiV1GGuildIdQueuesQueueIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateQueueApiV1QueuesQueueIdPatch>>,
+    Awaited<ReturnType<typeof updateQueueApiV1GGuildIdQueuesQueueIdPatch>>,
     TError,
-    { queueId: number; data: BodyType<QueueUpdate> },
+    { guildId: number; queueId: number; data: BodyType<QueueUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateQueueApiV1QueuesQueueIdPatch>>,
+  Awaited<ReturnType<typeof updateQueueApiV1GGuildIdQueuesQueueIdPatch>>,
   TError,
-  { queueId: number; data: BodyType<QueueUpdate> },
+  { guildId: number; queueId: number; data: BodyType<QueueUpdate> },
   TContext
 > => {
-  const mutationKey = ["updateQueueApiV1QueuesQueueIdPatch"];
+  const mutationKey = ["updateQueueApiV1GGuildIdQueuesQueueIdPatch"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -455,79 +507,87 @@ export const getUpdateQueueApiV1QueuesQueueIdPatchMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateQueueApiV1QueuesQueueIdPatch>>,
-    { queueId: number; data: BodyType<QueueUpdate> }
+    Awaited<ReturnType<typeof updateQueueApiV1GGuildIdQueuesQueueIdPatch>>,
+    { guildId: number; queueId: number; data: BodyType<QueueUpdate> }
   > = (props) => {
-    const { queueId, data } = props ?? {};
+    const { guildId, queueId, data } = props ?? {};
 
-    return updateQueueApiV1QueuesQueueIdPatch(queueId, data, requestOptions);
+    return updateQueueApiV1GGuildIdQueuesQueueIdPatch(guildId, queueId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateQueueApiV1QueuesQueueIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateQueueApiV1QueuesQueueIdPatch>>
+export type UpdateQueueApiV1GGuildIdQueuesQueueIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateQueueApiV1GGuildIdQueuesQueueIdPatch>>
 >;
-export type UpdateQueueApiV1QueuesQueueIdPatchMutationBody = BodyType<QueueUpdate>;
-export type UpdateQueueApiV1QueuesQueueIdPatchMutationError = ErrorType<HTTPValidationError>;
+export type UpdateQueueApiV1GGuildIdQueuesQueueIdPatchMutationBody = BodyType<QueueUpdate>;
+export type UpdateQueueApiV1GGuildIdQueuesQueueIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Queue
  */
-export const useUpdateQueueApiV1QueuesQueueIdPatch = <
+export const useUpdateQueueApiV1GGuildIdQueuesQueueIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateQueueApiV1QueuesQueueIdPatch>>,
+      Awaited<ReturnType<typeof updateQueueApiV1GGuildIdQueuesQueueIdPatch>>,
       TError,
-      { queueId: number; data: BodyType<QueueUpdate> },
+      { guildId: number; queueId: number; data: BodyType<QueueUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateQueueApiV1QueuesQueueIdPatch>>,
+  Awaited<ReturnType<typeof updateQueueApiV1GGuildIdQueuesQueueIdPatch>>,
   TError,
-  { queueId: number; data: BodyType<QueueUpdate> },
+  { guildId: number; queueId: number; data: BodyType<QueueUpdate> },
   TContext
 > => {
-  return useMutation(getUpdateQueueApiV1QueuesQueueIdPatchMutationOptions(options), queryClient);
+  return useMutation(
+    getUpdateQueueApiV1GGuildIdQueuesQueueIdPatchMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Soft-delete a queue. Cascades to its items. Requires owner permission
  * or guild admin.
  * @summary Delete Queue
  */
-export const deleteQueueApiV1QueuesQueueIdDelete = (
+export const deleteQueueApiV1GGuildIdQueuesQueueIdDelete = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>({ url: `/api/v1/queues/${queueId}`, method: "DELETE", signal }, options);
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/queues/${queueId}`, method: "DELETE", signal },
+    options
+  );
 };
 
-export const getDeleteQueueApiV1QueuesQueueIdDeleteMutationOptions = <
+export const getDeleteQueueApiV1GGuildIdQueuesQueueIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteQueueApiV1QueuesQueueIdDelete>>,
+    Awaited<ReturnType<typeof deleteQueueApiV1GGuildIdQueuesQueueIdDelete>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteQueueApiV1QueuesQueueIdDelete>>,
+  Awaited<ReturnType<typeof deleteQueueApiV1GGuildIdQueuesQueueIdDelete>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["deleteQueueApiV1QueuesQueueIdDelete"];
+  const mutationKey = ["deleteQueueApiV1GGuildIdQueuesQueueIdDelete"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -535,53 +595,58 @@ export const getDeleteQueueApiV1QueuesQueueIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteQueueApiV1QueuesQueueIdDelete>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof deleteQueueApiV1GGuildIdQueuesQueueIdDelete>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return deleteQueueApiV1QueuesQueueIdDelete(queueId, requestOptions);
+    return deleteQueueApiV1GGuildIdQueuesQueueIdDelete(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteQueueApiV1QueuesQueueIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteQueueApiV1QueuesQueueIdDelete>>
+export type DeleteQueueApiV1GGuildIdQueuesQueueIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteQueueApiV1GGuildIdQueuesQueueIdDelete>>
 >;
 
-export type DeleteQueueApiV1QueuesQueueIdDeleteMutationError = ErrorType<HTTPValidationError>;
+export type DeleteQueueApiV1GGuildIdQueuesQueueIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete Queue
  */
-export const useDeleteQueueApiV1QueuesQueueIdDelete = <
+export const useDeleteQueueApiV1GGuildIdQueuesQueueIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteQueueApiV1QueuesQueueIdDelete>>,
+      Awaited<ReturnType<typeof deleteQueueApiV1GGuildIdQueuesQueueIdDelete>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteQueueApiV1QueuesQueueIdDelete>>,
+  Awaited<ReturnType<typeof deleteQueueApiV1GGuildIdQueuesQueueIdDelete>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  return useMutation(getDeleteQueueApiV1QueuesQueueIdDeleteMutationOptions(options), queryClient);
+  return useMutation(
+    getDeleteQueueApiV1GGuildIdQueuesQueueIdDeleteMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Add an item to a queue. Requires write access.
  * @summary Add Queue Item
  */
-export const addQueueItemApiV1QueuesQueueIdItemsPost = (
+export const addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost = (
+  guildId: number,
   queueId: number,
   queueItemCreate: BodyType<QueueItemCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -589,7 +654,7 @@ export const addQueueItemApiV1QueuesQueueIdItemsPost = (
 ) => {
   return apiMutator<QueueItemRead>(
     {
-      url: `/api/v1/queues/${queueId}/items`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/items`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: queueItemCreate,
@@ -599,24 +664,24 @@ export const addQueueItemApiV1QueuesQueueIdItemsPost = (
   );
 };
 
-export const getAddQueueItemApiV1QueuesQueueIdItemsPostMutationOptions = <
+export const getAddQueueItemApiV1GGuildIdQueuesQueueIdItemsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addQueueItemApiV1QueuesQueueIdItemsPost>>,
+    Awaited<ReturnType<typeof addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost>>,
     TError,
-    { queueId: number; data: BodyType<QueueItemCreate> },
+    { guildId: number; queueId: number; data: BodyType<QueueItemCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof addQueueItemApiV1QueuesQueueIdItemsPost>>,
+  Awaited<ReturnType<typeof addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost>>,
   TError,
-  { queueId: number; data: BodyType<QueueItemCreate> },
+  { guildId: number; queueId: number; data: BodyType<QueueItemCreate> },
   TContext
 > => {
-  const mutationKey = ["addQueueItemApiV1QueuesQueueIdItemsPost"];
+  const mutationKey = ["addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -624,48 +689,49 @@ export const getAddQueueItemApiV1QueuesQueueIdItemsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addQueueItemApiV1QueuesQueueIdItemsPost>>,
-    { queueId: number; data: BodyType<QueueItemCreate> }
+    Awaited<ReturnType<typeof addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost>>,
+    { guildId: number; queueId: number; data: BodyType<QueueItemCreate> }
   > = (props) => {
-    const { queueId, data } = props ?? {};
+    const { guildId, queueId, data } = props ?? {};
 
-    return addQueueItemApiV1QueuesQueueIdItemsPost(queueId, data, requestOptions);
+    return addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost(guildId, queueId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type AddQueueItemApiV1QueuesQueueIdItemsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addQueueItemApiV1QueuesQueueIdItemsPost>>
+export type AddQueueItemApiV1GGuildIdQueuesQueueIdItemsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost>>
 >;
-export type AddQueueItemApiV1QueuesQueueIdItemsPostMutationBody = BodyType<QueueItemCreate>;
-export type AddQueueItemApiV1QueuesQueueIdItemsPostMutationError = ErrorType<HTTPValidationError>;
+export type AddQueueItemApiV1GGuildIdQueuesQueueIdItemsPostMutationBody = BodyType<QueueItemCreate>;
+export type AddQueueItemApiV1GGuildIdQueuesQueueIdItemsPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Add Queue Item
  */
-export const useAddQueueItemApiV1QueuesQueueIdItemsPost = <
+export const useAddQueueItemApiV1GGuildIdQueuesQueueIdItemsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addQueueItemApiV1QueuesQueueIdItemsPost>>,
+      Awaited<ReturnType<typeof addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost>>,
       TError,
-      { queueId: number; data: BodyType<QueueItemCreate> },
+      { guildId: number; queueId: number; data: BodyType<QueueItemCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof addQueueItemApiV1QueuesQueueIdItemsPost>>,
+  Awaited<ReturnType<typeof addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost>>,
   TError,
-  { queueId: number; data: BodyType<QueueItemCreate> },
+  { guildId: number; queueId: number; data: BodyType<QueueItemCreate> },
   TContext
 > => {
   return useMutation(
-    getAddQueueItemApiV1QueuesQueueIdItemsPostMutationOptions(options),
+    getAddQueueItemApiV1GGuildIdQueuesQueueIdItemsPostMutationOptions(options),
     queryClient
   );
 };
@@ -673,7 +739,8 @@ export const useAddQueueItemApiV1QueuesQueueIdItemsPost = <
  * Update a queue item. Requires write access on the queue.
  * @summary Update Queue Item
  */
-export const updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch = (
+export const updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch = (
+  guildId: number,
   queueId: number,
   itemId: number,
   queueItemUpdate: BodyType<QueueItemUpdate>,
@@ -682,7 +749,7 @@ export const updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch = (
 ) => {
   return apiMutator<QueueItemRead>(
     {
-      url: `/api/v1/queues/${queueId}/items/${itemId}`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/items/${itemId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: queueItemUpdate,
@@ -692,24 +759,24 @@ export const updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch = (
   );
 };
 
-export const getUpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatchMutationOptions = <
+export const getUpdateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch>>,
+    Awaited<ReturnType<typeof updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch>>,
     TError,
-    { queueId: number; itemId: number; data: BodyType<QueueItemUpdate> },
+    { guildId: number; queueId: number; itemId: number; data: BodyType<QueueItemUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch>>,
+  Awaited<ReturnType<typeof updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch>>,
   TError,
-  { queueId: number; itemId: number; data: BodyType<QueueItemUpdate> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<QueueItemUpdate> },
   TContext
 > => {
-  const mutationKey = ["updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch"];
+  const mutationKey = ["updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -717,50 +784,56 @@ export const getUpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatchMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch>>,
-    { queueId: number; itemId: number; data: BodyType<QueueItemUpdate> }
+    Awaited<ReturnType<typeof updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch>>,
+    { guildId: number; queueId: number; itemId: number; data: BodyType<QueueItemUpdate> }
   > = (props) => {
-    const { queueId, itemId, data } = props ?? {};
+    const { guildId, queueId, itemId, data } = props ?? {};
 
-    return updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch(queueId, itemId, data, requestOptions);
+    return updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch(
+      guildId,
+      queueId,
+      itemId,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch>>
+export type UpdateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch>>
 >;
-export type UpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatchMutationBody =
+export type UpdateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatchMutationBody =
   BodyType<QueueItemUpdate>;
-export type UpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatchMutationError =
+export type UpdateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Queue Item
  */
-export const useUpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatch = <
+export const useUpdateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch>>,
+      Awaited<ReturnType<typeof updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch>>,
       TError,
-      { queueId: number; itemId: number; data: BodyType<QueueItemUpdate> },
+      { guildId: number; queueId: number; itemId: number; data: BodyType<QueueItemUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch>>,
+  Awaited<ReturnType<typeof updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch>>,
   TError,
-  { queueId: number; itemId: number; data: BodyType<QueueItemUpdate> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<QueueItemUpdate> },
   TContext
 > => {
   return useMutation(
-    getUpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatchMutationOptions(options),
+    getUpdateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatchMutationOptions(options),
     queryClient
   );
 };
@@ -768,36 +841,37 @@ export const useUpdateQueueItemApiV1QueuesQueueIdItemsItemIdPatch = <
  * Soft-delete a queue item. Requires write access on the parent queue.
  * @summary Delete Queue Item
  */
-export const deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete = (
+export const deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete = (
+  guildId: number,
   queueId: number,
   itemId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/queues/${queueId}/items/${itemId}`, method: "DELETE", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/items/${itemId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteQueueItemApiV1QueuesQueueIdItemsItemIdDeleteMutationOptions = <
+export const getDeleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete>>,
+    Awaited<ReturnType<typeof deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete>>,
     TError,
-    { queueId: number; itemId: number },
+    { guildId: number; queueId: number; itemId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete>>,
+  Awaited<ReturnType<typeof deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete>>,
   TError,
-  { queueId: number; itemId: number },
+  { guildId: number; queueId: number; itemId: number },
   TContext
 > => {
-  const mutationKey = ["deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete"];
+  const mutationKey = ["deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -805,49 +879,54 @@ export const getDeleteQueueItemApiV1QueuesQueueIdItemsItemIdDeleteMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete>>,
-    { queueId: number; itemId: number }
+    Awaited<ReturnType<typeof deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete>>,
+    { guildId: number; queueId: number; itemId: number }
   > = (props) => {
-    const { queueId, itemId } = props ?? {};
+    const { guildId, queueId, itemId } = props ?? {};
 
-    return deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete(queueId, itemId, requestOptions);
+    return deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete(
+      guildId,
+      queueId,
+      itemId,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteQueueItemApiV1QueuesQueueIdItemsItemIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete>>
+export type DeleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete>>
 >;
 
-export type DeleteQueueItemApiV1QueuesQueueIdItemsItemIdDeleteMutationError =
+export type DeleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete Queue Item
  */
-export const useDeleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete = <
+export const useDeleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete>>,
+      Awaited<ReturnType<typeof deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete>>,
       TError,
-      { queueId: number; itemId: number },
+      { guildId: number; queueId: number; itemId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete>>,
+  Awaited<ReturnType<typeof deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete>>,
   TError,
-  { queueId: number; itemId: number },
+  { guildId: number; queueId: number; itemId: number },
   TContext
 > => {
   return useMutation(
-    getDeleteQueueItemApiV1QueuesQueueIdItemsItemIdDeleteMutationOptions(options),
+    getDeleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -855,7 +934,8 @@ export const useDeleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete = <
  * Bulk reorder queue items. Requires write access.
  * @summary Reorder Queue Items
  */
-export const reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut = (
+export const reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut = (
+  guildId: number,
   queueId: number,
   queueItemReorderRequest: BodyType<QueueItemReorderRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -863,7 +943,7 @@ export const reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut = (
 ) => {
   return apiMutator<QueueRead>(
     {
-      url: `/api/v1/queues/${queueId}/items/reorder`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/items/reorder`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: queueItemReorderRequest,
@@ -873,24 +953,24 @@ export const reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut = (
   );
 };
 
-export const getReorderQueueItemsApiV1QueuesQueueIdItemsReorderPutMutationOptions = <
+export const getReorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut>>,
+    Awaited<ReturnType<typeof reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut>>,
     TError,
-    { queueId: number; data: BodyType<QueueItemReorderRequest> },
+    { guildId: number; queueId: number; data: BodyType<QueueItemReorderRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut>>,
+  Awaited<ReturnType<typeof reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut>>,
   TError,
-  { queueId: number; data: BodyType<QueueItemReorderRequest> },
+  { guildId: number; queueId: number; data: BodyType<QueueItemReorderRequest> },
   TContext
 > => {
-  const mutationKey = ["reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut"];
+  const mutationKey = ["reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -898,50 +978,55 @@ export const getReorderQueueItemsApiV1QueuesQueueIdItemsReorderPutMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut>>,
-    { queueId: number; data: BodyType<QueueItemReorderRequest> }
+    Awaited<ReturnType<typeof reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut>>,
+    { guildId: number; queueId: number; data: BodyType<QueueItemReorderRequest> }
   > = (props) => {
-    const { queueId, data } = props ?? {};
+    const { guildId, queueId, data } = props ?? {};
 
-    return reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut(queueId, data, requestOptions);
+    return reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut(
+      guildId,
+      queueId,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ReorderQueueItemsApiV1QueuesQueueIdItemsReorderPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut>>
+export type ReorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut>>
 >;
-export type ReorderQueueItemsApiV1QueuesQueueIdItemsReorderPutMutationBody =
+export type ReorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPutMutationBody =
   BodyType<QueueItemReorderRequest>;
-export type ReorderQueueItemsApiV1QueuesQueueIdItemsReorderPutMutationError =
+export type ReorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPutMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Reorder Queue Items
  */
-export const useReorderQueueItemsApiV1QueuesQueueIdItemsReorderPut = <
+export const useReorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut>>,
+      Awaited<ReturnType<typeof reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut>>,
       TError,
-      { queueId: number; data: BodyType<QueueItemReorderRequest> },
+      { guildId: number; queueId: number; data: BodyType<QueueItemReorderRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut>>,
+  Awaited<ReturnType<typeof reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut>>,
   TError,
-  { queueId: number; data: BodyType<QueueItemReorderRequest> },
+  { guildId: number; queueId: number; data: BodyType<QueueItemReorderRequest> },
   TContext
 > => {
   return useMutation(
-    getReorderQueueItemsApiV1QueuesQueueIdItemsReorderPutMutationOptions(options),
+    getReorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPutMutationOptions(options),
     queryClient
   );
 };
@@ -949,35 +1034,36 @@ export const useReorderQueueItemsApiV1QueuesQueueIdItemsReorderPut = <
  * Start the queue: set active, reset to first item, round 1.
  * @summary Start Queue
  */
-export const startQueueApiV1QueuesQueueIdStartPost = (
+export const startQueueApiV1GGuildIdQueuesQueueIdStartPost = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
-    { url: `/api/v1/queues/${queueId}/start`, method: "POST", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/start`, method: "POST", signal },
     options
   );
 };
 
-export const getStartQueueApiV1QueuesQueueIdStartPostMutationOptions = <
+export const getStartQueueApiV1GGuildIdQueuesQueueIdStartPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof startQueueApiV1QueuesQueueIdStartPost>>,
+    Awaited<ReturnType<typeof startQueueApiV1GGuildIdQueuesQueueIdStartPost>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof startQueueApiV1QueuesQueueIdStartPost>>,
+  Awaited<ReturnType<typeof startQueueApiV1GGuildIdQueuesQueueIdStartPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["startQueueApiV1QueuesQueueIdStartPost"];
+  const mutationKey = ["startQueueApiV1GGuildIdQueuesQueueIdStartPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -985,81 +1071,86 @@ export const getStartQueueApiV1QueuesQueueIdStartPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof startQueueApiV1QueuesQueueIdStartPost>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof startQueueApiV1GGuildIdQueuesQueueIdStartPost>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return startQueueApiV1QueuesQueueIdStartPost(queueId, requestOptions);
+    return startQueueApiV1GGuildIdQueuesQueueIdStartPost(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type StartQueueApiV1QueuesQueueIdStartPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof startQueueApiV1QueuesQueueIdStartPost>>
+export type StartQueueApiV1GGuildIdQueuesQueueIdStartPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startQueueApiV1GGuildIdQueuesQueueIdStartPost>>
 >;
 
-export type StartQueueApiV1QueuesQueueIdStartPostMutationError = ErrorType<HTTPValidationError>;
+export type StartQueueApiV1GGuildIdQueuesQueueIdStartPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Start Queue
  */
-export const useStartQueueApiV1QueuesQueueIdStartPost = <
+export const useStartQueueApiV1GGuildIdQueuesQueueIdStartPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof startQueueApiV1QueuesQueueIdStartPost>>,
+      Awaited<ReturnType<typeof startQueueApiV1GGuildIdQueuesQueueIdStartPost>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof startQueueApiV1QueuesQueueIdStartPost>>,
+  Awaited<ReturnType<typeof startQueueApiV1GGuildIdQueuesQueueIdStartPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  return useMutation(getStartQueueApiV1QueuesQueueIdStartPostMutationOptions(options), queryClient);
+  return useMutation(
+    getStartQueueApiV1GGuildIdQueuesQueueIdStartPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Stop the queue: set inactive but keep current position.
  * @summary Stop Queue
  */
-export const stopQueueApiV1QueuesQueueIdStopPost = (
+export const stopQueueApiV1GGuildIdQueuesQueueIdStopPost = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
-    { url: `/api/v1/queues/${queueId}/stop`, method: "POST", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/stop`, method: "POST", signal },
     options
   );
 };
 
-export const getStopQueueApiV1QueuesQueueIdStopPostMutationOptions = <
+export const getStopQueueApiV1GGuildIdQueuesQueueIdStopPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof stopQueueApiV1QueuesQueueIdStopPost>>,
+    Awaited<ReturnType<typeof stopQueueApiV1GGuildIdQueuesQueueIdStopPost>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof stopQueueApiV1QueuesQueueIdStopPost>>,
+  Awaited<ReturnType<typeof stopQueueApiV1GGuildIdQueuesQueueIdStopPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["stopQueueApiV1QueuesQueueIdStopPost"];
+  const mutationKey = ["stopQueueApiV1GGuildIdQueuesQueueIdStopPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1067,81 +1158,86 @@ export const getStopQueueApiV1QueuesQueueIdStopPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof stopQueueApiV1QueuesQueueIdStopPost>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof stopQueueApiV1GGuildIdQueuesQueueIdStopPost>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return stopQueueApiV1QueuesQueueIdStopPost(queueId, requestOptions);
+    return stopQueueApiV1GGuildIdQueuesQueueIdStopPost(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type StopQueueApiV1QueuesQueueIdStopPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof stopQueueApiV1QueuesQueueIdStopPost>>
+export type StopQueueApiV1GGuildIdQueuesQueueIdStopPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof stopQueueApiV1GGuildIdQueuesQueueIdStopPost>>
 >;
 
-export type StopQueueApiV1QueuesQueueIdStopPostMutationError = ErrorType<HTTPValidationError>;
+export type StopQueueApiV1GGuildIdQueuesQueueIdStopPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Stop Queue
  */
-export const useStopQueueApiV1QueuesQueueIdStopPost = <
+export const useStopQueueApiV1GGuildIdQueuesQueueIdStopPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof stopQueueApiV1QueuesQueueIdStopPost>>,
+      Awaited<ReturnType<typeof stopQueueApiV1GGuildIdQueuesQueueIdStopPost>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof stopQueueApiV1QueuesQueueIdStopPost>>,
+  Awaited<ReturnType<typeof stopQueueApiV1GGuildIdQueuesQueueIdStopPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  return useMutation(getStopQueueApiV1QueuesQueueIdStopPostMutationOptions(options), queryClient);
+  return useMutation(
+    getStopQueueApiV1GGuildIdQueuesQueueIdStopPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Advance to the next visible item. Wraps around and increments round.
  * @summary Advance Turn
  */
-export const advanceTurnApiV1QueuesQueueIdNextPost = (
+export const advanceTurnApiV1GGuildIdQueuesQueueIdNextPost = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
-    { url: `/api/v1/queues/${queueId}/next`, method: "POST", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/next`, method: "POST", signal },
     options
   );
 };
 
-export const getAdvanceTurnApiV1QueuesQueueIdNextPostMutationOptions = <
+export const getAdvanceTurnApiV1GGuildIdQueuesQueueIdNextPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof advanceTurnApiV1QueuesQueueIdNextPost>>,
+    Awaited<ReturnType<typeof advanceTurnApiV1GGuildIdQueuesQueueIdNextPost>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof advanceTurnApiV1QueuesQueueIdNextPost>>,
+  Awaited<ReturnType<typeof advanceTurnApiV1GGuildIdQueuesQueueIdNextPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["advanceTurnApiV1QueuesQueueIdNextPost"];
+  const mutationKey = ["advanceTurnApiV1GGuildIdQueuesQueueIdNextPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1149,81 +1245,86 @@ export const getAdvanceTurnApiV1QueuesQueueIdNextPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof advanceTurnApiV1QueuesQueueIdNextPost>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof advanceTurnApiV1GGuildIdQueuesQueueIdNextPost>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return advanceTurnApiV1QueuesQueueIdNextPost(queueId, requestOptions);
+    return advanceTurnApiV1GGuildIdQueuesQueueIdNextPost(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type AdvanceTurnApiV1QueuesQueueIdNextPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof advanceTurnApiV1QueuesQueueIdNextPost>>
+export type AdvanceTurnApiV1GGuildIdQueuesQueueIdNextPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof advanceTurnApiV1GGuildIdQueuesQueueIdNextPost>>
 >;
 
-export type AdvanceTurnApiV1QueuesQueueIdNextPostMutationError = ErrorType<HTTPValidationError>;
+export type AdvanceTurnApiV1GGuildIdQueuesQueueIdNextPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Advance Turn
  */
-export const useAdvanceTurnApiV1QueuesQueueIdNextPost = <
+export const useAdvanceTurnApiV1GGuildIdQueuesQueueIdNextPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof advanceTurnApiV1QueuesQueueIdNextPost>>,
+      Awaited<ReturnType<typeof advanceTurnApiV1GGuildIdQueuesQueueIdNextPost>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof advanceTurnApiV1QueuesQueueIdNextPost>>,
+  Awaited<ReturnType<typeof advanceTurnApiV1GGuildIdQueuesQueueIdNextPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  return useMutation(getAdvanceTurnApiV1QueuesQueueIdNextPostMutationOptions(options), queryClient);
+  return useMutation(
+    getAdvanceTurnApiV1GGuildIdQueuesQueueIdNextPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Move to the previous visible item. Wraps around and decrements round.
  * @summary Previous Turn
  */
-export const previousTurnApiV1QueuesQueueIdPreviousPost = (
+export const previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
-    { url: `/api/v1/queues/${queueId}/previous`, method: "POST", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/previous`, method: "POST", signal },
     options
   );
 };
 
-export const getPreviousTurnApiV1QueuesQueueIdPreviousPostMutationOptions = <
+export const getPreviousTurnApiV1GGuildIdQueuesQueueIdPreviousPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof previousTurnApiV1QueuesQueueIdPreviousPost>>,
+    Awaited<ReturnType<typeof previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof previousTurnApiV1QueuesQueueIdPreviousPost>>,
+  Awaited<ReturnType<typeof previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["previousTurnApiV1QueuesQueueIdPreviousPost"];
+  const mutationKey = ["previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1231,49 +1332,49 @@ export const getPreviousTurnApiV1QueuesQueueIdPreviousPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof previousTurnApiV1QueuesQueueIdPreviousPost>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return previousTurnApiV1QueuesQueueIdPreviousPost(queueId, requestOptions);
+    return previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type PreviousTurnApiV1QueuesQueueIdPreviousPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof previousTurnApiV1QueuesQueueIdPreviousPost>>
+export type PreviousTurnApiV1GGuildIdQueuesQueueIdPreviousPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost>>
 >;
 
-export type PreviousTurnApiV1QueuesQueueIdPreviousPostMutationError =
+export type PreviousTurnApiV1GGuildIdQueuesQueueIdPreviousPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Previous Turn
  */
-export const usePreviousTurnApiV1QueuesQueueIdPreviousPost = <
+export const usePreviousTurnApiV1GGuildIdQueuesQueueIdPreviousPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof previousTurnApiV1QueuesQueueIdPreviousPost>>,
+      Awaited<ReturnType<typeof previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof previousTurnApiV1QueuesQueueIdPreviousPost>>,
+  Awaited<ReturnType<typeof previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
   return useMutation(
-    getPreviousTurnApiV1QueuesQueueIdPreviousPostMutationOptions(options),
+    getPreviousTurnApiV1GGuildIdQueuesQueueIdPreviousPostMutationOptions(options),
     queryClient
   );
 };
@@ -1281,36 +1382,37 @@ export const usePreviousTurnApiV1QueuesQueueIdPreviousPost = <
  * Jump to a specific item in the queue.
  * @summary Set Active Item
  */
-export const setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost = (
+export const setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost = (
+  guildId: number,
   queueId: number,
   itemId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
-    { url: `/api/v1/queues/${queueId}/set-active/${itemId}`, method: "POST", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/set-active/${itemId}`, method: "POST", signal },
     options
   );
 };
 
-export const getSetActiveItemApiV1QueuesQueueIdSetActiveItemIdPostMutationOptions = <
+export const getSetActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost>>,
+    Awaited<ReturnType<typeof setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost>>,
     TError,
-    { queueId: number; itemId: number },
+    { guildId: number; queueId: number; itemId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost>>,
+  Awaited<ReturnType<typeof setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost>>,
   TError,
-  { queueId: number; itemId: number },
+  { guildId: number; queueId: number; itemId: number },
   TContext
 > => {
-  const mutationKey = ["setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost"];
+  const mutationKey = ["setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1318,49 +1420,54 @@ export const getSetActiveItemApiV1QueuesQueueIdSetActiveItemIdPostMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost>>,
-    { queueId: number; itemId: number }
+    Awaited<ReturnType<typeof setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost>>,
+    { guildId: number; queueId: number; itemId: number }
   > = (props) => {
-    const { queueId, itemId } = props ?? {};
+    const { guildId, queueId, itemId } = props ?? {};
 
-    return setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost(queueId, itemId, requestOptions);
+    return setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost(
+      guildId,
+      queueId,
+      itemId,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetActiveItemApiV1QueuesQueueIdSetActiveItemIdPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost>>
+export type SetActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost>>
 >;
 
-export type SetActiveItemApiV1QueuesQueueIdSetActiveItemIdPostMutationError =
+export type SetActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Set Active Item
  */
-export const useSetActiveItemApiV1QueuesQueueIdSetActiveItemIdPost = <
+export const useSetActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost>>,
+      Awaited<ReturnType<typeof setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost>>,
       TError,
-      { queueId: number; itemId: number },
+      { guildId: number; queueId: number; itemId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost>>,
+  Awaited<ReturnType<typeof setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost>>,
   TError,
-  { queueId: number; itemId: number },
+  { guildId: number; queueId: number; itemId: number },
   TContext
 > => {
   return useMutation(
-    getSetActiveItemApiV1QueuesQueueIdSetActiveItemIdPostMutationOptions(options),
+    getSetActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPostMutationOptions(options),
     queryClient
   );
 };
@@ -1368,35 +1475,36 @@ export const useSetActiveItemApiV1QueuesQueueIdSetActiveItemIdPost = <
  * Reset the queue to round 1, first visible item.
  * @summary Reset Queue
  */
-export const resetQueueApiV1QueuesQueueIdResetPost = (
+export const resetQueueApiV1GGuildIdQueuesQueueIdResetPost = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
-    { url: `/api/v1/queues/${queueId}/reset`, method: "POST", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/reset`, method: "POST", signal },
     options
   );
 };
 
-export const getResetQueueApiV1QueuesQueueIdResetPostMutationOptions = <
+export const getResetQueueApiV1GGuildIdQueuesQueueIdResetPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof resetQueueApiV1QueuesQueueIdResetPost>>,
+    Awaited<ReturnType<typeof resetQueueApiV1GGuildIdQueuesQueueIdResetPost>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof resetQueueApiV1QueuesQueueIdResetPost>>,
+  Awaited<ReturnType<typeof resetQueueApiV1GGuildIdQueuesQueueIdResetPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["resetQueueApiV1QueuesQueueIdResetPost"];
+  const mutationKey = ["resetQueueApiV1GGuildIdQueuesQueueIdResetPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1404,47 +1512,51 @@ export const getResetQueueApiV1QueuesQueueIdResetPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof resetQueueApiV1QueuesQueueIdResetPost>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof resetQueueApiV1GGuildIdQueuesQueueIdResetPost>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return resetQueueApiV1QueuesQueueIdResetPost(queueId, requestOptions);
+    return resetQueueApiV1GGuildIdQueuesQueueIdResetPost(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ResetQueueApiV1QueuesQueueIdResetPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof resetQueueApiV1QueuesQueueIdResetPost>>
+export type ResetQueueApiV1GGuildIdQueuesQueueIdResetPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof resetQueueApiV1GGuildIdQueuesQueueIdResetPost>>
 >;
 
-export type ResetQueueApiV1QueuesQueueIdResetPostMutationError = ErrorType<HTTPValidationError>;
+export type ResetQueueApiV1GGuildIdQueuesQueueIdResetPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Reset Queue
  */
-export const useResetQueueApiV1QueuesQueueIdResetPost = <
+export const useResetQueueApiV1GGuildIdQueuesQueueIdResetPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof resetQueueApiV1QueuesQueueIdResetPost>>,
+      Awaited<ReturnType<typeof resetQueueApiV1GGuildIdQueuesQueueIdResetPost>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof resetQueueApiV1QueuesQueueIdResetPost>>,
+  Awaited<ReturnType<typeof resetQueueApiV1GGuildIdQueuesQueueIdResetPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  return useMutation(getResetQueueApiV1QueuesQueueIdResetPostMutationOptions(options), queryClient);
+  return useMutation(
+    getResetQueueApiV1GGuildIdQueuesQueueIdResetPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * Hold the current turn — the item leaves the rotation until it acts.
@@ -1454,35 +1566,36 @@ export const useResetQueueApiV1QueuesQueueIdResetPost = <
  * a later round. Users can also call ``/release/{item_id}`` to act sooner.
  * @summary Hold Current Turn
  */
-export const holdCurrentTurnApiV1QueuesQueueIdHoldPost = (
+export const holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueRead>(
-    { url: `/api/v1/queues/${queueId}/hold`, method: "POST", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/hold`, method: "POST", signal },
     options
   );
 };
 
-export const getHoldCurrentTurnApiV1QueuesQueueIdHoldPostMutationOptions = <
+export const getHoldCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof holdCurrentTurnApiV1QueuesQueueIdHoldPost>>,
+    Awaited<ReturnType<typeof holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof holdCurrentTurnApiV1QueuesQueueIdHoldPost>>,
+  Awaited<ReturnType<typeof holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["holdCurrentTurnApiV1QueuesQueueIdHoldPost"];
+  const mutationKey = ["holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1490,48 +1603,49 @@ export const getHoldCurrentTurnApiV1QueuesQueueIdHoldPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof holdCurrentTurnApiV1QueuesQueueIdHoldPost>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return holdCurrentTurnApiV1QueuesQueueIdHoldPost(queueId, requestOptions);
+    return holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type HoldCurrentTurnApiV1QueuesQueueIdHoldPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof holdCurrentTurnApiV1QueuesQueueIdHoldPost>>
+export type HoldCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost>>
 >;
 
-export type HoldCurrentTurnApiV1QueuesQueueIdHoldPostMutationError = ErrorType<HTTPValidationError>;
+export type HoldCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Hold Current Turn
  */
-export const useHoldCurrentTurnApiV1QueuesQueueIdHoldPost = <
+export const useHoldCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof holdCurrentTurnApiV1QueuesQueueIdHoldPost>>,
+      Awaited<ReturnType<typeof holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof holdCurrentTurnApiV1QueuesQueueIdHoldPost>>,
+  Awaited<ReturnType<typeof holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
   return useMutation(
-    getHoldCurrentTurnApiV1QueuesQueueIdHoldPostMutationOptions(options),
+    getHoldCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPostMutationOptions(options),
     queryClient
   );
 };
@@ -1550,7 +1664,8 @@ export const useHoldCurrentTurnApiV1QueuesQueueIdHoldPost = <
  * it.
  * @summary Release Held Item
  */
-export const releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost = (
+export const releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost = (
+  guildId: number,
   queueId: number,
   itemId: number,
   queueReleaseRequest?: BodyType<QueueReleaseRequest>,
@@ -1559,7 +1674,7 @@ export const releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost = (
 ) => {
   return apiMutator<QueueRead>(
     {
-      url: `/api/v1/queues/${queueId}/release/${itemId}`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/release/${itemId}`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: queueReleaseRequest,
@@ -1569,24 +1684,24 @@ export const releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost = (
   );
 };
 
-export const getReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPostMutationOptions = <
+export const getReleaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost>>,
+    Awaited<ReturnType<typeof releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost>>,
     TError,
-    { queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> },
+    { guildId: number; queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost>>,
+  Awaited<ReturnType<typeof releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost>>,
   TError,
-  { queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> },
+  { guildId: number; queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> },
   TContext
 > => {
-  const mutationKey = ["releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost"];
+  const mutationKey = ["releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1594,12 +1709,13 @@ export const getReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPostMutationOption
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost>>,
-    { queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> }
+    Awaited<ReturnType<typeof releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost>>,
+    { guildId: number; queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> }
   > = (props) => {
-    const { queueId, itemId, data } = props ?? {};
+    const { guildId, queueId, itemId, data } = props ?? {};
 
-    return releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost(
+    return releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost(
+      guildId,
       queueId,
       itemId,
       data,
@@ -1610,40 +1726,40 @@ export const getReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPostMutationOption
   return { mutationFn, ...mutationOptions };
 };
 
-export type ReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost>>
+export type ReleaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost>>
 >;
-export type ReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPostMutationBody =
+export type ReleaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPostMutationBody =
   | BodyType<QueueReleaseRequest>
   | undefined;
-export type ReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPostMutationError =
+export type ReleaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Release Held Item
  */
-export const useReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost = <
+export const useReleaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost>>,
+      Awaited<ReturnType<typeof releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost>>,
       TError,
-      { queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> },
+      { guildId: number; queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost>>,
+  Awaited<ReturnType<typeof releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost>>,
   TError,
-  { queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> },
+  { guildId: number; queueId: number; itemId: number; data?: BodyType<QueueReleaseRequest> },
   TContext
 > => {
   return useMutation(
-    getReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPostMutationOptions(options),
+    getReleaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPostMutationOptions(options),
     queryClient
   );
 };
@@ -1651,43 +1767,44 @@ export const useReleaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost = <
  * Set tags on a queue item. Replaces all existing tags.
  * @summary Set Queue Item Tags
  */
-export const setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut = (
+export const setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut = (
+  guildId: number,
   queueId: number,
   itemId: number,
-  setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutBody: BodyType<number[]>,
+  setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutBody: BodyType<number[]>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueItemRead>(
     {
-      url: `/api/v1/queues/${queueId}/items/${itemId}/tags`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/items/${itemId}/tags`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutBody,
+      data: setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutBody,
       signal,
     },
     options
   );
 };
 
-export const getSetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutMutationOptions = <
+export const getSetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut>>,
+    Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
     TError,
-    { queueId: number; itemId: number; data: BodyType<number[]> },
+    { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut>>,
+  Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
   TError,
-  { queueId: number; itemId: number; data: BodyType<number[]> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
   TContext
 > => {
-  const mutationKey = ["setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut"];
+  const mutationKey = ["setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1695,12 +1812,13 @@ export const getSetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutMutationOpti
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut>>,
-    { queueId: number; itemId: number; data: BodyType<number[]> }
+    Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
+    { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> }
   > = (props) => {
-    const { queueId, itemId, data } = props ?? {};
+    const { guildId, queueId, itemId, data } = props ?? {};
 
-    return setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut(
+    return setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut(
+      guildId,
       queueId,
       itemId,
       data,
@@ -1711,38 +1829,41 @@ export const getSetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutMutationOpti
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut>>
+export type SetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>
+  >;
+export type SetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutationBody = BodyType<
+  number[]
 >;
-export type SetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutMutationBody = BodyType<number[]>;
-export type SetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutMutationError =
+export type SetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Set Queue Item Tags
  */
-export const useSetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut = <
+export const useSetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut>>,
+      Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
       TError,
-      { queueId: number; itemId: number; data: BodyType<number[]> },
+      { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut>>,
+  Awaited<ReturnType<typeof setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut>>,
   TError,
-  { queueId: number; itemId: number; data: BodyType<number[]> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
   TContext
 > => {
   return useMutation(
-    getSetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPutMutationOptions(options),
+    getSetQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPutMutationOptions(options),
     queryClient
   );
 };
@@ -1750,101 +1871,114 @@ export const useSetQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut = <
  * Set document links on a queue item. Replaces all existing links.
  * @summary Set Queue Item Documents
  */
-export const setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut = (
+export const setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut = (
+  guildId: number,
   queueId: number,
   itemId: number,
-  setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPutBody: BodyType<number[]>,
+  setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPutBody: BodyType<number[]>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueItemRead>(
     {
-      url: `/api/v1/queues/${queueId}/items/${itemId}/documents`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/items/${itemId}/documents`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPutBody,
+      data: setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPutBody,
       signal,
     },
     options
   );
 };
 
-export const getSetQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut>>,
+export const getSetQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPutMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut>
+      >,
+      TError,
+      { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut>
+    >,
     TError,
-    { queueId: number; itemId: number; data: BodyType<number[]> },
+    { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
     TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut>>,
-  TError,
-  { queueId: number; itemId: number; data: BodyType<number[]> },
-  TContext
-> => {
-  const mutationKey = ["setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = ["setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut>>,
-    { queueId: number; itemId: number; data: BodyType<number[]> }
-  > = (props) => {
-    const { queueId, itemId, data } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut>
+      >,
+      { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> }
+    > = (props) => {
+      const { guildId, queueId, itemId, data } = props ?? {};
 
-    return setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut(
-      queueId,
-      itemId,
-      data,
-      requestOptions
-    );
+      return setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut(
+        guildId,
+        queueId,
+        itemId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPutMutationResult =
+export type SetQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPutMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut>>
+    Awaited<
+      ReturnType<typeof setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut>
+    >
   >;
-export type SetQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPutMutationBody = BodyType<
-  number[]
->;
-export type SetQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPutMutationError =
+export type SetQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPutMutationBody =
+  BodyType<number[]>;
+export type SetQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPutMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Set Queue Item Documents
  */
-export const useSetQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut = <
+export const useSetQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut>>,
+      Awaited<
+        ReturnType<typeof setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut>
+      >,
       TError,
-      { queueId: number; itemId: number; data: BodyType<number[]> },
+      { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut>>,
+  Awaited<
+    ReturnType<typeof setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut>
+  >,
   TError,
-  { queueId: number; itemId: number; data: BodyType<number[]> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
   TContext
 > => {
   return useMutation(
-    getSetQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPutMutationOptions(options),
+    getSetQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPutMutationOptions(
+      options
+    ),
     queryClient
   );
 };
@@ -1852,43 +1986,44 @@ export const useSetQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut =
  * Set task links on a queue item. Replaces all existing links.
  * @summary Set Queue Item Tasks
  */
-export const setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut = (
+export const setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut = (
+  guildId: number,
   queueId: number,
   itemId: number,
-  setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutBody: BodyType<number[]>,
+  setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPutBody: BodyType<number[]>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<QueueItemRead>(
     {
-      url: `/api/v1/queues/${queueId}/items/${itemId}/tasks`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/items/${itemId}/tasks`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutBody,
+      data: setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPutBody,
       signal,
     },
     options
   );
 };
 
-export const getSetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutMutationOptions = <
+export const getSetQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut>>,
+    Awaited<ReturnType<typeof setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut>>,
     TError,
-    { queueId: number; itemId: number; data: BodyType<number[]> },
+    { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut>>,
+  Awaited<ReturnType<typeof setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut>>,
   TError,
-  { queueId: number; itemId: number; data: BodyType<number[]> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
   TContext
 > => {
-  const mutationKey = ["setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut"];
+  const mutationKey = ["setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -1896,12 +2031,13 @@ export const getSetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutMutationOp
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut>>,
-    { queueId: number; itemId: number; data: BodyType<number[]> }
+    Awaited<ReturnType<typeof setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut>>,
+    { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> }
   > = (props) => {
-    const { queueId, itemId, data } = props ?? {};
+    const { guildId, queueId, itemId, data } = props ?? {};
 
-    return setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut(
+    return setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut(
+      guildId,
       queueId,
       itemId,
       data,
@@ -1912,38 +2048,41 @@ export const getSetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutMutationOp
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut>>
+export type SetQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut>>
+  >;
+export type SetQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPutMutationBody = BodyType<
+  number[]
 >;
-export type SetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutMutationBody = BodyType<number[]>;
-export type SetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutMutationError =
+export type SetQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPutMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Set Queue Item Tasks
  */
-export const useSetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut = <
+export const useSetQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut>>,
+      Awaited<ReturnType<typeof setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut>>,
       TError,
-      { queueId: number; itemId: number; data: BodyType<number[]> },
+      { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut>>,
+  Awaited<ReturnType<typeof setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut>>,
   TError,
-  { queueId: number; itemId: number; data: BodyType<number[]> },
+  { guildId: number; queueId: number; itemId: number; data: BodyType<number[]> },
   TContext
 > => {
   return useMutation(
-    getSetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPutMutationOptions(options),
+    getSetQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPutMutationOptions(options),
     queryClient
   );
 };
@@ -1951,32 +2090,35 @@ export const useSetQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut = <
  * List user and role permissions on a queue. Requires read access.
  * @summary List Queue Permissions
  */
-export const listQueuePermissionsApiV1QueuesQueueIdPermissionsGet = (
+export const listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ListQueuePermissionsApiV1QueuesQueueIdPermissionsGet200>(
-    { url: `/api/v1/queues/${queueId}/permissions`, method: "GET", signal },
+  return apiMutator<ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet200>(
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/permissions`, method: "GET", signal },
     options
   );
 };
 
-export const getListQueuePermissionsApiV1QueuesQueueIdPermissionsGetQueryKey = (
+export const getListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryKey = (
+  guildId: number,
   queueId: number
 ) => {
-  return [`/api/v1/queues/${queueId}/permissions`] as const;
+  return [`/api/v1/g/${guildId}/queues/${queueId}/permissions`] as const;
 };
 
-export const getListQueuePermissionsApiV1QueuesQueueIdPermissionsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+export const getListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
         TError,
         TData
       >
@@ -1988,49 +2130,55 @@ export const getListQueuePermissionsApiV1QueuesQueueIdPermissionsGetQueryOptions
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListQueuePermissionsApiV1QueuesQueueIdPermissionsGetQueryKey(queueId);
+    getListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryKey(guildId, queueId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>
+    Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>
   > = ({ signal }) =>
-    listQueuePermissionsApiV1QueuesQueueIdPermissionsGet(queueId, requestOptions, signal);
+    listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet(
+      guildId,
+      queueId,
+      requestOptions,
+      signal
+    );
 
   return {
     queryKey,
     queryFn,
-    enabled: queueId !== null && queueId !== undefined,
+    enabled: guildId !== null && guildId !== undefined && queueId !== null && queueId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+    Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListQueuePermissionsApiV1QueuesQueueIdPermissionsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>
+export type ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>
 >;
-export type ListQueuePermissionsApiV1QueuesQueueIdPermissionsGetQueryError =
+export type ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+export function useListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet<
+  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+          Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>
+          Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>
         >,
         "initialData"
       >;
@@ -2038,24 +2186,25 @@ export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+export function useListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet<
+  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+          Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
           TError,
-          Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>
+          Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>
         >,
         "initialData"
       >;
@@ -2063,15 +2212,16 @@ export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+export function useListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet<
+  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
         TError,
         TData
       >
@@ -2084,15 +2234,16 @@ export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
  * @summary List Queue Permissions
  */
 
-export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+export function useListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet<
+  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   queueId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1QueuesQueueIdPermissionsGet>>,
+        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
         TError,
         TData
       >
@@ -2101,7 +2252,8 @@ export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListQueuePermissionsApiV1QueuesQueueIdPermissionsGetQueryOptions(
+  const queryOptions = getListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryOptions(
+    guildId,
     queueId,
     options
   );
@@ -2119,7 +2271,8 @@ export function useListQueuePermissionsApiV1QueuesQueueIdPermissionsGet<
  * Replaces all non-owner permissions. The owner's permission cannot be changed.
  * @summary Set Queue Permissions
  */
-export const setQueuePermissionsApiV1QueuesQueueIdPermissionsPut = (
+export const setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut = (
+  guildId: number,
   queueId: number,
   queuePermissionCreate: BodyType<QueuePermissionCreate[]>,
   options?: SecondParameter<typeof apiMutator>,
@@ -2127,7 +2280,7 @@ export const setQueuePermissionsApiV1QueuesQueueIdPermissionsPut = (
 ) => {
   return apiMutator<QueuePermissionRead[]>(
     {
-      url: `/api/v1/queues/${queueId}/permissions`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/permissions`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       data: queuePermissionCreate,
@@ -2137,24 +2290,24 @@ export const setQueuePermissionsApiV1QueuesQueueIdPermissionsPut = (
   );
 };
 
-export const getSetQueuePermissionsApiV1QueuesQueueIdPermissionsPutMutationOptions = <
+export const getSetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setQueuePermissionsApiV1QueuesQueueIdPermissionsPut>>,
+    Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
     TError,
-    { queueId: number; data: BodyType<QueuePermissionCreate[]> },
+    { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setQueuePermissionsApiV1QueuesQueueIdPermissionsPut>>,
+  Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
   TError,
-  { queueId: number; data: BodyType<QueuePermissionCreate[]> },
+  { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> },
   TContext
 > => {
-  const mutationKey = ["setQueuePermissionsApiV1QueuesQueueIdPermissionsPut"];
+  const mutationKey = ["setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2162,109 +2315,13 @@ export const getSetQueuePermissionsApiV1QueuesQueueIdPermissionsPutMutationOptio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setQueuePermissionsApiV1QueuesQueueIdPermissionsPut>>,
-    { queueId: number; data: BodyType<QueuePermissionCreate[]> }
+    Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
+    { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> }
   > = (props) => {
-    const { queueId, data } = props ?? {};
+    const { guildId, queueId, data } = props ?? {};
 
-    return setQueuePermissionsApiV1QueuesQueueIdPermissionsPut(queueId, data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetQueuePermissionsApiV1QueuesQueueIdPermissionsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setQueuePermissionsApiV1QueuesQueueIdPermissionsPut>>
->;
-export type SetQueuePermissionsApiV1QueuesQueueIdPermissionsPutMutationBody = BodyType<
-  QueuePermissionCreate[]
->;
-export type SetQueuePermissionsApiV1QueuesQueueIdPermissionsPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Set Queue Permissions
- */
-export const useSetQueuePermissionsApiV1QueuesQueueIdPermissionsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setQueuePermissionsApiV1QueuesQueueIdPermissionsPut>>,
-      TError,
-      { queueId: number; data: BodyType<QueuePermissionCreate[]> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setQueuePermissionsApiV1QueuesQueueIdPermissionsPut>>,
-  TError,
-  { queueId: number; data: BodyType<QueuePermissionCreate[]> },
-  TContext
-> => {
-  return useMutation(
-    getSetQueuePermissionsApiV1QueuesQueueIdPermissionsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Set role permissions on a queue. Requires owner or guild admin.
- *
- * Replaces all existing role permissions.
- * @summary Set Queue Role Permissions
- */
-export const setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut = (
-  queueId: number,
-  queueRolePermissionCreate: BodyType<QueueRolePermissionCreate[]>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<QueueRolePermissionRead[]>(
-    {
-      url: `/api/v1/queues/${queueId}/role-permissions`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: queueRolePermissionCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPutMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut>>,
-    TError,
-    { queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut>>,
-  TError,
-  { queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
-  TContext
-> => {
-  const mutationKey = ["setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut>>,
-    { queueId: number; data: BodyType<QueueRolePermissionCreate[]> }
-  > = (props) => {
-    const { queueId, data } = props ?? {};
-
-    return setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut(
+    return setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut(
+      guildId,
       queueId,
       data,
       requestOptions
@@ -2274,75 +2331,183 @@ export const getSetQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPutMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut>>
+export type SetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>
 >;
-export type SetQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPutMutationBody = BodyType<
-  QueueRolePermissionCreate[]
+export type SetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationBody = BodyType<
+  QueuePermissionCreate[]
 >;
-export type SetQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPutMutationError =
+export type SetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Set Queue Permissions
+ */
+export const useSetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
+      TError,
+      { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
+  TError,
+  { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> },
+  TContext
+> => {
+  return useMutation(
+    getSetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Set role permissions on a queue. Requires owner or guild admin.
+ *
+ * Replaces all existing role permissions.
+ * @summary Set Queue Role Permissions
+ */
+export const setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut = (
+  guildId: number,
+  queueId: number,
+  queueRolePermissionCreate: BodyType<QueueRolePermissionCreate[]>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<QueueRolePermissionRead[]>(
+    {
+      url: `/api/v1/g/${guildId}/queues/${queueId}/role-permissions`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: queueRolePermissionCreate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getSetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>
+      >,
+      TError,
+      { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>>,
+    TError,
+    { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
+    TContext
+  > => {
+    const mutationKey = ["setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>
+      >,
+      { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> }
+    > = (props) => {
+      const { guildId, queueId, data } = props ?? {};
+
+      return setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut(
+        guildId,
+        queueId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type SetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>>
+  >;
+export type SetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationBody =
+  BodyType<QueueRolePermissionCreate[]>;
+export type SetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Set Queue Role Permissions
  */
-export const useSetQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut = <
+export const useSetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut>>,
+      Awaited<
+        ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>
+      >,
       TError,
-      { queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
+      { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut>>,
+  Awaited<ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>>,
   TError,
-  { queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
+  { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
   TContext
 > => {
   return useMutation(
-    getSetQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPutMutationOptions(options),
+    getSetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Record Queue View
  */
-export const recordQueueViewApiV1QueuesQueueIdViewPost = (
+export const recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentViewWrite>(
-    { url: `/api/v1/queues/${queueId}/view`, method: "POST", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/view`, method: "POST", signal },
     options
   );
 };
 
-export const getRecordQueueViewApiV1QueuesQueueIdViewPostMutationOptions = <
+export const getRecordQueueViewApiV1GGuildIdQueuesQueueIdViewPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof recordQueueViewApiV1QueuesQueueIdViewPost>>,
+    Awaited<ReturnType<typeof recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof recordQueueViewApiV1QueuesQueueIdViewPost>>,
+  Awaited<ReturnType<typeof recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["recordQueueViewApiV1QueuesQueueIdViewPost"];
+  const mutationKey = ["recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2350,83 +2515,85 @@ export const getRecordQueueViewApiV1QueuesQueueIdViewPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof recordQueueViewApiV1QueuesQueueIdViewPost>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return recordQueueViewApiV1QueuesQueueIdViewPost(queueId, requestOptions);
+    return recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RecordQueueViewApiV1QueuesQueueIdViewPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof recordQueueViewApiV1QueuesQueueIdViewPost>>
+export type RecordQueueViewApiV1GGuildIdQueuesQueueIdViewPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost>>
 >;
 
-export type RecordQueueViewApiV1QueuesQueueIdViewPostMutationError = ErrorType<HTTPValidationError>;
+export type RecordQueueViewApiV1GGuildIdQueuesQueueIdViewPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Record Queue View
  */
-export const useRecordQueueViewApiV1QueuesQueueIdViewPost = <
+export const useRecordQueueViewApiV1GGuildIdQueuesQueueIdViewPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof recordQueueViewApiV1QueuesQueueIdViewPost>>,
+      Awaited<ReturnType<typeof recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof recordQueueViewApiV1QueuesQueueIdViewPost>>,
+  Awaited<ReturnType<typeof recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
   return useMutation(
-    getRecordQueueViewApiV1QueuesQueueIdViewPostMutationOptions(options),
+    getRecordQueueViewApiV1GGuildIdQueuesQueueIdViewPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Clear Queue View
  */
-export const clearQueueViewApiV1QueuesQueueIdViewDelete = (
+export const clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete = (
+  guildId: number,
   queueId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/queues/${queueId}/view`, method: "DELETE", signal },
+    { url: `/api/v1/g/${guildId}/queues/${queueId}/view`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearQueueViewApiV1QueuesQueueIdViewDeleteMutationOptions = <
+export const getClearQueueViewApiV1GGuildIdQueuesQueueIdViewDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearQueueViewApiV1QueuesQueueIdViewDelete>>,
+    Awaited<ReturnType<typeof clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete>>,
     TError,
-    { queueId: number },
+    { guildId: number; queueId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearQueueViewApiV1QueuesQueueIdViewDelete>>,
+  Awaited<ReturnType<typeof clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
-  const mutationKey = ["clearQueueViewApiV1QueuesQueueIdViewDelete"];
+  const mutationKey = ["clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2434,49 +2601,49 @@ export const getClearQueueViewApiV1QueuesQueueIdViewDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearQueueViewApiV1QueuesQueueIdViewDelete>>,
-    { queueId: number }
+    Awaited<ReturnType<typeof clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete>>,
+    { guildId: number; queueId: number }
   > = (props) => {
-    const { queueId } = props ?? {};
+    const { guildId, queueId } = props ?? {};
 
-    return clearQueueViewApiV1QueuesQueueIdViewDelete(queueId, requestOptions);
+    return clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete(guildId, queueId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearQueueViewApiV1QueuesQueueIdViewDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearQueueViewApiV1QueuesQueueIdViewDelete>>
+export type ClearQueueViewApiV1GGuildIdQueuesQueueIdViewDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete>>
 >;
 
-export type ClearQueueViewApiV1QueuesQueueIdViewDeleteMutationError =
+export type ClearQueueViewApiV1GGuildIdQueuesQueueIdViewDeleteMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Clear Queue View
  */
-export const useClearQueueViewApiV1QueuesQueueIdViewDelete = <
+export const useClearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearQueueViewApiV1QueuesQueueIdViewDelete>>,
+      Awaited<ReturnType<typeof clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete>>,
       TError,
-      { queueId: number },
+      { guildId: number; queueId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearQueueViewApiV1QueuesQueueIdViewDelete>>,
+  Awaited<ReturnType<typeof clearQueueViewApiV1GGuildIdQueuesQueueIdViewDelete>>,
   TError,
-  { queueId: number },
+  { guildId: number; queueId: number },
   TContext
 > => {
   return useMutation(
-    getClearQueueViewApiV1QueuesQueueIdViewDeleteMutationOptions(options),
+    getClearQueueViewApiV1GGuildIdQueuesQueueIdViewDeleteMutationOptions(options),
     queryClient
   );
 };

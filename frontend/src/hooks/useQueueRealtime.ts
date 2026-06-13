@@ -29,7 +29,7 @@ export function useQueueRealtime(queueId: number | null): void {
     const normalizedPath = url.pathname.endsWith("/")
       ? url.pathname.slice(0, -1)
       : url.pathname || "/api/v1";
-    url.pathname = `${normalizedPath}/queues/${queueId}/ws`;
+    url.pathname = `${normalizedPath}/g/${activeGuildId}/queues/${queueId}/ws`;
 
     const ws = new WebSocket(url.toString());
     wsRef.current = ws;

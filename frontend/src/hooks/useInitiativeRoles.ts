@@ -9,37 +9,47 @@ import type {
   PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost,
-  deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete,
-  getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryKey,
-  getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey,
-  getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet,
-  listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet,
-  updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch,
+  createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost,
+  deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete,
+  getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey,
+  getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey,
+  getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet,
+  listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet,
+  updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch,
 } from "@/api/generated/initiatives/initiatives";
 import { invalidateInitiativeRoles, invalidateMyPermissions } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 export const useInitiativeRoles = (initiativeId: number | null) => {
+  const guildId = useActiveGuildId();
   return useQuery<InitiativeRoleRead[]>({
-    queryKey: getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey(initiativeId!),
+    queryKey: getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey(
+      guildId,
+      initiativeId!
+    ),
     queryFn: () =>
-      listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet(initiativeId!) as unknown as Promise<
-        InitiativeRoleRead[]
-      >,
+      listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+        guildId,
+        initiativeId!
+      ) as unknown as Promise<InitiativeRoleRead[]>,
     enabled: !!initiativeId,
     staleTime: 30 * 1000,
   });
 };
 
 export const useMyInitiativePermissions = (initiativeId: number | null) => {
+  const guildId = useActiveGuildId();
   return useQuery<MyInitiativePermissions>({
-    queryKey: getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryKey(
-      initiativeId!
-    ),
+    queryKey:
+      getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey(
+        guildId,
+        initiativeId!
+      ),
     queryFn: () =>
-      getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet(
+      getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet(
+        guildId,
         initiativeId!
       ) as unknown as Promise<MyInitiativePermissions>,
     enabled: !!initiativeId,
@@ -49,10 +59,12 @@ export const useMyInitiativePermissions = (initiativeId: number | null) => {
 
 export const useCreateRole = (initiativeId: number) => {
   const { t } = useTranslation("initiatives");
+  const guildId = useActiveGuildId();
 
   return useMutation({
     mutationFn: async (data: InitiativeRoleCreate) => {
-      return createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost(
+      return createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost(
+        guildId,
         initiativeId,
         data
       ) as unknown as Promise<InitiativeRoleRead>;
@@ -69,10 +81,12 @@ export const useCreateRole = (initiativeId: number) => {
 
 export const useUpdateRole = (initiativeId: number) => {
   const { t } = useTranslation("initiatives");
+  const guildId = useActiveGuildId();
 
   return useMutation({
     mutationFn: async ({ roleId, data }: { roleId: number; data: InitiativeRoleUpdate }) => {
-      return updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch(
+      return updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+        guildId,
         initiativeId,
         roleId,
         data
@@ -91,10 +105,15 @@ export const useUpdateRole = (initiativeId: number) => {
 
 export const useDeleteRole = (initiativeId: number) => {
   const { t } = useTranslation("initiatives");
+  const guildId = useActiveGuildId();
 
   return useMutation({
     mutationFn: async (roleId: number) => {
-      await deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete(initiativeId, roleId);
+      await deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete(
+        guildId,
+        initiativeId,
+        roleId
+      );
     },
     onSuccess: () => {
       toast.success(t("settings.roleDeleted"));

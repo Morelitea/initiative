@@ -1,8 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
-import { setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut } from "@/api/generated/calendar-events/calendar-events";
-import { setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut } from "@/api/generated/documents/documents";
+import { setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut } from "@/api/generated/calendar-events/calendar-events";
+import { setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut } from "@/api/generated/documents/documents";
 import type {
   CalendarEventRead,
   DocumentRead,
@@ -16,17 +16,17 @@ import type {
   TaskRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  createPropertyDefinitionApiV1PropertyDefinitionsPost,
-  deletePropertyDefinitionApiV1PropertyDefinitionsDefinitionIdDelete,
-  getGetPropertyDefinitionApiV1PropertyDefinitionsDefinitionIdGetQueryKey,
-  getGetPropertyEntitiesApiV1PropertyDefinitionsDefinitionIdEntitiesGetQueryKey,
-  getListPropertyDefinitionsApiV1PropertyDefinitionsGetQueryKey,
-  getPropertyDefinitionApiV1PropertyDefinitionsDefinitionIdGet,
-  getPropertyEntitiesApiV1PropertyDefinitionsDefinitionIdEntitiesGet,
-  listPropertyDefinitionsApiV1PropertyDefinitionsGet,
-  updatePropertyDefinitionApiV1PropertyDefinitionsDefinitionIdPatch,
+  createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost,
+  deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete,
+  getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryKey,
+  getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryKey,
+  getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryKey,
+  getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet,
+  getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet,
+  listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet,
+  updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch,
 } from "@/api/generated/property-definitions/property-definitions";
-import { setTaskPropertiesApiV1TasksTaskIdPropertiesPut } from "@/api/generated/tasks/tasks";
+import { setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut } from "@/api/generated/tasks/tasks";
 import {
   invalidateAllCalendarEvents,
   invalidateAllDocuments,
@@ -37,6 +37,7 @@ import {
   invalidateTask,
 } from "@/api/query-keys";
 import { buildUniqueOptionSlug, findOptionByLabel } from "@/components/properties/propertyHelpers";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
@@ -53,16 +54,19 @@ import type { MutationOpts } from "@/types/mutation";
  *   events list) so property columns and filters aggregate across initiatives.
  */
 export const useProperties = (options?: { initiativeId?: number }) => {
+  const guildId = useActiveGuildId();
   const initiativeId = options?.initiativeId;
   const params: { initiative_id?: number } = {};
   if (initiativeId !== undefined) params.initiative_id = initiativeId;
   const hasParams = Object.keys(params).length > 0;
   return useQuery<PropertyDefinitionRead[]>({
-    queryKey: getListPropertyDefinitionsApiV1PropertyDefinitionsGetQueryKey(
+    queryKey: getListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetQueryKey(
+      guildId,
       hasParams ? params : undefined
     ),
     queryFn: () =>
-      listPropertyDefinitionsApiV1PropertyDefinitionsGet(
+      listPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet(
+        guildId,
         hasParams ? params : undefined
       ) as unknown as Promise<PropertyDefinitionRead[]>,
     staleTime: 60 * 1000,
@@ -70,10 +74,15 @@ export const useProperties = (options?: { initiativeId?: number }) => {
 };
 
 export const useProperty = (propertyId: number | null) => {
+  const guildId = useActiveGuildId();
   return useQuery<PropertyDefinitionRead>({
-    queryKey: getGetPropertyDefinitionApiV1PropertyDefinitionsDefinitionIdGetQueryKey(propertyId!),
+    queryKey: getGetPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGetQueryKey(
+      guildId,
+      propertyId!
+    ),
     queryFn: () =>
-      getPropertyDefinitionApiV1PropertyDefinitionsDefinitionIdGet(
+      getPropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdGet(
+        guildId,
         propertyId!
       ) as unknown as Promise<PropertyDefinitionRead>,
     enabled: !!propertyId,
@@ -82,12 +91,15 @@ export const useProperty = (propertyId: number | null) => {
 };
 
 export const usePropertyEntities = (propertyId: number | null) => {
+  const guildId = useActiveGuildId();
   return useQuery<PropertyEntitiesResult>({
-    queryKey: getGetPropertyEntitiesApiV1PropertyDefinitionsDefinitionIdEntitiesGetQueryKey(
+    queryKey: getGetPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGetQueryKey(
+      guildId,
       propertyId!
     ),
     queryFn: () =>
-      getPropertyEntitiesApiV1PropertyDefinitionsDefinitionIdEntitiesGet(
+      getPropertyEntitiesApiV1GGuildIdPropertyDefinitionsDefinitionIdEntitiesGet(
+        guildId,
         propertyId!
       ) as unknown as Promise<PropertyEntitiesResult>,
     enabled: !!propertyId,
@@ -101,11 +113,13 @@ export const useCreateProperty = (
   options?: MutationOpts<PropertyDefinitionRead, PropertyDefinitionCreate>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async (data: PropertyDefinitionCreate) => {
-      return createPropertyDefinitionApiV1PropertyDefinitionsPost(
+      return createPropertyDefinitionApiV1GGuildIdPropertyDefinitionsPost(
+        guildId,
         data
       ) as unknown as Promise<PropertyDefinitionRead>;
     },
@@ -128,6 +142,7 @@ export const useUpdateProperty = (
   >
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -138,7 +153,8 @@ export const useUpdateProperty = (
       propertyId: number;
       data: PropertyDefinitionUpdate;
     }) => {
-      return updatePropertyDefinitionApiV1PropertyDefinitionsDefinitionIdPatch(
+      return updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch(
+        guildId,
         propertyId,
         data
       ) as unknown as Promise<PropertyDefinitionUpdateResponse>;
@@ -162,11 +178,15 @@ export const useUpdateProperty = (
 
 export const useDeleteProperty = (options?: MutationOpts<void, number>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async (propertyId: number) => {
-      await deletePropertyDefinitionApiV1PropertyDefinitionsDefinitionIdDelete(propertyId);
+      await deletePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdDelete(
+        guildId,
+        propertyId
+      );
     },
     onSuccess: (...args) => {
       void invalidateAllProperties();
@@ -192,6 +212,7 @@ export const useDeleteProperty = (options?: MutationOpts<void, number>) => {
  */
 export const useAppendPropertyOption = () => {
   const { t } = useTranslation("properties");
+  const guildId = useActiveGuildId();
 
   const mutation = useMutation({
     mutationFn: async (vars: {
@@ -215,9 +236,13 @@ export const useAppendPropertyOption = () => {
         color: vars.color ?? null,
       };
       const nextOptions: PropertyOption[] = [...currentOptions, newOption];
-      await updatePropertyDefinitionApiV1PropertyDefinitionsDefinitionIdPatch(vars.definition.id, {
-        options: nextOptions,
-      });
+      await updatePropertyDefinitionApiV1GGuildIdPropertyDefinitionsDefinitionIdPatch(
+        guildId,
+        vars.definition.id,
+        {
+          options: nextOptions,
+        }
+      );
       return { option: newOption, created: true as const };
     },
     onSuccess: (result) => {
@@ -245,6 +270,7 @@ export const useSetDocumentProperties = (
   options?: MutationOpts<DocumentRead, { documentId: number; values: PropertyValuesSetRequest }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -255,7 +281,8 @@ export const useSetDocumentProperties = (
       documentId: number;
       values: PropertyValuesSetRequest;
     }) => {
-      return setDocumentPropertiesApiV1DocumentsDocumentIdPropertiesPut(
+      return setDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesPut(
+        guildId,
         documentId,
         values
       ) as unknown as Promise<DocumentRead>;
@@ -277,6 +304,7 @@ export const useSetTaskProperties = (
   options?: MutationOpts<TaskRead, { taskId: number; values: PropertyValuesSetRequest }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -287,7 +315,8 @@ export const useSetTaskProperties = (
       taskId: number;
       values: PropertyValuesSetRequest;
     }) => {
-      return setTaskPropertiesApiV1TasksTaskIdPropertiesPut(
+      return setTaskPropertiesApiV1GGuildIdTasksTaskIdPropertiesPut(
+        guildId,
         taskId,
         values
       ) as unknown as Promise<TaskRead>;
@@ -309,6 +338,7 @@ export const useSetEventProperties = (
   options?: MutationOpts<CalendarEventRead, { eventId: number; values: PropertyValuesSetRequest }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
@@ -319,7 +349,8 @@ export const useSetEventProperties = (
       eventId: number;
       values: PropertyValuesSetRequest;
     }) => {
-      return setEventPropertiesApiV1CalendarEventsEventIdPropertiesPut(
+      return setEventPropertiesApiV1GGuildIdCalendarEventsEventIdPropertiesPut(
+        guildId,
         eventId,
         values
       ) as unknown as Promise<CalendarEventRead>;

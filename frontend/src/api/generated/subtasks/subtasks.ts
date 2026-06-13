@@ -22,7 +22,8 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Update Subtask
  */
-export const updateSubtaskApiV1SubtasksSubtaskIdPatch = (
+export const updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch = (
+  guildId: number,
   subtaskId: number,
   subtaskUpdate: BodyType<SubtaskUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -30,7 +31,7 @@ export const updateSubtaskApiV1SubtasksSubtaskIdPatch = (
 ) => {
   return apiMutator<SubtaskRead>(
     {
-      url: `/api/v1/subtasks/${subtaskId}`,
+      url: `/api/v1/g/${guildId}/subtasks/${subtaskId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: subtaskUpdate,
@@ -40,24 +41,24 @@ export const updateSubtaskApiV1SubtasksSubtaskIdPatch = (
   );
 };
 
-export const getUpdateSubtaskApiV1SubtasksSubtaskIdPatchMutationOptions = <
+export const getUpdateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
+    Awaited<ReturnType<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>>,
     TError,
-    { subtaskId: number; data: BodyType<SubtaskUpdate> },
+    { guildId: number; subtaskId: number; data: BodyType<SubtaskUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
+  Awaited<ReturnType<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>>,
   TError,
-  { subtaskId: number; data: BodyType<SubtaskUpdate> },
+  { guildId: number; subtaskId: number; data: BodyType<SubtaskUpdate> },
   TContext
 > => {
-  const mutationKey = ["updateSubtaskApiV1SubtasksSubtaskIdPatch"];
+  const mutationKey = ["updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -65,83 +66,90 @@ export const getUpdateSubtaskApiV1SubtasksSubtaskIdPatchMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
-    { subtaskId: number; data: BodyType<SubtaskUpdate> }
+    Awaited<ReturnType<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>>,
+    { guildId: number; subtaskId: number; data: BodyType<SubtaskUpdate> }
   > = (props) => {
-    const { subtaskId, data } = props ?? {};
+    const { guildId, subtaskId, data } = props ?? {};
 
-    return updateSubtaskApiV1SubtasksSubtaskIdPatch(subtaskId, data, requestOptions);
+    return updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch(
+      guildId,
+      subtaskId,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateSubtaskApiV1SubtasksSubtaskIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>
+export type UpdateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>>
 >;
-export type UpdateSubtaskApiV1SubtasksSubtaskIdPatchMutationBody = BodyType<SubtaskUpdate>;
-export type UpdateSubtaskApiV1SubtasksSubtaskIdPatchMutationError = ErrorType<HTTPValidationError>;
+export type UpdateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatchMutationBody = BodyType<SubtaskUpdate>;
+export type UpdateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Subtask
  */
-export const useUpdateSubtaskApiV1SubtasksSubtaskIdPatch = <
+export const useUpdateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
+      Awaited<ReturnType<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>>,
       TError,
-      { subtaskId: number; data: BodyType<SubtaskUpdate> },
+      { guildId: number; subtaskId: number; data: BodyType<SubtaskUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateSubtaskApiV1SubtasksSubtaskIdPatch>>,
+  Awaited<ReturnType<typeof updateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatch>>,
   TError,
-  { subtaskId: number; data: BodyType<SubtaskUpdate> },
+  { guildId: number; subtaskId: number; data: BodyType<SubtaskUpdate> },
   TContext
 > => {
   return useMutation(
-    getUpdateSubtaskApiV1SubtasksSubtaskIdPatchMutationOptions(options),
+    getUpdateSubtaskApiV1GGuildIdSubtasksSubtaskIdPatchMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Delete Subtask
  */
-export const deleteSubtaskApiV1SubtasksSubtaskIdDelete = (
+export const deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete = (
+  guildId: number,
   subtaskId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/subtasks/${subtaskId}`, method: "DELETE", signal },
+    { url: `/api/v1/g/${guildId}/subtasks/${subtaskId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteSubtaskApiV1SubtasksSubtaskIdDeleteMutationOptions = <
+export const getDeleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
+    Awaited<ReturnType<typeof deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete>>,
     TError,
-    { subtaskId: number },
+    { guildId: number; subtaskId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
+  Awaited<ReturnType<typeof deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete>>,
   TError,
-  { subtaskId: number },
+  { guildId: number; subtaskId: number },
   TContext
 > => {
-  const mutationKey = ["deleteSubtaskApiV1SubtasksSubtaskIdDelete"];
+  const mutationKey = ["deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -149,48 +157,49 @@ export const getDeleteSubtaskApiV1SubtasksSubtaskIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
-    { subtaskId: number }
+    Awaited<ReturnType<typeof deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete>>,
+    { guildId: number; subtaskId: number }
   > = (props) => {
-    const { subtaskId } = props ?? {};
+    const { guildId, subtaskId } = props ?? {};
 
-    return deleteSubtaskApiV1SubtasksSubtaskIdDelete(subtaskId, requestOptions);
+    return deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete(guildId, subtaskId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteSubtaskApiV1SubtasksSubtaskIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>
+export type DeleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete>>
 >;
 
-export type DeleteSubtaskApiV1SubtasksSubtaskIdDeleteMutationError = ErrorType<HTTPValidationError>;
+export type DeleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete Subtask
  */
-export const useDeleteSubtaskApiV1SubtasksSubtaskIdDelete = <
+export const useDeleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
+      Awaited<ReturnType<typeof deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete>>,
       TError,
-      { subtaskId: number },
+      { guildId: number; subtaskId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteSubtaskApiV1SubtasksSubtaskIdDelete>>,
+  Awaited<ReturnType<typeof deleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDelete>>,
   TError,
-  { subtaskId: number },
+  { guildId: number; subtaskId: number },
   TContext
 > => {
   return useMutation(
-    getDeleteSubtaskApiV1SubtasksSubtaskIdDeleteMutationOptions(options),
+    getDeleteSubtaskApiV1GGuildIdSubtasksSubtaskIdDeleteMutationOptions(options),
     queryClient
   );
 };

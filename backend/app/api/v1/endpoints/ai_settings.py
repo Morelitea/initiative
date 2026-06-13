@@ -38,6 +38,10 @@ from app.schemas.ai_settings import (
 from app.services import ai_settings as ai_settings_service
 
 router = APIRouter()
+# Platform-level AI config (app-wide, owner-only via ConfigManage) is NOT
+# guild-scoped — mounted top-level. The guild/user AI endpoints below stay on
+# ``router`` under /g/{guild_id}.
+platform_router = APIRouter()
 
 GuildAdminContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.admin))
@@ -46,7 +50,7 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
 # Platform-level endpoints (platform admin only)
-@router.get("/ai/platform", response_model=PlatformAISettingsResponse)
+@platform_router.get("/ai/platform", response_model=PlatformAISettingsResponse)
 async def get_platform_ai_settings(
     session: SessionDep,
     _admin: ConfigManageDep,
@@ -55,7 +59,7 @@ async def get_platform_ai_settings(
     return await ai_settings_service.get_platform_ai_settings(session)
 
 
-@router.put("/ai/platform", response_model=PlatformAISettingsResponse)
+@platform_router.put("/ai/platform", response_model=PlatformAISettingsResponse)
 async def update_platform_ai_settings(
     payload: PlatformAISettingsUpdate,
     session: SessionDep,

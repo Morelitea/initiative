@@ -2,20 +2,20 @@ import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import type { UserViewPreferencesMap } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
-  readProjectApiV1ProjectsProjectIdGet,
+  getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
+  readProjectApiV1GGuildIdProjectsProjectIdGet,
 } from "@/api/generated/projects/projects";
 import {
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
+  listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet,
 } from "@/api/generated/task-statuses/task-statuses";
 import {
-  getListTasksApiV1TasksGetQueryKey,
-  listTasksApiV1TasksGet,
+  getListTasksApiV1GGuildIdTasksGetQueryKey,
+  listTasksApiV1GGuildIdTasksGet,
 } from "@/api/generated/tasks/tasks";
 import {
-  getListUsersApiV1UsersGetQueryKey,
-  listUsersApiV1UsersGet,
+  getListUsersApiV1GGuildIdUsersGetQueryKey,
+  listUsersApiV1GGuildIdUsersGet,
 } from "@/api/generated/users/users";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
 import { getItem } from "@/lib/storage";
@@ -68,6 +68,7 @@ export const Route = createFileRoute(
   }),
   loader: async ({ context, params }) => {
     const projectId = Number(params.projectId);
+    const guildId = Number(params.guildId);
     const { queryClient } = context;
 
     // Read saved filters from the hydrated view-preferences cache (or
@@ -96,23 +97,27 @@ export const Route = createFileRoute(
     try {
       await Promise.all([
         queryClient.ensureQueryData({
-          queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(projectId),
-          queryFn: () => readProjectApiV1ProjectsProjectIdGet(projectId),
+          queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId),
+          queryFn: () => readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, projectId),
           staleTime: 30_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId),
-          queryFn: () => listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId),
+          queryKey: getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
+            guildId,
+            projectId
+          ),
+          queryFn: () =>
+            listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(guildId, projectId),
           staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: getListUsersApiV1UsersGetQueryKey(),
-          queryFn: () => listUsersApiV1UsersGet(),
+          queryKey: getListUsersApiV1GGuildIdUsersGetQueryKey(guildId),
+          queryFn: () => listUsersApiV1GGuildIdUsersGet(guildId),
           staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: getListTasksApiV1TasksGetQueryKey(taskParams),
-          queryFn: () => listTasksApiV1TasksGet(taskParams),
+          queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, taskParams),
+          queryFn: () => listTasksApiV1GGuildIdTasksGet(guildId, taskParams),
           staleTime: 30_000,
         }),
       ]);

@@ -7,7 +7,7 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import GuildRole
+from app.models.guild import Guild, GuildRole
 from app.models.initiative import InitiativeRoleModel
 from app.testing.factories import (
     create_guild,
@@ -45,11 +45,15 @@ async def _setup_with_member(session: AsyncSession):
 
 
 async def _create_queue_via_api(
-    client: AsyncClient, headers: dict, initiative_id: int, name: str = "Test Queue"
+    client: AsyncClient,
+    headers: dict,
+    guild: Guild,
+    initiative_id: int,
+    name: str = "Test Queue",
 ) -> dict:
     """Create a queue via API and return the response data."""
     response = await client.post(
-        "/api/v1/queues/",
+        f"/api/v1/g/{guild.id}/queues/",
         headers=headers,
         json={"name": name, "initiative_id": initiative_id},
     )
@@ -58,11 +62,16 @@ async def _create_queue_via_api(
 
 
 async def _add_item_via_api(
-    client: AsyncClient, headers: dict, queue_id: int, label: str, position: float = 0
+    client: AsyncClient,
+    headers: dict,
+    guild: Guild,
+    queue_id: int,
+    label: str,
+    position: float = 0,
 ) -> dict:
     """Add an item to a queue via API."""
     response = await client.post(
-        f"/api/v1/queues/{queue_id}/items",
+        f"/api/v1/g/{guild.id}/queues/{queue_id}/items",
         headers=headers,
         json={"label": label, "position": position},
     )
@@ -82,7 +91,7 @@ async def test_create_queue(client: AsyncClient, session: AsyncSession):
     headers = await get_guild_headers(session, guild, admin)
 
     response = await client.post(
-        "/api/v1/queues/",
+        f"/api/v1/g/{guild.id}/queues/",
         headers=headers,
         json={
             "name": "Initiative Order",
@@ -110,7 +119,7 @@ async def test_create_queue_non_pm_forbidden(
     headers = await get_guild_headers(session, guild, member)
 
     response = await client.post(
-        "/api/v1/queues/",
+        f"/api/v1/g/{guild.id}/queues/",
         headers=headers,
         json={
             "name": "Forbidden Queue",
@@ -126,9 +135,9 @@ async def test_list_queues(client: AsyncClient, session: AsyncSession):
     """Admin can list queues."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    await _create_queue_via_api(client, headers, initiative.id, "Listed Queue")
+    await _create_queue_via_api(client, headers, guild, initiative.id, "Listed Queue")
 
-    response = await client.get("/api/v1/queues/", headers=headers)
+    response = await client.get(f"/api/v1/g/{guild.id}/queues/", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -142,9 +151,11 @@ async def test_get_queue(client: AsyncClient, session: AsyncSession):
     """Owner can fetch queue details."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
 
-    response = await client.get(f"/api/v1/queues/{queue_data['id']}", headers=headers)
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -157,10 +168,10 @@ async def test_update_queue(client: AsyncClient, session: AsyncSession):
     """Owner can update queue name/description."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
 
     response = await client.patch(
-        f"/api/v1/queues/{queue_data['id']}",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}",
         headers=headers,
         json={"name": "Updated Name", "description": "Updated desc"},
     )
@@ -176,15 +187,17 @@ async def test_delete_queue(client: AsyncClient, session: AsyncSession):
     """Owner can delete a queue."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
 
     response = await client.delete(
-        f"/api/v1/queues/{queue_data['id']}", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}", headers=headers
     )
     assert response.status_code == 204
 
     # Verify gone
-    response = await client.get(f"/api/v1/queues/{queue_data['id']}", headers=headers)
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}", headers=headers
+    )
     assert response.status_code == 404
 
 
@@ -198,10 +211,10 @@ async def test_add_queue_item(client: AsyncClient, session: AsyncSession):
     """Owner can add an item to a queue."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
 
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/items",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/items",
         headers=headers,
         json={"label": "Player 1", "position": 15, "color": "#FF0000"},
     )
@@ -218,11 +231,13 @@ async def test_update_queue_item(client: AsyncClient, session: AsyncSession):
     """Owner can update an item."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    item_data = await _add_item_via_api(client, headers, queue_data["id"], "Original")
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    item_data = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "Original"
+    )
 
     response = await client.patch(
-        f"/api/v1/queues/{queue_data['id']}/items/{item_data['id']}",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/items/{item_data['id']}",
         headers=headers,
         json={"label": "Renamed", "position": 5},
     )
@@ -238,11 +253,13 @@ async def test_delete_queue_item(client: AsyncClient, session: AsyncSession):
     """Owner can delete an item."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    item_data = await _add_item_via_api(client, headers, queue_data["id"], "To Delete")
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    item_data = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "To Delete"
+    )
 
     response = await client.delete(
-        f"/api/v1/queues/{queue_data['id']}/items/{item_data['id']}",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/items/{item_data['id']}",
         headers=headers,
     )
     assert response.status_code == 204
@@ -253,12 +270,16 @@ async def test_reorder_queue_items(client: AsyncClient, session: AsyncSession):
     """Owner can bulk-reorder items."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    item_a = await _add_item_via_api(client, headers, queue_data["id"], "A", position=1)
-    item_b = await _add_item_via_api(client, headers, queue_data["id"], "B", position=2)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    item_a = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "A", position=1
+    )
+    item_b = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "B", position=2
+    )
 
     response = await client.put(
-        f"/api/v1/queues/{queue_data['id']}/items/reorder",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/items/reorder",
         headers=headers,
         json={
             "items": [
@@ -280,15 +301,15 @@ async def test_fractional_positions(client: AsyncClient, session: AsyncSession):
     """Items with the same integer initiative can be split by a fractional position."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
     item_a = await _add_item_via_api(
         client, headers, queue_data["id"], "A", position=10
     )
-    await _add_item_via_api(client, headers, queue_data["id"], "B", position=10)
+    await _add_item_via_api(client, headers, guild, queue_data["id"], "B", position=10)
 
     # Drop C between A and B without renumbering either.
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/items",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/items",
         headers=headers,
         json={"label": "C", "position": 10.5},
     )
@@ -297,7 +318,7 @@ async def test_fractional_positions(client: AsyncClient, session: AsyncSession):
 
     # Persisted precision survives a round-trip.
     update = await client.patch(
-        f"/api/v1/queues/{queue_data['id']}/items/{item_a['id']}",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/items/{item_a['id']}",
         headers=headers,
         json={"position": 10.25},
     )
@@ -307,19 +328,19 @@ async def test_fractional_positions(client: AsyncClient, session: AsyncSession):
     # Positions are now C=10.5, A=10.25, B=10. Turn order must respect the
     # fractional ordering (descending), not collapse to the shared integer.
     start = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/start", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/start", headers=headers
     )
     assert start.status_code == 200
     assert start.json()["current_item"]["label"] == "C"
 
     second = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/next", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/next", headers=headers
     )
     assert second.status_code == 200
     assert second.json()["current_item"]["label"] == "A"
 
     third = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/next", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/next", headers=headers
     )
     assert third.status_code == 200
     assert third.json()["current_item"]["label"] == "B"
@@ -335,12 +356,12 @@ async def test_start_and_stop_queue(client: AsyncClient, session: AsyncSession):
     """Start activates the queue, stop deactivates it."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    await _add_item_via_api(client, headers, queue_data["id"], "P1", position=10)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    await _add_item_via_api(client, headers, guild, queue_data["id"], "P1", position=10)
 
     # Start
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/start", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/start", headers=headers
     )
     assert response.status_code == 200
     data = response.json()
@@ -349,7 +370,7 @@ async def test_start_and_stop_queue(client: AsyncClient, session: AsyncSession):
 
     # Stop
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/stop", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/stop", headers=headers
     )
     assert response.status_code == 200
     data = response.json()
@@ -361,16 +382,18 @@ async def test_advance_turn(client: AsyncClient, session: AsyncSession):
     """Advancing cycles through visible items."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    await _add_item_via_api(client, headers, queue_data["id"], "A", position=10)
-    await _add_item_via_api(client, headers, queue_data["id"], "B", position=20)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    await _add_item_via_api(client, headers, guild, queue_data["id"], "A", position=10)
+    await _add_item_via_api(client, headers, guild, queue_data["id"], "B", position=20)
 
     # Start
-    await client.post(f"/api/v1/queues/{queue_data['id']}/start", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/start", headers=headers
+    )
 
     # Advance
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/next", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/next", headers=headers
     )
     assert response.status_code == 200
 
@@ -380,13 +403,15 @@ async def test_reset_queue(client: AsyncClient, session: AsyncSession):
     """Reset resets round to 1 and sets current to first visible item."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    await _add_item_via_api(client, headers, queue_data["id"], "P1", position=5)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    await _add_item_via_api(client, headers, guild, queue_data["id"], "P1", position=5)
 
-    await client.post(f"/api/v1/queues/{queue_data['id']}/start", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/start", headers=headers
+    )
 
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/reset", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/reset", headers=headers
     )
     assert response.status_code == 200
     data = response.json()
@@ -400,14 +425,22 @@ async def test_reset_queue(client: AsyncClient, session: AsyncSession):
 
 
 async def _running_queue_with_abc(
-    client: AsyncClient, headers: dict, initiative_id: int
+    client: AsyncClient, headers: dict, guild: Guild, initiative_id: int
 ) -> tuple[dict, dict, dict, dict]:
     """Helper: queue with three items A(30), B(20), C(10), started; current=A."""
-    queue_data = await _create_queue_via_api(client, headers, initiative_id)
-    a = await _add_item_via_api(client, headers, queue_data["id"], "A", position=30)
-    b = await _add_item_via_api(client, headers, queue_data["id"], "B", position=20)
-    c = await _add_item_via_api(client, headers, queue_data["id"], "C", position=10)
-    await client.post(f"/api/v1/queues/{queue_data['id']}/start", headers=headers)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative_id)
+    a = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "A", position=30
+    )
+    b = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "B", position=20
+    )
+    c = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "C", position=10
+    )
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/start", headers=headers
+    )
     return queue_data, a, b, c
 
 
@@ -422,10 +455,12 @@ async def test_hold_current_records_round_and_advances(
     """Hold the current item: held_at_round is set, current advances past it."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data, a, b, _c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, b, _c = await _running_queue_with_abc(
+        client, headers, guild, initiative.id
+    )
 
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/hold", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
     )
     assert response.status_code == 200
     payload = response.json()
@@ -442,12 +477,16 @@ async def test_hold_only_item_clears_current(
     """Holding the last rotation-eligible item leaves current_item = None."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    a = await _add_item_via_api(client, headers, queue_data["id"], "Solo", position=10)
-    await client.post(f"/api/v1/queues/{queue_data['id']}/start", headers=headers)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    a = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "Solo", position=10
+    )
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/start", headers=headers
+    )
 
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/hold", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
     )
     assert response.status_code == 200
     payload = response.json()
@@ -462,20 +501,28 @@ async def test_advance_auto_releases_at_natural_slot(
     """Held A returns to current when round 2 reaches A's position-desc slot."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data, a, b, c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, b, c = await _running_queue_with_abc(
+        client, headers, guild, initiative.id
+    )
 
     # Hold A; current is now B in round 1.
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
     # B -> C, still round 1.
     after_bc = (
-        await client.post(f"/api/v1/queues/{queue_data['id']}/next", headers=headers)
+        await client.post(
+            f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/next", headers=headers
+        )
     ).json()
     assert after_bc["current_item"]["id"] == c["id"]
     assert after_bc["current_round"] == 1
     # C -> wraps to round 2; A is the next visible position-desc slot and is
     # auto-released because held_at_round (1) < new round (2).
     after_wrap = (
-        await client.post(f"/api/v1/queues/{queue_data['id']}/next", headers=headers)
+        await client.post(
+            f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/next", headers=headers
+        )
     ).json()
     assert after_wrap["current_item"]["id"] == a["id"]
     assert after_wrap["current_round"] == 2
@@ -495,12 +542,17 @@ async def test_release_clears_hold_without_rewinding(
     """
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data, a, b, _c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, b, _c = await _running_queue_with_abc(
+        client, headers, guild, initiative.id
+    )
 
     # Hold A; current is B.
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/release/{a['id']}", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/release/{a['id']}",
+        headers=headers,
     )
     assert response.status_code == 200
     payload = response.json()
@@ -516,16 +568,20 @@ async def test_release_with_reposition_lifts_target_above_current(
     """Reposition places the released item above current and makes them act now."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data, a, b, c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, b, c = await _running_queue_with_abc(
+        client, headers, guild, initiative.id
+    )
 
     # Hold A (pos 30) on its turn → current becomes B (pos 20). After hold,
     # the only items above B in the rotation are... none (A is held, so B is
     # effectively the top of the active rotation).
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
     # Release A with reposition: A acts now (becomes current), and its new
     # position drops just above B (which was current).
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/release/{a['id']}",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/release/{a['id']}",
         headers=headers,
         json={"reposition": True},
     )
@@ -543,7 +599,9 @@ async def test_release_with_reposition_lifts_target_above_current(
 
     # Advancing from A goes to B next — A's elevated position persists.
     after_next = (
-        await client.post(f"/api/v1/queues/{queue_data['id']}/next", headers=headers)
+        await client.post(
+            f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/next", headers=headers
+        )
     ).json()
     assert after_next["current_item"]["id"] == b["id"]
 
@@ -555,19 +613,31 @@ async def test_release_with_reposition_between_current_and_higher(
     """When other active items sit above current, target lands between them."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    a = await _add_item_via_api(client, headers, queue_data["id"], "A", position=30)
-    b = await _add_item_via_api(client, headers, queue_data["id"], "B", position=20)
-    c = await _add_item_via_api(client, headers, queue_data["id"], "C", position=10)
-    await client.post(f"/api/v1/queues/{queue_data['id']}/start", headers=headers)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    a = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "A", position=30
+    )
+    b = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "B", position=20
+    )
+    c = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "C", position=10
+    )
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/start", headers=headers
+    )
     # Advance to B (current goes A → B). Then hold B → current becomes C.
-    await client.post(f"/api/v1/queues/{queue_data['id']}/next", headers=headers)
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/next", headers=headers
+    )
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
     # Now A (pos 30) is active and above C (current, pos 10). Release B with
     # reposition: B's new position should land between C (10) and A (30) — the
     # midpoint is 20.
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/release/{b['id']}",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/release/{b['id']}",
         headers=headers,
         json={"reposition": True},
     )
@@ -597,9 +667,11 @@ async def test_release_without_body_preserves_position(
     )
 
     original_position = a["position"]
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/release/{a['id']}",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/release/{a['id']}",
         headers=headers,
         json={},
     )
@@ -613,12 +685,19 @@ async def test_release_while_stopped(client: AsyncClient, session: AsyncSession)
     """Release works when the queue is stopped; is_active is preserved."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data, a, b, _c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, b, _c = await _running_queue_with_abc(
+        client, headers, guild, initiative.id
+    )
 
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
-    await client.post(f"/api/v1/queues/{queue_data['id']}/stop", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/stop", headers=headers
+    )
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/release/{a['id']}", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/release/{a['id']}",
+        headers=headers,
     )
     assert response.status_code == 200
     payload = response.json()
@@ -638,9 +717,12 @@ async def test_set_active_clears_held(client: AsyncClient, session: AsyncSession
         client, headers, initiative.id
     )
 
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/set-active/{a['id']}", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/set-active/{a['id']}",
+        headers=headers,
     )
     assert response.status_code == 200
     payload = response.json()
@@ -655,14 +737,18 @@ async def test_previous_skips_held_no_auto_release(
     """Previous never lands on a held item, and never clears its hold."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data, a, _b, c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, _b, c = await _running_queue_with_abc(
+        client, headers, guild, initiative.id
+    )
 
     # Hold A (round 1, current was A); current becomes B.
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
     # Previous from B should wrap (B is first in the active rotation now) to C
     # in round 0 → clamped to round 1.
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/previous", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/previous", headers=headers
     )
     assert response.status_code == 200
     payload = response.json()
@@ -676,11 +762,15 @@ async def test_reset_preserves_held(client: AsyncClient, session: AsyncSession):
     """Reset jumps to the highest un-held item; held items stay held."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data, a, b, _c = await _running_queue_with_abc(client, headers, initiative.id)
+    queue_data, a, b, _c = await _running_queue_with_abc(
+        client, headers, guild, initiative.id
+    )
 
-    await client.post(f"/api/v1/queues/{queue_data['id']}/hold", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
+    )
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/reset", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/reset", headers=headers
     )
     assert response.status_code == 200
     payload = response.json()
@@ -694,12 +784,14 @@ async def test_hold_no_current_item(client: AsyncClient, session: AsyncSession):
     """Hold with no current item returns 400 NO_CURRENT_ITEM."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    await _add_item_via_api(client, headers, queue_data["id"], "Solo", position=10)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "Solo", position=10
+    )
     # Don't start: current_item_id stays None.
 
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/hold", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=headers
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "QUEUE_NO_CURRENT_ITEM"
@@ -717,7 +809,8 @@ async def test_release_unheld_item_returns_400(
     )
 
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/release/{a['id']}", headers=headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/release/{a['id']}",
+        headers=headers,
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "QUEUE_ITEM_NOT_HELD"
@@ -734,7 +827,7 @@ async def test_hold_requires_write_access(client: AsyncClient, session: AsyncSes
     )
 
     response = await client.post(
-        f"/api/v1/queues/{queue_data['id']}/hold", headers=member_headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/hold", headers=member_headers
     )
     assert response.status_code == 403
 
@@ -749,10 +842,10 @@ async def test_set_queue_permissions(client: AsyncClient, session: AsyncSession)
     """Owner can set user permissions on a queue."""
     admin, member, guild, initiative = await _setup_with_member(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
 
     response = await client.put(
-        f"/api/v1/queues/{queue_data['id']}/permissions",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/permissions",
         headers=headers,
         json=[{"user_id": member.id, "level": "write"}],
     )
@@ -769,7 +862,7 @@ async def test_set_queue_role_permissions(client: AsyncClient, session: AsyncSes
     """Owner can set role permissions on a queue."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
 
     # Find the member role
     result = await session.exec(
@@ -781,7 +874,7 @@ async def test_set_queue_role_permissions(client: AsyncClient, session: AsyncSes
     member_role = result.one()
 
     response = await client.put(
-        f"/api/v1/queues/{queue_data['id']}/role-permissions",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/role-permissions",
         headers=headers,
         json=[{"initiative_role_id": member_role.id, "level": "read"}],
     )
@@ -804,7 +897,7 @@ async def test_member_with_read_can_view_queue(
 
     # Grant read to member
     await client.put(
-        f"/api/v1/queues/{queue_data['id']}/permissions",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/permissions",
         headers=admin_headers,
         json=[{"user_id": member.id, "level": "read"}],
     )
@@ -813,13 +906,13 @@ async def test_member_with_read_can_view_queue(
 
     # Can read
     response = await client.get(
-        f"/api/v1/queues/{queue_data['id']}", headers=member_headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}", headers=member_headers
     )
     assert response.status_code == 200
 
     # Cannot update
     response = await client.patch(
-        f"/api/v1/queues/{queue_data['id']}",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}",
         headers=member_headers,
         json={"name": "Hacked"},
     )
@@ -837,7 +930,7 @@ async def test_member_without_permission_cannot_view(
 
     member_headers = await get_guild_headers(session, guild, member)
     response = await client.get(
-        f"/api/v1/queues/{queue_data['id']}", headers=member_headers
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}", headers=member_headers
     )
     assert response.status_code == 403
 
@@ -854,8 +947,10 @@ async def test_set_queue_item_tags(client: AsyncClient, session: AsyncSession):
 
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
-    queue_data = await _create_queue_via_api(client, headers, initiative.id)
-    item_data = await _add_item_via_api(client, headers, queue_data["id"], "Tagged")
+    queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
+    item_data = await _add_item_via_api(
+        client, headers, guild, queue_data["id"], "Tagged"
+    )
 
     # Create a tag
     tag = Tag(name="Priority", guild_id=guild.id)
@@ -864,7 +959,7 @@ async def test_set_queue_item_tags(client: AsyncClient, session: AsyncSession):
     await session.refresh(tag)
 
     response = await client.put(
-        f"/api/v1/queues/{queue_data['id']}/items/{item_data['id']}/tags",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/items/{item_data['id']}/tags",
         headers=headers,
         json=[tag.id],
     )
@@ -892,7 +987,7 @@ async def test_create_queue_with_permissions(
     member_role = result.one()
 
     response = await client.post(
-        "/api/v1/queues/",
+        f"/api/v1/g/{guild.id}/queues/",
         headers=headers,
         json={
             "name": "With Perms",

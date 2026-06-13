@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AdvancedToolHandoffResponse } from "@/api/generated/initiativeAPI.schemas";
-import { createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost } from "@/api/generated/initiatives/initiatives";
+import { createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost } from "@/api/generated/initiatives/initiatives";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -38,6 +39,7 @@ export const AdvancedToolPage = () => {
 
   const { t, i18n } = useTranslation(["initiatives", "common"]);
   const gp = useGuildPath();
+  const guildId = useActiveGuildId();
 
   const { advancedTool, isLoading: configLoading } = useAppConfig();
   const initiativesQuery = useInitiatives({ enabled: initiativeId !== null });
@@ -107,7 +109,8 @@ export const AdvancedToolPage = () => {
     void (async () => {
       try {
         const response =
-          (await createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost(
+          (await createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost(
+            guildId,
             initiativeId
           )) as unknown as AdvancedToolHandoffResponse;
         if (cancelled) return;
@@ -123,7 +126,7 @@ export const AdvancedToolPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [initiativeId, advancedTool, iframeOrigin]);
+  }, [initiativeId, advancedTool, iframeOrigin, guildId]);
 
   // postMessage bridge: the iframe sends `ready` when it's listening, and
   // `error` if its own bootstrap fails. We strictly verify event.origin on
@@ -176,7 +179,8 @@ export const AdvancedToolPage = () => {
         void (async () => {
           try {
             const fresh =
-              (await createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost(
+              (await createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost(
+                guildId,
                 initiativeId
               )) as unknown as AdvancedToolHandoffResponse;
             handoffRef.current = fresh;
@@ -194,7 +198,7 @@ export const AdvancedToolPage = () => {
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [iframeOrigin, allowedOrigins, initiativeId]);
+  }, [iframeOrigin, allowedOrigins, initiativeId, guildId]);
 
   // If the user switches language while the iframe is open, push the new
   // locale into the embed so it can re-render. The iframe is free to debounce

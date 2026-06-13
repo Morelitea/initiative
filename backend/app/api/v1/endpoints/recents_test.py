@@ -38,7 +38,9 @@ async def test_record_and_list_recent_project(
 
     headers = await get_guild_headers(session, guild, user)
 
-    r = await client.post(f"/api/v1/projects/{project.id}/view", headers=headers)
+    r = await client.post(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+    )
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["entity_type"] == "project"
@@ -62,7 +64,9 @@ async def test_record_and_list_recent_queue(client: AsyncClient, session: AsyncS
 
     headers = await get_guild_headers(session, guild, user)
 
-    r = await client.post(f"/api/v1/queues/{queue.id}/view", headers=headers)
+    r = await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue.id}/view", headers=headers
+    )
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["entity_type"] == "queue"
@@ -87,11 +91,15 @@ async def test_recents_mixed_ordering(client: AsyncClient, session: AsyncSession
 
     headers = await get_guild_headers(session, guild, user)
 
-    r1 = await client.post(f"/api/v1/projects/{project.id}/view", headers=headers)
+    r1 = await client.post(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+    )
     assert r1.status_code == 200
     # Small delay so timestamps differ deterministically.
     await asyncio.sleep(0.05)
-    r2 = await client.post(f"/api/v1/queues/{queue.id}/view", headers=headers)
+    r2 = await client.post(
+        f"/api/v1/g/{guild.id}/queues/{queue.id}/view", headers=headers
+    )
     assert r2.status_code == 200
 
     r = await client.get("/api/v1/recents/", headers=headers)
@@ -111,8 +119,12 @@ async def test_clear_view_removes_item(client: AsyncClient, session: AsyncSessio
     project = await create_project(session, initiative, user, name="P")
     headers = await get_guild_headers(session, guild, user)
 
-    await client.post(f"/api/v1/projects/{project.id}/view", headers=headers)
-    r = await client.delete(f"/api/v1/projects/{project.id}/view", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+    )
+    r = await client.delete(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+    )
     assert r.status_code == 204
 
     r = await client.get("/api/v1/recents/", headers=headers)
@@ -141,7 +153,9 @@ async def test_recents_are_cross_guild_names_only(
 
     # Record the view while in guild A...
     headers = await get_guild_headers(session, guild_a, user)
-    r = await client.post(f"/api/v1/projects/{project_a.id}/view", headers=headers)
+    r = await client.post(
+        f"/api/v1/g/{guild_a.id}/projects/{project_a.id}/view", headers=headers
+    )
     assert r.status_code == 200
 
     # ...then enter guild B: the tab still renders (name + owning guild).
@@ -165,7 +179,7 @@ async def test_recents_are_cross_guild_names_only(
 async def test_clear_recent_is_guild_addressed(
     client: AsyncClient, session: AsyncSession
 ):
-    """Closing a tab works from any context via explicit ?guild_id=."""
+    """Closing a tab works from any context via the guild path segment."""
     user, guild, initiative = await _make_user_with_guild_and_initiative(
         session, email="close-tab@example.com"
     )
@@ -174,13 +188,15 @@ async def test_clear_recent_is_guild_addressed(
     await create_guild_membership(session, user=user, guild=other_guild)
 
     headers = await get_guild_headers(session, guild, user)
-    await client.post(f"/api/v1/projects/{project.id}/view", headers=headers)
+    await client.post(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+    )
 
     headers = await get_guild_headers(session, other_guild, user)
 
-    # Close guild A's tab while in guild B.
+    # Close guild A's tab while in guild B — addressed by the guild path.
     r = await client.delete(
-        f"/api/v1/recents/project/{project.id}?guild_id={guild.id}",
+        f"/api/v1/g/{guild.id}/recents/project/{project.id}",
         headers=headers,
     )
     assert r.status_code == 204

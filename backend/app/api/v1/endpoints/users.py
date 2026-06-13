@@ -71,6 +71,10 @@ router = APIRouter()
 # Cross-guild "my" aggregate (user stats). Mounted under /api/v1/me; user-scoped
 # (no guild context), with an optional guild_id filter.
 me_router = APIRouter()
+# Guild-scoped member management (guild-admin lists/creates/approves/removes
+# members of one guild). Mounted under /g/{guild_id}/users — the /me/* and
+# platform user endpoints stay on ``router`` (top-level /users).
+guild_router = APIRouter()
 
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -147,7 +151,7 @@ async def get_user_stats(
     return stats
 
 
-@router.get("/", response_model=List[UserGuildMember])
+@guild_router.get("/", response_model=List[UserGuildMember])
 async def list_users(
     session: RLSSessionDep,
     _current_user: Annotated[User, Depends(get_current_active_user)],
@@ -190,7 +194,7 @@ _GUILD_CSV_HEADERS = [
 ]
 
 
-@router.get("/export.csv")
+@guild_router.get("/export.csv")
 async def export_users_csv(
     session: RLSSessionDep,
     guild_context: GuildAdminContext,
@@ -254,7 +258,7 @@ async def export_users_csv(
     )
 
 
-@router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@guild_router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_in: UserCreate,
     session: SessionDep,
@@ -422,7 +426,7 @@ async def update_users_me(
     return current_user
 
 
-@router.patch("/{user_id}", response_model=UserRead)
+@guild_router.patch("/{user_id}", response_model=UserRead)
 async def update_user(
     user_id: int,
     user_in: UserUpdate,
@@ -510,7 +514,7 @@ async def update_user(
     return user
 
 
-@router.post("/{user_id}/approve", response_model=UserRead)
+@guild_router.post("/{user_id}/approve", response_model=UserRead)
 async def approve_user(
     user_id: int,
     session: SessionDep,
@@ -800,7 +804,7 @@ async def delete_my_api_key(
         )
 
 
-@router.get(
+@guild_router.get(
     "/{user_id}/guild-removal-eligibility",
     response_model=GuildRemovalEligibilityResponse,
 )
@@ -869,7 +873,7 @@ async def check_guild_removal_eligibility(
     )
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@guild_router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_user(
     user_id: int,
     session: SessionDep,

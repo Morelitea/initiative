@@ -30,7 +30,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
-import { notifyMentionsApiV1DocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
+import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
@@ -102,6 +102,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useCollaboration } from "@/hooks/useCollaboration";
@@ -126,6 +127,7 @@ export const DocumentDetailPage = () => {
   const setDocumentCache = useSetDocumentCache();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
+  const guildId = useActiveGuildId();
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
   const { isEnabled: isAIEnabled } = useAIEnabled();
@@ -519,7 +521,7 @@ export const DocumentDetailPage = () => {
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {
-        notifyMentionsApiV1DocumentsDocumentIdMentionsPost(parsedId, {
+        notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost(guildId, parsedId, {
           mentioned_user_ids: newMentionIds,
         }).catch((err) => console.error("Failed to notify mentions:", err));
       }
@@ -901,7 +903,7 @@ export const DocumentDetailPage = () => {
     }
     setIsUploadingFeaturedImage(true);
     try {
-      const response = await uploadAttachment(file);
+      const response = await uploadAttachment(guildId, file);
       setFeaturedImageUrl(response.url);
       isAutosaveRef.current = true;
       saveDocument.mutate({

@@ -5,11 +5,9 @@ from sqlalchemy import func
 from sqlmodel import select, delete, update
 
 from app.api.deps import (
-    AddressedRLSSessionDep,
     GuildContext,
     RLSSessionDep,
     SessionDep,
-    get_addressed_guild_membership,
     get_current_active_user,
     get_guild_membership,
 )
@@ -32,12 +30,6 @@ router = APIRouter(
 )
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-# The list endpoint is guild-ADDRESSED: personal-mode surfaces (the My Tasks
-# status dropdown) target a specific guild's project via an explicit,
-# validated ?guild_id= (guild-context design doc §3.5b).
-AddressedGuildContextDep = Annotated[
-    GuildContext, Depends(get_addressed_guild_membership)
-]
 
 
 def _sorted(statuses: List[TaskStatus]) -> List[TaskStatus]:
@@ -98,9 +90,9 @@ async def _ensure_category_not_last(
 @router.get("/", response_model=List[TaskStatusRead])
 async def list_task_statuses(
     project_id: int,
-    session: AddressedRLSSessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: AddressedGuildContextDep,
+    guild_context: GuildContextDep,
 ) -> Sequence[TaskStatus]:
     await _get_project_with_access(
         session,

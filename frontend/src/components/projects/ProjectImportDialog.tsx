@@ -3,7 +3,7 @@ import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeRead, ProjectExportEnvelope } from "@/api/generated/initiativeAPI.schemas";
-import { useImportProjectApiV1ProjectsImportPost } from "@/api/generated/projects/projects";
+import { useImportProjectApiV1GGuildIdProjectsImportPost } from "@/api/generated/projects/projects";
 import { invalidateAllProjects } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -44,13 +45,14 @@ export const ProjectImportDialog = ({
   const { t } = useTranslation(["projects", "common"]);
   const router = useRouter();
   const gp = useGuildPath();
+  const guildId = useActiveGuildId();
 
   const [envelope, setEnvelope] = useState<ProjectExportEnvelope | null>(null);
   const [parseError, setParseError] = useState<string | null>(null);
   const [initiativeId, setInitiativeId] = useState<string | null>(defaultInitiativeId);
   const [fileName, setFileName] = useState<string>("");
 
-  const importMutation = useImportProjectApiV1ProjectsImportPost();
+  const importMutation = useImportProjectApiV1GGuildIdProjectsImportPost();
 
   useEffect(() => {
     if (open) {
@@ -105,6 +107,7 @@ export const ProjectImportDialog = ({
     }
     try {
       const result = await importMutation.mutateAsync({
+        guildId,
         data: {
           // Backend types `envelope` as a free-form dict to keep the
           // export schema from being split into Input/Output by Pydantic;

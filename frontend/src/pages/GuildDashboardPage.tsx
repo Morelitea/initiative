@@ -12,7 +12,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import {
-  type ListTasksApiV1TasksGetParams,
+  type ListTasksApiV1GGuildIdTasksGetParams,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeOverview } from "@/components/dashboard/InitiativeOverview";
@@ -34,7 +34,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useUserStats } from "@/hooks/useUserStats";
 import { useGuildPath } from "@/lib/guildUrl";
 
-const DASHBOARD_TASK_PARAMS: ListTasksApiV1TasksGetParams = {
+const DASHBOARD_TASK_PARAMS: ListTasksApiV1GGuildIdTasksGetParams = {
   conditions: [
     {
       field: "status_category",

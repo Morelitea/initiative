@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { setDocumentTagsApiV1DocumentsDocumentIdTagsPut } from "@/api/generated/documents/documents";
+import { setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut } from "@/api/generated/documents/documents";
 import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllDocuments } from "@/api/query-keys";
 import { BulkEditTagsDialog as GenericBulkEditTagsDialog } from "@/components/shared/BulkEditTagsDialog";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 interface BulkEditDocumentTagsDialogProps extends DialogWithSuccessProps {
@@ -13,6 +14,7 @@ interface BulkEditDocumentTagsDialogProps extends DialogWithSuccessProps {
 
 export function BulkEditTagsDialog({ documents, ...dialogProps }: BulkEditDocumentTagsDialogProps) {
   const { t } = useTranslation(["documents", "common"]);
+  const guildId = useActiveGuildId();
 
   const labels = useMemo(
     () => ({
@@ -39,7 +41,7 @@ export function BulkEditTagsDialog({ documents, ...dialogProps }: BulkEditDocume
       {...dialogProps}
       items={documents}
       setTags={(docId, tagIds) =>
-        setDocumentTagsApiV1DocumentsDocumentIdTagsPut(docId, { tag_ids: tagIds })
+        setDocumentTagsApiV1GGuildIdDocumentsDocumentIdTagsPut(guildId, docId, { tag_ids: tagIds })
       }
       onInvalidate={() => void invalidateAllDocuments()}
       labels={labels}

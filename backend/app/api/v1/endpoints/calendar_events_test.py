@@ -85,7 +85,7 @@ async def test_list_events_summary_includes_tags(
 
     # Assign the tag to the event.
     assign = await client.put(
-        f"/api/v1/calendar-events/{event.id}/tags",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/tags",
         headers=headers,
         json=[tag.id],
     )
@@ -93,7 +93,8 @@ async def test_list_events_summary_includes_tags(
 
     # The list summary should embed the tag.
     response = await client.get(
-        f"/api/v1/calendar-events/?initiative_id={initiative.id}", headers=headers
+        f"/api/v1/g/{guild.id}/calendar-events/?initiative_id={initiative.id}",
+        headers=headers,
     )
     assert response.status_code == 200
     items = {item["id"]: item for item in response.json()["items"]}
@@ -112,7 +113,8 @@ async def test_list_events_summary_tags_default_empty(
     headers = await get_guild_headers(session, guild, user)
 
     response = await client.get(
-        f"/api/v1/calendar-events/?initiative_id={initiative.id}", headers=headers
+        f"/api/v1/g/{guild.id}/calendar-events/?initiative_id={initiative.id}",
+        headers=headers,
     )
     assert response.status_code == 200
     items = {item["id"]: item for item in response.json()["items"]}
@@ -129,7 +131,7 @@ async def test_create_event_notifies_attendees_not_creator(
     headers = await get_guild_headers(session, guild, organizer)
 
     response = await client.post(
-        "/api/v1/calendar-events/",
+        f"/api/v1/g/{guild.id}/calendar-events/",
         headers=headers,
         json={
             "initiative_id": initiative.id,
@@ -168,7 +170,7 @@ async def test_create_multi_day_timed_event_is_allowed(
     headers = await get_guild_headers(session, guild, organizer)
 
     response = await client.post(
-        "/api/v1/calendar-events/",
+        f"/api/v1/g/{guild.id}/calendar-events/",
         headers=headers,
         json={
             "initiative_id": initiative.id,
@@ -195,7 +197,7 @@ async def test_create_event_rejects_end_before_start(
     headers = await get_guild_headers(session, guild, organizer)
 
     response = await client.post(
-        "/api/v1/calendar-events/",
+        f"/api/v1/g/{guild.id}/calendar-events/",
         headers=headers,
         json={
             "initiative_id": initiative.id,
@@ -218,13 +220,13 @@ async def test_update_event_time_notifies_attendees_as_rescheduled(
     headers = await get_guild_headers(session, guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Review")
     await client.put(
-        f"/api/v1/calendar-events/{event.id}/attendees",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/attendees",
         headers=headers,
         json=[attendee.id],
     )
 
     response = await client.patch(
-        f"/api/v1/calendar-events/{event.id}",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}",
         headers=headers,
         json={"start_at": "2026-08-01T15:00:00Z", "end_at": "2026-08-01T16:00:00Z"},
     )
@@ -247,13 +249,13 @@ async def test_delete_event_notifies_attendees(
     headers = await get_guild_headers(session, guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Retro")
     await client.put(
-        f"/api/v1/calendar-events/{event.id}/attendees",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/attendees",
         headers=headers,
         json=[attendee.id],
     )
 
     response = await client.delete(
-        f"/api/v1/calendar-events/{event.id}", headers=headers
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}", headers=headers
     )
     assert response.status_code == 204
 
@@ -274,19 +276,19 @@ async def test_update_event_skips_declined_attendees(
     headers = await get_guild_headers(session, guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Review")
     await client.put(
-        f"/api/v1/calendar-events/{event.id}/attendees",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/attendees",
         headers=headers,
         json=[attendee.id],
     )
     declined = await client.patch(
-        f"/api/v1/calendar-events/{event.id}/rsvp",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/rsvp",
         headers=await get_guild_headers(session, guild, attendee),
         json={"rsvp_status": "declined"},
     )
     assert declined.status_code == 200
 
     response = await client.patch(
-        f"/api/v1/calendar-events/{event.id}",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}",
         headers=headers,
         json={"start_at": "2026-08-01T15:00:00Z", "end_at": "2026-08-01T16:00:00Z"},
     )
@@ -309,19 +311,19 @@ async def test_delete_event_skips_declined_attendees(
     headers = await get_guild_headers(session, guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Retro")
     await client.put(
-        f"/api/v1/calendar-events/{event.id}/attendees",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/attendees",
         headers=headers,
         json=[attendee.id],
     )
     declined = await client.patch(
-        f"/api/v1/calendar-events/{event.id}/rsvp",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/rsvp",
         headers=await get_guild_headers(session, guild, attendee),
         json={"rsvp_status": "declined"},
     )
     assert declined.status_code == 200
 
     response = await client.delete(
-        f"/api/v1/calendar-events/{event.id}", headers=headers
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}", headers=headers
     )
     assert response.status_code == 204
 
@@ -339,14 +341,14 @@ async def test_rsvp_notifies_organizer(client: AsyncClient, session: AsyncSessio
     organizer_headers = await get_guild_headers(session, guild, organizer)
     event = await create_calendar_event(session, initiative, organizer, title="Demo")
     await client.put(
-        f"/api/v1/calendar-events/{event.id}/attendees",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/attendees",
         headers=organizer_headers,
         json=[attendee.id],
     )
 
     attendee_headers = await get_guild_headers(session, guild, attendee)
     response = await client.patch(
-        f"/api/v1/calendar-events/{event.id}/rsvp",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/rsvp",
         headers=attendee_headers,
         json={"rsvp_status": "accepted"},
     )

@@ -1,16 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
-  getGetResolvedAiSettingsApiV1SettingsAiResolvedGetQueryKey,
-  getResolvedAiSettingsApiV1SettingsAiResolvedGet,
+  getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryKey,
+  getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet,
 } from "@/api/generated/ai-settings/ai-settings";
 import type { ResolvedAISettingsResponse } from "@/api/generated/initiativeAPI.schemas";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 
 export const useAIEnabled = () => {
+  const guildId = useActiveGuildId();
   const query = useQuery<ResolvedAISettingsResponse>({
-    queryKey: getGetResolvedAiSettingsApiV1SettingsAiResolvedGetQueryKey(),
+    queryKey: getGetResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGetQueryKey(guildId),
     queryFn: () =>
-      getResolvedAiSettingsApiV1SettingsAiResolvedGet() as unknown as Promise<ResolvedAISettingsResponse>,
+      getResolvedAiSettingsApiV1GGuildIdSettingsAiResolvedGet(
+        guildId
+      ) as unknown as Promise<ResolvedAISettingsResponse>,
     staleTime: 5 * 60 * 1000,
   });
 

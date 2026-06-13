@@ -70,7 +70,7 @@ async def test_put_event_properties_sets_values(
 
     headers = await get_guild_headers(session, guild, user)
     response = await client.put(
-        f"/api/v1/calendar-events/{event.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/properties",
         headers=headers,
         json={
             "values": [
@@ -98,12 +98,12 @@ async def test_put_event_properties_empty_clears_existing(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/calendar-events/{event.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "seed"}]},
     )
     response = await client.put(
-        f"/api/v1/calendar-events/{event.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/properties",
         headers=headers,
         json={"values": []},
     )
@@ -130,7 +130,7 @@ async def test_put_event_properties_attach_without_value_persists_row(
 
     headers = await get_guild_headers(session, guild, user)
     response = await client.put(
-        f"/api/v1/calendar-events/{event.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": None}]},
     )
@@ -160,7 +160,7 @@ async def test_put_event_date_rejects_garbage(
     )
 
     response = await client.put(
-        f"/api/v1/calendar-events/{event.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": "not-a-date"}]},
     )
@@ -184,7 +184,7 @@ async def test_put_event_user_reference_non_initiative_member_rejected(
     )
 
     response = await client.put(
-        f"/api/v1/calendar-events/{event.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": outsider.id}]},
     )
@@ -217,7 +217,7 @@ async def test_put_event_cross_initiative_definition_rejected(
     defn_b = await create_property_definition(session, init_b, name="Foreign")
 
     response = await client.put(
-        f"/api/v1/calendar-events/{event_a.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event_a.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn_b.id, "value": "x"}]},
     )
@@ -241,12 +241,14 @@ async def test_event_read_embeds_property_values(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/calendar-events/{event.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "onboarding"}]},
     )
 
-    read_resp = await client.get(f"/api/v1/calendar-events/{event.id}", headers=headers)
+    read_resp = await client.get(
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}", headers=headers
+    )
     assert read_resp.status_code == 200
     body = read_resp.json()
     assert body["property_values"][0]["value"] == "onboarding"
@@ -267,12 +269,12 @@ async def test_list_events_filter_by_property_text_eq(
     headers = await get_guild_headers(session, guild, user)
 
     await client.put(
-        f"/api/v1/calendar-events/{match.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{match.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "findme"}]},
     )
     await client.put(
-        f"/api/v1/calendar-events/{skip.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{skip.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "other"}]},
     )
@@ -281,7 +283,7 @@ async def test_list_events_filter_by_property_text_eq(
         [{"property_id": defn.id, "op": "eq", "value": "findme"}]
     )
     response = await client.get(
-        f"/api/v1/calendar-events/?initiative_id={initiative.id}"
+        f"/api/v1/g/{guild.id}/calendar-events/?initiative_id={initiative.id}"
         f"&property_filters={property_filters}",
         headers=headers,
     )
@@ -308,7 +310,7 @@ async def test_list_events_filter_is_empty_matches_unset(
     headers = await get_guild_headers(session, guild, user)
 
     await client.put(
-        f"/api/v1/calendar-events/{with_value.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{with_value.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "yes"}]},
     )
@@ -317,7 +319,7 @@ async def test_list_events_filter_is_empty_matches_unset(
         [{"property_id": defn.id, "op": "is_null", "value": True}]
     )
     response = await client.get(
-        f"/api/v1/calendar-events/?initiative_id={initiative.id}"
+        f"/api/v1/g/{guild.id}/calendar-events/?initiative_id={initiative.id}"
         f"&property_filters={property_filters}",
         headers=headers,
     )
@@ -346,7 +348,7 @@ async def test_initiative_purge_cascades_event_property_values(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/calendar-events/{event.id}/properties",
+        f"/api/v1/g/{guild.id}/calendar-events/{event.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "hold"}]},
     )
@@ -354,7 +356,7 @@ async def test_initiative_purge_cascades_event_property_values(
     # 1. Soft-delete the initiative — property values must still exist so
     # a restore brings them back.
     delete_resp = await client.delete(
-        f"/api/v1/initiatives/{initiative.id}", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
     )
     assert delete_resp.status_code in (200, 204)
     rows = await session.exec(
@@ -367,7 +369,7 @@ async def test_initiative_purge_cascades_event_property_values(
     # 2. Hard-purge via the admin trash endpoint — FK CASCADE drops the
     # event property values along with the initiative + descendants.
     purge_resp = await client.delete(
-        f"/api/v1/trash/initiative/{initiative.id}/purge", headers=headers
+        f"/api/v1/g/{guild.id}/trash/initiative/{initiative.id}/purge", headers=headers
     )
     assert purge_resp.status_code == 204
     rows = await session.exec(

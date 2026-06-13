@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   DocumentSummary,
-  ListDocumentsApiV1DocumentsGetParams,
+  ListDocumentsApiV1GGuildIdDocumentsGetParams,
   TagRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -309,7 +309,7 @@ export const DocumentsView = ({
   // primitive string (same serialization => same cache key).
   const encodedPropertyFilters = propertyFilters.length > 0 ? propertyFiltersKey : null;
 
-  const documentsQueryParams: ListDocumentsApiV1DocumentsGetParams = {
+  const documentsQueryParams: ListDocumentsApiV1GGuildIdDocumentsGetParams = {
     ...(initiativeFilter !== INITIATIVE_FILTER_ALL
       ? { initiative_id: Number(initiativeFilter) }
       : {}),
@@ -339,7 +339,7 @@ export const DocumentsView = ({
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const prefetchParams: ListDocumentsApiV1DocumentsGetParams = {
+      const prefetchParams: ListDocumentsApiV1GGuildIdDocumentsGetParams = {
         ...(initiativeFilter !== INITIATIVE_FILTER_ALL
           ? { initiative_id: Number(initiativeFilter) }
           : {}),

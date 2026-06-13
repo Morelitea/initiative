@@ -65,7 +65,7 @@ async def _upload_initial_file_doc(
     """Create a file document through the real upload endpoint (creates v1)."""
     headers = await get_guild_headers(session, guild, user)
     response = await client.post(
-        "/api/v1/documents/upload",
+        f"/api/v1/g/{guild.id}/documents/upload",
         headers=headers,
         data={"title": title, "initiative_id": str(initiative.id)},
         files={"file": (filename, content, content_type)},
@@ -85,7 +85,9 @@ async def test_initial_upload_creates_version_one(
     )
 
     headers = await get_guild_headers(session, guild, owner)
-    resp = await client.get(f"/api/v1/documents/{doc['id']}/versions", headers=headers)
+    resp = await client.get(
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions", headers=headers
+    )
     assert resp.status_code == 200
     versions = resp.json()
     assert len(versions) == 1
@@ -126,7 +128,7 @@ async def test_upload_version_creates_v2_and_mirrors_document(
 
     headers = await get_guild_headers(session, guild, writer)
     resp = await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
@@ -185,7 +187,7 @@ async def test_upload_version_read_user_forbidden(
 
     headers = await get_guild_headers(session, guild, reader)
     resp = await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
@@ -213,7 +215,7 @@ async def test_upload_version_type_mismatch_rejected(
 
     headers = await get_guild_headers(session, guild, owner)
     resp = await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=headers,
         files={"file": ("notes.txt", b"plain text not a pdf", "text/plain")},
     )
@@ -238,7 +240,7 @@ async def test_upload_version_non_file_document_rejected(
     owner, guild, initiative = await _setup_guild_with_owner(session)
     headers = await get_guild_headers(session, guild, owner)
     create = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{guild.id}/documents/",
         headers=headers,
         json={"title": "Native doc", "initiative_id": initiative.id},
     )
@@ -246,7 +248,7 @@ async def test_upload_version_non_file_document_rejected(
     native_id = create.json()["id"]
 
     resp = await client.post(
-        f"/api/v1/documents/{native_id}/versions",
+        f"/api/v1/g/{guild.id}/documents/{native_id}/versions",
         headers=headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
@@ -255,7 +257,7 @@ async def test_upload_version_non_file_document_rejected(
 
     # Listing versions on a non-file document is rejected too.
     list_resp = await client.get(
-        f"/api/v1/documents/{native_id}/versions", headers=headers
+        f"/api/v1/g/{guild.id}/documents/{native_id}/versions", headers=headers
     )
     assert list_resp.status_code == 400
     assert list_resp.json()["detail"] == "DOCUMENT_NOT_A_FILE_DOCUMENT"
@@ -273,7 +275,7 @@ async def test_upload_version_unsupported_file_rejected(
 
     headers = await get_guild_headers(session, guild, owner)
     resp = await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=headers,
         files={
             "file": (
@@ -322,14 +324,14 @@ async def test_list_versions_read_user_allowed_and_ordered(
     # Owner uploads v2.
     owner_headers = await get_guild_headers(session, guild, owner)
     await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=owner_headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
 
     reader_headers = await get_guild_headers(session, guild, reader)
     resp = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions", headers=reader_headers
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions", headers=reader_headers
     )
     assert resp.status_code == 200
     versions = resp.json()
@@ -359,14 +361,15 @@ async def test_download_specific_version_returns_its_bytes(
 
     guild_headers = await get_guild_headers(session, guild, owner)
     await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=guild_headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
 
     versions = (
         await client.get(
-            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+            f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
+            headers=guild_headers,
         )
     ).json()
     v1 = next(v for v in versions if v["version_number"] == 1)
@@ -374,11 +377,11 @@ async def test_download_specific_version_returns_its_bytes(
 
     auth_headers = get_auth_headers(owner)
     r1 = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}/download",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions/{v1['id']}/download",
         headers=auth_headers,
     )
     r2 = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/{v2['id']}/download",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions/{v2['id']}/download",
         headers=auth_headers,
     )
     assert r1.status_code == 200 and r1.content == PDF_BYTES
@@ -406,7 +409,8 @@ async def test_download_version_unknown_returns_404(
 
     auth_headers = get_auth_headers(owner)
     resp = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/99999/download", headers=auth_headers
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions/99999/download",
+        headers=auth_headers,
     )
     assert resp.status_code == 404
     assert resp.json()["detail"] == "DOCUMENT_VERSION_NOT_FOUND"
@@ -432,7 +436,7 @@ async def test_download_version_cross_guild_forbidden(
     )
     versions = (
         await client.get(
-            f"/api/v1/documents/{doc['id']}/versions",
+            f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
             headers=await get_guild_headers(session, guild, owner),
         )
     ).json()
@@ -440,7 +444,7 @@ async def test_download_version_cross_guild_forbidden(
 
     outsider = await create_user(session)
     resp = await client.get(
-        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}/download",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions/{v1['id']}/download",
         headers=get_auth_headers(outsider),
     )
     assert resp.status_code == 404
@@ -466,13 +470,14 @@ async def test_delete_non_current_version_owner(
     )
     guild_headers = await get_guild_headers(session, guild, owner)
     await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=guild_headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
     versions = (
         await client.get(
-            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+            f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
+            headers=guild_headers,
         )
     ).json()
     v1 = next(v for v in versions if v["version_number"] == 1)
@@ -486,7 +491,8 @@ async def test_delete_non_current_version_owner(
     v1_filename = v1_row.file_url.split("/")[-1]
 
     resp = await client.delete(
-        f"/api/v1/documents/{doc['id']}/versions/{v1['id']}", headers=guild_headers
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions/{v1['id']}",
+        headers=guild_headers,
     )
     assert resp.status_code == 204
 
@@ -524,14 +530,15 @@ async def test_delete_current_version_promotes_previous(
     )
     guild_headers = await get_guild_headers(session, guild, owner)
     v2_resp = await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=guild_headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
     v2_id = v2_resp.json()["id"]
 
     resp = await client.delete(
-        f"/api/v1/documents/{doc['id']}/versions/{v2_id}", headers=guild_headers
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions/{v2_id}",
+        headers=guild_headers,
     )
     assert resp.status_code == 204
 
@@ -543,7 +550,8 @@ async def test_delete_current_version_promotes_previous(
 
     versions = (
         await client.get(
-            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+            f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
+            headers=guild_headers,
         )
     ).json()
     assert [v["version_number"] for v in versions] == [1]
@@ -564,13 +572,15 @@ async def test_delete_last_version_blocked(
     guild_headers = await get_guild_headers(session, guild, owner)
     versions = (
         await client.get(
-            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+            f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
+            headers=guild_headers,
         )
     ).json()
     v1_id = versions[0]["id"]
 
     resp = await client.delete(
-        f"/api/v1/documents/{doc['id']}/versions/{v1_id}", headers=guild_headers
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions/{v1_id}",
+        headers=guild_headers,
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "DOCUMENT_CANNOT_DELETE_LAST_VERSION"
@@ -610,19 +620,20 @@ async def test_delete_version_non_owner_forbidden(
     await session.commit()
     guild_headers = await get_guild_headers(session, guild, owner)
     await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=guild_headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
     versions = (
         await client.get(
-            f"/api/v1/documents/{doc['id']}/versions", headers=guild_headers
+            f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
+            headers=guild_headers,
         )
     ).json()
     v1_id = next(v for v in versions if v["version_number"] == 1)["id"]
 
     resp = await client.delete(
-        f"/api/v1/documents/{doc['id']}/versions/{v1_id}",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions/{v1_id}",
         headers=await get_guild_headers(session, guild, writer),
     )
     assert resp.status_code == 403
@@ -660,7 +671,7 @@ async def test_upload_version_allowed_when_stored_content_type_is_null(
 
     guild_headers = await get_guild_headers(session, guild, owner)
     resp = await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=guild_headers,
         files={"file": ("v2.pdf", PDF_BYTES_V2, "application/pdf")},
     )
@@ -685,7 +696,7 @@ async def test_delete_version_non_file_document_rejected(
     owner, guild, initiative = await _setup_guild_with_owner(session)
     headers = await get_guild_headers(session, guild, owner)
     create = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{guild.id}/documents/",
         headers=headers,
         json={"title": "Native doc", "initiative_id": initiative.id},
     )
@@ -694,7 +705,7 @@ async def test_delete_version_non_file_document_rejected(
 
     # Any version_id will do — the type check fires before the version lookup.
     resp = await client.delete(
-        f"/api/v1/documents/{native_id}/versions/9999",
+        f"/api/v1/g/{guild.id}/documents/{native_id}/versions/9999",
         headers=headers,
     )
     assert resp.status_code == 400
@@ -724,7 +735,7 @@ async def test_upload_document_file_over_limit_rejected(
 
     oversized = b"%PDF-1.4 " + b"A" * (cap + 1)
     resp = await client.post(
-        "/api/v1/documents/upload",
+        f"/api/v1/g/{guild.id}/documents/upload",
         headers=headers,
         data={"title": "Too big", "initiative_id": str(initiative.id)},
         files={"file": ("big.pdf", oversized, "application/pdf")},
@@ -756,7 +767,7 @@ async def test_upload_document_file_just_under_limit_succeeds(
     under = _TINY_PDF + b" " + b"B" * (cap - len(_TINY_PDF) - 1)
     assert len(under) == cap
     resp = await client.post(
-        "/api/v1/documents/upload",
+        f"/api/v1/g/{guild.id}/documents/upload",
         headers=headers,
         data={"title": "Under cap", "initiative_id": str(initiative.id)},
         files={"file": ("under.pdf", under, "application/pdf")},
@@ -793,7 +804,7 @@ async def test_upload_document_version_over_limit_rejected(
     headers = await get_guild_headers(session, guild, owner)
     oversized = b"%PDF-1.4 " + b"A" * (cap + 1)
     resp = await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=headers,
         files={"file": ("big.pdf", oversized, "application/pdf")},
     )
@@ -831,7 +842,7 @@ async def test_upload_document_version_just_under_limit_succeeds(
     under = _TINY_PDF + b" " + b"B" * (cap - len(_TINY_PDF) - 1)
     assert len(under) == cap
     resp = await client.post(
-        f"/api/v1/documents/{doc['id']}/versions",
+        f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
         headers=headers,
         files={"file": ("v2.pdf", under, "application/pdf")},
     )

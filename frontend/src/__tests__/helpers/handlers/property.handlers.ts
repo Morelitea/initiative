@@ -1,6 +1,8 @@
-import { HttpResponse, http } from "msw";
+import { HttpResponse } from "msw";
 
 import { buildPropertyDefinition } from "@/__tests__/factories/properties";
+
+import { guildHttp } from "../guildHttp";
 
 /**
  * Default MSW handlers for the property endpoints.
@@ -11,11 +13,11 @@ import { buildPropertyDefinition } from "@/__tests__/factories/properties";
  */
 export const propertyHandlers = [
   // ── Property definitions ──────────────────────────────────────────────────
-  http.get("/api/v1/property-definitions/", () => {
+  guildHttp.get("/property-definitions/", () => {
     return HttpResponse.json([]);
   }),
 
-  http.post("/api/v1/property-definitions/", async ({ request }) => {
+  guildHttp.post("/property-definitions/", async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json(
       buildPropertyDefinition({
@@ -27,12 +29,12 @@ export const propertyHandlers = [
     );
   }),
 
-  http.get("/api/v1/property-definitions/:definitionId", ({ params }) => {
+  guildHttp.get("/property-definitions/:definitionId", ({ params }) => {
     const id = Number(params.definitionId);
     return HttpResponse.json(buildPropertyDefinition({ id }));
   }),
 
-  http.patch("/api/v1/property-definitions/:definitionId", async ({ params, request }) => {
+  guildHttp.patch("/property-definitions/:definitionId", async ({ params, request }) => {
     const id = Number(params.definitionId);
     const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({
@@ -44,23 +46,23 @@ export const propertyHandlers = [
     });
   }),
 
-  http.delete("/api/v1/property-definitions/:definitionId", () => {
+  guildHttp.delete("/property-definitions/:definitionId", () => {
     return new HttpResponse(null, { status: 204 });
   }),
 
-  http.get("/api/v1/property-definitions/:definitionId/entities", () => {
+  guildHttp.get("/property-definitions/:definitionId/entities", () => {
     return HttpResponse.json({ tasks: [], documents: [] });
   }),
 
   // ── Attach values ─────────────────────────────────────────────────────────
   // The components under test only care that the request goes through; the
   // returned payload is ignored beyond invalidation, so we use loose shapes.
-  http.put("/api/v1/documents/:documentId/properties", ({ params }) => {
+  guildHttp.put("/documents/:documentId/properties", ({ params }) => {
     const id = Number(params.documentId);
     return HttpResponse.json({ id, properties: [] });
   }),
 
-  http.put("/api/v1/tasks/:taskId/properties", ({ params }) => {
+  guildHttp.put("/tasks/:taskId/properties", ({ params }) => {
     const id = Number(params.taskId);
     return HttpResponse.json({ id, properties: [] });
   }),

@@ -11,8 +11,7 @@ export function useUserStats(guildId?: number | null) {
 
   return useQuery({
     queryKey: getGetUserStatsApiV1MeStatsGetQueryKey(params),
-    queryFn: () =>
-      getUserStatsApiV1MeStatsGet(params) as unknown as Promise<UserStatsResponse>,
+    queryFn: () => getUserStatsApiV1MeStatsGet(params) as unknown as Promise<UserStatsResponse>,
     staleTime: 5 * 60 * 1000,
   });
 }

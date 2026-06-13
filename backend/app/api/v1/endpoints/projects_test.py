@@ -23,7 +23,6 @@ from app.testing.factories import (
     create_guild,
     create_guild_membership,
     create_user,
-    get_auth_headers,
     get_guild_headers,
 )
 
@@ -50,21 +49,6 @@ async def _create_project(session, initiative, owner):
 
 
 @pytest.mark.integration
-async def test_list_projects_requires_guild_context(
-    client: AsyncClient, session: AsyncSession
-):
-    """A user with no guild context (no flag set — e.g. zero memberships)
-    gets a clean 409 when listing projects."""
-    user = await create_user(session)
-
-    headers = get_auth_headers(user)
-    response = await client.get("/api/v1/projects/", headers=headers)
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "NO_GUILD_MEMBERSHIP"
-
-
-@pytest.mark.integration
 async def test_list_projects_as_admin_shows_all(
     client: AsyncClient, session: AsyncSession
 ):
@@ -83,7 +67,7 @@ async def test_list_projects_as_admin_shows_all(
     await session.commit()
 
     headers = await get_guild_headers(session, guild, admin)
-    response = await client.get("/api/v1/projects/", headers=headers)
+    response = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -130,7 +114,7 @@ async def test_list_projects_member_sees_initiative_projects(
     await session.commit()
 
     headers = await get_guild_headers(session, guild, member)
-    response = await client.get("/api/v1/projects/", headers=headers)
+    response = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
 
     assert response.status_code == 200
     data = response.json()["items"]
@@ -158,7 +142,7 @@ async def test_list_projects_excludes_archived_by_default(
     await session.commit()
 
     headers = await get_guild_headers(session, guild, admin)
-    response = await client.get("/api/v1/projects/", headers=headers)
+    response = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
 
     assert response.status_code == 200
     data = response.json()["items"]
@@ -184,7 +168,9 @@ async def test_list_projects_with_archived_filter(
     await session.commit()
 
     headers = await get_guild_headers(session, guild, admin)
-    response = await client.get("/api/v1/projects/?archived=true", headers=headers)
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/projects/?archived=true", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()["items"]
@@ -210,7 +196,9 @@ async def test_create_project(client: AsyncClient, session: AsyncSession):
         "initiative_id": initiative.id,
     }
 
-    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -234,7 +222,9 @@ async def test_create_project_as_member(client: AsyncClient, session: AsyncSessi
         "initiative_id": initiative.id,
     }
 
-    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -262,7 +252,9 @@ async def test_create_project_not_in_initiative_forbidden(
         "initiative_id": initiative.id,
     }
 
-    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+    )
 
     assert response.status_code == 403
 
@@ -280,7 +272,9 @@ async def test_get_project_by_id(client: AsyncClient, session: AsyncSession):
     project = await _create_project(session, initiative, admin)
 
     headers = await get_guild_headers(session, guild, admin)
-    response = await client.get(f"/api/v1/projects/{project.id}", headers=headers)
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -298,7 +292,7 @@ async def test_get_project_not_found(client: AsyncClient, session: AsyncSession)
     )
 
     headers = await get_guild_headers(session, guild, admin)
-    response = await client.get("/api/v1/projects/99999", headers=headers)
+    response = await client.get(f"/api/v1/g/{guild.id}/projects/99999", headers=headers)
 
     assert response.status_code == 404
 
@@ -317,7 +311,7 @@ async def test_update_project_as_owner(client: AsyncClient, session: AsyncSessio
     payload = {"name": "Updated Name", "description": "Updated description"}
 
     response = await client.patch(
-        f"/api/v1/projects/{project.id}", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers, json=payload
     )
 
     assert response.status_code == 200
@@ -356,7 +350,7 @@ async def test_update_project_as_admin(client: AsyncClient, session: AsyncSessio
     payload = {"name": "Admin Updated"}
 
     response = await client.patch(
-        f"/api/v1/projects/{project.id}", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers, json=payload
     )
 
     assert response.status_code == 200
@@ -382,7 +376,7 @@ async def test_update_project_without_permission_forbidden(
     payload = {"name": "Hacked Name"}
 
     response = await client.patch(
-        f"/api/v1/projects/{project.id}", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers, json=payload
     )
 
     assert response.status_code == 403
@@ -399,7 +393,9 @@ async def test_delete_project_as_owner(client: AsyncClient, session: AsyncSessio
     project = await _create_project(session, initiative, owner)
 
     headers = await get_guild_headers(session, guild, owner)
-    response = await client.delete(f"/api/v1/projects/{project.id}", headers=headers)
+    response = await client.delete(
+        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+    )
 
     assert response.status_code == 204
 
@@ -431,7 +427,9 @@ async def test_delete_project_as_admin(client: AsyncClient, session: AsyncSessio
     await session.commit()
 
     headers = await get_guild_headers(session, guild, admin)
-    response = await client.delete(f"/api/v1/projects/{project.id}", headers=headers)
+    response = await client.delete(
+        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+    )
 
     assert response.status_code == 204
 
@@ -451,7 +449,9 @@ async def test_delete_project_without_permission_forbidden(
     project = await _create_project(session, initiative, owner)
 
     headers = await get_guild_headers(session, guild, outsider)
-    response = await client.delete(f"/api/v1/projects/{project.id}", headers=headers)
+    response = await client.delete(
+        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+    )
 
     assert response.status_code == 403
 
@@ -468,7 +468,7 @@ async def test_archive_project(client: AsyncClient, session: AsyncSession):
 
     headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        f"/api/v1/projects/{project.id}/archive", headers=headers
+        f"/api/v1/g/{guild.id}/projects/{project.id}/archive", headers=headers
     )
 
     assert response.status_code == 200
@@ -491,7 +491,7 @@ async def test_unarchive_project(client: AsyncClient, session: AsyncSession):
 
     headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        f"/api/v1/projects/{project.id}/unarchive", headers=headers
+        f"/api/v1/g/{guild.id}/projects/{project.id}/unarchive", headers=headers
     )
 
     assert response.status_code == 200
@@ -511,7 +511,7 @@ async def test_add_project_favorite(client: AsyncClient, session: AsyncSession):
 
     headers = await get_guild_headers(session, guild, user)
     response = await client.post(
-        f"/api/v1/projects/{project.id}/favorite", headers=headers
+        f"/api/v1/g/{guild.id}/projects/{project.id}/favorite", headers=headers
     )
 
     assert response.status_code == 200
@@ -538,7 +538,7 @@ async def test_remove_project_favorite(client: AsyncClient, session: AsyncSessio
 
     headers = await get_guild_headers(session, guild, user)
     response = await client.delete(
-        f"/api/v1/projects/{project.id}/favorite", headers=headers
+        f"/api/v1/g/{guild.id}/projects/{project.id}/favorite", headers=headers
     )
 
     assert response.status_code == 200
@@ -564,7 +564,9 @@ async def test_list_favorite_projects(client: AsyncClient, session: AsyncSession
     await session.commit()
 
     headers = await get_guild_headers(session, guild, user)
-    response = await client.get("/api/v1/projects/favorites", headers=headers)
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/projects/favorites", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -583,7 +585,9 @@ async def test_mark_project_as_viewed(client: AsyncClient, session: AsyncSession
     project = await _create_project(session, initiative, user)
 
     headers = await get_guild_headers(session, guild, user)
-    response = await client.post(f"/api/v1/projects/{project.id}/view", headers=headers)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -614,7 +618,9 @@ async def test_add_project_member(client: AsyncClient, session: AsyncSession):
     payload = {"user_id": new_member.id, "level": "write"}
 
     response = await client.post(
-        f"/api/v1/projects/{project.id}/members", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/projects/{project.id}/members",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 201
@@ -648,7 +654,8 @@ async def test_remove_project_member(client: AsyncClient, session: AsyncSession)
 
     headers = await get_guild_headers(session, guild, owner)
     response = await client.delete(
-        f"/api/v1/projects/{project.id}/members/{member.id}", headers=headers
+        f"/api/v1/g/{guild.id}/projects/{project.id}/members/{member.id}",
+        headers=headers,
     )
 
     assert response.status_code == 204
@@ -681,7 +688,7 @@ async def test_project_guild_isolation(client: AsyncClient, session: AsyncSessio
 
     # Request with guild1 context
     headers1 = await get_guild_headers(session, guild1, user)
-    response1 = await client.get("/api/v1/projects/", headers=headers1)
+    response1 = await client.get(f"/api/v1/g/{guild1.id}/projects/", headers=headers1)
 
     assert response1.status_code == 200
     data1 = response1.json()["items"]
@@ -693,7 +700,9 @@ async def test_project_guild_isolation(client: AsyncClient, session: AsyncSessio
     # ids are per-schema (not globally unique), so project1.id may collide with a
     # guild2 project — but it must never resolve to guild1's project.
     headers2 = await get_guild_headers(session, guild2, user)
-    response2 = await client.get(f"/api/v1/projects/{project1.id}", headers=headers2)
+    response2 = await client.get(
+        f"/api/v1/g/{guild2.id}/projects/{project1.id}", headers=headers2
+    )
 
     if response2.status_code == 200:
         assert response2.json()["name"] != "Guild 1 Project"
@@ -728,7 +737,9 @@ async def test_create_project_with_user_permissions(
         ],
     }
 
-    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -775,7 +786,9 @@ async def test_create_project_with_role_permissions(
         ],
     }
 
-    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -803,7 +816,9 @@ async def test_create_project_without_permissions(
         "initiative_id": initiative.id,
     }
 
-    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -841,7 +856,9 @@ async def test_create_project_skips_owner_level_grants(
         ],
     }
 
-    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -888,7 +905,9 @@ async def test_create_project_rejects_foreign_initiative_role(
         ],
     }
 
-    response = await client.post("/api/v1/projects/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()

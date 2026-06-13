@@ -111,7 +111,9 @@ async def test_create_document_with_permissions(
         ],
     }
 
-    response = await client.post("/api/v1/documents/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/documents/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -151,7 +153,9 @@ async def test_create_document_without_permissions(
         "initiative_id": initiative.id,
     }
 
-    response = await client.post("/api/v1/documents/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/documents/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -194,7 +198,9 @@ async def test_create_document_rejects_foreign_initiative_role(
         ],
     }
 
-    response = await client.post("/api/v1/documents/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/documents/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -224,7 +230,9 @@ async def test_create_document_skips_owner_level_grants(
         "user_permissions": [{"user_id": member.id, "level": "owner"}],
     }
 
-    response = await client.post("/api/v1/documents/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/documents/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     member_perms = [
@@ -312,7 +320,7 @@ async def test_copy_template_with_read_only_access(
 
     headers = await get_guild_headers(session, guild, reader)
     response = await client.post(
-        f"/api/v1/documents/{template.id}/copy",
+        f"/api/v1/g/{guild.id}/documents/{template.id}/copy",
         headers=headers,
         json={"target_initiative_id": initiative.id, "title": "My Kickoff"},
     )
@@ -370,7 +378,7 @@ async def test_copy_non_template_still_requires_write_access(
 
     headers = await get_guild_headers(session, guild, reader)
     response = await client.post(
-        f"/api/v1/documents/{doc.id}/copy",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/copy",
         headers=headers,
         json={"target_initiative_id": initiative.id, "title": "My Copy"},
     )
@@ -400,7 +408,7 @@ async def test_download_owner_can_download(
     try:
         headers = await get_guild_headers(session, guild, owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download", headers=headers
         )
         assert response.status_code == 200
         assert "attachment" in response.headers.get("content-disposition", "")
@@ -423,7 +431,7 @@ async def test_download_unauthenticated_returns_401(
         session, initiative=initiative, owner=owner, filename="dl_unauth.pdf"
     )
     try:
-        response = await client.get(f"/api/v1/documents/{doc.id}/download")
+        response = await client.get(f"/api/v1/g/{guild.id}/documents/{doc.id}/download")
         assert response.status_code == 401
     finally:
         (_uploads_dir() / "dl_unauth.pdf").unlink(missing_ok=True)
@@ -448,7 +456,7 @@ async def test_download_guild_member_without_permission_returns_403(
     try:
         headers = await get_guild_headers(session, guild, other)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download", headers=headers
         )
         assert response.status_code == 403
     finally:
@@ -472,7 +480,7 @@ async def test_download_non_guild_member_returns_404(
     try:
         headers = get_auth_headers(outsider)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download", headers=headers
         )
         assert response.status_code == 404
     finally:
@@ -507,7 +515,7 @@ async def test_download_read_permission_grants_access(
     try:
         headers = await get_guild_headers(session, guild, reader)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download", headers=headers
         )
         assert response.status_code == 200
     finally:
@@ -530,7 +538,8 @@ async def test_download_inline_returns_no_attachment_header(
     try:
         headers = await get_guild_headers(session, guild, owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download?inline=1", headers=headers
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download?inline=1",
+            headers=headers,
         )
         assert response.status_code == 200
         assert "attachment" not in response.headers.get("content-disposition", "")
@@ -555,7 +564,8 @@ async def test_download_inline_html_svg_is_same_origin_framable_but_scriptless(
     try:
         headers = await get_guild_headers(session, guild, owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download?inline=1", headers=headers
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download?inline=1",
+            headers=headers,
         )
         assert response.status_code == 200
         # Same-origin framing allowed (overrides the global DENY middleware)
@@ -586,7 +596,7 @@ async def test_download_non_inline_html_svg_keeps_global_deny(
     try:
         headers = await get_guild_headers(session, guild, owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download", headers=headers
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download", headers=headers
         )
         assert response.status_code == 200
         # Served as an attachment; the framing relaxation must not apply here
@@ -619,7 +629,7 @@ async def test_download_scoped_upload_token_auth(
         await get_guild_headers(session, guild, owner)
         token, _ = create_upload_token(user_id=owner.id)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download?token={token}"
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download?token={token}"
         )
         assert response.status_code == 200
     finally:
@@ -643,7 +653,7 @@ async def test_download_session_jwt_rejected_in_query_param(
     try:
         token = get_auth_token(owner)
         response = await client.get(
-            f"/api/v1/documents/{doc.id}/download?token={token}"
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/download?token={token}"
         )
         assert response.status_code == 401
     finally:
@@ -662,7 +672,7 @@ async def test_download_native_document_returns_404(
 
     headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{guild.id}/documents/",
         headers=headers,
         json={"title": "Native Doc", "initiative_id": initiative.id},
     )
@@ -670,7 +680,8 @@ async def test_download_native_document_returns_404(
     doc_id = response.json()["id"]
 
     response = await client.get(
-        f"/api/v1/documents/{doc_id}/download", headers=get_auth_headers(owner)
+        f"/api/v1/g/{guild.id}/documents/{doc_id}/download",
+        headers=get_auth_headers(owner),
     )
     assert response.status_code == 404
 
@@ -692,7 +703,7 @@ async def test_update_content_clears_yjs_state(
 
     headers = await get_guild_headers(session, guild, owner)
     create_resp = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{guild.id}/documents/",
         headers=headers,
         json={"title": "Collab Doc", "initiative_id": initiative.id},
     )
@@ -708,7 +719,7 @@ async def test_update_content_clears_yjs_state(
 
     # PATCH the content via the REST endpoint (the non-collab save path)
     patch_resp = await client.patch(
-        f"/api/v1/documents/{doc_id}",
+        f"/api/v1/g/{guild.id}/documents/{doc_id}",
         headers=headers,
         json={
             "content": {
@@ -747,7 +758,7 @@ async def test_create_whiteboard_document(
 
     headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{guild.id}/documents/",
         headers=headers,
         json={
             "title": "My Whiteboard",
@@ -800,7 +811,7 @@ async def test_create_smart_link_document(
 
     headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{guild.id}/documents/",
         headers=headers,
         json={
             "title": "Design file",
@@ -826,7 +837,7 @@ async def test_create_smart_link_rejects_missing_url(
 
     headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{guild.id}/documents/",
         headers=headers,
         json={
             "title": "Bad link",
@@ -850,7 +861,7 @@ async def test_create_smart_link_rejects_non_http_url(
 
     headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{guild.id}/documents/",
         headers=headers,
         json={
             "title": "Bad scheme",

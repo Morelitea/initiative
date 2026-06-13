@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import type {
   FilterCondition,
-  ListTasksApiV1TasksGetParams,
+  ListTasksApiV1GGuildIdTasksGetParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -190,7 +190,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   // --- Tasks query (scoped to initiative or all guild tasks) ---
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
-  const tasksParams = useMemo((): ListTasksApiV1TasksGetParams | null => {
+  const tasksParams = useMemo((): ListTasksApiV1GGuildIdTasksGetParams | null => {
     if (!showTasks) return null;
     const conditions: FilterCondition[] = [];
 
@@ -237,7 +237,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     userTimezone,
   ]);
 
-  const defaultTaskParams: ListTasksApiV1TasksGetParams = { page: 1, page_size: 100 };
+  const defaultTaskParams: ListTasksApiV1GGuildIdTasksGetParams = { page: 1, page_size: 100 };
   const tasksQuery = useTasks(tasksParams ?? defaultTaskParams, {
     enabled: !!tasksParams,
     placeholderData: keepPreviousData,

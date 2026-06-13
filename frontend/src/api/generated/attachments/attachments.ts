@@ -14,7 +14,7 @@ import type {
 
 import type {
   AttachmentUploadResponse,
-  BodyUploadAttachmentApiV1AttachmentsPost,
+  BodyUploadAttachmentApiV1GGuildIdAttachmentsPost,
   HTTPValidationError,
 } from "../initiativeAPI.schemas";
 
@@ -26,17 +26,18 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Upload Attachment
  */
-export const uploadAttachmentApiV1AttachmentsPost = (
-  bodyUploadAttachmentApiV1AttachmentsPost: BodyType<BodyUploadAttachmentApiV1AttachmentsPost>,
+export const uploadAttachmentApiV1GGuildIdAttachmentsPost = (
+  guildId: number,
+  bodyUploadAttachmentApiV1GGuildIdAttachmentsPost: BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   const formData = new FormData();
-  formData.append(`file`, bodyUploadAttachmentApiV1AttachmentsPost.file);
+  formData.append(`file`, bodyUploadAttachmentApiV1GGuildIdAttachmentsPost.file);
 
   return apiMutator<AttachmentUploadResponse>(
     {
-      url: `/api/v1/attachments/`,
+      url: `/api/v1/g/${guildId}/attachments/`,
       method: "POST",
       headers: { "Content-Type": "multipart/form-data" },
       data: formData,
@@ -46,24 +47,24 @@ export const uploadAttachmentApiV1AttachmentsPost = (
   );
 };
 
-export const getUploadAttachmentApiV1AttachmentsPostMutationOptions = <
+export const getUploadAttachmentApiV1GGuildIdAttachmentsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof uploadAttachmentApiV1AttachmentsPost>>,
+    Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
     TError,
-    { data: BodyType<BodyUploadAttachmentApiV1AttachmentsPost> },
+    { guildId: number; data: BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof uploadAttachmentApiV1AttachmentsPost>>,
+  Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
   TError,
-  { data: BodyType<BodyUploadAttachmentApiV1AttachmentsPost> },
+  { guildId: number; data: BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost> },
   TContext
 > => {
-  const mutationKey = ["uploadAttachmentApiV1AttachmentsPost"];
+  const mutationKey = ["uploadAttachmentApiV1GGuildIdAttachmentsPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -71,46 +72,50 @@ export const getUploadAttachmentApiV1AttachmentsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof uploadAttachmentApiV1AttachmentsPost>>,
-    { data: BodyType<BodyUploadAttachmentApiV1AttachmentsPost> }
+    Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
+    { guildId: number; data: BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost> }
   > = (props) => {
-    const { data } = props ?? {};
+    const { guildId, data } = props ?? {};
 
-    return uploadAttachmentApiV1AttachmentsPost(data, requestOptions);
+    return uploadAttachmentApiV1GGuildIdAttachmentsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UploadAttachmentApiV1AttachmentsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof uploadAttachmentApiV1AttachmentsPost>>
+export type UploadAttachmentApiV1GGuildIdAttachmentsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>
 >;
-export type UploadAttachmentApiV1AttachmentsPostMutationBody =
-  BodyType<BodyUploadAttachmentApiV1AttachmentsPost>;
-export type UploadAttachmentApiV1AttachmentsPostMutationError = ErrorType<HTTPValidationError>;
+export type UploadAttachmentApiV1GGuildIdAttachmentsPostMutationBody =
+  BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost>;
+export type UploadAttachmentApiV1GGuildIdAttachmentsPostMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Upload Attachment
  */
-export const useUploadAttachmentApiV1AttachmentsPost = <
+export const useUploadAttachmentApiV1GGuildIdAttachmentsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof uploadAttachmentApiV1AttachmentsPost>>,
+      Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
       TError,
-      { data: BodyType<BodyUploadAttachmentApiV1AttachmentsPost> },
+      { guildId: number; data: BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof uploadAttachmentApiV1AttachmentsPost>>,
+  Awaited<ReturnType<typeof uploadAttachmentApiV1GGuildIdAttachmentsPost>>,
   TError,
-  { data: BodyType<BodyUploadAttachmentApiV1AttachmentsPost> },
+  { guildId: number; data: BodyType<BodyUploadAttachmentApiV1GGuildIdAttachmentsPost> },
   TContext
 > => {
-  return useMutation(getUploadAttachmentApiV1AttachmentsPostMutationOptions(options), queryClient);
+  return useMutation(
+    getUploadAttachmentApiV1GGuildIdAttachmentsPostMutationOptions(options),
+    queryClient
+  );
 };

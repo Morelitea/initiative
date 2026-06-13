@@ -1,7 +1,9 @@
-import { HttpResponse, http } from "msw";
+import { HttpResponse } from "msw";
+
+import { guildHttp } from "../guildHttp";
 
 export const documentHandlers = [
-  http.get("/api/v1/documents/", () => {
+  guildHttp.get("/documents/", () => {
     return HttpResponse.json({
       items: [],
       total_count: 0,

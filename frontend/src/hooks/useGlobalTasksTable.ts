@@ -14,7 +14,7 @@ import type {
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import {
   getListMyCreatedTasksApiV1MeTasksCreatedGetQueryKey,
   getListMyTasksApiV1MeTasksGetQueryKey,
@@ -23,7 +23,7 @@ import {
 } from "@/api/generated/tasks/tasks";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useUpdateTask } from "@/hooks/useTasks";
+import { useUpdateTaskInGuild } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -271,14 +271,15 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
   );
 
   // --- Status mutation ---
-  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useUpdateTask({
-    onSuccess: (updatedTask) => {
-      const cached = projectStatusCache.current.get(updatedTask.project_id);
-      if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
-        cached.statuses.push(updatedTask.task_status);
-      }
-    },
-  });
+  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } =
+    useUpdateTaskInGuild({
+      onSuccess: (updatedTask) => {
+        const cached = projectStatusCache.current.get(updatedTask.project_id);
+        if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
+          cached.statuses.push(updatedTask.task_status);
+        }
+      },
+    });
 
   // --- Task items + status cache hydration ---
   const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
@@ -310,9 +311,10 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
     }
     // Explicit guild address: the project lives in the task's guild, which
     // need not be the user's current context on these cross-guild pages.
-    const statuses = (await listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId, {
-      guild_id: guildId,
-    })) as unknown as TaskStatusRead[];
+    const statuses = (await listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+      guildId,
+      projectId
+    )) as unknown as TaskStatusRead[];
     const merged = cached
       ? [
           ...cached.statuses,
@@ -349,9 +351,9 @@ export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTa
         await updateTaskStatusMutate({
           taskId: task.id,
           data: { task_status_id: targetStatusId },
-          // Explicit guild address — per-guild task ids collide, so the
-          // update must name the task's own guild.
-          params: { guild_id: targetGuildId },
+          // Cross-guild update from the personal My Tasks table: per-guild task
+          // ids collide, so the update must name the task's own guild (path).
+          guildId: targetGuildId,
         });
       } catch (error) {
         console.error(error);

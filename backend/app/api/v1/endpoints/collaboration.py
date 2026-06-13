@@ -431,6 +431,7 @@ async def get_document_collaborators(
 @router.post("/documents/{document_id}/sync-content")
 async def sync_document_content(
     document_id: int,
+    guild_id: int,
     request: Request,
     session: SessionDep,
     token: str = Query(...),
@@ -438,10 +439,10 @@ async def sync_document_content(
     """
     Sync Lexical content from the frontend to the database.
 
-    This endpoint is called via navigator.sendBeacon when the page unloads
-    to ensure the content column stays in sync with yjs_state. The guild
-    comes from the user's server-held context (``users.active_guild_id``) —
-    the document being synced was open inside its guild.
+    Called via navigator.sendBeacon on page unload to keep the content column
+    in sync with yjs_state. sendBeacon can't set headers, so this authenticates
+    with a ``?token=`` query param and takes the guild from the ``/g/{guild_id}``
+    path — the document being synced was open inside that guild.
 
     The request body should contain the Lexical serialized state as JSON.
     """
@@ -458,13 +459,17 @@ async def sync_document_content(
         logger.warning(f"Sync content: Auth failed for document {document_id}")
         return {"status": "error", "message": "Authentication failed"}
 
-    guild_id = user.active_guild_id
-    if guild_id is None:
+    # The guild comes from the path; validate membership before scoping RLS to
+    # it (the path is only a selector, never a trust boundary).
+    await set_rls_context(session, user_id=user.id)
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=user.id
+    )
+    if membership is None:
         logger.warning(
-            f"Sync content: user {user.id} has no guild context "
-            f"for document {document_id}"
+            f"Sync content: user {user.id} is not a member of guild {guild_id}"
         )
-        return {"status": "error", "message": "No guild context"}
+        return {"status": "error", "message": "No guild access"}
 
     # Set RLS context so queries against guild-scoped tables work
     await set_rls_context(session, user_id=user.id, guild_id=guild_id)

@@ -31,7 +31,6 @@ import type {
   InitiativeRoleRead,
   InitiativeRoleUpdate,
   InitiativeUpdate,
-  ListInitiativesApiV1InitiativesGetParams,
   MyInitiativePermissions,
   UserPublic,
 } from "../initiativeAPI.schemas";
@@ -44,250 +43,30 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary List Initiatives
  */
-export const listInitiativesApiV1InitiativesGet = (
-  params?: ListInitiativesApiV1InitiativesGetParams,
+export const listInitiativesApiV1GGuildIdInitiativesGet = (
+  guildId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeRead[]>(
-    { url: `/api/v1/initiatives/`, method: "GET", params, signal },
+    { url: `/api/v1/g/${guildId}/initiatives/`, method: "GET", signal },
     options
   );
 };
 
-export const getListInitiativesApiV1InitiativesGetQueryKey = (
-  params?: ListInitiativesApiV1InitiativesGetParams
-) => {
-  return [`/api/v1/initiatives/`, ...(params ? [params] : [])] as const;
+export const getListInitiativesApiV1GGuildIdInitiativesGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/initiatives/`] as const;
 };
 
-export const getListInitiativesApiV1InitiativesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
+export const getListInitiativesApiV1GGuildIdInitiativesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListInitiativesApiV1InitiativesGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey = queryOptions?.queryKey ?? getListInitiativesApiV1InitiativesGetQueryKey(params);
-
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>> = ({
-    signal,
-  }) => listInitiativesApiV1InitiativesGet(params, requestOptions, signal);
-
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListInitiativesApiV1InitiativesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>
->;
-export type ListInitiativesApiV1InitiativesGetQueryError = ErrorType<HTTPValidationError>;
-
-export function useListInitiativesApiV1InitiativesGet<
-  TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params: undefined | ListInitiativesApiV1InitiativesGetParams,
-  options: {
-    query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
-          TError,
-          Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListInitiativesApiV1InitiativesGet<
-  TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListInitiativesApiV1InitiativesGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
-          TError,
-          Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListInitiativesApiV1InitiativesGet<
-  TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListInitiativesApiV1InitiativesGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Initiatives
- */
-
-export function useListInitiativesApiV1InitiativesGet<
-  TData = Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  params?: ListInitiativesApiV1InitiativesGetParams,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listInitiativesApiV1InitiativesGet>>, TError, TData>
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListInitiativesApiV1InitiativesGetQueryOptions(params, options);
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-/**
- * @summary Create Initiative
- */
-export const createInitiativeApiV1InitiativesPost = (
-  initiativeCreate: BodyType<InitiativeCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<InitiativeRead>(
-    {
-      url: `/api/v1/initiatives/`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: initiativeCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getCreateInitiativeApiV1InitiativesPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
-    TError,
-    { data: BodyType<InitiativeCreate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
-  TError,
-  { data: BodyType<InitiativeCreate> },
-  TContext
-> => {
-  const mutationKey = ["createInitiativeApiV1InitiativesPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
-    { data: BodyType<InitiativeCreate> }
-  > = (props) => {
-    const { data } = props ?? {};
-
-    return createInitiativeApiV1InitiativesPost(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type CreateInitiativeApiV1InitiativesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>
->;
-export type CreateInitiativeApiV1InitiativesPostMutationBody = BodyType<InitiativeCreate>;
-export type CreateInitiativeApiV1InitiativesPostMutationError = ErrorType<HTTPValidationError>;
-
-/**
- * @summary Create Initiative
- */
-export const useCreateInitiativeApiV1InitiativesPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
-      TError,
-      { data: BodyType<InitiativeCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof createInitiativeApiV1InitiativesPost>>,
-  TError,
-  { data: BodyType<InitiativeCreate> },
-  TContext
-> => {
-  return useMutation(getCreateInitiativeApiV1InitiativesPostMutationOptions(options), queryClient);
-};
-/**
- * @summary Get Initiative
- */
-export const getInitiativeApiV1InitiativesInitiativeIdGet = (
-  initiativeId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<InitiativeRead>(
-    { url: `/api/v1/initiatives/${initiativeId}`, method: "GET", signal },
-    options
-  );
-};
-
-export const getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey = (initiativeId: number) => {
-  return [`/api/v1/initiatives/${initiativeId}`] as const;
-};
-
-export const getGetInitiativeApiV1InitiativesInitiativeIdGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  initiativeId: number,
+  guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+        Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
         TError,
         TData
       >
@@ -298,48 +77,47 @@ export const getGetInitiativeApiV1InitiativesInitiativeIdGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getGetInitiativeApiV1InitiativesInitiativeIdGetQueryKey(initiativeId);
+    queryOptions?.queryKey ?? getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>
-  > = ({ signal }) =>
-    getInitiativeApiV1InitiativesInitiativeIdGet(initiativeId, requestOptions, signal);
+    Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>
+  > = ({ signal }) => listInitiativesApiV1GGuildIdInitiativesGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
     queryFn,
-    enabled: initiativeId !== null && initiativeId !== undefined,
+    enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+    Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetInitiativeApiV1InitiativesInitiativeIdGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>
+export type ListInitiativesApiV1GGuildIdInitiativesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>
 >;
-export type GetInitiativeApiV1InitiativesInitiativeIdGetQueryError = ErrorType<HTTPValidationError>;
+export type ListInitiativesApiV1GGuildIdInitiativesGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
-  TData = Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+export function useListInitiativesApiV1GGuildIdInitiativesGet<
+  TData = Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  initiativeId: number,
+  guildId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+        Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+          Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
           TError,
-          Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>
+          Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>
         >,
         "initialData"
       >;
@@ -347,24 +125,24 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
-  TData = Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+export function useListInitiativesApiV1GGuildIdInitiativesGet<
+  TData = Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  initiativeId: number,
+  guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+        Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+          Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
           TError,
-          Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>
+          Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>
         >,
         "initialData"
       >;
@@ -372,15 +150,15 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
-  TData = Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+export function useListInitiativesApiV1GGuildIdInitiativesGet<
+  TData = Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  initiativeId: number,
+  guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+        Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
         TError,
         TData
       >
@@ -390,18 +168,18 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Get Initiative
+ * @summary List Initiatives
  */
 
-export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
-  TData = Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+export function useListInitiativesApiV1GGuildIdInitiativesGet<
+  TData = Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  initiativeId: number,
+  guildId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeApiV1InitiativesInitiativeIdGet>>,
+        Awaited<ReturnType<typeof listInitiativesApiV1GGuildIdInitiativesGet>>,
         TError,
         TData
       >
@@ -410,10 +188,7 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetInitiativeApiV1InitiativesInitiativeIdGetQueryOptions(
-    initiativeId,
-    options
-  );
+  const queryOptions = getListInitiativesApiV1GGuildIdInitiativesGetQueryOptions(guildId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -423,44 +198,44 @@ export function useGetInitiativeApiV1InitiativesInitiativeIdGet<
 }
 
 /**
- * @summary Update Initiative
+ * @summary Create Initiative
  */
-export const updateInitiativeApiV1InitiativesInitiativeIdPatch = (
-  initiativeId: number,
-  initiativeUpdate: BodyType<InitiativeUpdate>,
+export const createInitiativeApiV1GGuildIdInitiativesPost = (
+  guildId: number,
+  initiativeCreate: BodyType<InitiativeCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<InitiativeRead>(
     {
-      url: `/api/v1/initiatives/${initiativeId}`,
-      method: "PATCH",
+      url: `/api/v1/g/${guildId}/initiatives/`,
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      data: initiativeUpdate,
+      data: initiativeCreate,
       signal,
     },
     options
   );
 };
 
-export const getUpdateInitiativeApiV1InitiativesInitiativeIdPatchMutationOptions = <
+export const getCreateInitiativeApiV1GGuildIdInitiativesPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
+    Awaited<ReturnType<typeof createInitiativeApiV1GGuildIdInitiativesPost>>,
     TError,
-    { initiativeId: number; data: BodyType<InitiativeUpdate> },
+    { guildId: number; data: BodyType<InitiativeCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
+  Awaited<ReturnType<typeof createInitiativeApiV1GGuildIdInitiativesPost>>,
   TError,
-  { initiativeId: number; data: BodyType<InitiativeUpdate> },
+  { guildId: number; data: BodyType<InitiativeCreate> },
   TContext
 > => {
-  const mutationKey = ["updateInitiativeApiV1InitiativesInitiativeIdPatch"];
+  const mutationKey = ["createInitiativeApiV1GGuildIdInitiativesPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -468,172 +243,84 @@ export const getUpdateInitiativeApiV1InitiativesInitiativeIdPatchMutationOptions
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
-    { initiativeId: number; data: BodyType<InitiativeUpdate> }
+    Awaited<ReturnType<typeof createInitiativeApiV1GGuildIdInitiativesPost>>,
+    { guildId: number; data: BodyType<InitiativeCreate> }
   > = (props) => {
-    const { initiativeId, data } = props ?? {};
+    const { guildId, data } = props ?? {};
 
-    return updateInitiativeApiV1InitiativesInitiativeIdPatch(initiativeId, data, requestOptions);
+    return createInitiativeApiV1GGuildIdInitiativesPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateInitiativeApiV1InitiativesInitiativeIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>
+export type CreateInitiativeApiV1GGuildIdInitiativesPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createInitiativeApiV1GGuildIdInitiativesPost>>
 >;
-export type UpdateInitiativeApiV1InitiativesInitiativeIdPatchMutationBody =
-  BodyType<InitiativeUpdate>;
-export type UpdateInitiativeApiV1InitiativesInitiativeIdPatchMutationError =
+export type CreateInitiativeApiV1GGuildIdInitiativesPostMutationBody = BodyType<InitiativeCreate>;
+export type CreateInitiativeApiV1GGuildIdInitiativesPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
- * @summary Update Initiative
+ * @summary Create Initiative
  */
-export const useUpdateInitiativeApiV1InitiativesInitiativeIdPatch = <
+export const useCreateInitiativeApiV1GGuildIdInitiativesPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
+      Awaited<ReturnType<typeof createInitiativeApiV1GGuildIdInitiativesPost>>,
       TError,
-      { initiativeId: number; data: BodyType<InitiativeUpdate> },
+      { guildId: number; data: BodyType<InitiativeCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateInitiativeApiV1InitiativesInitiativeIdPatch>>,
+  Awaited<ReturnType<typeof createInitiativeApiV1GGuildIdInitiativesPost>>,
   TError,
-  { initiativeId: number; data: BodyType<InitiativeUpdate> },
+  { guildId: number; data: BodyType<InitiativeCreate> },
   TContext
 > => {
   return useMutation(
-    getUpdateInitiativeApiV1InitiativesInitiativeIdPatchMutationOptions(options),
+    getCreateInitiativeApiV1GGuildIdInitiativesPostMutationOptions(options),
     queryClient
   );
 };
 /**
- * Soft-delete an initiative. Cascades the same deleted_at to its
- * projects, documents, queues, and calendar events; their descendants
- * (tasks, comments, queue items) follow recursively. Restoring the
- * initiative resurfaces everything that was cascaded together.
- * @summary Delete Initiative
+ * @summary Get Initiative
  */
-export const deleteInitiativeApiV1InitiativesInitiativeIdDelete = (
+export const getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet = (
+  guildId: number,
   initiativeId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<void>(
-    { url: `/api/v1/initiatives/${initiativeId}`, method: "DELETE", signal },
+  return apiMutator<InitiativeRead>(
+    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}`, method: "GET", signal },
     options
   );
 };
 
-export const getDeleteInitiativeApiV1InitiativesInitiativeIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
-    TError,
-    { initiativeId: number },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
-  TError,
-  { initiativeId: number },
-  TContext
-> => {
-  const mutationKey = ["deleteInitiativeApiV1InitiativesInitiativeIdDelete"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
-    { initiativeId: number }
-  > = (props) => {
-    const { initiativeId } = props ?? {};
-
-    return deleteInitiativeApiV1InitiativesInitiativeIdDelete(initiativeId, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteInitiativeApiV1InitiativesInitiativeIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>
->;
-
-export type DeleteInitiativeApiV1InitiativesInitiativeIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Delete Initiative
- */
-export const useDeleteInitiativeApiV1InitiativesInitiativeIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
-      TError,
-      { initiativeId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof deleteInitiativeApiV1InitiativesInitiativeIdDelete>>,
-  TError,
-  { initiativeId: number },
-  TContext
-> => {
-  return useMutation(
-    getDeleteInitiativeApiV1InitiativesInitiativeIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * List all roles for an initiative with their permissions.
- * @summary List Initiative Roles
- */
-export const listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet = (
-  initiativeId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<InitiativeRoleRead[]>(
-    { url: `/api/v1/initiatives/${initiativeId}/roles`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey = (
+export const getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey = (
+  guildId: number,
   initiativeId: number
 ) => {
-  return [`/api/v1/initiatives/${initiativeId}/roles`] as const;
+  return [`/api/v1/g/${guildId}/initiatives/${initiativeId}`] as const;
 };
 
-export const getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+export const getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+        Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
         TError,
         TData
       >
@@ -645,49 +332,59 @@ export const getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryOpti
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey(initiativeId);
+    getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryKey(guildId, initiativeId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>
+    Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>
   > = ({ signal }) =>
-    listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet(initiativeId, requestOptions, signal);
+    getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet(
+      guildId,
+      initiativeId,
+      requestOptions,
+      signal
+    );
 
   return {
     queryKey,
     queryFn,
-    enabled: initiativeId !== null && initiativeId !== undefined,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      initiativeId !== null &&
+      initiativeId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+    Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>
+export type GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>
 >;
-export type ListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryError =
+export type GetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
-  TData = Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
+  TData = Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+        Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+          Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
           TError,
-          Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>
+          Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>
         >,
         "initialData"
       >;
@@ -695,24 +392,25 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
-  TData = Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
+  TData = Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+        Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+          Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
           TError,
-          Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>
+          Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>
         >,
         "initialData"
       >;
@@ -720,15 +418,412 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
-  TData = Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
+  TData = Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+        Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Initiative
+ */
+
+export function useGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGet<
+  TData = Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getInitiativeApiV1GGuildIdInitiativesInitiativeIdGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetInitiativeApiV1GGuildIdInitiativesInitiativeIdGetQueryOptions(
+    guildId,
+    initiativeId,
+    options
+  );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update Initiative
+ */
+export const updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch = (
+  guildId: number,
+  initiativeId: number,
+  initiativeUpdate: BodyType<InitiativeUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: initiativeUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>>,
+    TError,
+    { guildId: number; initiativeId: number; data: BodyType<InitiativeUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>>,
+  TError,
+  { guildId: number; initiativeId: number; data: BodyType<InitiativeUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>>,
+    { guildId: number; initiativeId: number; data: BodyType<InitiativeUpdate> }
+  > = (props) => {
+    const { guildId, initiativeId, data } = props ?? {};
+
+    return updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch(
+      guildId,
+      initiativeId,
+      data,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>>
+>;
+export type UpdateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatchMutationBody =
+  BodyType<InitiativeUpdate>;
+export type UpdateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Initiative
+ */
+export const useUpdateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>>,
+      TError,
+      { guildId: number; initiativeId: number; data: BodyType<InitiativeUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatch>>,
+  TError,
+  { guildId: number; initiativeId: number; data: BodyType<InitiativeUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateInitiativeApiV1GGuildIdInitiativesInitiativeIdPatchMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Soft-delete an initiative. Cascades the same deleted_at to its
+ * projects, documents, queues, and calendar events; their descendants
+ * (tasks, comments, queue items) follow recursively. Restoring the
+ * initiative resurfaces everything that was cascaded together.
+ * @summary Delete Initiative
+ */
+export const deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete = (
+  guildId: number,
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<void>(
+    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}`, method: "DELETE", signal },
+    options
+  );
+};
+
+export const getDeleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDeleteMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete>>,
+    TError,
+    { guildId: number; initiativeId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete>>,
+  TError,
+  { guildId: number; initiativeId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete>>,
+    { guildId: number; initiativeId: number }
+  > = (props) => {
+    const { guildId, initiativeId } = props ?? {};
+
+    return deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete(
+      guildId,
+      initiativeId,
+      requestOptions
+    );
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete>>
+>;
+
+export type DeleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Delete Initiative
+ */
+export const useDeleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete>>,
+      TError,
+      { guildId: number; initiativeId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDelete>>,
+  TError,
+  { guildId: number; initiativeId: number },
+  TContext
+> => {
+  return useMutation(
+    getDeleteInitiativeApiV1GGuildIdInitiativesInitiativeIdDeleteMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * List all roles for an initiative with their permissions.
+ * @summary List Initiative Roles
+ */
+export const listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet = (
+  guildId: number,
+  initiativeId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRoleRead[]>(
+    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/roles`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey = (
+  guildId: number,
+  initiativeId: number
+) => {
+  return [`/api/v1/g/${guildId}/initiatives/${initiativeId}/roles`] as const;
+};
+
+export const getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey(
+      guildId,
+      initiativeId
+    );
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>>
+  > = ({ signal }) =>
+    listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+      guildId,
+      initiativeId,
+      requestOptions,
+      signal
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      initiativeId !== null &&
+      initiativeId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>>
+  >;
+export type ListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet<
+  TData = Awaited<
+    ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet<
+  TData = Awaited<
+    ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet<
+  TData = Awaited<
+    ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+  >,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  guildId: number,
+  initiativeId: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>>,
         TError,
         TData
       >
@@ -741,15 +836,18 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
  * @summary List Initiative Roles
  */
 
-export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
-  TData = Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+export function useListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet<
+  TData = Awaited<
+    ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet>>,
+        Awaited<ReturnType<typeof listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet>>,
         TError,
         TData
       >
@@ -758,10 +856,12 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryOptions(
-    initiativeId,
-    options
-  );
+  const queryOptions =
+    getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryOptions(
+      guildId,
+      initiativeId,
+      options
+    );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -774,7 +874,8 @@ export function useListInitiativeRolesApiV1InitiativesInitiativeIdRolesGet<
  * Create a new custom role for an initiative.
  * @summary Create Initiative Role
  */
-export const createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = (
+export const createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost = (
+  guildId: number,
   initiativeId: number,
   initiativeRoleCreate: BodyType<InitiativeRoleCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -782,7 +883,7 @@ export const createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = (
 ) => {
   return apiMutator<InitiativeRoleRead>(
     {
-      url: `/api/v1/initiatives/${initiativeId}/roles`,
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/roles`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: initiativeRoleCreate,
@@ -792,24 +893,24 @@ export const createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = (
   );
 };
 
-export const getCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutationOptions = <
+export const getCreateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
+    Awaited<ReturnType<typeof createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost>>,
     TError,
-    { initiativeId: number; data: BodyType<InitiativeRoleCreate> },
+    { guildId: number; initiativeId: number; data: BodyType<InitiativeRoleCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
+  Awaited<ReturnType<typeof createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost>>,
   TError,
-  { initiativeId: number; data: BodyType<InitiativeRoleCreate> },
+  { guildId: number; initiativeId: number; data: BodyType<InitiativeRoleCreate> },
   TContext
 > => {
-  const mutationKey = ["createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost"];
+  const mutationKey = ["createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -817,12 +918,13 @@ export const getCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutatio
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
-    { initiativeId: number; data: BodyType<InitiativeRoleCreate> }
+    Awaited<ReturnType<typeof createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost>>,
+    { guildId: number; initiativeId: number; data: BodyType<InitiativeRoleCreate> }
   > = (props) => {
-    const { initiativeId, data } = props ?? {};
+    const { guildId, initiativeId, data } = props ?? {};
 
-    return createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost(
+    return createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost(
+      guildId,
       initiativeId,
       data,
       requestOptions
@@ -832,39 +934,40 @@ export const getCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutatio
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>
->;
-export type CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutationBody =
+export type CreateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost>>
+  >;
+export type CreateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPostMutationBody =
   BodyType<InitiativeRoleCreate>;
-export type CreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutationError =
+export type CreateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Create Initiative Role
  */
-export const useCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = <
+export const useCreateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
+      Awaited<ReturnType<typeof createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost>>,
       TError,
-      { initiativeId: number; data: BodyType<InitiativeRoleCreate> },
+      { guildId: number; initiativeId: number; data: BodyType<InitiativeRoleCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createInitiativeRoleApiV1InitiativesInitiativeIdRolesPost>>,
+  Awaited<ReturnType<typeof createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost>>,
   TError,
-  { initiativeId: number; data: BodyType<InitiativeRoleCreate> },
+  { guildId: number; initiativeId: number; data: BodyType<InitiativeRoleCreate> },
   TContext
 > => {
   return useMutation(
-    getCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPostMutationOptions(options),
+    getCreateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPostMutationOptions(options),
     queryClient
   );
 };
@@ -874,7 +977,8 @@ export const useCreateInitiativeRoleApiV1InitiativesInitiativeIdRolesPost = <
  * Note: PM role permissions cannot be changed to prevent lockouts.
  * @summary Update Initiative Role
  */
-export const updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch = (
+export const updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch = (
+  guildId: number,
   initiativeId: number,
   roleId: number,
   initiativeRoleUpdate: BodyType<InitiativeRoleUpdate>,
@@ -883,7 +987,7 @@ export const updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch = 
 ) => {
   return apiMutator<InitiativeRoleRead>(
     {
-      url: `/api/v1/initiatives/${initiativeId}/roles/${roleId}`,
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/roles/${roleId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: initiativeRoleUpdate,
@@ -893,81 +997,111 @@ export const updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch = 
   );
 };
 
-export const getUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
+export const getUpdateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatchMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch>
+      >,
+      TError,
+      {
+        guildId: number;
+        initiativeId: number;
+        roleId: number;
+        data: BodyType<InitiativeRoleUpdate>;
+      },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch>
+    >,
     TError,
-    { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
+    { guildId: number; initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
     TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
-  TError,
-  { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
-  TContext
-> => {
-  const mutationKey = ["updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = [
+      "updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
-    { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> }
-  > = (props) => {
-    const { initiativeId, roleId, data } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch>
+      >,
+      {
+        guildId: number;
+        initiativeId: number;
+        roleId: number;
+        data: BodyType<InitiativeRoleUpdate>;
+      }
+    > = (props) => {
+      const { guildId, initiativeId, roleId, data } = props ?? {};
 
-    return updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch(
-      initiativeId,
-      roleId,
-      data,
-      requestOptions
-    );
+      return updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch(
+        guildId,
+        initiativeId,
+        roleId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchMutationResult =
+export type UpdateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatchMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>
+    Awaited<
+      ReturnType<typeof updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch>
+    >
   >;
-export type UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchMutationBody =
+export type UpdateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatchMutationBody =
   BodyType<InitiativeRoleUpdate>;
-export type UpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchMutationError =
+export type UpdateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Initiative Role
  */
-export const useUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch = <
+export const useUpdateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
+      Awaited<
+        ReturnType<typeof updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch>
+      >,
       TError,
-      { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
+      {
+        guildId: number;
+        initiativeId: number;
+        roleId: number;
+        data: BodyType<InitiativeRoleUpdate>;
+      },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch>>,
+  Awaited<
+    ReturnType<typeof updateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatch>
+  >,
   TError,
-  { initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
+  { guildId: number; initiativeId: number; roleId: number; data: BodyType<InitiativeRoleUpdate> },
   TContext
 > => {
   return useMutation(
-    getUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatchMutationOptions(options),
+    getUpdateInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdPatchMutationOptions(
+      options
+    ),
     queryClient
   );
 };
@@ -975,91 +1109,111 @@ export const useUpdateInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdPatch
  * Delete a custom role. Built-in roles cannot be deleted.
  * @summary Delete Initiative Role
  */
-export const deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete = (
+export const deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete = (
+  guildId: number,
   initiativeId: number,
   roleId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/initiatives/${initiativeId}/roles/${roleId}`, method: "DELETE", signal },
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/roles/${roleId}`,
+      method: "DELETE",
+      signal,
+    },
     options
   );
 };
 
-export const getDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
+export const getDeleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete>
+      >,
+      TError,
+      { guildId: number; initiativeId: number; roleId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete>
+    >,
     TError,
-    { initiativeId: number; roleId: number },
+    { guildId: number; initiativeId: number; roleId: number },
     TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
-  TError,
-  { initiativeId: number; roleId: number },
-  TContext
-> => {
-  const mutationKey = ["deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = [
+      "deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
-    { initiativeId: number; roleId: number }
-  > = (props) => {
-    const { initiativeId, roleId } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete>
+      >,
+      { guildId: number; initiativeId: number; roleId: number }
+    > = (props) => {
+      const { guildId, initiativeId, roleId } = props ?? {};
 
-    return deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete(
-      initiativeId,
-      roleId,
-      requestOptions
-    );
+      return deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete(
+        guildId,
+        initiativeId,
+        roleId,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteMutationResult =
+export type DeleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>
+    Awaited<
+      ReturnType<typeof deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete>
+    >
   >;
 
-export type DeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteMutationError =
+export type DeleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete Initiative Role
  */
-export const useDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete = <
+export const useDeleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
+      Awaited<
+        ReturnType<typeof deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete>
+      >,
       TError,
-      { initiativeId: number; roleId: number },
+      { guildId: number; initiativeId: number; roleId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelete>>,
+  Awaited<
+    ReturnType<typeof deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete>
+  >,
   TError,
-  { initiativeId: number; roleId: number },
+  { guildId: number; initiativeId: number; roleId: number },
   TContext
 > => {
   return useMutation(
-    getDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDeleteMutationOptions(options),
+    getDeleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDeleteMutationOptions(
+      options
+    ),
     queryClient
   );
 };
@@ -1067,37 +1221,44 @@ export const useDeleteInitiativeRoleApiV1InitiativesInitiativeIdRolesRoleIdDelet
  * Get the current user's permissions for an initiative.
  * @summary Get My Initiative Permissions
  */
-export const getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet = (
+export const getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet = (
+  guildId: number,
   initiativeId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<MyInitiativePermissions>(
-    { url: `/api/v1/initiatives/${initiativeId}/my-permissions`, method: "GET", signal },
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/my-permissions`,
+      method: "GET",
+      signal,
+    },
     options
   );
 };
 
-export const getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryKey = (
-  initiativeId: number
-) => {
-  return [`/api/v1/initiatives/${initiativeId}/my-permissions`] as const;
-};
+export const getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey =
+  (guildId: number, initiativeId: number) => {
+    return [`/api/v1/g/${guildId}/initiatives/${initiativeId}/my-permissions`] as const;
+  };
 
-export const getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryOptions =
+export const getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryOptions =
   <
     TData = Awaited<
-      ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+      ReturnType<
+        typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+      >
     >,
     TError = ErrorType<HTTPValidationError>,
   >(
+    guildId: number,
     initiativeId: number,
     options?: {
       query?: Partial<
         UseQueryOptions<
           Awaited<
             ReturnType<
-              typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet
+              typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
             >
           >,
           TError,
@@ -1111,16 +1272,20 @@ export const getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissi
 
     const queryKey =
       queryOptions?.queryKey ??
-      getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryKey(
+      getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryKey(
+        guildId,
         initiativeId
       );
 
     const queryFn: QueryFunction<
       Awaited<
-        ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+        ReturnType<
+          typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+        >
       >
     > = ({ signal }) =>
-      getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet(
+      getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet(
+        guildId,
         initiativeId,
         requestOptions,
         signal
@@ -1129,38 +1294,51 @@ export const getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissi
     return {
       queryKey,
       queryFn,
-      enabled: initiativeId !== null && initiativeId !== undefined,
+      enabled:
+        guildId !== null &&
+        guildId !== undefined &&
+        initiativeId !== null &&
+        initiativeId !== undefined,
       ...queryOptions,
     } as UseQueryOptions<
       Awaited<
-        ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+        ReturnType<
+          typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+        >
       >,
       TError,
       TData
     > & { queryKey: DataTag<QueryKey, TData, TError> };
   };
 
-export type GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryResult =
+export type GetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+      ReturnType<
+        typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+      >
     >
   >;
-export type GetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryError =
+export type GetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet<
+export function useGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet<
   TData = Awaited<
-    ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+    ReturnType<
+      typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+    >
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options: {
     query: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+          ReturnType<
+            typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+          >
         >,
         TError,
         TData
@@ -1170,13 +1348,13 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
         DefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet
+              typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet
+              typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
             >
           >
         >,
@@ -1186,18 +1364,23 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet<
+export function useGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet<
   TData = Awaited<
-    ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+    ReturnType<
+      typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+    >
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+          ReturnType<
+            typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+          >
         >,
         TError,
         TData
@@ -1207,13 +1390,13 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
         UndefinedInitialDataOptions<
           Awaited<
             ReturnType<
-              typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet
+              typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
             >
           >,
           TError,
           Awaited<
             ReturnType<
-              typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet
+              typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
             >
           >
         >,
@@ -1223,18 +1406,23 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet<
+export function useGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet<
   TData = Awaited<
-    ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+    ReturnType<
+      typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+    >
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+          ReturnType<
+            typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+          >
         >,
         TError,
         TData
@@ -1248,18 +1436,23 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
  * @summary Get My Initiative Permissions
  */
 
-export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet<
+export function useGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet<
   TData = Awaited<
-    ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+    ReturnType<
+      typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+    >
   >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
         Awaited<
-          ReturnType<typeof getMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGet>
+          ReturnType<
+            typeof getMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGet
+          >
         >,
         TError,
         TData
@@ -1270,7 +1463,8 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions =
-    getGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermissionsGetQueryOptions(
+    getGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeIdMyPermissionsGetQueryOptions(
+      guildId,
       initiativeId,
       options
     );
@@ -1303,42 +1497,48 @@ export function useGetMyInitiativePermissionsApiV1InitiativesInitiativeIdMyPermi
  * so the proprietary backend can hide create UI for view-only members.
  * @summary Create Advanced Tool Handoff
  */
-export const createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost = (
-  initiativeId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<AdvancedToolHandoffResponse>(
-    { url: `/api/v1/initiatives/${initiativeId}/advanced-tool/handoff`, method: "POST", signal },
-    options
-  );
-};
+export const createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost =
+  (
+    guildId: number,
+    initiativeId: number,
+    options?: SecondParameter<typeof apiMutator>,
+    signal?: AbortSignal
+  ) => {
+    return apiMutator<AdvancedToolHandoffResponse>(
+      {
+        url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/advanced-tool/handoff`,
+        method: "POST",
+        signal,
+      },
+      options
+    );
+  };
 
-export const getCreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPostMutationOptions =
+export const getCreateAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
         ReturnType<
-          typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+          typeof createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost
         >
       >,
       TError,
-      { initiativeId: number },
+      { guildId: number; initiativeId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
       ReturnType<
-        typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+        typeof createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost
       >
     >,
     TError,
-    { initiativeId: number },
+    { guildId: number; initiativeId: number },
     TContext
   > => {
     const mutationKey = [
-      "createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost",
+      "createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost",
     ];
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
@@ -1349,14 +1549,15 @@ export const getCreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToo
     const mutationFn: MutationFunction<
       Awaited<
         ReturnType<
-          typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+          typeof createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost
         >
       >,
-      { initiativeId: number }
+      { guildId: number; initiativeId: number }
     > = (props) => {
-      const { initiativeId } = props ?? {};
+      const { guildId, initiativeId } = props ?? {};
 
-      return createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost(
+      return createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost(
+        guildId,
         initiativeId,
         requestOptions
       );
@@ -1365,84 +1566,91 @@ export const getCreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToo
     return { mutationFn, ...mutationOptions };
   };
 
-export type CreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPostMutationResult =
+export type CreateAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPostMutationResult =
   NonNullable<
     Awaited<
       ReturnType<
-        typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
+        typeof createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost
       >
     >
   >;
 
-export type CreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPostMutationError =
+export type CreateAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Create Advanced Tool Handoff
  */
-export const useCreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost
-        >
-      >,
-      TError,
-      { initiativeId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<
-    ReturnType<typeof createAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPost>
-  >,
-  TError,
-  { initiativeId: number },
-  TContext
-> => {
-  return useMutation(
-    getCreateAdvancedToolHandoffApiV1InitiativesInitiativeIdAdvancedToolHandoffPostMutationOptions(
-      options
-    ),
-    queryClient
-  );
-};
+export const useCreateAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
+    options?: {
+      mutation?: UseMutationOptions<
+        Awaited<
+          ReturnType<
+            typeof createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost
+          >
+        >,
+        TError,
+        { guildId: number; initiativeId: number },
+        TContext
+      >;
+      request?: SecondParameter<typeof apiMutator>;
+    },
+    queryClient?: QueryClient
+  ): UseMutationResult<
+    Awaited<
+      ReturnType<
+        typeof createAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPost
+      >
+    >,
+    TError,
+    { guildId: number; initiativeId: number },
+    TContext
+  > => {
+    return useMutation(
+      getCreateAdvancedToolHandoffApiV1GGuildIdInitiativesInitiativeIdAdvancedToolHandoffPostMutationOptions(
+        options
+      ),
+      queryClient
+    );
+  };
 /**
  * Get all members of an initiative.
  * @summary Get Initiative Members
  */
-export const getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet = (
+export const getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet = (
+  guildId: number,
   initiativeId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<UserPublic[]>(
-    { url: `/api/v1/initiatives/${initiativeId}/members`, method: "GET", signal },
+    { url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/members`, method: "GET", signal },
     options
   );
 };
 
-export const getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryKey = (
+export const getGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGetQueryKey = (
+  guildId: number,
   initiativeId: number
 ) => {
-  return [`/api/v1/initiatives/${initiativeId}/members`] as const;
+  return [`/api/v1/g/${guildId}/initiatives/${initiativeId}/members`] as const;
 };
 
-export const getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+export const getGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGetQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+        Awaited<
+          ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+        >,
         TError,
         TData
       >
@@ -1454,12 +1662,16 @@ export const getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryO
 
   const queryKey =
     queryOptions?.queryKey ??
-    getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryKey(initiativeId);
+    getGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGetQueryKey(
+      guildId,
+      initiativeId
+    );
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>
+    Awaited<ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>>
   > = ({ signal }) =>
-    getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet(
+    getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet(
+      guildId,
       initiativeId,
       requestOptions,
       signal
@@ -1468,39 +1680,53 @@ export const getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryO
   return {
     queryKey,
     queryFn,
-    enabled: initiativeId !== null && initiativeId !== undefined,
+    enabled:
+      guildId !== null &&
+      guildId !== undefined &&
+      initiativeId !== null &&
+      initiativeId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+    Awaited<ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>
->;
-export type GetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryError =
+export type GetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGetQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>>
+  >;
+export type GetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
-  TData = Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+export function useGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet<
+  TData = Awaited<
+    ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+        Awaited<
+          ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+        >,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+          Awaited<
+            ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>
+          Awaited<
+            ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+          >
         >,
         "initialData"
       >;
@@ -1508,24 +1734,33 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
-  TData = Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+export function useGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet<
+  TData = Awaited<
+    ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+        Awaited<
+          ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+        >,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+          Awaited<
+            ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+          >,
           TError,
-          Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>
+          Awaited<
+            ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+          >
         >,
         "initialData"
       >;
@@ -1533,15 +1768,20 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
-  TData = Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+export function useGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet<
+  TData = Awaited<
+    ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+        Awaited<
+          ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+        >,
         TError,
         TData
       >
@@ -1554,15 +1794,20 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
  * @summary Get Initiative Members
  */
 
-export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
-  TData = Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+export function useGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet<
+  TData = Awaited<
+    ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+  >,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   initiativeId: number,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof getInitiativeMembersApiV1InitiativesInitiativeIdMembersGet>>,
+        Awaited<
+          ReturnType<typeof getInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGet>
+        >,
         TError,
         TData
       >
@@ -1571,10 +1816,12 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGetQueryOptions(
-    initiativeId,
-    options
-  );
+  const queryOptions =
+    getGetInitiativeMembersApiV1GGuildIdInitiativesInitiativeIdMembersGetQueryOptions(
+      guildId,
+      initiativeId,
+      options
+    );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -1587,7 +1834,8 @@ export function useGetInitiativeMembersApiV1InitiativesInitiativeIdMembersGet<
  * Add a member to an initiative or update their role.
  * @summary Add Initiative Member
  */
-export const addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = (
+export const addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost = (
+  guildId: number,
   initiativeId: number,
   initiativeMemberAdd: BodyType<InitiativeMemberAdd>,
   options?: SecondParameter<typeof apiMutator>,
@@ -1595,7 +1843,7 @@ export const addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = (
 ) => {
   return apiMutator<InitiativeRead>(
     {
-      url: `/api/v1/initiatives/${initiativeId}/members`,
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/members`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: initiativeMemberAdd,
@@ -1605,118 +1853,24 @@ export const addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = (
   );
 };
 
-export const getAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
-    TError,
-    { initiativeId: number; data: BodyType<InitiativeMemberAdd> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
-  TError,
-  { initiativeId: number; data: BodyType<InitiativeMemberAdd> },
-  TContext
-> => {
-  const mutationKey = ["addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
-    { initiativeId: number; data: BodyType<InitiativeMemberAdd> }
-  > = (props) => {
-    const { initiativeId, data } = props ?? {};
-
-    return addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost(
-      initiativeId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>
->;
-export type AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostMutationBody =
-  BodyType<InitiativeMemberAdd>;
-export type AddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Add Initiative Member
- */
-export const useAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
-      TError,
-      { initiativeId: number; data: BodyType<InitiativeMemberAdd> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof addInitiativeMemberApiV1InitiativesInitiativeIdMembersPost>>,
-  TError,
-  { initiativeId: number; data: BodyType<InitiativeMemberAdd> },
-  TContext
-> => {
-  return useMutation(
-    getAddInitiativeMemberApiV1InitiativesInitiativeIdMembersPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Remove a member from an initiative.
- * @summary Remove Initiative Member
- */
-export const removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete = (
-  initiativeId: number,
-  userId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<InitiativeRead>(
-    { url: `/api/v1/initiatives/${initiativeId}/members/${userId}`, method: "DELETE", signal },
-    options
-  );
-};
-
-export const getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteMutationOptions =
+export const getAddInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPostMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
+        ReturnType<typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost>
       >,
       TError,
-      { initiativeId: number; userId: number },
+      { guildId: number; initiativeId: number; data: BodyType<InitiativeMemberAdd> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
-    >,
+    Awaited<ReturnType<typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost>>,
     TError,
-    { initiativeId: number; userId: number },
+    { guildId: number; initiativeId: number; data: BodyType<InitiativeMemberAdd> },
     TContext
   > => {
-    const mutationKey = ["removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete"];
+    const mutationKey = ["addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost"];
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1725,13 +1879,127 @@ export const getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
+        ReturnType<typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost>
       >,
-      { initiativeId: number; userId: number }
+      { guildId: number; initiativeId: number; data: BodyType<InitiativeMemberAdd> }
     > = (props) => {
-      const { initiativeId, userId } = props ?? {};
+      const { guildId, initiativeId, data } = props ?? {};
 
-      return removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete(
+      return addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost(
+        guildId,
+        initiativeId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
+  };
+
+export type AddInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost>>
+  >;
+export type AddInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPostMutationBody =
+  BodyType<InitiativeMemberAdd>;
+export type AddInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Add Initiative Member
+ */
+export const useAddInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost>
+      >,
+      TError,
+      { guildId: number; initiativeId: number; data: BodyType<InitiativeMemberAdd> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof addInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPost>>,
+  TError,
+  { guildId: number; initiativeId: number; data: BodyType<InitiativeMemberAdd> },
+  TContext
+> => {
+  return useMutation(
+    getAddInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * Remove a member from an initiative.
+ * @summary Remove Initiative Member
+ */
+export const removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete = (
+  guildId: number,
+  initiativeId: number,
+  userId: number,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<InitiativeRead>(
+    {
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/members/${userId}`,
+      method: "DELETE",
+      signal,
+    },
+    options
+  );
+};
+
+export const getRemoveInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<
+          typeof removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete
+        >
+      >,
+      TError,
+      { guildId: number; initiativeId: number; userId: number },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<
+        typeof removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete
+      >
+    >,
+    TError,
+    { guildId: number; initiativeId: number; userId: number },
+    TContext
+  > => {
+    const mutationKey = [
+      "removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
+
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<
+          typeof removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete
+        >
+      >,
+      { guildId: number; initiativeId: number; userId: number }
+    > = (props) => {
+      const { guildId, initiativeId, userId } = props ?? {};
+
+      return removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete(
+        guildId,
         initiativeId,
         userId,
         requestOptions
@@ -1741,43 +2009,49 @@ export const getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
     return { mutationFn, ...mutationOptions };
   };
 
-export type RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteMutationResult =
+export type RemoveInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDeleteMutationResult =
   NonNullable<
     Awaited<
-      ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
+      ReturnType<
+        typeof removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete
+      >
     >
   >;
 
-export type RemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteMutationError =
+export type RemoveInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Remove Initiative Member
  */
-export const useRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete = <
+export const useRemoveInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>
+        ReturnType<
+          typeof removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete
+        >
       >,
       TError,
-      { initiativeId: number; userId: number },
+      { guildId: number; initiativeId: number; userId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof removeInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDelete>>,
+  Awaited<
+    ReturnType<typeof removeInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDelete>
+  >,
   TError,
-  { initiativeId: number; userId: number },
+  { guildId: number; initiativeId: number; userId: number },
   TContext
 > => {
   return useMutation(
-    getRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdDeleteMutationOptions(
+    getRemoveInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdDeleteMutationOptions(
       options
     ),
     queryClient
@@ -1787,7 +2061,8 @@ export const useRemoveInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdD
  * Update a member's role.
  * @summary Update Initiative Member
  */
-export const updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch = (
+export const updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch = (
+  guildId: number,
   initiativeId: number,
   userId: number,
   initiativeMemberUpdate: BodyType<InitiativeMemberUpdate>,
@@ -1796,7 +2071,7 @@ export const updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatc
 ) => {
   return apiMutator<InitiativeRead>(
     {
-      url: `/api/v1/initiatives/${initiativeId}/members/${userId}`,
+      url: `/api/v1/g/${guildId}/initiatives/${initiativeId}/members/${userId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: initiativeMemberUpdate,
@@ -1806,26 +2081,42 @@ export const updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatc
   );
 };
 
-export const getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchMutationOptions =
+export const getUpdateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatchMutationOptions =
   <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>
+        ReturnType<
+          typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch
+        >
       >,
       TError,
-      { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
+      {
+        guildId: number;
+        initiativeId: number;
+        userId: number;
+        data: BodyType<InitiativeMemberUpdate>;
+      },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   }): UseMutationOptions<
     Awaited<
-      ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>
+      ReturnType<
+        typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch
+      >
     >,
     TError,
-    { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
+    {
+      guildId: number;
+      initiativeId: number;
+      userId: number;
+      data: BodyType<InitiativeMemberUpdate>;
+    },
     TContext
   > => {
-    const mutationKey = ["updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch"];
+    const mutationKey = [
+      "updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch",
+    ];
     const { mutation: mutationOptions, request: requestOptions } = options
       ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
         ? options
@@ -1834,13 +2125,21 @@ export const getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdP
 
     const mutationFn: MutationFunction<
       Awaited<
-        ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>
+        ReturnType<
+          typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch
+        >
       >,
-      { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> }
+      {
+        guildId: number;
+        initiativeId: number;
+        userId: number;
+        data: BodyType<InitiativeMemberUpdate>;
+      }
     > = (props) => {
-      const { initiativeId, userId, data } = props ?? {};
+      const { guildId, initiativeId, userId, data } = props ?? {};
 
-      return updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch(
+      return updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch(
+        guildId,
         initiativeId,
         userId,
         data,
@@ -1851,42 +2150,57 @@ export const getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdP
     return { mutationFn, ...mutationOptions };
   };
 
-export type UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchMutationResult =
+export type UpdateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatchMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>>
+    Awaited<
+      ReturnType<
+        typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch
+      >
+    >
   >;
-export type UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchMutationBody =
+export type UpdateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatchMutationBody =
   BodyType<InitiativeMemberUpdate>;
-export type UpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchMutationError =
+export type UpdateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Initiative Member
  */
-export const useUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch = <
+export const useUpdateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
       Awaited<
-        ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>
+        ReturnType<
+          typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch
+        >
       >,
       TError,
-      { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
+      {
+        guildId: number;
+        initiativeId: number;
+        userId: number;
+        data: BodyType<InitiativeMemberUpdate>;
+      },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatch>>,
+  Awaited<
+    ReturnType<typeof updateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatch>
+  >,
   TError,
-  { initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
+  { guildId: number; initiativeId: number; userId: number; data: BodyType<InitiativeMemberUpdate> },
   TContext
 > => {
   return useMutation(
-    getUpdateInitiativeMemberApiV1InitiativesInitiativeIdMembersUserIdPatchMutationOptions(options),
+    getUpdateInitiativeMemberApiV1GGuildIdInitiativesInitiativeIdMembersUserIdPatchMutationOptions(
+      options
+    ),
     queryClient
   );
 };

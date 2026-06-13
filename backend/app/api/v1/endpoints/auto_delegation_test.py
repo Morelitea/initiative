@@ -135,7 +135,7 @@ async def test_delegation_token_guild_claim_pins_context(
     token = _mint_delegation(user_id=user.id, guild_id=guild.id + 999)
 
     response = await client.get(
-        "/api/v1/initiatives/",
+        f"/api/v1/g/{guild.id}/initiatives/",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 403
@@ -156,7 +156,7 @@ async def test_delegation_token_guild_claim_provides_context(
     token = _mint_delegation(user_id=user.id, guild_id=guild.id)
 
     response = await client.get(
-        "/api/v1/initiatives/",
+        f"/api/v1/g/{guild.id}/initiatives/",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200

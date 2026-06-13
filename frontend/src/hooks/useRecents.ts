@@ -1,16 +1,17 @@
 import { type UseQueryOptions, useMutation, useQuery } from "@tanstack/react-query";
 
-import { recordCounterGroupViewApiV1CounterGroupsGroupIdViewPost } from "@/api/generated/counters/counters";
-import { recordDocumentViewApiV1DocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
+import { recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost } from "@/api/generated/counters/counters";
+import { recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost } from "@/api/generated/documents/documents";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
-import { recordProjectViewApiV1ProjectsProjectIdViewPost } from "@/api/generated/projects/projects";
-import { recordQueueViewApiV1QueuesQueueIdViewPost } from "@/api/generated/queues/queues";
+import { recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost } from "@/api/generated/projects/projects";
+import { recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost } from "@/api/generated/queues/queues";
 import {
-  clearRecentApiV1RecentsEntityTypeEntityIdDelete,
+  clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete,
   getListRecentsApiV1RecentsGetQueryKey,
   listRecentsApiV1RecentsGet,
 } from "@/api/generated/recents/recents";
 import { invalidateRecents } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 
 export type RecentEntityType = RecentItemRead["entity_type"];
 
@@ -32,11 +33,11 @@ export const useRecents = (options?: QueryOpts<RecentItemRead[]>) => {
   });
 };
 
-const recorders: Record<RecentEntityType, (id: number) => Promise<unknown>> = {
-  project: recordProjectViewApiV1ProjectsProjectIdViewPost,
-  document: recordDocumentViewApiV1DocumentsDocumentIdViewPost,
-  queue: recordQueueViewApiV1QueuesQueueIdViewPost,
-  counter_group: recordCounterGroupViewApiV1CounterGroupsGroupIdViewPost,
+const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promise<unknown>> = {
+  project: recordProjectViewApiV1GGuildIdProjectsProjectIdViewPost,
+  document: recordDocumentViewApiV1GGuildIdDocumentsDocumentIdViewPost,
+  queue: recordQueueViewApiV1GGuildIdQueuesQueueIdViewPost,
+  counter_group: recordCounterGroupViewApiV1GGuildIdCounterGroupsGroupIdViewPost,
 };
 
 /**
@@ -45,9 +46,10 @@ const recorders: Record<RecentEntityType, (id: number) => Promise<unknown>> = {
  * have passed.
  */
 export const useRecordRecentView = (entityType: RecentEntityType) => {
+  const guildId = useActiveGuildId();
   return useMutation({
     mutationFn: async (entityId: number) => {
-      await recorders[entityType](entityId);
+      await recorders[entityType](guildId, entityId);
     },
     onSuccess: () => {
       void invalidateRecents();
@@ -73,9 +75,7 @@ export const useClearRecentView = () => {
       entityId: number;
       guildId: number;
     }) => {
-      await clearRecentApiV1RecentsEntityTypeEntityIdDelete(entityType, entityId, {
-        guild_id: guildId,
-      });
+      await clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete(guildId, entityType, entityId);
     },
     onSuccess: () => {
       void invalidateRecents();

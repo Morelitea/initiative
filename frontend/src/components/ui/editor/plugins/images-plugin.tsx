@@ -7,6 +7,7 @@ import type { ImagePayload } from "@/components/ui/editor/nodes/image-node";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { uploadAttachment } from "@/lib/attachmentUtils";
 
 export type InsertImagePayload = Readonly<ImagePayload>;
@@ -65,6 +66,7 @@ export function InsertImageUploadedDialogBody({
 }: {
   onClick: (payload: InsertImagePayload) => void;
 }) {
+  const guildId = useActiveGuildId();
   const [src, setSrc] = useState("");
   const [altText, setAltText] = useState("");
   const [isUploading, setIsUploading] = useState(false);
@@ -81,7 +83,7 @@ export function InsertImageUploadedDialogBody({
     setIsUploading(true);
 
     try {
-      const response = await uploadAttachment(file);
+      const response = await uploadAttachment(guildId, file);
       setSrc(response.url);
     } catch (error) {
       console.error("Failed to upload image:", error);

@@ -5,26 +5,35 @@
  * This module provides domain-specific helpers that use `predicate`-based
  * matching so a single invalidation call can reach both list and detail keys.
  *
- * Guild isolation is handled server-side (the backend resolves every request's
- * guild from the user's server-held context flag); query keys don't embed guild
- * IDs because the cache is cleared on guild switch.
+ * Guild-scoped endpoints live under /api/v1/g/{guildId}/..., so their Orval
+ * query keys embed the guild id. The matchers below normalize that segment away
+ * (guildAgnostic) so the resource-relative prefixes/exact keys keep matching.
  */
 import { queryClient } from "@/lib/queryClient";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Invalidate all queries whose first key segment starts with the given prefix. */
+/** Strip the `/api/v1/g/{guildId}` prefix so a key can be matched without
+ * knowing the active guild. */
+const guildAgnostic = (key: string) => key.replace(/^\/api\/v1\/g\/\d+/, "/api/v1");
+
+/** Invalidate all queries whose (guild-agnostic) first key segment starts with the prefix. */
 const invalidatePrefix = (prefix: string) =>
   queryClient.invalidateQueries({
     predicate: (query) => {
       const first = query.queryKey[0];
-      return typeof first === "string" && first.startsWith(prefix);
+      return typeof first === "string" && guildAgnostic(first).startsWith(prefix);
     },
   });
 
-/** Invalidate a single query by its exact key. */
+/** Invalidate queries whose (guild-agnostic) URL key segment equals the given key. */
 const invalidateExact = (queryKey: readonly unknown[]) =>
-  queryClient.invalidateQueries({ queryKey: queryKey as unknown[] });
+  queryClient.invalidateQueries({
+    predicate: (query) => {
+      const first = query.queryKey[0];
+      return typeof first === "string" && guildAgnostic(first) === queryKey[0];
+    },
+  });
 
 // ── Tags ─────────────────────────────────────────────────────────────────────
 
@@ -85,7 +94,8 @@ export const invalidateTaskComments = (taskId: number) =>
     predicate: (query) => {
       const [url, params] = query.queryKey;
       return (
-        url === "/api/v1/comments/" &&
+        typeof url === "string" &&
+        guildAgnostic(url) === "/api/v1/comments/" &&
         typeof params === "object" &&
         params !== null &&
         (params as Record<string, unknown>).task_id === taskId
@@ -98,7 +108,8 @@ export const invalidateDocumentComments = (documentId: number) =>
     predicate: (query) => {
       const [url, params] = query.queryKey;
       return (
-        url === "/api/v1/comments/" &&
+        typeof url === "string" &&
+        guildAgnostic(url) === "/api/v1/comments/" &&
         typeof params === "object" &&
         params !== null &&
         (params as Record<string, unknown>).document_id === documentId
@@ -158,7 +169,7 @@ export const invalidateResolvedAISettings = () => invalidateExact([`/api/v1/sett
 
 export const invalidateCurrentUser = () => invalidateExact([`/api/v1/users/me`]);
 
-export const invalidateUserStats = () => invalidatePrefix("/api/v1/users/me/stats");
+export const invalidateUserStats = () => invalidatePrefix("/api/v1/me/stats");
 
 export const invalidateUsersList = () => invalidateExact([`/api/v1/users/`]);
 

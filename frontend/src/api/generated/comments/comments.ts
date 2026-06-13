@@ -25,11 +25,11 @@ import type {
   CommentRead,
   CommentUpdate,
   HTTPValidationError,
-  ListCommentsApiV1CommentsGetParams,
+  ListCommentsApiV1GGuildIdCommentsGetParams,
   MentionSuggestion,
   RecentActivityEntry,
-  RecentCommentsApiV1CommentsRecentGetParams,
-  SearchMentionablesApiV1CommentsMentionsSearchGetParams,
+  RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
+  SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -40,14 +40,15 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary Create Comment
  */
-export const createCommentApiV1CommentsPost = (
+export const createCommentApiV1GGuildIdCommentsPost = (
+  guildId: number,
   commentCreate: BodyType<CommentCreate>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CommentRead>(
     {
-      url: `/api/v1/comments/`,
+      url: `/api/v1/g/${guildId}/comments/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: commentCreate,
@@ -57,24 +58,24 @@ export const createCommentApiV1CommentsPost = (
   );
 };
 
-export const getCreateCommentApiV1CommentsPostMutationOptions = <
+export const getCreateCommentApiV1GGuildIdCommentsPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
+    Awaited<ReturnType<typeof createCommentApiV1GGuildIdCommentsPost>>,
     TError,
-    { data: BodyType<CommentCreate> },
+    { guildId: number; data: BodyType<CommentCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
+  Awaited<ReturnType<typeof createCommentApiV1GGuildIdCommentsPost>>,
   TError,
-  { data: BodyType<CommentCreate> },
+  { guildId: number; data: BodyType<CommentCreate> },
   TContext
 > => {
-  const mutationKey = ["createCommentApiV1CommentsPost"];
+  const mutationKey = ["createCommentApiV1GGuildIdCommentsPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -82,114 +83,135 @@ export const getCreateCommentApiV1CommentsPostMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
-    { data: BodyType<CommentCreate> }
+    Awaited<ReturnType<typeof createCommentApiV1GGuildIdCommentsPost>>,
+    { guildId: number; data: BodyType<CommentCreate> }
   > = (props) => {
-    const { data } = props ?? {};
+    const { guildId, data } = props ?? {};
 
-    return createCommentApiV1CommentsPost(data, requestOptions);
+    return createCommentApiV1GGuildIdCommentsPost(guildId, data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateCommentApiV1CommentsPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>
+export type CreateCommentApiV1GGuildIdCommentsPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCommentApiV1GGuildIdCommentsPost>>
 >;
-export type CreateCommentApiV1CommentsPostMutationBody = BodyType<CommentCreate>;
-export type CreateCommentApiV1CommentsPostMutationError = ErrorType<HTTPValidationError>;
+export type CreateCommentApiV1GGuildIdCommentsPostMutationBody = BodyType<CommentCreate>;
+export type CreateCommentApiV1GGuildIdCommentsPostMutationError = ErrorType<HTTPValidationError>;
 
 /**
  * @summary Create Comment
  */
-export const useCreateCommentApiV1CommentsPost = <
+export const useCreateCommentApiV1GGuildIdCommentsPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
+      Awaited<ReturnType<typeof createCommentApiV1GGuildIdCommentsPost>>,
       TError,
-      { data: BodyType<CommentCreate> },
+      { guildId: number; data: BodyType<CommentCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createCommentApiV1CommentsPost>>,
+  Awaited<ReturnType<typeof createCommentApiV1GGuildIdCommentsPost>>,
   TError,
-  { data: BodyType<CommentCreate> },
+  { guildId: number; data: BodyType<CommentCreate> },
   TContext
 > => {
-  return useMutation(getCreateCommentApiV1CommentsPostMutationOptions(options), queryClient);
+  return useMutation(
+    getCreateCommentApiV1GGuildIdCommentsPostMutationOptions(options),
+    queryClient
+  );
 };
 /**
  * @summary List Comments
  */
-export const listCommentsApiV1CommentsGet = (
-  params?: ListCommentsApiV1CommentsGetParams,
+export const listCommentsApiV1GGuildIdCommentsGet = (
+  guildId: number,
+  params?: ListCommentsApiV1GGuildIdCommentsGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<CommentRead[]>(
-    { url: `/api/v1/comments/`, method: "GET", params, signal },
+    { url: `/api/v1/g/${guildId}/comments/`, method: "GET", params, signal },
     options
   );
 };
 
-export const getListCommentsApiV1CommentsGetQueryKey = (
-  params?: ListCommentsApiV1CommentsGetParams
+export const getListCommentsApiV1GGuildIdCommentsGetQueryKey = (
+  guildId: number,
+  params?: ListCommentsApiV1GGuildIdCommentsGetParams
 ) => {
-  return [`/api/v1/comments/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/g/${guildId}/comments/`, ...(params ? [params] : [])] as const;
 };
 
-export const getListCommentsApiV1CommentsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
+export const getListCommentsApiV1GGuildIdCommentsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListCommentsApiV1CommentsGetParams,
+  guildId: number,
+  params?: ListCommentsApiV1GGuildIdCommentsGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListCommentsApiV1CommentsGetQueryKey(params);
+  const queryKey =
+    queryOptions?.queryKey ?? getListCommentsApiV1GGuildIdCommentsGetQueryKey(guildId, params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>> = ({
-    signal,
-  }) => listCommentsApiV1CommentsGet(params, requestOptions, signal);
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>
+  > = ({ signal }) => listCommentsApiV1GGuildIdCommentsGet(guildId, params, requestOptions, signal);
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListCommentsApiV1CommentsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>
+export type ListCommentsApiV1GGuildIdCommentsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>
 >;
-export type ListCommentsApiV1CommentsGetQueryError = ErrorType<HTTPValidationError>;
+export type ListCommentsApiV1GGuildIdCommentsGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListCommentsApiV1CommentsGet<
-  TData = Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
+export function useListCommentsApiV1GGuildIdCommentsGet<
+  TData = Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | ListCommentsApiV1CommentsGetParams,
+  guildId: number,
+  params: undefined | ListCommentsApiV1GGuildIdCommentsGetParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
+          Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
           TError,
-          Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>
+          Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>
         >,
         "initialData"
       >;
@@ -197,20 +219,25 @@ export function useListCommentsApiV1CommentsGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCommentsApiV1CommentsGet<
-  TData = Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
+export function useListCommentsApiV1GGuildIdCommentsGet<
+  TData = Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListCommentsApiV1CommentsGetParams,
+  guildId: number,
+  params?: ListCommentsApiV1GGuildIdCommentsGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
+          Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
           TError,
-          Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>
+          Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>
         >,
         "initialData"
       >;
@@ -218,14 +245,19 @@ export function useListCommentsApiV1CommentsGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListCommentsApiV1CommentsGet<
-  TData = Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
+export function useListCommentsApiV1GGuildIdCommentsGet<
+  TData = Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListCommentsApiV1CommentsGetParams,
+  guildId: number,
+  params?: ListCommentsApiV1GGuildIdCommentsGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
@@ -235,20 +267,29 @@ export function useListCommentsApiV1CommentsGet<
  * @summary List Comments
  */
 
-export function useListCommentsApiV1CommentsGet<
-  TData = Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>,
+export function useListCommentsApiV1GGuildIdCommentsGet<
+  TData = Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: ListCommentsApiV1CommentsGetParams,
+  guildId: number,
+  params?: ListCommentsApiV1GGuildIdCommentsGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listCommentsApiV1CommentsGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listCommentsApiV1GGuildIdCommentsGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListCommentsApiV1CommentsGetQueryOptions(params, options);
+  const queryOptions = getListCommentsApiV1GGuildIdCommentsGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -266,32 +307,35 @@ export function useListCommentsApiV1CommentsGet<
  * Task/Project/Document tables.
  * @summary Recent Comments
  */
-export const recentCommentsApiV1CommentsRecentGet = (
-  params?: RecentCommentsApiV1CommentsRecentGetParams,
+export const recentCommentsApiV1GGuildIdCommentsRecentGet = (
+  guildId: number,
+  params?: RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<RecentActivityEntry[]>(
-    { url: `/api/v1/comments/recent`, method: "GET", params, signal },
+    { url: `/api/v1/g/${guildId}/comments/recent`, method: "GET", params, signal },
     options
   );
 };
 
-export const getRecentCommentsApiV1CommentsRecentGetQueryKey = (
-  params?: RecentCommentsApiV1CommentsRecentGetParams
+export const getRecentCommentsApiV1GGuildIdCommentsRecentGetQueryKey = (
+  guildId: number,
+  params?: RecentCommentsApiV1GGuildIdCommentsRecentGetParams
 ) => {
-  return [`/api/v1/comments/recent`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/g/${guildId}/comments/recent`, ...(params ? [params] : [])] as const;
 };
 
-export const getRecentCommentsApiV1CommentsRecentGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+export const getRecentCommentsApiV1GGuildIdCommentsRecentGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: RecentCommentsApiV1CommentsRecentGetParams,
+  guildId: number,
+  params?: RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+        Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
         TError,
         TData
       >
@@ -302,42 +346,50 @@ export const getRecentCommentsApiV1CommentsRecentGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getRecentCommentsApiV1CommentsRecentGetQueryKey(params);
+    queryOptions?.queryKey ??
+    getRecentCommentsApiV1GGuildIdCommentsRecentGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>
-  > = ({ signal }) => recentCommentsApiV1CommentsRecentGet(params, requestOptions, signal);
+    Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>
+  > = ({ signal }) =>
+    recentCommentsApiV1GGuildIdCommentsRecentGet(guildId, params, requestOptions, signal);
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type RecentCommentsApiV1CommentsRecentGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>
+export type RecentCommentsApiV1GGuildIdCommentsRecentGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>
 >;
-export type RecentCommentsApiV1CommentsRecentGetQueryError = ErrorType<HTTPValidationError>;
+export type RecentCommentsApiV1GGuildIdCommentsRecentGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useRecentCommentsApiV1CommentsRecentGet<
-  TData = Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+export function useRecentCommentsApiV1GGuildIdCommentsRecentGet<
+  TData = Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: undefined | RecentCommentsApiV1CommentsRecentGetParams,
+  guildId: number,
+  params: undefined | RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+        Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+          Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
           TError,
-          Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>
+          Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>
         >,
         "initialData"
       >;
@@ -345,24 +397,25 @@ export function useRecentCommentsApiV1CommentsRecentGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useRecentCommentsApiV1CommentsRecentGet<
-  TData = Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+export function useRecentCommentsApiV1GGuildIdCommentsRecentGet<
+  TData = Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: RecentCommentsApiV1CommentsRecentGetParams,
+  guildId: number,
+  params?: RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+        Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+          Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
           TError,
-          Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>
+          Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>
         >,
         "initialData"
       >;
@@ -370,15 +423,16 @@ export function useRecentCommentsApiV1CommentsRecentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useRecentCommentsApiV1CommentsRecentGet<
-  TData = Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+export function useRecentCommentsApiV1GGuildIdCommentsRecentGet<
+  TData = Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: RecentCommentsApiV1CommentsRecentGetParams,
+  guildId: number,
+  params?: RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+        Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
         TError,
         TData
       >
@@ -391,15 +445,16 @@ export function useRecentCommentsApiV1CommentsRecentGet<
  * @summary Recent Comments
  */
 
-export function useRecentCommentsApiV1CommentsRecentGet<
-  TData = Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+export function useRecentCommentsApiV1GGuildIdCommentsRecentGet<
+  TData = Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params?: RecentCommentsApiV1CommentsRecentGetParams,
+  guildId: number,
+  params?: RecentCommentsApiV1GGuildIdCommentsRecentGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof recentCommentsApiV1CommentsRecentGet>>,
+        Awaited<ReturnType<typeof recentCommentsApiV1GGuildIdCommentsRecentGet>>,
         TError,
         TData
       >
@@ -408,7 +463,11 @@ export function useRecentCommentsApiV1CommentsRecentGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getRecentCommentsApiV1CommentsRecentGetQueryOptions(params, options);
+  const queryOptions = getRecentCommentsApiV1GGuildIdCommentsRecentGetQueryOptions(
+    guildId,
+    params,
+    options
+  );
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -421,7 +480,8 @@ export function useRecentCommentsApiV1CommentsRecentGet<
  * Update a comment. Only the original author can edit.
  * @summary Update Comment
  */
-export const updateCommentApiV1CommentsCommentIdPatch = (
+export const updateCommentApiV1GGuildIdCommentsCommentIdPatch = (
+  guildId: number,
   commentId: number,
   commentUpdate: BodyType<CommentUpdate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -429,7 +489,7 @@ export const updateCommentApiV1CommentsCommentIdPatch = (
 ) => {
   return apiMutator<CommentRead>(
     {
-      url: `/api/v1/comments/${commentId}`,
+      url: `/api/v1/g/${guildId}/comments/${commentId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: commentUpdate,
@@ -439,24 +499,24 @@ export const updateCommentApiV1CommentsCommentIdPatch = (
   );
 };
 
-export const getUpdateCommentApiV1CommentsCommentIdPatchMutationOptions = <
+export const getUpdateCommentApiV1GGuildIdCommentsCommentIdPatchMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
+    Awaited<ReturnType<typeof updateCommentApiV1GGuildIdCommentsCommentIdPatch>>,
     TError,
-    { commentId: number; data: BodyType<CommentUpdate> },
+    { guildId: number; commentId: number; data: BodyType<CommentUpdate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
+  Awaited<ReturnType<typeof updateCommentApiV1GGuildIdCommentsCommentIdPatch>>,
   TError,
-  { commentId: number; data: BodyType<CommentUpdate> },
+  { guildId: number; commentId: number; data: BodyType<CommentUpdate> },
   TContext
 > => {
-  const mutationKey = ["updateCommentApiV1CommentsCommentIdPatch"];
+  const mutationKey = ["updateCommentApiV1GGuildIdCommentsCommentIdPatch"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -464,83 +524,90 @@ export const getUpdateCommentApiV1CommentsCommentIdPatchMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
-    { commentId: number; data: BodyType<CommentUpdate> }
+    Awaited<ReturnType<typeof updateCommentApiV1GGuildIdCommentsCommentIdPatch>>,
+    { guildId: number; commentId: number; data: BodyType<CommentUpdate> }
   > = (props) => {
-    const { commentId, data } = props ?? {};
+    const { guildId, commentId, data } = props ?? {};
 
-    return updateCommentApiV1CommentsCommentIdPatch(commentId, data, requestOptions);
+    return updateCommentApiV1GGuildIdCommentsCommentIdPatch(
+      guildId,
+      commentId,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type UpdateCommentApiV1CommentsCommentIdPatchMutationResult = NonNullable<
-  Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>
+export type UpdateCommentApiV1GGuildIdCommentsCommentIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateCommentApiV1GGuildIdCommentsCommentIdPatch>>
 >;
-export type UpdateCommentApiV1CommentsCommentIdPatchMutationBody = BodyType<CommentUpdate>;
-export type UpdateCommentApiV1CommentsCommentIdPatchMutationError = ErrorType<HTTPValidationError>;
+export type UpdateCommentApiV1GGuildIdCommentsCommentIdPatchMutationBody = BodyType<CommentUpdate>;
+export type UpdateCommentApiV1GGuildIdCommentsCommentIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Comment
  */
-export const useUpdateCommentApiV1CommentsCommentIdPatch = <
+export const useUpdateCommentApiV1GGuildIdCommentsCommentIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
+      Awaited<ReturnType<typeof updateCommentApiV1GGuildIdCommentsCommentIdPatch>>,
       TError,
-      { commentId: number; data: BodyType<CommentUpdate> },
+      { guildId: number; commentId: number; data: BodyType<CommentUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateCommentApiV1CommentsCommentIdPatch>>,
+  Awaited<ReturnType<typeof updateCommentApiV1GGuildIdCommentsCommentIdPatch>>,
   TError,
-  { commentId: number; data: BodyType<CommentUpdate> },
+  { guildId: number; commentId: number; data: BodyType<CommentUpdate> },
   TContext
 > => {
   return useMutation(
-    getUpdateCommentApiV1CommentsCommentIdPatchMutationOptions(options),
+    getUpdateCommentApiV1GGuildIdCommentsCommentIdPatchMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Delete Comment
  */
-export const deleteCommentApiV1CommentsCommentIdDelete = (
+export const deleteCommentApiV1GGuildIdCommentsCommentIdDelete = (
+  guildId: number,
   commentId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/comments/${commentId}`, method: "DELETE", signal },
+    { url: `/api/v1/g/${guildId}/comments/${commentId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getDeleteCommentApiV1CommentsCommentIdDeleteMutationOptions = <
+export const getDeleteCommentApiV1GGuildIdCommentsCommentIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
+    Awaited<ReturnType<typeof deleteCommentApiV1GGuildIdCommentsCommentIdDelete>>,
     TError,
-    { commentId: number },
+    { guildId: number; commentId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
+  Awaited<ReturnType<typeof deleteCommentApiV1GGuildIdCommentsCommentIdDelete>>,
   TError,
-  { commentId: number },
+  { guildId: number; commentId: number },
   TContext
 > => {
-  const mutationKey = ["deleteCommentApiV1CommentsCommentIdDelete"];
+  const mutationKey = ["deleteCommentApiV1GGuildIdCommentsCommentIdDelete"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -548,48 +615,49 @@ export const getDeleteCommentApiV1CommentsCommentIdDeleteMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
-    { commentId: number }
+    Awaited<ReturnType<typeof deleteCommentApiV1GGuildIdCommentsCommentIdDelete>>,
+    { guildId: number; commentId: number }
   > = (props) => {
-    const { commentId } = props ?? {};
+    const { guildId, commentId } = props ?? {};
 
-    return deleteCommentApiV1CommentsCommentIdDelete(commentId, requestOptions);
+    return deleteCommentApiV1GGuildIdCommentsCommentIdDelete(guildId, commentId, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type DeleteCommentApiV1CommentsCommentIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>
+export type DeleteCommentApiV1GGuildIdCommentsCommentIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCommentApiV1GGuildIdCommentsCommentIdDelete>>
 >;
 
-export type DeleteCommentApiV1CommentsCommentIdDeleteMutationError = ErrorType<HTTPValidationError>;
+export type DeleteCommentApiV1GGuildIdCommentsCommentIdDeleteMutationError =
+  ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete Comment
  */
-export const useDeleteCommentApiV1CommentsCommentIdDelete = <
+export const useDeleteCommentApiV1GGuildIdCommentsCommentIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
+      Awaited<ReturnType<typeof deleteCommentApiV1GGuildIdCommentsCommentIdDelete>>,
       TError,
-      { commentId: number },
+      { guildId: number; commentId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteCommentApiV1CommentsCommentIdDelete>>,
+  Awaited<ReturnType<typeof deleteCommentApiV1GGuildIdCommentsCommentIdDelete>>,
   TError,
-  { commentId: number },
+  { guildId: number; commentId: number },
   TContext
 > => {
   return useMutation(
-    getDeleteCommentApiV1CommentsCommentIdDeleteMutationOptions(options),
+    getDeleteCommentApiV1GGuildIdCommentsCommentIdDeleteMutationOptions(options),
     queryClient
   );
 };
@@ -597,32 +665,35 @@ export const useDeleteCommentApiV1CommentsCommentIdDelete = <
  * Search for mentionable entities within an initiative.
  * @summary Search Mentionables
  */
-export const searchMentionablesApiV1CommentsMentionsSearchGet = (
-  params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
+export const searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet = (
+  guildId: number,
+  params: SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<MentionSuggestion[]>(
-    { url: `/api/v1/comments/mentions/search`, method: "GET", params, signal },
+    { url: `/api/v1/g/${guildId}/comments/mentions/search`, method: "GET", params, signal },
     options
   );
 };
 
-export const getSearchMentionablesApiV1CommentsMentionsSearchGetQueryKey = (
-  params?: SearchMentionablesApiV1CommentsMentionsSearchGetParams
+export const getSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetQueryKey = (
+  guildId: number,
+  params?: SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams
 ) => {
-  return [`/api/v1/comments/mentions/search`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/g/${guildId}/comments/mentions/search`, ...(params ? [params] : [])] as const;
 };
 
-export const getSearchMentionablesApiV1CommentsMentionsSearchGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+export const getSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
+  guildId: number,
+  params: SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+        Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
         TError,
         TData
       >
@@ -633,44 +704,56 @@ export const getSearchMentionablesApiV1CommentsMentionsSearchGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getSearchMentionablesApiV1CommentsMentionsSearchGetQueryKey(params);
+    queryOptions?.queryKey ??
+    getSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetQueryKey(guildId, params);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>
+    Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>
   > = ({ signal }) =>
-    searchMentionablesApiV1CommentsMentionsSearchGet(params, requestOptions, signal);
+    searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet(
+      guildId,
+      params,
+      requestOptions,
+      signal
+    );
 
-  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+  return {
+    queryKey,
+    queryFn,
+    enabled: guildId !== null && guildId !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type SearchMentionablesApiV1CommentsMentionsSearchGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>
+export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>
 >;
-export type SearchMentionablesApiV1CommentsMentionsSearchGetQueryError =
+export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
-  TData = Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+export function useSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGet<
+  TData = Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
+  guildId: number,
+  params: SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+        Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+          Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
           TError,
-          Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>
+          Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>
         >,
         "initialData"
       >;
@@ -678,24 +761,25 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
-  TData = Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+export function useSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGet<
+  TData = Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
+  guildId: number,
+  params: SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+        Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+          Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
           TError,
-          Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>
+          Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>
         >,
         "initialData"
       >;
@@ -703,15 +787,16 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
-  TData = Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+export function useSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGet<
+  TData = Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
+  guildId: number,
+  params: SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+        Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
         TError,
         TData
       >
@@ -724,15 +809,16 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
  * @summary Search Mentionables
  */
 
-export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
-  TData = Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+export function useSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGet<
+  TData = Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
-  params: SearchMentionablesApiV1CommentsMentionsSearchGetParams,
+  guildId: number,
+  params: SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof searchMentionablesApiV1CommentsMentionsSearchGet>>,
+        Awaited<ReturnType<typeof searchMentionablesApiV1GGuildIdCommentsMentionsSearchGet>>,
         TError,
         TData
       >
@@ -741,7 +827,8 @@ export function useSearchMentionablesApiV1CommentsMentionsSearchGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getSearchMentionablesApiV1CommentsMentionsSearchGetQueryOptions(
+  const queryOptions = getSearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetQueryOptions(
+    guildId,
     params,
     options
   );

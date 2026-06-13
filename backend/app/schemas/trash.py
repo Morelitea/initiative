@@ -30,6 +30,10 @@ class TrashItem(SanitizedBaseModel):
 
     entity_type: EntityType
     entity_id: int
+    # The guild the entity lives in. Within a single guild's trash this is
+    # constant, but the cross-guild ``/me/trash`` view merges several guilds,
+    # so the client needs it to address restore/purge (which are guild-scoped).
+    guild_id: int
     name: str
     deleted_at: datetime
     deleted_by_id: Optional[int] = None

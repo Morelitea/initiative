@@ -22,7 +22,6 @@ import type {
 
 import type {
   HTTPValidationError,
-  ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams,
   TaskStatusCreate,
   TaskStatusDeleteRequest,
   TaskStatusRead,
@@ -38,35 +37,35 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 /**
  * @summary List Task Statuses
  */
-export const listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet = (
+export const listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet = (
+  guildId: number,
   projectId: number,
-  params?: ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TaskStatusRead[]>(
-    { url: `/api/v1/projects/${projectId}/task-statuses/`, method: "GET", params, signal },
+    { url: `/api/v1/g/${guildId}/projects/${projectId}/task-statuses/`, method: "GET", signal },
     options
   );
 };
 
-export const getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey = (
-  projectId: number,
-  params?: ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams
+export const getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey = (
+  guildId: number,
+  projectId: number
 ) => {
-  return [`/api/v1/projects/${projectId}/task-statuses/`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/g/${guildId}/projects/${projectId}/task-statuses/`] as const;
 };
 
-export const getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+export const getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   projectId: number,
-  params?: ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+        Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
         TError,
         TData
       >
@@ -78,14 +77,14 @@ export const getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryOption
 
   const queryKey =
     queryOptions?.queryKey ??
-    getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId, params);
+    getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(guildId, projectId);
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>
+    Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>
   > = ({ signal }) =>
-    listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
+    listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+      guildId,
       projectId,
-      params,
       requestOptions,
       signal
     );
@@ -93,40 +92,41 @@ export const getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryOption
   return {
     queryKey,
     queryFn,
-    enabled: projectId !== null && projectId !== undefined,
+    enabled:
+      guildId !== null && guildId !== undefined && projectId !== null && projectId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+    Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>
+export type ListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>
 >;
-export type ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryError =
+export type ListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryError =
   ErrorType<HTTPValidationError>;
 
-export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
-  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+export function useListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet<
+  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   projectId: number,
-  params: undefined | ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams,
   options: {
     query: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+        Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+          Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
           TError,
-          Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>
+          Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>
         >,
         "initialData"
       >;
@@ -134,25 +134,25 @@ export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
-  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+export function useListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet<
+  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   projectId: number,
-  params?: ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+        Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
         TError,
         TData
       >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+          Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
           TError,
-          Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>
+          Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>
         >,
         "initialData"
       >;
@@ -160,16 +160,16 @@ export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
-  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+export function useListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet<
+  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   projectId: number,
-  params?: ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+        Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
         TError,
         TData
       >
@@ -182,16 +182,16 @@ export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
  * @summary List Task Statuses
  */
 
-export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
-  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+export function useListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet<
+  TData = Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
+  guildId: number,
   projectId: number,
-  params?: ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams,
   options?: {
     query?: Partial<
       UseQueryOptions<
-        Awaited<ReturnType<typeof listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet>>,
+        Awaited<ReturnType<typeof listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet>>,
         TError,
         TData
       >
@@ -200,9 +200,9 @@ export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryOptions(
+  const queryOptions = getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryOptions(
+    guildId,
     projectId,
-    params,
     options
   );
 
@@ -216,7 +216,8 @@ export function useListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet<
 /**
  * @summary Create Task Status
  */
-export const createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost = (
+export const createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost = (
+  guildId: number,
   projectId: number,
   taskStatusCreate: BodyType<TaskStatusCreate>,
   options?: SecondParameter<typeof apiMutator>,
@@ -224,7 +225,7 @@ export const createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost = (
 ) => {
   return apiMutator<TaskStatusRead>(
     {
-      url: `/api/v1/projects/${projectId}/task-statuses/`,
+      url: `/api/v1/g/${guildId}/projects/${projectId}/task-statuses/`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: taskStatusCreate,
@@ -234,24 +235,24 @@ export const createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost = (
   );
 };
 
-export const getCreateTaskStatusApiV1ProjectsProjectIdTaskStatusesPostMutationOptions = <
+export const getCreateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPostMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost>>,
+    Awaited<ReturnType<typeof createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost>>,
     TError,
-    { projectId: number; data: BodyType<TaskStatusCreate> },
+    { guildId: number; projectId: number; data: BodyType<TaskStatusCreate> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost>>,
+  Awaited<ReturnType<typeof createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost>>,
   TError,
-  { projectId: number; data: BodyType<TaskStatusCreate> },
+  { guildId: number; projectId: number; data: BodyType<TaskStatusCreate> },
   TContext
 > => {
-  const mutationKey = ["createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost"];
+  const mutationKey = ["createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -259,57 +260,64 @@ export const getCreateTaskStatusApiV1ProjectsProjectIdTaskStatusesPostMutationOp
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost>>,
-    { projectId: number; data: BodyType<TaskStatusCreate> }
+    Awaited<ReturnType<typeof createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost>>,
+    { guildId: number; projectId: number; data: BodyType<TaskStatusCreate> }
   > = (props) => {
-    const { projectId, data } = props ?? {};
+    const { guildId, projectId, data } = props ?? {};
 
-    return createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost(projectId, data, requestOptions);
+    return createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost(
+      guildId,
+      projectId,
+      data,
+      requestOptions
+    );
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type CreateTaskStatusApiV1ProjectsProjectIdTaskStatusesPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost>>
->;
-export type CreateTaskStatusApiV1ProjectsProjectIdTaskStatusesPostMutationBody =
+export type CreateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPostMutationResult =
+  NonNullable<
+    Awaited<ReturnType<typeof createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost>>
+  >;
+export type CreateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPostMutationBody =
   BodyType<TaskStatusCreate>;
-export type CreateTaskStatusApiV1ProjectsProjectIdTaskStatusesPostMutationError =
+export type CreateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Create Task Status
  */
-export const useCreateTaskStatusApiV1ProjectsProjectIdTaskStatusesPost = <
+export const useCreateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost>>,
+      Awaited<ReturnType<typeof createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost>>,
       TError,
-      { projectId: number; data: BodyType<TaskStatusCreate> },
+      { guildId: number; projectId: number; data: BodyType<TaskStatusCreate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost>>,
+  Awaited<ReturnType<typeof createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost>>,
   TError,
-  { projectId: number; data: BodyType<TaskStatusCreate> },
+  { guildId: number; projectId: number; data: BodyType<TaskStatusCreate> },
   TContext
 > => {
   return useMutation(
-    getCreateTaskStatusApiV1ProjectsProjectIdTaskStatusesPostMutationOptions(options),
+    getCreateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPostMutationOptions(options),
     queryClient
   );
 };
 /**
  * @summary Update Task Status
  */
-export const updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch = (
+export const updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch = (
+  guildId: number,
   projectId: number,
   statusId: number,
   taskStatusUpdate: BodyType<TaskStatusUpdate>,
@@ -318,7 +326,7 @@ export const updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch = (
 ) => {
   return apiMutator<TaskStatusRead>(
     {
-      url: `/api/v1/projects/${projectId}/task-statuses/${statusId}`,
+      url: `/api/v1/g/${guildId}/projects/${projectId}/task-statuses/${statusId}`,
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       data: taskStatusUpdate,
@@ -328,88 +336,102 @@ export const updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch = (
   );
 };
 
-export const getUpdateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatchMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch>>,
+export const getUpdateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatchMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch>
+      >,
+      TError,
+      { guildId: number; projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch>
+    >,
     TError,
-    { projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> },
+    { guildId: number; projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> },
     TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch>>,
-  TError,
-  { projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> },
-  TContext
-> => {
-  const mutationKey = ["updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = ["updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch"];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch>>,
-    { projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> }
-  > = (props) => {
-    const { projectId, statusId, data } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch>
+      >,
+      { guildId: number; projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> }
+    > = (props) => {
+      const { guildId, projectId, statusId, data } = props ?? {};
 
-    return updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch(
-      projectId,
-      statusId,
-      data,
-      requestOptions
-    );
+      return updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch(
+        guildId,
+        projectId,
+        statusId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type UpdateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatchMutationResult =
+export type UpdateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatchMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch>>
+    Awaited<
+      ReturnType<typeof updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch>
+    >
   >;
-export type UpdateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatchMutationBody =
+export type UpdateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatchMutationBody =
   BodyType<TaskStatusUpdate>;
-export type UpdateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatchMutationError =
+export type UpdateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatchMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Update Task Status
  */
-export const useUpdateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch = <
+export const useUpdateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch>>,
+      Awaited<
+        ReturnType<typeof updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch>
+      >,
       TError,
-      { projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> },
+      { guildId: number; projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch>>,
+  Awaited<
+    ReturnType<typeof updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch>
+  >,
   TError,
-  { projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> },
+  { guildId: number; projectId: number; statusId: number; data: BodyType<TaskStatusUpdate> },
   TContext
 > => {
   return useMutation(
-    getUpdateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatchMutationOptions(options),
+    getUpdateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatchMutationOptions(
+      options
+    ),
     queryClient
   );
 };
 /**
  * @summary Delete Task Status
  */
-export const deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete = (
+export const deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete = (
+  guildId: number,
   projectId: number,
   statusId: number,
   taskStatusDeleteRequest: BodyType<TaskStatusDeleteRequest>,
@@ -418,7 +440,7 @@ export const deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete = 
 ) => {
   return apiMutator<void>(
     {
-      url: `/api/v1/projects/${projectId}/task-statuses/${statusId}`,
+      url: `/api/v1/g/${guildId}/projects/${projectId}/task-statuses/${statusId}`,
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       data: taskStatusDeleteRequest,
@@ -428,88 +450,124 @@ export const deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete = 
   );
 };
 
-export const getDeleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDeleteMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete>>,
+export const getDeleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDeleteMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete>
+      >,
+      TError,
+      {
+        guildId: number;
+        projectId: number;
+        statusId: number;
+        data: BodyType<TaskStatusDeleteRequest>;
+      },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete>
+    >,
     TError,
-    { projectId: number; statusId: number; data: BodyType<TaskStatusDeleteRequest> },
+    {
+      guildId: number;
+      projectId: number;
+      statusId: number;
+      data: BodyType<TaskStatusDeleteRequest>;
+    },
     TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete>>,
-  TError,
-  { projectId: number; statusId: number; data: BodyType<TaskStatusDeleteRequest> },
-  TContext
-> => {
-  const mutationKey = ["deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = [
+      "deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete>>,
-    { projectId: number; statusId: number; data: BodyType<TaskStatusDeleteRequest> }
-  > = (props) => {
-    const { projectId, statusId, data } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete>
+      >,
+      {
+        guildId: number;
+        projectId: number;
+        statusId: number;
+        data: BodyType<TaskStatusDeleteRequest>;
+      }
+    > = (props) => {
+      const { guildId, projectId, statusId, data } = props ?? {};
 
-    return deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete(
-      projectId,
-      statusId,
-      data,
-      requestOptions
-    );
+      return deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete(
+        guildId,
+        projectId,
+        statusId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type DeleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDeleteMutationResult =
+export type DeleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDeleteMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete>>
+    Awaited<
+      ReturnType<typeof deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete>
+    >
   >;
-export type DeleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDeleteMutationBody =
+export type DeleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDeleteMutationBody =
   BodyType<TaskStatusDeleteRequest>;
-export type DeleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDeleteMutationError =
+export type DeleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Delete Task Status
  */
-export const useDeleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete = <
+export const useDeleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete>>,
+      Awaited<
+        ReturnType<typeof deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete>
+      >,
       TError,
-      { projectId: number; statusId: number; data: BodyType<TaskStatusDeleteRequest> },
+      {
+        guildId: number;
+        projectId: number;
+        statusId: number;
+        data: BodyType<TaskStatusDeleteRequest>;
+      },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete>>,
+  Awaited<
+    ReturnType<typeof deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete>
+  >,
   TError,
-  { projectId: number; statusId: number; data: BodyType<TaskStatusDeleteRequest> },
+  { guildId: number; projectId: number; statusId: number; data: BodyType<TaskStatusDeleteRequest> },
   TContext
 > => {
   return useMutation(
-    getDeleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDeleteMutationOptions(options),
+    getDeleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDeleteMutationOptions(
+      options
+    ),
     queryClient
   );
 };
 /**
  * @summary Reorder Task Statuses
  */
-export const reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost = (
+export const reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost = (
+  guildId: number,
   projectId: number,
   taskStatusReorderRequest: BodyType<TaskStatusReorderRequest>,
   options?: SecondParameter<typeof apiMutator>,
@@ -517,7 +575,7 @@ export const reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost = 
 ) => {
   return apiMutator<TaskStatusRead[]>(
     {
-      url: `/api/v1/projects/${projectId}/task-statuses/reorder`,
+      url: `/api/v1/g/${guildId}/projects/${projectId}/task-statuses/reorder`,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       data: taskStatusReorderRequest,
@@ -527,80 +585,95 @@ export const reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost = 
   );
 };
 
-export const getReorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost>>,
+export const getReorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPostMutationOptions =
+  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
+    mutation?: UseMutationOptions<
+      Awaited<
+        ReturnType<typeof reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost>
+      >,
+      TError,
+      { guildId: number; projectId: number; data: BodyType<TaskStatusReorderRequest> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  }): UseMutationOptions<
+    Awaited<
+      ReturnType<typeof reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost>
+    >,
     TError,
-    { projectId: number; data: BodyType<TaskStatusReorderRequest> },
+    { guildId: number; projectId: number; data: BodyType<TaskStatusReorderRequest> },
     TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost>>,
-  TError,
-  { projectId: number; data: BodyType<TaskStatusReorderRequest> },
-  TContext
-> => {
-  const mutationKey = ["reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
+  > => {
+    const mutationKey = [
+      "reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost",
+    ];
+    const { mutation: mutationOptions, request: requestOptions } = options
+      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+        ? options
+        : { ...options, mutation: { ...options.mutation, mutationKey } }
+      : { mutation: { mutationKey }, request: undefined };
 
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost>>,
-    { projectId: number; data: BodyType<TaskStatusReorderRequest> }
-  > = (props) => {
-    const { projectId, data } = props ?? {};
+    const mutationFn: MutationFunction<
+      Awaited<
+        ReturnType<typeof reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost>
+      >,
+      { guildId: number; projectId: number; data: BodyType<TaskStatusReorderRequest> }
+    > = (props) => {
+      const { guildId, projectId, data } = props ?? {};
 
-    return reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost(
-      projectId,
-      data,
-      requestOptions
-    );
+      return reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost(
+        guildId,
+        projectId,
+        data,
+        requestOptions
+      );
+    };
+
+    return { mutationFn, ...mutationOptions };
   };
 
-  return { mutationFn, ...mutationOptions };
-};
-
-export type ReorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPostMutationResult =
+export type ReorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPostMutationResult =
   NonNullable<
-    Awaited<ReturnType<typeof reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost>>
+    Awaited<
+      ReturnType<typeof reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost>
+    >
   >;
-export type ReorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPostMutationBody =
+export type ReorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPostMutationBody =
   BodyType<TaskStatusReorderRequest>;
-export type ReorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPostMutationError =
+export type ReorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPostMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Reorder Task Statuses
  */
-export const useReorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost = <
+export const useReorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost>>,
+      Awaited<
+        ReturnType<typeof reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost>
+      >,
       TError,
-      { projectId: number; data: BodyType<TaskStatusReorderRequest> },
+      { guildId: number; projectId: number; data: BodyType<TaskStatusReorderRequest> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost>>,
+  Awaited<
+    ReturnType<typeof reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost>
+  >,
   TError,
-  { projectId: number; data: BodyType<TaskStatusReorderRequest> },
+  { guildId: number; projectId: number; data: BodyType<TaskStatusReorderRequest> },
   TContext
 > => {
   return useMutation(
-    getReorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPostMutationOptions(options),
+    getReorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPostMutationOptions(
+      options
+    ),
     queryClient
   );
 };

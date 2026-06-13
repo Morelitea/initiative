@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
-from fastapi import Cookie, Depends, HTTPException, Query, Request, status
+from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from sqlmodel import select
@@ -297,27 +297,30 @@ class GuildContext:
         return self.grant is not None
 
 
-async def _resolve_guild_context(
+async def _load_guild_context(
     request: Request,
     session: AsyncSession,
     current_user: User,
-    override_guild_id: Optional[int] = None,
-) -> Optional[GuildContext]:
-    """Resolve the request's guild context from server-held state.
+    guild_id: int,
+) -> GuildContext:
+    """Resolve and validate the guild context for the path-addressed guild.
 
-    Precedence:
-      1. ``override_guild_id`` — explicit, per-call cross-guild addressing
-         (the small set of personal-mode endpoints that take ``?guild_id=``).
-      2. A delegation token's ``guild_id`` claim (``request.state``), pinned
-         at mint time for machine callers.
-      3. ``users.active_guild_id`` — the flag set by
-         ``PUT /users/me/guild-context`` when the user clicks a guild.
-
-    Returns ``None`` in personal mode (no guild selected anywhere). Whatever
-    the source, access is validated fresh on every request — membership or a
-    live PAM grant, else 403 — so a stale flag fails closed and can never
-    read another guild's data.
+    The guild comes from the request path (``/g/{guild_id}/...``); it is only
+    a selector, never a trust boundary. Access is validated fresh on every
+    request — real membership or a live PAM grant, else 403 — so a forged or
+    stale path can never read another guild's data. The ``int`` path converter
+    guarantees ``guild_id`` is an integer before it reaches the privileged
+    ``SET ROLE``/``search_path`` sink.
     """
+    # Auto-delegation tokens are pinned to one guild at mint time; refuse if the
+    # path addresses a different guild than the token was minted for.
+    delegated = getattr(request.state, "delegated_guild_id", None)
+    if delegated is not None and delegated != guild_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+
     # Set minimal RLS context before querying guild_memberships (RLS-protected).
     # Full guild context is set later by get_guild_session / RLSSessionDep.
     await set_rls_context(
@@ -325,22 +328,6 @@ async def _resolve_guild_context(
         user_id=current_user.id,
         is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
-
-    guild_id = override_guild_id
-    if guild_id is None:
-        guild_id = getattr(request.state, "delegated_guild_id", None)
-    if guild_id is None:
-        guild_id = current_user.active_guild_id
-    if guild_id is None:
-        return None
-
-    # Echoed back as the X-Resolved-Guild response header so the client can
-    # discard responses resolved under a context it has since left. Only for
-    # AMBIENT context: an explicit ?guild_id= address is intentional cross-
-    # guild work (personal-mode surfaces) and must not be discarded by the
-    # client's context guard.
-    if override_guild_id is None:
-        request.state.resolved_guild_id = guild_id
 
     membership = await guilds_service.get_membership(
         session,
@@ -385,73 +372,17 @@ async def get_guild_membership(
     request: Request,
     session: SessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_id: Annotated[int, Path(description="Guild this request operates in")],
 ) -> GuildContext:
-    """Strict guild context: the user must be in a guild (flag set).
+    """Strict guild context resolved from the ``/g/{guild_id}`` path segment.
 
-    Personal mode (``active_guild_id IS NULL``) is a clean 409 — the client
-    enters a guild first via ``PUT /users/me/guild-context``.
+    Every guild-scoped router mounts under that prefix, so FastAPI injects
+    ``guild_id`` from the path into this dependency. Membership (or a live PAM
+    grant) is validated fresh; a non-member or stale grant gets 403. A
+    guild-scoped route mounted *outside* the prefix fails at startup (missing
+    path param) — a useful guard that every such route is path-addressed.
     """
-    context = await _resolve_guild_context(request, session, current_user)
-    if context is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=GuildMessages.NO_GUILD_MEMBERSHIP,
-        )
-    return context
-
-
-def ensure_guild_context(context: Optional[GuildContext]) -> GuildContext:
-    """409 when an optional-context endpoint's single-guild code path runs in
-    personal mode. Call at the top of the non-global branch."""
-    if context is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=GuildMessages.NO_GUILD_MEMBERSHIP,
-        )
-    return context
-
-
-async def get_optional_guild_membership(
-    request: Request,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-) -> Optional[GuildContext]:
-    """Optional guild context. ``None`` means personal mode (no active guild).
-
-    Used by guild-scoped list endpoints that 409 in personal mode; the
-    cross-guild aggregates they used to serve now live under ``/api/v1/me/*``.
-    """
-    return await _resolve_guild_context(request, session, current_user)
-
-
-async def get_addressed_guild_membership(
-    request: Request,
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_id: Annotated[
-        Optional[int],
-        Query(
-            description=(
-                "Explicit guild address for cross-guild operations from "
-                "personal mode. Per-guild ids collide across guilds, so an "
-                "entity is only fully addressed as (guild_id, id). Validated "
-                "like any context: membership or live PAM grant, else 403."
-            ),
-        ),
-    ] = None,
-) -> GuildContext:
-    """Strict guild context that additionally accepts explicit ``?guild_id=``
-    addressing, for the small named set of endpoints personal-mode surfaces
-    call into a specific guild (see the guild-context design doc §3.5b)."""
-    context = await _resolve_guild_context(
-        request, session, current_user, override_guild_id=guild_id
-    )
-    if context is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=GuildMessages.NO_GUILD_MEMBERSHIP,
-        )
-    return context
+    return await _load_guild_context(request, session, current_user, guild_id)
 
 
 def require_guild_roles(*roles: GuildRole) -> Callable:
@@ -543,48 +474,6 @@ async def get_guild_session(
 
 # Dependency for routes that need RLS-aware database access
 RLSSessionDep = Annotated[AsyncSession, Depends(get_guild_session)]
-
-
-async def get_flex_session(
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[
-        Optional[GuildContext], Depends(get_optional_guild_membership)
-    ],
-) -> AsyncSession:
-    """Session for endpoints that work both in a guild and in personal mode.
-
-    With a guild context this is exactly ``get_guild_session``. In personal
-    mode it carries user-only context — the endpoint's aggregate path
-    (``gather_across_guilds``) routes per guild itself; its single-guild path
-    must 409 on a ``None`` context.
-    """
-    if guild_context is None:
-        set_active_grant(None, None)
-        set_active_role(None, None)
-        await set_rls_context(
-            session,
-            user_id=current_user.id,
-            is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
-        )
-        return session
-    return await _apply_guild_session_context(session, current_user, guild_context)
-
-
-FlexSessionDep = Annotated[AsyncSession, Depends(get_flex_session)]
-
-
-async def get_addressed_guild_session(
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_addressed_guild_membership)],
-) -> AsyncSession:
-    """``get_guild_session`` for the explicitly guild-addressed endpoints
-    (those whose context dep is ``get_addressed_guild_membership``)."""
-    return await _apply_guild_session_context(session, current_user, guild_context)
-
-
-AddressedRLSSessionDep = Annotated[AsyncSession, Depends(get_addressed_guild_session)]
 
 
 async def get_user_session(

@@ -102,9 +102,9 @@ export function useCollaboration({
     const normalizedPath = url.pathname.endsWith("/")
       ? url.pathname.slice(0, -1)
       : url.pathname || "/api/v1";
-    url.pathname = `${normalizedPath}/collaboration/documents/${documentId}/collaborate`;
-    // Note: the token is sent via MSG_AUTH message, not URL params; the
-    // guild comes from the user's server-held context
+    url.pathname = `${normalizedPath}/g/${activeGuildId}/collaboration/documents/${documentId}/collaborate`;
+    // Note: the token is sent via MSG_AUTH message, not URL params; the guild
+    // is the /g/{guildId} path segment.
     return url.toString();
   }, [isReady, activeGuildId, documentId]);
 

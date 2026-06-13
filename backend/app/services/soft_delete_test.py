@@ -442,7 +442,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
 
     # Hit the listing endpoint and confirm only the parent appears.
     headers = await get_guild_headers(session, guild, user)
-    response = await client.get("/api/v1/trash/?scope=guild", headers=headers)
+    response = await client.get(f"/api/v1/g/{guild.id}/trash/", headers=headers)
     assert response.status_code == 200, response.text
     body = response.json()
     comment_items = [item for item in body["items"] if item["entity_type"] == "comment"]

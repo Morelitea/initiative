@@ -1,4 +1,4 @@
-import { autocompleteDocumentsApiV1DocumentsAutocompleteGet } from "@/api/generated/documents/documents";
+import { autocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGet } from "@/api/generated/documents/documents";
 
 export interface DocumentAutocomplete {
   id: number;
@@ -11,11 +11,12 @@ export interface DocumentAutocomplete {
  * Returns lightweight document info (id, title, updated_at) for typeahead.
  */
 export async function autocompleteDocuments(
+  guildId: number,
   initiativeId: number,
   query: string,
   limit = 10
 ): Promise<DocumentAutocomplete[]> {
-  return autocompleteDocumentsApiV1DocumentsAutocompleteGet({
+  return autocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGet(guildId, {
     initiative_id: initiativeId,
     q: query,
     limit,

@@ -18,7 +18,7 @@ import { useGuilds } from "./useGuilds";
 // Message type for authentication (must match backend)
 const MSG_AUTH = 5;
 
-const buildWebsocketUrl = () => {
+const buildWebsocketUrl = (guildId: number) => {
   if (typeof window === "undefined") {
     return null;
   }
@@ -33,14 +33,14 @@ const buildWebsocketUrl = () => {
       : base.pathname || "/api/v1";
 
     base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
-    base.pathname = `${normalizedPath}/events/updates`;
+    base.pathname = `${normalizedPath}/g/${guildId}/events/updates`;
     base.search = "";
     base.hash = "";
     // Token is sent via MSG_AUTH message, not URL params (for security)
     return base.toString();
   } catch {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    return `${protocol}://${window.location.host}/api/v1/events/updates`;
+    return `${protocol}://${window.location.host}/api/v1/g/${guildId}/events/updates`;
   }
 };
 
@@ -120,6 +120,9 @@ export const useRealtimeUpdates = () => {
       authFailureCountRef.current = 0;
       return;
     }
+    // serverGuildId is non-null past the guard; capture as a number for the
+    // /g/{guildId} websocket path used in the connect() closure below.
+    const guildId = serverGuildId;
 
     let isActive = true;
 
@@ -137,7 +140,7 @@ export const useRealtimeUpdates = () => {
       if (!isActive) {
         return;
       }
-      const wsUrl = buildWebsocketUrl();
+      const wsUrl = buildWebsocketUrl(guildId);
       if (!wsUrl) {
         scheduleReconnect();
         return;

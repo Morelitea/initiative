@@ -20,11 +20,7 @@ import type {
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type {
-  ClearRecentApiV1RecentsEntityTypeEntityIdDeleteParams,
-  HTTPValidationError,
-  RecentItemRead,
-} from "../initiativeAPI.schemas";
+import type { HTTPValidationError, RecentItemRead } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType } from "../../mutator";
@@ -158,50 +154,50 @@ export function useListRecentsApiV1RecentsGet<
 /**
  * Close a tab: delete the caller's own recent-view row.
  *
- * Guild-ADDRESSED (``?guild_id=``) because a tab can belong to any of the
- * user's guilds regardless of current context, and per-schema ids are only
- * unique within a guild. Idempotent.
+ * Guild-scoped — mounted under /g/{guild_id}/recents because a tab can belong
+ * to any of the user's guilds and per-schema ids are only unique within a
+ * guild. Idempotent.
  * @summary Clear Recent
  */
-export const clearRecentApiV1RecentsEntityTypeEntityIdDelete = (
+export const clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete = (
+  guildId: number,
   entityType: "project" | "document" | "queue" | "counter_group",
   entityId: number,
-  params?: ClearRecentApiV1RecentsEntityTypeEntityIdDeleteParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/recents/${entityType}/${entityId}`, method: "DELETE", params, signal },
+    { url: `/api/v1/g/${guildId}/recents/${entityType}/${entityId}`, method: "DELETE", signal },
     options
   );
 };
 
-export const getClearRecentApiV1RecentsEntityTypeEntityIdDeleteMutationOptions = <
+export const getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof clearRecentApiV1RecentsEntityTypeEntityIdDelete>>,
+    Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
     TError,
     {
+      guildId: number;
       entityType: "project" | "document" | "queue" | "counter_group";
       entityId: number;
-      params?: ClearRecentApiV1RecentsEntityTypeEntityIdDeleteParams;
     },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof clearRecentApiV1RecentsEntityTypeEntityIdDelete>>,
+  Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
   TError,
   {
+    guildId: number;
     entityType: "project" | "document" | "queue" | "counter_group";
     entityId: number;
-    params?: ClearRecentApiV1RecentsEntityTypeEntityIdDeleteParams;
   },
   TContext
 > => {
-  const mutationKey = ["clearRecentApiV1RecentsEntityTypeEntityIdDelete"];
+  const mutationKey = ["clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -209,19 +205,19 @@ export const getClearRecentApiV1RecentsEntityTypeEntityIdDeleteMutationOptions =
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof clearRecentApiV1RecentsEntityTypeEntityIdDelete>>,
+    Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
     {
+      guildId: number;
       entityType: "project" | "document" | "queue" | "counter_group";
       entityId: number;
-      params?: ClearRecentApiV1RecentsEntityTypeEntityIdDeleteParams;
     }
   > = (props) => {
-    const { entityType, entityId, params } = props ?? {};
+    const { guildId, entityType, entityId } = props ?? {};
 
-    return clearRecentApiV1RecentsEntityTypeEntityIdDelete(
+    return clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete(
+      guildId,
       entityType,
       entityId,
-      params,
       requestOptions
     );
   };
@@ -229,28 +225,28 @@ export const getClearRecentApiV1RecentsEntityTypeEntityIdDeleteMutationOptions =
   return { mutationFn, ...mutationOptions };
 };
 
-export type ClearRecentApiV1RecentsEntityTypeEntityIdDeleteMutationResult = NonNullable<
-  Awaited<ReturnType<typeof clearRecentApiV1RecentsEntityTypeEntityIdDelete>>
+export type ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>
 >;
 
-export type ClearRecentApiV1RecentsEntityTypeEntityIdDeleteMutationError =
+export type ClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
  * @summary Clear Recent
  */
-export const useClearRecentApiV1RecentsEntityTypeEntityIdDelete = <
+export const useClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof clearRecentApiV1RecentsEntityTypeEntityIdDelete>>,
+      Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
       TError,
       {
+        guildId: number;
         entityType: "project" | "document" | "queue" | "counter_group";
         entityId: number;
-        params?: ClearRecentApiV1RecentsEntityTypeEntityIdDeleteParams;
       },
       TContext
     >;
@@ -258,17 +254,17 @@ export const useClearRecentApiV1RecentsEntityTypeEntityIdDelete = <
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof clearRecentApiV1RecentsEntityTypeEntityIdDelete>>,
+  Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
   TError,
   {
+    guildId: number;
     entityType: "project" | "document" | "queue" | "counter_group";
     entityId: number;
-    params?: ClearRecentApiV1RecentsEntityTypeEntityIdDeleteParams;
   },
   TContext
 > => {
   return useMutation(
-    getClearRecentApiV1RecentsEntityTypeEntityIdDeleteMutationOptions(options),
+    getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationOptions(options),
     queryClient
   );
 };

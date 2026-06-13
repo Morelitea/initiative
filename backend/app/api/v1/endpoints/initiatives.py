@@ -6,10 +6,8 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select, delete
 
 from app.api.deps import (
-    AddressedRLSSessionDep,
     RLSSessionDep,
     SessionDep,
-    get_addressed_guild_membership,
     get_current_active_user,
     get_guild_membership,
     GuildContext,
@@ -154,12 +152,9 @@ async def _ensure_remaining_manager(
 
 @router.get("/", response_model=List[InitiativeRead])
 async def list_initiatives(
-    # Guild-ADDRESSED: the create-task/document wizards on personal pages list
-    # a chosen guild's initiatives via an explicit, validated ?guild_id=
-    # (guild-context design doc §3.5b).
-    session: AddressedRLSSessionDep,
+    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: Annotated[GuildContext, Depends(get_addressed_guild_membership)],
+    guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> List[InitiativeRead]:
     statement = (
         select(Initiative)

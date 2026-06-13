@@ -1,14 +1,15 @@
 import { useMutation } from "@tanstack/react-query";
 
 import {
-  importFromTicktickApiV1ImportsTicktickPost,
-  importFromTodoistApiV1ImportsTodoistPost,
-  importFromVikunjaApiV1ImportsVikunjaPost,
-  parseTicktickCsvApiV1ImportsTicktickParsePost,
-  parseTodoistCsvApiV1ImportsTodoistParsePost,
-  parseVikunjaJsonApiV1ImportsVikunjaParsePost,
+  importFromTicktickApiV1GGuildIdImportsTicktickPost,
+  importFromTodoistApiV1GGuildIdImportsTodoistPost,
+  importFromVikunjaApiV1GGuildIdImportsVikunjaPost,
+  parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost,
+  parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost,
+  parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost,
 } from "@/api/generated/imports/imports";
 import { invalidateAllProjects, invalidateAllTasks } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { MutationOpts } from "@/types/mutation";
 
 // ── Todoist ──────────────────────────────────────────────────────────────────
@@ -17,11 +18,15 @@ import type { MutationOpts } from "@/types/mutation";
 // We use `unknown` so callers can cast the result to their local types.
 
 export const useParseTodoistCsv = (options?: MutationOpts<unknown, string>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
     ...rest,
     mutationFn: async (content: string) => {
-      return parseTodoistCsvApiV1ImportsTodoistParsePost(content) as unknown as Promise<unknown>;
+      return parseTodoistCsvApiV1GGuildIdImportsTodoistParsePost(
+        guildId,
+        content
+      ) as unknown as Promise<unknown>;
     },
     onSuccess: (...args) => {
       onSuccess?.(...args);
@@ -34,13 +39,22 @@ export const useParseTodoistCsv = (options?: MutationOpts<unknown, string>) => {
 };
 
 export const useImportFromTodoist = (
-  options?: MutationOpts<unknown, Parameters<typeof importFromTodoistApiV1ImportsTodoistPost>[0]>
+  options?: MutationOpts<
+    unknown,
+    Parameters<typeof importFromTodoistApiV1GGuildIdImportsTodoistPost>[1]
+  >
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
     ...rest,
-    mutationFn: async (data: Parameters<typeof importFromTodoistApiV1ImportsTodoistPost>[0]) => {
-      return importFromTodoistApiV1ImportsTodoistPost(data) as unknown as Promise<unknown>;
+    mutationFn: async (
+      data: Parameters<typeof importFromTodoistApiV1GGuildIdImportsTodoistPost>[1]
+    ) => {
+      return importFromTodoistApiV1GGuildIdImportsTodoistPost(
+        guildId,
+        data
+      ) as unknown as Promise<unknown>;
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();
@@ -56,11 +70,15 @@ export const useImportFromTodoist = (
 // ── Vikunja ──────────────────────────────────────────────────────────────────
 
 export const useParseVikunjaJson = (options?: MutationOpts<unknown, string>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
     ...rest,
     mutationFn: async (content: string) => {
-      return parseVikunjaJsonApiV1ImportsVikunjaParsePost(content) as unknown as Promise<unknown>;
+      return parseVikunjaJsonApiV1GGuildIdImportsVikunjaParsePost(
+        guildId,
+        content
+      ) as unknown as Promise<unknown>;
     },
     onSuccess: (...args) => {
       onSuccess?.(...args);
@@ -73,13 +91,22 @@ export const useParseVikunjaJson = (options?: MutationOpts<unknown, string>) => 
 };
 
 export const useImportFromVikunja = (
-  options?: MutationOpts<unknown, Parameters<typeof importFromVikunjaApiV1ImportsVikunjaPost>[0]>
+  options?: MutationOpts<
+    unknown,
+    Parameters<typeof importFromVikunjaApiV1GGuildIdImportsVikunjaPost>[1]
+  >
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
     ...rest,
-    mutationFn: async (data: Parameters<typeof importFromVikunjaApiV1ImportsVikunjaPost>[0]) => {
-      return importFromVikunjaApiV1ImportsVikunjaPost(data) as unknown as Promise<unknown>;
+    mutationFn: async (
+      data: Parameters<typeof importFromVikunjaApiV1GGuildIdImportsVikunjaPost>[1]
+    ) => {
+      return importFromVikunjaApiV1GGuildIdImportsVikunjaPost(
+        guildId,
+        data
+      ) as unknown as Promise<unknown>;
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();
@@ -96,11 +123,15 @@ export const useImportFromVikunja = (
 // ── TickTick ─────────────────────────────────────────────────────────────────
 
 export const useParseTickTickCsv = (options?: MutationOpts<unknown, string>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
     ...rest,
     mutationFn: async (content: string) => {
-      return parseTicktickCsvApiV1ImportsTicktickParsePost(content) as unknown as Promise<unknown>;
+      return parseTicktickCsvApiV1GGuildIdImportsTicktickParsePost(
+        guildId,
+        content
+      ) as unknown as Promise<unknown>;
     },
     onSuccess: (...args) => {
       onSuccess?.(...args);
@@ -113,13 +144,22 @@ export const useParseTickTickCsv = (options?: MutationOpts<unknown, string>) => 
 };
 
 export const useImportFromTickTick = (
-  options?: MutationOpts<unknown, Parameters<typeof importFromTicktickApiV1ImportsTicktickPost>[0]>
+  options?: MutationOpts<
+    unknown,
+    Parameters<typeof importFromTicktickApiV1GGuildIdImportsTicktickPost>[1]
+  >
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
     ...rest,
-    mutationFn: async (data: Parameters<typeof importFromTicktickApiV1ImportsTicktickPost>[0]) => {
-      return importFromTicktickApiV1ImportsTicktickPost(data) as unknown as Promise<unknown>;
+    mutationFn: async (
+      data: Parameters<typeof importFromTicktickApiV1GGuildIdImportsTicktickPost>[1]
+    ) => {
+      return importFromTicktickApiV1GGuildIdImportsTicktickPost(
+        guildId,
+        data
+      ) as unknown as Promise<unknown>;
     },
     onSuccess: (...args) => {
       void invalidateAllTasks();

@@ -82,6 +82,7 @@ async def _validate_project_write_access(
 async def parse_todoist_csv(
     csv_content: Annotated[str, Body(media_type="text/plain")],
     _current_user: Annotated[User, Depends(get_current_active_user)],
+    _guild_context: GuildContextDep,
 ) -> TodoistParseResult:
     """
     Parse a Todoist CSV export and return detected sections and task count.
@@ -149,6 +150,7 @@ async def import_from_todoist(
 async def parse_vikunja_json(
     json_content: Annotated[str, Body(media_type="text/plain")],
     _current_user: Annotated[User, Depends(get_current_active_user)],
+    _guild_context: GuildContextDep,
 ) -> VikunjaParseResult:
     """
     Parse a Vikunja JSON export and return detected projects with buckets.
@@ -216,6 +218,7 @@ async def import_from_vikunja(
 async def parse_ticktick_csv(
     csv_content: Annotated[str, Body(media_type="text/plain")],
     _current_user: Annotated[User, Depends(get_current_active_user)],
+    _guild_context: GuildContextDep,
 ) -> TickTickParseResult:
     """
     Parse a TickTick CSV export and return detected lists with columns.

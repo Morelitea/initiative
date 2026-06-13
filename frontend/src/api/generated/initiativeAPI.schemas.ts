@@ -365,21 +365,21 @@ export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   client_secret?: string | null;
 }
 
-export interface BodyNotifyMentionsApiV1DocumentsDocumentIdMentionsPost {
+export interface BodyNotifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost {
   mentioned_user_ids: number[];
 }
 
-export interface BodyUploadAttachmentApiV1AttachmentsPost {
+export interface BodyUploadAttachmentApiV1GGuildIdAttachmentsPost {
   file: Blob;
 }
 
-export interface BodyUploadDocumentFileApiV1DocumentsUploadPost {
+export interface BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost {
   title: string;
   initiative_id: number;
   file: Blob;
 }
 
-export interface BodyUploadDocumentVersionApiV1DocumentsDocumentIdVersionsPost {
+export interface BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost {
   file: Blob;
 }
 
@@ -3124,6 +3124,7 @@ export const TrashItemEntityType = {
 export interface TrashItem {
   entity_type: TrashItemEntityType;
   entity_id: number;
+  guild_id: number;
   name: string;
   deleted_at: string;
   deleted_by_id: number | null;
@@ -3653,6 +3654,10 @@ export type AdminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMemb
     guild_id: number;
   };
 
+export type GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams = {
+  guild_id: number;
+};
+
 export type ListAccessGrantsApiV1AccessGrantsGetParams = {
   /**
    * List only your own requests.
@@ -3674,15 +3679,25 @@ export type ListAccessGrantsApiV1AccessGrantsGetParams = {
   offset?: number;
 };
 
-export type ExportUsersCsvApiV1UsersExportCsvGetParams = {
-  user_id?: number[] | null;
+export type SendTestEmailApiV1SettingsEmailTestPost200 = { [key: string]: unknown };
+
+export type UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut200 = {
+  [key: string]: unknown;
 };
 
-export type GetMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGetParams = {
-  guild_id: number;
+export type GetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet200 = {
+  [key: string]: unknown;
 };
 
-export type ListProjectsApiV1ProjectsGetParams = {
+export type ListNotificationsApiV1NotificationsGetParams = {
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type ListProjectsApiV1GGuildIdProjectsGetParams = {
   archived?: boolean | null;
   template?: boolean | null;
   /**
@@ -3696,7 +3711,7 @@ export type ListProjectsApiV1ProjectsGetParams = {
   page_size?: number;
 };
 
-export type ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams = {
+export type ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams = {
   /**
    * @minimum 1
    */
@@ -3708,14 +3723,7 @@ export type ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams = {
   page_size?: number;
 };
 
-export type ListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetParams = {
-  /**
-   * Explicit guild address for cross-guild operations from personal mode. Per-guild ids collide across guilds, so an entity is only fully addressed as (guild_id, id). Validated like any context: membership or live PAM grant, else 403.
-   */
-  guild_id?: number | null;
-};
-
-export type ListTasksApiV1TasksGetParams = {
+export type ListTasksApiV1GGuildIdTasksGetParams = {
   /**
    * JSON list of filter conditions. Each object: {"field": "<column>", "op": "<operator>", "value": <val>}. Any Task column is valid plus virtual fields: status_category, assignee_ids, tag_ids, initiative_ids.
    */
@@ -3743,14 +3751,7 @@ export type ListTasksApiV1TasksGetParams = {
   tz?: string | null;
 };
 
-export type UpdateTaskApiV1TasksTaskIdPatchParams = {
-  /**
-   * Explicit guild address for cross-guild operations from personal mode. Per-guild ids collide across guilds, so an entity is only fully addressed as (guild_id, id). Validated like any context: membership or live PAM grant, else 403.
-   */
-  guild_id?: number | null;
-};
-
-export type ArchiveDoneTasksApiV1TasksArchiveDonePostParams = {
+export type ArchiveDoneTasksApiV1GGuildIdTasksArchiveDonePostParams = {
   /**
    * Project to archive done tasks from
    */
@@ -3761,12 +3762,12 @@ export type ArchiveDoneTasksApiV1TasksArchiveDonePostParams = {
   task_status_id?: number | null;
 };
 
-export type ListCommentsApiV1CommentsGetParams = {
+export type ListCommentsApiV1GGuildIdCommentsGetParams = {
   task_id?: number | null;
   document_id?: number | null;
 };
 
-export type RecentCommentsApiV1CommentsRecentGetParams = {
+export type RecentCommentsApiV1GGuildIdCommentsRecentGetParams = {
   /**
    * @minimum 1
    * @maximum 50
@@ -3774,7 +3775,7 @@ export type RecentCommentsApiV1CommentsRecentGetParams = {
   limit?: number;
 };
 
-export type SearchMentionablesApiV1CommentsMentionsSearchGetParams = {
+export type SearchMentionablesApiV1GGuildIdCommentsMentionsSearchGetParams = {
   entity_type: MentionEntityType;
   /**
    * @exclusiveMinimum 0
@@ -3786,37 +3787,12 @@ export type SearchMentionablesApiV1CommentsMentionsSearchGetParams = {
   q?: string;
 };
 
-export type ListNotificationsApiV1NotificationsGetParams = {
-  /**
-   * @minimum 1
-   * @maximum 100
-   */
-  limit?: number;
-};
-
-export type SendTestEmailApiV1SettingsEmailTestPost200 = { [key: string]: unknown };
-
-export type UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut200 = {
-  [key: string]: unknown;
-};
-
-export type GetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet200 = {
-  [key: string]: unknown;
-};
-
-export type ListInitiativesApiV1InitiativesGetParams = {
-  /**
-   * Explicit guild address for cross-guild operations from personal mode. Per-guild ids collide across guilds, so an entity is only fully addressed as (guild_id, id). Validated like any context: membership or live PAM grant, else 403.
-   */
-  guild_id?: number | null;
-};
-
-export type GetDocumentCountsApiV1DocumentsCountsGetParams = {
+export type GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams = {
   initiative_id?: number | null;
   search?: string | null;
 };
 
-export type ListDocumentsApiV1DocumentsGetParams = {
+export type ListDocumentsApiV1GGuildIdDocumentsGetParams = {
   initiative_id?: number | null;
   search?: string | null;
   /**
@@ -3844,7 +3820,7 @@ export type ListDocumentsApiV1DocumentsGetParams = {
   sort_dir?: string | null;
 };
 
-export type AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams = {
+export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
   initiative_id: number;
   /**
    * @minLength 1
@@ -3856,15 +3832,7 @@ export type AutocompleteDocumentsApiV1DocumentsAutocompleteGetParams = {
   limit?: number;
 };
 
-export type GetDocumentCollaboratorsApiV1CollaborationDocumentsDocumentIdCollaboratorsGet200Item = {
-  [key: string]: unknown;
-};
-
-export type SyncDocumentContentApiV1CollaborationDocumentsDocumentIdSyncContentPostParams = {
-  token: string;
-};
-
-export type ListQueuesApiV1QueuesGetParams = {
+export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   initiative_id?: number | null;
   /**
    * @minimum 1
@@ -3877,9 +3845,11 @@ export type ListQueuesApiV1QueuesGetParams = {
   page_size?: number;
 };
 
-export type ListQueuePermissionsApiV1QueuesQueueIdPermissionsGet200 = { [key: string]: unknown };
+export type ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet200 = {
+  [key: string]: unknown;
+};
 
-export type ListCounterGroupsApiV1CounterGroupsGetParams = {
+export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
   initiative_id?: number | null;
   /**
    * @minimum 1
@@ -3892,17 +3862,17 @@ export type ListCounterGroupsApiV1CounterGroupsGetParams = {
   page_size?: number;
 };
 
-export type ListCounterGroupPermissionsApiV1CounterGroupsGroupIdPermissionsGet200 = {
+export type ListCounterGroupPermissionsApiV1GGuildIdCounterGroupsGroupIdPermissionsGet200 = {
   [key: string]: unknown;
 };
 
-export type ExportCalendarEventsIcsApiV1CalendarEventsExportIcsGetParams = {
+export type ExportCalendarEventsIcsApiV1GGuildIdCalendarEventsExportIcsGetParams = {
   initiative_id?: number | null;
   start_after?: string | null;
   start_before?: string | null;
 };
 
-export type ListCalendarEventsApiV1CalendarEventsGetParams = {
+export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {
   initiative_id?: number | null;
   start_after?: string | null;
   start_before?: string | null;
@@ -3918,28 +3888,21 @@ export type ListCalendarEventsApiV1CalendarEventsGetParams = {
   page_size?: number;
 };
 
-export type ListPropertyDefinitionsApiV1PropertyDefinitionsGetParams = {
+export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {
   initiative_id?: number | null;
 };
 
-export type ListTrashApiV1TrashGetParams = {
-  scope?: ListTrashApiV1TrashGetScope;
+export type ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams = {
+  user_id?: number[] | null;
 };
 
-export type ListTrashApiV1TrashGetScope =
-  (typeof ListTrashApiV1TrashGetScope)[keyof typeof ListTrashApiV1TrashGetScope];
+export type GetDocumentCollaboratorsApiV1GGuildIdCollaborationDocumentsDocumentIdCollaboratorsGet200Item =
+  { [key: string]: unknown };
 
-export const ListTrashApiV1TrashGetScope = {
-  mine: "mine",
-  guild: "guild",
-} as const;
-
-export type ClearRecentApiV1RecentsEntityTypeEntityIdDeleteParams = {
-  /**
-   * Explicit guild address for cross-guild operations from personal mode. Per-guild ids collide across guilds, so an entity is only fully addressed as (guild_id, id). Validated like any context: membership or live PAM grant, else 403.
-   */
-  guild_id?: number | null;
-};
+export type SyncDocumentContentApiV1GGuildIdCollaborationDocumentsDocumentIdSyncContentPostParams =
+  {
+    token: string;
+  };
 
 export type ListMyTasksApiV1MeTasksGetParams = {
   conditions?: FilterCondition[];

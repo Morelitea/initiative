@@ -2,8 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type {
   ListMyProjectsApiV1MeProjectsGetParams,
-  ListProjectsApiV1ProjectsGetParams,
-  ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
+  ListProjectsApiV1GGuildIdProjectsGetParams,
+  ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
   ProjectActivityResponse,
   ProjectListResponse,
   ProjectPermissionBulkCreate,
@@ -22,45 +22,45 @@ import type {
   TaskStatusUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  addProjectMemberApiV1ProjectsProjectIdMembersPost,
-  addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost,
-  addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost,
-  archiveProjectApiV1ProjectsProjectIdArchivePost,
-  attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost,
-  createProjectApiV1ProjectsPost,
-  deleteProjectApiV1ProjectsProjectIdDelete,
-  detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete,
-  duplicateProjectApiV1ProjectsProjectIdDuplicatePost,
-  favoriteProjectApiV1ProjectsProjectIdFavoritePost,
-  favoriteProjectsApiV1ProjectsFavoritesGet,
-  getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey,
+  addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost,
+  addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost,
+  addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost,
+  archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost,
+  attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost,
+  createProjectApiV1GGuildIdProjectsPost,
+  deleteProjectApiV1GGuildIdProjectsProjectIdDelete,
+  detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete,
+  duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost,
+  favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost,
+  favoriteProjectsApiV1GGuildIdProjectsFavoritesGet,
+  getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryKey,
   getListMyProjectsApiV1MeProjectsGetQueryKey,
-  getListProjectsApiV1ProjectsGetQueryKey,
-  getListWritableProjectsApiV1ProjectsWritableGetQueryKey,
-  getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey,
-  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
+  getListProjectsApiV1GGuildIdProjectsGetQueryKey,
+  getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryKey,
+  getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey,
+  getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
   listMyProjectsApiV1MeProjectsGet,
-  listProjectsApiV1ProjectsGet,
-  listWritableProjectsApiV1ProjectsWritableGet,
-  projectActivityFeedApiV1ProjectsProjectIdActivityGet,
-  readProjectApiV1ProjectsProjectIdGet,
-  removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete,
-  removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost,
-  removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete,
-  reorderProjectsApiV1ProjectsReorderPost,
-  unarchiveProjectApiV1ProjectsProjectIdUnarchivePost,
-  unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete,
-  updateProjectApiV1ProjectsProjectIdPatch,
-  updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch,
-  updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch,
+  listProjectsApiV1GGuildIdProjectsGet,
+  listWritableProjectsApiV1GGuildIdProjectsWritableGet,
+  projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet,
+  readProjectApiV1GGuildIdProjectsProjectIdGet,
+  removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete,
+  removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost,
+  removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete,
+  reorderProjectsApiV1GGuildIdProjectsReorderPost,
+  unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost,
+  unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete,
+  updateProjectApiV1GGuildIdProjectsProjectIdPatch,
+  updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch,
+  updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch,
 } from "@/api/generated/projects/projects";
 import {
-  createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost,
-  deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete,
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
-  reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost,
-  updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch,
+  createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost,
+  deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete,
+  getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
+  listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet,
+  reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost,
+  updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch,
 } from "@/api/generated/task-statuses/task-statuses";
 import {
   invalidateAllDocuments,
@@ -70,6 +70,7 @@ import {
   invalidateProject,
   invalidateProjectTaskStatuses,
 } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
@@ -78,12 +79,17 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 export const useProjects = (
-  params?: ListProjectsApiV1ProjectsGetParams,
+  params?: ListProjectsApiV1GGuildIdProjectsGetParams,
   options?: QueryOpts<ProjectListResponse>
 ) => {
+  const guildId = useActiveGuildId();
   return useQuery<ProjectListResponse>({
-    queryKey: getListProjectsApiV1ProjectsGetQueryKey(params),
-    queryFn: () => listProjectsApiV1ProjectsGet(params) as unknown as Promise<ProjectListResponse>,
+    queryKey: getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, params),
+    queryFn: () =>
+      listProjectsApiV1GGuildIdProjectsGet(
+        guildId,
+        params
+      ) as unknown as Promise<ProjectListResponse>,
     ...options,
   });
 };
@@ -97,21 +103,28 @@ export const useArchivedProjects = () => {
 };
 
 export const useProject = (projectId: number | null, options?: QueryOpts<ProjectRead>) => {
+  const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<ProjectRead>({
-    queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(projectId!),
+    queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(guildId, projectId!),
     queryFn: () =>
-      readProjectApiV1ProjectsProjectIdGet(projectId!) as unknown as Promise<ProjectRead>,
+      readProjectApiV1GGuildIdProjectsProjectIdGet(
+        guildId,
+        projectId!
+      ) as unknown as Promise<ProjectRead>,
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     ...rest,
   });
 };
 
 export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
+  const guildId = useActiveGuildId();
   return useQuery<ProjectRead[]>({
-    queryKey: getListWritableProjectsApiV1ProjectsWritableGetQueryKey(),
+    queryKey: getListWritableProjectsApiV1GGuildIdProjectsWritableGetQueryKey(guildId),
     queryFn: () =>
-      listWritableProjectsApiV1ProjectsWritableGet() as unknown as Promise<ProjectRead[]>,
+      listWritableProjectsApiV1GGuildIdProjectsWritableGet(guildId) as unknown as Promise<
+        ProjectRead[]
+      >,
     staleTime: 60 * 1000,
     ...options,
   });
@@ -122,9 +135,13 @@ export const useWritableProjects = (options?: QueryOpts<ProjectRead[]>) => {
 // mixed-type bar instead.
 
 export const useFavoriteProjects = (options?: QueryOpts<ProjectRead[]>) => {
+  const guildId = useActiveGuildId();
   return useQuery<ProjectRead[]>({
-    queryKey: getFavoriteProjectsApiV1ProjectsFavoritesGetQueryKey(),
-    queryFn: () => favoriteProjectsApiV1ProjectsFavoritesGet() as unknown as Promise<ProjectRead[]>,
+    queryKey: getFavoriteProjectsApiV1GGuildIdProjectsFavoritesGetQueryKey(guildId),
+    queryFn: () =>
+      favoriteProjectsApiV1GGuildIdProjectsFavoritesGet(guildId) as unknown as Promise<
+        ProjectRead[]
+      >,
     staleTime: 30 * 1000,
     ...options,
   });
@@ -134,13 +151,18 @@ export const useProjectTaskStatuses = (
   projectId: number | null,
   options?: QueryOpts<TaskStatusRead[]>
 ) => {
+  const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<TaskStatusRead[]>({
-    queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(projectId!),
+    queryKey: getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
+      guildId,
+      projectId!
+    ),
     queryFn: () =>
-      listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId!) as unknown as Promise<
-        TaskStatusRead[]
-      >,
+      listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+        guildId,
+        projectId!
+      ) as unknown as Promise<TaskStatusRead[]>,
     enabled: projectId !== null && Number.isFinite(projectId) && userEnabled,
     ...rest,
   });
@@ -148,14 +170,20 @@ export const useProjectTaskStatuses = (
 
 export const useProjectActivity = (
   projectId: number,
-  params?: ProjectActivityFeedApiV1ProjectsProjectIdActivityGetParams,
+  params?: ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
   options?: QueryOpts<ProjectActivityResponse>
 ) => {
+  const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<ProjectActivityResponse>({
-    queryKey: getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey(projectId, params),
+    queryKey: getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey(
+      guildId,
+      projectId,
+      params
+    ),
     queryFn: () =>
-      projectActivityFeedApiV1ProjectsProjectIdActivityGet(
+      projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet(
+        guildId,
         projectId,
         params
       ) as unknown as Promise<ProjectActivityResponse>,
@@ -193,14 +221,18 @@ export const usePrefetchGlobalProjects = () => {
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 export const useCreateProject = (
-  options?: MutationOpts<ProjectRead, Parameters<typeof createProjectApiV1ProjectsPost>[0]>
+  options?: MutationOpts<ProjectRead, Parameters<typeof createProjectApiV1GGuildIdProjectsPost>[1]>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (data: Parameters<typeof createProjectApiV1ProjectsPost>[0]) => {
-      return createProjectApiV1ProjectsPost(data) as unknown as Promise<ProjectRead>;
+    mutationFn: async (data: Parameters<typeof createProjectApiV1GGuildIdProjectsPost>[1]) => {
+      return createProjectApiV1GGuildIdProjectsPost(
+        guildId,
+        data
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (...args) => {
       void invalidateAllProjects();
@@ -219,10 +251,11 @@ export const useUpdateProject = (
     ProjectRead,
     {
       projectId: number;
-      data: Parameters<typeof updateProjectApiV1ProjectsProjectIdPatch>[1];
+      data: Parameters<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>[2];
     }
   >
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -232,9 +265,10 @@ export const useUpdateProject = (
       data,
     }: {
       projectId: number;
-      data: Parameters<typeof updateProjectApiV1ProjectsProjectIdPatch>[1];
+      data: Parameters<typeof updateProjectApiV1GGuildIdProjectsProjectIdPatch>[2];
     }) => {
-      return updateProjectApiV1ProjectsProjectIdPatch(
+      return updateProjectApiV1GGuildIdProjectsProjectIdPatch(
+        guildId,
         projectId,
         data
       ) as unknown as Promise<ProjectRead>;
@@ -252,12 +286,13 @@ export const useUpdateProject = (
 };
 
 export const useDeleteProject = (options?: MutationOpts<void, number>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (projectId: number) => {
-      await deleteProjectApiV1ProjectsProjectIdDelete(projectId);
+      await deleteProjectApiV1GGuildIdProjectsProjectIdDelete(guildId, projectId);
     },
     onSuccess: (...args) => {
       void invalidateAllProjects();
@@ -272,12 +307,13 @@ export const useDeleteProject = (options?: MutationOpts<void, number>) => {
 };
 
 export const useArchiveProject = (options?: MutationOpts<void, number>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (projectId: number) => {
-      await archiveProjectApiV1ProjectsProjectIdArchivePost(projectId);
+      await archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost(guildId, projectId);
     },
     onSuccess: (...args) => {
       void invalidateAllProjects();
@@ -289,12 +325,13 @@ export const useArchiveProject = (options?: MutationOpts<void, number>) => {
 };
 
 export const useUnarchiveProject = (options?: MutationOpts<void, number>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (projectId: number) => {
-      await unarchiveProjectApiV1ProjectsProjectIdUnarchivePost(projectId);
+      await unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost(guildId, projectId);
     },
     onSuccess: (...args) => {
       void invalidateAllProjects();
@@ -310,10 +347,11 @@ export const useDuplicateProject = (
     ProjectRead,
     {
       projectId: number;
-      data: Parameters<typeof duplicateProjectApiV1ProjectsProjectIdDuplicatePost>[1];
+      data: Parameters<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>[2];
     }
   >
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -323,9 +361,10 @@ export const useDuplicateProject = (
       data,
     }: {
       projectId: number;
-      data: Parameters<typeof duplicateProjectApiV1ProjectsProjectIdDuplicatePost>[1];
+      data: Parameters<typeof duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost>[2];
     }) => {
-      return duplicateProjectApiV1ProjectsProjectIdDuplicatePost(
+      return duplicateProjectApiV1GGuildIdProjectsProjectIdDuplicatePost(
+        guildId,
         projectId,
         data
       ) as unknown as Promise<ProjectRead>;
@@ -340,12 +379,13 @@ export const useDuplicateProject = (
 };
 
 export const useReorderProjects = (options?: MutationOpts<void, number[]>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (orderedIds: number[]) => {
-      await reorderProjectsApiV1ProjectsReorderPost({ project_ids: orderedIds });
+      await reorderProjectsApiV1GGuildIdProjectsReorderPost(guildId, { project_ids: orderedIds });
     },
     onSuccess,
     onError,
@@ -390,6 +430,7 @@ const updateProjectListFavorite = (
 export const useToggleProjectFavorite = (
   options?: MutationOpts<ToggleFavoriteResponse, ToggleFavoriteArgs>
 ) => {
+  const guildId = useActiveGuildId();
   const qc = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -397,27 +438,31 @@ export const useToggleProjectFavorite = (
     ...rest,
     mutationFn: async ({ projectId, nextState }: ToggleFavoriteArgs) => {
       if (nextState) {
-        await favoriteProjectApiV1ProjectsProjectIdFavoritePost(projectId);
+        await favoriteProjectApiV1GGuildIdProjectsProjectIdFavoritePost(guildId, projectId);
       } else {
-        await unfavoriteProjectApiV1ProjectsProjectIdFavoriteDelete(projectId);
+        await unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete(guildId, projectId);
       }
       return { project_id: projectId, is_favorited: nextState };
     },
     onSuccess: (...args) => {
       const data = args[0];
-      qc.setQueryData<ProjectListResponse>(getListProjectsApiV1ProjectsGetQueryKey(), (prev) =>
-        updateProjectListFavorite(prev, data)
-      );
       qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
+        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId),
         (prev) => updateProjectListFavorite(prev, data)
       );
       qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
+        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { template: true }),
+        (prev) => updateProjectListFavorite(prev, data)
+      );
+      qc.setQueryData<ProjectListResponse>(
+        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { archived: true }),
         (prev) => updateProjectListFavorite(prev, data)
       );
       qc.setQueryData<ProjectRead>(
-        getReadProjectApiV1ProjectsProjectIdGetQueryKey(data.project_id) as unknown as string[],
+        getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(
+          guildId,
+          data.project_id
+        ) as unknown as string[],
         (project) => (project ? { ...project, is_favorited: data.is_favorited } : project)
       );
       void invalidateFavoriteProjects();
@@ -445,31 +490,36 @@ const replaceProjectInList = (
 };
 
 export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePinArgs>) => {
+  const guildId = useActiveGuildId();
   const qc = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ projectId, nextState }: TogglePinArgs) => {
-      return updateProjectApiV1ProjectsProjectIdPatch(projectId, {
+      return updateProjectApiV1GGuildIdProjectsProjectIdPatch(guildId, projectId, {
         pinned: nextState,
       }) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (...args) => {
       const data = args[0];
-      qc.setQueryData<ProjectListResponse>(getListProjectsApiV1ProjectsGetQueryKey(), (prev) =>
-        replaceProjectInList(prev, data)
-      );
       qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1ProjectsGetQueryKey({ template: true }),
+        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId),
         (prev) => replaceProjectInList(prev, data)
       );
       qc.setQueryData<ProjectListResponse>(
-        getListProjectsApiV1ProjectsGetQueryKey({ archived: true }),
+        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { template: true }),
+        (prev) => replaceProjectInList(prev, data)
+      );
+      qc.setQueryData<ProjectListResponse>(
+        getListProjectsApiV1GGuildIdProjectsGetQueryKey(guildId, { archived: true }),
         (prev) => replaceProjectInList(prev, data)
       );
       qc.setQueryData<ProjectRead>(
-        getReadProjectApiV1ProjectsProjectIdGetQueryKey(data.id) as unknown as string[],
+        getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(
+          guildId,
+          data.id
+        ) as unknown as string[],
         () => data
       );
       onSuccess?.(...args);
@@ -485,12 +535,14 @@ export const useAddProjectMember = (
   projectId: number,
   options?: MutationOpts<ProjectPermissionRead, ProjectPermissionCreate>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: ProjectPermissionCreate) => {
-      return addProjectMemberApiV1ProjectsProjectIdMembersPost(
+      return addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost(
+        guildId,
         projectId,
         data
       ) as unknown as Promise<ProjectPermissionRead>;
@@ -511,12 +563,14 @@ export const useUpdateProjectMember = (
   projectId: number,
   options?: MutationOpts<ProjectPermissionRead, { userId: number; data: ProjectPermissionUpdate }>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ userId, data }: { userId: number; data: ProjectPermissionUpdate }) => {
-      return updateProjectMemberApiV1ProjectsProjectIdMembersUserIdPatch(
+      return updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch(
+        guildId,
         projectId,
         userId,
         data
@@ -535,12 +589,17 @@ export const useUpdateProjectMember = (
 };
 
 export const useRemoveProjectMember = (projectId: number, options?: MutationOpts<void, number>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (userId: number) => {
-      await removeProjectMemberApiV1ProjectsProjectIdMembersUserIdDelete(projectId, userId);
+      await removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete(
+        guildId,
+        projectId,
+        userId
+      );
     },
     onSuccess: (...args) => {
       void invalidateProject(projectId);
@@ -558,12 +617,14 @@ export const useAddProjectMembersBulk = (
   projectId: number,
   options?: MutationOpts<ProjectPermissionRead[], ProjectPermissionBulkCreate>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: ProjectPermissionBulkCreate) => {
-      return addProjectMembersBulkApiV1ProjectsProjectIdMembersBulkPost(
+      return addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost(
+        guildId,
         projectId,
         data
       ) as unknown as Promise<ProjectPermissionRead[]>;
@@ -584,12 +645,17 @@ export const useRemoveProjectMembersBulk = (
   projectId: number,
   options?: MutationOpts<void, ProjectPermissionBulkDelete>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: ProjectPermissionBulkDelete) => {
-      await removeProjectMembersBulkApiV1ProjectsProjectIdMembersBulkDeletePost(projectId, data);
+      await removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost(
+        guildId,
+        projectId,
+        data
+      );
     },
     onSuccess: (...args) => {
       void invalidateProject(projectId);
@@ -609,12 +675,14 @@ export const useAddProjectRolePermission = (
   projectId: number,
   options?: MutationOpts<ProjectRolePermissionRead, ProjectRolePermissionCreate>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: ProjectRolePermissionCreate) => {
-      return addProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsPost(
+      return addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost(
+        guildId,
         projectId,
         data
       ) as unknown as Promise<ProjectRolePermissionRead>;
@@ -639,12 +707,14 @@ export const useUpdateProjectRolePermission = (
     { roleId: number; data: ProjectRolePermissionUpdate }
   >
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ roleId, data }: { roleId: number; data: ProjectRolePermissionUpdate }) => {
-      return updateProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdPatch(
+      return updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch(
+        guildId,
         projectId,
         roleId,
         data
@@ -667,12 +737,14 @@ export const useRemoveProjectRolePermission = (
   projectId: number,
   options?: MutationOpts<void, number>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (roleId: number) => {
-      await removeProjectRolePermissionApiV1ProjectsProjectIdRolePermissionsRoleIdDelete(
+      await removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete(
+        guildId,
         projectId,
         roleId
       );
@@ -696,12 +768,14 @@ export const useAttachProjectDocument = (
   projectId: number,
   options?: MutationOpts<void, number>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (documentId: number) => {
-      await attachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdPost(
+      await attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost(
+        guildId,
         projectId,
         documentId
       );
@@ -723,12 +797,14 @@ export const useDetachProjectDocument = (
   projectId: number,
   options?: MutationOpts<void, number>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (documentId: number) => {
-      await detachProjectDocumentApiV1ProjectsProjectIdDocumentsDocumentIdDelete(
+      await detachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdDelete(
+        guildId,
         projectId,
         documentId
       );
@@ -752,12 +828,14 @@ export const useCreateTaskStatus = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead, TaskStatusCreate>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: TaskStatusCreate) => {
-      return createTaskStatusApiV1ProjectsProjectIdTaskStatusesPost(
+      return createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost(
+        guildId,
         projectId,
         data
       ) as unknown as Promise<TaskStatusRead>;
@@ -776,12 +854,14 @@ export const useUpdateTaskStatus = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead, { statusId: number; data: TaskStatusUpdate }>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ statusId, data }: { statusId: number; data: TaskStatusUpdate }) => {
-      return updateTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdPatch(
+      return updateTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdPatch(
+        guildId,
         projectId,
         statusId,
         data
@@ -800,12 +880,14 @@ export const useDeleteTaskStatus = (
   projectId: number,
   options?: MutationOpts<void, { statusId: number; data: TaskStatusDeleteRequest }>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ statusId, data }: { statusId: number; data: TaskStatusDeleteRequest }) => {
-      await deleteTaskStatusApiV1ProjectsProjectIdTaskStatusesStatusIdDelete(
+      await deleteTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesStatusIdDelete(
+        guildId,
         projectId,
         statusId,
         data
@@ -825,12 +907,14 @@ export const useReorderTaskStatuses = (
   projectId: number,
   options?: MutationOpts<TaskStatusRead[], TaskStatusReorderRequest>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: TaskStatusReorderRequest) => {
-      return reorderTaskStatusesApiV1ProjectsProjectIdTaskStatusesReorderPost(
+      return reorderTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesReorderPost(
+        guildId,
         projectId,
         data
       ) as unknown as Promise<TaskStatusRead[]>;
