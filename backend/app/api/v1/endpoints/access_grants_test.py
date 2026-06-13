@@ -346,7 +346,7 @@ async def test_grant_cannot_manage_project_members(
 
     headers = await get_guild_headers(session, guild, support)
     resp = await client.post(
-        f"/api/v1/projects/{project.id}/members",
+        f"/api/v1/g/{guild.id}/projects/{project.id}/members",
         json={"user_id": target.id, "level": "write"},
         headers=headers,
     )
@@ -382,7 +382,7 @@ async def test_grant_cannot_manage_counter_group_access(
 
     headers = await get_guild_headers(session, guild, support)
     resp = await client.put(
-        f"/api/v1/counter-groups/{cg.id}/permissions",
+        f"/api/v1/g/{guild.id}/counter-groups/{cg.id}/permissions",
         json=[],
         headers=headers,
     )
@@ -408,13 +408,13 @@ async def test_grantee_sees_guild_content(client: AsyncClient, session: AsyncSes
 
     headers = await get_guild_headers(session, guild, support)
 
-    resp = await client.get("/api/v1/initiatives/", headers=headers)
+    resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
     assert resp.status_code == 200, resp.text
     assert any(i["name"] == "Recon Wing" for i in resp.json()), (
         "grantee should see the initiative"
     )
 
-    resp = await client.get("/api/v1/projects/", headers=headers)
+    resp = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
     assert resp.status_code == 200, resp.text
     body = resp.json()
     items = body["items"] if isinstance(body, dict) and "items" in body else body
@@ -425,7 +425,7 @@ async def test_grantee_sees_guild_content(client: AsyncClient, session: AsyncSes
     # Initiative tool views: a grantee has no membership row, so these used to
     # 403. They should now succeed (read-only, never manager).
     resp = await client.get(
-        f"/api/v1/initiatives/{init.id}/my-permissions", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{init.id}/my-permissions", headers=headers
     )
     assert resp.status_code == 200, resp.text
     perms = resp.json()
@@ -434,13 +434,17 @@ async def test_grantee_sees_guild_content(client: AsyncClient, session: AsyncSes
         "read grant must not create"
     )
 
-    resp = await client.get(f"/api/v1/initiatives/{init.id}/members", headers=headers)
+    resp = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/{init.id}/members", headers=headers
+    )
     assert resp.status_code == 200, resp.text
 
-    resp = await client.get("/api/v1/calendar-events/", headers=headers)
+    resp = await client.get(f"/api/v1/g/{guild.id}/calendar-events/", headers=headers)
     assert resp.status_code == 200, resp.text
 
     # Recording a recent view must not 500 (the recent_views guild policy would
     # reject a grantee's INSERT; we skip persistence instead).
-    resp = await client.post(f"/api/v1/projects/{project.id}/view", headers=headers)
+    resp = await client.post(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+    )
     assert resp.status_code == 200, resp.text

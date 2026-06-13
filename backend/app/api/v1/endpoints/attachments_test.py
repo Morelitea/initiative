@@ -25,7 +25,7 @@ async def test_upload_image_too_large(client: AsyncClient, session: AsyncSession
 
     oversized = b"\x89PNG\r\n\x1a\n" + b"X" * (11 * 1024 * 1024)
     response = await client.post(
-        "/api/v1/attachments/",
+        f"/api/v1/g/{guild.id}/attachments/",
         headers=headers,
         files={"file": ("big.png", io.BytesIO(oversized), "image/png")},
     )
@@ -50,7 +50,7 @@ async def test_upload_image_within_limit(client: AsyncClient, session: AsyncSess
         b"\x00\x00\x00IEND\xaeB`\x82"
     )
     response = await client.post(
-        "/api/v1/attachments/",
+        f"/api/v1/g/{guild.id}/attachments/",
         headers=headers,
         files={"file": ("pixel.png", io.BytesIO(tiny_png), "image/png")},
     )

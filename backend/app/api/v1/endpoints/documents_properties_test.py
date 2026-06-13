@@ -111,7 +111,9 @@ async def test_put_sets_multiple_property_values(
         ]
     }
     response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -140,14 +142,14 @@ async def test_put_empty_values_clears_existing_values(
     headers = await get_guild_headers(session, guild, user)
     # Populate first
     await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "to be cleared"}]},
     )
 
     # Now clear
     response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=headers,
         json={"values": []},
     )
@@ -184,7 +186,7 @@ async def test_put_cross_initiative_definition_rejected(
     defn_b = await create_property_definition(session, init_b, name="Foreign")
 
     response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn_b.id, "value": "x"}]},
     )
@@ -211,7 +213,7 @@ async def test_put_properties_on_foreign_guild_document_returns_404(
     doc_b = await _create_document(session, initiative=initiative_b, owner=user)
 
     response = await client.put(
-        f"/api/v1/documents/{doc_b.id}/properties",
+        f"/api/v1/g/{guild_a.id}/documents/{doc_b.id}/properties",
         headers=await get_guild_headers(session, guild_a, user),
         json={"values": []},
     )
@@ -240,7 +242,7 @@ async def test_put_text_value_against_number_type_rejected(
     )
 
     response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": "not a number"}]},
     )
@@ -267,7 +269,7 @@ async def test_put_select_unknown_option_rejected(
     )
 
     response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": "nope"}]},
     )
@@ -294,7 +296,7 @@ async def test_put_multi_select_unknown_option_rejected(
     )
 
     response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": ["one", "ghost"]}]},
     )
@@ -323,7 +325,7 @@ async def test_put_user_reference_non_initiative_member_rejected(
     )
 
     response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": outsider.id}]},
     )
@@ -348,7 +350,7 @@ async def test_put_url_accepts_valid_url_and_rejects_invalid(
     headers = await get_guild_headers(session, guild, user)
     # Valid URL
     response = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "https://example.com"}]},
     )
@@ -358,7 +360,7 @@ async def test_put_url_accepts_valid_url_and_rejects_invalid(
 
     # Invalid URL string
     bad = await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "not a url"}]},
     )
@@ -393,19 +395,19 @@ async def test_list_documents_property_filter_text_eq(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/documents/{doc_match.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc_match.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "findme"}]},
     )
     await client.put(
-        f"/api/v1/documents/{doc_other.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc_other.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "skip"}]},
     )
 
     filt = json.dumps([{"property_id": defn.id, "op": "eq", "value": "findme"}])
     response = await client.get(
-        f"/api/v1/documents/?initiative_id={initiative.id}&property_filters={filt}",
+        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters={filt}",
         headers=headers,
     )
     assert response.status_code == 200
@@ -436,14 +438,14 @@ async def test_list_documents_property_filter_number_eq(
     headers = await get_guild_headers(session, guild, user)
     for doc, score in zip(docs, [10, 20, 30]):
         await client.put(
-            f"/api/v1/documents/{doc.id}/properties",
+            f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
             headers=headers,
             json={"values": [{"property_id": defn.id, "value": score}]},
         )
 
     filt = json.dumps([{"property_id": defn.id, "op": "eq", "value": 20}])
     response = await client.get(
-        f"/api/v1/documents/?initiative_id={initiative.id}&property_filters={filt}",
+        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters={filt}",
         headers=headers,
     )
     assert response.status_code == 200
@@ -484,19 +486,19 @@ async def test_list_documents_property_filter_multi_select_contains(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/documents/{doc_with_alpha.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc_with_alpha.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": ["alpha", "beta"]}]},
     )
     await client.put(
-        f"/api/v1/documents/{doc_no_alpha.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc_no_alpha.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": ["gamma"]}]},
     )
 
     filt = json.dumps([{"property_id": defn.id, "op": "eq", "value": ["alpha"]}])
     response = await client.get(
-        f"/api/v1/documents/?initiative_id={initiative.id}&property_filters={filt}",
+        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters={filt}",
         headers=headers,
     )
     assert response.status_code == 200
@@ -515,7 +517,7 @@ async def test_list_documents_invalid_property_filters_json_returns_400(
     initiative = await create_initiative(session, guild, user, name="Init")
 
     response = await client.get(
-        f"/api/v1/documents/?initiative_id={initiative.id}&property_filters=not-json",
+        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters=not-json",
         headers=await get_guild_headers(session, guild, user),
     )
     assert response.status_code == 400
@@ -536,7 +538,7 @@ async def test_list_documents_too_many_property_filters_returns_400(
         [{"property_id": i, "op": "eq", "value": "x"} for i in range(1, 7)]
     )
     response = await client.get(
-        f"/api/v1/documents/?initiative_id={initiative.id}&property_filters={filt}",
+        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters={filt}",
         headers=await get_guild_headers(session, guild, user),
     )
     assert response.status_code == 400
@@ -567,13 +569,13 @@ async def test_duplicate_document_same_initiative_carries_property_values(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "carryover"}]},
     )
 
     response = await client.post(
-        f"/api/v1/documents/{doc.id}/duplicate",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/duplicate",
         headers=headers,
         json={"title": "Dup"},
     )
@@ -611,13 +613,13 @@ async def test_copy_document_cross_initiative_drops_property_values(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/documents/{doc.id}/properties",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "onlyA"}]},
     )
 
     response = await client.post(
-        f"/api/v1/documents/{doc.id}/copy",
+        f"/api/v1/g/{guild.id}/documents/{doc.id}/copy",
         headers=headers,
         json={"title": "Copied", "target_initiative_id": init_b.id},
     )

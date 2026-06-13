@@ -6,8 +6,10 @@ import type {
   TrashListResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListTrashApiV1GGuildIdTrashGetQueryKey,
-  listTrashApiV1GGuildIdTrashGet,
+  getListGuildTrashApiV1GGuildIdTrashGetQueryKey,
+  getListMyTrashApiV1MeTrashGetQueryKey,
+  listGuildTrashApiV1GGuildIdTrashGet,
+  listMyTrashApiV1MeTrashGet,
   purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete,
   restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost,
 } from "@/api/generated/trash/trash";
@@ -17,17 +19,29 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export type TrashScope = "mine" | "guild";
+/**
+ * The current user's own trashed items across every guild they belong to.
+ * Powers the personal trash view on the user settings page — user-scoped, no
+ * guild context. Restore/purge are addressed per item via its `guild_id`.
+ */
+export const useMyTrashList = (options?: QueryOpts<TrashListResponse>) =>
+  useQuery<TrashListResponse>({
+    queryKey: getListMyTrashApiV1MeTrashGetQueryKey(),
+    queryFn: () => listMyTrashApiV1MeTrashGet() as unknown as Promise<TrashListResponse>,
+    ...options,
+  });
 
-export const useTrashList = (
-  scope: TrashScope = "mine",
-  options?: QueryOpts<TrashListResponse>
-) => {
+/**
+ * Everything in the active guild's trash — the guild-admin settings view.
+ * Regular members never call this (the backend 403s); they use
+ * {@link useMyTrashList} instead.
+ */
+export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
   const guildId = useActiveGuildId();
   return useQuery<TrashListResponse>({
-    queryKey: getListTrashApiV1GGuildIdTrashGetQueryKey(guildId, { scope }),
+    queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(guildId),
     queryFn: () =>
-      listTrashApiV1GGuildIdTrashGet(guildId, { scope }) as unknown as Promise<TrashListResponse>,
+      listGuildTrashApiV1GGuildIdTrashGet(guildId) as unknown as Promise<TrashListResponse>,
     ...options,
   });
 };
@@ -52,6 +66,9 @@ const ENTITY_INVALIDATION_PREFIXES: Record<TrashItemEntityType, string[]> = {
 };
 
 export type RestoreTrashVars = {
+  // The item's guild — restore is guild-scoped, and the cross-guild /me view
+  // surfaces items from several guilds, so it travels with each row.
+  guildId: number;
   entityType: TrashItemEntityType;
   entityId: number;
   body?: RestoreRequest;
@@ -68,11 +85,10 @@ export const useRestoreTrashEntity = (
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
-  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
-    mutationFn: async ({ entityType, entityId, body }: RestoreTrashVars) => {
+    mutationFn: async ({ guildId, entityType, entityId, body }: RestoreTrashVars) => {
       try {
         return (await restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost(
           guildId,
@@ -101,14 +117,12 @@ export const useRestoreTrashEntity = (
     },
     onSuccess: (...args) => {
       const [data, variables] = args;
-      // Always invalidate the trash list so the row disappears (or stays
-      // when the response was needs_reassignment).
-      void queryClient.invalidateQueries({ queryKey: ["api", "v1", "trash"] });
+      // Always invalidate both trash views (personal /me and the item's guild)
+      // so the row disappears — or stays, when the response was
+      // needs_reassignment.
+      void queryClient.invalidateQueries({ queryKey: getListMyTrashApiV1MeTrashGetQueryKey() });
       void queryClient.invalidateQueries({
-        queryKey: getListTrashApiV1GGuildIdTrashGetQueryKey(guildId, { scope: "mine" }),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: getListTrashApiV1GGuildIdTrashGetQueryKey(guildId, { scope: "guild" }),
+        queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(variables.guildId),
       });
       if ("restored" in data) {
         for (const prefix of ENTITY_INVALIDATION_PREFIXES[variables.entityType] ?? []) {
@@ -125,6 +139,9 @@ export const useRestoreTrashEntity = (
 };
 
 export type PurgeTrashVars = {
+  // Purge is guild-scoped + admin-only; only reachable from the guild view,
+  // but it still travels with the row for consistency with restore.
+  guildId: number;
   entityType: TrashItemEntityType;
   entityId: number;
 };
@@ -132,11 +149,10 @@ export type PurgeTrashVars = {
 export const usePurgeTrashEntity = (options?: MutationOpts<void, PurgeTrashVars>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   const queryClient = useQueryClient();
-  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
-    mutationFn: async ({ entityType, entityId }: PurgeTrashVars) => {
+    mutationFn: async ({ guildId, entityType, entityId }: PurgeTrashVars) => {
       return purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete(
         guildId,
         entityType,
@@ -144,11 +160,10 @@ export const usePurgeTrashEntity = (options?: MutationOpts<void, PurgeTrashVars>
       ) as unknown as Promise<void>;
     },
     onSuccess: (...args) => {
+      const [, variables] = args;
+      void queryClient.invalidateQueries({ queryKey: getListMyTrashApiV1MeTrashGetQueryKey() });
       void queryClient.invalidateQueries({
-        queryKey: getListTrashApiV1GGuildIdTrashGetQueryKey(guildId, { scope: "mine" }),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: getListTrashApiV1GGuildIdTrashGetQueryKey(guildId, { scope: "guild" }),
+        queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(variables.guildId),
       });
       onSuccess?.(...args);
     },

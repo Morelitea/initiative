@@ -26,7 +26,9 @@ async def _create_document(client, session, guild, user, initiative, title="Test
         "title": title,
         "initiative_id": initiative.id,
     }
-    response = await client.post("/api/v1/documents/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/documents/", headers=headers, json=payload
+    )
     assert response.status_code == 201
     return response.json()
 

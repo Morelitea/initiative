@@ -119,28 +119,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(SecurityHeadersMiddleware)
 
-
-class ResolvedGuildHeaderMiddleware(BaseHTTPMiddleware):
-    """Echo the guild a request actually resolved to.
-
-    Guild context is server-held (``users.active_guild_id``); the resolver
-    stamps ``request.state.resolved_guild_id`` whenever a request bound to a
-    guild. Echoing it as ``X-Resolved-Guild`` lets the client discard any
-    in-flight response that resolved under a context it has since switched
-    away from — the race becomes a dropped-and-refetched response instead of
-    stale-guild data painting into the new context.
-    """
-
-    async def dispatch(self, request: Request, call_next: Any) -> Response:
-        response = await call_next(request)
-        resolved = getattr(request.state, "resolved_guild_id", None)
-        if resolved is not None:
-            response.headers["X-Resolved-Guild"] = str(resolved)
-        return response
-
-
-app.add_middleware(ResolvedGuildHeaderMiddleware)
-
 app.add_middleware(
     CORSMiddleware,
     # Explicit allowlist (never "*"): wildcard + allow_credentials reflects any
@@ -149,8 +127,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    # Cross-origin (native) clients need to read the context echo.
-    expose_headers=["X-Resolved-Guild"],
 )
 
 

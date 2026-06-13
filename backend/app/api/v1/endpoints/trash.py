@@ -14,7 +14,7 @@ resurfaces the children automatically (see ``soft_delete.py``).
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
@@ -25,8 +25,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
+    UserSessionDep,
     get_current_active_user,
     get_guild_membership,
+    require_guild_roles,
 )
 from app.core.messages import TrashMessages
 from app.db.session import get_admin_session
@@ -50,6 +52,7 @@ from app.schemas.trash import (
     TrashListResponse,
 )
 from app.services import guilds as guilds_service
+from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.services.soft_delete import (
     RestoreResult,
     hard_purge_entity,
@@ -58,6 +61,9 @@ from app.services.soft_delete import (
 
 
 router = APIRouter()
+# Cross-guild "my trash" aggregate — user-scoped, mounted under /me (no guild
+# path segment). The all-guild admin view lives on ``router`` under /g.
+me_router = APIRouter()
 
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -168,34 +174,28 @@ async def _list_trashed_for_model(
     return list(result.all())
 
 
-@router.get("/", response_model=TrashListResponse)
-async def list_trash(
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-    scope: Literal["mine", "guild"] = "mine",
-) -> TrashListResponse:
-    """List trashed entities for the active guild.
+async def _collect_trash_items(
+    session: AsyncSession,
+    guild_id: int,
+    *,
+    only_deleted_by: Optional[int],
+    name_cache: Optional[dict[Optional[int], str]] = None,
+) -> list[TrashItem]:
+    """Gather one guild's trashed entities as TrashItems.
 
-    ``scope=mine`` returns only items deleted by the current user (the only
-    scope a non-admin can request). ``scope=guild`` returns everything in
-    the guild's trash and is admin-only.
+    ``only_deleted_by`` filters to a single user's deletions (the personal
+    view); ``None`` returns everything in the guild (the admin view). The
+    ``name_cache`` is shared by the cross-guild aggregate so a user who appears
+    in several guilds is only resolved once.
     """
-    if scope == "guild" and guild_context.role != GuildRole.admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=TrashMessages.PURGE_REQUIRES_ADMIN,
-        )
-
-    only_deleted_by = current_user.id if scope == "mine" else None
-    name_cache: dict[Optional[int], str] = {}
-
+    if name_cache is None:
+        name_cache = {}
     items: list[TrashItem] = []
     for entity_type, (model, name_field) in ENTITY_REGISTRY.items():
         rows = await _list_trashed_for_model(
             session,
             model,
-            guild_id=guild_context.guild_id,
+            guild_id=guild_id,
             only_deleted_by=only_deleted_by,
         )
         for row in rows:
@@ -206,6 +206,7 @@ async def list_trash(
                 TrashItem(
                     entity_type=entity_type,
                     entity_id=row.id,
+                    guild_id=guild_id,
                     name=name,
                     deleted_at=row.deleted_at,
                     deleted_by_id=row.deleted_by,
@@ -213,7 +214,53 @@ async def list_trash(
                     purge_at=row.purge_at,
                 )
             )
+    return items
 
+
+@me_router.get("/trash", response_model=TrashListResponse)
+async def list_my_trash(
+    session: UserSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> TrashListResponse:
+    """The current user's trashed entities across every guild they belong to.
+
+    User-scoped: shows what *you* deleted, in any guild — this is the personal
+    trash on the user settings page. The all-guild view (everything in one
+    guild's trash) is the separate admin-only ``GET /g/{guild_id}/trash/``.
+    Restore/purge stay guild-scoped; the client addresses them with each item's
+    ``guild_id``. ``retention_days`` is per-guild, so it is omitted here.
+    """
+    target_guilds = await member_guild_ids(session, current_user.id)
+    name_cache: dict[Optional[int], str] = {}
+
+    async def _fetch(guild_session: AsyncSession, guild_id: int) -> list[TrashItem]:
+        return await _collect_trash_items(
+            guild_session,
+            guild_id,
+            only_deleted_by=current_user.id,
+            name_cache=name_cache,
+        )
+
+    items = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
+    items.sort(key=lambda i: i.deleted_at, reverse=True)
+    return TrashListResponse(items=items, total=len(items), retention_days=None)
+
+
+@router.get("/", response_model=TrashListResponse)
+async def list_guild_trash(
+    session: RLSSessionDep,
+    guild_context: Annotated[
+        GuildContext, Depends(require_guild_roles(GuildRole.admin))
+    ],
+) -> TrashListResponse:
+    """Everything in the active guild's trash (guild-admin only).
+
+    This is the guild settings trash view. Members use the user-scoped
+    ``GET /me/trash`` for their own deletions; they never reach this endpoint.
+    """
+    items = await _collect_trash_items(
+        session, guild_context.guild_id, only_deleted_by=None
+    )
     items.sort(key=lambda i: i.deleted_at, reverse=True)
     retention_days = await guilds_service.get_guild_retention_days(
         session, guild_context.guild_id

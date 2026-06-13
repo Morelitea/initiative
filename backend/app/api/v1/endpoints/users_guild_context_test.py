@@ -1,19 +1,21 @@
-"""Integration tests for the server-held guild context.
+"""Integration tests for guild context resolution.
 
-The guild context is one nullable flag (``users.active_guild_id``, NULL =
-personal mode) set by ``PUT /users/me/guild-context`` and resolved by the
-request dependencies on every call — requests carry no guild context of their
-own. These tests cover the endpoint's fail-closed validation, the 409 that
-single-guild endpoints return in personal mode, the per-request defense in
-depth against a stale/forged flag, and the ``X-Resolved-Guild`` echo header
-the client's context guard relies on.
+Guild-scoped requests address their guild through the ``/g/{guild_id}`` path
+segment. The guild is only a selector, never a trust boundary: membership (or a
+live PAM grant) is validated fresh on every request, so a forged or stale path
+can never read another guild's data.
+
+``users.active_guild_id`` survives as the user's last-viewed-guild hint, set by
+``PUT /users/me/guild-context`` and validated fail-closed there. It no longer
+resolves guild-scoped HTTP requests (the path does), so these tests cover the
+context endpoint's own validation and the per-request fail-closed check on the
+path-addressed guild.
 """
 
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import GuildRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -82,98 +84,44 @@ async def test_set_guild_context_rejects_non_member_without_confirming_existence
 
 
 @pytest.mark.integration
-async def test_personal_mode_409s_on_single_guild_endpoints(
+async def test_non_member_gets_403_on_guild_path(
     client: AsyncClient, session: AsyncSession
 ):
-    """With no guild context, guild-scoped endpoints return a clean 409."""
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild)
-    assert user.active_guild_id is None  # personal mode by default
-
-    response = await client.get("/api/v1/initiatives/", headers=get_auth_headers(user))
-    assert response.status_code == 409
-    assert response.json()["detail"] == "NO_GUILD_MEMBERSHIP"
-
-
-@pytest.mark.integration
-async def test_stale_flag_fails_closed_per_request(
-    client: AsyncClient, session: AsyncSession
-):
-    """Defense in depth: a flag pointing at a guild the user can't access
-    (written directly, bypassing the endpoint's validation) yields 403 on
-    every guild-scoped request — never another guild's data."""
+    """Defense in depth: a non-member addressing a guild's path is rejected on
+    every guild-scoped request — never another guild's data. The auth token
+    carries no guild context; the path is the only selector and it is validated
+    against real membership."""
     owner = await create_user(session)
     guild = await create_guild(session, creator=owner)
     await create_guild_membership(session, user=owner, guild=guild)
 
     outsider = await create_user(session)
-    headers = await get_guild_headers(session, guild, outsider)  # unvalidated write
 
-    response = await client.get("/api/v1/initiatives/", headers=headers)
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=get_auth_headers(outsider)
+    )
     assert response.status_code == 403
     assert response.json()["detail"] == "GUILD_ACCESS_DENIED"
 
 
 @pytest.mark.integration
-async def test_resolved_guild_echo_header(client: AsyncClient, session: AsyncSession):
-    """Guild-scoped responses echo the resolved guild; user-scoped ones don't."""
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    headers = await get_guild_headers(session, guild, user)
-
-    scoped = await client.get("/api/v1/initiatives/", headers=headers)
-    assert scoped.status_code == 200
-    assert scoped.headers.get("X-Resolved-Guild") == str(guild.id)
-
-    unscoped = await client.get("/api/v1/users/me", headers=headers)
-    assert unscoped.status_code == 200
-    assert "X-Resolved-Guild" not in unscoped.headers
-
-
-@pytest.mark.integration
-async def test_addressed_request_is_not_echo_stamped(
+async def test_member_of_one_guild_cannot_address_another(
     client: AsyncClient, session: AsyncSession
 ):
-    """Explicit ?guild_id= addressing is intentional cross-guild work — the
-    response must not carry the ambient echo (the client guard would discard
-    it)."""
-    user = await create_user(session)
-    guild_a = await create_guild(session, creator=user)
-    await create_guild_membership(
-        session, user=user, guild=guild_a, role=GuildRole.admin
-    )
-    guild_b = await create_guild(session, creator=user)
-    await create_guild_membership(
-        session, user=user, guild=guild_b, role=GuildRole.admin
-    )
-    headers = await get_guild_headers(session, guild_a, user)
-
-    response = await client.get(
-        f"/api/v1/initiatives/?guild_id={guild_b.id}", headers=headers
-    )
-    assert response.status_code == 200
-    assert "X-Resolved-Guild" not in response.headers
-
-
-@pytest.mark.integration
-async def test_addressed_request_validates_access(
-    client: AsyncClient, session: AsyncSession
-):
-    """?guild_id= addressing goes through the same fail-closed validation as
-    the context PUT."""
+    """Membership in guild A grants no access to guild B's path — the guild is
+    resolved from the path and validated per request, so addressing a guild the
+    caller can't access fails closed regardless of any held context."""
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
+    # The user is "in" their own guild (active_guild_id set), yet still cannot
+    # reach a foreign guild's path.
+    headers = await get_guild_headers(session, guild, user)
 
     other = await create_user(session)
     foreign = await create_guild(session, creator=other)
     await create_guild_membership(session, user=other, guild=foreign)
-    headers = await get_guild_headers(session, guild, user)
 
-    response = await client.get(
-        f"/api/v1/initiatives/?guild_id={foreign.id}", headers=headers
-    )
+    response = await client.get(f"/api/v1/g/{foreign.id}/initiatives/", headers=headers)
     assert response.status_code == 403
     assert response.json()["detail"] == "GUILD_ACCESS_DENIED"

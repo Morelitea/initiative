@@ -22,7 +22,6 @@ import type {
 
 import type {
   HTTPValidationError,
-  ListTrashApiV1GGuildIdTrashGetParams,
   RestoreNeedsReassignmentResponse,
   RestoreRequest,
   TrashListResponse,
@@ -34,41 +33,39 @@ import type { ErrorType, BodyType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * List trashed entities for the active guild.
+ * Everything in the active guild's trash (guild-admin only).
  *
- * ``scope=mine`` returns only items deleted by the current user (the only
- * scope a non-admin can request). ``scope=guild`` returns everything in
- * the guild's trash and is admin-only.
- * @summary List Trash
+ * This is the guild settings trash view. Members use the user-scoped
+ * ``GET /me/trash`` for their own deletions; they never reach this endpoint.
+ * @summary List Guild Trash
  */
-export const listTrashApiV1GGuildIdTrashGet = (
+export const listGuildTrashApiV1GGuildIdTrashGet = (
   guildId: number,
-  params?: ListTrashApiV1GGuildIdTrashGetParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<TrashListResponse>(
-    { url: `/api/v1/g/${guildId}/trash/`, method: "GET", params, signal },
+    { url: `/api/v1/g/${guildId}/trash/`, method: "GET", signal },
     options
   );
 };
 
-export const getListTrashApiV1GGuildIdTrashGetQueryKey = (
-  guildId: number,
-  params?: ListTrashApiV1GGuildIdTrashGetParams
-) => {
-  return [`/api/v1/g/${guildId}/trash/`, ...(params ? [params] : [])] as const;
+export const getListGuildTrashApiV1GGuildIdTrashGetQueryKey = (guildId: number) => {
+  return [`/api/v1/g/${guildId}/trash/`] as const;
 };
 
-export const getListTrashApiV1GGuildIdTrashGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>,
+export const getListGuildTrashApiV1GGuildIdTrashGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListTrashApiV1GGuildIdTrashGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   }
@@ -76,11 +73,11 @@ export const getListTrashApiV1GGuildIdTrashGetQueryOptions = <
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
   const queryKey =
-    queryOptions?.queryKey ?? getListTrashApiV1GGuildIdTrashGetQueryKey(guildId, params);
+    queryOptions?.queryKey ?? getListGuildTrashApiV1GGuildIdTrashGetQueryKey(guildId);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>> = ({
     signal,
-  }) => listTrashApiV1GGuildIdTrashGet(guildId, params, requestOptions, signal);
+  }) => listGuildTrashApiV1GGuildIdTrashGet(guildId, requestOptions, signal);
 
   return {
     queryKey,
@@ -88,32 +85,35 @@ export const getListTrashApiV1GGuildIdTrashGetQueryOptions = <
     enabled: guildId !== null && guildId !== undefined,
     ...queryOptions,
   } as UseQueryOptions<
-    Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>,
+    Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
     TError,
     TData
   > & { queryKey: DataTag<QueryKey, TData, TError> };
 };
 
-export type ListTrashApiV1GGuildIdTrashGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>
+export type ListGuildTrashApiV1GGuildIdTrashGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>
 >;
-export type ListTrashApiV1GGuildIdTrashGetQueryError = ErrorType<HTTPValidationError>;
+export type ListGuildTrashApiV1GGuildIdTrashGetQueryError = ErrorType<HTTPValidationError>;
 
-export function useListTrashApiV1GGuildIdTrashGet<
-  TData = Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>,
+export function useListGuildTrashApiV1GGuildIdTrashGet<
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params: undefined | ListTrashApiV1GGuildIdTrashGetParams,
   options: {
     query: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>,
+          Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
           TError,
-          Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>
+          Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>
         >,
         "initialData"
       >;
@@ -121,21 +121,24 @@ export function useListTrashApiV1GGuildIdTrashGet<
   },
   queryClient?: QueryClient
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListTrashApiV1GGuildIdTrashGet<
-  TData = Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>,
+export function useListGuildTrashApiV1GGuildIdTrashGet<
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListTrashApiV1GGuildIdTrashGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        TError,
+        TData
+      >
     > &
       Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>,
+          Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
           TError,
-          Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>
+          Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>
         >,
         "initialData"
       >;
@@ -143,39 +146,45 @@ export function useListTrashApiV1GGuildIdTrashGet<
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListTrashApiV1GGuildIdTrashGet<
-  TData = Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>,
+export function useListGuildTrashApiV1GGuildIdTrashGet<
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListTrashApiV1GGuildIdTrashGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary List Trash
+ * @summary List Guild Trash
  */
 
-export function useListTrashApiV1GGuildIdTrashGet<
-  TData = Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>,
+export function useListGuildTrashApiV1GGuildIdTrashGet<
+  TData = Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
   TError = ErrorType<HTTPValidationError>,
 >(
   guildId: number,
-  params?: ListTrashApiV1GGuildIdTrashGetParams,
   options?: {
     query?: Partial<
-      UseQueryOptions<Awaited<ReturnType<typeof listTrashApiV1GGuildIdTrashGet>>, TError, TData>
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listGuildTrashApiV1GGuildIdTrashGet>>,
+        TError,
+        TData
+      >
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListTrashApiV1GGuildIdTrashGetQueryOptions(guildId, params, options);
+  const queryOptions = getListGuildTrashApiV1GGuildIdTrashGetQueryOptions(guildId, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -562,3 +571,129 @@ export const usePurgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete 
     queryClient
   );
 };
+/**
+ * The current user's trashed entities across every guild they belong to.
+ *
+ * User-scoped: shows what *you* deleted, in any guild — this is the personal
+ * trash on the user settings page. The all-guild view (everything in one
+ * guild's trash) is the separate admin-only ``GET /g/{guild_id}/trash/``.
+ * Restore/purge stay guild-scoped; the client addresses them with each item's
+ * ``guild_id``. ``retention_days`` is per-guild, so it is omitted here.
+ * @summary List My Trash
+ */
+export const listMyTrashApiV1MeTrashGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<TrashListResponse>({ url: `/api/v1/me/trash`, method: "GET", signal }, options);
+};
+
+export const getListMyTrashApiV1MeTrashGetQueryKey = () => {
+  return [`/api/v1/me/trash`] as const;
+};
+
+export const getListMyTrashApiV1MeTrashGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListMyTrashApiV1MeTrashGetQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>> = ({
+    signal,
+  }) => listMyTrashApiV1MeTrashGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListMyTrashApiV1MeTrashGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>
+>;
+export type ListMyTrashApiV1MeTrashGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useListMyTrashApiV1MeTrashGet<
+  TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyTrashApiV1MeTrashGet<
+  TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
+          TError,
+          Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListMyTrashApiV1MeTrashGet<
+  TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List My Trash
+ */
+
+export function useListMyTrashApiV1MeTrashGet<
+  TData = Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof listMyTrashApiV1MeTrashGet>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListMyTrashApiV1MeTrashGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

@@ -19,24 +19,8 @@ from app.testing.factories import (
     create_guild_membership,
     create_initiative_member,
     create_user,
-    get_auth_headers,
     get_guild_headers,
 )
-
-
-@pytest.mark.integration
-async def test_list_initiatives_requires_guild_context(
-    client: AsyncClient, session: AsyncSession
-):
-    """A user with no guild context (no flag set — e.g. zero memberships)
-    gets a clean 409 when listing initiatives."""
-    user = await create_user(session, email="test@example.com")
-
-    headers = get_auth_headers(user)
-    response = await client.get("/api/v1/initiatives/", headers=headers)
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "NO_GUILD_MEMBERSHIP"
 
 
 @pytest.mark.integration
@@ -57,7 +41,7 @@ async def test_list_initiatives_as_admin_shows_all(
     await create_initiative(session, guild, admin, name="Initiative 2")
 
     headers = await get_guild_headers(session, guild, admin)
-    response = await client.get("/api/v1/initiatives/", headers=headers)
+    response = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -94,7 +78,7 @@ async def test_list_initiatives_as_member_shows_only_membership(
     await create_initiative_member(session, initiative1, member, role_name="member")
 
     headers = await get_guild_headers(session, guild, member)
-    response = await client.get("/api/v1/initiatives/", headers=headers)
+    response = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -119,7 +103,9 @@ async def test_create_initiative_as_admin(client: AsyncClient, session: AsyncSes
         "color": "#FF0000",
     }
 
-    response = await client.post("/api/v1/initiatives/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -142,7 +128,9 @@ async def test_create_initiative_as_member_forbidden(
     headers = await get_guild_headers(session, guild, member)
     payload = {"name": "New Initiative"}
 
-    response = await client.post("/api/v1/initiatives/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=headers, json=payload
+    )
 
     assert response.status_code == 403
 
@@ -166,7 +154,9 @@ async def test_create_initiative_duplicate_name_fails(
     headers = await get_guild_headers(session, guild, admin)
     payload = {"name": "Existing Initiative"}
 
-    response = await client.post("/api/v1/initiatives/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=headers, json=payload
+    )
 
     assert response.status_code == 409
     assert response.json()["detail"] == "INITIATIVE_NAME_EXISTS"
@@ -186,7 +176,9 @@ async def test_create_initiative_makes_creator_manager(
     headers = await get_guild_headers(session, guild, admin)
     payload = {"name": "New Initiative"}
 
-    response = await client.post("/api/v1/initiatives/", headers=headers, json=payload)
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/initiatives/", headers=headers, json=payload
+    )
 
     assert response.status_code == 201
     data = response.json()
@@ -214,7 +206,9 @@ async def test_update_initiative_as_manager(client: AsyncClient, session: AsyncS
     payload = {"name": "Updated Initiative", "description": "Updated description"}
 
     response = await client.patch(
-        f"/api/v1/initiatives/{initiative.id}", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -246,7 +240,9 @@ async def test_update_initiative_as_admin(client: AsyncClient, session: AsyncSes
     payload = {"name": "Admin Updated"}
 
     response = await client.patch(
-        f"/api/v1/initiatives/{initiative.id}", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -278,7 +274,9 @@ async def test_update_initiative_as_regular_member_forbidden(
     payload = {"name": "Hacked Name"}
 
     response = await client.patch(
-        f"/api/v1/initiatives/{initiative.id}", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 403
@@ -304,7 +302,9 @@ async def test_update_initiative_duplicate_name_fails(
     payload = {"name": "Initiative 2"}
 
     response = await client.patch(
-        f"/api/v1/initiatives/{initiative1.id}", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/initiatives/{initiative1.id}",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 409
@@ -325,7 +325,7 @@ async def test_delete_initiative_as_admin(client: AsyncClient, session: AsyncSes
 
     headers = await get_guild_headers(session, guild, admin)
     response = await client.delete(
-        f"/api/v1/initiatives/{initiative.id}", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
     )
 
     assert response.status_code == 204
@@ -350,7 +350,7 @@ async def test_delete_initiative_as_manager_forbidden(
 
     headers = await get_guild_headers(session, guild, manager)
     response = await client.delete(
-        f"/api/v1/initiatives/{initiative.id}", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
     )
 
     assert response.status_code == 403
@@ -376,7 +376,7 @@ async def test_delete_default_initiative_forbidden(
 
     headers = await get_guild_headers(session, guild, admin)
     response = await client.delete(
-        f"/api/v1/initiatives/{initiative.id}", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
     )
 
     assert response.status_code == 400
@@ -408,7 +408,7 @@ async def test_get_initiative_members(client: AsyncClient, session: AsyncSession
 
     headers = await get_guild_headers(session, guild, admin)
     response = await client.get(
-        f"/api/v1/initiatives/{initiative.id}/members", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members", headers=headers
     )
 
     assert response.status_code == 200
@@ -443,7 +443,9 @@ async def test_add_initiative_member_as_manager(
     payload = {"user_id": new_member.id, "role": "member"}
 
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/members", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 200
@@ -476,7 +478,9 @@ async def test_add_initiative_member_as_regular_member_forbidden(
     payload = {"user_id": new_member.id, "role": "member"}
 
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/members", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 403
@@ -500,7 +504,9 @@ async def test_add_user_not_in_guild_fails(client: AsyncClient, session: AsyncSe
     payload = {"user_id": outsider.id, "role": "member"}
 
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/members", headers=headers, json=payload
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
+        headers=headers,
+        json=payload,
     )
 
     assert response.status_code == 400
@@ -539,7 +545,7 @@ async def test_update_initiative_member_role(
     payload = {"role_id": pm_role.id}
 
     response = await client.patch(
-        f"/api/v1/initiatives/{initiative.id}/members/{member.id}",
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{member.id}",
         headers=headers,
         json=payload,
     )
@@ -568,7 +574,8 @@ async def test_remove_initiative_member(client: AsyncClient, session: AsyncSessi
 
     headers = await get_guild_headers(session, guild, admin)
     response = await client.delete(
-        f"/api/v1/initiatives/{initiative.id}/members/{member.id}", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{member.id}",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -594,7 +601,8 @@ async def test_cannot_remove_last_manager(client: AsyncClient, session: AsyncSes
 
     headers = await get_guild_headers(session, guild, manager)
     response = await client.delete(
-        f"/api/v1/initiatives/{initiative.id}/members/{manager.id}", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{manager.id}",
+        headers=headers,
     )
 
     assert response.status_code == 400
@@ -630,7 +638,7 @@ async def test_cannot_demote_last_manager(client: AsyncClient, session: AsyncSes
     payload = {"role_id": member_role.id}
 
     response = await client.patch(
-        f"/api/v1/initiatives/{initiative.id}/members/{manager.id}",
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{manager.id}",
         headers=headers,
         json=payload,
     )
@@ -661,7 +669,9 @@ async def test_initiative_guild_isolation(client: AsyncClient, session: AsyncSes
 
     # Request with guild1 context
     headers1 = await get_guild_headers(session, guild1, user)
-    response1 = await client.get("/api/v1/initiatives/", headers=headers1)
+    response1 = await client.get(
+        f"/api/v1/g/{guild1.id}/initiatives/", headers=headers1
+    )
 
     assert response1.status_code == 200
     data1 = response1.json()
@@ -674,7 +684,7 @@ async def test_initiative_guild_isolation(client: AsyncClient, session: AsyncSes
     # a guild2 initiative — but it must never resolve to guild1's initiative.
     headers2 = await get_guild_headers(session, guild2, user)
     response2 = await client.get(
-        f"/api/v1/initiatives/{initiative1.id}", headers=headers2
+        f"/api/v1/g/{guild2.id}/initiatives/{initiative1.id}", headers=headers2
     )
 
     if response2.status_code == 200:
@@ -718,7 +728,8 @@ async def test_advanced_tool_handoff_returns_404_when_url_unset(
 
     headers = await get_guild_headers(session, guild, admin)
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/advanced-tool/handoff", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
+        headers=headers,
     )
 
     assert response.status_code == 404
@@ -748,7 +759,8 @@ async def test_advanced_tool_handoff_returns_403_when_master_switch_off(
 
     headers = await get_guild_headers(session, guild, admin)
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/advanced-tool/handoff", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
+        headers=headers,
     )
 
     assert response.status_code == 403
@@ -782,7 +794,8 @@ async def test_advanced_tool_handoff_returns_403_for_non_member(
 
     headers = await get_guild_headers(session, guild, outsider)
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/advanced-tool/handoff", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
+        headers=headers,
     )
 
     assert response.status_code == 403
@@ -818,7 +831,8 @@ async def test_advanced_tool_handoff_returns_403_when_role_lacks_view_permission
 
     headers = await get_guild_headers(session, guild, member)
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/advanced-tool/handoff", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
+        headers=headers,
     )
 
     assert response.status_code == 403
@@ -848,7 +862,8 @@ async def test_advanced_tool_handoff_succeeds_for_initiative_manager(
 
     headers = await get_guild_headers(session, guild, pm)
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/advanced-tool/handoff", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -936,7 +951,8 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
 
     headers = await get_guild_headers(session, guild, viewer)
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/advanced-tool/handoff", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -981,7 +997,8 @@ async def test_advanced_tool_handoff_succeeds_for_guild_admin_non_member(
 
     headers = await get_guild_headers(session, guild, admin)
     response = await client.post(
-        f"/api/v1/initiatives/{initiative.id}/advanced-tool/handoff", headers=headers
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
+        headers=headers,
     )
 
     assert response.status_code == 200
@@ -1000,6 +1017,6 @@ async def test_advanced_tool_handoff_requires_authentication(
 
     monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
 
-    response = await client.post("/api/v1/initiatives/1/advanced-tool/handoff")
+    response = await client.post("/api/v1/g/1/initiatives/1/advanced-tool/handoff")
 
     assert response.status_code in (401, 403)

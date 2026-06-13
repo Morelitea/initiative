@@ -14,15 +14,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { TrashScope } from "@/hooks/useTrash";
-import { usePurgeTrashEntity, useRestoreTrashEntity, useTrashList } from "@/hooks/useTrash";
+import {
+  useGuildTrashList,
+  useMyTrashList,
+  usePurgeTrashEntity,
+  useRestoreTrashEntity,
+} from "@/hooks/useTrash";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 import { ReassignOwnerDialog } from "./ReassignOwnerDialog";
 
+/**
+ * `user` — the viewer's own deletions across every guild (personal settings).
+ * `guild` — everything in the active guild's trash (guild-admin settings).
+ */
+type TrashVariant = "user" | "guild";
+
 interface TrashTableProps {
-  scope: TrashScope;
+  variant: TrashVariant;
   // Whether to show the admin-only "Delete now" column. The backend also
   // gates this; the column is hidden so non-admins don't see a button that
   // would always 403.
@@ -37,18 +47,34 @@ const formatRelative = (iso: string): string => {
   }
 };
 
-export const TrashTable = ({ scope, showPurgeAction }: TrashTableProps) => {
+export const TrashTable = ({ variant, showPurgeAction }: TrashTableProps) => {
   const { t } = useTranslation("trash");
-  const { data, isLoading } = useTrashList(scope);
+  // Hooks must run unconditionally; pick the active query by variant. The
+  // unused one is disabled so it never fires a request.
+  const myTrash = useMyTrashList({ enabled: variant === "user" });
+  const guildTrash = useGuildTrashList({ enabled: variant === "guild" });
+  const { data, isLoading } = variant === "user" ? myTrash : guildTrash;
 
   const [reassignState, setReassignState] = useState<
     | { open: false }
-    | { open: true; entityType: TrashItemEntityType; entityId: number; validOwnerIds: number[] }
+    | {
+        open: true;
+        guildId: number;
+        entityType: TrashItemEntityType;
+        entityId: number;
+        validOwnerIds: number[];
+      }
   >({ open: false });
 
   const [purgeConfirm, setPurgeConfirm] = useState<
     | { open: false }
-    | { open: true; entityType: TrashItemEntityType; entityId: number; name: string }
+    | {
+        open: true;
+        guildId: number;
+        entityType: TrashItemEntityType;
+        entityId: number;
+        name: string;
+      }
   >({ open: false });
 
   const restoreMutation = useRestoreTrashEntity({
@@ -59,6 +85,7 @@ export const TrashTable = ({ scope, showPurgeAction }: TrashTableProps) => {
       } else if ("needs_reassignment" in data) {
         setReassignState({
           open: true,
+          guildId: variables.guildId,
           entityType: variables.entityType,
           entityId: variables.entityId,
           validOwnerIds: data.valid_owner_ids,
@@ -96,6 +123,7 @@ export const TrashTable = ({ scope, showPurgeAction }: TrashTableProps) => {
 
   const handleRestoreClick = (item: TrashItem) => {
     restoreMutation.mutate({
+      guildId: item.guild_id,
       entityType: item.entity_type,
       entityId: item.entity_id,
     });
@@ -104,6 +132,7 @@ export const TrashTable = ({ scope, showPurgeAction }: TrashTableProps) => {
   const handleReassignConfirm = (newOwnerId: number) => {
     if (!reassignState.open) return;
     restoreMutation.mutate({
+      guildId: reassignState.guildId,
       entityType: reassignState.entityType,
       entityId: reassignState.entityId,
       body: { new_owner_id: newOwnerId },
@@ -113,6 +142,7 @@ export const TrashTable = ({ scope, showPurgeAction }: TrashTableProps) => {
   const handlePurgeConfirm = () => {
     if (!purgeConfirm.open) return;
     purgeMutation.mutate({
+      guildId: purgeConfirm.guildId,
       entityType: purgeConfirm.entityType,
       entityId: purgeConfirm.entityId,
     });
@@ -163,6 +193,7 @@ export const TrashTable = ({ scope, showPurgeAction }: TrashTableProps) => {
                         onClick={() =>
                           setPurgeConfirm({
                             open: true,
+                            guildId: item.guild_id,
                             entityType: item.entity_type,
                             entityId: item.entity_id,
                             name: item.name || `#${item.entity_id}`,
@@ -185,6 +216,7 @@ export const TrashTable = ({ scope, showPurgeAction }: TrashTableProps) => {
         <ReassignOwnerDialog
           open={reassignState.open}
           onOpenChange={(open) => !open && setReassignState({ open: false })}
+          guildId={reassignState.guildId}
           entityType={reassignState.entityType}
           validOwnerIds={reassignState.validOwnerIds}
           onConfirm={handleReassignConfirm}

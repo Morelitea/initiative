@@ -77,7 +77,7 @@ async def test_put_task_properties_sets_values(
 
     headers = await get_guild_headers(session, guild, user)
     response = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
         json={
             "values": [
@@ -110,12 +110,12 @@ async def test_put_task_properties_empty_clears_existing(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "seed"}]},
     )
     response = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
         json={"values": []},
     )
@@ -149,7 +149,7 @@ async def test_put_task_text_rejects_non_string(
     )
 
     response = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": 12345}]},
     )
@@ -173,7 +173,7 @@ async def test_put_task_number_accepts_numeric_string(
     )
 
     response = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": "3.14"}]},
     )
@@ -199,14 +199,14 @@ async def test_put_task_date_accepts_iso_and_rejects_garbage(
     headers = await get_guild_headers(session, guild, user)
 
     ok = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "2026-04-22"}]},
     )
     assert ok.status_code == 200
 
     bad = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "not-a-date"}]},
     )
@@ -234,7 +234,7 @@ async def test_put_task_multi_select_unknown_slug_rejected(
     )
 
     response = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": ["a", "ghost"]}]},
     )
@@ -264,7 +264,7 @@ async def test_put_task_user_reference_non_initiative_member_rejected(
     )
 
     response = await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn.id, "value": outsider.id}]},
     )
@@ -297,7 +297,7 @@ async def test_put_task_properties_cross_guild_task_returns_404(
 
     # Send with guild A header — task belongs to guild B.
     response = await client.put(
-        f"/api/v1/tasks/{task_b.id}/properties",
+        f"/api/v1/g/{guild_a.id}/tasks/{task_b.id}/properties",
         headers=await get_guild_headers(session, guild_a, user),
         json={"values": []},
     )
@@ -322,7 +322,7 @@ async def test_put_task_cross_initiative_definition_rejected(
     defn_b = await create_property_definition(session, init_b, name="Foreign")
 
     response = await client.put(
-        f"/api/v1/tasks/{task_a.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task_a.id}/properties",
         headers=await get_guild_headers(session, guild, user),
         json={"values": [{"property_id": defn_b.id, "value": "x"}]},
     )
@@ -356,13 +356,13 @@ async def test_move_task_across_initiatives_drops_property_values(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "beforeMove"}]},
     )
 
     move_resp = await client.post(
-        f"/api/v1/tasks/{task.id}/move",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/move",
         headers=headers,
         json={"target_project_id": project_b.id},
     )
@@ -393,12 +393,14 @@ async def test_duplicate_task_same_project_carries_property_values(
 
     headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/tasks/{task.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "carry"}]},
     )
 
-    dup_resp = await client.post(f"/api/v1/tasks/{task.id}/duplicate", headers=headers)
+    dup_resp = await client.post(
+        f"/api/v1/g/{guild.id}/tasks/{task.id}/duplicate", headers=headers
+    )
     assert dup_resp.status_code == 201
     dup = dup_resp.json()
     props = {p["property_id"]: p["value"] for p in dup["properties"]}
@@ -434,12 +436,12 @@ async def test_list_tasks_filter_by_property_text_eq(
     headers = await get_guild_headers(session, guild, user)
 
     await client.put(
-        f"/api/v1/tasks/{task_match.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task_match.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "findme"}]},
     )
     await client.put(
-        f"/api/v1/tasks/{task_other.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task_other.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": "skip"}]},
     )
@@ -455,7 +457,7 @@ async def test_list_tasks_filter_by_property_text_eq(
         ]
     )
     response = await client.get(
-        f"/api/v1/tasks/?conditions={conditions}", headers=headers
+        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
     )
     assert response.status_code == 200
     ids = {item["id"] for item in response.json()["items"]}
@@ -488,12 +490,12 @@ async def test_list_tasks_filter_by_property_multi_select(
     headers = await get_guild_headers(session, guild, user)
 
     await client.put(
-        f"/api/v1/tasks/{task_a.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task_a.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": ["alpha"]}]},
     )
     await client.put(
-        f"/api/v1/tasks/{task_b.id}/properties",
+        f"/api/v1/g/{guild.id}/tasks/{task_b.id}/properties",
         headers=headers,
         json={"values": [{"property_id": defn.id, "value": ["beta"]}]},
     )
@@ -509,7 +511,7 @@ async def test_list_tasks_filter_by_property_multi_select(
         ]
     )
     response = await client.get(
-        f"/api/v1/tasks/?conditions={conditions}", headers=headers
+        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
     )
     assert response.status_code == 200
     ids = {item["id"] for item in response.json()["items"]}

@@ -5,7 +5,7 @@ from decimal import Decimal
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import GuildRole
+from app.models.guild import Guild, GuildRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -40,10 +40,14 @@ async def _setup_with_member(session: AsyncSession):
 
 
 async def _create_group(
-    client: AsyncClient, headers: dict, initiative_id: int, name: str = "Test Group"
+    client: AsyncClient,
+    headers: dict,
+    guild: Guild,
+    initiative_id: int,
+    name: str = "Test Group",
 ) -> dict:
     response = await client.post(
-        "/api/v1/counter-groups/",
+        f"/api/v1/g/{guild.id}/counter-groups/",
         headers=headers,
         json={"name": name, "initiative_id": initiative_id},
     )
@@ -54,6 +58,7 @@ async def _create_group(
 async def _add_counter(
     client: AsyncClient,
     headers: dict,
+    guild: Guild,
     group_id: int,
     *,
     name: str = "HP",
@@ -78,7 +83,7 @@ async def _add_counter(
     if max_value is not None:
         payload["max"] = max_value
     response = await client.post(
-        f"/api/v1/counter-groups/{group_id}/counters",
+        f"/api/v1/g/{guild.id}/counter-groups/{group_id}/counters",
         headers=headers,
         json=payload,
     )
@@ -97,7 +102,7 @@ async def test_create_counter_group(client: AsyncClient, session: AsyncSession):
     headers = await get_guild_headers(session, guild, admin)
 
     response = await client.post(
-        "/api/v1/counter-groups/",
+        f"/api/v1/g/{guild.id}/counter-groups/",
         headers=headers,
         json={
             "name": "Combat Tracker",
@@ -122,7 +127,7 @@ async def test_create_counter_group_non_pm_forbidden(
     headers = await get_guild_headers(session, guild, member)
 
     response = await client.post(
-        "/api/v1/counter-groups/",
+        f"/api/v1/g/{guild.id}/counter-groups/",
         headers=headers,
         json={"name": "Nope", "initiative_id": initiative.id},
     )
@@ -139,7 +144,7 @@ async def test_feature_disabled_blocks_creation(
     headers = await get_guild_headers(session, guild, admin)
 
     response = await client.post(
-        "/api/v1/counter-groups/",
+        f"/api/v1/g/{guild.id}/counter-groups/",
         headers=headers,
         json={"name": "X", "initiative_id": initiative.id},
     )
@@ -151,10 +156,12 @@ async def test_feature_disabled_blocks_creation(
 async def test_list_counter_groups(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    await _create_group(client, headers, initiative.id, "Group A")
-    await _create_group(client, headers, initiative.id, "Group B")
+    await _create_group(client, headers, guild, initiative.id, "Group A")
+    await _create_group(client, headers, guild, initiative.id, "Group B")
 
-    response = await client.get("/api/v1/counter-groups/", headers=headers)
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/counter-groups/", headers=headers
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["total_count"] == 2
@@ -172,11 +179,12 @@ async def test_add_counter_clamps_initial_and_count(
 ):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
 
     counter = await _add_counter(
         client,
         headers,
+        guild,
         group["id"],
         count="999",
         min_value="0",
@@ -191,10 +199,10 @@ async def test_add_counter_clamps_initial_and_count(
 async def test_progress_bar_requires_bounds(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
 
     response = await client.post(
-        f"/api/v1/counter-groups/{group['id']}/counters",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters",
         headers=headers,
         json={
             "name": "Bad",
@@ -217,10 +225,11 @@ async def test_progress_bar_requires_bounds(client: AsyncClient, session: AsyncS
 async def test_increment_clamps_at_max(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(
         client,
         headers,
+        guild,
         group["id"],
         count="99",
         min_value="0",
@@ -229,7 +238,7 @@ async def test_increment_clamps_at_max(client: AsyncClient, session: AsyncSessio
     )
 
     response = await client.post(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}/increment",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}/increment",
         headers=headers,
     )
     assert response.status_code == 200
@@ -240,10 +249,11 @@ async def test_increment_clamps_at_max(client: AsyncClient, session: AsyncSessio
 async def test_decrement_clamps_at_min(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(
         client,
         headers,
+        guild,
         group["id"],
         count="2",
         min_value="0",
@@ -252,7 +262,7 @@ async def test_decrement_clamps_at_min(client: AsyncClient, session: AsyncSessio
     )
 
     response = await client.post(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}/decrement",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}/decrement",
         headers=headers,
     )
     assert response.status_code == 200
@@ -263,13 +273,13 @@ async def test_decrement_clamps_at_min(client: AsyncClient, session: AsyncSessio
 async def test_set_count_clamps(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(
         client, headers, group["id"], min_value="0", max_value="100"
     )
 
     response = await client.post(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}/set",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}/set",
         headers=headers,
         json={"count": "9999"},
     )
@@ -281,10 +291,11 @@ async def test_set_count_clamps(client: AsyncClient, session: AsyncSession):
 async def test_reset_returns_to_initial(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(
         client,
         headers,
+        guild,
         group["id"],
         count="50",
         initial_count="80",
@@ -294,13 +305,13 @@ async def test_reset_returns_to_initial(client: AsyncClient, session: AsyncSessi
 
     # Drop the value first
     await client.post(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}/set",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}/set",
         headers=headers,
         json={"count": "10"},
     )
 
     response = await client.post(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}/reset",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}/reset",
         headers=headers,
     )
     assert response.status_code == 200
@@ -311,10 +322,11 @@ async def test_reset_returns_to_initial(client: AsyncClient, session: AsyncSessi
 async def test_reset_all_counters(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     c1 = await _add_counter(
         client,
         headers,
+        guild,
         group["id"],
         name="A",
         initial_count="50",
@@ -324,6 +336,7 @@ async def test_reset_all_counters(client: AsyncClient, session: AsyncSession):
     c2 = await _add_counter(
         client,
         headers,
+        guild,
         group["id"],
         name="B",
         initial_count="25",
@@ -334,18 +347,18 @@ async def test_reset_all_counters(client: AsyncClient, session: AsyncSession):
 
     # Mutate both
     await client.post(
-        f"/api/v1/counter-groups/{group['id']}/counters/{c1['id']}/set",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{c1['id']}/set",
         headers=headers,
         json={"count": "1"},
     )
     await client.post(
-        f"/api/v1/counter-groups/{group['id']}/counters/{c2['id']}/set",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{c2['id']}/set",
         headers=headers,
         json={"count": "1"},
     )
 
     response = await client.post(
-        f"/api/v1/counter-groups/{group['id']}/reset-all", headers=headers
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/reset-all", headers=headers
     )
     assert response.status_code == 200
     counts = {c["name"]: Decimal(c["count"]) for c in response.json()["counters"]}
@@ -364,13 +377,13 @@ async def test_update_min_max_reclamps_count(
 ):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(
         client, headers, group["id"], count="100", min_value="0", max_value="100"
     )
 
     response = await client.patch(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}",
         headers=headers,
         json={"max": "50"},
     )
@@ -386,10 +399,11 @@ async def test_update_null_non_nullable_fields_is_noop(
     view_mode) must not 500 — it's treated as 'field not provided'."""
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(
         client,
         headers,
+        guild,
         group["id"],
         name="HP",
         count="5",
@@ -398,7 +412,7 @@ async def test_update_null_non_nullable_fields_is_noop(
     )
 
     response = await client.patch(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}",
         headers=headers,
         json={"step": None, "initial_count": None, "position": None, "name": None},
     )
@@ -414,11 +428,11 @@ async def test_update_step_zero_rejected(client: AsyncClient, session: AsyncSess
     """A provided step of 0 is a clean 422, not a 500."""
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(client, headers, group["id"])
 
     response = await client.patch(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}",
         headers=headers,
         json={"step": "0"},
     )
@@ -432,10 +446,11 @@ async def test_decimal_serialization_no_exponent(
     """Numeric(20, 10) zeros must not round-trip as ``0E-10``."""
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(
         client,
         headers,
+        guild,
         group["id"],
         count="0",
         min_value="0",
@@ -462,11 +477,11 @@ async def test_delete_counter_soft_deletes_to_trash(
 
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(client, headers, group["id"], name="HP")
 
     resp = await client.delete(
-        f"/api/v1/counter-groups/{group['id']}/counters/{counter['id']}",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}/counters/{counter['id']}",
         headers=headers,
     )
     assert resp.status_code == 204
@@ -478,7 +493,7 @@ async def test_delete_counter_soft_deletes_to_trash(
     assert row.deleted_by == admin.id
 
     # And it should appear in the trash list.
-    trash = await client.get("/api/v1/trash/?scope=mine", headers=headers)
+    trash = await client.get("/api/v1/me/trash", headers=headers)
     assert trash.status_code == 200
     entries = trash.json()["items"]
     assert any(
@@ -495,28 +510,34 @@ async def test_deleted_counter_group_hidden_from_list_and_read(
     adds. The session-level soft-delete filter is what enforces this."""
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    keep = await _create_group(client, headers, initiative.id, "Keep")
-    trashed = await _create_group(client, headers, initiative.id, "Trash me")
+    keep = await _create_group(client, headers, guild, initiative.id, "Keep")
+    trashed = await _create_group(client, headers, guild, initiative.id, "Trash me")
 
     # Delete the second one.
     assert (
-        await client.delete(f"/api/v1/counter-groups/{trashed['id']}", headers=headers)
+        await client.delete(
+            f"/api/v1/g/{guild.id}/counter-groups/{trashed['id']}", headers=headers
+        )
     ).status_code == 204
 
     # List returns only the surviving group.
-    listing = (await client.get("/api/v1/counter-groups/", headers=headers)).json()
+    listing = (
+        await client.get(f"/api/v1/g/{guild.id}/counter-groups/", headers=headers)
+    ).json()
     names = {item["name"] for item in listing["items"]}
     assert names == {"Keep"}
     assert listing["total_count"] == 1
 
     # Detail read returns 404.
     assert (
-        await client.get(f"/api/v1/counter-groups/{trashed['id']}", headers=headers)
+        await client.get(
+            f"/api/v1/g/{guild.id}/counter-groups/{trashed['id']}", headers=headers
+        )
     ).status_code == 404
 
     # Trying to add a counter to it also 404s (the group is no longer reachable).
     add_resp = await client.post(
-        f"/api/v1/counter-groups/{trashed['id']}/counters",
+        f"/api/v1/g/{guild.id}/counter-groups/{trashed['id']}/counters",
         headers=headers,
         json={
             "name": "Phantom",
@@ -531,7 +552,7 @@ async def test_deleted_counter_group_hidden_from_list_and_read(
 
     # The surviving group still accepts adds.
     add_keep = await client.post(
-        f"/api/v1/counter-groups/{keep['id']}/counters",
+        f"/api/v1/g/{guild.id}/counter-groups/{keep['id']}/counters",
         headers=headers,
         json={
             "name": "OK",
@@ -556,11 +577,11 @@ async def test_delete_counter_group_soft_deletes_and_cascades(
 
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     counter = await _add_counter(client, headers, group["id"], name="HP")
 
     resp = await client.delete(
-        f"/api/v1/counter-groups/{group['id']}",
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}",
         headers=headers,
     )
     assert resp.status_code == 204
@@ -582,7 +603,7 @@ async def test_delete_counter_group_soft_deletes_and_cascades(
         counter_row.deleted_at == group_row.deleted_at
     )  # cascaded with same timestamp
 
-    trash = await client.get("/api/v1/trash/?scope=mine", headers=headers)
+    trash = await client.get("/api/v1/me/trash", headers=headers)
     assert trash.status_code == 200
     entries = trash.json()["items"]
     # Group is listed.
@@ -601,7 +622,7 @@ async def test_delete_counter_group_soft_deletes_and_cascades(
 async def test_fractional_position_sort(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group_resp = await _create_group(client, headers, initiative.id)
+    group_resp = await _create_group(client, headers, guild, initiative.id)
     group_id = group_resp["id"]
 
     a = await _add_counter(client, headers, group_id, name="A", position="10.0")
@@ -609,14 +630,16 @@ async def test_fractional_position_sort(client: AsyncClient, session: AsyncSessi
 
     # Drop "A" between (would equal 15.0)
     response = await client.patch(
-        f"/api/v1/counter-groups/{group_id}/counters/{a['id']}",
+        f"/api/v1/g/{guild.id}/counter-groups/{group_id}/counters/{a['id']}",
         headers=headers,
         json={"position": "15.5"},
     )
     assert response.status_code == 200
 
     group = (
-        await client.get(f"/api/v1/counter-groups/{group_id}", headers=headers)
+        await client.get(
+            f"/api/v1/g/{guild.id}/counter-groups/{group_id}", headers=headers
+        )
     ).json()
     ordered = [c["name"] for c in group["counters"]]
     assert ordered == ["A", "B"] or ordered == ["B", "A"]  # position-ordered
@@ -640,7 +663,7 @@ def _ordered_names(group: dict) -> list[str]:
 async def test_sort_counters(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    group = await _create_group(client, headers, initiative.id)
+    group = await _create_group(client, headers, guild, initiative.id)
     gid = group["id"]
 
     # Scrambled order; "alpha" is lowercase to exercise case-insensitive sort.
@@ -650,7 +673,7 @@ async def test_sort_counters(client: AsyncClient, session: AsyncSession):
 
     async def sort(field: str, direction: str) -> dict:
         resp = await client.post(
-            f"/api/v1/counter-groups/{gid}/sort",
+            f"/api/v1/g/{guild.id}/counter-groups/{gid}/sort",
             headers=headers,
             json={"field": field, "direction": direction},
         )
@@ -669,7 +692,7 @@ async def test_sort_counters(client: AsyncClient, session: AsyncSession):
 
     # The reorder persists on a fresh read.
     fetched = (
-        await client.get(f"/api/v1/counter-groups/{gid}", headers=headers)
+        await client.get(f"/api/v1/g/{guild.id}/counter-groups/{gid}", headers=headers)
     ).json()
     assert _ordered_names(fetched) == ["Charlie", "Bravo", "alpha"]
 
@@ -686,7 +709,7 @@ async def test_sort_counters_read_only_forbidden(
 
     # Grant the member read-only access on the group.
     grant = await client.put(
-        f"/api/v1/counter-groups/{gid}/permissions",
+        f"/api/v1/g/{guild.id}/counter-groups/{gid}/permissions",
         headers=admin_headers,
         json=[{"user_id": member.id, "level": "read"}],
     )
@@ -694,7 +717,7 @@ async def test_sort_counters_read_only_forbidden(
 
     member_headers = await get_guild_headers(session, guild, member)
     resp = await client.post(
-        f"/api/v1/counter-groups/{gid}/sort",
+        f"/api/v1/g/{guild.id}/counter-groups/{gid}/sort",
         headers=member_headers,
         json={"field": "name", "direction": "asc"},
     )
@@ -711,7 +734,7 @@ async def test_sort_counters_read_only_forbidden(
 async def test_duplicate_counter_group(client: AsyncClient, session: AsyncSession):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    source = await _create_group(client, headers, initiative.id, name="Original")
+    source = await _create_group(client, headers, guild, initiative.id, name="Original")
     sid = source["id"]
     await _add_counter(
         client, headers, sid, name="HP", count="40", initial_count="100", position="0"
@@ -719,6 +742,7 @@ async def test_duplicate_counter_group(client: AsyncClient, session: AsyncSessio
     await _add_counter(
         client,
         headers,
+        guild,
         sid,
         name="Mana",
         count="5",
@@ -730,7 +754,7 @@ async def test_duplicate_counter_group(client: AsyncClient, session: AsyncSessio
     )
 
     response = await client.post(
-        f"/api/v1/counter-groups/{sid}/duplicate", headers=headers, json={}
+        f"/api/v1/g/{guild.id}/counter-groups/{sid}/duplicate", headers=headers, json={}
     )
     assert response.status_code == 201, response.text
     copy = response.json()
@@ -754,7 +778,9 @@ async def test_duplicate_counter_group(client: AsyncClient, session: AsyncSessio
     assert by_name["Mana"]["view_mode"] == "number"
 
     # The source group is untouched.
-    src = (await client.get(f"/api/v1/counter-groups/{sid}", headers=headers)).json()
+    src = (
+        await client.get(f"/api/v1/g/{guild.id}/counter-groups/{sid}", headers=headers)
+    ).json()
     assert src["name"] == "Original"
     assert len(src["counters"]) == 2
 
@@ -765,10 +791,10 @@ async def test_duplicate_counter_group_custom_name(
 ):
     admin, guild, initiative = await _setup_admin(session)
     headers = await get_guild_headers(session, guild, admin)
-    source = await _create_group(client, headers, initiative.id, name="Original")
+    source = await _create_group(client, headers, guild, initiative.id, name="Original")
 
     response = await client.post(
-        f"/api/v1/counter-groups/{source['id']}/duplicate",
+        f"/api/v1/g/{guild.id}/counter-groups/{source['id']}/duplicate",
         headers=headers,
         json={"name": "My Clone"},
     )
@@ -788,7 +814,7 @@ async def test_duplicate_counter_group_read_user_becomes_owner(
     await _add_counter(client, admin_headers, sid, name="A", position="0")
 
     grant = await client.put(
-        f"/api/v1/counter-groups/{sid}/permissions",
+        f"/api/v1/g/{guild.id}/counter-groups/{sid}/permissions",
         headers=admin_headers,
         json=[{"user_id": member.id, "level": "read"}],
     )
@@ -796,7 +822,9 @@ async def test_duplicate_counter_group_read_user_becomes_owner(
 
     member_headers = await get_guild_headers(session, guild, member)
     response = await client.post(
-        f"/api/v1/counter-groups/{sid}/duplicate", headers=member_headers, json={}
+        f"/api/v1/g/{guild.id}/counter-groups/{sid}/duplicate",
+        headers=member_headers,
+        json={},
     )
     assert response.status_code == 201, response.text
     assert response.json()["my_permission_level"] == "owner"

@@ -11,7 +11,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import GuildRole
+from app.models.guild import Guild, GuildRole
 from app.models.initiative import Initiative
 from app.models.user import User
 from app.testing.factories import (
@@ -26,6 +26,7 @@ from app.testing.factories import (
 @dataclass
 class _SpreadsheetEnv:
     user: User
+    guild: Guild
     initiative: Initiative
     headers: dict[str, str]
 
@@ -43,6 +44,7 @@ async def env(session: AsyncSession) -> _SpreadsheetEnv:
     initiative = await create_initiative(session, guild, user, name="Init")
     return _SpreadsheetEnv(
         user=user,
+        guild=guild,
         initiative=initiative,
         headers=await get_guild_headers(session, guild, user),
     )
@@ -71,7 +73,7 @@ async def test_create_spreadsheet_round_trips_cells(
     }
 
     response = await client.post(
-        "/api/v1/documents/", headers=env.headers, json=payload
+        f"/api/v1/g/{env.guild.id}/documents/", headers=env.headers, json=payload
     )
     assert response.status_code == 201, response.text
     data = response.json()
@@ -79,7 +81,9 @@ async def test_create_spreadsheet_round_trips_cells(
     assert data["document_type"] == "spreadsheet"
 
     # GET round-trip preserves the cell map exactly.
-    response = await client.get(f"/api/v1/documents/{doc_id}", headers=env.headers)
+    response = await client.get(
+        f"/api/v1/g/{env.guild.id}/documents/{doc_id}", headers=env.headers
+    )
     assert response.status_code == 200
     content = response.json()["content"]
     # v1 input is upcast to the current schema version on save.
@@ -99,7 +103,7 @@ async def test_patch_spreadsheet_replaces_cells(
     client: AsyncClient, env: _SpreadsheetEnv
 ):
     create_response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Sheet",
@@ -113,7 +117,7 @@ async def test_patch_spreadsheet_replaces_cells(
 
     # PATCH replaces the content snapshot wholesale (snapshot path).
     patch_response = await client.patch(
-        f"/api/v1/documents/{doc_id}",
+        f"/api/v1/g/{env.guild.id}/documents/{doc_id}",
         headers=env.headers,
         json={"content": {"cells": {"0:0": "after", "5:7": 99}}},
     )
@@ -127,7 +131,7 @@ async def test_create_spreadsheet_rejects_nested_value(
     client: AsyncClient, env: _SpreadsheetEnv
 ):
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Bad Sheet",
@@ -145,7 +149,7 @@ async def test_create_spreadsheet_rejects_unknown_schema_version(
     client: AsyncClient, env: _SpreadsheetEnv
 ):
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Bad Sheet",
@@ -166,7 +170,7 @@ async def test_create_spreadsheet_rejects_bool_schema_version(
     version guard rejects ``"schema_version": true`` instead of treating
     it as the integer ``1``."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Bad Sheet",
@@ -187,7 +191,7 @@ async def test_create_spreadsheet_rejects_non_dict_cells(
     ``{}`` should produce a 400 — falsy non-dict values must reach the
     isinstance guard, not be silently coerced to an empty map."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Bad Sheet",
@@ -205,7 +209,7 @@ async def test_create_spreadsheet_rejects_non_dict_dimensions(
     client: AsyncClient, env: _SpreadsheetEnv
 ):
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Bad Sheet",
@@ -227,7 +231,7 @@ async def test_create_spreadsheet_canonicalizes_cell_keys(
     is hydrated into a Y.Map, so any leading-zero form stored verbatim
     would silently disappear after a collaboration round-trip."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Sheet",
@@ -259,7 +263,7 @@ async def test_create_spreadsheet_with_empty_content(
 ):
     """Fresh spreadsheets default to an empty cell map and a 100x26 canvas."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Empty Sheet",
@@ -286,7 +290,7 @@ async def test_v1_payload_upcasts_to_v2(client: AsyncClient, env: _SpreadsheetEn
     as v2 with empty formatting structures — existing documents keep
     working without a data migration and never 422."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Legacy Sheet",
@@ -336,7 +340,7 @@ async def test_v2_formatting_round_trips(client: AsyncClient, env: _SpreadsheetE
         "frozen": {"rows": 1, "cols": 1},
     }
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Formatted",
@@ -370,7 +374,7 @@ async def test_v2_clamps_sizes_and_frozen(client: AsyncClient, env: _Spreadsheet
     """Out-of-range widths/heights/decimals/frozen are clamped, not
     rejected."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Clamp",
@@ -402,7 +406,7 @@ async def test_v2_drops_malformed_formatting(client: AsyncClient, env: _Spreadsh
     the document still saves (201, NOT 400) because formatting failures
     must never block the user's actual data."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Lenient",
@@ -439,7 +443,7 @@ async def test_v2_rejects_non_dict_columns(client: AsyncClient, env: _Spreadshee
     """A serialization bug that sends ``"columns": []`` is a
     container-type violation → 400 (same strictness as ``cells``)."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Bad",
@@ -459,7 +463,7 @@ async def test_v2_canonicalizes_formatting_keys(
     """Leading-zero index/cell keys collapse to canonical form so they
     survive the JS Y.Map round-trip, exactly like the cell map."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Canon",
@@ -486,7 +490,7 @@ async def test_v2_border_round_trips_and_drops_bad_edges(
     """Valid border edges round-trip (color lowercased); a bad style
     enum, a bad hex, and an unknown edge are dropped without 400."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Borders",
@@ -525,7 +529,7 @@ async def test_v2_tier1_style_and_number_options(
     negatives round-trip; fontSize is clamped, bad valign/negatives are
     dropped without a 400."""
     response = await client.post(
-        "/api/v1/documents/",
+        f"/api/v1/g/{env.guild.id}/documents/",
         headers=env.headers,
         json={
             "title": "Tier1",

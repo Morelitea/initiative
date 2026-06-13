@@ -25,8 +25,14 @@ import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useUsers = (options?: QueryOpts<UserGuildMember[]>) => {
-  const guildId = useActiveGuildId();
+/**
+ * Members of a guild. Defaults to the active guild; pass `guildIdOverride` to
+ * read a specific guild's members from a cross-guild surface (e.g. the personal
+ * trash view reassigning an item that lives in another guild).
+ */
+export const useUsers = (options?: QueryOpts<UserGuildMember[]>, guildIdOverride?: number) => {
+  const activeGuildId = useActiveGuildId();
+  const guildId = guildIdOverride ?? activeGuildId;
   return useQuery<UserGuildMember[]>({
     queryKey: getListUsersApiV1GGuildIdUsersGetQueryKey(guildId),
     queryFn: () => listUsersApiV1GGuildIdUsersGet(guildId) as unknown as Promise<UserGuildMember[]>,

@@ -3124,6 +3124,7 @@ export const TrashItemEntityType = {
 export interface TrashItem {
   entity_type: TrashItemEntityType;
   entity_id: number;
+  guild_id: number;
   name: string;
   deleted_at: string;
   deleted_by_id: number | null;
@@ -3890,18 +3891,6 @@ export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {
 export type ListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGetParams = {
   initiative_id?: number | null;
 };
-
-export type ListTrashApiV1GGuildIdTrashGetParams = {
-  scope?: ListTrashApiV1GGuildIdTrashGetScope;
-};
-
-export type ListTrashApiV1GGuildIdTrashGetScope =
-  (typeof ListTrashApiV1GGuildIdTrashGetScope)[keyof typeof ListTrashApiV1GGuildIdTrashGetScope];
-
-export const ListTrashApiV1GGuildIdTrashGetScope = {
-  mine: "mine",
-  guild: "guild",
-} as const;
 
 export type ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams = {
   user_id?: number[] | null;

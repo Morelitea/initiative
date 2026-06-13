@@ -19,6 +19,10 @@ import { getUserDisplayName } from "@/lib/userDisplay";
 export interface ReassignOwnerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  // The guild the trashed item lives in — the owner picker must list that
+  // guild's members, which is not necessarily the active guild on the
+  // cross-guild personal trash view.
+  guildId: number;
   entityType: TrashItemEntityType;
   validOwnerIds: number[];
   onConfirm: (newOwnerId: number) => void;
@@ -28,13 +32,14 @@ export interface ReassignOwnerDialogProps {
 export const ReassignOwnerDialog = ({
   open,
   onOpenChange,
+  guildId,
   entityType,
   validOwnerIds,
   onConfirm,
   isPending = false,
 }: ReassignOwnerDialogProps) => {
   const { t } = useTranslation("trash");
-  const { data: guildMembers } = useUsers();
+  const { data: guildMembers } = useUsers(undefined, guildId);
   const [selected, setSelected] = useState<string>("");
 
   // Reset the picker every time the dialog reopens.
