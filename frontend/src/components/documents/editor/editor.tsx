@@ -43,7 +43,6 @@ import { KeywordsExtension } from "@/components/ui/editor/extensions/keywords-ex
 import { LayoutExtension } from "@/components/ui/editor/extensions/layout-extension";
 import { ListMaxIndentLevelExtension } from "@/components/ui/editor/extensions/list-max-indent-level-extension";
 import { MarkdownShortcutsExtension } from "@/components/ui/editor/extensions/markdown-shortcuts-extension";
-import { EmbedNode } from "@/components/ui/editor/nodes/embed-node";
 import { TweetNode } from "@/components/ui/editor/nodes/embeds/tweet-node";
 import { YouTubeNode } from "@/components/ui/editor/nodes/embeds/youtube-node";
 import { MentionNode } from "@/components/ui/editor/nodes/mention-node";
@@ -149,7 +148,6 @@ export function Editor({
         MentionNode,
         TweetNode,
         YouTubeNode,
-        EmbedNode,
         WikilinkNode,
       ],
       theme: editorTheme,

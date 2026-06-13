@@ -22,6 +22,7 @@ import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress"
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon-picker";
+import { useGuilds } from "@/hooks/useGuilds";
 import { useGuildPath } from "@/lib/guildUrl";
 import { summarizeRecurrence } from "@/lib/recurrence";
 import { truncateText } from "@/lib/text";
@@ -291,10 +292,14 @@ const KanbanCardContent = memo(
     const { t } = useTranslation(["projects", "dates"]);
     const router = useRouter();
     const gp = useGuildPath();
+    const { activeGuildId } = useGuilds();
 
     const handlePrefetch = () => {
-      if (canOpenTask) {
-        router.preloadRoute({ to: "/tasks/$taskId", params: { taskId: String(task.id) } });
+      if (canOpenTask && activeGuildId) {
+        router.preloadRoute({
+          to: "/g/$guildId/tasks/$taskId",
+          params: { guildId: String(activeGuildId), taskId: String(task.id) },
+        });
       }
     };
 
@@ -489,6 +494,7 @@ const KanbanTaskCard = ({
   const { t } = useTranslation(["projects", "dates"]);
   const router = useRouter();
   const gp = useGuildPath();
+  const { activeGuildId } = useGuilds();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id.toString(),
     data: { type: "task", statusId: task.task_status_id },
@@ -496,8 +502,11 @@ const KanbanTaskCard = ({
   });
 
   const handlePrefetch = () => {
-    if (canOpenTask) {
-      router.preloadRoute({ to: "/tasks/$taskId", params: { taskId: String(task.id) } });
+    if (canOpenTask && activeGuildId) {
+      router.preloadRoute({
+        to: "/g/$guildId/tasks/$taskId",
+        params: { guildId: String(activeGuildId), taskId: String(task.id) },
+      });
     }
   };
 
