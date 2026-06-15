@@ -29,6 +29,7 @@ import {
 import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 
 interface InitiativeSettingsMembersTabProps {
   initiativeId: number;
@@ -87,10 +88,12 @@ export const InitiativeSettingsMembersTab = ({
   const memberLabel = getRoleLabel("member", roleLabels);
   const adminRoleLabel = t("settings.guildAdminRole");
 
-  // Needed to identify guild admins (so they can be shown by default and
-  // greyed out) regardless of whether the viewer can manage members.
+  // Fetched only for members managers (who can act on the roster) to identify
+  // guild admins for the greyed/collapsed treatment — read-only viewers never
+  // pull the full guild roster. The members tab is only reachable by guild
+  // admins / initiative managers, so this gate doesn't hide admins in practice.
   const usersQuery = useUsers({
-    enabled: !!activeGuildId,
+    enabled: canManageMembers && !!activeGuildId,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -184,8 +187,7 @@ export const InitiativeSettingsMembersTab = ({
       setSelectedUserId("");
     },
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.addMemberError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "initiatives:settings.addMemberError"));
     },
   });
 
@@ -193,9 +195,10 @@ export const InitiativeSettingsMembersTab = ({
     onSuccess: () => {
       toast.success(t("settings.memberRemoved"));
     },
+    // Surfaces the backend's specific reason (e.g. removing the last project
+    // manager — INITIATIVE_MUST_HAVE_MANAGER) instead of a generic failure.
     onError: (error) => {
-      const message = error instanceof Error ? error.message : t("settings.removeMemberError");
-      toast.error(message);
+      toast.error(getErrorMessage(error, "initiatives:settings.removeMemberError"));
     },
   });
 
@@ -203,8 +206,8 @@ export const InitiativeSettingsMembersTab = ({
     onSuccess: () => {
       toast.success(t("settings.roleUpdated"));
     },
-    onError: () => {
-      toast.error(t("settings.roleUpdateError"));
+    onError: (error) => {
+      toast.error(getErrorMessage(error, "initiatives:settings.roleUpdateError"));
     },
   });
 
