@@ -34,6 +34,20 @@ CSP_CAPTCHA_ORIGINS = {
     "recaptcha": ["https://www.google.com", "https://www.gstatic.com"],
 }
 
+# Origins the SPA fetches non-script assets from via fetch()/XHR, used to build
+# the connect-src directive. The spell checker lazy-loads its English dictionary
+# (.aff/.dic) from jsDelivr — see frontend/src/lib/spell-check.ts.
+CSP_CONNECT_ORIGINS = [
+    "https://cdn.jsdelivr.net",
+]
+
+# Origins the SPA loads web fonts from (font-src). The bundled Excalidraw
+# whiteboard lazy-loads its .woff2 faces (Cascadia, Comic Shanns, Excalifont,
+# etc.) from esm.sh at runtime.
+CSP_FONT_ORIGINS = [
+    "https://esm.sh",
+]
+
 
 def _origin_of(url: str) -> str | None:
     """Return the ``scheme://host[:port]`` origin of a URL, or None if unparseable."""
@@ -165,9 +179,9 @@ class Settings(BaseSettings):
 
         script_src = ["'self'"]
         style_src = ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"]
-        font_src = ["'self'", "https://fonts.gstatic.com", "data:"]
+        font_src = ["'self'", "https://fonts.gstatic.com", "data:", *CSP_FONT_ORIGINS]
         img_src = ["'self'", "data:", "blob:", "https:"]
-        connect_src = ["'self'", ws]
+        connect_src = ["'self'", ws, *CSP_CONNECT_ORIGINS]
         frame_src = ["'self'", *CSP_EMBED_FRAME_ORIGINS]
         worker_src = ["'self'", "blob:"]
 

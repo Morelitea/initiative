@@ -179,6 +179,20 @@ def test_csp_websocket_scheme_follows_app_url():
     assert "ws:" in _directive(http, "connect-src")
 
 
+def test_csp_allows_spell_check_dictionary_cdn():
+    # The spell checker fetches its English dictionary from jsDelivr
+    # (frontend/src/lib/spell-check.ts); connect-src must allow it.
+    csp = _settings().content_security_policy
+    assert "https://cdn.jsdelivr.net" in _directive(csp, "connect-src")
+
+
+def test_csp_allows_excalidraw_font_cdn():
+    # The bundled Excalidraw whiteboard loads its .woff2 faces from esm.sh;
+    # font-src must allow it.
+    csp = _settings().content_security_policy
+    assert "https://esm.sh" in _directive(csp, "font-src")
+
+
 def test_csp_captcha_origins_only_when_configured():
     assert "hcaptcha.com" not in _settings().content_security_policy
 
