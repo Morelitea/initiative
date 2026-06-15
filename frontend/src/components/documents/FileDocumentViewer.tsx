@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import {
   useDeleteDocumentVersion,
@@ -48,6 +47,9 @@ const MAX_VERSION_FILE_SIZE = 50 * 1024 * 1024;
 
 interface FileDocumentViewerProps {
   documentId: number;
+  /** The document's OWNING guild — downloads are addressed by it, not the
+   * active guild, so cross-guild surfaces (My Documents) resolve correctly. */
+  guildId: number;
   fileUrl: string;
   contentType?: string | null;
   originalFilename?: string | null;
@@ -60,6 +62,7 @@ interface FileDocumentViewerProps {
 
 export const FileDocumentViewer = ({
   documentId,
+  guildId,
   fileUrl,
   contentType,
   originalFilename,
@@ -69,7 +72,6 @@ export const FileDocumentViewer = ({
 }: FileDocumentViewerProps) => {
   const { t } = useTranslation(["documents", "common"]);
   const dateLocale = useDateLocale();
-  const guildId = useActiveGuildId();
 
   // ── Version history ─────────────────────────────────────────────────────
   const { data: versions } = useDocumentVersions(documentId);

@@ -1026,6 +1026,7 @@ export interface DocumentSummary {
   featured_image_url: string | null;
   is_template: boolean;
   id: number;
+  guild_id: number;
   created_by_id: number;
   updated_by_id: number;
   created_at: string;
@@ -1089,6 +1090,7 @@ export interface DocumentRead {
   featured_image_url: string | null;
   is_template: boolean;
   id: number;
+  guild_id: number;
   created_by_id: number;
   updated_by_id: number;
   created_at: string;

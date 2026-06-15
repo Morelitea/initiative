@@ -102,7 +102,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useCollaboration } from "@/hooks/useCollaboration";
@@ -121,13 +120,16 @@ import { cn } from "@/lib/utils";
 export const DocumentDetailPage = () => {
   const { t } = useTranslation(["documents", "properties", "common"]);
   const dateLocale = useDateLocale();
-  const { documentId } = useParams({ strict: false }) as { documentId: string };
+  const { guildId: guildIdParam, documentId } = useParams({ strict: false }) as {
+    guildId: string;
+    documentId: string;
+  };
   const parsedId = Number(documentId);
   const navigate = useNavigate();
   const setDocumentCache = useSetDocumentCache();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
-  const guildId = useActiveGuildId();
+  const guildId = Number(guildIdParam);
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
   const { isEnabled: isAIEnabled } = useAIEnabled();
@@ -233,7 +235,7 @@ export const DocumentDetailPage = () => {
 
   // Track recently viewed documents so the layout header tabs bar can surface
   // them. Mirrors the pattern in ProjectDetailPage.
-  const recordViewMutation = useRecordRecentView("document");
+  const recordViewMutation = useRecordRecentView("document", guildId);
   const viewedDocumentId = documentQuery.data?.id;
   useEffect(() => {
     if (!viewedDocumentId) return;
@@ -1308,6 +1310,7 @@ export const DocumentDetailPage = () => {
           >
             <FileDocumentViewer
               documentId={document.id}
+              guildId={document.guild_id}
               fileUrl={document.file_url}
               contentType={document.file_content_type}
               originalFilename={document.original_filename}

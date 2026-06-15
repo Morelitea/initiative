@@ -31,7 +31,7 @@ async def test_upload_unauthenticated_returns_401(client: AsyncClient) -> None:
     test_file = uploads_dir / "test_security_unauth.txt"
     test_file.write_text("secret")
     try:
-        response = await client.get("/uploads/test_security_unauth.txt")
+        response = await client.get("/uploads/1/test_security_unauth.txt")
         assert response.status_code == 401
     finally:
         test_file.unlink(missing_ok=True)
@@ -62,7 +62,9 @@ async def test_upload_accessible_with_auth_header(
         await session.commit()
 
         headers = await get_guild_headers(session, guild, user)
-        response = await client.get("/uploads/test_auth_header.txt", headers=headers)
+        response = await client.get(
+            f"/uploads/{guild.id}/test_auth_header.txt", headers=headers
+        )
         assert response.status_code == 200
     finally:
         test_file.unlink(missing_ok=True)
@@ -81,7 +83,7 @@ async def test_upload_session_jwt_rejected_in_query_param(
         user = await create_user(session)
         token = get_auth_token(user)  # full 7-day session JWT
         response = await client.get(
-            f"/uploads/test_query_session_jwt.txt?token={token}"
+            f"/uploads/1/test_query_session_jwt.txt?token={token}"
         )
         assert response.status_code == 401
     finally:
@@ -113,12 +115,9 @@ async def test_upload_accessible_with_scoped_upload_token(
             )
         )
         await session.commit()
-        # Media URLs carry no guild context — serving resolves the guild from
-        # the user's server-held flag, so enter the guild first.
-        await get_guild_headers(session, guild, user)
         token, _ = create_upload_token(user_id=user.id)
         response = await client.get(
-            f"/uploads/test_query_upload_token.txt?token={token}",
+            f"/uploads/{guild.id}/test_query_upload_token.txt?token={token}",
         )
         assert response.status_code == 200
     finally:
@@ -162,8 +161,6 @@ async def test_issue_upload_token_endpoint(
             )
         )
         await session.commit()
-        # Serving resolves the guild from the user's server-held context.
-        await get_guild_headers(session, guild, user)
         mint = await client.post(
             "/api/v1/auth/upload-token", headers=get_auth_headers(user)
         )
@@ -172,7 +169,9 @@ async def test_issue_upload_token_endpoint(
         assert body["token_type"] == "upload_token"
         assert body["expires_in"] > 0
         token = body["upload_token"]
-        response = await client.get(f"/uploads/test_minted_token.txt?token={token}")
+        response = await client.get(
+            f"/uploads/{guild.id}/test_minted_token.txt?token={token}"
+        )
         assert response.status_code == 200
     finally:
         test_file.unlink(missing_ok=True)
@@ -192,7 +191,7 @@ async def test_upload_missing_file_returns_404(
     """GET /uploads/<nonexistent> with valid auth returns 404."""
     user = await create_user(session)
     headers = get_auth_headers(user)
-    response = await client.get("/uploads/does_not_exist_xyz.txt", headers=headers)
+    response = await client.get("/uploads/1/does_not_exist_xyz.txt", headers=headers)
     assert response.status_code == 404
 
 
@@ -203,8 +202,11 @@ async def test_upload_path_traversal_rejected(
     """Path traversal via ../ is rejected with 404."""
     user = await create_user(session)
     headers = get_auth_headers(user)
-    response = await client.get("/uploads/../app/core/config.py", headers=headers)
-    assert response.status_code == 404
+    response = await client.get("/uploads/1/../app/core/config.py", headers=headers)
+    # The client collapses ``1/..``, so the guild segment becomes a non-int (422);
+    # a ``..`` that did reach the handler would fail the uploads-dir containment
+    # check (404). Either way the escape is rejected and the file is never served.
+    assert response.status_code in (404, 422)
 
 
 @pytest.mark.integration
@@ -232,7 +234,9 @@ async def test_upload_guild_member_can_access_file(
         await session.commit()
 
         headers = await get_guild_headers(session, guild, user)
-        response = await client.get("/uploads/test_guild_access.png", headers=headers)
+        response = await client.get(
+            f"/uploads/{guild.id}/test_guild_access.png", headers=headers
+        )
         assert response.status_code == 200
     finally:
         test_file.unlink(missing_ok=True)
@@ -262,13 +266,13 @@ async def test_upload_non_member_cannot_access_file(
         session.add(upload)
         await session.commit()
 
-        # A second user not in that guild — even with their server-held
-        # context pointed at it (the flag write is unvalidated in the test
-        # factory precisely so this per-request check is exercised).
+        # A second user not in that guild — addressing the guild's upload
+        # path is still rejected, since membership is validated per request
+        # against the path-addressed guild.
         outsider = await create_user(session)
         headers = await get_guild_headers(session, guild, outsider)
         response = await client.get(
-            "/uploads/test_guild_forbidden.png", headers=headers
+            f"/uploads/{guild.id}/test_guild_forbidden.png", headers=headers
         )
         # 404, not 403: existence is never confirmed to non-members,
         # matching the guild-schema lookup path.
@@ -294,7 +298,9 @@ async def test_upload_without_db_record_returns_404(
         guild = await create_guild(session, creator=user)
         await create_guild_membership(session, user=user, guild=guild)
         headers = await get_guild_headers(session, guild, user)
-        response = await client.get("/uploads/test_orphan_file.txt", headers=headers)
+        response = await client.get(
+            f"/uploads/{guild.id}/test_orphan_file.txt", headers=headers
+        )
         assert response.status_code == 404
         assert b"orphan content" not in response.content
     finally:
@@ -354,7 +360,7 @@ async def test_upload_row_in_guild_schema_is_served(
         assert public_hit is None
 
         response = await client.get(
-            "/uploads/test_guild_schema_row.txt",
+            f"/uploads/{guild.id}/test_guild_schema_row.txt",
             headers=await get_guild_headers(session, guild, user),
         )
         assert response.status_code == 200
@@ -365,7 +371,7 @@ async def test_upload_row_in_guild_schema_is_served(
         # pointed at the guild.
         outsider = await create_user(session, email="outsider-schema@example.com")
         response = await client.get(
-            "/uploads/test_guild_schema_row.txt",
+            f"/uploads/{guild.id}/test_guild_schema_row.txt",
             headers=await get_guild_headers(session, guild, outsider),
         )
         assert response.status_code == 404

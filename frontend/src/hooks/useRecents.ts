@@ -11,7 +11,6 @@ import {
   listRecentsApiV1RecentsGet,
 } from "@/api/generated/recents/recents";
 import { invalidateRecents } from "@/api/query-keys";
-import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 
 export type RecentEntityType = RecentItemRead["entity_type"];
 
@@ -44,9 +43,13 @@ const recorders: Record<RecentEntityType, (guildId: number, id: number) => Promi
  * Mutation that POSTs ``/<entity>/{id}/view`` to record a recent open. Pages
  * call this in a ``useEffect`` once the entity has loaded and access checks
  * have passed.
+ *
+ * ``guildId`` is the entity's OWN guild — pass the ``/g/{guildId}`` route param,
+ * NOT the active guild. The active guild is shared across tabs (localStorage +
+ * storage events), so recording with it tags the view under the wrong guild
+ * when another tab is in a different guild; the URL path is per-tab.
  */
-export const useRecordRecentView = (entityType: RecentEntityType) => {
-  const guildId = useActiveGuildId();
+export const useRecordRecentView = (entityType: RecentEntityType, guildId: number) => {
   return useMutation({
     mutationFn: async (entityId: number) => {
       await recorders[entityType](guildId, entityId);

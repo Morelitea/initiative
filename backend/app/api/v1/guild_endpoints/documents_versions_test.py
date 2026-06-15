@@ -542,7 +542,10 @@ async def test_delete_current_version_promotes_previous(
     )
     assert resp.status_code == 204
 
-    # Document mirror reverts to v1.
+    # Document mirror reverts to v1. Capture guild.id first — expire_all() below
+    # expires the instance, and reading guild.id afterwards (outside an await)
+    # triggers a sync lazy-load (greenlet error).
+    guild_id = guild.id
     session.expire_all()
     refreshed = await session.get(Document, doc["id"])
     assert refreshed.file_size == len(PDF_BYTES)
@@ -550,7 +553,7 @@ async def test_delete_current_version_promotes_previous(
 
     versions = (
         await client.get(
-            f"/api/v1/g/{guild.id}/documents/{doc['id']}/versions",
+            f"/api/v1/g/{guild_id}/documents/{doc['id']}/versions",
             headers=guild_headers,
         )
     ).json()

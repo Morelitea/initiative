@@ -131,6 +131,10 @@ class DocumentSummary(DocumentBase):
     )
 
     id: int
+    # The owning guild — lets clients address guild-scoped actions (file
+    # download, media) by the document's guild rather than ambient context,
+    # which matters on cross-guild surfaces like My Documents.
+    guild_id: int
     created_by_id: int
     updated_by_id: int
     created_at: datetime
@@ -297,6 +301,7 @@ def serialize_document_summary(
             smart_link_url = url
     return DocumentSummary(
         id=document.id,
+        guild_id=document.guild_id,
         initiative_id=document.initiative_id,
         title=document.title,
         featured_image_url=document.featured_image_url,

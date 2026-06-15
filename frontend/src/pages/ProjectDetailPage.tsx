@@ -33,7 +33,10 @@ import { Capability, hasCapability } from "@/lib/permissions";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
-  const { projectId } = useParams({ strict: false }) as { projectId: string };
+  const { guildId, projectId } = useParams({ strict: false }) as {
+    guildId: string;
+    projectId: string;
+  };
   const router = useRouter();
   const { user } = useAuth();
   const gp = useGuildPath();
@@ -72,7 +75,7 @@ export const ProjectDetailPage = () => {
 
   const usersQuery = useUsers();
 
-  const recordViewMutation = useRecordRecentView("project");
+  const recordViewMutation = useRecordRecentView("project", Number(guildId));
   const viewedProjectId = projectQuery.data?.id;
   useEffect(() => {
     if (!viewedProjectId) {
