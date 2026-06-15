@@ -37,7 +37,7 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/push-notifications": "^8.1.1",
     "@capacitor/splash-screen": "^8.0.1",
-    "@capgo/capacitor-updater": "^8.47.5",
+    "@capgo/capacitor-updater": "^8.49.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
