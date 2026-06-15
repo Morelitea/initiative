@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`SECRET_KEY` rotation.** `SECRET_KEY` encrypts stored data (emails, OIDC/SMTP/AI secrets) and roots the email-lookup hash, so it can't be swapped in place — a bare change would lock out every user and orphan those secrets. To rotate it, set `PREVIOUS_SECRET_KEY` to the old value, set `SECRET_KEY` to a new one, and redeploy: the app re-encrypts everything on startup (idempotent), or run `python -m app.db.secret_key_rotation` manually. Unset `PREVIOUS_SECRET_KEY` once the logs report 0 failures. A failed `SECRET_KEY` validation now spells out this path in the error.
+- **`JWT_SIGNING_KEY` for independent session-token rotation.** Optional dedicated key for signing session/login JWTs; when set it decouples token signing from `SECRET_KEY`, so it can be rotated freely — the only effect is logging everyone out, with no impact on encrypted-at-rest data. Falls back to `SECRET_KEY` when unset, so existing deployments are unaffected.
 - Expandable guild sidebar — the guild rail opens into a flyout showing each guild's full name and member count.
 - German (Deutsch) interface language.
 - Guild schemas are re-checked on every boot, so upgrades automatically add new tables to existing guilds.

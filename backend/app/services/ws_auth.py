@@ -46,7 +46,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     # First try JWT validation.
     try:
         payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
         )
         token_data = TokenPayload(**payload)
         if token_data.sub:

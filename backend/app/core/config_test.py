@@ -47,6 +47,52 @@ def test_secret_key_accepts_strong_value():
     assert _settings().SECRET_KEY == TEST_SECRET_KEY
 
 
+def test_secret_key_failure_points_at_safe_rotation_path():
+    """The boot-crash message must steer operators to the rotation path, not the
+    destructive 'just generate a new one' fix — SECRET_KEY encrypts stored data."""
+    with pytest.raises(ValidationError) as exc:
+        _settings(SECRET_KEY="tooshort")
+    msg = str(exc.value)
+    assert "PREVIOUS_SECRET_KEY" in msg
+    assert "app.db.secret_key_rotation" in msg
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# PREVIOUS_SECRET_KEY / JWT_SIGNING_KEY / jwt_signing_key
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_previous_secret_key_taken_verbatim_without_validation():
+    """The OLD key must be reproduced exactly — it may be the weak/whitespaced key
+    being escaped, so the strong-key rules must NOT apply to it."""
+    weak_old = "  short-old-key  "  # would fail SECRET_KEY validation
+    settings = _settings(PREVIOUS_SECRET_KEY=weak_old)
+    assert settings.PREVIOUS_SECRET_KEY == weak_old
+    # Default when unset.
+    assert _settings().PREVIOUS_SECRET_KEY is None
+
+
+def test_jwt_signing_key_falls_back_to_secret_key_when_unset():
+    settings = _settings()
+    assert settings.JWT_SIGNING_KEY is None
+    assert settings.jwt_signing_key == settings.SECRET_KEY
+
+
+def test_jwt_signing_key_prefers_dedicated_key_when_set():
+    other = "c" * 48
+    settings = _settings(JWT_SIGNING_KEY=other)
+    assert settings.jwt_signing_key == other
+    assert settings.jwt_signing_key != settings.SECRET_KEY
+
+
+def test_jwt_signing_key_enforces_strong_rules_when_set():
+    # Same bar as SECRET_KEY, but only when present.
+    with pytest.raises(ValidationError, match="JWT_SIGNING_KEY"):
+        _settings(JWT_SIGNING_KEY="tooshort")
+    with pytest.raises(ValidationError, match="JWT_SIGNING_KEY"):
+        _settings(JWT_SIGNING_KEY="change-me")
+
+
 def test_cors_allowed_origins_accepts_comma_separated_string():
     settings = _settings(
         CORS_ALLOWED_ORIGINS="https://a.example.com, https://b.example.com",
