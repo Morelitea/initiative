@@ -152,9 +152,10 @@ async def test_docs_page_serves_scoped_csp(client: AsyncClient) -> None:
     assert "https://cdn.jsdelivr.net" in docs_csp
     assert "https://static.cloudflareinsights.com" in docs_csp
 
-    other_csp = (await client.get("/api/v1/config")).headers.get(
-        "content-security-policy", ""
-    )
+    config_resp = await client.get("/api/v1/config")
+    assert config_resp.status_code == 200
+    other_csp = config_resp.headers.get("content-security-policy", "")
+    assert "script-src" in other_csp
     assert "cdn.jsdelivr.net" not in other_csp.split("script-src")[1].split(";")[0]
 
 
@@ -168,10 +169,14 @@ def test_docs_routes_return_404_when_disabled() -> None:
     HTTP that the docs/openapi routes don't exist (404), not merely that the
     attributes are ``None``. The enabled path is covered against the real app
     by ``test_docs_and_openapi_served_when_enabled``.
+
+    Mirrors the real wiring: ``docs_url`` is always ``None`` (docs are served by
+    a custom route, registered only when enabled), and with docs disabled that
+    route is never added, so ``openapi_url`` is ``None`` too.
     """
     cfg = Settings(ENABLE_API_DOCS=False)
     disabled = FastAPI(
-        docs_url=f"{cfg.API_V1_STR}/docs" if cfg.ENABLE_API_DOCS else None,
+        docs_url=None,
         openapi_url=(f"{cfg.API_V1_STR}/openapi.json" if cfg.ENABLE_API_DOCS else None),
         redoc_url=None,
     )

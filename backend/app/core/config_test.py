@@ -230,6 +230,7 @@ def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
     # Docs page keeps the high-value vectors locked down.
     assert "object-src 'none'" in docs
     assert "frame-ancestors 'none'" in docs
+    assert "form-action 'self'" in docs
 
 
 def test_app_url_is_https_true_for_https():

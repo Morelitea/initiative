@@ -266,6 +266,9 @@ class Settings(BaseSettings):
                 "worker-src": ["'self'", "blob:"],
                 "object-src": ["'none'"],
                 "base-uri": ["'self'"],
+                # form-action does not fall back to default-src (CSP L2+), so set
+                # it explicitly to match the global policy's lockdown.
+                "form-action": ["'self'"],
                 "frame-ancestors": ["'none'"],
             }
         )
