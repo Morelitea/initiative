@@ -428,7 +428,7 @@ export const InitiativeSettingsMembersTab = ({
                   {t("settings.guildAdminsSectionHint")}
                 </p>
                 <div className="px-1 pb-1">
-                  <DataTable columns={memberColumns} data={adminOnlyMembers} />
+                  <DataTable columns={memberColumns} data={adminOnlyMembers} enablePagination />
                 </div>
               </CollapsibleContent>
             </Collapsible>
