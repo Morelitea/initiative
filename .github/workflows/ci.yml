@@ -102,7 +102,7 @@ jobs:
 
       - name: Install uv
         if: steps.changes.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           version: "0.11.21"
           enable-cache: true
@@ -239,7 +239,7 @@ jobs:
 
       - name: Install uv
         if: steps.filter.outputs.skip != 'true'
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           version: "0.11.21"
           enable-cache: true
