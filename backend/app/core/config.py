@@ -240,18 +240,29 @@ class Settings(BaseSettings):
         Swagger UI loads its bundle/stylesheet from jsDelivr and a Cloudflare
         beacon, which the app-wide ``script-src 'self'`` (pentest MED-001)
         rightly blocks. Rather than weaken the global policy, this scoped policy
-        whitelists just those origins for the docs HTML response. Everything else
-        stays locked down: ``object-src 'none'``, ``frame-ancestors 'none'``,
-        and ``connect-src 'self'`` (Try-It-Out hits the same-origin API).
+        whitelists just those origins for the docs HTML response.
+
+        ``script-src`` also needs ``'unsafe-inline'``: ``get_swagger_ui_html``
+        boots the UI from an inline ``<script>`` (FastAPI provides no nonce, and
+        a hash would break whenever the title/openapi_url change). ``connect-src``
+        allows jsDelivr so the bundle's ``.map`` sourcemap fetch doesn't error;
+        Try-It-Out still reaches the same-origin API via ``'self'``. This is
+        confined to the dev-only, ``ENABLE_API_DOCS``-gated docs page — the rest
+        of the app keeps ``script-src 'self'``, ``object-src 'none'``, and
+        ``frame-ancestors 'none'``.
         """
         return _format_csp(
             {
                 "default-src": ["'self'"],
-                "script-src": ["'self'", *CSP_SWAGGER_SCRIPT_ORIGINS],
+                "script-src": [
+                    "'self'",
+                    "'unsafe-inline'",
+                    *CSP_SWAGGER_SCRIPT_ORIGINS,
+                ],
                 "style-src": ["'self'", "'unsafe-inline'", *CSP_SWAGGER_STYLE_ORIGINS],
                 "img-src": ["'self'", "data:", "https:"],
                 "font-src": ["'self'", "data:"],
-                "connect-src": ["'self'"],
+                "connect-src": ["'self'", *CSP_SWAGGER_STYLE_ORIGINS],
                 "worker-src": ["'self'", "blob:"],
                 "object-src": ["'none'"],
                 "base-uri": ["'self'"],

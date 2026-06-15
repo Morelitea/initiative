@@ -219,10 +219,14 @@ def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
     assert "https://cdn.jsdelivr.net" in _directive(docs, "script-src")
     assert "https://static.cloudflareinsights.com" in _directive(docs, "script-src")
     assert "https://cdn.jsdelivr.net" in _directive(docs, "style-src")
+    # Swagger boots from an inline <script>, and its bundle fetches a .map.
+    assert "'unsafe-inline'" in _directive(docs, "script-src")
+    assert "https://cdn.jsdelivr.net" in _directive(docs, "connect-src")
 
     # The relaxation must not leak into the global policy.
     assert "cdn.jsdelivr.net" not in _directive(main, "script-src")
     assert "cloudflareinsights.com" not in main
+    assert "'unsafe-inline'" not in _directive(main, "script-src")
     # Docs page keeps the high-value vectors locked down.
     assert "object-src 'none'" in docs
     assert "frame-ancestors 'none'" in docs
