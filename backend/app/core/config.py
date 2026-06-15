@@ -48,6 +48,24 @@ CSP_FONT_ORIGINS = [
     "https://esm.sh",  # Do not promote esm.sh to script-src
 ]
 
+# Swagger UI (/docs) pulls its bundle + stylesheet from jsDelivr and, behind a
+# Cloudflare proxy, a Web Analytics beacon. These get a relaxed, docs-ONLY CSP
+# (Settings.docs_content_security_policy) applied per-route so the app-wide
+# script-src can stay 'self' (pentest MED-001) — never add these to the main CSP.
+CSP_SWAGGER_SCRIPT_ORIGINS = [
+    "https://cdn.jsdelivr.net",
+    "https://static.cloudflareinsights.com",
+]
+CSP_SWAGGER_STYLE_ORIGINS = ["https://cdn.jsdelivr.net"]
+
+
+def _format_csp(directives: dict[str, list[str]]) -> str:
+    """Render a directive map to a CSP header string, de-duplicating sources."""
+    return "; ".join(
+        f"{name} {' '.join(dict.fromkeys(values))}"
+        for name, values in directives.items()
+    )
+
 
 def _origin_of(url: str) -> str | None:
     """Return the ``scheme://host[:port]`` origin of a URL, or None if unparseable."""
@@ -213,9 +231,32 @@ class Settings(BaseSettings):
             "form-action": ["'self'"],
             "frame-ancestors": ["'none'"],
         }
-        return "; ".join(
-            f"{name} {' '.join(dict.fromkeys(values))}"
-            for name, values in directives.items()
+        return _format_csp(directives)
+
+    @property
+    def docs_content_security_policy(self) -> str:
+        """Relaxed CSP for the Swagger ``/docs`` page ONLY (applied per-route).
+
+        Swagger UI loads its bundle/stylesheet from jsDelivr and a Cloudflare
+        beacon, which the app-wide ``script-src 'self'`` (pentest MED-001)
+        rightly blocks. Rather than weaken the global policy, this scoped policy
+        whitelists just those origins for the docs HTML response. Everything else
+        stays locked down: ``object-src 'none'``, ``frame-ancestors 'none'``,
+        and ``connect-src 'self'`` (Try-It-Out hits the same-origin API).
+        """
+        return _format_csp(
+            {
+                "default-src": ["'self'"],
+                "script-src": ["'self'", *CSP_SWAGGER_SCRIPT_ORIGINS],
+                "style-src": ["'self'", "'unsafe-inline'", *CSP_SWAGGER_STYLE_ORIGINS],
+                "img-src": ["'self'", "data:", "https:"],
+                "font-src": ["'self'", "data:"],
+                "connect-src": ["'self'"],
+                "worker-src": ["'self'", "blob:"],
+                "object-src": ["'none'"],
+                "base-uri": ["'self'"],
+                "frame-ancestors": ["'none'"],
+            }
         )
 
     OIDC_ENABLED: bool = False

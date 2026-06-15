@@ -46,15 +46,36 @@ reserved_prefixes = [
 # SEC-16). When disabled, FastAPI serves no /docs and no /openapi.json, so the
 # full route/parameter/error map isn't handed out. Defaults to on for dev
 # ergonomics; recommend ENABLE_API_DOCS=False in production.
+# docs_url is left None even when docs are enabled: the default route would
+# inherit the app-wide CSP and the jsDelivr-hosted Swagger assets get blocked.
+# A custom route below serves the same UI with a docs-scoped CSP instead.
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=__version__,
-    docs_url=f"{settings.API_V1_STR}/docs" if settings.ENABLE_API_DOCS else None,
+    docs_url=None,
     openapi_url=(
         f"{settings.API_V1_STR}/openapi.json" if settings.ENABLE_API_DOCS else None
     ),
     redoc_url=None,
 )
+
+if settings.ENABLE_API_DOCS:
+    from fastapi.openapi.docs import get_swagger_ui_html
+
+    _DOCS_CSP = settings.docs_content_security_policy
+
+    @app.get(f"{settings.API_V1_STR}/docs", include_in_schema=False)
+    async def swagger_ui_html() -> Response:
+        # get_swagger_ui_html returns the Swagger HTML that loads its JS/CSS from
+        # jsDelivr; attach the docs-scoped CSP so only this response permits them.
+        # The middleware uses setdefault, so this explicit header wins.
+        response = get_swagger_ui_html(
+            openapi_url=f"{settings.API_V1_STR}/openapi.json",
+            title=f"{settings.PROJECT_NAME} - Swagger UI",
+        )
+        response.headers["Content-Security-Policy"] = _DOCS_CSP
+        return response
+
 
 # Initialize rate limiter (uses shared limiter from app.core.rate_limit)
 app.state.limiter = limiter

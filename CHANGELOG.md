@@ -31,7 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A batch of schema-per-guild fixes: property definitions, uploads and document downloads, account deletion/deactivation cleanup, OIDC role sync, cross-guild calendars, and the "added to initiative" notification all read and write the correct guild's data again.
 - The Initiative logo now displays in emails.
 - Corrected malformed stored defaults for tag and task-status colors and icons.
-- Spell-check dictionaries and Excalidraw whiteboard fonts are no longer blocked by the Content-Security-Policy.
+- Spell-check dictionaries, Excalidraw whiteboard fonts, and the Swagger API docs page are no longer blocked by the Content-Security-Policy.
 
 ### Security
 

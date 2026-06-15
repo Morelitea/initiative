@@ -209,6 +209,25 @@ def test_csp_advanced_tool_origin_only_when_configured():
     assert "https://tool.example.com" in _directive(csp, "connect-src")
 
 
+def test_docs_csp_allows_swagger_cdn_but_main_csp_does_not():
+    # Swagger's jsDelivr + Cloudflare beacon scripts are permitted ONLY on the
+    # docs-scoped policy; the app-wide script-src stays 'self' (pentest MED-001).
+    settings = _settings()
+    docs = settings.docs_content_security_policy
+    main = settings.content_security_policy
+
+    assert "https://cdn.jsdelivr.net" in _directive(docs, "script-src")
+    assert "https://static.cloudflareinsights.com" in _directive(docs, "script-src")
+    assert "https://cdn.jsdelivr.net" in _directive(docs, "style-src")
+
+    # The relaxation must not leak into the global policy.
+    assert "cdn.jsdelivr.net" not in _directive(main, "script-src")
+    assert "cloudflareinsights.com" not in main
+    # Docs page keeps the high-value vectors locked down.
+    assert "object-src 'none'" in docs
+    assert "frame-ancestors 'none'" in docs
+
+
 def test_app_url_is_https_true_for_https():
     # Drives both the Secure cookie flag and the HSTS header (pentest SEC-16).
     assert _settings(APP_URL="https://app.example.com").app_url_is_https is True
