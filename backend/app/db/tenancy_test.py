@@ -38,13 +38,19 @@ def test_shared_and_guild_scoped_are_disjoint():
 
 
 def test_every_table_is_classified():
-    """Every real table must appear in exactly one bucket (no silent gaps)."""
+    """Every real table must appear in exactly one bucket (no silent gaps).
+
+    ``GUILD_SCOPED_TABLES`` is derived as ``INITIATIVE_SCOPED_TABLES |
+    GUILD_LEVEL_TABLES``, so a new guild table that's in neither the
+    ``initiative_rls`` path registry nor ``GUILD_LEVEL_TABLES`` lands here.
+    """
     unclassified = _metadata_tables() - ALL_CLASSIFIED_TABLES
     assert not unclassified, (
-        "These tables exist but are not placed in SHARED_TABLES or "
-        f"GUILD_SCOPED_TABLES in app/db/tenancy.py: {sorted(unclassified)}. "
-        "Add each to the correct bucket — an unclassified guild-scoped table "
-        "would leak across tenants."
+        f"These tables exist but are unclassified in app/db: {sorted(unclassified)}. "
+        "Add each to SHARED_TABLES (public), or — for guild content — a path in "
+        "app/db/initiative_rls.py INITIATIVE_PATHS (initiative-scoped) or to "
+        "GUILD_LEVEL_TABLES in tenancy.py (guild-wide). An unclassified guild "
+        "table would leak across tenants."
     )
 
 
@@ -65,50 +71,38 @@ def test_helpers_agree_with_sets():
     assert not is_shared("does_not_exist")
 
 
-# --- Second-level partition: initiative-scoped vs guild-level ---------------
-# These keep tenancy.py honest as guild tables are added: a new guild-scoped
-# table must be classified initiative-scoped (and so receive initiative_access
-# policies via gen_guild_rls.py) or explicitly exempted as guild-level.
+# --- Second-level: initiative-scoped vs guild-level -------------------------
+# INITIATIVE_SCOPED_TABLES derives from the app/db/initiative_rls path registry
+# and GUILD_SCOPED_TABLES derives from (initiative | guild-level), so the
+# "registry matches the set" and "they partition GUILD_SCOPED" invariants hold
+# by construction — no test needed. What still needs guarding: the two halves
+# must be disjoint, and the polymorphic recent_views path must cover every
+# entity type the app records.
 
 
 def test_initiative_and_guild_level_are_disjoint():
-    """A guild table can't be both initiative-scoped and guild-level."""
+    """A guild table must be initiative-scoped XOR guild-level, never both.
+
+    (GUILD_SCOPED is their union, so an overlap wouldn't show up there — it would
+    silently get initiative policies while also being declared 'exempt'.)
+    """
     overlap = INITIATIVE_SCOPED_TABLES & GUILD_LEVEL_TABLES
     assert not overlap, (
-        f"Tables in BOTH initiative-scoped and guild-level: {sorted(overlap)}"
+        f"Tables in BOTH the initiative_rls registry and GUILD_LEVEL_TABLES: "
+        f"{sorted(overlap)}. Pick one."
     )
 
 
-def test_initiative_and_guild_level_partition_guild_scoped():
-    """Every guild-scoped table is in exactly one second-level bucket — no gaps.
+def test_recent_views_path_covers_entity_types():
+    """recent_views' polymorphic RLS path must join every entity type the app can
+    record — otherwise rows of an uncovered type would be silently invisible."""
+    from app.db.initiative_rls import RECENT_ENTITY_TABLES
+    from app.models.recent_view import RECENT_ENTITY_TYPES
 
-    A missing table is the dangerous case: it would land in a guild schema with
-    no initiative RLS *and* no conscious 'this is guild-level' decision.
-    """
-    second_level = INITIATIVE_SCOPED_TABLES | GUILD_LEVEL_TABLES
-    unclassified = GUILD_SCOPED_TABLES - second_level
-    assert not unclassified, (
-        "These guild-scoped tables have no initiative-scoped/guild-level decision in "
-        f"app/db/tenancy.py: {sorted(unclassified)}. Add each to INITIATIVE_SCOPED_TABLES "
-        "(and a path in scripts/gen_guild_rls.py) or to GUILD_LEVEL_TABLES."
-    )
-    phantom = second_level - GUILD_SCOPED_TABLES
-    assert not phantom, (
-        f"These tables are second-level-classified but not GUILD_SCOPED: {sorted(phantom)}."
-    )
-
-
-def test_generator_registry_covers_initiative_scoped_exactly():
-    """scripts/gen_guild_rls.py must hold a path for exactly the initiative-scoped
-    set — so an initiative table can't ship without its policies, and a stale path
-    can't linger for a reclassified table. (The generator also asserts this on
-    import; this surfaces it as a named test.)"""
-    from scripts.gen_guild_rls import INITIATIVE_PATHS
-
-    assert set(INITIATIVE_PATHS) == set(INITIATIVE_SCOPED_TABLES), (
-        "gen_guild_rls.INITIATIVE_PATHS must match INITIATIVE_SCOPED_TABLES. "
-        f"missing paths: {sorted(set(INITIATIVE_SCOPED_TABLES) - set(INITIATIVE_PATHS))}; "
-        f"stale paths: {sorted(set(INITIATIVE_PATHS) - set(INITIATIVE_SCOPED_TABLES))}"
+    uncovered = set(RECENT_ENTITY_TYPES) - set(RECENT_ENTITY_TABLES)
+    assert not uncovered, (
+        f"recent_views_path() has no initiative join for entity types {sorted(uncovered)} "
+        "— add them to RECENT_ENTITY_TABLES in app/db/initiative_rls.py."
     )
 
 

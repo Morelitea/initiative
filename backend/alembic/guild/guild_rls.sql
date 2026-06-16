@@ -4,10 +4,11 @@
 --
 -- The access RULE lives in ONE place, public.initiative_access (initiative member
 -- OR guild admin OR PAM, read from the request GUCs); each policy below is just the
--- join that resolves a table's initiative id and defers to it.
+-- join that resolves a table's initiative id and defers to it. The per-table paths
+-- are the single source of truth in app/db/initiative_rls.py (INITIATIVE_PATHS).
 --
 -- SCOPE: only INITIATIVE-scoped CONTENT tables are here, exactly
--- app.db.tenancy.INITIATIVE_SCOPED_TABLES. The STRUCTURAL initiative tables
+-- app.db.initiative_rls.INITIATIVE_SCOPED_TABLES. The STRUCTURAL initiative tables
 -- (initiatives, initiative_members, initiative_roles, initiative_role_permissions)
 -- and guild-level / own-row tables (app.db.tenancy.GUILD_LEVEL_TABLES) are NOT
 -- initiative-member-scoped: they are guild-scoped by the schema boundary (the
@@ -15,8 +16,8 @@
 -- recursing; own-row scoping would break co-member rosters). The app layer still
 -- does finer filtering (e.g. the initiatives list shows member-only for non-admins).
 --
--- To add a new initiative-scoped table: add it to INITIATIVE_SCOPED_TABLES and a
--- path to INITIATIVE_PATHS in scripts/gen_guild_rls.py, then regenerate.
+-- To add a new initiative-scoped table: add a path to INITIATIVE_PATHS in
+-- app/db/initiative_rls.py, then regenerate.
 
 
 ALTER TABLE calendar_event_attendees ENABLE ROW LEVEL SECURITY;
