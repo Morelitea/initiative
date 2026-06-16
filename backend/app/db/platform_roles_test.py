@@ -136,3 +136,23 @@ async def test_acting_user_optional_guild_role(client, acting_user, g_role):
     assert user.role.value == "member"
     resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
     assert resp.status_code == 200
+
+
+async def test_platform_and_guild_roles_coexist(client, acting_user):
+    """A user can hold BOTH a platform tier and a guild role at once, and the SAME
+    identity uses the right role on each path:
+
+      * public/platform path  -> assumes platform_<tier>  (here platform_member)
+      * guild path (/g/{id}/…) -> assumes guild_<id> with current_guild_role=admin
+
+    SET ROLE is single-valued per statement, so the two never conflict and neither
+    costs the other. Uses a non-bypass platform tier (member) so the guild request
+    is governed purely by the guild role, not data.bypass / is_superadmin.
+    """
+    user, headers, guild = await acting_user("member", guild_role="admin")
+
+    public_resp = await client.get("/api/v1/guilds/", headers=headers)
+    assert public_resp.status_code == 200  # ran as platform_member
+
+    guild_resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    assert guild_resp.status_code == 200  # ran as guild_<id> (admin), same identity

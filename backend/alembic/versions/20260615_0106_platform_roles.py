@@ -40,8 +40,8 @@ test DB and dev DB never collide on the catalog. The routing role-name helper
 (``app.db.schema_provisioning.platform_role_name``) reads the same setting, so a
 ``SET ROLE`` always targets the role this migration actually created.
 
-Revision ID: 20260615_0105
-Revises: 20260613_0104
+Revision ID: 20260615_0106
+Revises: 20260615_0105
 Create Date: 2026-06-15
 """
 
@@ -50,8 +50,8 @@ from alembic import op
 from app.core.config import settings
 from app.db.schema_provisioning import PLATFORM_TIERS
 
-revision = "20260615_0105"
-down_revision = "20260613_0104"
+revision = "20260615_0106"
+down_revision = "20260615_0105"
 branch_labels = None
 depends_on = None
 
