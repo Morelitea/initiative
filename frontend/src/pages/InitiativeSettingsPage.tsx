@@ -28,7 +28,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
 import { useDeleteInitiative, useInitiatives, useUpdateInitiative } from "@/hooks/useInitiatives";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -47,10 +46,7 @@ export const InitiativeSettingsPage = () => {
   const { t } = useTranslation(["initiatives", "common", "properties"]);
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
-  const { data: roleLabels } = useRoleLabels();
   const gp = useGuildPath();
-
-  const adminLabel = getRoleLabel("admin", roleLabels);
 
   const initiativesQuery = useInitiatives({ enabled: hasValidInitiativeId });
 
@@ -302,7 +298,6 @@ export const InitiativeSettingsPage = () => {
           isDefault={initiative.is_default}
           canDeleteInitiative={canDeleteInitiative}
           isDeleting={deleteInitiative.isPending}
-          adminLabel={adminLabel}
           onDeleteInitiative={handleDeleteInitiative}
         />
       </Tabs>

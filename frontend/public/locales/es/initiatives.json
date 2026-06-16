@@ -110,7 +110,7 @@
     "deleteInitiative": "Eliminar iniciativa",
     "deletingInitiative": "Eliminando...",
     "defaultCannotDelete": "La iniciativa predeterminada no se puede eliminar.",
-    "contactAdmin": "Contacta a un administrador del gremio ({{adminLabel}}) para eliminar esta iniciativa.",
+    "contactAdmin": "Contacta a un administrador del gremio para eliminar esta iniciativa.",
     "deleted": "Iniciativa eliminada.",
     "deleteError": "No se pudo eliminar la iniciativa en este momento.",
     "deleteConfirmTitle": "¿Eliminar iniciativa?",

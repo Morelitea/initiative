@@ -26,7 +26,6 @@ import {
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -82,10 +81,7 @@ export const InitiativeSettingsMembersTab = ({
   onRemoveMember,
 }: InitiativeSettingsMembersTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
-  const { data: roleLabels } = useRoleLabels();
 
-  const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
-  const memberLabel = getRoleLabel("member", roleLabels);
   const adminRoleLabel = t("settings.guildAdminRole");
 
   // Fetched only for members managers (who can act on the roster) to identify
@@ -249,7 +245,8 @@ export const InitiativeSettingsMembersTab = ({
       if (member.role_display_name) {
         return member.role_display_name;
       }
-      return member.role === "project_manager" ? projectManagerLabel : memberLabel;
+      const roleFromList = roles?.find((role) => role.name === member.role)?.display_name;
+      return roleFromList ?? member.role;
     };
 
     const adminMutationPending = addMember.isPending || removeMember.isPending;
@@ -300,7 +297,7 @@ export const InitiativeSettingsMembersTab = ({
             if (!canManageMembers || !managerRole) {
               return (
                 <Badge variant="outline" className="text-muted-foreground">
-                  {isManager ? projectManagerLabel : adminRoleLabel}
+                  {isManager && managerRole ? managerRole.display_name : adminRoleLabel}
                 </Badge>
               );
             }
@@ -398,8 +395,6 @@ export const InitiativeSettingsMembersTab = ({
     removeMember,
     updateMemberRole,
     handleAdminRoleChange,
-    projectManagerLabel,
-    memberLabel,
     initiativeId,
     onRemoveMember,
   ]);

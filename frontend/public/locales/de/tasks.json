@@ -85,7 +85,7 @@
     "startDateLabel": "Startdatum",
     "dueDateLabel": "Fälligkeitsdatum",
     "assigneesLabel": "Zuständige Personen",
-    "assigneesEmptyMessage": "Noch keine Inhaber der Initiativrolle {{memberLabel}} verfügbar.",
+    "assigneesEmptyMessage": "Noch keine Initiativmitglieder verfügbar.",
     "tagsLabel": "Tags",
     "tagsPlaceholder": "Tags hinzufügen...",
     "saving": "Wird gespeichert…",

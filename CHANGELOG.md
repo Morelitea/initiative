@@ -10,11 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **⚠️ BREAKING: initiative content is now members-only, enforced by the database.** If you're in a guild but not a member of one of its initiatives, that initiative's projects, tasks, documents, and other content are now hidden from you (previously they were blocked but still visible as "exists"). This database change cannot be rolled back.
-- **Platform-role RLS hardening (Phase 2).** The purely-platform tables (`users`, `access_grants`, `app_settings`) now enforce least-privilege at the database via per-tier `platform_<role>` policies instead of relying on the app layer alone: a member sees only their own user row, support+ can read all users, moderator+ can manage them, and app-wide config (`app_settings`: OIDC, SMTP, branding, role labels, platform AI) is owner-only to write
+- **Platform-role RLS hardening (Phase 2).** The purely-platform tables (`users`, `access_grants`, `app_settings`) now enforce least-privilege at the database via per-tier `platform_<role>` policies instead of relying on the app layer alone: a member sees only their own user row, support+ can read all users, moderator+ can manage them, and app-wide config (`app_settings`: OIDC, SMTP, branding, platform AI) is owner-only to write
+
+### Added
+
+- **Rename built-in initiative roles.** The built-in "Project manager" and "Member" roles can now be renamed per initiative (e.g. "Project manager" → "Dungeon Master") from the initiative's Roles settings tab. The chosen name shows up wherever that member's role appears — rosters, badges, and the initiative list.
 
 ### Changed
 
 - The platform users CSV export (`/admin/users/export.csv`) no longer includes the `initiative_roles` column. Initiative roles are guild-scoped; a platform-level user export now contains platform data only.
+
+### Removed
+
+- **Platform-wide role labels.** The branding setting that renamed "Admin", "Project manager", and "Member" app-wide has been removed in favour of per-initiative role names (above), which offer finer-grained control. The `app_settings.role_labels` column and the `GET`/`PUT /settings/roles` endpoints are gone.
 
 ## [0.51.1] - 2026-06-15
 

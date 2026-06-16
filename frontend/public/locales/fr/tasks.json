@@ -85,7 +85,7 @@
     "startDateLabel": "Date de début",
     "dueDateLabel": "Date d'échéance",
     "assigneesLabel": "Assignés",
-    "assigneesEmptyMessage": "Aucun titulaire du rôle {{memberLabel}} disponible dans cette initiative.",
+    "assigneesEmptyMessage": "Aucun membre de l'initiative disponible pour le moment.",
     "tagsLabel": "Étiquettes",
     "tagsPlaceholder": "Ajouter des étiquettes...",
     "saving": "Enregistrement\u2026",

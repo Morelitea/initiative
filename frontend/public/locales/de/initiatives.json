@@ -110,7 +110,7 @@
     "deleteInitiative": "Initiative löschen",
     "deletingInitiative": "Wird gelöscht...",
     "defaultCannotDelete": "Die Standard-Initiative kann nicht gelöscht werden.",
-    "contactAdmin": "Wende dich an einen Gilden-Administrator ({{adminLabel}}), um diese Initiative zu löschen.",
+    "contactAdmin": "Wende dich an einen Gilden-Administrator, um diese Initiative zu löschen.",
     "deleted": "Initiative gelöscht.",
     "deleteError": "Initiative kann derzeit nicht gelöscht werden.",
     "deleteConfirmTitle": "Initiative löschen?",

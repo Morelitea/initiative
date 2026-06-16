@@ -16,7 +16,6 @@ import {
   useMyInitiativePermissions,
 } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 
 import { DocumentsView } from "./DocumentsPage";
@@ -38,10 +37,7 @@ export const InitiativeDetailPage = () => {
   const { t } = useTranslation(["initiatives", "common"]);
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
-  const { data: roleLabels } = useRoleLabels();
-  const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
-  const memberLabel = getRoleLabel("member", roleLabels);
-  const guildAdminLabel = getRoleLabel("admin", roleLabels);
+  const guildAdminLabel = t("settings.guildAdminRole");
 
   // Fetch user's permissions for this initiative
   const { data: permissions, isLoading: permissionsLoading } = useMyInitiativePermissions(
@@ -97,9 +93,7 @@ export const InitiativeDetailPage = () => {
   const roleBadgeLabel = permissions?.role_display_name
     ? permissions.role_display_name
     : membership
-      ? membership.role === "project_manager"
-        ? projectManagerLabel
-        : memberLabel
+      ? (membership.role_display_name ?? membership.role_name ?? membership.role)
       : isGuildAdmin
         ? guildAdminLabel
         : null;

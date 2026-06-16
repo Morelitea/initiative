@@ -164,8 +164,8 @@ async def test_app_settings_write_is_owner_only(session):
     member = await create_user(session, role=UserRole.member)
     await session.execute(
         text(
-            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes, role_labels) "
-            "VALUES (1, false, '[]'::json, '{}'::json) ON CONFLICT (id) DO NOTHING"
+            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
+            "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
         )
     )
 
@@ -189,11 +189,11 @@ async def test_app_settings_write_is_owner_only(session):
 
 async def test_app_settings_readable_by_every_tier(session):
     """Everyone may SELECT config (``app_settings_read`` TO PUBLIC) — public reads
-    like interface colors / role labels must work for any tier."""
+    like interface colors must work for any tier."""
     await session.execute(
         text(
-            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes, role_labels) "
-            "VALUES (1, false, '[]'::json, '{}'::json) ON CONFLICT (id) DO NOTHING"
+            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
+            "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
         )
     )
     member = await create_user(session, role=UserRole.member)
@@ -219,8 +219,8 @@ async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
     # Existing singleton with an empty oidc_issuer.
     await session.execute(
         text(
-            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes, role_labels) "
-            "VALUES (1, false, '[]'::json, '{}'::json) ON CONFLICT (id) DO NOTHING"
+            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
+            "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
         )
     )
     member = await create_user(session, role=UserRole.member)

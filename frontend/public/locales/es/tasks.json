@@ -85,7 +85,7 @@
     "startDateLabel": "Fecha de inicio",
     "dueDateLabel": "Fecha de vencimiento",
     "assigneesLabel": "Asignados",
-    "assigneesEmptyMessage": "Aún no hay titulares del rol {{memberLabel}} de la iniciativa disponibles.",
+    "assigneesEmptyMessage": "Aún no hay miembros de la iniciativa disponibles.",
     "tagsLabel": "Etiquetas",
     "tagsPlaceholder": "Agregar etiquetas...",
     "saving": "Guardando\u2026",

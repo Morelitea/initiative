@@ -9,7 +9,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import (
     SessionDep,
     UserSessionDep,
-    get_current_active_user,
     GuildContext,
     require_guild_roles,
 )
@@ -17,7 +16,6 @@ from app.api.v1.public_endpoints.admin import ConfigManageDep
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session
-from app.models.user import User
 from app.models.app_setting import AppSetting
 from app.models.guild import Guild, GuildRole
 from app.models.initiative import Initiative, InitiativeRoleModel
@@ -35,8 +33,6 @@ from app.schemas.settings import (
     OIDCMappingsResponse,
     OIDCSettingsResponse,
     OIDCSettingsUpdate,
-    RoleLabelsResponse,
-    RoleLabelsUpdate,
 )
 from app.schemas.push import FCMConfigResponse
 from app.core.messages import SettingsMessages
@@ -135,15 +131,6 @@ async def get_interface_settings(
     )
 
 
-@router.get("/roles", response_model=RoleLabelsResponse)
-async def get_role_labels(
-    session: SessionDep,
-    _current_user: Annotated[User, Depends(get_current_active_user)],
-) -> RoleLabelsResponse:
-    settings_obj = await app_settings_service.get_app_settings(session)
-    return RoleLabelsResponse(**settings_obj.role_labels)
-
-
 @router.put("/interface", response_model=InterfaceSettingsResponse)
 async def update_interface_settings(
     payload: InterfaceSettingsUpdate,
@@ -159,19 +146,6 @@ async def update_interface_settings(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
     )
-
-
-@router.put("/roles", response_model=RoleLabelsResponse)
-async def update_role_labels(
-    payload: RoleLabelsUpdate,
-    session: UserSessionDep,
-    _admin: ConfigManageDep,
-) -> RoleLabelsResponse:
-    updated = await app_settings_service.update_role_labels(
-        session,
-        labels={k: v for k, v in payload.dict(exclude_unset=True).items()},
-    )
-    return RoleLabelsResponse(**updated.role_labels)
 
 
 @router.get("/email", response_model=EmailSettingsResponse)

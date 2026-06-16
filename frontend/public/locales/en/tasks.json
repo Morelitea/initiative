@@ -85,7 +85,7 @@
     "startDateLabel": "Start date",
     "dueDateLabel": "Due date",
     "assigneesLabel": "Assignees",
-    "assigneesEmptyMessage": "No initiative {{memberLabel}} role holders available yet.",
+    "assigneesEmptyMessage": "No initiative members available yet.",
     "tagsLabel": "Tags",
     "tagsPlaceholder": "Add tags...",
     "saving": "Saving\u2026",

@@ -42,7 +42,6 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { useCreateInitiative, useInitiatives } from "@/hooks/useInitiatives";
 import { useProjects } from "@/hooks/useProjects";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
@@ -53,7 +52,6 @@ export const InitiativesPage = () => {
   const { user } = useAuth();
   const { t } = useTranslation("initiatives");
   const { activeGuild } = useGuilds();
-  const { data: roleLabels } = useRoleLabels();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { create?: string };
 
@@ -61,9 +59,7 @@ export const InitiativesPage = () => {
     await invalidateAllInitiatives();
   }, []);
 
-  const guildAdminLabel = getRoleLabel("admin", roleLabels);
-  const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
-  const memberLabel = getRoleLabel("member", roleLabels);
+  const guildAdminLabel = t("settings.guildAdminRole");
 
   const { isGuildAdmin, filterVisible } = useInitiativeAccess();
   const canCreateInitiatives = Boolean(activeGuild && isGuildAdmin);
@@ -158,7 +154,7 @@ export const InitiativesPage = () => {
   const renderMembershipBadge = (initiative: InitiativeRead) => {
     const membership = initiative.members.find((member) => member.user.id === user?.id);
     if (membership) {
-      const roleLabel = membership.role === "project_manager" ? projectManagerLabel : memberLabel;
+      const roleLabel = membership.role_display_name ?? membership.role_name ?? membership.role;
       return <Badge variant="secondary">{roleLabel}</Badge>;
     }
     if (isGuildAdmin) {
