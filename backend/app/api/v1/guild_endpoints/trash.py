@@ -241,7 +241,19 @@ async def _load_trash_entity(
     entity_type: EntityType,
     entity_id: int,
     guild_id: int,
+    for_update: bool = False,
 ) -> SQLModel:
+    """Load a trashed entity (404 unless it's in this guild's trash and still
+    soft-deleted).
+
+    ``for_update`` takes a row lock so the ``deleted_at`` check and a follow-up
+    hard delete are atomic against a concurrent restore: under READ COMMITTED a
+    restore that commits between the SELECT and the DELETE would otherwise be
+    visible, and the PK delete would permanently remove a now-live row. With the
+    lock, a racing restore serializes — either it commits first and this returns
+    404 (deleted_at is NULL), or it blocks on the lock until the purge commits and
+    the row is gone.
+    """
     spec = ENTITY_REGISTRY.get(entity_type)
     if spec is None:
         raise HTTPException(
@@ -254,6 +266,8 @@ async def _load_trash_entity(
         .where(model.id == entity_id)
         .where(model.guild_id == guild_id)
     )
+    if for_update:
+        stmt = stmt.with_for_update()
     result = await session.exec(stmt)
     entity = result.one_or_none()
     if entity is None or entity.deleted_at is None:
@@ -352,8 +366,9 @@ async def purge_trash_entity(
     which admits guild admins via the canonical roster from 0108), so the guild
     role itself does the hard delete. ``_load_trash_entity`` 404s unless the entity
     is in THIS guild's trash (and still soft-deleted) — that is the authorization
-    boundary, and doing the delete on the same routed session closes the
-    cross-session TOCTOU window the old two-session design had to guard.
+    boundary — and ``for_update=True`` locks the row so a concurrent restore can't
+    slip in between the ``deleted_at`` check and the delete (which would otherwise
+    permanently remove a just-restored live row).
     """
     if guild_context.role != GuildRole.admin:
         raise HTTPException(
@@ -366,6 +381,7 @@ async def purge_trash_entity(
         entity_type=entity_type,
         entity_id=entity_id,
         guild_id=guild_context.guild_id,
+        for_update=True,
     )
     await hard_purge_entity(session, entity)
     await session.commit()
