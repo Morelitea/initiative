@@ -689,6 +689,14 @@
     "description": "Fordere zeitlich begrenzten Zugriff auf eine Gilde an, deren Mitglied du nicht bist, und genehmige ihn.",
     "requestTitle": "Zugriff anfordern",
     "requestDescription": "Fordere temporären, eingeschränkten Zugriff auf eine Gilde an. Genehmiger gewähren ihn und er läuft automatisch ab.",
+    "breakGlass": {
+      "title": "Notfallzugriff",
+      "description": "Notfallzugriff auf eine Gilde selbst gewähren – sofort genehmigt, auf diese Gilde beschränkt und automatisch ablaufend. Lese- & Schreibzugriff entspricht einem vollen Gilden-Admin. Jeder Notfallzugriff wird protokolliert.",
+      "reasonPlaceholder": "Warum du Notfallzugriff brauchst (z. B. Vorfall #123)",
+      "submit": "Notfallzugriff",
+      "activated": "Notfallzugriff aktiviert",
+      "error": "Notfallzugriff nicht möglich"
+    },
     "queueTitle": "Genehmigungen",
     "queueDescription": "Gewähre, verweigere oder widerrufe zeitlich begrenzte Zugriffsanfragen.",
     "guildIdLabel": "Gilden-ID",

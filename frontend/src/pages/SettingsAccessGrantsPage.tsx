@@ -23,6 +23,7 @@ import {
   flattenGrants,
   useAccessGrantQueue,
   useApproveAccessGrant,
+  useBreakGlass,
   useCancelAccessRequest,
   useCreateAccessRequest,
   useDenyAccessGrant,
@@ -88,6 +89,7 @@ export const SettingsAccessGrantsPage = () => {
   const { user } = useAuth();
   const canRequest = hasCapability(user, Capability.accessRequest);
   const canApprove = hasCapability(user, Capability.accessApprove);
+  const canBreakGlass = hasCapability(user, Capability.dataBypass);
 
   return (
     <div className="space-y-6">
@@ -96,6 +98,7 @@ export const SettingsAccessGrantsPage = () => {
         <p className="text-muted-foreground">{t("accessGrants.description")}</p>
       </div>
       {canApprove && <ApprovalQueue />}
+      {canBreakGlass && <BreakGlassSection />}
       {canRequest && <RequestSection />}
     </div>
   );
@@ -131,6 +134,110 @@ const StatusBadge = ({ grant }: { grant: AccessGrantRead }) => {
   const { t } = useTranslation("settings");
   return (
     <Badge variant={STATUS_VARIANT[grant.status]}>{t(`accessGrants.status.${grant.status}`)}</Badge>
+  );
+};
+
+// Break-glass duration presets (whole hours), capped at the backend's
+// PAM_BREAK_GLASS_MAX_MINUTES (4h) — a self-approved grant is deliberately short.
+const BREAK_GLASS_DURATIONS_MINUTES = [60, 120, 240];
+
+// Self-serve emergency access for data.bypass holders (admin/owner). Unlike a
+// request, this is approved on creation — live immediately, scoped to one guild,
+// read-only by default, short-lived, and recorded as an audited grant.
+const BreakGlassSection = () => {
+  const { t } = useTranslation(["settings", "common"]);
+  const [guildId, setGuildId] = useState("");
+  const [level, setLevel] = useState("read");
+  const [duration, setDuration] = useState("60");
+  const [reason, setReason] = useState("");
+
+  const breakGlass = useBreakGlass({
+    onSuccess: () => {
+      toast.success(t("accessGrants.breakGlass.activated"));
+      setGuildId("");
+      setReason("");
+      setLevel("read");
+      setDuration("60");
+    },
+    onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.breakGlass.error")),
+  });
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const gid = Number.parseInt(guildId, 10);
+    if (!gid || !reason.trim()) return;
+    breakGlass.mutate({
+      guild_id: gid,
+      access_level: level as "read" | "read_write",
+      reason: reason.trim(),
+      requested_duration_minutes: Number.parseInt(duration, 10),
+    });
+  };
+
+  return (
+    <Card className="border-destructive/40 shadow-sm">
+      <CardHeader>
+        <CardTitle>{t("accessGrants.breakGlass.title")}</CardTitle>
+        <CardDescription>{t("accessGrants.breakGlass.description")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit}>
+          <div className="space-y-1">
+            <Label htmlFor="bg-guild">{t("accessGrants.guildIdLabel")}</Label>
+            <Input
+              id="bg-guild"
+              type="number"
+              value={guildId}
+              onChange={(e) => setGuildId(e.target.value)}
+              placeholder={t("accessGrants.guildIdPlaceholder")}
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="bg-level">{t("accessGrants.levelLabel")}</Label>
+            <Select value={level} onValueChange={setLevel}>
+              <SelectTrigger id="bg-level">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="read">{t("accessGrants.levelRead")}</SelectItem>
+                <SelectItem value="read_write">{t("accessGrants.levelReadWrite")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="bg-duration">{t("accessGrants.durationLabel")}</Label>
+            <Select value={duration} onValueChange={setDuration}>
+              <SelectTrigger id="bg-duration">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {BREAK_GLASS_DURATIONS_MINUTES.map((minutes) => (
+                  <SelectItem key={minutes} value={String(minutes)}>
+                    {t("accessGrants.durationHours", { count: minutes / 60 })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1 sm:col-span-2">
+            <Label htmlFor="bg-reason">{t("accessGrants.reasonLabel")}</Label>
+            <Textarea
+              id="bg-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder={t("accessGrants.breakGlass.reasonPlaceholder")}
+              required
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="destructive" disabled={breakGlass.isPending}>
+              {breakGlass.isPending ? t("common:submitting") : t("accessGrants.breakGlass.submit")}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 

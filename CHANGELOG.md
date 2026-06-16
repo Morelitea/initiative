@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- **Platform-role RLS hardening (Phase 2).** The purely-platform tables (`users`, `access_grants`, `app_settings`) now enforce least-privilege at the database via per-tier `platform_<role>` policies instead of relying on the app layer alone: a member sees only their own user row, support+ can read all users, moderator+ can manage them, and app-wide config (`app_settings`: OIDC, SMTP, branding, role labels, platform AI) is owner-only to write — enforced by both Postgres `GRANT`s and row-level security, with the standing `is_superadmin` bypass retired from these tables' policies. Platform user-management and owner-config endpoints now run on a role-scoped session rather than the RLS-bypassing admin engine.
+- **Platform-role RLS hardening (Phase 2).** The purely-platform tables (`users`, `access_grants`, `app_settings`) now enforce least-privilege at the database via per-tier `platform_<role>` policies instead of relying on the app layer alone: a member sees only their own user row, support+ can read all users, moderator+ can manage them, and app-wide config (`app_settings`: OIDC, SMTP, branding, role labels, platform AI) is owner-only to write
 
 ### Changed
 

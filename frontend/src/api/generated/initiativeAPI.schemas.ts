@@ -384,6 +384,25 @@ export interface BodyUploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersio
 }
 
 /**
+ * A self-approved, time-bound break-glass grant to one guild.
+ *
+ * Issued by a ``data.bypass`` holder (admin/owner) who needs emergency
+ * access without waiting for a second-person approval. Read-only by default;
+ * ``read_write`` is a deliberate escalation. The window is short and capped
+ * server-side (``PAM_BREAK_GLASS_MAX_MINUTES``) — re-issue to extend.
+ */
+export interface BreakGlassCreate {
+  guild_id: number;
+  access_level?: AccessLevel;
+  requested_duration_minutes?: number | null;
+  /**
+   * @minLength 1
+   * @maxLength 2000
+   */
+  reason: string;
+}
+
+/**
  * Compact per-attendee snapshot for list responses.
  *
  * Carries the id + avatar fields the SPA needs to render tinted,

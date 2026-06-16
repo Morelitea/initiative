@@ -33,7 +33,6 @@ from app.models.initiative import (
     PermissionKey,
     DEFAULT_PERMISSION_VALUES,
 )
-from app.core.capabilities import Capability, user_has_capability
 from app.models.user import User
 
 # Re-export RLS context helpers so callers can import from a single place.
@@ -143,8 +142,11 @@ async def is_initiative_manager(
     user: User,
 ) -> bool:
     """Check if user has manager-level role in the initiative."""
-    if user_has_capability(user, Capability.DATA_BYPASS):
-        return True
+    # No standing platform bypass: ``data.bypass`` no longer confers manager
+    # authority. An admin/owner reaches a guild only via an explicit break-glass
+    # grant, and a grant — like the existing PAM model — confers scoped content
+    # read/write (enforced by RLS + the resource-access helpers), never initiative
+    # management. So manager status is membership-derived only.
     membership = await _get_membership_with_role(
         session, initiative_id=initiative_id, user_id=user.id
     )
@@ -188,10 +190,12 @@ async def check_initiative_permission(
     Returns:
         True if user has the permission, False otherwise
     """
-    # App admins bypass permission checks
-    if user_has_capability(user, Capability.DATA_BYPASS):
-        return True
-
+    # No standing platform bypass: ``data.bypass`` no longer grants every
+    # permission. A break-glass / PAM grantee's content visibility and read/write
+    # are handled by the dedicated PAM path (list filters' ``has_active_grant``,
+    # the ``require_*_access`` helpers, and RLS at the assumed guild role) — a
+    # grant never confers initiative-level permission keys here, so permission is
+    # membership-derived only.
     membership = await _get_membership_with_role(
         session, initiative_id=initiative_id, user_id=user.id
     )
