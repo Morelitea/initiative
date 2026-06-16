@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -124,49 +124,31 @@ def _build_default_app_settings() -> AppSetting:
     )
 
 
-def _is_insufficient_privilege(exc: BaseException) -> bool:
-    """True for a Postgres insufficient-privilege error (SQLSTATE 42501).
+async def _session_can_write_app_settings(session: AsyncSession) -> bool:
+    """Whether the current DB role may WRITE ``app_settings``.
 
-    Covers both a denied GRANT and an RLS WITH CHECK violation — the two ways a
-    non-owner session is blocked from writing ``app_settings`` after Phase 2.
+    After Phase 2 ``app_settings`` is owner-only at the GRANT layer (write granted
+    only to ``platform_owner`` + the ``app_admin`` engine; revoked from ``app_user``,
+    ``platform_base``, and ``app_guild_base``), and that GRANT is the single writer
+    gate. A non-owner session that reads config and would lazily create / env-reseed
+    the singleton must NOT attempt the write: an ORM flush failure dooms the whole
+    session transaction (a SAVEPOINT doesn't isolate a failed flush the way it does a
+    plain statement). So we probe the grant up front and skip the write, serving an
+    in-memory env-correct value instead. ``has_table_privilege`` respects role
+    inheritance, so it is authoritative now that the grant alone gates writes.
     """
-    orig = getattr(exc, "orig", None)
-    code = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
-    return code == "42501"
+    return bool(
+        await session.scalar(
+            text("SELECT has_table_privilege('app_settings', 'UPDATE')")
+        )
+    )
 
 
-async def _persist_app_settings(
-    session: AsyncSession, settings_row: AppSetting
-) -> bool:
-    """Persist ``settings_row``; return True iff it was written.
-
-    Owner / app_admin / startup sessions persist normally. After Phase 2,
-    ``app_settings`` is owner-only (GRANT + RLS), so a non-owner session (``app_user``
-    or a platform tier below owner) that triggers the lazy singleton create / env
-    re-seed on a READ hits insufficient-privilege. We catch that inside a SAVEPOINT
-    (so the read doesn't 500) and return False — the caller serves a transient,
-    env-correct fallback instead.
-
-    Contract for the caller on a False return: the SAVEPOINT rollback EXPIRES a
-    *tracked/persistent* instance (its Python-side edits are lost, and async
-    attribute access then faults), so a re-seed caller must capture the env-merged
-    values BEFORE calling this and rebuild a transient — it cannot reuse the
-    instance. A freshly-built *transient* passed in (the create path) is merely
-    expunged on rollback and keeps its in-memory values, so it can be returned
-    as-is.
-    """
-    try:
-        async with session.begin_nested():
-            session.add(settings_row)
-            await session.flush()
-    except DBAPIError as exc:
-        if not _is_insufficient_privilege(exc):
-            raise
-        return False
+async def _write_app_settings(session: AsyncSession, settings_row: AppSetting) -> None:
+    session.add(settings_row)
     await session.commit()
     await reapply_rls_context(session)
     await session.refresh(settings_row)
-    return True
 
 
 async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
@@ -174,55 +156,56 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     result = await session.exec(stmt)
     settings_row = result.one_or_none()
     if settings_row:
-        updated = False
-        # NOTE: oidc_enabled is intentionally NOT overridden here.
-        # It is seeded from the env var on first creation only, so that
-        # admins can disable OIDC via the UI without the env var forcing
-        # it back on every read.
+        # Collect env values for fields the row hasn't got yet (no mutation until
+        # we know we can persist — see _session_can_write_app_settings).
+        # NOTE: oidc_enabled is intentionally NOT re-seeded here. It is set from
+        # the env var on first creation only, so an admin can disable OIDC via the
+        # UI without the env var forcing it back on every read.
+        env_updates: dict[str, object] = {}
         if not settings_row.oidc_issuer and app_config.OIDC_ISSUER:
-            settings_row.oidc_issuer = _normalize_optional_string(
+            env_updates["oidc_issuer"] = _normalize_optional_string(
                 app_config.OIDC_ISSUER
             )
-            updated = True
         if not settings_row.oidc_client_id and app_config.OIDC_CLIENT_ID:
-            settings_row.oidc_client_id = _normalize_optional_string(
+            env_updates["oidc_client_id"] = _normalize_optional_string(
                 app_config.OIDC_CLIENT_ID
             )
-            updated = True
         if (
             not settings_row.oidc_client_secret_encrypted
             and app_config.OIDC_CLIENT_SECRET
         ):
             v = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
-            settings_row.oidc_client_secret_encrypted = (
+            env_updates["oidc_client_secret_encrypted"] = (
                 encrypt_field(v, SALT_OIDC_CLIENT_SECRET) if v else None
             )
-            updated = True
         if not settings_row.oidc_provider_name and app_config.OIDC_PROVIDER_NAME:
-            settings_row.oidc_provider_name = _normalize_optional_string(
+            env_updates["oidc_provider_name"] = _normalize_optional_string(
                 app_config.OIDC_PROVIDER_NAME
             )
-            updated = True
         env_scopes = _normalize_scopes(app_config.OIDC_SCOPES or [])
         if env_scopes and not settings_row.oidc_scopes:
-            settings_row.oidc_scopes = env_scopes
-            updated = True
-        if updated:
-            # Snapshot the env-merged state NOW, while the instance is attached
-            # and valid. A degraded (non-owner) persist rolls back its SAVEPOINT,
-            # which EXPIRES this tracked instance — dropping the in-memory env
-            # values and (under async) faulting on the next attribute access. On
-            # that path we return a transient, env-correct copy built from the
-            # snapshot instead of the expired instance.
-            snapshot = {
-                col.name: getattr(settings_row, col.name)
-                for col in AppSetting.__table__.columns
-            }
-            if not await _persist_app_settings(session, settings_row):
-                return AppSetting(**snapshot)
-        return settings_row
+            env_updates["oidc_scopes"] = env_scopes
+        if not env_updates:
+            return settings_row
+        if await _session_can_write_app_settings(session):
+            for field, value in env_updates.items():
+                setattr(settings_row, field, value)
+            await _write_app_settings(session, settings_row)
+            return settings_row
+        # Non-writer (e.g. unauthenticated OIDC login as app_user): serve an
+        # env-correct *transient* without touching the tracked row — we neither
+        # persist nor leave a dirty instance a later commit would fault on. The
+        # env value is persisted later by an owner write or the next startup
+        # ensure_defaults (app_admin).
+        merged = {
+            col.name: getattr(settings_row, col.name)
+            for col in AppSetting.__table__.columns
+        }
+        merged.update(env_updates)
+        return AppSetting(**merged)
     app_settings = _build_default_app_settings()
-    await _persist_app_settings(session, app_settings)
+    if await _session_can_write_app_settings(session):
+        await _write_app_settings(session, app_settings)
     return app_settings
 
 

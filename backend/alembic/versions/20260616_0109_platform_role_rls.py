@@ -180,10 +180,19 @@ def upgrade() -> None:
             f'TO "{owner}" USING (true) WITH CHECK (true)'
         )
     )
-    # Owner-only at the GRANT layer too (§4). app_admin keeps its standing ALL grant
-    # (BYPASSRLS engine: startup ensure_defaults + admin config writes).
+    # Owner-only at the GRANT layer too (§4), and the GRANT is the single writer
+    # gate: write is revoked from every login/floor role (app_user, platform_base,
+    # app_guild_base) and granted only to platform_owner. app_admin keeps its
+    # standing ALL grant (BYPASSRLS engine: startup ensure_defaults + admin config
+    # writes). app_guild_base keeps SELECT (the guild path reads platform AI config)
+    # but loses write — no guild-path operation writes app_settings, and making the
+    # GRANT authoritative lets a read cheaply probe `has_table_privilege` to skip a
+    # would-be-denied write instead of faulting the session on a flush.
     conn.execute(text('REVOKE INSERT, UPDATE, DELETE ON app_settings FROM "app_user"'))
     conn.execute(text(f'REVOKE INSERT, UPDATE, DELETE ON app_settings FROM "{base}"'))
+    conn.execute(
+        text('REVOKE INSERT, UPDATE, DELETE ON app_settings FROM "app_guild_base"')
+    )
     conn.execute(text(f'GRANT INSERT, UPDATE, DELETE ON app_settings TO "{owner}"'))
 
 
@@ -196,6 +205,9 @@ def downgrade() -> None:
     conn.execute(text(f'REVOKE INSERT, UPDATE, DELETE ON app_settings FROM "{owner}"'))
     conn.execute(text(f'GRANT INSERT, UPDATE, DELETE ON app_settings TO "{base}"'))
     conn.execute(text('GRANT INSERT, UPDATE, DELETE ON app_settings TO "app_user"'))
+    conn.execute(
+        text('GRANT INSERT, UPDATE, DELETE ON app_settings TO "app_guild_base"')
+    )
     conn.execute(text("DROP POLICY IF EXISTS app_settings_owner ON app_settings"))
     conn.execute(text("DROP POLICY IF EXISTS app_settings_read ON app_settings"))
     conn.execute(text("ALTER TABLE app_settings NO FORCE ROW LEVEL SECURITY"))
