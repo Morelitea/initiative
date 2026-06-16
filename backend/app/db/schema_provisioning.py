@@ -67,6 +67,24 @@ def guild_readonly_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_ro"
 
 
+# The platform privilege ladder, least -> most. Positional mapping from
+# ``users.role`` (an enum with these exact values). The migration creates one
+# ``platform_<tier>`` NOLOGIN role per entry plus a shared ``platform_base``
+# floor; the public/platform request path assumes ``platform_<users.role>``.
+PLATFORM_TIERS: tuple[str, ...] = ("member", "support", "moderator", "admin", "owner")
+
+
+def platform_role_name(role: str) -> str:
+    """Cluster-global Postgres role for a platform tier, e.g. ``platform_admin``.
+
+    Carries ``settings.PLATFORM_ROLE_PREFIX`` (empty in prod/dev; ``test_`` under
+    the suite) so these cluster-global roles don't collide with a co-located dev
+    DB's. ``role`` is a ``users.role`` value and is validated by the caller against
+    :data:`PLATFORM_TIERS` before reaching the privileged ``SET ROLE`` sink.
+    """
+    return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
+
+
 # The single source for a guild schema's structure: schema-relative DDL generated
 # from the public tables Alembic builds (regenerate with scripts/gen_guild_schema.py
 # after any guild-scoped migration). The model is never used to build the DB.

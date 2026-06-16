@@ -25,6 +25,9 @@ helpers are idempotent.
 from __future__ import annotations
 
 import asyncio
+import fcntl
+import os
+import tempfile
 from pathlib import Path
 from typing import Iterator
 from urllib.parse import urlparse
@@ -51,14 +54,29 @@ BASELINE_REVISION = "20260216_0053"
 # ``NotImplementedError`` and which therefore have to be skipped when
 # walking the chain backwards. Add new entries (with a justification
 # comment) when introducing other irreversible migrations.
-INTENTIONALLY_IRREVERSIBLE = frozenset({
-    BASELINE_REVISION,
-    "20260426_0077",  # drop_automation_tables — domain removed from repo
-})
+INTENTIONALLY_IRREVERSIBLE = frozenset(
+    {
+        BASELINE_REVISION,
+        "20260426_0077",  # drop_automation_tables — domain removed from repo
+    }
+)
 
-MIGRATIONS_DB_NAME = "initiative_migrations_test"
+# Per-worker so parallel xdist workers don't drop/recreate the same DB. xdist's
+# worker id is used verbatim ("gw0"/… distributed, "master" standalone).
+_WORKER = os.environ.get("PYTEST_XDIST_WORKER", "master")
+MIGRATIONS_DB_NAME = f"initiative_migrations_test_{_WORKER}"
 _BASE_DB_URL = settings.DATABASE_URL.rsplit("/", 1)[0]
 MIGRATIONS_TEST_DATABASE_URL = f"{_BASE_DB_URL}/{MIGRATIONS_DB_NAME}"
+
+# These tests exercise migration up *and down*, so they CREATE and DROP the
+# cluster-global app roles. Use a role prefix distinct from the main suite's
+# (conftest sets ``test_{worker}_``) so this file's downgrades never drop the
+# roles the rest of the suite depends on. Per-worker too, to stay parallel-safe.
+_MIGRATIONS_ROLE_PREFIX = f"migtest_{_WORKER}_"
+
+# Same lock file as conftest._run_test_migrations — serializes all migration runs
+# across xdist workers so the shared cluster-global role DDL never races.
+_MIGRATION_LOCK = Path(tempfile.gettempdir()) / "initiative_test_migrations.lock"
 
 
 # ---------------------------------------------------------------------------
@@ -86,14 +104,32 @@ def _run_alembic(action: str, revision: str) -> None:
 
     A fresh Config is built every call so we never reuse a closed engine
     after a previous step.
+
+    The app role prefixes are swapped to this file's dedicated namespace for the
+    duration of the migration (the platform-role migration reads them at apply
+    time), then restored — so up/down here churns ``migtest_*`` roles, never the
+    main suite's ``test_*`` roles.
     """
     config = _alembic_config(MIGRATIONS_TEST_DATABASE_URL)
-    if action == "upgrade":
-        command.upgrade(config, revision)
-    elif action == "downgrade":
-        command.downgrade(config, revision)
-    else:  # pragma: no cover — guard against typos in test bodies
-        raise ValueError(f"Unknown alembic action: {action!r}")
+    # Serialize with the suite's migration lock: even with a distinct role prefix,
+    # the baseline still touches SHARED cluster-global roles (e.g. ALTER ROLE
+    # app_user), which races ("tuple concurrently updated") against a concurrent
+    # worker's migration. Same lock file as conftest._run_test_migrations.
+    with open(_MIGRATION_LOCK, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        saved = (settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX)
+        settings.GUILD_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
+        settings.PLATFORM_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
+        try:
+            if action == "upgrade":
+                command.upgrade(config, revision)
+            elif action == "downgrade":
+                command.downgrade(config, revision)
+            else:  # pragma: no cover — guard against typos in test bodies
+                raise ValueError(f"Unknown alembic action: {action!r}")
+        finally:
+            settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX = saved
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def _ordered_revisions_base_to_head() -> list[str]:
@@ -126,7 +162,9 @@ async def _drop_db() -> None:
     """
     conn = await asyncpg.connect(database="postgres", **_parse_admin_url())
     try:
-        await conn.execute(f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)')
+        await conn.execute(
+            f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)'
+        )
     finally:
         await conn.close()
 
@@ -135,7 +173,9 @@ async def _drop_and_create_db() -> None:
     """Drop+recreate the dedicated migrations test database."""
     conn = await asyncpg.connect(database="postgres", **_parse_admin_url())
     try:
-        await conn.execute(f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)')
+        await conn.execute(
+            f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)'
+        )
         await conn.execute(f'CREATE DATABASE "{MIGRATIONS_DB_NAME}"')
     finally:
         await conn.close()
@@ -168,13 +208,15 @@ def _current_alembic_revision() -> str | None:
 async def _table_exists_async(table_name: str) -> bool:
     conn = await _connect_test_db()
     try:
-        return bool(await conn.fetchval(
-            "SELECT EXISTS ("
-            "  SELECT 1 FROM information_schema.tables "
-            "  WHERE table_schema = 'public' AND table_name = $1"
-            ")",
-            table_name,
-        ))
+        return bool(
+            await conn.fetchval(
+                "SELECT EXISTS ("
+                "  SELECT 1 FROM information_schema.tables "
+                "  WHERE table_schema = 'public' AND table_name = $1"
+                ")",
+                table_name,
+            )
+        )
     finally:
         await conn.close()
 
@@ -242,7 +284,14 @@ class TestMigrationsAgainstDatabase:
 
         # Sanity-check that some core tables actually exist; if any of
         # these are missing the baseline DDL silently failed.
-        for table in ("users", "guilds", "initiatives", "projects", "tasks", "alembic_version"):
+        for table in (
+            "users",
+            "guilds",
+            "initiatives",
+            "projects",
+            "tasks",
+            "alembic_version",
+        ):
             assert _table_exists(table), f"expected table {table!r} after upgrade head"
 
     def test_upgrade_head_is_idempotent(self, fresh_migrations_db: str) -> None:
@@ -257,7 +306,9 @@ class TestMigrationsAgainstDatabase:
             "a migration is not idempotent."
         )
 
-    def test_step_by_step_upgrade_from_base_to_head(self, fresh_migrations_db: str) -> None:
+    def test_step_by_step_upgrade_from_base_to_head(
+        self, fresh_migrations_db: str
+    ) -> None:
         """Apply each revision one at a time and check the stamp after
         every step. Catches partial failures that ``upgrade head``
         might paper over."""
@@ -320,8 +371,7 @@ class TestMigrationsAgainstDatabase:
             steps_taken += 1
             stamp = _current_alembic_revision()
             assert stamp == parent, (
-                f"downgrade -1 from {current} should land on {parent}, "
-                f"got {stamp!r}"
+                f"downgrade -1 from {current} should land on {parent}, got {stamp!r}"
             )
 
         assert steps_taken > 0, (

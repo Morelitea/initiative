@@ -9,6 +9,9 @@ This module provides the core testing infrastructure including:
 """
 
 import asyncio
+import fcntl
+import os
+import tempfile
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -19,7 +22,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
@@ -30,22 +33,46 @@ from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, get_session
 from app.main import app
 
-# Per-guild ROLES are cluster-global (Postgres has no per-database roles), so the
-# suite's guild_<id> roles would collide with a co-located seeded dev DB's. Prefix
-# the suite's roles (test_guild_<id>) so they're distinct catalog entries. Schemas
-# are per-database and stay unprefixed. Set at import — before any provisioning.
-settings.GUILD_ROLE_PREFIX = "test_"
+# --- Per-worker isolation (pytest-xdist) ---------------------------------------
+# xdist runs each worker as its own OS process, so all Python state in this module
+# is already per-worker. The shared resources are the Postgres DATABASE and the
+# cluster-global ROLES; isolate both per worker so the suite is parallel-safe.
+#
+# WORKER_ID is xdist's value used VERBATIM ("gw0"/"gw1"/... distributed, "master"
+# standalone) — xdist exports PYTEST_XDIST_WORKER into each worker process before
+# this module is imported. We don't rename it.
+WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "master")
 
-# Use a separate test database (replace only the database name at the end)
+# Per-worker, cluster-global role prefix so workers never collide on, or drop,
+# each other's roles (test_gw0_guild_<id>, test_gw0_platform_<tier>). Set BEFORE
+# any migration/provisioning: the platform-role migration and the routing helpers
+# read these at apply time, and guild provisioning is already prefix-aware.
+settings.GUILD_ROLE_PREFIX = f"test_{WORKER_ID}_"
+settings.PLATFORM_ROLE_PREFIX = f"test_{WORKER_ID}_"
+
+# Per-worker database so a worker's TRUNCATE/DROP never clobbers another's data.
 _base_url = settings.DATABASE_URL.rsplit("/", 1)[0]
-TEST_DATABASE_URL = _base_url + "/initiative_test"
-TEST_DB_NAME = "initiative_test"
+TEST_DB_NAME = f"initiative_test_{WORKER_ID}"
+TEST_DATABASE_URL = f"{_base_url}/{TEST_DB_NAME}"
+
+# Bound any single statement against the test DB so a cross-connection deadlock
+# (real-role request connection vs the privileged setup/provisioning connection —
+# a wait Postgres can't detect) fails fast and visibly instead of hanging the
+# suite. Applied at the DATABASE level so EVERY connection inherits it; set after
+# migrations so a slow migration isn't bounded.
+TEST_STATEMENT_TIMEOUT = "30s"
 
 BACKEND_DIR = Path(__file__).resolve().parent
 
 
 async def _ensure_test_database() -> None:
-    """Create the test database if it doesn't exist."""
+    """Create this worker's test database if it doesn't exist.
+
+    Concurrent xdist workers each ``CREATE DATABASE`` at once; Postgres serializes
+    these on a template lock and the losers raise (duplicate / "source database is
+    being accessed"), so retry. ``CREATE DATABASE`` can't run inside a transaction,
+    hence the autocommit asyncpg connection.
+    """
     parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
     conn = await asyncpg.connect(
         user=parsed.username,
@@ -55,24 +82,71 @@ async def _ensure_test_database() -> None:
         database="postgres",
     )
     try:
-        exists = await conn.fetchval(
-            "SELECT 1 FROM pg_database WHERE datname = $1", TEST_DB_NAME
-        )
-        if not exists:
-            await conn.execute(f'CREATE DATABASE "{TEST_DB_NAME}"')
+        for _attempt in range(12):
+            exists = await conn.fetchval(
+                "SELECT 1 FROM pg_database WHERE datname = $1", TEST_DB_NAME
+            )
+            if exists:
+                return
+            try:
+                await conn.execute(f'CREATE DATABASE "{TEST_DB_NAME}"')
+                return
+            except asyncpg.DuplicateDatabaseError:
+                return  # another worker won the race; that's fine
+            except asyncpg.PostgresError:
+                await asyncio.sleep(0.5)  # template locked by a peer; retry
+        raise RuntimeError(f"could not create test database {TEST_DB_NAME!r}")
     finally:
         await conn.close()
 
 
+async def _set_db_statement_timeout() -> None:
+    """Apply a DB-level statement_timeout to the worker's test DB (catch-all net
+    for cross-connection deadlocks). Affects connections opened afterward."""
+    parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
+    conn = await asyncpg.connect(
+        user=parsed.username,
+        password=parsed.password,
+        host=parsed.hostname,
+        port=parsed.port or 5432,
+        database="postgres",
+    )
+    try:
+        await conn.execute(
+            f'ALTER DATABASE "{TEST_DB_NAME}" SET statement_timeout = '
+            f"'{TEST_STATEMENT_TIMEOUT}'"
+        )
+    finally:
+        await conn.close()
+
+
+# Cross-process lock serializing migrations across xdist workers. The migrations
+# touch SHARED cluster-global roles (app_user/app_admin/app_guild_base + GRANTs),
+# so concurrent runs collide with "tuple concurrently updated" on the shared pg
+# catalog. Workers migrate one at a time under this lock — each still migrates its
+# OWN per-worker DB; only the shared role operations are serialized.
+_MIGRATION_LOCK = Path(tempfile.gettempdir()) / "initiative_test_migrations.lock"
+
+
 def _run_test_migrations() -> None:
-    """Ensure test database exists and run alembic upgrade head."""
-    asyncio.run(_ensure_test_database())
-    config = Config(str(BACKEND_DIR / "alembic.ini"))
-    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
-    config.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
-    config.attributes["configure_logger"] = False
-    config.attributes["url_configured"] = True
-    command.upgrade(config, "head")
+    """Ensure the worker's test database exists, migrate it, and arm the
+    statement_timeout net (after migrations, so a slow migration isn't bounded).
+
+    Serialized across workers via a file lock (see _MIGRATION_LOCK) so the shared
+    cluster-global role DDL/GRANTs don't race on the catalog."""
+    with open(_MIGRATION_LOCK, "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            asyncio.run(_ensure_test_database())
+            config = Config(str(BACKEND_DIR / "alembic.ini"))
+            config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+            config.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+            config.attributes["configure_logger"] = False
+            config.attributes["url_configured"] = True
+            command.upgrade(config, "head")
+            asyncio.run(_set_db_statement_timeout())
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -213,6 +287,22 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
         )
 
         async with async_session() as test_session:
+            # Force ``populate_existing`` on every top-level SELECT this setup
+            # session runs. The request path now executes on a SEPARATE connection
+            # (real app_user/app_admin), so a read-back assertion here would
+            # otherwise return the stale, still-cached instance instead of what the
+            # request committed. populate_existing refreshes matched objects' columns
+            # from the row (unlike expire_all, it doesn't expire PKs, so building a
+            # read-back query from a cached object's id stays a pure in-memory read).
+            @event.listens_for(test_session.sync_session, "do_orm_execute")
+            def _force_populate_existing(orm_execute_state):
+                if (
+                    orm_execute_state.is_select
+                    and not orm_execute_state.is_column_load
+                    and not orm_execute_state.is_relationship_load
+                ):
+                    orm_execute_state.update_execution_options(populate_existing=True)
+
             yield test_session
 
             # Expire all objects to detach them from the session
@@ -223,12 +313,20 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
         # test's trailing reads would keep AccessShare locks on the guild-schema
         # tables — which the teardown's DROP SCHEMA (AccessExclusive) would block on.
         await bound_conn.rollback()
-        # Drop any guild role / schema routing the request path's set_rls_context
-        # left on this connection (session-level GUCs survive rollback + pool
-        # return), so the superuser cleanup below isn't stuck as guild_<id>.
+        # Drop any guild/platform role + schema routing the request path's
+        # set_rls_context left on this connection, so the superuser cleanup below
+        # isn't stuck as a non-superuser role (guild_<id> or platform_<tier>).
+        #
+        # This reset must be COMMITTED. A write request commits its `SET ROLE`
+        # as durable session state; the set_config() below runs in an autobegun
+        # transaction that returning the connection to the pool would otherwise
+        # roll back — reverting the role to the request's tier. The cleanup then
+        # reuses this connection and fails, because `session_replication_role`
+        # and TRUNCATE need the superuser. Committing makes the reset stick.
         await bound_conn.exec_driver_sql(
             "SELECT set_config('role', 'none', false), set_config('search_path', 'public', false)"
         )
+        await bound_conn.commit()
 
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
@@ -278,44 +376,102 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                 await rconn.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')
 
 
+# GUC + role reset mirroring the production get_session/get_admin_session
+# checkout reset, so each request starts from a clean baseline on the bound
+# request connection (a prior request's assumed role can't bleed in).
+_REQUEST_RESET_SQL = (
+    "SELECT set_config('app.current_user_id', '', false), "
+    "set_config('app.current_guild_id', '', false), "
+    "set_config('app.current_guild_role', '', false), "
+    "set_config('app.is_superadmin', 'false', false), "
+    "set_config('app.pam_guild_id', '', false), "
+    "set_config('app.pam_read', 'false', false), "
+    "set_config('app.pam_write', 'false', false), "
+    "set_config('search_path', 'public', false), "
+    "set_config('role', 'none', false)"
+)
+
+
 @pytest.fixture
 async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+    """Async HTTP client whose REQUEST path runs as the REAL ``app_user`` login
+    role (RLS-enforced), not the Postgres superuser.
+
+    This is the "no superuser in request execution" model: an authenticated request
+    assumes its platform/guild role on top of ``app_user`` (so e.g. a ``member`` is
+    bound by member-level RLS), and an unauthenticated request runs as ``app_user`` —
+    exactly like production. The superuser-backed ``session`` fixture is still used
+    for *data setup* (factories commit, so the request connection sees the rows) and
+    for the privileged teardown (TRUNCATE / DROP SCHEMA / DROP ROLE).
+
+    ``AdminSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS) session,
+    mirroring the production admin engine, so bootstrapping endpoints (guild
+    creation, background-job style ops) keep their intended RLS bypass instead of
+    silently leaning on the superuser.
+
+    Each request/admin session is bound to a single connection so the per-request
+    ``SET ROLE`` / ``search_path`` GUCs persist across the request's statements.
     """
-    Create an async HTTP client for testing API endpoints.
-
-    This fixture:
-    - Overrides the database session dependency to use the test session
-    - Provides an AsyncClient configured with the FastAPI app
-
-    Provisioning-engine redirection and per-guild schema/role cleanup are handled
-    globally (see ``_schema_test_harness`` and the ``session`` fixture teardown).
-
-    Usage:
-        async def test_endpoint(client: AsyncClient):
-            response = await client.get("/api/v1/health")
-            assert response.status_code == 200
-    """
+    app_engine = create_async_engine(
+        _test_url_for_role("app_user"), echo=False, future=True, pool_pre_ping=True
+    )
+    admin_engine = create_async_engine(
+        _test_url_for_role("app_admin"), echo=False, future=True, pool_pre_ping=True
+    )
+    req_conn = await app_engine.connect()
+    admin_conn = await admin_engine.connect()
+    # NOTE on deadlocks: the request path (app_user) and admin path (app_admin)
+    # are now SEPARATE connections, so an endpoint that locks a row on one and
+    # waits on the other can app-level deadlock — a wait Postgres can't detect.
+    # The net is the DATABASE-level statement_timeout armed in _run_test_migrations
+    # (covers EVERY connection, incl. the privileged setup/provisioning conn that a
+    # per-connection SET here would miss — which is what hung admin_test).
+    req_session = sessionmaker(
+        bind=req_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
+    )()
+    admin_session = sessionmaker(
+        bind=admin_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
+    )()
 
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
-        yield session
+        await req_session.execute(text(_REQUEST_RESET_SQL))
+        yield req_session
+
+    async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
+        await admin_session.execute(text(_REQUEST_RESET_SQL))
+        yield admin_session
 
     app.dependency_overrides[get_session] = override_get_session
-    app.dependency_overrides[get_admin_session] = override_get_session
+    app.dependency_overrides[get_admin_session] = override_get_admin_session
 
     # Disable rate limiting in tests
     limiter.enabled = False
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
-
-    # The create-guild endpoint ends on a SELECT (no commit after), leaving the
-    # session idle-in-transaction holding a lock on public.guilds that the
-    # teardown's DROP SCHEMA would block on. Release it now.
-    await session.rollback()
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+        # Release the request/admin connections BEFORE the session-fixture teardown
+        # runs its privileged TRUNCATE/DROP SCHEMA (which would block on any lock
+        # these idle-in-transaction connections still hold), and drop any assumed
+        # role so the connection returns clean.
+        for sess, conn in ((req_session, req_conn), (admin_session, admin_conn)):
+            await sess.close()
+            await conn.rollback()
+            await conn.exec_driver_sql(
+                "SELECT set_config('role', 'none', false), "
+                "set_config('search_path', 'public', false)"
+            )
+            await conn.commit()
+            await conn.close()
+        await app_engine.dispose()
+        await admin_engine.dispose()
+        # The create-guild endpoint ends on a SELECT (no commit), so the privileged
+        # setup session may hold a lock on public.guilds; release it too.
+        await session.rollback()
 
 
 @pytest.fixture
@@ -323,10 +479,69 @@ def auth_headers() -> dict[str, str]:
     """
     Base authentication headers.
 
-    Tests that need authentication should use `authenticated_headers` or
-    `create_auth_token` fixtures instead.
+    Tests that need authentication should use the `acting_user` fixture to mint
+    an authenticated user at a chosen platform role.
     """
     return {}
+
+
+@pytest.fixture
+async def acting_user(session):
+    """Mint an authenticated test identity with a **required platform role** and an
+    **optional guild role** — the single seam for "run this test AS role X".
+
+    The two role dimensions are orthogonal (see the platform-roles design §7):
+
+    * **Platform role — required, defaults to ``owner``.** The platform tier the
+      public/platform request path assumes (``platform_<users.role>`` via
+      ``get_user_session`` -> ``set_rls_context``). Omit for ``owner`` (most
+      privileged, so role-agnostic tests run unblocked); pass a lower tier
+      (``member``/``support``/…) to exercise a public-path ceiling. With the
+      real-role ``client`` fixture, the request runs AS that platform role on a real
+      ``app_user`` connection at the database — RLS enforced, like production.
+
+    * **Guild role — optional, for guild-path testing.** When ``guild_role`` is
+      given, the harness also provisions a guild (or uses ``guild=``) and adds the
+      user as a member with that ``GuildRole``; the request then routes through
+      ``/g/{guild_id}`` and assumes ``guild_<id>`` with ``current_guild_role``.
+
+    Return arity follows the dimensions requested:
+        user, headers          = await acting_user()                       # owner, public path
+        user, headers          = await acting_user("member")               # member, public path
+        user, headers, guild   = await acting_user("member",
+                                                   guild_role=GuildRole.admin)  # + guild admin
+        await client.get(f"/api/v1/g/{guild.id}/projects", headers=headers)
+    """
+    from app.models.guild import GuildRole
+    from app.models.user import UserRole
+    from app.testing import (
+        create_guild,
+        create_guild_membership,
+        create_user,
+        get_auth_headers,
+    )
+
+    async def _make(
+        role: "UserRole | str" = UserRole.owner,
+        *,
+        guild_role: "GuildRole | str | None" = None,
+        guild=None,
+        **overrides: Any,
+    ):
+        if isinstance(role, str):
+            role = UserRole(role)
+        user = await create_user(session, role=role, **overrides)
+        headers = get_auth_headers(user)
+        if guild_role is None:
+            return user, headers
+        if isinstance(guild_role, str):
+            guild_role = GuildRole(guild_role)
+        if guild is None:
+            guild = await create_guild(session)
+        await create_guild_membership(session, user=user, guild=guild, role=guild_role)
+        return user, headers, guild
+
+    return _make
 
 
 def create_test_user_data(**overrides: Any) -> dict[str, Any]:
