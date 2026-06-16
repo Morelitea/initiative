@@ -390,9 +390,16 @@ export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
   );
 };
 /**
- * Hard-purge a trashed entity. Admin-only. Runs the actual DELETE on an
- * AdminSessionDep so the RESTRICTIVE FOR DELETE policy passes (BYPASSRLS
- * role) and so the upload-cleanup helper can DELETE Upload rows.
+ * Hard-purge a trashed entity. Guild-admin only, fully guild-scoped.
+ *
+ * Runs entirely on the routed guild-admin RLS session — no standing-BYPASSRLS
+ * ``app_admin`` connection. A guild admin clears the RESTRICTIVE FOR DELETE
+ * policies (the admin-only policy from migration 0078, and ``is_initiative_member``
+ * which admits guild admins via the canonical roster from 0108), so the guild
+ * role itself does the hard delete. ``_load_trash_entity`` 404s unless the entity
+ * is in THIS guild's trash (and still soft-deleted) — that is the authorization
+ * boundary, and doing the delete on the same routed session closes the
+ * cross-session TOCTOU window the old two-session design had to guard.
  * @summary Purge Trash Entity
  */
 export const purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete = (
