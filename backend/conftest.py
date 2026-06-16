@@ -320,12 +320,22 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
             # request committed. populate_existing refreshes matched objects' columns
             # from the row (unlike expire_all, it doesn't expire PKs, so building a
             # read-back query from a cached object's id stays a pure in-memory read).
+            #
+            # BUT only when the session has NO pending writes. The fixture is
+            # ``autoflush=False`` (mirrors production), so a service test that mutates
+            # in memory without committing — e.g. ``invite.uses += 1`` — and then
+            # reads the row back would have its uncommitted change CLOBBERED by a
+            # refresh from the (still-0) row. Refreshing is only safe-and-wanted when
+            # there's no local pending state to lose; a dirty session keeps the
+            # identity-map instance (today's pre-real-role behaviour).
             @event.listens_for(test_session.sync_session, "do_orm_execute")
             def _force_populate_existing(orm_execute_state):
+                sess = orm_execute_state.session
                 if (
                     orm_execute_state.is_select
                     and not orm_execute_state.is_column_load
                     and not orm_execute_state.is_relationship_load
+                    and not (sess.new or sess.dirty or sess.deleted)
                 ):
                     orm_execute_state.update_execution_options(populate_existing=True)
 
@@ -465,11 +475,29 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         bind=admin_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )()
 
+    async def _publish_setup_state() -> None:
+        """Commit the setup ``session`` so the request — on its OWN real-role
+        connection — sees data the test created but had not committed, and so any
+        row lock the setup transaction holds is released.
+
+        Before real-role execution, setup and request shared one connection, so
+        uncommitted setup was visible to the request. They are now separate
+        transactions: factories commit (visible), but a test that sets up via a
+        service which defers its commit (e.g. ``ensure_default_statuses``) would
+        otherwise leave its rows invisible to the request — or block the request
+        on a lock it holds. Flushing+committing at each request boundary mirrors
+        production (data must be committed to cross a connection). It is a cheap
+        no-op when nothing is pending.
+        """
+        await session.commit()
+
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
+        await _publish_setup_state()
         await req_session.execute(text(_REQUEST_RESET_SQL))
         yield req_session
 
     async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
+        await _publish_setup_state()
         await admin_session.execute(text(_REQUEST_RESET_SQL))
         yield admin_session
 
