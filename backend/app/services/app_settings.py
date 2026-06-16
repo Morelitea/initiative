@@ -138,15 +138,22 @@ def _is_insufficient_privilege(exc: BaseException) -> bool:
 async def _persist_app_settings(
     session: AsyncSession, settings_row: AppSetting
 ) -> bool:
-    """Persist ``settings_row``, degrading gracefully when the session can't write.
+    """Persist ``settings_row``; return True iff it was written.
 
     Owner / app_admin / startup sessions persist normally. After Phase 2,
     ``app_settings`` is owner-only (GRANT + RLS), so a non-owner session (``app_user``
     or a platform tier below owner) that triggers the lazy singleton create / env
     re-seed on a READ hits insufficient-privilege. We catch that inside a SAVEPOINT
-    so the read returns the in-memory row (env-correct, just not persisted) instead
-    of 500-ing — a non-owner read legitimately can't write config. Returns True iff
-    the row was persisted.
+    (so the read doesn't 500) and return False — the caller serves a transient,
+    env-correct fallback instead.
+
+    Contract for the caller on a False return: the SAVEPOINT rollback EXPIRES a
+    *tracked/persistent* instance (its Python-side edits are lost, and async
+    attribute access then faults), so a re-seed caller must capture the env-merged
+    values BEFORE calling this and rebuild a transient — it cannot reuse the
+    instance. A freshly-built *transient* passed in (the create path) is merely
+    expunged on rollback and keeps its in-memory values, so it can be returned
+    as-is.
     """
     try:
         async with session.begin_nested():
@@ -201,7 +208,18 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
             settings_row.oidc_scopes = env_scopes
             updated = True
         if updated:
-            await _persist_app_settings(session, settings_row)
+            # Snapshot the env-merged state NOW, while the instance is attached
+            # and valid. A degraded (non-owner) persist rolls back its SAVEPOINT,
+            # which EXPIRES this tracked instance — dropping the in-memory env
+            # values and (under async) faulting on the next attribute access. On
+            # that path we return a transient, env-correct copy built from the
+            # snapshot instead of the expired instance.
+            snapshot = {
+                col.name: getattr(settings_row, col.name)
+                for col in AppSetting.__table__.columns
+            }
+            if not await _persist_app_settings(session, settings_row):
+                return AppSetting(**snapshot)
         return settings_row
     app_settings = _build_default_app_settings()
     await _persist_app_settings(session, app_settings)

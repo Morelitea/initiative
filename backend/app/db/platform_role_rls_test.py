@@ -205,6 +205,40 @@ async def test_app_settings_readable_by_every_tier(session):
     assert len(rows) == 1
 
 
+async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
+    session, monkeypatch
+):
+    """A non-owner read that would env-reseed an existing config row can't write
+    (owner-only). It must return an env-correct *transient* copy without faulting,
+    and must NOT persist (the savepoint rollback expires the tracked instance — the
+    re-seed path rebuilds from a pre-captured snapshot). The env value is persisted
+    later by an owner / startup, not by a non-owner read."""
+    from app.core.config import settings as app_config
+    from app.services import app_settings as svc
+
+    # Existing singleton with an empty oidc_issuer.
+    await session.execute(
+        text(
+            "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes, role_labels) "
+            "VALUES (1, false, '[]'::json, '{}'::json) ON CONFLICT (id) DO NOTHING"
+        )
+    )
+    member = await create_user(session, role=UserRole.member)
+    monkeypatch.setattr(app_config, "OIDC_ISSUER", "https://issuer.example")
+
+    await _assume(session, "member", member.id)
+    settings_obj = await svc.get_app_settings(session)
+    # env-correct transient, no fault despite the owner-only write being denied
+    assert settings_obj.oidc_issuer == "https://issuer.example"
+    await _reset(session)
+
+    # The non-owner read did NOT persist the env value into the row.
+    db_issuer = (
+        await session.execute(text("SELECT oidc_issuer FROM app_settings WHERE id = 1"))
+    ).scalar_one()
+    assert db_issuer is None
+
+
 # --- end-to-end through the real-role request path ------------------------
 
 
