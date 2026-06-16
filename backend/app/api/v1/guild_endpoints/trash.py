@@ -30,7 +30,6 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.core.messages import TrashMessages
-from app.db.session import get_admin_session
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.calendar_event import CalendarEvent
 from app.models.comment import Comment
@@ -342,42 +341,32 @@ async def purge_trash_entity(
     entity_type: EntityType,
     entity_id: int,
     session: RLSSessionDep,
-    admin_session: Annotated[AsyncSession, Depends(get_admin_session)],
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
 ) -> Response:
-    """Hard-purge a trashed entity. Admin-only. Runs the actual DELETE on an
-    AdminSessionDep so the RESTRICTIVE FOR DELETE policy passes (BYPASSRLS
-    role) and so the upload-cleanup helper can DELETE Upload rows."""
+    """Hard-purge a trashed entity. Guild-admin only, fully guild-scoped.
+
+    Runs entirely on the routed guild-admin RLS session — no standing-BYPASSRLS
+    ``app_admin`` connection. A guild admin clears the RESTRICTIVE FOR DELETE
+    policies (the admin-only policy from migration 0078, and ``is_initiative_member``
+    which admits guild admins via the canonical roster from 0108), so the guild
+    role itself does the hard delete. ``_load_trash_entity`` 404s unless the entity
+    is in THIS guild's trash (and still soft-deleted) — that is the authorization
+    boundary, and doing the delete on the same routed session closes the
+    cross-session TOCTOU window the old two-session design had to guard.
+    """
     if guild_context.role != GuildRole.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=TrashMessages.PURGE_REQUIRES_ADMIN,
         )
 
-    # Look up the entity via the user's RLS session first so we get a 404 if
-    # the entity isn't actually in this guild's trash. Then re-resolve it on
-    # the admin session for the actual delete.
     entity = await _load_trash_entity(
         session,
         entity_type=entity_type,
         entity_id=entity_id,
         guild_id=guild_context.guild_id,
     )
-    spec = ENTITY_REGISTRY[entity_type]
-    model, _ = spec
-    # Re-load on the admin session and re-verify the row is still trashed.
-    # Without the deleted_at check there is a TOCTOU window: a concurrent
-    # restore between the RLS-session lookup above and this read could
-    # clear deleted_at, and we'd then permanently DELETE a live row.
-    admin_stmt = select_including_deleted(model).where(model.id == entity.id)
-    admin_result = await admin_session.exec(admin_stmt)
-    admin_entity = admin_result.one_or_none()
-    if admin_entity is None or admin_entity.deleted_at is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=TrashMessages.NOT_FOUND
-        )
-
-    await hard_purge_entity(admin_session, admin_entity)
-    await admin_session.commit()
+    await hard_purge_entity(session, entity)
+    await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
