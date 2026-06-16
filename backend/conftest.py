@@ -491,15 +491,29 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         """
         await session.commit()
 
+    # Mirror production's per-request session lifecycle: ``get_session`` /
+    # ``get_admin_session`` yield from ``async with AsyncSessionLocal()``, which
+    # rolls back and releases locks when the request ends. The test reuses ONE
+    # persistent session per role (bound to a connection so SET ROLE / search_path
+    # survive), so it must roll back per request itself — otherwise a handler that
+    # leaves an open transaction (e.g. SELECT ... FOR UPDATE then a 4xx without
+    # commit) leaks its row locks onto the next request, or onto a follow-up setup
+    # write on the SAME row, which then blocks until statement_timeout.
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
         await req_session.execute(text(_REQUEST_RESET_SQL))
-        yield req_session
+        try:
+            yield req_session
+        finally:
+            await req_session.rollback()
 
     async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
         await admin_session.execute(text(_REQUEST_RESET_SQL))
-        yield admin_session
+        try:
+            yield admin_session
+        finally:
+            await admin_session.rollback()
 
     app.dependency_overrides[get_session] = override_get_session
     app.dependency_overrides[get_admin_session] = override_get_admin_session
