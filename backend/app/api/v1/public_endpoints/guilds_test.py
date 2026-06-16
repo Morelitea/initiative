@@ -17,6 +17,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
+from app.models.user import UserRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -331,23 +332,19 @@ async def test_delete_guild_oidc_user_skips_password(
     assert response.status_code == 204
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Pre-existing RLS gap, surfaced (not caused) by running the public path as a "
-        "real platform role instead of the superuser. PUT /guilds/order updates "
-        "guild_memberships.position in personal mode (no guild context), but the "
-        "guild_memberships_update policy only permits guild_id = current_guild_id OR "
-        "is_superadmin. A non-DATA_BYPASS user (member/support/moderator) updates 0 "
-        "rows and reorder silently no-ops; the superuser-backed test masked it. Fix "
-        "needs a column-scoped self-update path (e.g. a SECURITY DEFINER reorder fn "
-        "touching only `position`) — tracked separately, out of Phase 1 scope."
-    ),
-    strict=False,
-)
 @pytest.mark.integration
-async def test_reorder_guilds(client: AsyncClient, session: AsyncSession):
-    """Test reordering user's guilds."""
-    user = await create_user(session, email="test@example.com")
+@pytest.mark.parametrize("role", ["member", "support", "moderator", "admin", "owner"])
+async def test_reorder_guilds(client: AsyncClient, session: AsyncSession, role: str):
+    """EVERY platform tier can reorder their own guilds in personal mode.
+
+    The request runs as ``platform_<role>`` with no guild context. The
+    ``guild_memberships_update`` RLS policy (``guild_id = current_guild_id``)
+    rejects that for every tier, so the SECURITY DEFINER ``reorder_guild_memberships``
+    function (migration 0107) is the uniform self-service path — no role relies on
+    a standing all-guild bypass. Parametrized across the whole ladder so a member
+    (lowest) and an owner (highest) are both proven to work the same way.
+    """
+    user = await create_user(session, email="test@example.com", role=UserRole(role))
     guild1 = await create_guild(session, name="Guild 1")
     guild2 = await create_guild(session, name="Guild 2")
     guild3 = await create_guild(session, name="Guild 3")

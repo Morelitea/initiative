@@ -4,7 +4,8 @@ from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 import secrets
 
-from sqlalchemy import func
+from sqlalchemy import Integer, bindparam, func, text
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -129,34 +130,36 @@ async def reorder_memberships(
         membership.guild_id: membership for membership in memberships
     }
     seen: set[int] = set()
-    position = 0
+    final_order: list[int] = []
 
+    # Explicitly named guilds first, in the requested order — deduped, and only
+    # ones the user actually belongs to.
     for guild_id in ordered_guild_ids:
-        if guild_id in seen:
+        if guild_id in seen or guild_id not in membership_by_guild:
             continue
-        membership = membership_by_guild.get(guild_id)
-        if not membership:
-            continue
-        membership.position = position
-        session.add(membership)
+        final_order.append(guild_id)
         seen.add(guild_id)
-        position += 1
 
-    remaining = [
-        membership for membership in memberships if membership.guild_id not in seen
-    ]
-    remaining.sort(
-        key=lambda membership: (
-            membership.position if membership.position is not None else 0,
-            membership.joined_at,
-        )
+    # Memberships the client didn't mention keep their relative order, appended
+    # after — stable on current position, then join time.
+    remaining = sorted(
+        (m for m in memberships if m.guild_id not in seen),
+        key=lambda m: (m.position if m.position is not None else 0, m.joined_at),
     )
-    for membership in remaining:
-        membership.position = position
-        session.add(membership)
-        position += 1
+    final_order.extend(m.guild_id for m in remaining)
 
-    await session.flush()
+    # Persist via the SECURITY DEFINER reorder function. This runs in PERSONAL
+    # mode (no guild context) as a platform_<tier> role, which the
+    # guild_memberships_update RLS policy rejects (it requires
+    # guild_id = current_guild_id), so a direct ORM UPDATE would silently touch 0
+    # rows. The function updates ONLY `position`, scoped to this user's own rows —
+    # the same safe path for every platform tier.
+    await session.execute(
+        text("SELECT reorder_guild_memberships(:uid, :gids)").bindparams(
+            bindparam("gids", type_=ARRAY(Integer))
+        ),
+        {"uid": user_id, "gids": final_order},
+    )
 
 
 async def get_membership(
