@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- OIDC claim mappings with the "initiative" target type showed an empty initiative dropdown after picking a guild, and saving such a mapping failed. The admin settings endpoint looked for initiatives and roles in the shared schema, where they don't live, instead of inside each guild's own schema; it now routes into every guild to list them, and the role dropdown is correctly scoped to the selected guild.
 - Container failing to start on Synology NAS (and other runtimes that re-apply a stale `PATH` on image upgrade) with `start.sh: exec: uvicorn: not found`. The startup scripts now put the bundled virtualenv on `PATH` explicitly instead of relying on the image's `ENV PATH`.
 - `adduser`/`addgroup` warning and failure for the default `PUID`/`PGID` of `1000` (`uid 1000 is greater than SYS_UID_MAX 999`); the container user is no longer created in the system-account range.
 

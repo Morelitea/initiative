@@ -13,9 +13,16 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.guild import GuildRole
 from app.models.user import UserRole
 from app.services import email as email_service
-from app.testing import create_user, get_auth_headers
+from app.testing import (
+    create_guild,
+    create_guild_membership,
+    create_initiative,
+    create_user,
+    get_auth_headers,
+)
 
 
 @pytest.mark.integration
@@ -79,3 +86,87 @@ async def test_email_test_runtime_error_logs_details_server_side(
     assert resp.status_code == 502
     # The real cause is preserved for the operator in the server logs only.
     assert sensitive in caplog.text
+
+
+@pytest.mark.integration
+async def test_oidc_mapping_options_includes_guild_scoped_initiatives(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Regression: initiatives/roles are guild-scoped content (rows live in each
+    guild's schema, not the empty public copies). The options endpoint must route
+    into every guild schema, otherwise the form's initiative dropdown is empty."""
+    owner = await create_user(
+        session, email="owner-oidc-opts@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
+    initiative = await create_initiative(session, guild=guild, creator=owner)
+
+    resp = await client.get(
+        "/api/v1/settings/oidc-mappings/options", headers=get_auth_headers(owner)
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+
+    matched = next((i for i in data["initiatives"] if i["id"] == initiative.id), None)
+    assert matched is not None, "guild-scoped initiative missing from options"
+    assert matched["guild_id"] == guild.id
+
+    # Roles carry guild_id so the client can disambiguate initiative ids that
+    # collide across guild schemas.
+    roles = [
+        r
+        for r in data["initiative_roles"]
+        if r["initiative_id"] == initiative.id and r["guild_id"] == guild.id
+    ]
+    assert roles, "initiative roles missing from options"
+    assert all("guild_id" in r for r in data["initiative_roles"])
+
+
+@pytest.mark.integration
+async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Regression: creating an initiative-target mapping must validate the
+    initiative/role inside the guild schema (previously it queried the empty
+    public copy and always 400'd INITIATIVE_NOT_FOUND)."""
+    owner = await create_user(
+        session, email="owner-oidc-create@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
+    initiative = await create_initiative(session, guild=guild, creator=owner)
+
+    headers = get_auth_headers(owner)
+    options = (
+        await client.get("/api/v1/settings/oidc-mappings/options", headers=headers)
+    ).json()
+    role = next(
+        r
+        for r in options["initiative_roles"]
+        if r["initiative_id"] == initiative.id and r["guild_id"] == guild.id
+    )
+
+    resp = await client.post(
+        "/api/v1/settings/oidc-mappings",
+        json={
+            "claim_value": "eng-team",
+            "target_type": "initiative",
+            "guild_id": guild.id,
+            "guild_role": "member",
+            "initiative_id": initiative.id,
+            "initiative_role_id": role["id"],
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    # Denormalized names are resolved from the guild schema for display.
+    assert body["initiative_name"] == initiative.name
+    assert body["initiative_role_name"] == role["name"]

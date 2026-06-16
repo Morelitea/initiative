@@ -15,7 +15,7 @@ from app.api.deps import (
 from app.api.v1.public_endpoints.admin import ConfigManageDep
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session
+from app.db.session import get_admin_session, set_rls_context
 from app.models.app_setting import AppSetting
 from app.models.guild import Guild, GuildRole
 from app.models.initiative import Initiative, InitiativeRoleModel
@@ -237,6 +237,68 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
 # --- OIDC Claim Mapping endpoints ---
 
 
+async def _route_admin_to_guild(session: AsyncSession, guild_id: int) -> None:
+    """Route the admin session into a guild's ``guild_<id>`` schema.
+
+    Initiatives and initiative roles are guild-scoped content: their rows live in
+    each guild's schema, not in the empty ``public`` template copies. Reading them
+    requires routing the session into that schema. ``expunge_all`` first because
+    row ids are unique only within a schema — a cached object from a previously
+    routed guild could otherwise be returned for a colliding id.
+    """
+    session.expunge_all()
+    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+
+
+async def _reset_admin_session(session: AsyncSession) -> None:
+    """Return the admin session to its neutral public / login-role baseline.
+
+    After routing into a guild schema the session has assumed that guild's role,
+    which has no write access to shared ``public`` config tables. Reset to the
+    BYPASSRLS admin login role (``SET ROLE none``, ``search_path public``) before
+    writing the mapping back to ``public``.
+    """
+    await set_rls_context(session)
+
+
+async def _lookup_guild_initiative(
+    session: AsyncSession,
+    guild_id: int,
+    initiative_id: int,
+    initiative_role_id: int | None,
+) -> tuple[Initiative | None, InitiativeRoleModel | None]:
+    """Look up an initiative (and optional role) inside a guild's schema.
+
+    Routes the session into ``guild_<id>`` for the read, then resets it back to
+    the neutral admin baseline so callers can write the mapping to the shared
+    ``public.oidc_claim_mappings`` table as the BYPASSRLS admin login role (the
+    guild role has no write grant on config tables). ``populate_existing`` keeps
+    a colliding id from another guild already in the identity map from being
+    returned stale — ids are unique only within a schema.
+    """
+    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    try:
+        initiative = (
+            await session.exec(
+                select(Initiative)
+                .where(Initiative.id == initiative_id)
+                .execution_options(populate_existing=True)
+            )
+        ).one_or_none()
+        role: InitiativeRoleModel | None = None
+        if initiative_role_id is not None:
+            role = (
+                await session.exec(
+                    select(InitiativeRoleModel)
+                    .where(InitiativeRoleModel.id == initiative_role_id)
+                    .execution_options(populate_existing=True)
+                )
+            ).one_or_none()
+        return initiative, role
+    finally:
+        await _reset_admin_session(session)
+
+
 async def _enrich_mapping(
     session: AsyncSession, mapping: OIDCClaimMapping
 ) -> OIDCClaimMappingRead:
@@ -252,22 +314,16 @@ async def _enrich_mapping(
         guild_name = guild.name
 
     if mapping.initiative_id is not None:
-        initiative = (
-            await session.exec(
-                select(Initiative).where(Initiative.id == mapping.initiative_id)
-            )
-        ).one_or_none()
+        # Initiatives/roles are guild-scoped: resolve their names inside the
+        # mapping's guild schema, not the empty public copies.
+        initiative, role = await _lookup_guild_initiative(
+            session,
+            mapping.guild_id,
+            mapping.initiative_id,
+            mapping.initiative_role_id,
+        )
         if initiative:
             initiative_name = initiative.name
-
-    if mapping.initiative_role_id is not None:
-        role = (
-            await session.exec(
-                select(InitiativeRoleModel).where(
-                    InitiativeRoleModel.id == mapping.initiative_role_id
-                )
-            )
-        ).one_or_none()
         if role:
             initiative_role_name = role.display_name
 
@@ -357,11 +413,12 @@ async def create_oidc_mapping(
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_ID_REQUIRED
             )
-        initiative = (
-            await session.exec(
-                select(Initiative).where(Initiative.id == payload.initiative_id)
-            )
-        ).one_or_none()
+        initiative, role = await _lookup_guild_initiative(
+            session,
+            payload.guild_id,
+            payload.initiative_id,
+            payload.initiative_role_id,
+        )
         if not initiative:
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INITIATIVE_NOT_FOUND
@@ -370,13 +427,6 @@ async def create_oidc_mapping(
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INITIATIVE_WRONG_GUILD
             )
-        role = (
-            await session.exec(
-                select(InitiativeRoleModel).where(
-                    InitiativeRoleModel.id == payload.initiative_role_id
-                )
-            )
-        ).one_or_none()
         if not role:
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_NOT_FOUND
@@ -454,11 +504,12 @@ async def update_oidc_mapping(
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INITIATIVE_FIELDS_REQUIRED
             )
-        initiative = (
-            await session.exec(
-                select(Initiative).where(Initiative.id == mapping.initiative_id)
-            )
-        ).one_or_none()
+        initiative, role = await _lookup_guild_initiative(
+            session,
+            mapping.guild_id,
+            mapping.initiative_id,
+            mapping.initiative_role_id,
+        )
         if not initiative:
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INITIATIVE_NOT_FOUND
@@ -467,13 +518,6 @@ async def update_oidc_mapping(
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INITIATIVE_WRONG_GUILD
             )
-        role = (
-            await session.exec(
-                select(InitiativeRoleModel).where(
-                    InitiativeRoleModel.id == mapping.initiative_role_id
-                )
-            )
-        ).one_or_none()
         if not role:
             raise HTTPException(
                 status_code=400, detail=SettingsMessages.INITIATIVE_ROLE_NOT_FOUND
@@ -513,22 +557,43 @@ async def get_oidc_mapping_options(
     _admin: ConfigManageDep,
 ) -> dict:
     """Return all guilds, initiatives, and initiative roles for the mapping form."""
+    # Guilds live in shared public; materialize them before routing into any guild
+    # schema (routing expunges the ORM objects).
     guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
-    initiatives = (
-        await session.exec(select(Initiative).order_by(Initiative.name))
-    ).all()
-    roles = (
-        await session.exec(
-            select(InitiativeRoleModel).order_by(InitiativeRoleModel.position)
-        )
-    ).all()
-    return {
-        "guilds": [{"id": g.id, "name": g.name} for g in guilds],
-        "initiatives": [
+    guild_payload = [{"id": g.id, "name": g.name} for g in guilds]
+
+    # Initiatives and initiative roles are guild-scoped content: their rows live in
+    # each guild's guild_<id> schema, not in the empty public copies. Route into
+    # every guild's schema in turn and collect them. Row ids are unique only within
+    # a schema, so each role carries its guild_id for the client to disambiguate
+    # against colliding initiative ids across guilds.
+    initiatives_payload: list[dict] = []
+    roles_payload: list[dict] = []
+    for g in guild_payload:
+        await _route_admin_to_guild(session, g["id"])
+        initiatives = (
+            await session.exec(select(Initiative).order_by(Initiative.name))
+        ).all()
+        roles = (
+            await session.exec(
+                select(InitiativeRoleModel).order_by(InitiativeRoleModel.position)
+            )
+        ).all()
+        initiatives_payload.extend(
             {"id": i.id, "name": i.name, "guild_id": i.guild_id} for i in initiatives
-        ],
-        "initiative_roles": [
-            {"id": r.id, "name": r.display_name, "initiative_id": r.initiative_id}
+        )
+        roles_payload.extend(
+            {
+                "id": r.id,
+                "name": r.display_name,
+                "initiative_id": r.initiative_id,
+                "guild_id": g["id"],
+            }
             for r in roles
-        ],
+        )
+
+    return {
+        "guilds": guild_payload,
+        "initiatives": initiatives_payload,
+        "initiative_roles": roles_payload,
     }
