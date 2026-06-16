@@ -56,6 +56,10 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
     {
         BASELINE_REVISION,
         "20260426_0077",  # drop_automation_tables — domain removed from repo
+        # initiative RLS: dropping public.initiative_access would break boot-time
+        # guild provisioning (apply_guild_rls references it) for every guild, so
+        # there is no safe rollback past this point — roll forward only.
+        "20260616_0110",
     }
 )
 

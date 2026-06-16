@@ -247,7 +247,7 @@ async def get_initiative_blocker_details(
     blockers: List[dict] = []
     for gid in await _user_guild_ids(session, user_id):
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
 
         # Find initiatives where user is sole manager (PM). InitiativeMember
         # links to InitiativeRoleModel via role_id; manager roles have
@@ -433,7 +433,7 @@ async def check_deletion_eligibility(
     owned_projects: List[ProjectBasic] = []
     for gid in await _user_guild_ids(session, user_id):
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
         sole_pm_initiatives.extend(
             await initiatives_service.initiatives_requiring_new_pm(session, user_id)
         )
@@ -510,7 +510,7 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
     # between guilds avoids ORM identity-map collisions (ids repeat per schema).
     for gid in guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
         await initiatives_service.remove_user_from_guild_initiatives(
             session,
             guild_id=gid,
@@ -737,7 +737,7 @@ async def transfer_owned_projects(
     """
     for gid in await _user_guild_ids(session, user_id):
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
         for project in await get_owned_projects(session, user_id):
             key = f"{gid}:{project.id}"
             if key not in project_transfers:
@@ -974,7 +974,7 @@ async def hard_delete_user(
     # transaction committed at the end, so a failure rolls the whole delete back.
     for gid in guild_ids:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
 
         # Transfer projects this user owns in THIS guild before their
         # permission rows are wiped. get_owned_projects is now guild-scoped by

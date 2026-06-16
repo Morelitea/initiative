@@ -25,7 +25,6 @@ Revises: 20260616_0109
 Create Date: 2026-06-16
 """
 
-import re
 from pathlib import Path
 
 from alembic import op
@@ -36,9 +35,9 @@ down_revision = "20260616_0109"
 branch_labels = None
 depends_on = None
 
-_GUILD_RLS_SQL = (
+_GUILD_RLS_SQL_PATH = (
     Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_rls.sql"
-).read_text()
+)
 
 # The single source of truth for initiative access. Plain (NOT SECURITY DEFINER —
 # no RLS bypass) and with NO `SET search_path`, so the unqualified initiative_members
@@ -69,15 +68,6 @@ AS $func$
 $func$;
 """
 
-# Tables the policies cover, parsed from the canonical SQL so the two never drift.
-_TABLES = re.findall(r"ALTER TABLE (\w+) ENABLE ROW LEVEL SECURITY", _GUILD_RLS_SQL)
-_POLICIES = (
-    "initiative_member_select",
-    "initiative_member_insert",
-    "initiative_member_update",
-    "initiative_member_delete",
-)
-
 
 def _guild_schemas(conn) -> list[str]:
     """Every guild schema (guild_<id> and guild_template if present)."""
@@ -103,7 +93,7 @@ def _statements(sql: str) -> list[str]:
 def upgrade() -> None:
     conn = op.get_bind()
     conn.execute(text(_FUNCTION_SQL))
-    statements = _statements(_GUILD_RLS_SQL)
+    statements = _statements(_GUILD_RLS_SQL_PATH.read_text())
     for schema in _guild_schemas(conn):
         conn.execute(text(f'SET search_path TO "{schema}", public'))
         for stmt in statements:
@@ -112,17 +102,11 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    conn = op.get_bind()
-    for schema in _guild_schemas(conn):
-        conn.execute(text(f'SET search_path TO "{schema}", public'))
-        for table in _TABLES:
-            for policy in _POLICIES:
-                conn.execute(text(f"DROP POLICY IF EXISTS {policy} ON {table}"))
-            conn.execute(text(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY"))
-            conn.execute(text(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY"))
-    conn.execute(text("SET search_path TO public"))
-    conn.execute(
-        text(
-            "DROP FUNCTION IF EXISTS public.initiative_access(integer, integer, boolean)"
-        )
+    # Intentionally unsupported. Dropping public.initiative_access would break the
+    # boot-time guild provisioning (apply_guild_rls runs guild_rls.sql, which
+    # references the function) for EVERY guild on the next start, so there is no
+    # safe rollback past this point — roll forward only. (This project does not
+    # maintain downgrade paths for the schema-per-guild RLS layer.)
+    raise NotImplementedError(
+        "Downgrade past 20260616_0110 (initiative RLS) is not supported; roll forward."
     )
