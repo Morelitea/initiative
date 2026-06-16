@@ -45,6 +45,8 @@ Revises: 20260615_0105
 Create Date: 2026-06-15
 """
 
+import string
+
 from alembic import op
 
 from app.core.config import settings
@@ -55,6 +57,13 @@ down_revision = "20260615_0105"
 branch_labels = None
 depends_on = None
 
+# The role prefix is interpolated into the DDL / DO-block SQL below. It is
+# operator/test config (never user input), and PLATFORM_TIERS is a fixed literal
+# tuple — so the role names are fully controlled. Still, assert the prefix uses
+# only role-name characters as defense-in-depth, so a stray quote can never break
+# out of the interpolated SQL. Explicit allow-list of letters, digits, underscore.
+_ALLOWED_PREFIX_CHARS = frozenset(string.ascii_letters + string.digits + "_")
+
 
 def _role_names() -> tuple[str, list[str]]:
     """(`platform_base`, [`platform_<tier>` …]) under the active prefix.
@@ -64,6 +73,8 @@ def _role_names() -> tuple[str, list[str]]:
     prefixed (``test_``) roles in the test DB and the unprefixed roles in prod.
     """
     prefix = settings.PLATFORM_ROLE_PREFIX
+    if not set(prefix) <= _ALLOWED_PREFIX_CHARS:
+        raise ValueError(f"unsafe PLATFORM_ROLE_PREFIX for role DDL: {prefix!r}")
     base = f"{prefix}platform_base"
     tiers = [f"{prefix}platform_{tier}" for tier in PLATFORM_TIERS]
     return base, tiers

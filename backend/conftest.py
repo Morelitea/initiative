@@ -13,6 +13,7 @@ import fcntl
 import os
 import tempfile
 from collections.abc import AsyncGenerator
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -366,8 +367,6 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
     # Drop the suite's prefixed roles, each in its own transaction. Prefixed roles
     # are distinct from a co-located dev DB's, so these should succeed — the
     # suppress is belt-and-suspenders so one stuck role can't abort the rest.
-    from contextlib import suppress
-
     for role in roles:
         with suppress(Exception):
             async with engine.begin() as rconn:
@@ -456,22 +455,35 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         app.dependency_overrides.clear()
         # Release the request/admin connections BEFORE the session-fixture teardown
         # runs its privileged TRUNCATE/DROP SCHEMA (which would block on any lock
-        # these idle-in-transaction connections still hold), and drop any assumed
-        # role so the connection returns clean.
-        for sess, conn in ((req_session, req_conn), (admin_session, admin_conn)):
-            await sess.close()
-            await conn.rollback()
-            await conn.exec_driver_sql(
-                "SELECT set_config('role', 'none', false), "
-                "set_config('search_path', 'public', false)"
-            )
-            await conn.commit()
-            await conn.close()
-        await app_engine.dispose()
-        await admin_engine.dispose()
+        # these idle-in-transaction connections still hold, hanging the NEXT test
+        # until its statement_timeout fires).
+        #
+        # Clean each pair INDEPENDENTLY and best-effort: a failure tearing down the
+        # request pair must NOT skip the admin pair (or vice versa) and leak its
+        # connection. ``engine.dispose()`` is the guaranteed backstop — it
+        # force-closes the pooled connection even if the graceful role-reset above
+        # it failed — so it runs for every engine regardless.
+        for sess, conn, eng in (
+            (req_session, req_conn, app_engine),
+            (admin_session, admin_conn, admin_engine),
+        ):
+            with suppress(Exception):
+                await sess.close()
+            with suppress(Exception):
+                await conn.rollback()
+                await conn.exec_driver_sql(
+                    "SELECT set_config('role', 'none', false), "
+                    "set_config('search_path', 'public', false)"
+                )
+                await conn.commit()
+            with suppress(Exception):
+                await conn.close()
+            with suppress(Exception):
+                await eng.dispose()
         # The create-guild endpoint ends on a SELECT (no commit), so the privileged
         # setup session may hold a lock on public.guilds; release it too.
-        await session.rollback()
+        with suppress(Exception):
+            await session.rollback()
 
 
 @pytest.fixture
