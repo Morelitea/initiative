@@ -245,6 +245,13 @@ async def role_session():
         await eng.dispose()
 
 
+# Guild ids whose schema was provisioned during the CURRENT test. Lets the
+# session-teardown SKIP the pg_namespace / pg_roles cleanup scan for the (vast
+# majority of) tests that never provision a guild — only a test that actually
+# created a guild schema pays for the catalog scan + DROP SCHEMA/ROLE.
+_provisioned_guild_ids: set[int] = set()
+
+
 @pytest.fixture(autouse=True)
 def _schema_test_harness(engine, monkeypatch):
     """Make every test schema-per-guild aware.
@@ -254,12 +261,30 @@ def _schema_test_harness(engine, monkeypatch):
       the request path.
     - Points the (superuser) provisioning engine at the test DB so create_guild /
       the guilds endpoint provision schemas/roles on the test database.
+    - Wraps ``provision_guild`` (the universal provisioning choke point — factory,
+      guild endpoints, backfill, and conversion all route through it) to record
+      which guilds got a schema this test, so teardown can skip its cleanup scan
+      when none did.
     """
+    import app.db.schema_provisioning as schema_provisioning
     import app.db.session as db_session
     from app.testing.schema_harness import install_guild_routing
 
     install_guild_routing()
     monkeypatch.setattr(db_session, "provisioning_engine", engine)
+
+    _provisioned_guild_ids.clear()
+    _orig_provision_guild = schema_provisioning.provision_guild
+
+    async def _tracking_provision_guild(*args: Any, **kwargs: Any) -> str:
+        gid = kwargs.get("guild_id", args[0] if args else None)
+        if gid is not None:
+            _provisioned_guild_ids.add(int(gid))
+        return await _orig_provision_guild(*args, **kwargs)
+
+    monkeypatch.setattr(
+        schema_provisioning, "provision_guild", _tracking_provision_guild
+    )
 
 
 @pytest.fixture(scope="function")
@@ -335,33 +360,41 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
     # (cluster-global roles must not leak between tests), then truncate public.
     async with engine.begin() as conn:
         await conn.exec_driver_sql("SET lock_timeout = '10s'")
-        for (schema,) in (
-            await conn.execute(
-                text(
-                    "SELECT nspname FROM pg_namespace WHERE nspname ~ '^guild_[0-9]+$'"
-                )
-            )
-        ).all():
-            await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
-        # Only the suite's own prefixed roles (test_guild_<id>) — never a
-        # co-located dev DB's unprefixed guild_<id> roles (they share this
-        # cluster-global catalog but belong to that database).
-        role_pattern = f"^{settings.GUILD_ROLE_PREFIX}guild_[0-9]+(_ro)?$"
-        roles = [
-            r
-            for (r,) in (
+        # Per-guild schema/role cleanup only matters if THIS test provisioned a
+        # guild schema (tracked in _provisioned_guild_ids). Most tests don't, so
+        # skip the two catalog scans + DROPs entirely for them.
+        roles: list[str] = []
+        if _provisioned_guild_ids:
+            for (schema,) in (
                 await conn.execute(
-                    text("SELECT rolname FROM pg_roles WHERE rolname ~ :pat"),
-                    {"pat": role_pattern},
+                    text(
+                        "SELECT nspname FROM pg_namespace WHERE nspname ~ '^guild_[0-9]+$'"
+                    )
                 )
-            ).all()
-        ]
-        # Truncate all public tables to reset state.
+            ).all():
+                await conn.execute(text(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE'))
+            # Only the suite's own prefixed roles (test_guild_<id>) — never a
+            # co-located dev DB's unprefixed guild_<id> roles (they share this
+            # cluster-global catalog but belong to that database).
+            role_pattern = f"^{settings.GUILD_ROLE_PREFIX}guild_[0-9]+(_ro)?$"
+            roles = [
+                r
+                for (r,) in (
+                    await conn.execute(
+                        text("SELECT rolname FROM pg_roles WHERE rolname ~ :pat"),
+                        {"pat": role_pattern},
+                    )
+                ).all()
+            ]
+        # Truncate all public tables to reset state — one multi-table TRUNCATE
+        # (a single round-trip) instead of one statement per table.
         await conn.execute(text("SET session_replication_role = 'replica'"))
-        for table in reversed(SQLModel.metadata.sorted_tables):
-            await conn.execute(
-                text(f"TRUNCATE TABLE {table.name} RESTART IDENTITY CASCADE")
-            )
+        all_tables = ", ".join(
+            f'"{table.name}"' for table in SQLModel.metadata.sorted_tables
+        )
+        await conn.execute(
+            text(f"TRUNCATE TABLE {all_tables} RESTART IDENTITY CASCADE")
+        )
         await conn.execute(text("SET session_replication_role = 'origin'"))
 
     # Drop the suite's prefixed roles, each in its own transaction. Prefixed roles
