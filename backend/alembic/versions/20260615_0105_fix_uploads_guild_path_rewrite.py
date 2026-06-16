@@ -83,11 +83,13 @@ def _table_exists(conn, schema, table):
     )
 
 
-def _rewrite_table(conn, schema, table, *, pattern, repl_expr):
+def _rewrite_table(conn, schema, table, *, pattern, repl_expr, extra_where=None):
     """``UPDATE schema.table`` applying ``regexp_replace(col, pattern, repl_expr,
     'g')`` to every targeted column. ``repl_expr`` is the SQL *replacement
     expression* (already quoted): a literal ``'/uploads/7/\\1'`` for a guild
-    schema, or the per-row ``'/uploads/' || guild_id || '/\\1'`` for public."""
+    schema, or the per-row ``'/uploads/' || guild_id::text || '/\\1'`` for public.
+    ``extra_where`` AND-guards the URL-match predicate (e.g. ``guild_id IS NOT
+    NULL`` so a NULL guild_id can't ``||``-propagate the column to NULL)."""
     text_cols = _TEXT_COLS.get(table, [])
     jsonb_cols = _JSONB_COLS.get(table, [])
     sets = [
@@ -101,20 +103,27 @@ def _rewrite_table(conn, schema, table, *, pattern, repl_expr):
     wheres += [f"{c}::text ~ '{pattern}'" for c in jsonb_cols]
     if not sets:
         return
+    where = f"({' OR '.join(wheres)})"
+    if extra_where:
+        where += f" AND {extra_where}"
     conn.execute(
-        sa.text(
-            f'UPDATE "{schema}".{table} '
-            f"SET {', '.join(sets)} WHERE {' OR '.join(wheres)}"
-        )
+        sa.text(f'UPDATE "{schema}".{table} SET {", ".join(sets)} WHERE {where}')
     )
 
 
-def _rewrite_public(conn, *, pattern, repl_expr):
+def _rewrite_public(conn, *, pattern, repl_expr, extra_where=None):
     # Public copies may already be gone in a later phase (see guild_conversion):
     # guard each table so a dropped backup is a skip, not an error.
     for table in _ALL_TABLES:
         if _table_exists(conn, "public", table):
-            _rewrite_table(conn, "public", table, pattern=pattern, repl_expr=repl_expr)
+            _rewrite_table(
+                conn,
+                "public",
+                table,
+                pattern=pattern,
+                repl_expr=repl_expr,
+                extra_where=extra_where,
+            )
 
 
 def _rewrite_guild_schemas(conn, *, pattern, repl_expr_for):
@@ -129,8 +138,16 @@ def _rewrite_guild_schemas(conn, *, pattern, repl_expr_for):
 
 def upgrade() -> None:
     conn = op.get_bind()
-    # public: per-row gid from the row's own guild_id column.
-    _rewrite_public(conn, pattern=_OLD, repl_expr="'/uploads/' || guild_id || '/\\1'")
+    # public: per-row gid from the row's own guild_id column. ``::text`` makes the
+    # concat explicit, and ``guild_id IS NOT NULL`` keeps a NULL gid (nullable on
+    # comments/document_file_versions) from ``||``-nulling an otherwise-matching
+    # URL — such a row is never copied into a guild schema anyway.
+    _rewrite_public(
+        conn,
+        pattern=_OLD,
+        repl_expr="'/uploads/' || guild_id::text || '/\\1'",
+        extra_where="guild_id IS NOT NULL",
+    )
     # guild schemas: gid is a constant parsed from the schema name.
     _rewrite_guild_schemas(
         conn, pattern=_OLD, repl_expr_for=lambda gid: f"'/uploads/{gid}/\\1'"
