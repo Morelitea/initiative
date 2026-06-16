@@ -37,8 +37,14 @@ import { cn } from "@/lib/utils";
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 
-// Configure PDF.js worker from CDN (most reliable for Vite)
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// Self-host the PDF.js worker as a same-origin Vite asset rather than loading it
+// from a CDN. A cross-origin worker URL forces pdf.js to import() it from inside a
+// blob worker, which the app's `script-src 'self'` CSP (pentest MED-001) blocks;
+// bundling it keeps the worker same-origin (no CSP relaxation), guarantees the
+// version matches pdfjs-dist, and works offline in the native app.
+import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 // Accepted file types for uploading a new version (mirrors CreateDocumentDialog).
 const VERSION_UPLOAD_ACCEPT =
