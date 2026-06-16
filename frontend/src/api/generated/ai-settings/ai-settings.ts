@@ -41,7 +41,7 @@ import type { ErrorType, BodyType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Get platform-level AI settings. Platform admin only.
+ * Get platform-level AI settings (``config.manage`` — owner only, owner-scoped).
  * @summary Get Platform Ai Settings
  */
 export const getPlatformAiSettingsApiV1SettingsAiPlatformGet = (
@@ -187,7 +187,10 @@ export function useGetPlatformAiSettingsApiV1SettingsAiPlatformGet<
 }
 
 /**
- * Update platform-level AI settings. Platform admin only.
+ * Update platform-level AI settings (``config.manage`` — owner only).
+ *
+ * Owner-scoped session: ``app_settings`` is owner-only after Phase 2 (GRANT + RLS),
+ * so this write runs as ``platform_owner`` rather than the bare login role.
  * @summary Update Platform Ai Settings
  */
 export const updatePlatformAiSettingsApiV1SettingsAiPlatformPut = (

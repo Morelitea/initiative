@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
 from sqlmodel import select
 
-from app.api.deps import require_capability
+from app.api.deps import UserSessionDep, require_capability
 from app.core.capabilities import Capability, capabilities_for, can_assign_role
 from app.db.session import get_admin_session, set_rls_context
 from app.db.schema_provisioning import deprovision_guild
@@ -57,10 +57,16 @@ AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 @router.get("/users", response_model=List[UserRead])
 async def list_all_users(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _current_user: UsersReadDep,
 ) -> Sequence[User]:
-    """List all users in the platform (admin only)."""
+    """List all users in the platform (``users.read``).
+
+    Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
+    cross-user read is authorized by RLS (``users_platform_read``, support+) rather
+    than the BYPASSRLS admin engine. Initiative roles are guild-scoped and
+    deliberately NOT loaded here — a platform user view exposes platform data only.
+    """
     from app.services.users import SYSTEM_USER_EMAIL
 
     stmt = (
@@ -69,9 +75,7 @@ async def list_all_users(
         .order_by(User.created_at.asc())
     )
     result = await session.exec(stmt)
-    users = result.all()
-    await initiatives_service.load_user_initiative_roles(session, users)
-    return users
+    return result.all()
 
 
 _PLATFORM_CSV_HEADERS = [
@@ -85,13 +89,12 @@ _PLATFORM_CSV_HEADERS = [
     "updated_at",
     "timezone",
     "locale",
-    "initiative_roles",
 ]
 
 
 @router.get("/users/export.csv")
 async def export_platform_users_csv(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _current_user: UsersReadDep,
     user_id: Annotated[list[int] | None, Query()] = None,
 ) -> Response:
@@ -115,8 +118,6 @@ async def export_platform_users_csv(
             status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
         )
 
-    await initiatives_service.load_user_initiative_roles(session, users)
-
     rows = []
     for user in users:
         rows.append(
@@ -131,7 +132,6 @@ async def export_platform_users_csv(
                 user.updated_at.isoformat() if user.updated_at else "",
                 user.timezone or "",
                 user.locale or "",
-                csv_export.format_initiative_roles(user),
             ]
         )
 
@@ -230,10 +230,10 @@ async def reactivate_user(
 
 @router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
 async def get_platform_admin_count(
-    session: AdminSessionDep,
+    session: UserSessionDep,
     _current_user: UsersReadDep,
 ) -> PlatformAdminCountResponse:
-    """Get the count of platform admins (admin only)."""
+    """Get the count of platform admins (``users.read``, role-scoped session)."""
     count = await users_service.count_platform_admins(session)
     return PlatformAdminCountResponse(count=count)
 

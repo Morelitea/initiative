@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import (
     SessionDep,
+    UserSessionDep,
     get_current_active_user,
     GuildContext,
     require_guild_roles,
@@ -80,7 +81,7 @@ def _email_settings_payload(settings_obj: AppSetting) -> EmailSettingsResponse:
 
 @router.get("/auth", response_model=OIDCSettingsResponse)
 async def get_oidc_settings(
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
@@ -99,7 +100,7 @@ async def get_oidc_settings(
 @router.put("/auth", response_model=OIDCSettingsResponse)
 async def update_oidc_settings(
     payload: OIDCSettingsUpdate,
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> OIDCSettingsResponse:
     updated = await app_settings_service.update_oidc_settings(
@@ -146,7 +147,7 @@ async def get_role_labels(
 @router.put("/interface", response_model=InterfaceSettingsResponse)
 async def update_interface_settings(
     payload: InterfaceSettingsUpdate,
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> InterfaceSettingsResponse:
     settings_obj = await app_settings_service.update_interface_colors(
@@ -163,7 +164,7 @@ async def update_interface_settings(
 @router.put("/roles", response_model=RoleLabelsResponse)
 async def update_role_labels(
     payload: RoleLabelsUpdate,
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> RoleLabelsResponse:
     updated = await app_settings_service.update_role_labels(
@@ -175,7 +176,7 @@ async def update_role_labels(
 
 @router.get("/email", response_model=EmailSettingsResponse)
 async def get_email_settings(
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> EmailSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
@@ -185,7 +186,7 @@ async def get_email_settings(
 @router.put("/email", response_model=EmailSettingsResponse)
 async def update_email_settings(
     payload: EmailSettingsUpdate,
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> EmailSettingsResponse:
     data = payload.model_dump(exclude_unset=True)
@@ -208,7 +209,7 @@ async def update_email_settings(
 @router.post("/email/test")
 async def send_test_email(
     payload: EmailTestRequest,
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> dict:
     settings_obj = await app_settings_service.get_app_settings(session)
@@ -333,6 +334,8 @@ async def update_oidc_claim_path(
     session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> dict:
+    # Residual admin-engine: kept with the rest of the oidc-mappings surface,
+    # which is deferred to Phase 3 (guild-scoped / dual-path + break-glass).
     settings_obj = await app_settings_service.get_app_settings(session)
     cleaned = payload.claim_path.strip() if payload.claim_path else None
     settings_obj.oidc_role_claim_path = cleaned or None

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -85,53 +86,15 @@ async def get_or_create_guild_settings(
     return await _ensure_guild_setting(session, resolved_guild_id)
 
 
-async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
-    stmt = select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
-    result = await session.exec(stmt)
-    settings_row = result.one_or_none()
-    if settings_row:
-        updated = False
-        # NOTE: oidc_enabled is intentionally NOT overridden here.
-        # It is seeded from the env var on first creation only, so that
-        # admins can disable OIDC via the UI without the env var forcing
-        # it back on every read.
-        if not settings_row.oidc_issuer and app_config.OIDC_ISSUER:
-            settings_row.oidc_issuer = _normalize_optional_string(
-                app_config.OIDC_ISSUER
-            )
-            updated = True
-        if not settings_row.oidc_client_id and app_config.OIDC_CLIENT_ID:
-            settings_row.oidc_client_id = _normalize_optional_string(
-                app_config.OIDC_CLIENT_ID
-            )
-            updated = True
-        if (
-            not settings_row.oidc_client_secret_encrypted
-            and app_config.OIDC_CLIENT_SECRET
-        ):
-            v = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
-            settings_row.oidc_client_secret_encrypted = (
-                encrypt_field(v, SALT_OIDC_CLIENT_SECRET) if v else None
-            )
-            updated = True
-        if not settings_row.oidc_provider_name and app_config.OIDC_PROVIDER_NAME:
-            settings_row.oidc_provider_name = _normalize_optional_string(
-                app_config.OIDC_PROVIDER_NAME
-            )
-            updated = True
-        env_scopes = _normalize_scopes(app_config.OIDC_SCOPES or [])
-        if env_scopes and not settings_row.oidc_scopes:
-            settings_row.oidc_scopes = env_scopes
-            updated = True
-        if updated:
-            session.add(settings_row)
-            await session.commit()
-            await reapply_rls_context(session)
-            await session.refresh(settings_row)
-        return settings_row
+def _build_default_app_settings() -> AppSetting:
+    """A fresh, env-seeded ``AppSetting`` singleton (id=1), NOT persisted.
+
+    Shared by the create path (persisted by a writer) and the privilege-tolerant
+    read fallback (returned transient to a non-owner caller).
+    """
     _oidc_secret = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
     _smtp_pw = _normalize_optional_string(app_config.SMTP_PASSWORD)
-    app_settings = AppSetting(
+    return AppSetting(
         id=GLOBAL_SETTINGS_ID,
         oidc_enabled=bool(app_config.OIDC_ENABLED),
         oidc_issuer=_normalize_optional_string(app_config.OIDC_ISSUER),
@@ -159,10 +122,90 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         smtp_from_address=_normalize_optional_string(app_config.SMTP_FROM_ADDRESS),
         smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
     )
-    session.add(app_settings)
+
+
+async def _session_can_write_app_settings(session: AsyncSession) -> bool:
+    """Whether the current DB role may WRITE ``app_settings``.
+
+    After Phase 2 ``app_settings`` is owner-only at the GRANT layer (write granted
+    only to ``platform_owner`` + the ``app_admin`` engine; revoked from ``app_user``,
+    ``platform_base``, and ``app_guild_base``), and that GRANT is the single writer
+    gate. A non-owner session that reads config and would lazily create / env-reseed
+    the singleton must NOT attempt the write: an ORM flush failure dooms the whole
+    session transaction (a SAVEPOINT doesn't isolate a failed flush the way it does a
+    plain statement). So we probe the grant up front and skip the write, serving an
+    in-memory env-correct value instead. ``has_table_privilege`` respects role
+    inheritance, so it is authoritative now that the grant alone gates writes.
+    """
+    return bool(
+        await session.scalar(
+            text("SELECT has_table_privilege('app_settings', 'UPDATE')")
+        )
+    )
+
+
+async def _write_app_settings(session: AsyncSession, settings_row: AppSetting) -> None:
+    session.add(settings_row)
     await session.commit()
     await reapply_rls_context(session)
-    await session.refresh(app_settings)
+    await session.refresh(settings_row)
+
+
+async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
+    stmt = select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
+    result = await session.exec(stmt)
+    settings_row = result.one_or_none()
+    if settings_row:
+        # Collect env values for fields the row hasn't got yet (no mutation until
+        # we know we can persist — see _session_can_write_app_settings).
+        # NOTE: oidc_enabled is intentionally NOT re-seeded here. It is set from
+        # the env var on first creation only, so an admin can disable OIDC via the
+        # UI without the env var forcing it back on every read.
+        env_updates: dict[str, object] = {}
+        if not settings_row.oidc_issuer and app_config.OIDC_ISSUER:
+            env_updates["oidc_issuer"] = _normalize_optional_string(
+                app_config.OIDC_ISSUER
+            )
+        if not settings_row.oidc_client_id and app_config.OIDC_CLIENT_ID:
+            env_updates["oidc_client_id"] = _normalize_optional_string(
+                app_config.OIDC_CLIENT_ID
+            )
+        if (
+            not settings_row.oidc_client_secret_encrypted
+            and app_config.OIDC_CLIENT_SECRET
+        ):
+            v = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
+            env_updates["oidc_client_secret_encrypted"] = (
+                encrypt_field(v, SALT_OIDC_CLIENT_SECRET) if v else None
+            )
+        if not settings_row.oidc_provider_name and app_config.OIDC_PROVIDER_NAME:
+            env_updates["oidc_provider_name"] = _normalize_optional_string(
+                app_config.OIDC_PROVIDER_NAME
+            )
+        env_scopes = _normalize_scopes(app_config.OIDC_SCOPES or [])
+        if env_scopes and not settings_row.oidc_scopes:
+            env_updates["oidc_scopes"] = env_scopes
+        if not env_updates:
+            return settings_row
+        if await _session_can_write_app_settings(session):
+            for field, value in env_updates.items():
+                setattr(settings_row, field, value)
+            await _write_app_settings(session, settings_row)
+            return settings_row
+        # Non-writer (e.g. unauthenticated OIDC login as app_user): serve an
+        # env-correct *transient* without touching the tracked row — we neither
+        # persist nor leave a dirty instance a later commit would fault on. The
+        # env value is persisted later by an owner write or the next startup
+        # ensure_defaults (app_admin).
+        merged = {
+            col.name: getattr(settings_row, col.name)
+            for col in AppSetting.__table__.columns
+        }
+        merged.update(env_updates)
+        return AppSetting(**merged)
+    app_settings = _build_default_app_settings()
+    if await _session_can_write_app_settings(session):
+        await _write_app_settings(session, app_settings)
     return app_settings
 
 

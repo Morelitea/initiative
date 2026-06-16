@@ -44,7 +44,12 @@ import type { ErrorType, BodyType } from "../../mutator";
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * List all users in the platform (admin only).
+ * List all users in the platform (``users.read``).
+ *
+ * Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
+ * cross-user read is authorized by RLS (``users_platform_read``, support+) rather
+ * than the BYPASSRLS admin engine. Initiative roles are guild-scoped and
+ * deliberately NOT loaded here — a platform user view exposes platform data only.
  * @summary List All Users
  */
 export const listAllUsersApiV1AdminUsersGet = (
@@ -499,7 +504,7 @@ export const useReactivateUserApiV1AdminUsersUserIdReactivatePost = <
   );
 };
 /**
- * Get the count of platform admins (admin only).
+ * Get the count of platform admins (``users.read``, role-scoped session).
  * @summary Get Platform Admin Count
  */
 export const getPlatformAdminCountApiV1AdminPlatformAdminCountGet = (
