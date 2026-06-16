@@ -170,3 +170,75 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
     # Denormalized names are resolved from the guild schema for display.
     assert body["initiative_name"] == initiative.name
     assert body["initiative_role_name"] == role["name"]
+
+
+# The whole OIDC claim-mapping surface reads/writes guild-scoped data through the
+# BYPASSRLS admin engine, so the ONLY thing standing between a caller and every
+# guild's data is the owner-only ``config.manage`` capability gate. These tests
+# hard-pin that gate per endpoint so a future edit can't silently drop it and let
+# a non-owner (even a platform admin) through.
+_NON_OWNER_ROLES = [
+    UserRole.member,
+    UserRole.support,
+    UserRole.moderator,
+    UserRole.admin,
+]
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("role", _NON_OWNER_ROLES)
+async def test_oidc_mapping_endpoints_reject_non_owner(
+    client: AsyncClient,
+    session: AsyncSession,
+    role: UserRole,
+) -> None:
+    """Every OIDC claim-mapping endpoint is owner-only (config.manage). No other
+    platform tier — not even ``admin`` — may read or write them."""
+    user = await create_user(
+        session, email=f"oidc-deny-{role.value}@example.com", role=role
+    )
+    headers = get_auth_headers(user)
+
+    # Every route on the surface, covering each HTTP method/verb.
+    requests = [
+        ("get", "/api/v1/settings/oidc-mappings", None),
+        ("get", "/api/v1/settings/oidc-mappings/options", None),
+        (
+            "post",
+            "/api/v1/settings/oidc-mappings",
+            {
+                "claim_value": "x",
+                "target_type": "guild",
+                "guild_id": 1,
+                "guild_role": "member",
+            },
+        ),
+        ("put", "/api/v1/settings/oidc-mappings/claim-path", {"claim_path": "groups"}),
+        ("put", "/api/v1/settings/oidc-mappings/1", {"claim_value": "x"}),
+        ("delete", "/api/v1/settings/oidc-mappings/1", None),
+    ]
+    for method, url, json_body in requests:
+        resp = await getattr(client, method)(
+            url, headers=headers, **({"json": json_body} if json_body else {})
+        )
+        # 403 (capability denied) before any handler logic runs — never 200/201/204,
+        # and never a 400/404 that would imply the request reached the handler.
+        assert resp.status_code == 403, (
+            f"{method.upper()} {url} as {role.value}: {resp.status_code}"
+        )
+        assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"
+
+
+@pytest.mark.integration
+async def test_oidc_mapping_endpoints_require_authentication(
+    client: AsyncClient,
+) -> None:
+    """Unauthenticated callers are rejected outright (401), never reaching the
+    admin-engine handlers."""
+    for method, url in [
+        ("get", "/api/v1/settings/oidc-mappings"),
+        ("get", "/api/v1/settings/oidc-mappings/options"),
+        ("delete", "/api/v1/settings/oidc-mappings/1"),
+    ]:
+        resp = await getattr(client, method)(url)
+        assert resp.status_code == 401, f"{method.upper()} {url}: {resp.status_code}"
