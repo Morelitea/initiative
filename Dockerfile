@@ -38,7 +38,7 @@ WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
 RUN uv sync --frozen --no-dev
 COPY backend/ .
-# Put the synced venv on PATH so uvicorn/alembic/python resolve to it (start.sh/entrypoint.sh unchanged).
+# Put the synced venv on PATH so uvicorn/alembic/python resolve to it
 ENV PATH="/app/.venv/bin:$PATH"
 COPY VERSION ./VERSION
 COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
