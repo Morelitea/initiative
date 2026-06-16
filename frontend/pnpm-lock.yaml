@@ -281,6 +281,9 @@ importers:
       papaparse:
         specifier: ^5.5.3
         version: 5.5.3
+      pdfjs-dist:
+        specifier: 5.4.296
+        version: 5.4.296
       react:
         specifier: ^19.2.6
         version: 19.2.6

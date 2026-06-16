@@ -109,6 +109,7 @@
     "lexical": "^0.45.0",
     "lucide-react": "^1.17.0",
     "papaparse": "^5.5.3",
+    "pdfjs-dist": "5.4.296",
     "react": "^19.2.6",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.6",
