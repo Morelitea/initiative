@@ -121,6 +121,103 @@ GUILD_SCOPED_TABLES: frozenset[str] = frozenset(
 ALL_CLASSIFIED_TABLES: frozenset[str] = SHARED_TABLES | GUILD_SCOPED_TABLES
 
 
+# --- Second level: the initiative-member access boundary --------------------
+# Within a guild schema, every table is *also* one of two kinds. This partition
+# is the single source of truth for the initiative-level RLS layer:
+#
+# - **INITIATIVE_SCOPED_TABLES** carry the four ``initiative_member_*`` policies
+#   that defer to ``public.initiative_access(...)``. ``scripts/gen_guild_rls.py``
+#   holds the per-table initiative-id path and generates ``guild_rls.sql`` from
+#   exactly this set; ``tenancy_test.py`` asserts the generator registry equals
+#   it, and a provisioning test asserts every one actually has the policies in a
+#   live schema. So an initiative-level table CANNOT ship without its policies.
+# - **GUILD_LEVEL_TABLES** are exempt — they are guild-wide, structural, or
+#   own-row, and are protected only by the schema boundary (the ``guild_<id>``
+#   role). Adding one here is the explicit "this is not initiative-scoped"
+#   decision.
+#
+# Together they MUST partition ``GUILD_SCOPED_TABLES`` (disjoint + complete);
+# ``tenancy_test.py`` fails CI otherwise, so a new guild table forces a
+# conscious initiative-scoped-or-exempt choice.
+INITIATIVE_SCOPED_TABLES: frozenset[str] = frozenset(
+    {
+        # Projects + children / associations
+        "projects",
+        "project_documents",
+        "project_permissions",
+        "project_role_permissions",
+        "project_tags",
+        # Tasks + children / associations
+        "tasks",
+        "subtasks",
+        "task_assignees",
+        "task_statuses",
+        "task_tags",
+        "task_property_values",
+        # Documents + children / associations
+        "documents",
+        "document_file_versions",
+        "document_permissions",
+        "document_role_permissions",
+        "document_tags",
+        "document_links",
+        "document_property_values",
+        # Comments + custom-property definitions
+        "comments",
+        "property_definitions",
+        # Calendar events + children
+        "calendar_events",
+        "calendar_event_attendees",
+        "calendar_event_documents",
+        "calendar_event_tags",
+        "calendar_event_property_values",
+        # Queues + items + permissions
+        "queues",
+        "queue_items",
+        "queue_permissions",
+        "queue_role_permissions",
+        "queue_item_documents",
+        "queue_item_tags",
+        "queue_item_tasks",
+        # Counters + groups + permissions
+        "counters",
+        "counter_groups",
+        "counter_group_permissions",
+        "counter_group_role_permissions",
+        # Per-user state that still belongs to an initiative's content — scoped
+        # via the entity it points at (project / event / polymorphic), so a
+        # non-member never has rows for content outside their initiatives.
+        "project_orders",  # via projects
+        "project_favorites",  # via projects
+        "task_assignment_digest_items",  # via projects
+        "event_reminder_dispatches",  # via calendar_events
+        "recent_views",  # polymorphic: project / document / queue / counter_group
+    }
+)
+
+# Guild-scoped but NOT initiative-scoped — exempt from initiative-member RLS.
+GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
+    {
+        # Guild-wide config / data (no initiative scope)
+        "guild_settings",
+        "webhook_subscriptions",  # guild integration config; initiative_id nullable
+        "tags",  # tags are guild-level, shared across initiatives
+        "uploads",  # guild blob store: no FK to any initiative entity (documents
+        # reference blobs by file_url string, and a blob can be pinned by
+        # documents across initiatives), so it can't use initiative_access;
+        # blob *content* access is already gated at the document layer.
+        # Structural initiative tables — deliberately guild-scoped, not
+        # initiative-member-scoped (the membership table can't be gated by the
+        # membership check it backs without recursing; own-row scoping would
+        # break co-member rosters). See guild_rls.sql header.
+        "initiatives",
+        "initiative_members",
+        "initiative_roles",
+        "initiative_role_permissions",
+    }
+)
+
+
 def is_guild_scoped(table_name: str) -> bool:
     """Return True if ``table_name`` moves into per-guild schemas."""
     return table_name in GUILD_SCOPED_TABLES
@@ -129,3 +226,9 @@ def is_guild_scoped(table_name: str) -> bool:
 def is_shared(table_name: str) -> bool:
     """Return True if ``table_name`` stays in the ``public`` schema."""
     return table_name in SHARED_TABLES
+
+
+def is_initiative_scoped(table_name: str) -> bool:
+    """Return True if ``table_name`` carries the initiative-member RLS policies
+    (vs being guild-level / structural / own-row and exempt)."""
+    return table_name in INITIATIVE_SCOPED_TABLES
