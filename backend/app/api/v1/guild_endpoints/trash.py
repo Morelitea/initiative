@@ -361,13 +361,14 @@ async def purge_trash_entity(
     """Hard-purge a trashed entity. Guild-admin only, fully guild-scoped.
 
     Runs entirely on the routed guild-admin RLS session — no standing-BYPASSRLS
-    ``app_admin`` connection. A guild admin clears the RESTRICTIVE FOR DELETE
-    policies (the admin-only policy from migration 0078, and ``is_initiative_member``
-    which admits guild admins via the canonical roster from 0108), so the guild
-    role itself does the hard delete. ``_load_trash_entity`` 404s unless the entity
-    is in THIS guild's trash (and still soft-deleted) — that is the authorization
-    boundary — and ``for_update=True`` locks the row so a concurrent restore can't
-    slip in between the ``deleted_at`` check and the delete (which would otherwise
+    ``app_admin`` connection. The guild-schema content tables carry PERMISSIVE
+    ``initiative_member_delete`` policies that defer to ``public.initiative_access``,
+    whose guild-admin leg (``current_guild_role = 'admin'``) admits the routed
+    admin for the hard delete, so the guild role itself does it.
+    ``_load_trash_entity`` 404s unless the entity is in THIS guild's trash (and
+    still soft-deleted) — that is the authorization boundary — and
+    ``for_update=True`` locks the row so a concurrent restore can't slip in
+    between the ``deleted_at`` check and the delete (which would otherwise
     permanently remove a just-restored live row).
     """
     if guild_context.role != GuildRole.admin:

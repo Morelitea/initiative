@@ -36,8 +36,8 @@ def active_grant_guild() -> Optional[int]:
     """The guild covered by this request's live grant, or None.
 
     Lets request-time SQL builders (e.g. ``initiative_scope_clause``) embed
-    the granted guild as a literal predicate, mirroring how the old
-    ``is_initiative_member()`` SQL function honored ``app.pam_*`` GUCs.
+    the granted guild as a literal predicate, mirroring how
+    ``public.initiative_access()`` honors the ``app.pam_*`` GUCs.
     """
     current = _active_grant.get()
     return current[0] if current is not None else None

@@ -137,6 +137,47 @@ async def test_list_my_tasks_excludes_unassigned_and_others(
 
 
 @pytest.mark.integration
+async def test_admin_sees_assigned_task_in_non_member_initiative(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild ADMIN has default access to all guild content, so /me/tasks shows
+    a task assigned to them even in an initiative they were never added to as a
+    member. Regression: ``gather_across_guilds`` must route each guild with the
+    user's role so ``initiative_access``'s admin leg fires (without it the admin
+    only got the member leg and the task was hidden)."""
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session, creator=admin, name="Guild")
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+
+    # Initiative + project owned by the member; the admin is NOT a member of it.
+    initiative = await create_initiative(
+        session, guild, member, name="Member Initiative"
+    )
+    project = await create_project(session, initiative, member, name="Member Project")
+
+    task = await _create_task(
+        session, project, "Assigned to admin", created_by_id=member.id
+    )
+    await _assign(session, task, admin.id)
+
+    headers = await get_guild_headers(session, guild, admin)
+    response = await client.get("/api/v1/me/tasks", headers=headers)
+
+    assert response.status_code == 200, response.text
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert task.id in task_ids, (
+        "Guild admin should see a task assigned to them even in an initiative "
+        "they aren't a member of (initiative_access admin leg)."
+    )
+
+
+@pytest.mark.integration
 async def test_list_my_tasks_priority_filter(
     client: AsyncClient, session: AsyncSession
 ):

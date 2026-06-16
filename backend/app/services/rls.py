@@ -13,7 +13,9 @@ Security layers managed here:
      Members can only read and participate via subsequent layers.
      Enforced in application code: ``require_guild_admin()``,
      ``is_guild_admin()``, ``require_guild_membership()``.
-  3. Initiative membership — RESTRICTIVE RLS: is_initiative_member()
+  3. Initiative membership — PERMISSIVE RLS on every guild-schema content
+     table, all deferring to ``public.initiative_access()`` (the single
+     source of truth: initiative member OR guild admin OR PAM grant).
   4. Initiative RBAC — Application-level feature access via PermissionKey
 
 The complementary DAC (Discretionary Access Control) layer for

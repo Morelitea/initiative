@@ -1,31 +1,53 @@
 """Authoritative table classification for schema-per-guild multi-tenancy.
 
-This module is the single source of truth for *where each table lives* once
-each guild becomes its own PostgreSQL schema:
+Single source of truth for *where each table lives* and *how it is access-scoped*
+once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
 
-- **Shared tables** stay in the ``public`` schema. They are identity, the
-  tenancy roster, platform configuration, and per-user / cross-guild concerns
-  that are read *without* a guild context (login, "list my guilds", platform
-  admin, SSO auto-join, the notification inbox).
-- **Guild-scoped tables** move into a per-guild schema (``guild_<id>``). They
-  are the actual tenant content (initiatives, projects, tasks, documents,
-  calendar, queues, counters, tags, and their child/association tables).
+**Level 1 — schema placement:**
 
-Every ``table=True`` model MUST appear in exactly one of the two sets below.
-``tenancy_test.py`` enforces this against ``SQLModel.metadata`` so that a new
-table cannot be added without an explicit placement decision — an unclassified
-guild-scoped table would silently leak across tenants.
+- **Shared tables** stay in the ``public`` schema — identity, the tenancy
+  roster, platform config, and per-user / cross-guild concerns read *without* a
+  guild context (login, "list my guilds", platform admin, SSO auto-join, the
+  notification inbox). Listed explicitly in ``SHARED_TABLES``.
+- **Guild-scoped tables** move into a per-guild schema (``guild_<id>``) — the
+  actual tenant content. ``GUILD_SCOPED_TABLES`` is *derived* as
+  ``INITIATIVE_SCOPED_TABLES | GUILD_LEVEL_TABLES`` (level 2), so a guild table
+  is declared in exactly one of those — never copied here.
 
-See ``history/schema-per-guild-design.md`` (§2 Table classification) for the
-rationale behind each placement, including the resolved "Bucket C" edge cases:
-``guild_invites`` / ``oidc_claim_mappings`` stay shared (read pre-routing,
-before guild membership exists); ``guild_settings`` / ``recent_views`` /
-``event_reminder_dispatches`` / ``task_assignment_digest_items`` are
-guild-scoped (always accessed with a guild context, background jobs visit each
-guild's schema in turn).
+**Level 2 — initiative access boundary (within a guild schema):**
+
+- **Initiative-scoped** tables carry the four ``initiative_member_*`` RLS
+  policies deferring to ``public.initiative_access(...)``. They are declared once
+  in ``app.db.initiative_rls.INITIATIVE_PATHS`` (table -> initiative path);
+  ``INITIATIVE_SCOPED_TABLES`` is the keys of that registry, and
+  ``guild_rls.sql`` is generated from it. So adding an initiative-scoped table
+  is a *single* edit (a path in ``initiative_rls``).
+- **Guild-level** tables (``GUILD_LEVEL_TABLES``) are exempt — guild-wide,
+  structural, or own-row — protected only by the schema boundary (the
+  ``guild_<id>`` role). Adding one here is the explicit "not initiative-scoped"
+  decision.
+
+Every ``table=True`` model MUST land in ``SHARED_TABLES`` or (via level 2)
+``GUILD_SCOPED_TABLES``. ``tenancy_test.py`` enforces this against
+``SQLModel.metadata`` so a new table can't be added without a placement
+decision — an unclassified guild-scoped table would silently leak across
+tenants. See ``history/schema-per-guild-design.md`` (§2 Table classification).
 """
 
 from __future__ import annotations
+
+from app.db.initiative_rls import INITIATIVE_SCOPED_TABLES
+
+__all__ = [
+    "SHARED_TABLES",
+    "GUILD_LEVEL_TABLES",
+    "INITIATIVE_SCOPED_TABLES",
+    "GUILD_SCOPED_TABLES",
+    "ALL_CLASSIFIED_TABLES",
+    "is_guild_scoped",
+    "is_shared",
+    "is_initiative_scoped",
+]
 
 # --- Shared (stay in the ``public`` schema) ---------------------------------
 # Read without a guild context, or inherently cross-guild. Must never be
@@ -52,70 +74,36 @@ SHARED_TABLES: frozenset[str] = frozenset(
     }
 )
 
-# --- Guild-scoped (move into ``guild_<id>`` schemas) ------------------------
-# The actual tenant content. Always accessed with a guild context.
-GUILD_SCOPED_TABLES: frozenset[str] = frozenset(
+# --- Guild-scoped, NOT initiative-scoped (level 2 exemptions) ----------------
+# Guild-wide, structural, or own-row tables protected only by the schema
+# boundary. The complement of this set within a guild schema is
+# ``INITIATIVE_SCOPED_TABLES`` (declared in ``app.db.initiative_rls``).
+GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
     {
-        # Guild config — guild-scoped because it holds private config (API keys)
+        # Guild-wide config / data (no initiative scope)
         "guild_settings",
-        "webhook_subscriptions",
-        # Initiatives + roles
+        "webhook_subscriptions",  # guild integration config; initiative_id nullable
+        "tags",  # tags are guild-level, shared across initiatives
+        "uploads",  # guild blob store: no FK to any initiative entity (documents
+        # reference blobs by file_url string, and a blob can be pinned by
+        # documents across initiatives), so it can't use initiative_access;
+        # blob *content* access is already gated at the document layer.
+        # Structural initiative tables — deliberately guild-scoped, not
+        # initiative-member-scoped (the membership table can't be gated by the
+        # membership check it backs without recursing; own-row scoping would
+        # break co-member rosters). See guild_rls.sql header.
         "initiatives",
         "initiative_members",
         "initiative_roles",
         "initiative_role_permissions",
-        # Projects + permissions / ordering / favorites / activity
-        "projects",
-        "project_documents",
-        "project_permissions",
-        "project_role_permissions",
-        "project_orders",
-        "project_favorites",
-        "project_tags",
-        # Tasks + children
-        "tasks",
-        "subtasks",
-        "task_assignees",
-        "task_statuses",
-        "task_tags",
-        "task_property_values",
-        "task_assignment_digest_items",
-        # Documents + versions / permissions / links
-        "documents",
-        "document_file_versions",
-        "document_permissions",
-        "document_role_permissions",
-        "document_tags",
-        "document_links",
-        "document_property_values",
-        # Comments, tags, custom properties, uploads
-        "comments",
-        "tags",
-        "property_definitions",
-        "uploads",
-        "recent_views",
-        # Calendar events + children
-        "calendar_events",
-        "calendar_event_attendees",
-        "calendar_event_documents",
-        "calendar_event_tags",
-        "calendar_event_property_values",
-        "event_reminder_dispatches",
-        # Queues + items + permissions
-        "queues",
-        "queue_items",
-        "queue_permissions",
-        "queue_role_permissions",
-        "queue_item_documents",
-        "queue_item_tags",
-        "queue_item_tasks",
-        # Counters + groups + permissions
-        "counters",
-        "counter_groups",
-        "counter_group_permissions",
-        "counter_group_role_permissions",
     }
 )
+
+# --- Guild-scoped (derived) -------------------------------------------------
+# Everything that moves into a ``guild_<id>`` schema = the initiative-scoped
+# content (keys of INITIATIVE_PATHS) plus the guild-level exemptions. Derived,
+# so a guild table is declared in exactly ONE place.
+GUILD_SCOPED_TABLES: frozenset[str] = INITIATIVE_SCOPED_TABLES | GUILD_LEVEL_TABLES
 
 # Union of every table that has an explicit placement decision.
 ALL_CLASSIFIED_TABLES: frozenset[str] = SHARED_TABLES | GUILD_SCOPED_TABLES
@@ -129,3 +117,9 @@ def is_guild_scoped(table_name: str) -> bool:
 def is_shared(table_name: str) -> bool:
     """Return True if ``table_name`` stays in the ``public`` schema."""
     return table_name in SHARED_TABLES
+
+
+def is_initiative_scoped(table_name: str) -> bool:
+    """Return True if ``table_name`` carries the initiative-member RLS policies
+    (vs being guild-level / structural / own-row and exempt)."""
+    return table_name in INITIATIVE_SCOPED_TABLES
