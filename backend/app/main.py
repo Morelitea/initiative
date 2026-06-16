@@ -423,6 +423,13 @@ async def on_startup() -> None:
             backfill.provisioned,
             backfill.total,
         )
+    # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
+    # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
+    # before traffic is served, so a packaged deploy rotates itself on boot.
+    # Idempotent — a no-op once rotated (then unset PREVIOUS_SECRET_KEY).
+    from app.db.secret_key_rotation import maybe_rotate_at_startup
+
+    await maybe_rotate_at_startup()
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
     app.state.notification_tasks = background_tasks_service.start_background_tasks()

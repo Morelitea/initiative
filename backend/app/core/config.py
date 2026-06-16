@@ -75,6 +75,48 @@ def _origin_of(url: str) -> str | None:
     return None
 
 
+# How an operator safely changes the encryption root. Appended to SECRET_KEY
+# validation failures (rotation_hint=True) so the boot-crash message points at the
+# rotation path instead of inviting the destructive "just generate a new one" fix.
+# It must travel in the ValueError text itself: pydantic validators run at settings
+# load, before logging is configured, so there's nowhere else for it to surface.
+_SECRET_KEY_ROTATION_HINT = (
+    " To CHANGE SECRET_KEY on an existing deployment, do NOT swap it directly — it "
+    "encrypts stored data (emails, OIDC/SMTP/AI secrets) and roots email lookup, so a "
+    "bare swap locks out every user and orphans those secrets. Instead set the old "
+    "value as PREVIOUS_SECRET_KEY, set SECRET_KEY to the new key, and run "
+    "`python -m app.db.secret_key_rotation`."
+)
+
+
+def _validate_strong_key(value: str, var_name: str, *, rotation_hint: bool) -> str:
+    """Enforce the shared strength rules for SECRET_KEY / JWT_SIGNING_KEY: non-empty,
+    not a known placeholder, no surrounding whitespace, >= 32 chars. ``rotation_hint``
+    appends the safe-change instructions for keys that encrypt stored data."""
+    hint = _SECRET_KEY_ROTATION_HINT if rotation_hint else ""
+    known_placeholders = {"change-me", "changeme", "super-secret-key", "secret"}
+    normalized = value.strip()
+    if not normalized or normalized.lower() in known_placeholders:
+        raise ValueError(
+            f"{var_name} is unset or a known placeholder. Generate a real key "
+            f"with: openssl rand -hex 32{hint}"
+        )
+    # Reject (rather than silently strip) surrounding whitespace: every byte of this
+    # value feeds HMAC/Fernet key derivation, so quietly normalizing it would rotate
+    # the effective key out from under a deployment whose env var carried whitespace.
+    if normalized != value:
+        raise ValueError(
+            f"{var_name} has leading or trailing whitespace. Remove it — the exact "
+            f"value is used for key derivation.{hint}"
+        )
+    if len(normalized) < 32:
+        raise ValueError(
+            f"{var_name} must be at least 32 characters. Generate one with: "
+            f"openssl rand -hex 32{hint}"
+        )
+    return value
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -94,6 +136,17 @@ class Settings(BaseSettings):
     DATABASE_URL_ADMIN: str  # Admin connection with BYPASSRLS for migrations (required)
 
     SECRET_KEY: str
+    # Optional: the *previous* SECRET_KEY, set only while rotating the encryption
+    # root. Read verbatim (NO validation/normalization) so it reproduces the old
+    # effective key exactly — it may be the weak/whitespaced key being escaped, and
+    # the legacy code never stripped it. Consumed by app.db.secret_key_rotation;
+    # remove it once the rotation has run.
+    PREVIOUS_SECRET_KEY: str | None = None
+    # Optional: dedicated JWT signing key. When set, session/upload/handoff JWTs are
+    # signed and verified with this instead of SECRET_KEY (see ``jwt_signing_key``),
+    # so it can be rotated freely — the only cost is forcing every user to re-login,
+    # with no impact on encrypted-at-rest data. Falls back to SECRET_KEY when unset.
+    JWT_SIGNING_KEY: str | None = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     ALGORITHM: str = "HS256"
     COOKIE_NAME: str = "session_token"
@@ -101,33 +154,30 @@ class Settings(BaseSettings):
     @field_validator("SECRET_KEY")
     @classmethod
     def _validate_secret_key(cls, value: str) -> str:
-        # SECRET_KEY signs session JWTs and the OIDC state HMAC, and roots all
-        # Fernet field encryption (SMTP password, OIDC client secret, AI keys,
-        # refresh tokens) plus the email_hash HMAC. A known placeholder or
-        # short key makes every one of those forgeable/decryptable, so fail
-        # closed at startup rather than booting with a guessable key.
-        known_placeholders = {"change-me", "changeme", "super-secret-key", "secret"}
-        normalized = value.strip()
-        if not normalized or normalized.lower() in known_placeholders:
-            raise ValueError(
-                "SECRET_KEY is unset or a known placeholder. Generate a real "
-                "key with: openssl rand -hex 32"
-            )
-        # Reject (rather than silently strip) surrounding whitespace: every
-        # byte of this value feeds HMAC/Fernet key derivation, so quietly
-        # normalizing it would rotate the effective key out from under a
-        # deployment whose env var carried stray whitespace.
-        if normalized != value:
-            raise ValueError(
-                "SECRET_KEY has leading or trailing whitespace. Remove it — "
-                "the exact value is used for key derivation."
-            )
-        if len(normalized) < 32:
-            raise ValueError(
-                "SECRET_KEY must be at least 32 characters. Generate one "
-                "with: openssl rand -hex 32"
-            )
-        return value
+        # SECRET_KEY signs the OIDC state HMAC and roots all Fernet field encryption
+        # (SMTP password, OIDC client secret, AI keys, refresh tokens) plus the
+        # email_hash HMAC. A known placeholder or short key makes every one of those
+        # forgeable/decryptable, so fail closed at startup rather than booting with a
+        # guessable key. The hint points at the safe rotation path because the naive
+        # fix — "just set a new key" — silently orphans all encrypted data.
+        return _validate_strong_key(value, "SECRET_KEY", rotation_hint=True)
+
+    @field_validator("JWT_SIGNING_KEY")
+    @classmethod
+    def _validate_jwt_signing_key(cls, value: str | None) -> str | None:
+        # Optional, but when present it signs JWTs, so hold it to the same strength
+        # bar as SECRET_KEY. No rotation hint: rotating it only forces re-login, so a
+        # bare swap is the correct fix.
+        if value is None:
+            return None
+        return _validate_strong_key(value, "JWT_SIGNING_KEY", rotation_hint=False)
+
+    @property
+    def jwt_signing_key(self) -> str:
+        """Key used to sign/verify JWTs. Prefers the dedicated JWT_SIGNING_KEY so it
+        can be rotated without touching encrypted-at-rest data; falls back to
+        SECRET_KEY for deployments that haven't set one."""
+        return self.JWT_SIGNING_KEY or self.SECRET_KEY
 
     @property
     def app_url_is_https(self) -> bool:

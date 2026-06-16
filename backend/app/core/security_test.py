@@ -258,6 +258,44 @@ def test_verify_upload_token_rejects_expired_token():
 
 
 @pytest.mark.unit
+def test_session_jwt_signed_with_dedicated_jwt_signing_key(monkeypatch):
+    """When JWT_SIGNING_KEY is set, session JWTs are signed/verified with it — so it
+    can be rotated independently of the encryption-rooting SECRET_KEY."""
+    jwt_key = "j" * 48
+    monkeypatch.setattr(security.settings, "JWT_SIGNING_KEY", jwt_key)
+
+    token = security.create_access_token(subject="7", token_version=1)
+    # Verifies under the dedicated key...
+    payload = jwt.decode(token, jwt_key, algorithms=[security.settings.ALGORITHM])
+    assert payload["sub"] == "7"
+    # ...and NOT under SECRET_KEY (proving the keys are actually decoupled).
+    with pytest.raises(jwt.InvalidSignatureError):
+        jwt.decode(
+            token,
+            security.settings.SECRET_KEY,
+            algorithms=[security.settings.ALGORITHM],
+        )
+
+
+@pytest.mark.unit
+def test_jwt_signing_key_does_not_affect_encryption(monkeypatch):
+    """Setting/rotating JWT_SIGNING_KEY must not change encryption or the email HMAC —
+    those are rooted in SECRET_KEY alone, so a JWT rotation can't orphan data."""
+    from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
+
+    before_ct = encrypt_field("alice@example.com", SALT_EMAIL)
+    before_hash = hash_email("alice@example.com")
+
+    monkeypatch.setattr(security.settings, "JWT_SIGNING_KEY", "j" * 48)
+
+    # Same email hash, and the pre-rotation ciphertext still decrypts.
+    from app.core.encryption import decrypt_field
+
+    assert hash_email("alice@example.com") == before_hash
+    assert decrypt_field(before_ct, SALT_EMAIL) == "alice@example.com"
+
+
+@pytest.mark.unit
 def test_verify_upload_token_rejects_wrong_audience():
     """A token signed with our secret but carrying a foreign audience (e.g. the
     advanced-tool handoff) must not be honored as an upload token."""

@@ -23,44 +23,66 @@ SALT_EMAIL = b"email"
 SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
 
 
-def _derive_fernet_key(salt: bytes) -> bytes:
+def _resolve_secret_key(secret_key: str | None) -> str:
+    """The explicit key when given, else the live SECRET_KEY. Lets the rotation
+    sweep (app.db.secret_key_rotation) decrypt under the old key and re-encrypt
+    under the new one without mutating global settings; default callers are
+    unaffected."""
+    return secret_key if secret_key is not None else settings.SECRET_KEY
+
+
+def _derive_fernet_key(salt: bytes, secret_key: str) -> bytes:
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
         info=b"fernet-key",
     )
-    raw = hkdf.derive(settings.SECRET_KEY.encode())
+    raw = hkdf.derive(secret_key.encode())
     return base64.urlsafe_b64encode(raw)
 
 
-_fernets: dict[bytes, Fernet] = {}
+# Cached per (secret_key, salt): rotation derives Fernets for two distinct keys, so
+# the cache key must include the secret or the second key would collide with the first.
+_fernets: dict[tuple[str, bytes], Fernet] = {}
 
 
-def _get_fernet(salt: bytes) -> Fernet:
-    if salt not in _fernets:
-        _fernets[salt] = Fernet(_derive_fernet_key(salt))
-    return _fernets[salt]
+def _get_fernet(salt: bytes, secret_key: str) -> Fernet:
+    cache_key = (secret_key, salt)
+    if cache_key not in _fernets:
+        _fernets[cache_key] = Fernet(_derive_fernet_key(salt, secret_key))
+    return _fernets[cache_key]
 
 
-def hash_email(email: str) -> str:
+def hash_email(email: str, *, secret_key: str | None = None) -> str:
     """Deterministic HMAC-SHA256 of normalized email, keyed with SECRET_KEY.
 
-    Used for equality lookups (WHERE email_hash = ?) and unique constraints.
-    Never changes the derived key — adding a new salt would invalidate all hashes.
+    Used for equality lookups (WHERE email_hash = ?) and unique constraints. Pass
+    ``secret_key`` to hash under a specific key (the rotation sweep recomputes hashes
+    under the new key); default uses the live SECRET_KEY.
     """
     normalized = email.lower().strip()
     return _hmac.new(
-        settings.SECRET_KEY.encode(), normalized.encode(), _hashlib.sha256
+        _resolve_secret_key(secret_key).encode(), normalized.encode(), _hashlib.sha256
     ).hexdigest()
 
 
-def encrypt_field(plaintext: str, salt: bytes) -> str:
-    return _get_fernet(salt).encrypt(plaintext.encode()).decode()
+def encrypt_field(plaintext: str, salt: bytes, *, secret_key: str | None = None) -> str:
+    return (
+        _get_fernet(salt, _resolve_secret_key(secret_key))
+        .encrypt(plaintext.encode())
+        .decode()
+    )
 
 
-def decrypt_field(ciphertext: str, salt: bytes) -> str:
-    return _get_fernet(salt).decrypt(ciphertext.encode()).decode()
+def decrypt_field(
+    ciphertext: str, salt: bytes, *, secret_key: str | None = None
+) -> str:
+    return (
+        _get_fernet(salt, _resolve_secret_key(secret_key))
+        .decrypt(ciphertext.encode())
+        .decode()
+    )
 
 
 # Kept for backward compatibility — used by oidc_refresh.py and auth.py

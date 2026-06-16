@@ -65,7 +65,7 @@ def create_access_token(
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode: dict[str, Any] = {"sub": subject, "exp": expire, "ver": token_version}
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(to_encode, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -105,9 +105,9 @@ def create_upload_token(
     """Mint a short-lived, uploads-scoped JWT for ``user_id``.
 
     Returns ``(token, expires_in_seconds)`` so the SPA can schedule a refresh
-    before the token lapses. Signed with the same HS256 ``SECRET_KEY`` as the
-    session JWT but distinguished by its ``aud``/``scope`` claims and the
-    absence of ``ver`` — the general auth path will not accept it.
+    before the token lapses. Signed with the same HS256 JWT key as the session
+    JWT but distinguished by its ``aud``/``scope`` claims and the absence of
+    ``ver`` — the general auth path will not accept it.
     """
     now = datetime.now(timezone.utc)
     payload: dict[str, Any] = {
@@ -117,7 +117,7 @@ def create_upload_token(
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
-    token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
     return token, int(expires_in.total_seconds())
 
 
@@ -132,7 +132,7 @@ def verify_upload_token(token: str) -> int:
     try:
         payload = jwt.decode(
             token,
-            settings.SECRET_KEY,
+            settings.jwt_signing_key,
             algorithms=[settings.ALGORITHM],
             audience=UPLOAD_TOKEN_AUDIENCE,
             options={"require": ["exp", "iat", "sub", "aud"]},
@@ -166,8 +166,8 @@ ADVANCED_TOOL_HANDOFF_LIFETIME = timedelta(seconds=60)
 def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
     """Pick (key, algorithm, kid) for signing advanced-tool handoff JWTs.
 
-    Default: HS256 with SECRET_KEY — works out of the box for OSS but
-    requires sharing the secret with the embed backend (single point of
+    Default: HS256 with the JWT signing key — works out of the box for OSS
+    but requires sharing the secret with the embed backend (single point of
     compromise).
 
     Preferred: RS256 with HANDOFF_SIGNING_PRIVATE_KEY_PEM — FOSS holds
@@ -179,7 +179,7 @@ def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
     private_pem = settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM
     if private_pem:
         return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
-    return settings.SECRET_KEY, "HS256", None
+    return settings.jwt_signing_key, "HS256", None
 
 
 def create_advanced_tool_handoff_token(
