@@ -38,6 +38,7 @@ from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
+from app.models.access_grant import AccessLevel
 from app.models.document import (
     Document,
     DocumentFileVersion,
@@ -2317,6 +2318,7 @@ async def _load_download_document(
         session, guild_id=guild_id, user_id=current_user.id
     )
     guild_role = membership.role if membership is not None else None
+    grant = None
     if membership is None:
         grant = await access_grants_service.get_live_grant(
             session, user_id=current_user.id, guild_id=guild_id
@@ -2332,7 +2334,25 @@ async def _load_download_document(
     ).first()
     if schema_exists is None:
         return None, None
-    await set_rls_context(session, guild_id=int(guild_id), is_superadmin=True)
+    # Route into the guild with the caller's REAL context (no is_superadmin
+    # bypass) so the content RLS (initiative_access) evaluates correctly: a
+    # member sees their initiatives' docs, a PAM grantee sees per its level.
+    # Fine-grained read permission is then enforced by require_document_access.
+    if membership is not None:
+        await set_rls_context(
+            session,
+            user_id=current_user.id,
+            guild_id=int(guild_id),
+            guild_role=membership.role.value,
+        )
+    else:
+        await set_rls_context(
+            session,
+            user_id=current_user.id,
+            pam_guild_id=int(guild_id),
+            pam_read=True,
+            pam_write=(grant.access_level == AccessLevel.read_write.value),
+        )
     doc = (
         await session.exec(
             select(Document)

@@ -133,9 +133,11 @@ async def test_initiative_scope_clause_legs(session: AsyncSession):
 
 @pytest.mark.integration
 async def test_initiative_scope_clause_pam_leg(session: AsyncSession):
-    """A live PAM grant covering the row's guild satisfies the scope clause
-    (and a grant for a different guild does not)."""
-    from app.core.pam_context import set_active_grant
+    """A live read PAM grant satisfies the scope clause via initiative_access's
+    pam_read leg; a non-member with no grant matches nothing. (The grant's
+    guild-scoping is enforced by schema routing + RLS — see access_grants_rls_test.)
+    """
+    from app.db.session import set_rls_context
 
     _admin, _member, outsider, guild, initiative = await _setup(session)
 
@@ -146,11 +148,15 @@ async def test_initiative_scope_clause_pam_leg(session: AsyncSession):
             )
         )
 
-    try:
-        set_active_grant(guild.id, "read")
-        assert list((await session.execute(stmt())).scalars().all()) == [initiative.id]
+    # Routed as a read PAM grantee for this guild (sets pam_read + routes into the
+    # guild schema), exactly like the request path does.
+    await set_rls_context(
+        session, user_id=outsider.id, pam_guild_id=guild.id, pam_read=True
+    )
+    assert list((await session.execute(stmt())).scalars().all()) == [initiative.id]
 
-        set_active_grant(guild.id + 999, "read")  # other guild's grant
-        assert list((await session.execute(stmt())).scalars().all()) == []
-    finally:
-        set_active_grant(None, None)
+    # Same outsider routed as a (non-)member with no grant: matches nothing.
+    await set_rls_context(
+        session, user_id=outsider.id, guild_id=guild.id, guild_role="member"
+    )
+    assert list((await session.execute(stmt())).scalars().all()) == []

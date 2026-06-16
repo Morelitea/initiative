@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **⚠️ BREAKING: initiative content is now members-only, enforced by the database.** If you're in a guild but not a member of one of its initiatives, that initiative's projects, tasks, documents, and other content are now hidden from you (previously they were blocked but still visible as "exists"). This database change cannot be rolled back.
 - **Platform-role RLS hardening (Phase 2).** The purely-platform tables (`users`, `access_grants`, `app_settings`) now enforce least-privilege at the database via per-tier `platform_<role>` policies instead of relying on the app layer alone: a member sees only their own user row, support+ can read all users, moderator+ can manage them, and app-wide config (`app_settings`: OIDC, SMTP, branding, role labels, platform AI) is owner-only to write
 
 ### Changed

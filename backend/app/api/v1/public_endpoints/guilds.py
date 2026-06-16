@@ -751,6 +751,16 @@ async def leave_guild(
                     retention_days=retention_days,
                 )
 
+    # Flush the project dispositions (transfers + soft-deletes) BEFORE
+    # removing the user from the guild. Both are guild-content writes whose
+    # initiative-level RLS (``initiative_access``) checks the leaver's *live*
+    # initiative membership; ``remove_user_from_guild`` deletes that
+    # membership row, so a write that flushed afterwards would match zero
+    # rows (SQLAlchemy surfaces that as ``StaleDataError``). Ordering the
+    # flush first keeps the writes inside the window where the leaver is
+    # still a member.
+    await session.flush()
+
     await guilds_service.remove_user_from_guild(
         session, guild_id=guild_id, user_id=current_user.id
     )

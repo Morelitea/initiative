@@ -56,6 +56,10 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
     {
         BASELINE_REVISION,
         "20260426_0077",  # drop_automation_tables — domain removed from repo
+        # initiative RLS: dropping public.initiative_access would break boot-time
+        # guild provisioning (apply_guild_rls references it) for every guild, so
+        # there is no safe rollback past this point — roll forward only.
+        "20260616_0110",
     }
 )
 
@@ -357,11 +361,27 @@ class TestMigrationsAgainstDatabase:
         broken downgrades are the main cause of broken release
         rollbacks, so this is the single highest-value DB test here.
         """
-        _run_alembic("upgrade", "head")
-        head = _script_directory().get_current_head()
-        assert _current_alembic_revision() == head
-
         script = _script_directory()
+        head = script.get_current_head()
+
+        # The reversible walk normally starts at the head. But when the head
+        # itself is intentionally irreversible (its own ``downgrade()``
+        # raises), we can't descend through it — so anchor the walk at the
+        # highest reversible revision (the head's parent) instead. Every
+        # reachable reversible downgrade below the boundary still runs; the
+        # head's own upgrade is covered by the TestMostRecentRevision tests.
+        anchor = head
+        if head in INTENTIONALLY_IRREVERSIBLE:
+            parent = script.get_revision(head).down_revision
+            assert isinstance(parent, str) and parent, (
+                f"Irreversible head {head!r} needs a single parent to anchor "
+                f"the reversible walk; got down_revision={parent!r}."
+            )
+            anchor = parent
+
+        _run_alembic("upgrade", anchor)
+        assert _current_alembic_revision() == anchor
+
         steps_taken = 0
         while True:
             current = _current_alembic_revision()
@@ -394,8 +414,8 @@ class TestMigrationsAgainstDatabase:
             "INTENTIONALLY_IRREVERSIBLE."
         )
 
-        _run_alembic("upgrade", "head")
-        assert _current_alembic_revision() == head
+        _run_alembic("upgrade", anchor)
+        assert _current_alembic_revision() == anchor
 
     def test_baseline_downgrade_raises(self, fresh_migrations_db: str) -> None:
         """The baseline cannot be downgraded — verify it actually raises

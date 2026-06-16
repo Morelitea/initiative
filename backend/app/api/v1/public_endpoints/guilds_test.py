@@ -840,7 +840,11 @@ async def test_leave_eligibility_lists_owned_projects(
     before calling the leave endpoint, so we'd silently regress to
     the orphan-project bug.
     """
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
 
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
@@ -852,6 +856,7 @@ async def test_leave_eligibility_lists_owned_projects(
         session, user=leaver, guild=guild, role=GuildRole.member
     )
     initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
     project = await create_project(session, initiative=initiative, owner=leaver)
 
     response = await client.get(
@@ -872,7 +877,11 @@ async def test_leave_blocks_when_owned_projects_lack_transfer(
 ):
     """Without ``project_transfers``, leaving with owned projects is rejected
     rather than silently orphaning them."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
 
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
@@ -884,6 +893,7 @@ async def test_leave_blocks_when_owned_projects_lack_transfer(
         session, user=leaver, guild=guild, role=GuildRole.member
     )
     initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
     await create_project(session, initiative=initiative, owner=leaver)
 
     response = await client.request(
@@ -1008,7 +1018,11 @@ async def test_leave_with_deletion_soft_deletes_project(
     handing it off, so a user with no obvious successor can still
     leave without orphaning the project."""
     from app.models.project import Project
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
 
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
@@ -1020,6 +1034,7 @@ async def test_leave_with_deletion_soft_deletes_project(
         session, user=leaver, guild=guild, role=GuildRole.member
     )
     initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
     project = await create_project(session, initiative=initiative, owner=leaver)
 
     response = await client.request(

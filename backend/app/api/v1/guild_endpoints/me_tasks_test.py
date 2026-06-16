@@ -61,11 +61,12 @@ async def _create_task(
 
 
 async def _assign(session, task, user_id):
-    """Assign ``task`` to ``user_id``. TaskAssignee has no guild_id, so route
-    the write into the task's guild schema explicitly."""
+    """Assign ``task`` to ``user_id``. Route the write as the task's creator (a
+    member with initiative write access) — the task_assignees RLS checks the
+    ACTOR's access, and the assignee need not be an initiative member."""
     from app.db.session import set_rls_context
 
-    await set_rls_context(session, user_id=user_id, guild_id=task.guild_id)
+    await set_rls_context(session, user_id=task.created_by_id, guild_id=task.guild_id)
     session.add(TaskAssignee(task_id=task.id, user_id=user_id))
     await session.commit()
 

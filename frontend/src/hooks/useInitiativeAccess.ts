@@ -3,7 +3,6 @@ import { useCallback } from "react";
 import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-import { Capability, hasCapability } from "@/lib/permissions";
 
 /** What an initiative's sidebar/sections expose to the current user. */
 export interface InitiativeSectionPermissions {
@@ -59,16 +58,22 @@ const readOnlyDefault: InitiativeSectionPermissions = {
 
 /**
  * Centralizes "what initiatives can the current user see, and what can they do
- * in each" for the active guild — accounting for guild-admin, the platform
- * data.bypass capability, and time-bound PAM grants in ONE place, so call
- * sites stop re-implementing `initiative.members.some(...)` filters (and stop
- * drifting from each other).
+ * in each" for the active guild — accounting for guild-admin and time-bound PAM /
+ * break-glass grants in ONE place, so call sites stop re-implementing
+ * `initiative.members.some(...)` filters (and stop drifting from each other).
+ *
+ * `data.bypass` (platform admin/owner) is deliberately NOT a standing access
+ * shortcut here: the backend no longer grants ambient cross-guild reach for it
+ * (it's the right to break-glass). A platform admin reaches a guild only via a
+ * real membership or an active grant — the latter surfaces as
+ * `activeGuild.accessType === "grant"` below — so the UI must reflect that and
+ * not show create/edit affordances the backend would reject.
  */
 export function useInitiativeAccess() {
   const { user } = useAuth();
   const { activeGuild } = useGuilds();
 
-  const isGuildAdmin = activeGuild?.role === "admin" || hasCapability(user, Capability.dataBypass);
+  const isGuildAdmin = activeGuild?.role === "admin";
   const isGrantGuild = activeGuild?.accessType === "grant";
   const grantReadWrite = isGrantGuild && activeGuild?.grantAccessLevel === "read_write";
   // Admins and PAM grantees see every initiative in the guild.

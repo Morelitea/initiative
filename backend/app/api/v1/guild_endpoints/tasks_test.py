@@ -162,7 +162,9 @@ async def test_create_task_requires_project_access(
         f"/api/v1/g/{guild.id}/tasks/", headers=headers, json=payload
     )
 
-    assert response.status_code == 403
+    assert (
+        response.status_code == 404
+    )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
 @pytest.mark.integration
@@ -246,7 +248,9 @@ async def test_update_task_without_permission_forbidden(
         f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers, json=payload
     )
 
-    assert response.status_code == 403
+    assert (
+        response.status_code == 404
+    )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
 @pytest.mark.integration
@@ -288,7 +292,9 @@ async def test_delete_task_without_permission_forbidden(
         f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers
     )
 
-    assert response.status_code == 403
+    assert (
+        response.status_code == 404
+    )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
 @pytest.mark.integration
