@@ -15,6 +15,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -289,6 +290,17 @@ async def break_glass(
     )
     if membership is not None:
         raise AccessGrantError("ALREADY_MEMBER")
+
+    # Serialize concurrent self-issues for this (actor, guild) so the
+    # read-then-insert anti-stacking check below can't be raced into two live
+    # grants. A transaction-scoped advisory lock on the (user_id, guild_id) pair
+    # makes a second concurrent request wait, then see the first's grant and hit
+    # ALREADY_LIVE. The two-int key space is distinct from any single-bigint
+    # advisory lock used elsewhere; the lock auto-releases on commit/rollback.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
+        {"uid": int(actor.id), "gid": int(payload.guild_id)},
+    )
 
     # Don't stack grants: a still-live grant already confers the access, and a
     # pending request would conflict. Re-trigger only after the current one ends.
