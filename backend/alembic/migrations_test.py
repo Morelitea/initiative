@@ -25,9 +25,7 @@ helpers are idempotent.
 from __future__ import annotations
 
 import asyncio
-import fcntl
 import os
-import tempfile
 from pathlib import Path
 from typing import Iterator
 from urllib.parse import urlparse
@@ -74,9 +72,11 @@ MIGRATIONS_TEST_DATABASE_URL = f"{_BASE_DB_URL}/{MIGRATIONS_DB_NAME}"
 # roles the rest of the suite depends on. Per-worker too, to stay parallel-safe.
 _MIGRATIONS_ROLE_PREFIX = f"migtest_{_WORKER}_"
 
-# Same lock file as conftest._run_test_migrations — serializes all migration runs
-# across xdist workers so the shared cluster-global role DDL never races.
-_MIGRATION_LOCK = Path(tempfile.gettempdir()) / "initiative_test_migrations.lock"
+# Same advisory-lock KEY as conftest._run_test_migrations — a cluster-wide
+# pg_advisory_lock serializes ALL migration runs across xdist workers (and across
+# both files) so the shared cluster-global role DDL never races. Must stay equal
+# to conftest's _MIGRATION_LOCK_KEY. (Portable; replaces a POSIX file lock.)
+_MIGRATION_LOCK_KEY = 0x1417A7E5
 
 
 # ---------------------------------------------------------------------------
@@ -110,26 +110,40 @@ def _run_alembic(action: str, revision: str) -> None:
     time), then restored — so up/down here churns ``migtest_*`` roles, never the
     main suite's ``test_*`` roles.
     """
+    asyncio.run(_run_alembic_async(action, revision))
+
+
+def _alembic_command(action: str, revision: str) -> None:
+    """Run the (synchronous) alembic command. Alembic's env.py spins its own event
+    loop, so this must run OUTSIDE a running loop — invoked via asyncio.to_thread."""
     config = _alembic_config(MIGRATIONS_TEST_DATABASE_URL)
-    # Serialize with the suite's migration lock: even with a distinct role prefix,
-    # the baseline still touches SHARED cluster-global roles (e.g. ALTER ROLE
-    # app_user), which races ("tuple concurrently updated") against a concurrent
-    # worker's migration. Same lock file as conftest._run_test_migrations.
-    with open(_MIGRATION_LOCK, "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    if action == "upgrade":
+        command.upgrade(config, revision)
+    elif action == "downgrade":
+        command.downgrade(config, revision)
+    else:  # pragma: no cover — guard against typos in test bodies
+        raise ValueError(f"Unknown alembic action: {action!r}")
+
+
+async def _run_alembic_async(action: str, revision: str) -> None:
+    # Serialize with the suite's migration advisory lock: even with a distinct role
+    # prefix, the baseline still touches SHARED cluster-global roles (e.g. ALTER
+    # ROLE app_user), which races ("tuple concurrently updated") against a
+    # concurrent worker's migration. The lock rides a dedicated 'postgres'
+    # connection (held for the whole migration); the alembic command runs in a
+    # worker thread (where it can spin its own loop). Same key as conftest.
+    lock_conn = await asyncpg.connect(**_parse_admin_url(), database="postgres")
+    try:
+        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
         saved = (settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX)
         settings.GUILD_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
         settings.PLATFORM_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
         try:
-            if action == "upgrade":
-                command.upgrade(config, revision)
-            elif action == "downgrade":
-                command.downgrade(config, revision)
-            else:  # pragma: no cover — guard against typos in test bodies
-                raise ValueError(f"Unknown alembic action: {action!r}")
+            await asyncio.to_thread(_alembic_command, action, revision)
         finally:
             settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX = saved
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    finally:
+        await lock_conn.close()  # closing the connection releases the advisory lock
 
 
 def _ordered_revisions_base_to_head() -> list[str]:
