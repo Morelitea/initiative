@@ -26,7 +26,6 @@ from app.db.session import get_admin_session, reapply_rls_context, set_rls_conte
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
 from app.models.initiative import InitiativeMember
-from app.core.capabilities import Capability, user_has_capability
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.user import (
     UserCreate,
@@ -230,7 +229,6 @@ async def create_user(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     normalized_email = user_in.email.lower().strip()
@@ -399,7 +397,6 @@ async def update_user(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     stmt = (
@@ -486,7 +483,6 @@ async def approve_user(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     stmt = (
@@ -786,7 +782,6 @@ async def check_guild_removal_eligibility(
         user_id=current_admin.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_admin, Capability.DATA_BYPASS),
     )
 
     sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
@@ -846,7 +841,6 @@ async def delete_user(
         user_id=current_admin.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_admin, Capability.DATA_BYPASS),
     )
 
     # Use FOR UPDATE to prevent race condition when checking last admin

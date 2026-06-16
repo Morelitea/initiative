@@ -22,7 +22,6 @@ from fastapi import HTTPException, status
 from sqlalchemy import inspect
 from sqlmodel import select
 
-from app.core.capabilities import Capability, user_has_capability
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
 from app.core.role_context import active_guild_role
 from app.services.membership import guild_member_clause, initiative_scope_clause
@@ -276,9 +275,12 @@ def initiative_scope_ok(
     whose ``initiative.memberships`` are already eagerly loaded.
 
     Mirrors the old RESTRICTIVE policy expression: initiative member, OR
-    admin of the entity's guild (guild-level), OR ``data.bypass`` holder, OR a
-    live PAM grant covering the guild (the latter two are app-level reach,
-    handled separately from the guild role).
+    admin of the entity's guild (guild-level), OR a live PAM/break-glass grant
+    covering the guild (app-level reach, handled separately from the guild role).
+
+    There is no standing ``data.bypass`` leg any more: a platform admin/owner
+    reaches a guild only through an explicit break-glass grant, which surfaces
+    here as ``has_active_grant``.
     """
     initiative = getattr(entity, "initiative", None)
     memberships = (
@@ -287,9 +289,8 @@ def initiative_scope_ok(
     if any(m.user_id == user.id for m in memberships):
         return True
     guild_id = getattr(entity, "guild_id", None)
-    # App-level reach — kept distinct from the guild role below.
-    if user_has_capability(user, Capability.DATA_BYPASS):
-        return True
+    # App-level reach via an explicit, time-bound grant — kept distinct from the
+    # guild role below.
     if guild_id is not None and has_active_grant(guild_id):
         return True
     # Guild-level: admin of the entity's own guild.

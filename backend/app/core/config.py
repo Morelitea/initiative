@@ -385,6 +385,11 @@ class Settings(BaseSettings):
     PAM_SUPPORT_MAX_MINUTES: int = 240  # 4 hours
     PAM_MODERATOR_MAX_MINUTES: int = 480  # 8 hours
     PAM_ADMIN_MAX_MINUTES: int = 1440  # 24 hours
+    # Break-glass (self-approved, data.bypass holders): deliberately short — a
+    # self-issued emergency grant skips the second-person approval, so its window
+    # is conservative and re-triggered to extend. Capped below the role maxima.
+    PAM_BREAK_GLASS_DEFAULT_MINUTES: int = 60  # 1 hour
+    PAM_BREAK_GLASS_MAX_MINUTES: int = 240  # 4 hours (ceiling on a self-approved grant)
 
     # Optional advanced tool plug-in: when ADVANCED_TOOL_URL is set, the SPA
     # surfaces a per-initiative toggle that, when enabled, embeds the URL as

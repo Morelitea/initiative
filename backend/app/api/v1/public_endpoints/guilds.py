@@ -69,11 +69,13 @@ async def _ensure_guild_admin(
     *,
     guild_id: int,
     user_id: int,
-    is_superadmin: bool = False,
 ) -> GuildMembership:
-    # Set minimal RLS context so the guild_memberships query succeeds.
-    # Full context is set by _set_guild_admin_rls after validation.
-    await set_rls_context(session, user_id=user_id, is_superadmin=is_superadmin)
+    # Set minimal RLS context so the guild_memberships query succeeds (own-row
+    # read). No standing bypass: these endpoints are for a guild's *own* admins —
+    # a platform ``data.bypass`` holder who isn't a member is denied here and
+    # manages other guilds via the dedicated ``/admin/*`` (capability-gated)
+    # routes instead. Full context is set by _set_guild_admin_rls after validation.
+    await set_rls_context(session, user_id=user_id)
     membership = await rls_service.require_guild_membership(
         session,
         guild_id=guild_id,
@@ -89,13 +91,16 @@ async def _set_guild_admin_rls(
     guild_id: int,
     user: User,
 ) -> None:
-    """Set RLS context after _ensure_guild_admin has validated the user's role."""
+    """Set RLS context after _ensure_guild_admin has validated the user's role.
+
+    The validated guild admin acts through the guild's own role
+    (``guild_<id>`` + ``current_guild_role='admin'``), not a standing all-guild
+    bypass — full authority within this one guild, scoped to it."""
     await set_rls_context(
         session,
         user_id=user.id,
         guild_id=guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(user, Capability.DATA_BYPASS),
     )
 
 
@@ -239,7 +244,6 @@ async def list_guild_invites(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     invites = await guilds_service.list_guild_invites(session, guild_id=guild_id)
@@ -257,7 +261,6 @@ async def update_guild(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     icon_provided = "icon_base64" in updates.model_fields_set
@@ -300,7 +303,7 @@ async def create_guild_advanced_tool_handoff(
     Authorization gates (all enforced here, not in the receiving embed):
 
       1. Deployment must have ADVANCED_TOOL_URL configured.
-      2. Caller must be a guild admin (or platform superadmin).
+      2. Caller must be a guild admin of this guild (real membership).
 
     The returned token has ``scope=guild`` and intentionally omits
     ``initiative_id``. The receiving service must trust the JWT's scope
@@ -313,12 +316,10 @@ async def create_guild_advanced_tool_handoff(
             detail=AdvancedToolMessages.NOT_CONFIGURED,
         )
 
-    is_superadmin = user_has_capability(current_user, Capability.DATA_BYPASS)
     await _ensure_guild_admin(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
-        is_superadmin=is_superadmin,
     )
 
     token, expires_in_seconds = create_advanced_tool_handoff_token(
@@ -354,7 +355,6 @@ async def delete_guild(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
@@ -422,7 +422,6 @@ async def create_guild_invite(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     invite = await guilds_service.create_guild_invite(
@@ -452,7 +451,6 @@ async def delete_guild_invite(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     await guilds_service.delete_guild_invite(
@@ -514,7 +512,6 @@ async def update_guild_membership(
         session,
         guild_id=guild_id,
         user_id=current_user.id,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
 
@@ -586,7 +583,6 @@ async def check_leave_eligibility(
         user_id=current_user.id,
         guild_id=guild_id,
         guild_role=membership.role.value,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     from app.services.users import get_owned_projects_in_guild, is_last_admin_of_guild
@@ -677,7 +673,6 @@ async def leave_guild(
         user_id=current_user.id,
         guild_id=guild_id,
         guild_role=membership.role.value,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     from app.services.users import (

@@ -930,7 +930,7 @@ export const useDeleteGuildApiV1GuildsGuildIdDelete = <
  * Authorization gates (all enforced here, not in the receiving embed):
  *
  *   1. Deployment must have ADVANCED_TOOL_URL configured.
- *   2. Caller must be a guild admin (or platform superadmin).
+ *   2. Caller must be a guild admin of this guild (real membership).
  *
  * The returned token has ``scope=guild`` and intentionally omits
  * ``initiative_id``. The receiving service must trust the JWT's scope

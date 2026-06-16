@@ -689,6 +689,14 @@
     "description": "Request and approve time-bound access to a guild you're not a member of.",
     "requestTitle": "Request access",
     "requestDescription": "Ask for temporary, scoped access to a guild. Approvers grant it and it auto-expires.",
+    "breakGlass": {
+      "title": "Break glass",
+      "description": "Self-issue emergency access to a guild — approved instantly, scoped to that guild, and auto-expiring. Read & write acts as a full guild admin. Every break-glass grant is recorded.",
+      "reasonPlaceholder": "Why you need emergency access (e.g. incident #123)",
+      "submit": "Break glass",
+      "activated": "Break-glass access activated",
+      "error": "Unable to break glass"
+    },
     "queueTitle": "Approvals",
     "queueDescription": "Grant, deny, or revoke time-bound access requests.",
     "guildIdLabel": "Guild ID",

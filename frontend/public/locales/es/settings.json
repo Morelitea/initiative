@@ -689,6 +689,14 @@
     "description": "Solicita y aprueba acceso temporal a un gremio del que no eres miembro.",
     "requestTitle": "Solicitar acceso",
     "requestDescription": "Pide acceso temporal y limitado a un gremio. Los aprobadores lo conceden y caduca automáticamente.",
+    "breakGlass": {
+      "title": "Acceso de emergencia",
+      "description": "Concédete acceso de emergencia a un gremio: aprobado al instante, limitado a ese gremio y con caducidad automática. Lectura y escritura actúa como administrador completo del gremio. Cada acceso de emergencia queda registrado.",
+      "reasonPlaceholder": "Por qué necesitas acceso de emergencia (p. ej. incidente n.º 123)",
+      "submit": "Acceso de emergencia",
+      "activated": "Acceso de emergencia activado",
+      "error": "No se pudo activar el acceso de emergencia"
+    },
     "queueTitle": "Aprobaciones",
     "queueDescription": "Concede, deniega o revoca solicitudes de acceso temporal.",
     "guildIdLabel": "ID del gremio",

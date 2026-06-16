@@ -268,6 +268,7 @@
   "ACCESS_GRANT_NOT_ACTIVE": "This grant isn't active.",
   "ACCESS_GRANT_CANNOT_APPROVE_OWN": "You can't approve your own request.",
   "ACCESS_GRANT_CANNOT_CANCEL_OTHERS": "You can only cancel your own request.",
+  "ACCESS_GRANT_ALREADY_LIVE": "You already have live access to that guild.",
   "ADMIN_CANNOT_ASSIGN_HIGHER_ROLE": "You can't assign a role higher than your own.",
   "ADMIN_CANNOT_DEMOTE_LAST_OWNER": "Cannot demote the last platform owner.",
   "ADMIN_CANNOT_DELETE_LAST_OWNER": "Cannot delete the last platform owner.",

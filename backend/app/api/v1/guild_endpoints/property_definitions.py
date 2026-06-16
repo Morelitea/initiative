@@ -31,7 +31,6 @@ from app.models.property import (
     TaskPropertyValue,
 )
 from app.models.task import Task
-from app.core.capabilities import Capability, user_has_capability
 from app.models.user import User
 from app.schemas.property import (
     PropertyDefinitionCreate,
@@ -120,12 +119,15 @@ async def _ensure_initiative_member(
     resolves against live data for the active guild — not the frozen
     ``public`` backup an unrouted admin session would read.
 
-    Mirrors the RLS policy bypasses: superadmins and guild admins of the
-    active guild pass without an explicit ``InitiativeMember`` row (same
-    semantics as the restrictive RLS policy's ``OR IS_ADMIN OR IS_SUPER``
-    clause). The guild-admin check reads ``guild_context.role`` — already
-    resolved from the shared ``guild_memberships`` table — so no extra
-    query is needed.
+    Mirrors the RLS policy bypasses: guild admins of the active guild pass
+    without an explicit ``InitiativeMember`` row (same semantics as the
+    restrictive RLS policy's ``OR IS_ADMIN`` clause). The guild-admin check
+    reads ``guild_context.role`` — already resolved from the shared
+    ``guild_memberships`` table — so no extra query is needed. There is no
+    standing ``data.bypass`` bypass: a platform admin/owner reaches this guild
+    only via a break-glass grant, and a grant — like the rest of the PAM model —
+    confers scoped content read/write, never schema/definition management. So
+    managing definitions stays membership/guild-admin-gated.
 
     A definition can only be created in the caller's active guild, so we
     also confirm the initiative exists in this schema; an id from another
@@ -133,10 +135,6 @@ async def _ensure_initiative_member(
     clean ``NOT_INITIATIVE_MEMBER`` 403 rather than the misleading
     ``DEFINITION_NOT_FOUND`` code (or a downstream FK error on insert).
     """
-    # Superadmin bypass — sees every guild's schema, skip the existence check.
-    if user_has_capability(user, Capability.DATA_BYPASS):
-        return
-
     # The initiative id must resolve in the active guild's schema. Ids are
     # unique per-guild, so a foreign or deleted id has no row here. This runs
     # before the guild-admin bypass on purpose — admins need the FK guard too.

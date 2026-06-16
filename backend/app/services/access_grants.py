@@ -15,6 +15,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from sqlalchemy import text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,7 +25,11 @@ from app.core.email_i18n import translate
 from app.models.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
 from app.models.notification import NotificationType
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.access_grant import AccessGrantCreate, AccessGrantRead
+from app.schemas.access_grant import (
+    AccessGrantCreate,
+    AccessGrantRead,
+    BreakGlassCreate,
+)
 from app.services import email as email_service
 from app.services import guilds as guilds_service
 from app.services import push_notifications
@@ -53,8 +58,9 @@ _ROLE_MAX_MINUTES: dict[UserRole, int] = {
     UserRole.support: settings.PAM_SUPPORT_MAX_MINUTES,
     UserRole.moderator: settings.PAM_MODERATOR_MAX_MINUTES,
     UserRole.admin: settings.PAM_ADMIN_MAX_MINUTES,
-    # Owners hold the standing all-guild bypass and don't self-request, but
-    # define a cap for completeness / defensive use.
+    # Owners/admins reach a guild via the self-approved break-glass path
+    # (``data.bypass``) rather than the request→approve flow; their cap applies
+    # to that self-issued grant.
     UserRole.owner: settings.PAM_ADMIN_MAX_MINUTES,
 }
 
@@ -73,6 +79,21 @@ def _capped_duration(requested: Optional[int], role: UserRole) -> int:
         requested
         if requested is not None
         else min(settings.PAM_DEFAULT_DURATION_MINUTES, cap)
+    )
+    if minutes > cap:
+        raise AccessGrantError("DURATION_TOO_LONG")
+    return minutes
+
+
+def _break_glass_duration(requested: Optional[int], role: UserRole) -> int:
+    """Resolve a break-glass window: the role cap, further clamped to the
+    (shorter) break-glass ceiling because a self-approved grant has no
+    second-person check. Defaults to ``PAM_BREAK_GLASS_DEFAULT_MINUTES``."""
+    cap = min(max_minutes_for_role(role), settings.PAM_BREAK_GLASS_MAX_MINUTES)
+    minutes = (
+        requested
+        if requested is not None
+        else min(settings.PAM_BREAK_GLASS_DEFAULT_MINUTES, cap)
     )
     if minutes > cap:
         raise AccessGrantError("DURATION_TOO_LONG")
@@ -243,6 +264,97 @@ async def request_grant(
             access_level=grant.access_level,
             requester=requester_name,
         )
+    return grant
+
+
+async def break_glass(
+    session: AsyncSession, *, actor: User, payload: BreakGlassCreate
+) -> AccessGrant:
+    """Self-issue a time-bound break-glass grant for ``actor`` to one guild.
+
+    The break-glass path repurposes ``data.bypass``: instead of a standing
+    all-guild bypass, an admin/owner self-approves a scoped, expiring PAM grant
+    in one step (capability is gated at the endpoint). The result is a recorded
+    ``access_grants`` row — requester == approver == ``actor`` — with a captured
+    reason, so emergency reach is always audited and never ambient. Read-only by
+    default; ``read_write`` is a deliberate escalation. Short window, capped
+    server-side; re-issue to extend.
+    """
+    guild = await guilds_service.get_guild(session, guild_id=payload.guild_id)
+    if guild is None:
+        raise AccessGrantError("GUILD_NOT_FOUND")
+
+    # A member already has standing access — nothing to break glass for.
+    membership = await guilds_service.get_membership(
+        session, guild_id=payload.guild_id, user_id=actor.id
+    )
+    if membership is not None:
+        raise AccessGrantError("ALREADY_MEMBER")
+
+    # Serialize concurrent self-issues for this (actor, guild) so the
+    # read-then-insert anti-stacking check below can't be raced into two live
+    # grants. A transaction-scoped advisory lock on the (user_id, guild_id) pair
+    # makes a second concurrent request wait, then see the first's grant and hit
+    # ALREADY_LIVE. The two-int key space is distinct from any single-bigint
+    # advisory lock used elsewhere; the lock auto-releases on commit/rollback.
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
+        {"uid": int(actor.id), "gid": int(payload.guild_id)},
+    )
+
+    # Don't stack grants: a still-live grant already confers the access, and a
+    # pending request would conflict. Re-trigger only after the current one ends.
+    existing = await session.exec(
+        select(AccessGrant).where(
+            AccessGrant.user_id == actor.id,
+            AccessGrant.guild_id == payload.guild_id,
+            AccessGrant.status.in_(
+                [AccessGrantStatus.pending.value, AccessGrantStatus.approved.value]
+            ),
+        )
+    )
+    now = _now()
+    for grant in existing.all():
+        if grant.status == AccessGrantStatus.pending.value:
+            raise AccessGrantError("OVERLAPPING_GRANT")
+        if grant.is_live(now=now):
+            raise AccessGrantError("ALREADY_LIVE")
+
+    duration = _break_glass_duration(payload.requested_duration_minutes, actor.role)
+    grant = AccessGrant(
+        user_id=actor.id,
+        guild_id=payload.guild_id,
+        access_level=payload.access_level.value,
+        # Created AND approved in one step — self-approved, so there's no wait.
+        status=AccessGrantStatus.approved.value,
+        reason=payload.reason,
+        requested_duration_minutes=duration,
+        requested_by_id=actor.id,
+        approved_by_id=actor.id,
+        decided_at=now,
+        expires_at=now + timedelta(minutes=duration),
+    )
+    session.add(grant)
+    await session.flush()
+
+    # Record the event for the actor (audit/visibility); the row itself is the
+    # authoritative audit trail.
+    data = await _event_notification_data(session, grant)
+    await user_notifications.create_notification(
+        session,
+        user_id=actor.id,
+        notification_type=NotificationType.access_grant_approved,
+        data=data,
+    )
+    await _push_and_email(
+        session,
+        recipient=actor,
+        notification_type=NotificationType.access_grant_approved,
+        push_key="approved",
+        email_event="approved",
+        guild_name=data["guild_name"],
+        access_level=grant.access_level,
+    )
     return grant
 
 
@@ -507,6 +619,7 @@ MAX_DURATION_MINUTES = settings.PAM_MAX_DURATION_MINUTES
 __all__ = [
     "AccessGrantError",
     "request_grant",
+    "break_glass",
     "get_grant",
     "approve",
     "deny",
