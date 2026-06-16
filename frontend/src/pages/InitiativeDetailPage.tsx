@@ -93,7 +93,7 @@ export const InitiativeDetailPage = () => {
   const roleBadgeLabel = permissions?.role_display_name
     ? permissions.role_display_name
     : membership
-      ? (membership.role_display_name ?? membership.role_name ?? membership.role)
+      ? (membership.role_display_name ?? membership.role)
       : isGuildAdmin
         ? guildAdminLabel
         : null;

@@ -295,9 +295,15 @@ export const InitiativeSettingsMembersTab = ({
           if (member.isGuildAdmin) {
             const isManager = managerRole != null && member.role_id === managerRole.id;
             if (!canManageMembers || !managerRole) {
+              // A guild admin is either full-admin (no role row) or elevated to a
+              // manager role. The member's own role_display_name resolves the
+              // elevated name even before the roles query settles; fall back to
+              // the guild-admin label when they hold no initiative role.
               return (
                 <Badge variant="outline" className="text-muted-foreground">
-                  {isManager && managerRole ? managerRole.display_name : adminRoleLabel}
+                  {member.role_id != null
+                    ? (member.role_display_name ?? adminRoleLabel)
+                    : adminRoleLabel}
                 </Badge>
               );
             }

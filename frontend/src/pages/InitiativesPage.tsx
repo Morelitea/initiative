@@ -154,7 +154,7 @@ export const InitiativesPage = () => {
   const renderMembershipBadge = (initiative: InitiativeRead) => {
     const membership = initiative.members.find((member) => member.user.id === user?.id);
     if (membership) {
-      const roleLabel = membership.role_display_name ?? membership.role_name ?? membership.role;
+      const roleLabel = membership.role_display_name ?? membership.role;
       return <Badge variant="secondary">{roleLabel}</Badge>;
     }
     if (isGuildAdmin) {
