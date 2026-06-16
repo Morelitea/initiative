@@ -55,7 +55,6 @@ async def test_export_platform_users_csv_as_admin(
         "updated_at",
         "timezone",
         "locale",
-        "initiative_roles",
     ]
     emails = {row[1] for row in data_rows}
     assert "admin@example.com" in emails

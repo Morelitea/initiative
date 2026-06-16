@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
+from sqlalchemy.exc import DBAPIError
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -85,6 +86,82 @@ async def get_or_create_guild_settings(
     return await _ensure_guild_setting(session, resolved_guild_id)
 
 
+def _build_default_app_settings() -> AppSetting:
+    """A fresh, env-seeded ``AppSetting`` singleton (id=1), NOT persisted.
+
+    Shared by the create path (persisted by a writer) and the privilege-tolerant
+    read fallback (returned transient to a non-owner caller).
+    """
+    _oidc_secret = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
+    _smtp_pw = _normalize_optional_string(app_config.SMTP_PASSWORD)
+    return AppSetting(
+        id=GLOBAL_SETTINGS_ID,
+        oidc_enabled=bool(app_config.OIDC_ENABLED),
+        oidc_issuer=_normalize_optional_string(app_config.OIDC_ISSUER),
+        oidc_client_id=_normalize_optional_string(app_config.OIDC_CLIENT_ID),
+        oidc_client_secret_encrypted=encrypt_field(
+            _oidc_secret, SALT_OIDC_CLIENT_SECRET
+        )
+        if _oidc_secret
+        else None,
+        oidc_provider_name=_normalize_optional_string(app_config.OIDC_PROVIDER_NAME),
+        oidc_scopes=_normalize_scopes(
+            app_config.OIDC_SCOPES or ["openid", "profile", "email", "offline_access"]
+        ),
+        light_accent_color="#2563eb",
+        dark_accent_color="#60a5fa",
+        role_labels=DEFAULT_ROLE_LABELS.copy(),
+        smtp_host=_normalize_optional_string(app_config.SMTP_HOST),
+        smtp_port=app_config.SMTP_PORT if app_config.SMTP_HOST else None,
+        smtp_secure=bool(app_config.SMTP_SECURE),
+        smtp_reject_unauthorized=bool(app_config.SMTP_REJECT_UNAUTHORIZED),
+        smtp_username=_normalize_optional_string(app_config.SMTP_USERNAME),
+        smtp_password_encrypted=encrypt_field(_smtp_pw, SALT_SMTP_PASSWORD)
+        if _smtp_pw
+        else None,
+        smtp_from_address=_normalize_optional_string(app_config.SMTP_FROM_ADDRESS),
+        smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
+    )
+
+
+def _is_insufficient_privilege(exc: BaseException) -> bool:
+    """True for a Postgres insufficient-privilege error (SQLSTATE 42501).
+
+    Covers both a denied GRANT and an RLS WITH CHECK violation — the two ways a
+    non-owner session is blocked from writing ``app_settings`` after Phase 2.
+    """
+    orig = getattr(exc, "orig", None)
+    code = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    return code == "42501"
+
+
+async def _persist_app_settings(
+    session: AsyncSession, settings_row: AppSetting
+) -> bool:
+    """Persist ``settings_row``, degrading gracefully when the session can't write.
+
+    Owner / app_admin / startup sessions persist normally. After Phase 2,
+    ``app_settings`` is owner-only (GRANT + RLS), so a non-owner session (``app_user``
+    or a platform tier below owner) that triggers the lazy singleton create / env
+    re-seed on a READ hits insufficient-privilege. We catch that inside a SAVEPOINT
+    so the read returns the in-memory row (env-correct, just not persisted) instead
+    of 500-ing — a non-owner read legitimately can't write config. Returns True iff
+    the row was persisted.
+    """
+    try:
+        async with session.begin_nested():
+            session.add(settings_row)
+            await session.flush()
+    except DBAPIError as exc:
+        if not _is_insufficient_privilege(exc):
+            raise
+        return False
+    await session.commit()
+    await reapply_rls_context(session)
+    await session.refresh(settings_row)
+    return True
+
+
 async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
     stmt = select(AppSetting).where(AppSetting.id == GLOBAL_SETTINGS_ID)
     result = await session.exec(stmt)
@@ -124,45 +201,10 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
             settings_row.oidc_scopes = env_scopes
             updated = True
         if updated:
-            session.add(settings_row)
-            await session.commit()
-            await reapply_rls_context(session)
-            await session.refresh(settings_row)
+            await _persist_app_settings(session, settings_row)
         return settings_row
-    _oidc_secret = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
-    _smtp_pw = _normalize_optional_string(app_config.SMTP_PASSWORD)
-    app_settings = AppSetting(
-        id=GLOBAL_SETTINGS_ID,
-        oidc_enabled=bool(app_config.OIDC_ENABLED),
-        oidc_issuer=_normalize_optional_string(app_config.OIDC_ISSUER),
-        oidc_client_id=_normalize_optional_string(app_config.OIDC_CLIENT_ID),
-        oidc_client_secret_encrypted=encrypt_field(
-            _oidc_secret, SALT_OIDC_CLIENT_SECRET
-        )
-        if _oidc_secret
-        else None,
-        oidc_provider_name=_normalize_optional_string(app_config.OIDC_PROVIDER_NAME),
-        oidc_scopes=_normalize_scopes(
-            app_config.OIDC_SCOPES or ["openid", "profile", "email", "offline_access"]
-        ),
-        light_accent_color="#2563eb",
-        dark_accent_color="#60a5fa",
-        role_labels=DEFAULT_ROLE_LABELS.copy(),
-        smtp_host=_normalize_optional_string(app_config.SMTP_HOST),
-        smtp_port=app_config.SMTP_PORT if app_config.SMTP_HOST else None,
-        smtp_secure=bool(app_config.SMTP_SECURE),
-        smtp_reject_unauthorized=bool(app_config.SMTP_REJECT_UNAUTHORIZED),
-        smtp_username=_normalize_optional_string(app_config.SMTP_USERNAME),
-        smtp_password_encrypted=encrypt_field(_smtp_pw, SALT_SMTP_PASSWORD)
-        if _smtp_pw
-        else None,
-        smtp_from_address=_normalize_optional_string(app_config.SMTP_FROM_ADDRESS),
-        smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
-    )
-    session.add(app_settings)
-    await session.commit()
-    await reapply_rls_context(session)
-    await session.refresh(app_settings)
+    app_settings = _build_default_app_settings()
+    await _persist_app_settings(session, app_settings)
     return app_settings
 
 
