@@ -49,6 +49,7 @@ from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
 from app.services import documents as documents_service
 from app.services import rls as rls_service
+from app.services.membership import initiative_scope_clause
 
 GuildAdminContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.admin))
@@ -184,9 +185,17 @@ async def list_initiatives(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: Annotated[GuildContext, Depends(get_guild_membership)],
 ) -> List[InitiativeRead]:
+    # `initiatives` is a structural table (not initiative-RLS-gated), so scope it
+    # in the query with the ONE access rule — initiative_scope_clause defers to
+    # public.initiative_access (admin OR PAM OR member, from the request GUCs),
+    # the same predicate the content-table RLS uses — instead of re-deriving the
+    # admin/PAM/member split here.
     statement = (
         select(Initiative)
-        .where(Initiative.guild_id == guild_context.guild_id)
+        .where(
+            Initiative.guild_id == guild_context.guild_id,
+            initiative_scope_clause(current_user.id, Initiative.id),
+        )
         .options(
             selectinload(Initiative.memberships).selectinload(InitiativeMember.user),
             selectinload(Initiative.memberships)
@@ -194,16 +203,6 @@ async def list_initiatives(
             .selectinload(InitiativeRoleModel.permissions),
         )
     )
-    # Guild admins and PAM grantees see every initiative in the guild; regular
-    # members are narrowed to initiatives they belong to.
-    if not rls_service.is_guild_admin(guild_context.role) and not guild_context.is_pam:
-        statement = (
-            statement.join(
-                InitiativeMember, InitiativeMember.initiative_id == Initiative.id
-            )
-            .where(InitiativeMember.user_id == current_user.id)
-            .distinct()
-        )
     result = await session.exec(statement)
     initiatives = result.all()
     return [serialize_initiative(initiative) for initiative in initiatives]
