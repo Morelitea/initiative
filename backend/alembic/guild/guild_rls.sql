@@ -424,3 +424,52 @@ CREATE POLICY initiative_member_update ON tasks AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON tasks;
 CREATE POLICY initiative_member_delete ON tasks AS PERMISSIVE FOR DELETE
   USING ((EXISTS ( SELECT 1 FROM projects WHERE ((projects.id = tasks.project_id) AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)))));
+
+-- Content tables without an initiative_member_* legacy policy (they were guild_*-only):
+-- comments (user prose, queryable directly), document_tags, task_tags. Scoped here via
+-- their parent document/task so the DB backstop covers them too.
+
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS initiative_member_select ON comments;
+CREATE POLICY initiative_member_select ON comments AS PERMISSIVE FOR SELECT
+  USING (((comments.task_id IS NOT NULL AND EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = comments.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false))) OR (comments.document_id IS NOT NULL AND EXISTS (SELECT 1 FROM documents d WHERE d.id = comments.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)))));
+DROP POLICY IF EXISTS initiative_member_insert ON comments;
+CREATE POLICY initiative_member_insert ON comments AS PERMISSIVE FOR INSERT
+  WITH CHECK (((comments.task_id IS NOT NULL AND EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = comments.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (comments.document_id IS NOT NULL AND EXISTS (SELECT 1 FROM documents d WHERE d.id = comments.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)))));
+DROP POLICY IF EXISTS initiative_member_update ON comments;
+CREATE POLICY initiative_member_update ON comments AS PERMISSIVE FOR UPDATE
+  USING (((comments.task_id IS NOT NULL AND EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = comments.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (comments.document_id IS NOT NULL AND EXISTS (SELECT 1 FROM documents d WHERE d.id = comments.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))))) WITH CHECK (((comments.task_id IS NOT NULL AND EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = comments.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (comments.document_id IS NOT NULL AND EXISTS (SELECT 1 FROM documents d WHERE d.id = comments.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)))));
+DROP POLICY IF EXISTS initiative_member_delete ON comments;
+CREATE POLICY initiative_member_delete ON comments AS PERMISSIVE FOR DELETE
+  USING (((comments.task_id IS NOT NULL AND EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = comments.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (comments.document_id IS NOT NULL AND EXISTS (SELECT 1 FROM documents d WHERE d.id = comments.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)))));
+
+ALTER TABLE document_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE document_tags FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS initiative_member_select ON document_tags;
+CREATE POLICY initiative_member_select ON document_tags AS PERMISSIVE FOR SELECT
+  USING (EXISTS (SELECT 1 FROM documents d WHERE d.id = document_tags.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
+DROP POLICY IF EXISTS initiative_member_insert ON document_tags;
+CREATE POLICY initiative_member_insert ON document_tags AS PERMISSIVE FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM documents d WHERE d.id = document_tags.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
+DROP POLICY IF EXISTS initiative_member_update ON document_tags;
+CREATE POLICY initiative_member_update ON document_tags AS PERMISSIVE FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM documents d WHERE d.id = document_tags.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM documents d WHERE d.id = document_tags.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
+DROP POLICY IF EXISTS initiative_member_delete ON document_tags;
+CREATE POLICY initiative_member_delete ON document_tags AS PERMISSIVE FOR DELETE
+  USING (EXISTS (SELECT 1 FROM documents d WHERE d.id = document_tags.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
+
+ALTER TABLE task_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_tags FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS initiative_member_select ON task_tags;
+CREATE POLICY initiative_member_select ON task_tags AS PERMISSIVE FOR SELECT
+  USING (EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = task_tags.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
+DROP POLICY IF EXISTS initiative_member_insert ON task_tags;
+CREATE POLICY initiative_member_insert ON task_tags AS PERMISSIVE FOR INSERT
+  WITH CHECK (EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = task_tags.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
+DROP POLICY IF EXISTS initiative_member_update ON task_tags;
+CREATE POLICY initiative_member_update ON task_tags AS PERMISSIVE FOR UPDATE
+  USING (EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = task_tags.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = task_tags.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
+DROP POLICY IF EXISTS initiative_member_delete ON task_tags;
+CREATE POLICY initiative_member_delete ON task_tags AS PERMISSIVE FOR DELETE
+  USING (EXISTS (SELECT 1 FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = task_tags.task_id AND public.initiative_access(p.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
