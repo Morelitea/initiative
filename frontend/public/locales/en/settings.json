@@ -181,6 +181,8 @@
     "colorThemeDescription": "Choose a color theme for the application.",
     "weekStartsOn": "Week starts on",
     "weekStartsOnDescription": "Choose which day to show first on calendars and date pickers.",
+    "recentTabsLimit": "Recent items in tab bar",
+    "recentTabsLimitDescription": "How many recently-opened items to keep in the header tab bar (1–100).",
     "language": "Language",
     "languageDescription": "Choose your preferred language for the interface.",
     "updateSuccess": "Interface preferences updated",

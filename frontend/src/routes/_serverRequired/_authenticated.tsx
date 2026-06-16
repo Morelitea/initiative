@@ -31,7 +31,12 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { useLegacyFilterStorageMigration } from "@/hooks/useLegacyFilterStorageMigration";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useRealtimeUpdates } from "@/hooks/useRealtimeUpdates";
-import { useClearRecentView, useRecents } from "@/hooks/useRecents";
+import {
+  type ClearRecentTarget,
+  useClearRecentView,
+  useClearRecentViews,
+  useRecents,
+} from "@/hooks/useRecents";
 import { useServer } from "@/hooks/useServer";
 import { useVersionCheck } from "@/hooks/useVersionCheck";
 import { chooseNoGuildLayout } from "@/lib/noGuildLayout";
@@ -105,6 +110,7 @@ function AppLayout() {
   });
 
   const clearRecent = useClearRecentView();
+  const clearRecents = useClearRecentViews();
 
   // Now we can have conditional returns
   // Show loading state while auth or guild membership is being determined
@@ -149,13 +155,41 @@ function AppLayout() {
     // layout === "main" → fall through to the standard sidebar layout.
   }
 
+  const toClearTarget = (item: RecentItemRead): ClearRecentTarget => ({
+    entityType: item.entity_type,
+    entityId: item.entity_id,
+    guildId: item.guild_id,
+  });
+
   const handleClearRecent = (item: RecentItemRead) => {
-    clearRecent.mutate({
-      entityType: item.entity_type,
-      entityId: item.entity_id,
-      guildId: item.guild_id,
-    });
+    clearRecent.mutate(toClearTarget(item));
   };
+
+  const handleCloseOtherRecents = (keep: RecentItemRead) => {
+    const others = (recentQuery.data ?? []).filter(
+      (item) =>
+        !(
+          item.guild_id === keep.guild_id &&
+          item.entity_type === keep.entity_type &&
+          item.entity_id === keep.entity_id
+        )
+    );
+    if (others.length > 0) {
+      clearRecents.mutate(others.map(toClearTarget));
+    }
+  };
+
+  const handleCloseAllRecents = () => {
+    const all = recentQuery.data ?? [];
+    if (all.length > 0) {
+      clearRecents.mutate(all.map(toClearTarget));
+    }
+  };
+
+  // The backend already caps the list to the user's ``recent_tabs_limit``, but
+  // slice client-side too so lowering the setting takes effect immediately
+  // (before the 30s-stale recents query refetches).
+  const recentItems = recentQuery.data?.slice(0, user?.recent_tabs_limit ?? 20);
 
   const activeRecentKey = getActiveRecentKey(location.pathname);
   // ProjectActivitySidebar still wants the active project id directly.
@@ -208,10 +242,12 @@ function AppLayout() {
                   </Tooltip>
                   <div className="min-w-0 flex-1">
                     <RecentTabsBar
-                      items={recentQuery.data}
+                      items={recentItems}
                       loading={recentQuery.isLoading}
                       activeKey={activeRecentKey}
                       onClose={handleClearRecent}
+                      onCloseOthers={handleCloseOtherRecents}
+                      onCloseAll={handleCloseAllRecents}
                     />
                   </div>
                 </div>

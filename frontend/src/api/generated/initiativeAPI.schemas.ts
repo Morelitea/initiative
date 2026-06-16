@@ -3222,6 +3222,7 @@ export interface UserRead {
   avatar_base64: string | null;
   avatar_url: string | null;
   week_starts_on: number;
+  recent_tabs_limit: number;
   timezone: string;
   overdue_notification_time: string;
   email_initiative_addition: boolean;
@@ -3264,6 +3265,7 @@ export interface UserSelfUpdate {
   avatar_base64?: string | null;
   avatar_url?: string | null;
   week_starts_on?: number | null;
+  recent_tabs_limit?: number | null;
   timezone?: string | null;
   overdue_notification_time?: string | null;
   email_initiative_addition?: boolean | null;
@@ -3347,6 +3349,7 @@ export interface UserUpdate {
   avatar_base64?: string | null;
   avatar_url?: string | null;
   week_starts_on?: number | null;
+  recent_tabs_limit?: number | null;
   timezone?: string | null;
   overdue_notification_time?: string | null;
   email_initiative_addition?: boolean | null;

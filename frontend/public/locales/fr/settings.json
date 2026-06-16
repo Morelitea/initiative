@@ -181,6 +181,8 @@
     "colorThemeDescription": "Choisissez un thème de couleur pour l'application.",
     "weekStartsOn": "La semaine commence le",
     "weekStartsOnDescription": "Choisissez quel jour afficher en premier sur les calendriers et sélecteurs de date.",
+    "recentTabsLimit": "Éléments récents dans la barre d'onglets",
+    "recentTabsLimitDescription": "Nombre d'éléments récemment ouverts à conserver dans la barre d'onglets de l'en-tête (1–100).",
     "language": "Langue",
     "languageDescription": "Choisissez votre langue préférée pour l'interface.",
     "updateSuccess": "Préférences d'interface mises à jour",

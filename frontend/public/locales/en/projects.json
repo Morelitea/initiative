@@ -155,7 +155,10 @@
 
   "tabsBar": {
     "loadingRecent": "Loading recent items\u2026",
-    "closeItem": "Close {{name}}"
+    "closeItem": "Close {{name}}",
+    "close": "Close",
+    "closeOthers": "Close others",
+    "closeAll": "Close all"
   },
 
   "favorite": {

@@ -1377,6 +1377,7 @@ async def record_queue_view(
         entity_type="queue",
         entity_id=queue.id,
         persist=not guild_context.is_pam,
+        limit=current_user.recent_tabs_limit,
     )
     return RecentViewWrite(
         entity_type="queue",
