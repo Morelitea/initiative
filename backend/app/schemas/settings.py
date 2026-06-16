@@ -41,20 +41,6 @@ class InterfaceSettingsUpdate(SanitizedBaseModel):
     dark_accent_color: str
 
 
-class RoleLabelsResponse(SanitizedBaseModel):
-    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
-
-    admin: str
-    project_manager: str
-    member: str
-
-
-class RoleLabelsUpdate(SanitizedBaseModel):
-    admin: Optional[str] = Field(default=None, min_length=1, max_length=64)
-    project_manager: Optional[str] = Field(default=None, min_length=1, max_length=64)
-    member: Optional[str] = Field(default=None, min_length=1, max_length=64)
-
-
 class EmailSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

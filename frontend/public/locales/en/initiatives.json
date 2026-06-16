@@ -110,7 +110,7 @@
     "deleteInitiative": "Delete initiative",
     "deletingInitiative": "Deleting...",
     "defaultCannotDelete": "The default initiative cannot be deleted.",
-    "contactAdmin": "Contact a guild admin ({{adminLabel}}) to delete this initiative.",
+    "contactAdmin": "Contact a guild admin to delete this initiative.",
     "deleted": "Initiative deleted.",
     "deleteError": "Unable to delete initiative right now.",
     "deleteConfirmTitle": "Delete initiative?",

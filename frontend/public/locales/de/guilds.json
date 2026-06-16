@@ -127,7 +127,11 @@
     "retentionUpdatedSuccessfully": "Aufbewahrung aktualisiert."
   },
   "users": {
-    "adminRequired": "Du benötigst {{adminLabel}}-Berechtigungen, um diese Seite anzuzeigen.",
+    "adminRequired": "Du benötigst Administrator-Berechtigungen, um diese Seite anzuzeigen.",
+    "guildRole": {
+      "admin": "Administrator",
+      "member": "Mitglied"
+    },
     "loadingSettings": "Einstellungen werden geladen…",
     "unableToLoadSettings": "Einstellungen konnten nicht geladen werden.",
     "invitesTitle": "Gildeneinladungen",

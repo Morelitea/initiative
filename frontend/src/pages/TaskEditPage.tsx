@@ -74,7 +74,6 @@ import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useProject, useProjectTaskStatuses, useWritableProjects } from "@/hooks/useProjects";
 import { useSetTaskProperties } from "@/hooks/useProperties";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { useSetTaskTags } from "@/hooks/useTags";
 import {
   useDeleteTask,
@@ -122,8 +121,6 @@ export const TaskEditPage = () => {
   const { t } = useTranslation(["tasks", "common", "properties"]);
   const gp = useGuildPath();
   const dateLocale = useDateLocale();
-  const { data: roleLabels } = useRoleLabels();
-  const memberLabel = getRoleLabel("member", roleLabels);
   const { isEnabled: aiEnabled } = useAIEnabled();
 
   const [title, setTitle] = useState("");
@@ -868,7 +865,7 @@ export const TaskEditPage = () => {
                     options={userOptions}
                     onChange={setAssigneeIds}
                     disabled={isReadOnly}
-                    emptyMessage={t("edit.assigneesEmptyMessage", { memberLabel })}
+                    emptyMessage={t("edit.assigneesEmptyMessage")}
                     currentUserId={currentUser?.id}
                   />
                 </div>

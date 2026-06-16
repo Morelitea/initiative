@@ -2504,18 +2504,6 @@ export interface RestoreRequest {
   new_owner_id?: number | null;
 }
 
-export interface RoleLabelsResponse {
-  admin: string;
-  project_manager: string;
-  member: string;
-}
-
-export interface RoleLabelsUpdate {
-  admin?: string | null;
-  project_manager?: string | null;
-  member?: string | null;
-}
-
 /**
  * Create multiple subtasks at once.
  */

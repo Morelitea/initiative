@@ -143,8 +143,6 @@ export const invalidateInitiativeMembers = (initiativeId: number) =>
 
 export const invalidateAllSettings = () => invalidatePrefix("/api/v1/settings");
 
-export const invalidateRoleLabels = () => invalidateExact([`/api/v1/settings/roles`]);
-
 export const invalidateInterfaceSettings = () => invalidateExact([`/api/v1/settings/interface`]);
 
 export const invalidateEmailSettings = () => invalidateExact([`/api/v1/settings/email`]);

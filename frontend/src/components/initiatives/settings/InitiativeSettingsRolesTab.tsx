@@ -135,7 +135,7 @@ export const InitiativeSettingsRolesTab = ({
                         {t("settings.memberCountBadge", { count: role.member_count })}
                       </Badge>
                     </div>
-                    {canManageMembers && !role.is_builtin && (
+                    {canManageMembers && (
                       <div className="flex gap-1">
                         <Button
                           variant="ghost"
@@ -145,14 +145,16 @@ export const InitiativeSettingsRolesTab = ({
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => onDeleteRole(role)}
-                          disabled={deleteRoleMutation.isPending || role.member_count > 0}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                        {!role.is_builtin && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDeleteRole(role)}
+                            disabled={deleteRoleMutation.isPending || role.member_count > 0}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
                       </div>
                     )}
                   </CardHeader>

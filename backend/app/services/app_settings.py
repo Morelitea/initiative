@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -14,12 +14,11 @@ from app.core.encryption import (
 )
 from app.core.pam_context import has_active_grant
 from app.db.session import reapply_rls_context
-from app.models.app_setting import AppSetting, DEFAULT_ROLE_LABELS
+from app.models.app_setting import AppSetting
 from app.models.guild_setting import GuildSetting
 from app.services import guilds as guilds_service
 
 GLOBAL_SETTINGS_ID = 1
-ROLE_KEYS = ["admin", "project_manager", "member"]
 
 
 def _normalize_optional_string(value: str | None) -> str | None:
@@ -38,25 +37,6 @@ def _normalize_scopes(scopes: Iterable[str]) -> list[str]:
             seen.add(cleaned)
             normalized.append(cleaned)
     return normalized or ["openid", "profile", "email", "offline_access"]
-
-
-def _normalize_role_labels(
-    labels: Mapping[str, str | None] | None,
-    *,
-    base: Mapping[str, str] | None = None,
-) -> dict[str, str]:
-    normalized = dict(base or DEFAULT_ROLE_LABELS)
-    for role in ROLE_KEYS:
-        normalized.setdefault(role, DEFAULT_ROLE_LABELS[role])
-    if not labels:
-        return normalized
-    for role, value in labels.items():
-        if role not in ROLE_KEYS:
-            continue
-        cleaned = (value or "").strip()
-        if cleaned:
-            normalized[role] = cleaned
-    return normalized
 
 
 async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSetting:
@@ -110,7 +90,6 @@ def _build_default_app_settings() -> AppSetting:
         ),
         light_accent_color="#2563eb",
         dark_accent_color="#60a5fa",
-        role_labels=DEFAULT_ROLE_LABELS.copy(),
         smtp_host=_normalize_optional_string(app_config.SMTP_HOST),
         smtp_port=app_config.SMTP_PORT if app_config.SMTP_HOST else None,
         smtp_secure=bool(app_config.SMTP_SECURE),
@@ -258,21 +237,6 @@ async def update_interface_colors(
     settings_row = await _ensure_app_settings(session)
     settings_row.light_accent_color = light_accent_color.strip() or "#2563eb"
     settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
-    session.add(settings_row)
-    await session.commit()
-    await reapply_rls_context(session)
-    await session.refresh(settings_row)
-    return settings_row
-
-
-async def update_role_labels(
-    session: AsyncSession,
-    labels: Mapping[str, str | None],
-) -> AppSetting:
-    settings_row = await _ensure_app_settings(session)
-    settings_row.role_labels = _normalize_role_labels(
-        labels, base=settings_row.role_labels
-    )
     session.add(settings_row)
     await session.commit()
     await reapply_rls_context(session)

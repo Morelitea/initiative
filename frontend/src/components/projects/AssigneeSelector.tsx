@@ -13,7 +13,6 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
@@ -48,9 +47,7 @@ export const AssigneeSelector = ({
   currentUserId,
 }: AssigneeSelectorProps) => {
   const { t } = useTranslation("projects");
-  const { data: roleLabels } = useRoleLabels();
-  const memberLabel = getRoleLabel("member", roleLabels);
-  const resolvedEmptyMessage = emptyMessage ?? t("assignee.emptyMessage", { memberLabel });
+  const resolvedEmptyMessage = emptyMessage ?? t("assignee.emptyMessage");
   const [open, setOpen] = useState(false);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -162,13 +159,13 @@ export const AssigneeSelector = ({
                 })}
               </div>
             ) : (
-              <span>{t("assignee.searchPlaceholder", { memberLabel })}</span>
+              <span>{t("assignee.searchPlaceholder")}</span>
             )}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-0" align="start">
           <Command>
-            <CommandInput placeholder={t("assignee.searchPlaceholder", { memberLabel })} />
+            <CommandInput placeholder={t("assignee.searchPlaceholder")} />
             <CommandList>
               <CommandEmpty>{resolvedEmptyMessage}</CommandEmpty>
               <CommandGroup>

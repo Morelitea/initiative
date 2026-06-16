@@ -110,7 +110,7 @@
     "deleteInitiative": "Supprimer l'initiative",
     "deletingInitiative": "Suppression en cours...",
     "defaultCannotDelete": "L'initiative par défaut ne peut pas être supprimée.",
-    "contactAdmin": "Contactez un administrateur du groupe ({{adminLabel}}) pour supprimer cette initiative.",
+    "contactAdmin": "Contactez un administrateur du groupe pour supprimer cette initiative.",
     "deleted": "Initiative supprimée.",
     "deleteError": "Impossible de supprimer l'initiative pour l'instant.",
     "deleteConfirmTitle": "Supprimer l'initiative ?",

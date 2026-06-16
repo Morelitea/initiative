@@ -172,7 +172,7 @@
     "priorityHigh": "Priorité haute",
     "priorityUrgent": "Urgent",
     "assigneesLabel": "Assignés",
-    "assigneesEmptyMessage": "Invitez des membres ayant le rôle {{memberLabel}} dans l'initiative pour assigner des tâches.",
+    "assigneesEmptyMessage": "Invitez des membres de l'initiative pour assigner du travail.",
     "startDateLabel": "Date de début",
     "dueDateLabel": "Date d'échéance",
     "optional": "Optionnel",
@@ -181,8 +181,8 @@
     "createError": "Impossible de créer la tâche."
   },
   "assignee": {
-    "emptyMessage": "Invitez des membres ayant le rôle {{memberLabel}} dans l'initiative pour assigner des tâches.",
-    "searchPlaceholder": "Rechercher {{memberLabel}}",
+    "emptyMessage": "Invitez des membres de l'initiative pour assigner des tâches.",
+    "searchPlaceholder": "Rechercher des membres",
     "noAssignees": "Aucun assigné sélectionné.",
     "removeAssignee": "Retirer {{name}}",
     "clearAssignees": "Effacer les assignés",

@@ -1,7 +1,6 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { RoleLabelsResponse } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,23 +11,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ColorPickerPopover } from "@/components/ui/color-picker-popover";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
-import { DEFAULT_ROLE_LABELS, useRoleLabels, useUpdateRoleLabels } from "@/hooks/useRoleLabels";
 import { useInterfaceSettings, useUpdateInterfaceSettings } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { Capability, hasCapability } from "@/lib/permissions";
-
-const ROLE_FIELDS: { key: keyof RoleLabelsResponse; labelKey: string; helperKey: string }[] = [
-  { key: "admin", labelKey: "branding.adminLabel", helperKey: "branding.adminHelper" },
-  {
-    key: "project_manager",
-    labelKey: "branding.projectManagerLabel",
-    helperKey: "branding.projectManagerHelper",
-  },
-  { key: "member", labelKey: "branding.memberLabel", helperKey: "branding.memberHelper" },
-];
 
 export const SettingsBrandingPage = () => {
   const { t } = useTranslation("settings");
@@ -36,8 +23,6 @@ export const SettingsBrandingPage = () => {
   const isPlatformAdmin = hasCapability(user, Capability.configManage);
   const [lightColor, setLightColor] = useState("#2563eb");
   const [darkColor, setDarkColor] = useState("#60a5fa");
-  const [roleFormState, setRoleFormState] = useState<RoleLabelsResponse>(DEFAULT_ROLE_LABELS);
-  const [roleMessage, setRoleMessage] = useState<string | null>(null);
 
   const interfaceQuery = useInterfaceSettings({ enabled: isPlatformAdmin });
 
@@ -47,10 +32,6 @@ export const SettingsBrandingPage = () => {
     },
   });
 
-  const roleLabelsQuery = useRoleLabels();
-
-  const updateRoleLabels = useUpdateRoleLabels();
-
   useEffect(() => {
     if (interfaceQuery.data) {
       setLightColor(interfaceQuery.data.light_accent_color);
@@ -58,29 +39,11 @@ export const SettingsBrandingPage = () => {
     }
   }, [interfaceQuery.data]);
 
-  useEffect(() => {
-    if (roleLabelsQuery.data) {
-      setRoleFormState(roleLabelsQuery.data);
-    }
-  }, [roleLabelsQuery.data]);
-
   const handleInterfaceSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     updateInterface.mutate({
       light_accent_color: lightColor,
       dark_accent_color: darkColor,
-    });
-  };
-
-  const handleRoleChange = (role: keyof RoleLabelsResponse, value: string) => {
-    setRoleFormState((prev) => ({ ...prev, [role]: value }));
-  };
-
-  const handleRoleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setRoleMessage(null);
-    updateRoleLabels.mutate(roleFormState, {
-      onSuccess: () => setRoleMessage(t("branding.rolesSuccess")),
     });
   };
 
@@ -135,45 +98,6 @@ export const SettingsBrandingPage = () => {
                     : t("branding.saveInterface")}
                 </Button>
               </CardFooter>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{t("branding.rolesTitle")}</CardTitle>
-          <CardDescription>{t("branding.rolesDescription")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {roleLabelsQuery.isLoading && !roleLabelsQuery.data ? (
-            <p className="text-muted-foreground text-sm">{t("branding.loadingRoles")}</p>
-          ) : roleLabelsQuery.isError ? (
-            <p className="text-destructive text-sm">{t("branding.rolesError")}</p>
-          ) : (
-            <form className="space-y-6" onSubmit={handleRoleSubmit}>
-              {ROLE_FIELDS.map((field) => (
-                <div key={field.key} className="space-y-2">
-                  <Label htmlFor={`role-label-${field.key}`}>{t(field.labelKey as never)}</Label>
-                  <Input
-                    id={`role-label-${field.key}`}
-                    value={roleFormState[field.key]}
-                    onChange={(event) => handleRoleChange(field.key, event.target.value)}
-                    maxLength={64}
-                    required
-                  />
-                  <p className="text-muted-foreground text-xs">{t(field.helperKey as never)}</p>
-                </div>
-              ))}
-              <div className="flex flex-col gap-2">
-                <Button type="submit" disabled={updateRoleLabels.isPending}>
-                  {updateRoleLabels.isPending ? t("branding.savingRoles") : t("branding.saveRoles")}
-                </Button>
-                {roleMessage ? <p className="text-primary text-sm">{roleMessage}</p> : null}
-                {updateRoleLabels.isError ? (
-                  <p className="text-destructive text-sm">{t("branding.rolesUpdateError")}</p>
-                ) : null}
-              </div>
             </form>
           )}
         </CardContent>

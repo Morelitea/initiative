@@ -127,7 +127,11 @@
     "retentionUpdatedSuccessfully": "Retención actualizada."
   },
   "users": {
-    "adminRequired": "Necesitas permisos de {{adminLabel}} para ver esta página.",
+    "adminRequired": "Necesitas permisos de administrador para ver esta página.",
+    "guildRole": {
+      "admin": "Administrador",
+      "member": "Miembro"
+    },
     "loadingSettings": "Cargando configuración…",
     "unableToLoadSettings": "No se pudo cargar la configuración.",
     "invitesTitle": "Invitaciones del gremio",

@@ -26,7 +26,6 @@ import {
   useRemoveInitiativeMember,
   useUpdateInitiativeMember,
 } from "@/hooks/useInitiatives";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import { useUsers } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -82,10 +81,7 @@ export const InitiativeSettingsMembersTab = ({
   onRemoveMember,
 }: InitiativeSettingsMembersTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
-  const { data: roleLabels } = useRoleLabels();
 
-  const projectManagerLabel = getRoleLabel("project_manager", roleLabels);
-  const memberLabel = getRoleLabel("member", roleLabels);
   const adminRoleLabel = t("settings.guildAdminRole");
 
   // Fetched only for members managers (who can act on the roster) to identify
@@ -249,7 +245,8 @@ export const InitiativeSettingsMembersTab = ({
       if (member.role_display_name) {
         return member.role_display_name;
       }
-      return member.role === "project_manager" ? projectManagerLabel : memberLabel;
+      const roleFromList = roles?.find((role) => role.name === member.role)?.display_name;
+      return roleFromList ?? member.role;
     };
 
     const adminMutationPending = addMember.isPending || removeMember.isPending;
@@ -298,9 +295,15 @@ export const InitiativeSettingsMembersTab = ({
           if (member.isGuildAdmin) {
             const isManager = managerRole != null && member.role_id === managerRole.id;
             if (!canManageMembers || !managerRole) {
+              // A guild admin is either full-admin (no role row) or elevated to a
+              // manager role. The member's own role_display_name resolves the
+              // elevated name even before the roles query settles; fall back to
+              // the guild-admin label when they hold no initiative role.
               return (
                 <Badge variant="outline" className="text-muted-foreground">
-                  {isManager ? projectManagerLabel : adminRoleLabel}
+                  {member.role_id != null
+                    ? (member.role_display_name ?? adminRoleLabel)
+                    : adminRoleLabel}
                 </Badge>
               );
             }
@@ -398,8 +401,6 @@ export const InitiativeSettingsMembersTab = ({
     removeMember,
     updateMemberRole,
     handleAdminRoleChange,
-    projectManagerLabel,
-    memberLabel,
     initiativeId,
     onRemoveMember,
   ]);
