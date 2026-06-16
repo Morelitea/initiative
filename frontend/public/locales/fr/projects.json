@@ -145,7 +145,10 @@
   },
   "tabsBar": {
     "loadingRecent": "Chargement des éléments récents\u2026",
-    "closeItem": "Fermer {{name}}"
+    "closeItem": "Fermer {{name}}",
+    "close": "Fermer",
+    "closeOthers": "Fermer les autres",
+    "closeAll": "Fermer tout"
   },
   "favorite": {
     "remove": "Retirer des favoris",

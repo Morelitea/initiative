@@ -56,6 +56,7 @@ from app.services import api_keys as api_keys_service
 from app.services import csv_export
 from app.services import stats_service
 from app.services import user_tokens as user_tokens_service
+from app.services import recent_views as recent_views_service
 
 # Allowed values for the optional "task completion visual feedback" effect.
 # Mirrored on the frontend in src/lib/taskCompletionVisualFeedback.ts; keep
@@ -316,6 +317,10 @@ async def update_users_me(
         normalized_week_start = normalize_week_starts_on(update_data["week_starts_on"])
         if normalized_week_start is not None:
             current_user.week_starts_on = normalized_week_start
+    if "recent_tabs_limit" in update_data:
+        current_user.recent_tabs_limit = recent_views_service.clamp_recent_limit(
+            update_data["recent_tabs_limit"]
+        )
     if "timezone" in update_data:
         normalized_timezone = normalize_timezone(update_data["timezone"])
         if normalized_timezone:

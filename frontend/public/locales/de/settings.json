@@ -181,6 +181,8 @@
     "colorThemeDescription": "Wähle ein Farbdesign für die Anwendung.",
     "weekStartsOn": "Woche beginnt am",
     "weekStartsOnDescription": "Wähle, welcher Tag in Kalendern und Datumsauswahlfeldern zuerst angezeigt wird.",
+    "recentTabsLimit": "Aktuelle Elemente in der Tab-Leiste",
+    "recentTabsLimitDescription": "Wie viele kürzlich geöffnete Elemente in der Tab-Leiste der Kopfzeile behalten werden (1–100).",
     "language": "Sprache",
     "languageDescription": "Wähle deine bevorzugte Sprache für die Oberfläche.",
     "updateSuccess": "Oberflächeneinstellungen aktualisiert",

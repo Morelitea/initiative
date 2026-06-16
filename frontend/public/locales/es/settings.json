@@ -181,6 +181,8 @@
     "colorThemeDescription": "Elige un tema de color para la aplicación.",
     "weekStartsOn": "La semana comienza el",
     "weekStartsOnDescription": "Elige qué día mostrar primero en calendarios y selectores de fecha.",
+    "recentTabsLimit": "Elementos recientes en la barra de pestañas",
+    "recentTabsLimitDescription": "Cuántos elementos abiertos recientemente mantener en la barra de pestañas del encabezado (1–100).",
     "language": "Idioma",
     "languageDescription": "Elige tu idioma preferido para la interfaz.",
     "updateSuccess": "Preferencias de interfaz actualizadas",

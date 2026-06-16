@@ -20,9 +20,23 @@ from app.models.recent_view import RecentView
 
 RecentEntityType = Literal["project", "document", "queue", "counter_group"]
 
-# Maximum entries kept per user, across all entity types. Matches the cap
-# the layout bar displays.
-MAX_RECENT_VIEWS = 20
+# Per-user cap on entries kept/displayed, across all entity types. The user's
+# ``recent_tabs_limit`` (Interface settings) drives the actual value; these
+# bound it. ``DEFAULT_RECENT_VIEWS`` preserves the historic behavior for users
+# who never touched the setting.
+MIN_RECENT_VIEWS = 1
+MAX_RECENT_VIEWS = 100
+DEFAULT_RECENT_VIEWS = 20
+
+
+def clamp_recent_limit(value: int | None) -> int:
+    """Clamp a user's ``recent_tabs_limit`` to the allowed range.
+
+    Falls back to ``DEFAULT_RECENT_VIEWS`` for ``None`` (legacy rows / unset).
+    """
+    if value is None:
+        return DEFAULT_RECENT_VIEWS
+    return max(MIN_RECENT_VIEWS, min(MAX_RECENT_VIEWS, value))
 
 
 async def record_view(
@@ -32,8 +46,9 @@ async def record_view(
     entity_type: RecentEntityType,
     entity_id: int,
     persist: bool = True,
+    limit: int | None = None,
 ) -> RecentView:
-    """Upsert a recent-view row, then prune per-user to ``MAX_RECENT_VIEWS``.
+    """Upsert a recent-view row, then prune per-user to the user's cap.
 
     The DB trigger ``fn_recent_views_set_guild_id`` populates ``guild_id``
     from the underlying entity, so callers don't pass it.
@@ -43,6 +58,7 @@ async def record_view(
     policies would reject their INSERT; their browsing is also transient by
     design, so we simply don't record it.
     """
+    cap = clamp_recent_limit(limit)
     now = datetime.now(timezone.utc)
     if not persist:
         return RecentView(
@@ -80,7 +96,7 @@ async def record_view(
         select(RecentView)
         .where(RecentView.user_id == user_id)
         .order_by(RecentView.last_viewed_at.desc())
-        .offset(MAX_RECENT_VIEWS)
+        .offset(cap)
     )
     stale = (await session.exec(prune_stmt)).all()
     if stale:
@@ -116,7 +132,7 @@ async def list_recent_views(
     session: AsyncSession,
     *,
     user_id: int,
-    limit: int = MAX_RECENT_VIEWS,
+    limit: int = DEFAULT_RECENT_VIEWS,
 ) -> Sequence[RecentView]:
     """Return the user's most recent N rows, ordered by ``last_viewed_at`` desc.
 

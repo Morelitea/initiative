@@ -1573,6 +1573,7 @@ async def record_project_view(
         entity_type="project",
         entity_id=project.id,
         persist=not guild_context.is_pam,
+        limit=current_user.recent_tabs_limit,
     )
     return RecentViewWrite(
         entity_type="project",

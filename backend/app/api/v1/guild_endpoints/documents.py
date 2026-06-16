@@ -2481,6 +2481,7 @@ async def record_document_view(
         entity_type="document",
         entity_id=document.id,
         persist=not guild_context.is_pam,
+        limit=current_user.recent_tabs_limit,
     )
     return RecentViewWrite(
         entity_type="document",

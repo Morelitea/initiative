@@ -68,6 +68,7 @@ class UserUpdate(SanitizedBaseModel):
     )
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
+    recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
     overdue_notification_time: Optional[str] = None
     email_initiative_addition: Optional[bool] = None
@@ -143,6 +144,7 @@ class UserRead(UserBase):
     avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     week_starts_on: int = 0
+    recent_tabs_limit: int = 20
     timezone: str = "UTC"
     overdue_notification_time: str = "21:00"
     email_initiative_addition: bool = True
@@ -210,6 +212,7 @@ class UserSelfUpdate(SanitizedBaseModel):
     )
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
+    recent_tabs_limit: Optional[int] = Field(default=None, ge=1, le=100)
     timezone: Optional[str] = None
     overdue_notification_time: Optional[str] = None
     email_initiative_addition: Optional[bool] = None

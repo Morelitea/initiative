@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **Rename built-in initiative roles.** The built-in "Project manager" and "Member" roles can now be renamed per initiative (e.g. "Project manager" → "Dungeon Master") from the initiative's Roles settings tab. The chosen name shows up wherever that member's role appears — rosters, badges, and the initiative list.
+- **Configurable recent-items tab bar.** A new "Recent items in tab bar" setting (Profile → Interface) controls how many recently-opened items the header tab bar keeps and shows, from 1 to 100 (default 20). Right-clicking a tab now opens a context menu with Close, Close others, and Close all.
 
 ### Changed
 

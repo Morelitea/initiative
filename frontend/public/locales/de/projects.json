@@ -155,7 +155,10 @@
 
   "tabsBar": {
     "loadingRecent": "Aktuelle Elemente werden geladen…",
-    "closeItem": "{{name}} schließen"
+    "closeItem": "{{name}} schließen",
+    "close": "Schließen",
+    "closeOthers": "Andere schließen",
+    "closeAll": "Alle schließen"
   },
 
   "favorite": {
