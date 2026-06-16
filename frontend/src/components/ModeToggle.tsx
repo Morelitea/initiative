@@ -20,7 +20,9 @@ export const ModeToggle = () => {
   const { t } = useTranslation("nav");
 
   return (
-    <DropdownMenu>
+    // modal={false}: a modal dropdown nested in the non-modal mobile sidebar
+    // drawer dismisses the drawer on open (see SidebarUserFooter).
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"

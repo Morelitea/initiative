@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 import secrets
 
@@ -7,13 +8,10 @@ from sqlalchemy import func
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import encrypt_field, SALT_EMAIL
+from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
 from app.models.guild import Guild, GuildInvite, GuildMembership, GuildRole
 from app.models.guild_setting import GuildSetting
-from app.models.initiative import Initiative, InitiativeMember
-from app.models.project import Project, ProjectPermission
-from app.models.task import Task, TaskAssignee
 from app.models.user import User
 
 DEFAULT_INVITE_EXPIRATION_DAYS = 7
@@ -37,13 +35,19 @@ async def get_primary_guild(session: AsyncSession) -> Guild:
         updated_at=now,
     )
     session.add(guild)
-    await session.flush()
+    # Commit the new guild row, then provision its schema — a brand-new primary
+    # guild is schema-native from birth. (Only the first time the primary guild is
+    # created, i.e. fresh-DB seeding.)
+    await session.commit()
+    from app.db.schema_provisioning import provision_guild
+
+    await provision_guild(guild.id)
     return guild
 
 
 async def get_primary_guild_id(session: AsyncSession) -> int:
     guild = await get_primary_guild(session)
-    return guild.id  # type: ignore[return-value]
+    return guild.id  # ty: ignore[invalid-return-type]
 
 
 async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
@@ -53,24 +57,6 @@ async def get_guild(session: AsyncSession, guild_id: int) -> Guild:
     if not guild:
         raise ValueError(GuildMessages.GUILD_NOT_FOUND)
     return guild
-
-
-async def resolve_user_guild_id(
-    session: AsyncSession,
-    *,
-    user,
-    guild_id: int | None = None,
-) -> int | None:
-    if guild_id is not None:
-        return guild_id
-    if user and getattr(user, "id", None):
-        result = await session.exec(
-            select(GuildMembership.guild_id).where(GuildMembership.user_id == user.id).limit(1)
-        )
-        membership_guild_id = result.first()
-        if membership_guild_id:
-            return membership_guild_id
-    return None
 
 
 async def ensure_membership(
@@ -115,7 +101,9 @@ async def ensure_membership(
 
 async def _next_membership_position(session: AsyncSession, *, user_id: int) -> int:
     result = await session.exec(
-        select(func.max(GuildMembership.position)).where(GuildMembership.user_id == user_id)
+        select(func.max(GuildMembership.position)).where(
+            GuildMembership.user_id == user_id
+        )
     )
     max_value = result.one_or_none()
     highest = max_value if max_value is not None else -1
@@ -137,7 +125,9 @@ async def reorder_memberships(
     if not memberships:
         return
 
-    membership_by_guild = {membership.guild_id: membership for membership in memberships}
+    membership_by_guild = {
+        membership.guild_id: membership for membership in memberships
+    }
     seen: set[int] = set()
     position = 0
 
@@ -152,7 +142,9 @@ async def reorder_memberships(
         seen.add(guild_id)
         position += 1
 
-    remaining = [membership for membership in memberships if membership.guild_id not in seen]
+    remaining = [
+        membership for membership in memberships if membership.guild_id not in seen
+    ]
     remaining.sort(
         key=lambda membership: (
             membership.position if membership.position is not None else 0,
@@ -188,24 +180,83 @@ async def list_memberships(
     session: AsyncSession,
     *,
     user_id: int,
-) -> list[tuple[Guild, GuildMembership, int | None]]:
-    """Return (guild, membership, retention_days) for each guild the user
-    belongs to. The LEFT JOIN to guild_settings keeps this a single query
-    so the guild list (rendered in the sidebar + every Settings page) doesn't
-    fan out into N+1 lookups."""
-    stmt = (
-        select(Guild, GuildMembership, GuildSetting.retention_days)
-        .join(GuildMembership, GuildMembership.guild_id == Guild.id)
-        .join(GuildSetting, GuildSetting.guild_id == Guild.id, isouter=True)
-        .where(GuildMembership.user_id == user_id)
-        .order_by(
-            GuildMembership.position.asc(),
-            GuildMembership.joined_at.asc(),
-            Guild.id.asc(),
+) -> list[tuple[Guild, GuildMembership, int | None, int]]:
+    """Return (guild, membership, retention_days, member_count) for each guild
+    the user belongs to.
+
+    The guild + membership rows are shared (public). ``retention_days`` lives in
+    each guild's own schema (``guild_settings``), so it's read per guild with the
+    user's membership context — a single cross-guild join would hit the empty
+    public table and report NULL for everyone. ``guild_settings.id`` is a
+    per-schema serial that collides across schemas, so each settings row is
+    detached after reading so a cached row can't shadow the next guild's.
+
+    ``member_count`` is the total number of members in the guild. It's read
+    inside the same per-guild loop because the ``guild_memberships_select`` RLS
+    policy only exposes sibling rows while that guild's context is active
+    (``guild_id = current_guild_id``); under the caller's user-only context a
+    cross-guild count would see just the user's own row."""
+    from app.db.session import set_rls_context  # lazy: avoids a circular import
+
+    await set_rls_context(session, user_id=user_id)
+    pairs = (
+        await session.exec(
+            select(Guild, GuildMembership)
+            .join(GuildMembership, GuildMembership.guild_id == Guild.id)
+            .where(GuildMembership.user_id == user_id)
+            .order_by(
+                GuildMembership.position.asc(),
+                GuildMembership.joined_at.asc(),
+                Guild.id.asc(),
+            )
         )
-    )
-    result = await session.exec(stmt)
-    return result.all()
+    ).all()
+
+    out: list[tuple[Guild, GuildMembership, int | None, int]] = []
+    for guild, membership in pairs:
+        await set_rls_context(session, user_id=user_id, guild_id=guild.id)
+        row = (
+            await session.exec(
+                select(GuildSetting).where(GuildSetting.guild_id == guild.id)
+            )
+        ).one_or_none()
+        # No row yet → the 90-day default; an explicit NULL is the user's "never".
+        retention = 90 if row is None else row.retention_days
+        if row is not None:
+            session.expunge(row)
+        member_count = await count_members(session, guild_id=guild.id)
+        out.append((guild, membership, retention, member_count))
+
+    # Restore the user-only context the caller (UserSessionDep) handed us.
+    await set_rls_context(session, user_id=user_id)
+    return out
+
+
+async def count_members(session: AsyncSession, *, guild_id: int) -> int:
+    """Total number of members in a guild.
+
+    The caller must already hold a session that can see the guild's
+    ``guild_memberships`` rows — an admin (BYPASSRLS) session, or one whose RLS
+    context is set to this guild (``guild_id = current_guild_id``). Under a
+    user-only context the ``guild_memberships_select`` policy would expose only
+    the caller's own row."""
+    return (
+        await session.exec(
+            select(func.count())
+            .select_from(GuildMembership)
+            .where(GuildMembership.guild_id == guild_id)
+        )
+    ).one()
+
+
+async def create_guild_settings(session: AsyncSession, guild_id: int) -> GuildSetting:
+    """Seed a guild_settings row. guild_settings is guild-scoped (it holds
+    private config like API keys), so under schema-per-guild this must run with
+    the session already routed to the guild's schema."""
+    settings_row = GuildSetting(guild_id=guild_id, retention_days=90)
+    session.add(settings_row)
+    await session.flush()
+    return settings_row
 
 
 async def create_guild(
@@ -216,21 +267,23 @@ async def create_guild(
     icon_base64: str | None = None,
     creator: User | None = None,
 ) -> Guild:
+    """Create a guild's *shared* rows only — the guild row (public) and the
+    creator's admin membership (public). The guild-scoped seed rows (settings +
+    default initiative) live in the guild's schema, which doesn't exist yet, so
+    the caller commits this, then calls :func:`seed_guild_content`.
+    """
     now = datetime.now(timezone.utc)
     guild = Guild(
         name=name.strip(),
-        description=description.strip() if description and description.strip() else None,
+        description=description.strip()
+        if description and description.strip()
+        else None,
         icon_base64=icon_base64,
         created_by_user_id=creator.id if creator else None,
         created_at=now,
         updated_at=now,
     )
     session.add(guild)
-    await session.flush()
-    # Always seed a guild_settings row so list_memberships's LEFT JOIN
-    # never returns retention_days=NULL ambiguously (NULL must mean "user
-    # explicitly chose never auto-purge", not "row missing").
-    session.add(GuildSetting(guild_id=guild.id, retention_days=90))
     await session.flush()
     if creator:
         await ensure_membership(
@@ -240,6 +293,38 @@ async def create_guild(
             role=GuildRole.admin,
         )
     return guild
+
+
+async def seed_guild_content(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    creator: User,
+    is_superadmin: bool = False,
+) -> None:
+    """Provision a new guild's schema and create its guild-scoped seed rows
+    (settings + default initiative) *inside* it.
+
+    The shared guild row must already exist; this provisions the schema + role and
+    seeds into it (the caller commits around the call). On failure the caller
+    should ``deprovision_guild`` and remove the shared rows.
+    """
+    from app.db.schema_provisioning import provision_guild
+    from app.db.session import set_rls_context
+    from app.services import initiatives as initiatives_service
+
+    await provision_guild(guild_id)
+    await set_rls_context(
+        session,
+        user_id=creator.id,
+        guild_id=guild_id,
+        guild_role=GuildRole.admin.value,
+        is_superadmin=is_superadmin,
+    )
+    await create_guild_settings(session, guild_id)
+    await initiatives_service.ensure_default_initiative(
+        session, creator, guild_id=guild_id
+    )
 
 
 async def update_guild(
@@ -314,8 +399,14 @@ async def _generate_unique_invite_code(session: AsyncSession) -> str:
     raise RuntimeError("Unable to generate unique invite code")
 
 
-async def list_guild_invites(session: AsyncSession, *, guild_id: int) -> list[GuildInvite]:
-    stmt = select(GuildInvite).where(GuildInvite.guild_id == guild_id).order_by(GuildInvite.created_at.desc())
+async def list_guild_invites(
+    session: AsyncSession, *, guild_id: int
+) -> Sequence[GuildInvite]:
+    stmt = (
+        select(GuildInvite)
+        .where(GuildInvite.guild_id == guild_id)
+        .order_by(GuildInvite.created_at.desc())
+    )
     result = await session.exec(stmt)
     return result.all()
 
@@ -331,23 +422,31 @@ async def create_guild_invite(
 ) -> GuildInvite:
     code = await _generate_unique_invite_code(session)
     if expires_at is None:
-        expiry = datetime.now(timezone.utc) + timedelta(days=DEFAULT_INVITE_EXPIRATION_DAYS)
+        expiry = datetime.now(timezone.utc) + timedelta(
+            days=DEFAULT_INVITE_EXPIRATION_DAYS
+        )
     else:
-        expiry = expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        expiry = (
+            expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        )
     invite = GuildInvite(
         code=code,
         guild_id=guild_id,
         created_by_user_id=created_by_user_id,
         expires_at=expiry,
         max_uses=max_uses,
-        invitee_email_encrypted=encrypt_field(invitee_email, SALT_EMAIL) if invitee_email else None,
+        invitee_email_encrypted=encrypt_field(invitee_email, SALT_EMAIL)
+        if invitee_email
+        else None,
     )
     session.add(invite)
     await session.flush()
     return invite
 
 
-async def delete_guild_invite(session: AsyncSession, *, guild_id: int, invite_id: int) -> None:
+async def delete_guild_invite(
+    session: AsyncSession, *, guild_id: int, invite_id: int
+) -> None:
     stmt = select(GuildInvite).where(
         GuildInvite.id == invite_id,
         GuildInvite.guild_id == guild_id,
@@ -359,28 +458,23 @@ async def delete_guild_invite(session: AsyncSession, *, guild_id: int, invite_id
 
 
 async def delete_guild(session: AsyncSession, guild: Guild) -> None:
-    initiative_ids = [row for row in (await session.exec(select(Initiative.id).where(Initiative.guild_id == guild.id))).all()]
-    project_ids: list[int] = []
-    task_ids: list[int] = []
-    if initiative_ids:
-        project_ids = [row for row in (await session.exec(select(Project.id).where(Project.initiative_id.in_(initiative_ids)))).all()]
-    if project_ids:
-        task_ids = [row for row in (await session.exec(select(Task.id).where(Task.project_id.in_(project_ids)))).all()]
+    """Delete a guild's shared rows.
 
-    if task_ids:
-        await session.exec(delete(TaskAssignee).where(TaskAssignee.task_id.in_(task_ids)))
-        await session.exec(delete(Task).where(Task.id.in_(task_ids)))
-    if project_ids:
-        await session.exec(delete(ProjectPermission).where(ProjectPermission.project_id.in_(project_ids)))
-        await session.exec(delete(Project).where(Project.id.in_(project_ids)))
-    if initiative_ids:
-        await session.exec(delete(InitiativeMember).where(InitiativeMember.initiative_id.in_(initiative_ids)))
-        await session.exec(delete(Initiative).where(Initiative.id.in_(initiative_ids)))
+    Under schema-per-guild the guild's content lives in its schema and is removed
+    separately by ``deprovision_guild`` (``DROP SCHEMA … CASCADE``). Here we only
+    delete the shared guild row; its ``ON DELETE CASCADE`` foreign keys clear the
+    roster (memberships, invites, OIDC claim mappings, access grants).
 
-    await session.exec(delete(GuildInvite).where(GuildInvite.guild_id == guild.id))
-    await session.exec(delete(GuildMembership).where(GuildMembership.guild_id == guild.id))
-    await session.exec(delete(GuildSetting).where(GuildSetting.guild_id == guild.id))
-    await session.delete(guild)
+    Order-independent w.r.t. the schema drop: guild-schema tables carry no FKs to
+    ``public.guilds`` (provisioning omits cross-schema FKs), so this row delete is
+    never blocked by the schema. Callers delete the row first (reliable, makes the
+    guild gone) and drop the schema as best-effort cleanup afterwards.
+
+    Uses a bulk DELETE (not ``session.delete``) so the row goes via the DB-level
+    ON DELETE CASCADE FKs — ``session.delete`` would walk ORM relationships and
+    attempt sync loads in the async context (MissingGreenlet).
+    """
+    await session.exec(delete(Guild).where(Guild.id == guild.id))
 
 
 async def get_invite_by_code(session: AsyncSession, *, code: str) -> GuildInvite | None:
@@ -408,6 +502,18 @@ async def redeem_invite_for_user(
         raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
     if not invite_is_active(invite):
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
+
+    # Email binding. ``invitee_email`` is advisory-when-absent: an invite with no
+    # bound address (``invitee_email_encrypted`` is NULL) is a shareable link and
+    # any authenticated user may redeem it. When it *is* set, the invite is bound
+    # to that address and only the matching user may redeem it — otherwise the
+    # binding is decorative and gives a false sense of security (SEC-15). We
+    # compare via ``hash_email`` so normalization (lowercase/strip) matches the
+    # users.email_hash unique-constraint exactly; ``user.email_hash`` is already
+    # populated in both the register and accept-invite flows.
+    bound_email = invite.invitee_email
+    if bound_email and user.email_hash != hash_email(bound_email):
+        raise GuildInviteError(GuildMessages.INVITE_EMAIL_MISMATCH)
 
     await ensure_membership(
         session,

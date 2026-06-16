@@ -63,7 +63,9 @@ def _get_week_boundaries(
         week_end = week_start + timedelta(days=7)
 
         # Convert to datetime at start/end of day in user's timezone
-        start_dt = datetime.combine(week_start, datetime.min.time()).replace(tzinfo=user_tz)
+        start_dt = datetime.combine(week_start, datetime.min.time()).replace(
+            tzinfo=user_tz
+        )
         end_dt = datetime.combine(week_end, datetime.min.time()).replace(tzinfo=user_tz)
 
         boundaries.append((start_dt, end_dt))
@@ -161,7 +163,9 @@ async def calculate_on_time_rate(
     stmt = (
         select(
             func.count(Task.id).label("total"),
-            func.sum(case((Task.updated_at <= Task.due_date, 1), else_=0)).label("on_time"),
+            func.sum(case((Task.updated_at <= Task.due_date, 1), else_=0)).label(
+                "on_time"
+            ),
         )
         .join(TaskAssignee, TaskAssignee.task_id == Task.id)
         .join(TaskStatus, TaskStatus.id == Task.task_status_id)
@@ -203,7 +207,9 @@ async def calculate_avg_completion_days(
     Returns None if no tasks with start_date are completed.
     """
     stmt = (
-        select(func.avg(func.extract("epoch", Task.updated_at - Task.start_date) / 86400))
+        select(
+            func.avg(func.extract("epoch", Task.updated_at - Task.start_date) / 86400)
+        )
         .join(TaskAssignee, TaskAssignee.task_id == Task.id)
         .join(TaskStatus, TaskStatus.id == Task.task_status_id)
         .where(
@@ -247,7 +253,9 @@ async def get_completed_counts(
 
     # Calculate this week's boundaries
     week_start_date = _get_week_start(today, week_starts_on)
-    week_start_dt = datetime.combine(week_start_date, datetime.min.time()).replace(tzinfo=user_tz)
+    week_start_dt = datetime.combine(week_start_date, datetime.min.time()).replace(
+        tzinfo=user_tz
+    )
     week_end_dt = week_start_dt + timedelta(days=7)
 
     # Convert to UTC for database query
@@ -260,7 +268,8 @@ async def get_completed_counts(
             func.sum(
                 case(
                     (
-                        (Task.updated_at >= week_start_utc) & (Task.updated_at < week_end_utc),
+                        (Task.updated_at >= week_start_utc)
+                        & (Task.updated_at < week_end_utc),
                         1,
                     ),
                     else_=0,
@@ -269,7 +278,10 @@ async def get_completed_counts(
         )
         .join(TaskAssignee, TaskAssignee.task_id == Task.id)
         .join(TaskStatus, TaskStatus.id == Task.task_status_id)
-        .where(TaskAssignee.user_id == user_id, TaskStatus.category == TaskStatusCategory.done)
+        .where(
+            TaskAssignee.user_id == user_id,
+            TaskStatus.category == TaskStatusCategory.done,
+        )
     )
 
     if guild_id:
@@ -383,7 +395,9 @@ async def get_heatmap_data(
     # Calculate date range (last 365 days)
     start_date = today - timedelta(days=365)
     start_dt = datetime.combine(start_date, datetime.min.time()).replace(tzinfo=user_tz)
-    end_dt = datetime.combine(today + timedelta(days=1), datetime.min.time()).replace(tzinfo=user_tz)
+    end_dt = datetime.combine(today + timedelta(days=1), datetime.min.time()).replace(
+        tzinfo=user_tz
+    )
 
     # Convert to UTC
     start_utc = start_dt.astimezone(timezone.utc)
@@ -424,7 +438,9 @@ async def get_heatmap_data(
     current_date = start_date
     while current_date <= today:
         activity_count = activity_by_date.get(current_date, 0)
-        heatmap_data.append(HeatmapDayData(day=current_date, activity_count=activity_count))
+        heatmap_data.append(
+            HeatmapDayData(day=current_date, activity_count=activity_count)
+        )
         current_date = current_date + timedelta(days=1)
 
     return heatmap_data
@@ -448,7 +464,10 @@ async def get_guild_breakdown(
         .join(Task, Task.project_id == Project.id)
         .join(TaskAssignee, TaskAssignee.task_id == Task.id)
         .join(TaskStatus, TaskStatus.id == Task.task_status_id)
-        .where(TaskAssignee.user_id == user_id, TaskStatus.category == TaskStatusCategory.done)
+        .where(
+            TaskAssignee.user_id == user_id,
+            TaskStatus.category == TaskStatusCategory.done,
+        )
         .group_by(Guild.id, Guild.name)
         .order_by(func.count(Task.id).desc())
     )
@@ -457,7 +476,9 @@ async def get_guild_breakdown(
     rows = result.all()
 
     return [
-        GuildTaskBreakdown(guild_id=guild_id, guild_name=guild_name, completed_count=count)
+        GuildTaskBreakdown(
+            guild_id=guild_id, guild_name=guild_name, completed_count=count
+        )
         for guild_id, guild_name, count in rows
     ]
 
@@ -481,7 +502,9 @@ async def get_backlog_trend(
 
     # Calculate this week's boundaries
     week_start_date = _get_week_start(today, week_starts_on)
-    week_start_dt = datetime.combine(week_start_date, datetime.min.time()).replace(tzinfo=user_tz)
+    week_start_dt = datetime.combine(week_start_date, datetime.min.time()).replace(
+        tzinfo=user_tz
+    )
     week_end_dt = week_start_dt + timedelta(days=7)
 
     # Convert to UTC
@@ -535,45 +558,36 @@ async def get_backlog_trend(
     return "Growing" if assigned_count > completed_count else "Shrinking"
 
 
-async def get_user_stats(
+async def _compute_guild_stats(
     session: AsyncSession,
     user: User,
-    guild_id: Optional[int] = None,
-    days: int = 90,
+    guild_id: int,
+    days: int,
 ) -> UserStatsResponse:
-    """
-    Get comprehensive user statistics.
-
-    Args:
-        session: Database session
-        user: User object
-        guild_id: Optional guild ID to filter stats
-        days: Number of days to include in analysis (not currently used, for future extension)
-
-    Returns:
-        UserStatsResponse with all metrics
-    """
-    # Execute all metric calculations sequentially
-    # Note: SQLAlchemy async sessions don't support concurrent operations on the same session
+    """Compute all stats for ONE guild. Assumes the session is already routed
+    into that guild's schema (set_rls_context)."""
     streak = await calculate_user_streak(session, user.id, user.timezone, guild_id)
     on_time_rate = await calculate_on_time_rate(session, user.id, guild_id)
-    avg_completion_days = await calculate_avg_completion_days(session, user.id, guild_id)
+    avg_completion_days = await calculate_avg_completion_days(
+        session, user.id, guild_id
+    )
     tasks_completed_total, tasks_completed_this_week = await get_completed_counts(
         session, user.id, user.timezone, user.week_starts_on, guild_id
     )
-    velocity_data = await get_velocity_data(session, user.id, user.timezone, user.week_starts_on, guild_id)
+    velocity_data = await get_velocity_data(
+        session, user.id, user.timezone, user.week_starts_on, guild_id
+    )
     heatmap_data = await get_heatmap_data(session, user.id, user.timezone, guild_id)
     guild_breakdown = await get_guild_breakdown(session, user.id)
-    backlog_trend = await get_backlog_trend(session, user.id, user.timezone, user.week_starts_on, guild_id)
-
-    # If guild_id is specified, filter guild_breakdown to only show that guild
-    if guild_id:
-        guild_breakdown = [g for g in guild_breakdown if g.guild_id == guild_id]
-
+    backlog_trend = await get_backlog_trend(
+        session, user.id, user.timezone, user.week_starts_on, guild_id
+    )
     return UserStatsResponse(
         streak=streak,
         on_time_rate=round(on_time_rate, 1),
-        avg_completion_days=round(avg_completion_days, 1) if avg_completion_days is not None else None,
+        avg_completion_days=round(avg_completion_days, 1)
+        if avg_completion_days is not None
+        else None,
         tasks_completed_total=tasks_completed_total,
         tasks_completed_this_week=tasks_completed_this_week,
         backlog_trend=backlog_trend,
@@ -581,3 +595,118 @@ async def get_user_stats(
         heatmap_data=heatmap_data,
         guild_breakdown=guild_breakdown,
     )
+
+
+def _merge_stats(parts: List[UserStatsResponse]) -> UserStatsResponse:
+    """Merge per-guild stats for the cross-guild ("all guilds") view. Additive
+    metrics sum exactly; rate-style metrics are weighted by completed volume."""
+    total_completed = sum(p.tasks_completed_total for p in parts)
+    weight = total_completed or 1
+
+    # Velocity: same week boundaries across guilds (derived from the user's tz/
+    # week start, not the guild), so sum by week_start.
+    vel: dict = {}
+    for p in parts:
+        for w in p.velocity_data:
+            cur = vel.get(w.week_start)
+            if cur is None:
+                vel[w.week_start] = VelocityWeekData(
+                    week_start=w.week_start,
+                    assigned=w.assigned,
+                    completed=w.completed,
+                )
+            else:
+                cur.assigned += w.assigned
+                cur.completed += w.completed
+    velocity_data = [vel[k] for k in sorted(vel)]
+
+    heat: dict = {}
+    for p in parts:
+        for h in p.heatmap_data:
+            cur = heat.get(h.day)
+            if cur is None:
+                heat[h.day] = HeatmapDayData(day=h.day, activity_count=h.activity_count)
+            else:
+                cur.activity_count += h.activity_count
+    heatmap_data = [heat[k] for k in sorted(heat)]
+
+    acd_pairs = [
+        (p.avg_completion_days, p.tasks_completed_total)
+        for p in parts
+        if p.avg_completion_days is not None and p.tasks_completed_total
+    ]
+    avg_completion_days = (
+        round(sum(v * w for v, w in acd_pairs) / sum(w for _, w in acd_pairs), 1)
+        if acd_pairs
+        else None
+    )
+
+    tot_assigned = sum(w.assigned for w in velocity_data)
+    tot_completed = sum(w.completed for w in velocity_data)
+
+    return UserStatsResponse(
+        # Best-effort across guilds; exact when a single guild is selected.
+        streak=max(p.streak for p in parts),
+        on_time_rate=round(
+            sum(p.on_time_rate * p.tasks_completed_total for p in parts) / weight, 1
+        ),
+        avg_completion_days=avg_completion_days,
+        tasks_completed_total=total_completed,
+        tasks_completed_this_week=sum(p.tasks_completed_this_week for p in parts),
+        backlog_trend="Growing" if tot_assigned > tot_completed else "Shrinking",
+        velocity_data=velocity_data,
+        heatmap_data=heatmap_data,
+        guild_breakdown=[g for p in parts for g in p.guild_breakdown],
+    )
+
+
+async def get_user_stats(
+    session: AsyncSession,
+    user: User,
+    guild_id: Optional[int] = None,
+    days: int = 90,
+) -> UserStatsResponse:
+    """Get comprehensive user statistics, routed per guild.
+
+    Tasks/projects/initiatives live in per-guild schemas, so a single query on
+    the unrouted (public) session reads the frozen backup and returns zeros.
+    We route into each target guild's schema and compute there: one guild when
+    ``guild_id`` is given (exact), otherwise every guild the user belongs to,
+    merged.
+    """
+    from app.db.session import set_rls_context
+    from app.services.cross_guild import member_guild_ids
+
+    # Always restrict to the user's own guilds (membership is the access gate);
+    # a guild_id the user isn't in yields no stats rather than routing into a
+    # foreign schema.
+    target_guilds = await member_guild_ids(
+        session, user.id, restrict_to=[guild_id] if guild_id is not None else None
+    )
+
+    parts: List[UserStatsResponse] = []
+    for gid in target_guilds:
+        session.expunge_all()
+        await set_rls_context(session, user_id=user.id, guild_id=gid)
+        parts.append(await _compute_guild_stats(session, user, gid, days))
+
+    # Reset to the user-only (public) baseline so the caller's session isn't
+    # left routed into the last guild.
+    session.expunge_all()
+    await set_rls_context(session, user_id=user.id)
+
+    if not parts:
+        return UserStatsResponse(
+            streak=0,
+            on_time_rate=0.0,
+            avg_completion_days=None,
+            tasks_completed_total=0,
+            tasks_completed_this_week=0,
+            backlog_trend="Shrinking",
+            velocity_data=[],
+            heatmap_data=[],
+            guild_breakdown=[],
+        )
+    if len(parts) == 1:
+        return parts[0]
+    return _merge_stats(parts)

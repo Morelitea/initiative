@@ -1,17 +1,19 @@
-import { HttpResponse, http } from "msw";
+import { HttpResponse } from "msw";
 
 import { buildProject } from "@/__tests__/factories";
 
+import { guildHttp } from "../guildHttp";
+
 export const projectHandlers = [
-  http.get("/api/v1/projects/", () => {
+  guildHttp.get("/projects/", () => {
     return HttpResponse.json([buildProject()]);
   }),
 
-  http.post("/api/v1/projects/", () => {
+  guildHttp.post("/projects/", () => {
     return HttpResponse.json(buildProject());
   }),
 
-  http.post("/api/v1/projects/reorder", () => {
+  guildHttp.post("/projects/reorder", () => {
     return HttpResponse.json({ ok: true });
   }),
 ];

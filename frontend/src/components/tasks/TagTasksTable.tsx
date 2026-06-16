@@ -7,14 +7,14 @@ import { useTranslation } from "react-i18next";
 
 import type {
   FilterCondition,
-  ListTasksApiV1TasksGetParams,
+  ListTasksApiV1GGuildIdTasksGetParams,
   SortField,
   TaskListRead,
   TaskPriority,
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import { TaskDescriptionHoverCard } from "@/components/projects/TaskDescriptionHoverCard";
 import { SortIcon } from "@/components/SortIcon";
 import { TaskChecklistProgress } from "@/components/tasks/TaskChecklistProgress";
@@ -147,7 +147,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
       ? [{ field: "priority", op: "in_" as const, value: priorityFilters }]
       : []),
   ];
-  const taskParams: ListTasksApiV1TasksGetParams = {
+  const taskParams: ListTasksApiV1GGuildIdTasksGetParams = {
     conditions: taskConditions,
     page,
     page_size: pageSize,
@@ -168,7 +168,7 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
           ? [{ field: "priority", op: "in_" as const, value: priorityFilters }]
           : []),
       ];
-      const params: ListTasksApiV1TasksGetParams = {
+      const params: ListTasksApiV1GGuildIdTasksGetParams = {
         conditions,
         page: targetPage,
         page_size: pageSize,
@@ -214,7 +214,8 @@ export const TagTasksTable = ({ tagId }: TagTasksTableProps) => {
     if (!guildId) {
       return cached?.statuses ?? [];
     }
-    const statuses = await (listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(
+    const statuses = await (listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+      guildId,
       projectId
     ) as unknown as Promise<TaskStatusRead[]>);
     const merged = cached

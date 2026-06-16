@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 
-import { apiClient, setCurrentGuildId } from "@/api/client";
+import { apiClient } from "@/api/client";
 import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
 import { resetGuildScopedQueries } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +31,9 @@ export type GuildEntry = GuildRead & {
 
 interface GuildContextValue {
   guilds: GuildEntry[];
+  /** This tab's guild, taken from its `/g/{guildId}` URL (the route layout
+   * calls syncGuildFromUrl). Per-tab — no server-held context — so two tabs can
+   * sit in two different guilds at once. */
   activeGuildId: number | null;
   activeGuild: GuildEntry | null;
   /** True when the active guild is reached via a read-only grant — writes are
@@ -93,6 +96,7 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   role: "member",
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
+  member_count: 0,
   created_at: grant.requested_at,
   updated_at: grant.requested_at,
   accessType: "grant",
@@ -115,9 +119,8 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
-  // Sync API Client whenever ID changes
+  // Persist this tab's guild as the fresh-tab default (read once at mount).
   useEffect(() => {
-    setCurrentGuildId(activeGuildId);
     persistGuildId(activeGuildId);
   }, [activeGuildId]);
 
@@ -256,40 +259,39 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
 
   const switchGuild = useCallback(
     async (guildId: number) => {
-      // Don't switch if we are already there
+      // The guild lives in the URL: callers navigate to /g/{guildId} and the
+      // route layout calls syncGuildFromUrl. Here we just move this tab's local
+      // state and drop the previous guild's now-wrong cached query data. No
+      // server context — per-tab only, so two tabs can hold different guilds.
       if (!user || guildId === activeGuildIdRef.current) {
         return;
       }
-
-      // Update local state immediately so UI reacts
       setActiveGuildId(guildId);
-
-      // Clear guild-scoped query cache so stale data from the previous guild isn't shown
       await resetGuildScopedQueries();
-
-      // Refresh data in background to ensure everything is synced
       await Promise.all([refreshGuilds(), refreshUser()]);
     },
     [user, refreshGuilds, refreshUser]
   );
 
   /**
-   * Sync guild context from URL without full navigation.
-   * Used by guild-scoped routes to sync context from URL params.
+   * Adopt the guild from a /g/{guildId} route into this tab's local state
+   * (rail highlight, redirect targets, query keys). Per-tab only — no server
+   * context — so each tab tracks the guild in its own URL.
    */
   const syncGuildFromUrl = useCallback(async (guildId: number) => {
     if (guildId === activeGuildIdRef.current) {
       return;
     }
-
-    // Update local state immediately
     setActiveGuildId(guildId);
-    setCurrentGuildId(guildId);
     persistGuildId(guildId);
-
-    // Clear guild-scoped query cache so stale data from the previous guild isn't shown
     await resetGuildScopedQueries();
   }, []);
+
+  // Each browser tab holds its OWN guild, taken from its `/g/{guildId}` URL —
+  // tabs do NOT converge. We deliberately do not listen for the guild storage
+  // event, so a guild switch in one tab never drags another tab's context with
+  // it; that is what lets two tabs sit in two different guilds at once. (The
+  // persisted id is only a fresh-tab default, read once at mount.)
 
   const reorderGuilds = useCallback(
     (guildIds: number[]) => {

@@ -1,12 +1,12 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getListCommentsApiV1CommentsGetQueryKey,
-  listCommentsApiV1CommentsGet,
+  getListCommentsApiV1GGuildIdCommentsGetQueryKey,
+  listCommentsApiV1GGuildIdCommentsGet,
 } from "@/api/generated/comments/comments";
 import {
-  getReadDocumentApiV1DocumentsDocumentIdGetQueryKey,
-  readDocumentApiV1DocumentsDocumentIdGet,
+  getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey,
+  readDocumentApiV1GGuildIdDocumentsDocumentIdGet,
 } from "@/api/generated/documents/documents";
 
 export const Route = createFileRoute(
@@ -14,19 +14,22 @@ export const Route = createFileRoute(
 )({
   loader: async ({ context, params }) => {
     const documentId = Number(params.documentId);
+    const guildId = Number(params.guildId);
     const { queryClient } = context;
 
     // Prefetch in background - don't block navigation on failure
     try {
       await Promise.all([
         queryClient.ensureQueryData({
-          queryKey: getReadDocumentApiV1DocumentsDocumentIdGetQueryKey(documentId),
-          queryFn: () => readDocumentApiV1DocumentsDocumentIdGet(documentId),
+          queryKey: getReadDocumentApiV1GGuildIdDocumentsDocumentIdGetQueryKey(guildId, documentId),
+          queryFn: () => readDocumentApiV1GGuildIdDocumentsDocumentIdGet(guildId, documentId),
           staleTime: 30_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: getListCommentsApiV1CommentsGetQueryKey({ document_id: documentId }),
-          queryFn: () => listCommentsApiV1CommentsGet({ document_id: documentId }),
+          queryKey: getListCommentsApiV1GGuildIdCommentsGetQueryKey(guildId, {
+            document_id: documentId,
+          }),
+          queryFn: () => listCommentsApiV1GGuildIdCommentsGet(guildId, { document_id: documentId }),
           staleTime: 30_000,
         }),
       ]);

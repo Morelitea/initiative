@@ -36,7 +36,7 @@ void i18n
   .init({
     load: "languageOnly",
     fallbackLng: "en",
-    supportedLngs: ["en", "es", "fr"],
+    supportedLngs: ["en", "es", "fr", "de"],
     nonExplicitSupportedLngs: true,
     defaultNS: "common",
     fallbackNS: "common",

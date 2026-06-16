@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 import { apiClient } from "@/api/client";
 import type {
   FilterCondition,
-  ListTasksApiV1TasksGetParams,
+  ListTasksApiV1GGuildIdTasksGetParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEventsList, useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import {
@@ -104,6 +105,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const router = useRouter();
   const { user } = useAuth();
   const gp = useGuildPath();
+  const guildId = useActiveGuildId();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
     create?: string;
@@ -190,7 +192,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   // --- Tasks query (scoped to initiative or all guild tasks) ---
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
-  const tasksParams = useMemo((): ListTasksApiV1TasksGetParams | null => {
+  const tasksParams = useMemo((): ListTasksApiV1GGuildIdTasksGetParams | null => {
     if (!showTasks) return null;
     const conditions: FilterCondition[] = [];
 
@@ -237,7 +239,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     userTimezone,
   ]);
 
-  const defaultTaskParams: ListTasksApiV1TasksGetParams = { page: 1, page_size: 100 };
+  const defaultTaskParams: ListTasksApiV1GGuildIdTasksGetParams = { page: 1, page_size: 100 };
   const tasksQuery = useTasks(tasksParams ?? defaultTaskParams, {
     enabled: !!tasksParams,
     placeholderData: keepPreviousData,
@@ -397,7 +399,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       if (initiativeId) {
         params.initiative_id = String(initiativeId);
       }
-      const response = await apiClient.get("/api/v1/calendar-events/export.ics", {
+      const response = await apiClient.get(`/g/${guildId}/calendar-events/export.ics`, {
         params,
         responseType: "blob",
       });
@@ -410,7 +412,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     } catch {
       toast.error(t("export.exportError"));
     }
-  }, [initiativeId, t]);
+  }, [guildId, initiativeId, t]);
 
   const statusOptions = useMemo(
     () =>

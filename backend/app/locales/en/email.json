@@ -11,7 +11,7 @@
   "verification": {
     "subject": "Verify your Initiative account",
     "title": "Verify your email",
-    "greeting": "Hi {{name}},",
+    "greeting": "Hi <strong>{{name}}</strong>,",
     "body": "Confirm your email to finish setting up your Initiative account.",
     "buttonLabel": "Verify email",
     "fallbackText": "If the button doesn't work, copy and paste this link into your browser:",
@@ -20,7 +20,7 @@
   "passwordReset": {
     "subject": "Reset your Initiative password",
     "title": "Reset your password",
-    "greeting": "Hello {{name}},",
+    "greeting": "Hello <strong>{{name}}</strong>,",
     "body": "We received a request to reset your Initiative password.",
     "buttonLabel": "Reset password",
     "fallbackText": "If you didn't request this, you can ignore this email. The link expires soon.",
@@ -29,7 +29,7 @@
   "initiativeAdded": {
     "subject": "Added to initiative {{initiativeName}}",
     "title": "You joined a new initiative",
-    "greeting": "Hi {{name}},",
+    "greeting": "Hi <strong>{{name}}</strong>,",
     "body": "You have been added to the <strong>{{initiativeName}}</strong> initiative.",
     "buttonLabel": "View initiatives",
     "textBody": "You have been added to the {{initiativeName}} initiative. Visit {{link}} to view it."
@@ -37,7 +37,7 @@
   "projectAdded": {
     "subject": "New project in {{initiativeName}}",
     "title": "New project in your initiative",
-    "greeting": "Hi {{name}},",
+    "greeting": "Hi <strong>{{name}}</strong>,",
     "body": "A new project, <strong>{{projectName}}</strong>, was added to the <strong>{{initiativeName}}</strong> initiative.",
     "buttonLabel": "Open project",
     "textBody": "A new project, {{projectName}}, was added to the {{initiativeName}} initiative. View it at {{link}}."
@@ -45,43 +45,107 @@
   "taskAssignment": {
     "subject": "New tasks assigned to you",
     "title": "Task assignment summary",
-    "greeting": "Hi {{name}},",
+    "greeting": "Hi <strong>{{name}}</strong>,",
     "body": "Here is your hourly summary of tasks assigned to you:",
-    "assignedBy": "assigned by {{name}}",
-    "inProject": "in {{projectName}}",
+    "assignedBy": "assigned by <strong>{{name}}</strong>",
+    "inProject": "in <strong>{{projectName}}</strong>",
     "footer": "Visit Initiative to review the tasks.",
     "textBody": "Here is your hourly summary of tasks assigned to you:"
   },
   "mention": {
-    "greeting": "Hi {{name}},",
+    "document": {
+      "subject": "You were mentioned in {{document}}",
+      "title": "You were mentioned",
+      "body": "<strong>{{actor}}</strong> mentioned you in <strong>{{document}}</strong>"
+    },
+    "comment": {
+      "subject": "You were mentioned in a comment",
+      "title": "You were mentioned",
+      "body": "<strong>{{actor}}</strong> mentioned you in a comment on <strong>{{context}}</strong>"
+    },
+    "task": {
+      "subject": "Your task was mentioned",
+      "title": "Your task was mentioned",
+      "body": "<strong>{{actor}}</strong> mentioned <strong>{{task}}</strong> in <strong>{{context}}</strong>"
+    },
+    "greeting": "Hi <strong>{{name}}</strong>,",
     "buttonLabel": "View"
+  },
+  "comment": {
+    "onTask": {
+      "subject": "New comment on {{task}}",
+      "title": "New comment on your task",
+      "body": "<strong>{{actor}}</strong> commented on <strong>{{task}}</strong>"
+    },
+    "onDocument": {
+      "subject": "New comment on {{document}}",
+      "title": "New comment on your document",
+      "body": "<strong>{{actor}}</strong> commented on <strong>{{document}}</strong>"
+    },
+    "reply": {
+      "subject": "Reply to your comment",
+      "title": "Reply to your comment",
+      "body": "<strong>{{actor}}</strong> replied to your comment on <strong>{{context}}</strong>"
+    }
+  },
+  "event": {
+    "invitation": {
+      "subject": "You're invited: {{event}}",
+      "title": "New event invitation",
+      "body": "<strong>{{organizer}}</strong> invited you to <strong>{{event}}</strong> (<strong>{{when}}</strong>)."
+    },
+    "rescheduled": {
+      "subject": "Event rescheduled: {{event}}",
+      "title": "Event rescheduled",
+      "body": "<strong>{{editor}}</strong> rescheduled <strong>{{event}}</strong> to <strong>{{when}}</strong>."
+    },
+    "updated": {
+      "subject": "Event updated: {{event}}",
+      "title": "Event updated",
+      "body": "<strong>{{editor}}</strong> updated <strong>{{event}}</strong> (<strong>{{when}}</strong>)."
+    },
+    "cancelled": {
+      "subject": "Event cancelled: {{event}}",
+      "title": "Event cancelled",
+      "body": "<strong>{{canceller}}</strong> cancelled <strong>{{event}}</strong> (<strong>{{when}}</strong>)."
+    },
+    "rsvp": {
+      "subject": "RSVP update: {{event}}",
+      "title": "RSVP update",
+      "body": "<strong>{{responder}}</strong> responded “<strong>{{status}}</strong>” to <strong>{{event}}</strong>."
+    },
+    "reminder": {
+      "subject": "Reminder: {{event}}",
+      "title": "Upcoming event",
+      "body": "<strong>{{event}}</strong> starts at <strong>{{when}}</strong>."
+    }
   },
   "overdue": {
     "subject": "Overdue tasks reminder",
     "title": "Overdue tasks reminder",
-    "greeting": "Hi {{name}},",
-    "body_one": "You have {{count}} overdue task:",
-    "body_other": "You have {{count}} overdue tasks:",
-    "taskDetail": "project: {{projectName}}, due {{dueDate}}",
+    "greeting": "Hi <strong>{{name}}</strong>,",
+    "body_one": "You have <strong>{{count}}</strong> overdue task:",
+    "body_other": "You have <strong>{{count}}</strong> overdue tasks:",
+    "taskDetail": "project: <strong>{{projectName}}</strong>, due <strong>{{dueDate}}</strong>",
     "footer": "Visit Initiative to get back on track.",
     "textBody_one": "You have {{count}} overdue task:",
     "textBody_other": "You have {{count}} overdue tasks:"
   },
   "accessGrant": {
     "buttonLabel": "Open Access dashboard",
-    "greeting": "Hi {{name}},",
+    "greeting": "Hi <strong>{{name}}</strong>,",
     "levelRead": "read-only",
     "levelReadWrite": "read-write",
     "requested": {
       "subject": "Access request for {{guildName}}",
       "title": "New access request",
-      "body": "<strong>{{requester}}</strong> requested {{level}} access to <strong>{{guildName}}</strong>.",
+      "body": "<strong>{{requester}}</strong> requested <strong>{{level}}</strong> access to <strong>{{guildName}}</strong>.",
       "textBody": "{{requester}} requested {{level}} access to {{guildName}}. Review it at {{link}}."
     },
     "approved": {
       "subject": "Access to {{guildName}} approved",
       "title": "Access approved",
-      "body": "Your {{level}} access to <strong>{{guildName}}</strong> was approved.",
+      "body": "Your <strong>{{level}}</strong> access to <strong>{{guildName}}</strong> was approved.",
       "textBody": "Your {{level}} access to {{guildName}} was approved. {{link}}"
     },
     "denied": {

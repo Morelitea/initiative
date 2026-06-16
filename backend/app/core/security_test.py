@@ -14,11 +14,19 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+from datetime import timedelta
+
 from app.core import security
 from app.core.security import (
     ADVANCED_TOOL_AUDIENCE,
     ADVANCED_TOOL_HANDOFF_LIFETIME,
+    UPLOAD_TOKEN_AUDIENCE,
+    UPLOAD_TOKEN_LIFETIME,
+    UPLOAD_TOKEN_SCOPE,
+    UploadTokenError,
     create_advanced_tool_handoff_token,
+    create_upload_token,
+    verify_upload_token,
 )
 
 
@@ -154,7 +162,9 @@ def test_handoff_token_signs_with_rs256_when_private_key_configured(monkeypatch)
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
 
-    monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", private_pem)
+    monkeypatch.setattr(
+        security.settings, "HANDOFF_SIGNING_PRIVATE_KEY_PEM", private_pem
+    )
     monkeypatch.setattr(security.settings, "HANDOFF_SIGNING_KEY_ID", "test-rotation-1")
 
     token, _ = create_advanced_tool_handoff_token(
@@ -201,3 +211,101 @@ def test_handoff_token_falls_back_to_hs256_without_private_key(monkeypatch):
     header = jwt.get_unverified_header(token)
     assert header["alg"] == "HS256"
     assert "kid" not in header
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Scoped upload tokens (SEC-12)
+# ──────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_upload_token_round_trips_to_user_id():
+    """A freshly minted upload token verifies back to the user it names."""
+    token, seconds = create_upload_token(user_id=123)
+    assert isinstance(token, str) and token.count(".") == 2
+    assert seconds == int(UPLOAD_TOKEN_LIFETIME.total_seconds())
+    assert verify_upload_token(token) == 123
+
+
+@pytest.mark.unit
+def test_upload_token_carries_scope_and_audience_but_no_ver():
+    """The token must carry the uploads aud/scope and deliberately omit
+    ``ver`` — the general session-JWT path keys on ``ver`` and so will
+    reject this token as an API credential."""
+    token, _ = create_upload_token(user_id=7)
+    payload = _decode_unverified(token)
+    assert payload["aud"] == UPLOAD_TOKEN_AUDIENCE
+    assert payload["scope"] == UPLOAD_TOKEN_SCOPE
+    assert payload["sub"] == "7"
+    assert "ver" not in payload
+
+
+@pytest.mark.unit
+def test_verify_upload_token_rejects_session_jwt():
+    """A normal session JWT (different shape, no uploads aud) must not pass
+    upload-token verification."""
+    session_jwt = security.create_access_token(subject="7", token_version=1)
+    with pytest.raises(UploadTokenError):
+        verify_upload_token(session_jwt)
+
+
+@pytest.mark.unit
+def test_verify_upload_token_rejects_expired_token():
+    """An expired upload token is rejected."""
+    token, _ = create_upload_token(user_id=7, expires_in=timedelta(seconds=-1))
+    with pytest.raises(UploadTokenError):
+        verify_upload_token(token)
+
+
+@pytest.mark.unit
+def test_session_jwt_signed_with_dedicated_jwt_signing_key(monkeypatch):
+    """When JWT_SIGNING_KEY is set, session JWTs are signed/verified with it — so it
+    can be rotated independently of the encryption-rooting SECRET_KEY."""
+    jwt_key = "j" * 48
+    monkeypatch.setattr(security.settings, "JWT_SIGNING_KEY", jwt_key)
+
+    token = security.create_access_token(subject="7", token_version=1)
+    # Verifies under the dedicated key...
+    payload = jwt.decode(token, jwt_key, algorithms=[security.settings.ALGORITHM])
+    assert payload["sub"] == "7"
+    # ...and NOT under SECRET_KEY (proving the keys are actually decoupled).
+    with pytest.raises(jwt.InvalidSignatureError):
+        jwt.decode(
+            token,
+            security.settings.SECRET_KEY,
+            algorithms=[security.settings.ALGORITHM],
+        )
+
+
+@pytest.mark.unit
+def test_jwt_signing_key_does_not_affect_encryption(monkeypatch):
+    """Setting/rotating JWT_SIGNING_KEY must not change encryption or the email HMAC —
+    those are rooted in SECRET_KEY alone, so a JWT rotation can't orphan data."""
+    from app.core.encryption import SALT_EMAIL, encrypt_field, hash_email
+
+    before_ct = encrypt_field("alice@example.com", SALT_EMAIL)
+    before_hash = hash_email("alice@example.com")
+
+    monkeypatch.setattr(security.settings, "JWT_SIGNING_KEY", "j" * 48)
+
+    # Same email hash, and the pre-rotation ciphertext still decrypts.
+    from app.core.encryption import decrypt_field
+
+    assert hash_email("alice@example.com") == before_hash
+    assert decrypt_field(before_ct, SALT_EMAIL) == "alice@example.com"
+
+
+@pytest.mark.unit
+def test_verify_upload_token_rejects_wrong_audience():
+    """A token signed with our secret but carrying a foreign audience (e.g. the
+    advanced-tool handoff) must not be honored as an upload token."""
+    handoff, _ = create_advanced_tool_handoff_token(
+        user_id=1,
+        guild_id=2,
+        guild_role="admin",
+        is_manager=True,
+        can_create=True,
+        scope="guild",
+    )
+    with pytest.raises(UploadTokenError):
+        verify_upload_token(handoff)

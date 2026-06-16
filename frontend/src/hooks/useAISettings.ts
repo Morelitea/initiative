@@ -1,17 +1,17 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
-  fetchAiModelsApiV1SettingsAiModelsPost,
-  getGetGuildAiSettingsApiV1SettingsAiGuildGetQueryKey,
+  fetchAiModelsApiV1GGuildIdSettingsAiModelsPost,
+  getGetGuildAiSettingsApiV1GGuildIdSettingsAiGuildGetQueryKey,
   getGetPlatformAiSettingsApiV1SettingsAiPlatformGetQueryKey,
-  getGetUserAiSettingsApiV1SettingsAiUserGetQueryKey,
-  getGuildAiSettingsApiV1SettingsAiGuildGet,
+  getGetUserAiSettingsApiV1GGuildIdSettingsAiUserGetQueryKey,
+  getGuildAiSettingsApiV1GGuildIdSettingsAiGuildGet,
   getPlatformAiSettingsApiV1SettingsAiPlatformGet,
-  getUserAiSettingsApiV1SettingsAiUserGet,
-  testAiConnectionApiV1SettingsAiTestPost,
-  updateGuildAiSettingsApiV1SettingsAiGuildPut,
+  getUserAiSettingsApiV1GGuildIdSettingsAiUserGet,
+  testAiConnectionApiV1GGuildIdSettingsAiTestPost,
+  updateGuildAiSettingsApiV1GGuildIdSettingsAiGuildPut,
   updatePlatformAiSettingsApiV1SettingsAiPlatformPut,
-  updateUserAiSettingsApiV1SettingsAiUserPut,
+  updateUserAiSettingsApiV1GGuildIdSettingsAiUserPut,
 } from "@/api/generated/ai-settings/ai-settings";
 import type {
   AIModelsRequest,
@@ -31,6 +31,7 @@ import {
   invalidateResolvedAISettings,
   invalidateUserAISettings,
 } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -49,21 +50,30 @@ export const useGuildAISettings = (
   guildId: number | string | null | undefined,
   options?: QueryOpts<GuildAISettingsResponse>
 ) => {
+  const activeGuildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<GuildAISettingsResponse>({
-    queryKey: [...getGetGuildAiSettingsApiV1SettingsAiGuildGetQueryKey(), guildId],
+    queryKey: [
+      ...getGetGuildAiSettingsApiV1GGuildIdSettingsAiGuildGetQueryKey(activeGuildId),
+      guildId,
+    ],
     queryFn: () =>
-      getGuildAiSettingsApiV1SettingsAiGuildGet() as unknown as Promise<GuildAISettingsResponse>,
+      getGuildAiSettingsApiV1GGuildIdSettingsAiGuildGet(
+        activeGuildId
+      ) as unknown as Promise<GuildAISettingsResponse>,
     enabled: userEnabled && !!guildId,
     ...rest,
   });
 };
 
 export const useUserAISettings = () => {
+  const guildId = useActiveGuildId();
   return useQuery<UserAISettingsResponse>({
-    queryKey: getGetUserAiSettingsApiV1SettingsAiUserGetQueryKey(),
+    queryKey: getGetUserAiSettingsApiV1GGuildIdSettingsAiUserGetQueryKey(guildId),
     queryFn: () =>
-      getUserAiSettingsApiV1SettingsAiUserGet() as unknown as Promise<UserAISettingsResponse>,
+      getUserAiSettingsApiV1GGuildIdSettingsAiUserGet(
+        guildId
+      ) as unknown as Promise<UserAISettingsResponse>,
   });
 };
 
@@ -94,13 +104,15 @@ export const useUpdatePlatformAISettings = (
 export const useUpdateGuildAISettings = (
   options?: MutationOpts<GuildAISettingsResponse, GuildAISettingsUpdate>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: GuildAISettingsUpdate) => {
-      return updateGuildAiSettingsApiV1SettingsAiGuildPut(
-        data as Parameters<typeof updateGuildAiSettingsApiV1SettingsAiGuildPut>[0]
+      return updateGuildAiSettingsApiV1GGuildIdSettingsAiGuildPut(
+        guildId,
+        data as Parameters<typeof updateGuildAiSettingsApiV1GGuildIdSettingsAiGuildPut>[1]
       ) as unknown as Promise<GuildAISettingsResponse>;
     },
     onSuccess: (...args) => {
@@ -116,13 +128,15 @@ export const useUpdateGuildAISettings = (
 export const useUpdateUserAISettings = (
   options?: MutationOpts<UserAISettingsResponse, UserAISettingsUpdate>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: UserAISettingsUpdate) => {
-      return updateUserAiSettingsApiV1SettingsAiUserPut(
-        data as Parameters<typeof updateUserAiSettingsApiV1SettingsAiUserPut>[0]
+      return updateUserAiSettingsApiV1GGuildIdSettingsAiUserPut(
+        guildId,
+        data as Parameters<typeof updateUserAiSettingsApiV1GGuildIdSettingsAiUserPut>[1]
       ) as unknown as Promise<UserAISettingsResponse>;
     },
     onSuccess: (...args) => {
@@ -138,13 +152,15 @@ export const useUpdateUserAISettings = (
 export const useTestAIConnection = (
   options?: MutationOpts<AITestConnectionResponse, AITestConnectionRequest>
 ) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: AITestConnectionRequest) => {
-      return testAiConnectionApiV1SettingsAiTestPost(
-        data as Parameters<typeof testAiConnectionApiV1SettingsAiTestPost>[0]
+      return testAiConnectionApiV1GGuildIdSettingsAiTestPost(
+        guildId,
+        data as Parameters<typeof testAiConnectionApiV1GGuildIdSettingsAiTestPost>[1]
       ) as unknown as Promise<AITestConnectionResponse>;
     },
     onSuccess,
@@ -154,13 +170,15 @@ export const useTestAIConnection = (
 };
 
 export const useFetchAIModels = (options?: MutationOpts<AIModelsResponse, AIModelsRequest>) => {
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: AIModelsRequest) => {
-      return fetchAiModelsApiV1SettingsAiModelsPost(
-        data as Parameters<typeof fetchAiModelsApiV1SettingsAiModelsPost>[0]
+      return fetchAiModelsApiV1GGuildIdSettingsAiModelsPost(
+        guildId,
+        data as Parameters<typeof fetchAiModelsApiV1GGuildIdSettingsAiModelsPost>[1]
       ) as unknown as Promise<AIModelsResponse>;
     },
     onSuccess,

@@ -271,8 +271,12 @@ def _options_compatible(
     """
     if prop_type not in _SELECT_TYPES:
         return True
-    target_values = {o.get("value") for o in (target_options or []) if isinstance(o, dict)}
-    source_values = {o.get("value") for o in (source_options or []) if isinstance(o, dict)}
+    target_values = {
+        o.get("value") for o in (target_options or []) if isinstance(o, dict)
+    }
+    source_values = {
+        o.get("value") for o in (source_options or []) if isinstance(o, dict)
+    }
     return target_values == source_values
 
 

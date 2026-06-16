@@ -7,6 +7,8 @@ from typing import Any, Dict, Iterable, Mapping, Set, Tuple
 from urllib.parse import urlparse
 from uuid import uuid4
 
+from fastapi import UploadFile
+
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -15,6 +17,33 @@ UPLOADS_URL_PREFIX = "/uploads/"
 
 # Maximum file size for document uploads: 50 MB
 MAX_DOCUMENT_FILE_SIZE = 50 * 1024 * 1024
+
+
+class FileTooLargeError(Exception):
+    """Raised when an uploaded file exceeds the allowed byte limit.
+
+    Carries the limit so callers can build an accurate error response without
+    re-deriving it.
+    """
+
+    def __init__(self, max_size: int) -> None:
+        self.max_size = max_size
+        super().__init__(f"File exceeds maximum size of {max_size} bytes")
+
+
+async def read_upload_bounded(file: UploadFile, max_size: int) -> bytes:
+    """Read an upload without buffering more than ``max_size`` bytes.
+
+    Reads ``max_size + 1`` bytes so an over-limit body is detected from the
+    single extra byte instead of materializing the whole payload in memory
+    (which would let a large upload exhaust process memory). Returns the file
+    bytes when within the limit; raises :class:`FileTooLargeError` otherwise.
+    """
+    contents = await file.read(max_size + 1)
+    if len(contents) > max_size:
+        raise FileTooLargeError(max_size)
+    return contents
+
 
 # Supported MIME types for document file uploads (based on react-doc-viewer support)
 ALLOWED_DOCUMENT_MIME_TYPES: Dict[str, str] = {
@@ -76,10 +105,13 @@ def normalize_upload_url(url: str | None) -> str | None:
         path = parsed.path or ""
     if not path.startswith(UPLOADS_URL_PREFIX):
         return None
-    filename = Path(path).name
-    if not filename:
+    # Keep the full ``/uploads/{guild_id}/{filename}`` path (only origin/query are
+    # dropped): the guild segment is part of the canonical URL, so content
+    # rewrites and dedup compare like-for-like. Disk ops take ``Path(url).name``,
+    # which is the filename regardless of the guild segment.
+    if not Path(path).name:
         return None
-    return f"{UPLOADS_URL_PREFIX}{filename}"
+    return path
 
 
 def delete_upload_by_url(url: str | None) -> None:
@@ -258,11 +290,17 @@ def duplicate_upload(url: str | None) -> str | None:
             continue
         try:
             shutil.copy2(source_path, destination)
-            return f"{UPLOADS_URL_PREFIX}{destination.name}"
+            # Keep the source URL's ``/uploads/{guild_id}`` prefix — a duplicate
+            # stays in the same guild — and swap only the filename segment.
+            return f"{normalized.rsplit('/', 1)[0]}/{destination.name}"
         except OSError as exc:
-            logger.error("Failed to duplicate upload %s -> %s: %s", source_path, destination, exc)
+            logger.error(
+                "Failed to duplicate upload %s -> %s: %s", source_path, destination, exc
+            )
             return normalized
-    logger.error("Unable to allocate new filename for duplicated upload %s", source_path)
+    logger.error(
+        "Unable to allocate new filename for duplicated upload %s", source_path
+    )
     return normalized
 
 
@@ -304,6 +342,7 @@ def detect_mime_type(content: bytes, filename: str | None = None) -> str | None:
     """
     try:
         import magic
+
         detected = magic.from_buffer(content, mime=True)
         if detected:
             return detected
@@ -338,7 +377,9 @@ def validate_document_file(
         ValueError: If validation fails
     """
     if len(content) > MAX_DOCUMENT_FILE_SIZE:
-        raise ValueError(f"File exceeds maximum size of {MAX_DOCUMENT_FILE_SIZE // (1024 * 1024)} MB")
+        raise ValueError(
+            f"File exceeds maximum size of {MAX_DOCUMENT_FILE_SIZE // (1024 * 1024)} MB"
+        )
 
     if not content:
         raise ValueError("Uploaded file is empty")
@@ -364,7 +405,9 @@ def validate_document_file(
         if content_type and content_type in ALLOWED_DOCUMENT_MIME_TYPES:
             detected_mime = content_type
         else:
-            raise ValueError("Unable to determine file type. Supported types: PDF, Word, Excel, PowerPoint, TXT, HTML, images, Markdown")
+            raise ValueError(
+                "Unable to determine file type. Supported types: PDF, Word, Excel, PowerPoint, TXT, HTML, images, Markdown"
+            )
 
     # Get extension for the detected MIME type
     extension = ALLOWED_DOCUMENT_MIME_TYPES.get(detected_mime, "")
@@ -372,21 +415,26 @@ def validate_document_file(
     # If we have a filename, prefer its extension if it matches
     if filename:
         file_ext = Path(filename).suffix.lower()
-        if file_ext in EXTENSION_TO_MIME and EXTENSION_TO_MIME[file_ext] == detected_mime:
+        if (
+            file_ext in EXTENSION_TO_MIME
+            and EXTENSION_TO_MIME[file_ext] == detected_mime
+        ):
             extension = file_ext
 
     return detected_mime, extension
 
 
-def save_document_file(content: bytes, extension: str) -> str:
+def save_document_file(content: bytes, extension: str, guild_id: int) -> str:
     """Save document file content to the uploads directory.
 
     Args:
         content: File content bytes
         extension: File extension (including dot)
+        guild_id: Guild the file belongs to — encoded into the URL path so the
+            served media self-describes its guild (e.g. /uploads/7/abc123.pdf).
 
     Returns:
-        URL path to the uploaded file (e.g., /uploads/abc123.pdf)
+        URL path to the uploaded file (e.g., /uploads/7/abc123.pdf)
     """
     safe_extension = extension if extension.startswith(".") else f".{extension}"
     filename = f"{uuid4().hex}{safe_extension}"
@@ -395,4 +443,4 @@ def save_document_file(content: bytes, extension: str) -> str:
     destination = upload_dir / filename
     destination.write_bytes(content)
 
-    return f"{UPLOADS_URL_PREFIX}{filename}"
+    return f"{UPLOADS_URL_PREFIX}{guild_id}/{filename}"

@@ -26,6 +26,7 @@ class CounterPermissionLevel(str, Enum):
 
 class CounterGroup(SoftDeleteMixin, table=True):
     """Initiative-scoped container for a set of related counters."""
+
     __tablename__ = "counter_groups"
     _owner_field = "created_by_id"
 
@@ -67,6 +68,7 @@ class CounterGroup(SoftDeleteMixin, table=True):
 
 class Counter(SoftDeleteMixin, table=True):
     """A single named numeric counter inside a counter group."""
+
     __tablename__ = "counters"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -134,6 +136,7 @@ class Counter(SoftDeleteMixin, table=True):
 
 class CounterGroupPermission(SQLModel, table=True):
     """Per-user permission on a counter group."""
+
     __tablename__ = "counter_group_permissions"
 
     counter_group_id: int = Field(foreign_key="counter_groups.id", primary_key=True)
@@ -160,6 +163,7 @@ class CounterGroupPermission(SQLModel, table=True):
 
 class CounterGroupRolePermission(SQLModel, table=True):
     """Per-initiative-role permission on a counter group."""
+
     __tablename__ = "counter_group_role_permissions"
 
     counter_group_id: int = Field(foreign_key="counter_groups.id", primary_key=True)

@@ -25,6 +25,7 @@ import {
 import { getSelectedNode } from "@/components/ui/editor/utils/get-selected-node";
 import { setFloatingElemPositionForLinkEditor } from "@/components/ui/editor/utils/set-floating-elem-position-for-link-editor";
 import { Input } from "@/components/ui/input";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
 
 interface FloatingWikilinkEditorProps {
@@ -48,6 +49,7 @@ function FloatingWikilinkEditor({
   onCreateDocument,
   setWikilinkNode,
 }: FloatingWikilinkEditorProps): JSX.Element {
+  const guildId = useActiveGuildId();
   const editorRef = useRef<HTMLDivElement | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -149,7 +151,7 @@ function FloatingWikilinkEditor({
     const search = async () => {
       setIsSearching(true);
       try {
-        const results = await autocompleteDocuments(initiativeId, searchQuery, 5);
+        const results = await autocompleteDocuments(guildId, initiativeId, searchQuery, 5);
         if (!cancelled) {
           setSearchResults(results);
         }
@@ -170,7 +172,7 @@ function FloatingWikilinkEditor({
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [searchQuery, isEditing, initiativeId]);
+  }, [searchQuery, isEditing, initiativeId, guildId]);
 
   // Handle selecting a new document
   const handleSelectDocument = useCallback(

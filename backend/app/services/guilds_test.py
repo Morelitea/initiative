@@ -184,27 +184,6 @@ async def test_ensure_membership_force_role_updates(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
-async def test_resolve_user_guild_id_from_header(session: AsyncSession):
-    """Test that explicit guild_id takes precedence."""
-    user = await create_user(session)
-    guild1 = await create_guild(session, name="Guild 1")
-    guild2 = await create_guild(session, name="Guild 2")
-
-    await create_guild_membership(session, user=user, guild=guild1)
-    await create_guild_membership(session, user=user, guild=guild2)
-
-    # Explicit guild_id should be used
-    resolved = await guild_service.resolve_user_guild_id(
-        session,
-        user=user,
-        guild_id=guild2.id,
-    )
-
-    assert resolved == guild2.id
-
-
-@pytest.mark.unit
-@pytest.mark.service
 async def test_list_memberships(session: AsyncSession):
     """Test listing all memberships for a user."""
     user = await create_user(session)
@@ -217,7 +196,7 @@ async def test_list_memberships(session: AsyncSession):
     memberships = await guild_service.list_memberships(session, user_id=user.id)
 
     assert len(memberships) == 2
-    guild_names = {guild.name for guild, _membership, _retention in memberships}
+    guild_names = {guild.name for guild, _membership, _retention, _count in memberships}
     assert "Guild 1" in guild_names
     assert "Guild 2" in guild_names
 
@@ -244,7 +223,7 @@ async def test_reorder_memberships(session: AsyncSession):
 
     # Verify order
     memberships = await guild_service.list_memberships(session, user_id=user.id)
-    ordered_ids = [guild.id for guild, _membership, _retention in memberships]
+    ordered_ids = [guild.id for guild, _membership, _retention, _count in memberships]
 
     assert ordered_ids == [guild3.id, guild1.id, guild2.id]
 
@@ -418,6 +397,110 @@ async def test_redeem_invite_expired_raises_error(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_redeem_email_bound_invite_wrong_user_rejected(session: AsyncSession):
+    """An email-bound invite must reject a user whose email differs (SEC-15)."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    wrong_user = await create_user(session, email="someone-else@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email="invitee@example.com",
+        max_uses=5,
+    )
+
+    with pytest.raises(guild_service.GuildInviteError, match="INVITE_EMAIL_MISMATCH"):
+        await guild_service.redeem_invite_for_user(
+            session,
+            code=invite.code,
+            user=wrong_user,
+        )
+
+    # Membership must NOT have been created and the use count must be untouched.
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=wrong_user.id
+    )
+    assert membership is None
+
+    stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
+    result = await session.exec(stmt)
+    assert result.one().uses == 0
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_email_bound_invite_matching_user_succeeds(
+    session: AsyncSession,
+):
+    """An email-bound invite admits the matching user, case-insensitively."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    # User's stored email is normalized (lowercased) by create_user; the invite
+    # carries a mixed-case form to prove normalization is applied on both sides.
+    invitee = await create_user(session, email="invitee@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email="Invitee@Example.com",
+        max_uses=5,
+    )
+
+    redeemed_guild = await guild_service.redeem_invite_for_user(
+        session,
+        code=invite.code,
+        user=invitee,
+    )
+
+    assert redeemed_guild.id == guild.id
+
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=invitee.id
+    )
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+    stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
+    result = await session.exec(stmt)
+    assert result.one().uses == 1
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_unbound_invite_any_user_succeeds(session: AsyncSession):
+    """An invite with no bound email stays a shareable link (unchanged behavior)."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    redeemer = await create_user(session, email="random@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email=None,
+        max_uses=5,
+    )
+
+    redeemed_guild = await guild_service.redeem_invite_for_user(
+        session,
+        code=invite.code,
+        user=redeemer,
+    )
+
+    assert redeemed_guild.id == guild.id
+
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=redeemer.id
+    )
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+
+@pytest.mark.unit
+@pytest.mark.service
 async def test_delete_guild_invite(session: AsyncSession):
     """Test deleting a guild invite."""
     guild = await create_guild(session)
@@ -467,26 +550,74 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
         # double-check no setting row exists (factory shouldn't create one)
         select(GuildSetting).where(GuildSetting.guild_id == guild.id)
     )
-    assert (
-        await guild_service.get_guild_retention_days(session, guild.id)
-    ) == 90
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 90
 
     # 2. Row exists with retention_days = 30 -> 30.
     setting = GuildSetting(guild_id=guild.id, retention_days=30)
     session.add(setting)
     await session.commit()
-    assert (
-        await guild_service.get_guild_retention_days(session, guild.id)
-    ) == 30
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 30
 
     # 3. Row exists with retention_days = NULL -> None ("never").
     setting.retention_days = None
     session.add(setting)
     await session.commit()
-    assert (
-        await guild_service.get_guild_retention_days(session, guild.id)
-    ) is None
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) is None
 
     # Suppress unused-name warning if linters complain about the user
     # we created for symmetry with other tests in this module.
     _ = user
+
+
+async def test_list_memberships_reads_retention_per_guild(session: AsyncSession):
+    """retention_days lives in each guild's own schema. The guild list must read
+    it per guild with the user's context — a single cross-guild join hits the
+    empty public guild_settings and reports NULL for everyone."""
+    from app.models.guild_setting import GuildSetting
+
+    user = await create_user(session)
+
+    guild_30 = await create_guild(session, creator=user)
+    await create_guild_membership(
+        session, user=user, guild=guild_30, role=GuildRole.admin
+    )
+    session.add(GuildSetting(guild_id=guild_30.id, retention_days=30))
+    await session.commit()
+
+    # A guild with no settings row should fall back to the 90-day default.
+    guild_default = await create_guild(session, creator=user)
+    await create_guild_membership(
+        session, user=user, guild=guild_default, role=GuildRole.admin
+    )
+    await session.commit()
+
+    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    by_guild = {
+        guild.id: retention for guild, _membership, retention, _count in memberships
+    }
+
+    assert by_guild[guild_30.id] == 30  # read from the guild's own schema
+    assert by_guild[guild_default.id] == 90  # default when no settings row
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_list_memberships_includes_member_count(session: AsyncSession):
+    """The guild list reports each guild's total member count, not just the
+    requesting user's membership (the guild_memberships_select RLS policy only
+    exposes sibling rows while that guild's context is active)."""
+    user = await create_user(session)
+    other = await create_user(session, email="other@example.com")
+
+    shared = await create_guild(session, name="Shared")
+    await create_guild_membership(session, user=user, guild=shared)
+    await create_guild_membership(session, user=other, guild=shared)
+
+    solo = await create_guild(session, name="Solo")
+    await create_guild_membership(session, user=user, guild=solo)
+
+    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    counts = {guild.id: count for guild, _membership, _retention, count in memberships}
+
+    assert counts[shared.id] == 2
+    assert counts[solo.id] == 1

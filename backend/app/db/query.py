@@ -302,14 +302,31 @@ def _resolve_sort_fields(
     return result
 
 
+def unbounded_page_limit() -> int:
+    """Absolute row ceiling applied to an "all rows" (``page_size<=0``) request.
+
+    Reads ``MAX_UNBOUNDED_PAGE_SIZE`` at call time so the cap is configurable per
+    deployment (and overridable in tests) without rebinding this module.
+    """
+    from app.core.config import settings
+
+    return settings.MAX_UNBOUNDED_PAGE_SIZE
+
+
 def apply_pagination(
     statement: Select,
     page: int = 1,
     page_size: int = 20,
 ) -> Select:
-    """Apply OFFSET/LIMIT. ``page_size=0`` means no pagination (all rows)."""
+    """Apply OFFSET/LIMIT.
+
+    ``page_size<=0`` means "all rows" — but never truly unbounded: a hard
+    server-side ceiling (``MAX_UNBOUNDED_PAGE_SIZE``) is applied so a single
+    request can't dump an entire table (SEC-14). The "0 = all" convention is
+    preserved for the caller; only the row count is capped.
+    """
     if page_size <= 0:
-        return statement
+        return statement.limit(unbounded_page_limit())
     return statement.offset((page - 1) * page_size).limit(page_size)
 
 
@@ -324,6 +341,7 @@ def _clamp_page(page: int, page_size: int, total_count: int) -> int:
     if total_count == 0:
         return 1
     import math
+
     total_pages = math.ceil(total_count / page_size)
     if page > total_pages:
         return 1
@@ -366,7 +384,11 @@ def build_paginated_response(
     """
     if page_size <= 0:
         effective_page = 1
-        has_next = False
+        # "All rows" requests are still capped at unbounded_page_limit()
+        # (SEC-14). When the cap truncated the result, surface it via
+        # has_next so the SPA can tell data is missing instead of silently
+        # treating the first N rows as the complete set.
+        has_next = len(items) < total_count
         has_prev = False
     else:
         effective_page = page

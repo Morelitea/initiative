@@ -62,7 +62,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/my-project
     try {
       await queryClient.ensureQueryData({
         queryKey: ["projects", "global", guildFilters, "", 1, PAGE_SIZE],
-        queryFn: () => apiClient.get("/projects/global", { params }).then((r) => r.data),
+        queryFn: () => apiClient.get("/me/projects", { params }).then((r) => r.data),
         staleTime: 30_000,
       });
     } catch {
@@ -70,6 +70,6 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/my-project
     }
   },
   component: lazyRouteComponent(() =>
-    import("@/pages/MyProjectsPage").then((m) => ({ default: m.MyProjectsPage }))
+    import("@/pages/user/MyProjectsPage").then((m) => ({ default: m.MyProjectsPage }))
   ),
 });

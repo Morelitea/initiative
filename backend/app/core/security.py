@@ -58,10 +58,96 @@ def password_needs_rehash(hashed_password: str) -> bool:
         return True
 
 
-def create_access_token(subject: str, *, token_version: int, expires_delta: timedelta | None = None) -> str:
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+def create_access_token(
+    subject: str, *, token_version: int, expires_delta: timedelta | None = None
+) -> str:
+    expire = datetime.now(timezone.utc) + (
+        expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     to_encode: dict[str, Any] = {"sub": subject, "exp": expire, "ver": token_version}
-    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    return jwt.encode(to_encode, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Scoped upload tokens
+#
+# Native (Capacitor) WebViews can't attach an Authorization header or send the
+# HttpOnly session cookie to <img>/<iframe> media loads, so the URL has to carry
+# the credential as a ``?token=`` query param. Putting the 7-day session JWT
+# there leaks a full-API credential into logs, history, and Referer headers.
+# Instead the app mints one of these: a short-lived, uploads-only JWT that the
+# /uploads route (and document download routes) accept via ``?token=`` but that
+# is useless for any other API call (it carries no ``ver`` and a distinct
+# ``aud``/``scope``, so ``get_current_user`` rejects it).
+# ──────────────────────────────────────────────────────────────────────────
+
+# Audience + scope claims that mark a token as a scoped upload credential. The
+# uploads auth dependency MUST verify both before honoring a query-param token,
+# and the general session-JWT path MUST reject any token carrying this audience.
+UPLOAD_TOKEN_AUDIENCE = "initiative:uploads"
+UPLOAD_TOKEN_SCOPE = "uploads"
+
+# Short lifetime: long enough to render a page's worth of media after the SPA
+# fetches one, short enough that a leak (history, Referer, proxy log) is stale
+# fast. The SPA refreshes it transparently when it expires.
+UPLOAD_TOKEN_LIFETIME = timedelta(minutes=10)
+
+
+class UploadTokenError(Exception):
+    """Raised when a presented upload token fails verification."""
+
+
+def create_upload_token(
+    *,
+    user_id: int,
+    expires_in: timedelta = UPLOAD_TOKEN_LIFETIME,
+) -> tuple[str, int]:
+    """Mint a short-lived, uploads-scoped JWT for ``user_id``.
+
+    Returns ``(token, expires_in_seconds)`` so the SPA can schedule a refresh
+    before the token lapses. Signed with the same HS256 JWT key as the session
+    JWT but distinguished by its ``aud``/``scope`` claims and the absence of
+    ``ver`` — the general auth path will not accept it.
+    """
+    now = datetime.now(timezone.utc)
+    payload: dict[str, Any] = {
+        "sub": str(user_id),
+        "aud": UPLOAD_TOKEN_AUDIENCE,
+        "scope": UPLOAD_TOKEN_SCOPE,
+        "iat": int(now.timestamp()),
+        "exp": now + expires_in,
+    }
+    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
+    return token, int(expires_in.total_seconds())
+
+
+def verify_upload_token(token: str) -> int:
+    """Verify a scoped upload token and return the user id it names.
+
+    Raises :class:`UploadTokenError` on any failure (bad signature, expired,
+    wrong audience, missing/extra-scoped claims). The caller treats that as
+    "this isn't a valid upload token" and 401s — it never falls back to
+    accepting it as a session credential.
+    """
+    try:
+        payload = jwt.decode(
+            token,
+            settings.jwt_signing_key,
+            algorithms=[settings.ALGORITHM],
+            audience=UPLOAD_TOKEN_AUDIENCE,
+            options={"require": ["exp", "iat", "sub", "aud"]},
+        )
+    except jwt.PyJWTError as exc:
+        raise UploadTokenError(str(exc)) from exc
+
+    if payload.get("scope") != UPLOAD_TOKEN_SCOPE:
+        raise UploadTokenError("not an uploads-scoped token")
+
+    sub = payload.get("sub")
+    try:
+        return int(sub)
+    except (TypeError, ValueError) as exc:
+        raise UploadTokenError("sub must be a numeric user id") from exc
 
 
 # Audience claim for tokens minted for the embedded advanced-tool iframe.
@@ -80,8 +166,8 @@ ADVANCED_TOOL_HANDOFF_LIFETIME = timedelta(seconds=60)
 def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
     """Pick (key, algorithm, kid) for signing advanced-tool handoff JWTs.
 
-    Default: HS256 with SECRET_KEY — works out of the box for OSS but
-    requires sharing the secret with the embed backend (single point of
+    Default: HS256 with the JWT signing key — works out of the box for OSS
+    but requires sharing the secret with the embed backend (single point of
     compromise).
 
     Preferred: RS256 with HANDOFF_SIGNING_PRIVATE_KEY_PEM — FOSS holds
@@ -93,7 +179,7 @@ def _resolve_handoff_signing_material() -> tuple[str, str, str | None]:
     private_pem = settings.HANDOFF_SIGNING_PRIVATE_KEY_PEM
     if private_pem:
         return private_pem, "RS256", settings.HANDOFF_SIGNING_KEY_ID
-    return settings.SECRET_KEY, "HS256", None
+    return settings.jwt_signing_key, "HS256", None
 
 
 def create_advanced_tool_handoff_token(
@@ -227,7 +313,9 @@ def verify_auto_delegation_token(token: str) -> AutoDelegationClaims:
 
     initiative_id = payload.get("initiative_id")
     if initiative_id is not None and not isinstance(initiative_id, int):
-        raise AutoDelegationVerificationError("initiative_id must be an int when present")
+        raise AutoDelegationVerificationError(
+            "initiative_id must be an int when present"
+        )
 
     workflow_id = payload.get("workflow_id")
     if workflow_id is not None and not isinstance(workflow_id, int):

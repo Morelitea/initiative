@@ -49,6 +49,7 @@ const renderViewer = (props: Partial<Parameters<typeof FileDocumentViewer>[0]> =
   renderWithProviders(
     <FileDocumentViewer
       documentId={5}
+      guildId={7}
       fileUrl="/uploads/doc.pdf"
       contentType="application/pdf"
       originalFilename="doc.pdf"

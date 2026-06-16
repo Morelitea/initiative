@@ -31,6 +31,10 @@ export interface GuildContextValue {
   error: string | null;
   refreshGuilds: () => Promise<void>;
   switchGuild: (guildId: number) => Promise<void>;
+  /** Push the server-held guild context + local state for a guild URL.
+   * Awaited in the /g/$guildId beforeLoad so child routes can't fetch
+   * before the context lands. Idempotent. */
+  syncGuildFromUrl: (guildId: number) => Promise<void>;
   createGuild: (input: { name: string; description?: string }) => Promise<unknown>;
   updateGuildInState: (guild: GuildRead) => void;
   reorderGuilds: (guildIds: number[]) => void;

@@ -48,7 +48,7 @@ import { useGuildPath } from "@/lib/guildUrl";
 
 export function QueueDetailPage() {
   const { t } = useTranslation(["queues", "common"]);
-  const { queueId } = useParams({ strict: false }) as { queueId: string };
+  const { guildId, queueId } = useParams({ strict: false }) as { guildId: string; queueId: string };
   const parsedId = Number(queueId);
   const navigate = useNavigate();
   const gp = useGuildPath();
@@ -57,7 +57,7 @@ export function QueueDetailPage() {
   const queue = queueQuery.data;
 
   // Track recently viewed queues for the layout header tabs bar.
-  const recordViewMutation = useRecordRecentView("queue");
+  const recordViewMutation = useRecordRecentView("queue", Number(guildId));
   const viewedQueueId = queue?.id;
   useEffect(() => {
     if (!viewedQueueId) return;

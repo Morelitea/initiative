@@ -13,7 +13,15 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.comment import Comment
-from app.models.document import Document, DocumentLink, DocumentPermission, DocumentPermissionLevel, DocumentRolePermission, DocumentType, ProjectDocument
+from app.models.document import (
+    Document,
+    DocumentLink,
+    DocumentPermission,
+    DocumentPermissionLevel,
+    DocumentRolePermission,
+    DocumentType,
+    ProjectDocument,
+)
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.property import DocumentPropertyValue
@@ -103,6 +111,7 @@ def normalize_document_content(
         # Imported lazily to avoid a circular import: documents_spreadsheet
         # imports DocumentContentError from this module.
         from app.services.documents_spreadsheet import normalize_spreadsheet_content
+
         return normalize_spreadsheet_content(payload)
 
     # native (default)
@@ -137,11 +146,15 @@ async def get_document(
             .selectinload(Initiative.memberships)
             .options(
                 selectinload(InitiativeMember.user),
-                selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions),
+                selectinload(InitiativeMember.role_ref).selectinload(
+                    InitiativeRoleModel.permissions
+                ),
             ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
             selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(DocumentRolePermission.role),
+            selectinload(Document.role_permissions).selectinload(
+                DocumentRolePermission.role
+            ),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
@@ -226,7 +239,9 @@ async def duplicate_document(
     content_uploads = attachments_service.extract_upload_urls(content_copy)
     replacements = attachments_service.duplicate_uploads(content_uploads)
     if replacements:
-        content_copy = attachments_service.replace_upload_urls(content_copy, replacements)
+        content_copy = attachments_service.replace_upload_urls(
+            content_copy, replacements
+        )
 
     featured_image_url = attachments_service.duplicate_upload(source.featured_image_url)
 
@@ -242,12 +257,14 @@ async def duplicate_document(
             fname = new_url.split("/")[-1]
             if fname:
                 fpath = upload_dir / fname
-                new_upload_records.append(Upload(
-                    filename=fname,
-                    guild_id=effective_guild_id,
-                    uploader_user_id=user_id,
-                    size_bytes=fpath.stat().st_size if fpath.exists() else 0,
-                ))
+                new_upload_records.append(
+                    Upload(
+                        filename=fname,
+                        guild_id=effective_guild_id,
+                        uploader_user_id=user_id,
+                        size_bytes=fpath.stat().st_size if fpath.exists() else 0,
+                    )
+                )
         if new_upload_records:
             session.add_all(new_upload_records)
 
@@ -277,13 +294,15 @@ async def duplicate_document(
     # Copy tags from source document
     source_tag_links = getattr(source, "tag_links", None) or []
     if source_tag_links:
-        session.add_all([
-            DocumentTag(
-                document_id=duplicated.id,
-                tag_id=link.tag_id,
-            )
-            for link in source_tag_links
-        ])
+        session.add_all(
+            [
+                DocumentTag(
+                    document_id=duplicated.id,
+                    tag_id=link.tag_id,
+                )
+                for link in source_tag_links
+            ]
+        )
 
     # Copy property values ONLY when the target initiative matches the
     # source's — definitions are initiative-scoped, so cross-initiative
@@ -295,20 +314,24 @@ async def duplicate_document(
         source_values_result = await session.exec(source_value_stmt)
         source_values = source_values_result.all()
         if source_values:
-            session.add_all([
-                DocumentPropertyValue(
-                    document_id=duplicated.id,
-                    property_id=row.property_id,
-                    value_text=row.value_text,
-                    value_number=row.value_number,
-                    value_boolean=row.value_boolean,
-                    value_date=row.value_date,
-                    value_datetime=row.value_datetime,
-                    value_user_id=row.value_user_id,
-                    value_json=deepcopy(row.value_json) if row.value_json is not None else None,
-                )
-                for row in source_values
-            ])
+            session.add_all(
+                [
+                    DocumentPropertyValue(
+                        document_id=duplicated.id,
+                        property_id=row.property_id,
+                        value_text=row.value_text,
+                        value_number=row.value_number,
+                        value_boolean=row.value_boolean,
+                        value_date=row.value_date,
+                        value_datetime=row.value_datetime,
+                        value_user_id=row.value_user_id,
+                        value_json=deepcopy(row.value_json)
+                        if row.value_json is not None
+                        else None,
+                    )
+                    for row in source_values
+                ]
+            )
 
     await session.commit()
     return duplicated
@@ -357,7 +380,11 @@ async def handle_owner_removal(
     for doc in documents:
         # Remove owner's permission
         owner_permission = next(
-            (p for p in doc.permissions if p.user_id == user_id and p.level == DocumentPermissionLevel.owner),
+            (
+                p
+                for p in doc.permissions
+                if p.user_id == user_id and p.level == DocumentPermissionLevel.owner
+            ),
             None,
         )
         if owner_permission:
@@ -368,7 +395,9 @@ async def handle_owner_removal(
         # initiative where every PM was previously listed at a lower
         # level would end up with no owner at all once the original
         # owner's row is dropped.
-        existing_by_user = {p.user_id: p for p in doc.permissions if p.user_id != user_id}
+        existing_by_user = {
+            p.user_id: p for p in doc.permissions if p.user_id != user_id
+        }
         for pm_user_id in pm_user_ids:
             if pm_user_id == user_id:
                 continue
@@ -389,7 +418,9 @@ async def handle_owner_removal(
     await session.flush()
 
 
-async def annotate_comment_counts(session: AsyncSession, documents: Sequence[Document]) -> None:
+async def annotate_comment_counts(
+    session: AsyncSession, documents: Sequence[Document]
+) -> None:
     document_ids = [document.id for document in documents if document.id is not None]
     if not document_ids:
         return
@@ -437,7 +468,9 @@ def extract_wikilink_document_ids(content: dict[str, Any] | None) -> set[int]:
     return document_ids
 
 
-def unresolve_invalid_wikilinks(content: dict[str, Any], valid_doc_ids: set[int]) -> bool:
+def unresolve_invalid_wikilinks(
+    content: dict[str, Any], valid_doc_ids: set[int]
+) -> bool:
     """Set documentId to null for wikilinks pointing to non-existent documents.
 
     This fixes stale wikilinks that reference deleted documents.
@@ -551,17 +584,13 @@ async def get_backlinks(
     Only returns documents the user has permission to access.
     """
     # Subquery: documents where user has explicit or role-based permission
-    user_perm_subq = (
-        select(DocumentPermission.document_id)
-        .where(DocumentPermission.user_id == user_id)
+    user_perm_subq = select(DocumentPermission.document_id).where(
+        DocumentPermission.user_id == user_id
     )
-    role_perm_subq = (
-        select(DocumentRolePermission.document_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user_id),
-        )
+    role_perm_subq = select(DocumentRolePermission.document_id).join(
+        InitiativeMember,
+        (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
+        & (InitiativeMember.user_id == user_id),
     )
     has_permission_subq = user_perm_subq.union(role_perm_subq)
 
@@ -579,7 +608,9 @@ async def get_backlinks(
     return list(result.all())
 
 
-def _unresolve_wikilinks_in_content(content: dict[str, Any], target_document_id: int) -> bool:
+def _unresolve_wikilinks_in_content(
+    content: dict[str, Any], target_document_id: int
+) -> bool:
     """Set documentId to null for wikilinks pointing to the target document.
 
     Returns True if any changes were made.
@@ -591,7 +622,10 @@ def _unresolve_wikilinks_in_content(content: dict[str, Any], target_document_id:
         if not isinstance(node, dict):
             return
         # Check if this is a wikilink node pointing to the target
-        if node.get("type") == "wikilink" and node.get("documentId") == target_document_id:
+        if (
+            node.get("type") == "wikilink"
+            and node.get("documentId") == target_document_id
+        ):
             node["documentId"] = None
             changed = True
         # Recursively process children
@@ -649,7 +683,9 @@ async def unresolve_wikilinks_to_document(
                 affected_doc_ids.append(doc.id)
 
     # Delete the document_links entries pointing to this document
-    links_stmt = select(DocumentLink).where(DocumentLink.target_document_id == deleted_document_id)
+    links_stmt = select(DocumentLink).where(
+        DocumentLink.target_document_id == deleted_document_id
+    )
     links_result = await session.exec(links_stmt)
     for link in links_result.all():
         await session.delete(link)

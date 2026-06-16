@@ -28,6 +28,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useInitiativeDocuments } from "@/hooks/useDocuments";
 import { useAttachProjectDocument, useDetachProjectDocument } from "@/hooks/useProjects";
@@ -51,6 +52,7 @@ export const ProjectDocumentsSection = ({
 }: ProjectDocumentsSectionProps) => {
   const { t } = useTranslation("projects");
   const dateLocale = useDateLocale();
+  const guildId = useActiveGuildId();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [selectedDocumentId, setSelectedDocumentId] = useState<string>("");
@@ -230,7 +232,8 @@ export const ProjectDocumentsSection = ({
             <CarouselContent className="-ml-4">
               {documents.map((doc) => {
                 const summary =
-                  documentsById.get(doc.document_id) ?? createFallbackSummary(doc, initiativeId);
+                  documentsById.get(doc.document_id) ??
+                  createFallbackSummary(doc, initiativeId, guildId);
                 return (
                   <CarouselItem
                     key={doc.document_id}
@@ -283,9 +286,11 @@ export const ProjectDocumentsSection = ({
 
 const createFallbackSummary = (
   doc: ProjectDocumentSummary,
-  initiativeId: number
+  initiativeId: number,
+  guildId: number
 ): DocumentSummary => ({
   id: doc.document_id,
+  guild_id: guildId,
   initiative_id: initiativeId,
   title: doc.title,
   featured_image_url: null,

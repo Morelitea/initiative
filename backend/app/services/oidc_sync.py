@@ -3,11 +3,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from sqlmodel import select
+from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.db.session import set_rls_context
 from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import InitiativeMember, InitiativeRoleModel
+from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.oidc_claim_mapping import OIDCClaimMapping, OIDCMappingTargetType
 from app.models.user import User, UserStatus
 
@@ -37,7 +38,7 @@ def extract_claim_values(
 ) -> set[str]:
     """Extract claim values from userinfo or id_token using dot-notation path."""
 
-    def _traverse(data: dict, path_parts: list[str]) -> list | str | None:
+    def _traverse(data: dict, path_parts: list[str]) -> list | str | dict | None:
         current = data
         for part in path_parts:
             if not isinstance(current, dict):
@@ -106,7 +107,9 @@ async def sync_oidc_assignments(
         role = mapping.guild_role
         if gid not in guild_roles:
             guild_roles[gid] = role
-        elif _GUILD_ROLE_PRIORITY.get(role, 0) > _GUILD_ROLE_PRIORITY.get(guild_roles[gid], 0):
+        elif _GUILD_ROLE_PRIORITY.get(role, 0) > _GUILD_ROLE_PRIORITY.get(
+            guild_roles[gid], 0
+        ):
             guild_roles[gid] = role
 
     # Resolve initiative mappings: collect candidate role_ids per initiative,
@@ -115,122 +118,187 @@ async def sync_oidc_assignments(
     initiative_guild: dict[int, int] = {}  # initiative_id -> guild_id
     initiative_role_candidates: dict[int, list[int]] = {}  # initiative_id -> role_ids
     for mapping in matched:
-        if mapping.target_type == OIDCMappingTargetType.initiative and mapping.initiative_id is not None:
+        if (
+            mapping.target_type == OIDCMappingTargetType.initiative
+            and mapping.initiative_id is not None
+        ):
             initiative_guild[mapping.initiative_id] = mapping.guild_id
             if mapping.initiative_role_id is not None:
-                initiative_role_candidates.setdefault(mapping.initiative_id, []).append(mapping.initiative_role_id)
+                initiative_role_candidates.setdefault(mapping.initiative_id, []).append(
+                    mapping.initiative_role_id
+                )
             else:
                 initiative_role_candidates.setdefault(mapping.initiative_id, [])
 
-    # Resolve each to a single role_id using DB metadata
-    initiative_roles: dict[int, int | None] = {}  # initiative_id -> role_id
-    for key, candidate_ids in initiative_role_candidates.items():
-        if not candidate_ids:
-            initiative_roles[key] = None
-            continue
-        unique_ids = list(set(candidate_ids))
-        if len(unique_ids) == 1:
-            initiative_roles[key] = unique_ids[0]
-            continue
-        # Multiple different roles: pick manager first, then lowest position
-        roles = (await session.exec(
-            select(InitiativeRoleModel).where(InitiativeRoleModel.id.in_(unique_ids))
-        )).all()
-        if not roles:
-            initiative_roles[key] = unique_ids[0]
-            continue
-        roles.sort(key=lambda r: (not r.is_manager, r.position))
-        initiative_roles[key] = roles[0].id
+    # ``oidc_claim_mappings`` is shared, but initiatives/roles/members are
+    # guild-scoped (per-guild schemas). Every guild-scoped read/write below is
+    # therefore routed into the relevant guild's schema as superadmin — the
+    # unrouted (public) default would touch the frozen backup and silently
+    # desync SSO role assignment.
 
-    # --- Guild memberships ---
-    for guild_id, role_str in guild_roles.items():
-        role = GuildRole(role_str)
-        membership = await _get_guild_membership(session, user_id=user_id, guild_id=guild_id)
+    # --- Guild memberships (shared table — public/admin context) ---
+    # Apply matched guild roles, and ensure a membership exists for every guild
+    # that has a matched initiative so the initiative member can be added below.
+    ensure_member_guilds = set(guild_roles) | set(initiative_guild.values())
+    for guild_id in sorted(ensure_member_guilds):
+        desired = guild_roles.get(guild_id)
+        membership = await _get_guild_membership(
+            session, user_id=user_id, guild_id=guild_id
+        )
         if membership:
-            if not membership.oidc_managed:
-                # Manual membership — never overwrite
-                continue
-            if membership.role != role:
-                membership.role = role
-                session.add(membership)
-                result.guilds_updated.append(guild_id)
+            # Never overwrite a manual membership.
+            if desired is not None and membership.oidc_managed:
+                role = GuildRole(desired)
+                if membership.role != role:
+                    membership.role = role
+                    session.add(membership)
+                    result.guilds_updated.append(guild_id)
         else:
-            await _create_guild_membership(session, user_id=user_id, guild_id=guild_id, role=role)
+            role = GuildRole(desired) if desired is not None else GuildRole.member
+            await _create_guild_membership(
+                session, user_id=user_id, guild_id=guild_id, role=role
+            )
             result.guilds_added.append(guild_id)
+    await session.flush()
 
-    # --- Initiative memberships ---
-    for initiative_id, role_id in initiative_roles.items():
-        guild_id = initiative_guild[initiative_id]
-        # Ensure guild membership exists first (handled above or create here)
-        guild_membership = await _get_guild_membership(session, user_id=user_id, guild_id=guild_id)
-        if not guild_membership:
-            # Create guild membership as member if not in guild_roles
-            g_role = GuildRole(guild_roles.get(guild_id, GuildRole.member.value))
-            await _create_guild_membership(session, user_id=user_id, guild_id=guild_id, role=g_role)
-            result.guilds_added.append(guild_id)
-
-        im = await _get_initiative_membership(session, user_id=user_id, initiative_id=initiative_id)
-        if im:
-            if not im.oidc_managed:
-                continue
-            if role_id is not None and im.role_id != role_id:
-                im.role_id = role_id
-                session.add(im)
-                result.initiatives_updated.append(initiative_id)
-        else:
-            await _create_initiative_membership(
-                session,
-                user_id=user_id,
-                initiative_id=initiative_id,
-                guild_id=guild_id,
-                role_id=role_id,
+    # Guilds to visit for guild-scoped work: those the claims map to, plus every
+    # guild the user already belongs to (so stale oidc-managed initiative
+    # memberships get cleaned up). guild_memberships is shared/public.
+    existing_guild_ids = set(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id
+                )
             )
-            result.initiatives_added.append(initiative_id)
-
-    # --- Removal of stale oidc_managed memberships ---
-    # Remove initiative memberships first (with task cleanup), then guild memberships
-    from app.services.initiatives import (
-        clear_user_task_assignments_for_initiative,
-        remove_user_from_guild_initiatives,
+        ).all()
+    )
+    relevant_guilds = sorted(
+        existing_guild_ids | set(initiative_guild.values()) | set(guild_roles)
     )
 
-    stale_initiatives = await session.exec(
-        select(InitiativeMember).where(
-            InitiativeMember.user_id == user_id,
-            InitiativeMember.oidc_managed == True,  # noqa: E712
+    # --- Initiative resolution + membership (guild-scoped, routed per guild) ---
+    from app.services.initiatives import clear_user_task_assignments_for_initiative
+
+    for gid in relevant_guilds:
+        session.expunge_all()
+        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+
+        guild_inits = {iid for iid, g in initiative_guild.items() if g == gid}
+        # Drop references to initiatives that no longer exist in this schema
+        # (oidc_claim_mappings has no cross-schema FK, so a purged initiative can
+        # leave a dangling mapping).
+        if guild_inits:
+            present = set(
+                (
+                    await session.exec(
+                        select(Initiative.id).where(Initiative.id.in_(guild_inits))
+                    )
+                ).all()
+            )
+            guild_inits &= present
+
+        # Resolve each initiative to a single role_id (manager first, then lowest
+        # position), validating the role still exists in this schema.
+        guild_init_roles: dict[int, int | None] = {}
+        for iid in guild_inits:
+            unique_ids = list(
+                {c for c in initiative_role_candidates.get(iid, []) if c is not None}
+            )
+            role_id: int | None = None
+            if unique_ids:
+                roles = (
+                    await session.exec(
+                        select(InitiativeRoleModel).where(
+                            InitiativeRoleModel.id.in_(unique_ids)
+                        )
+                    )
+                ).all()
+                if roles:
+                    roles.sort(key=lambda r: (not r.is_manager, r.position))
+                    role_id = roles[0].id
+            guild_init_roles[iid] = role_id
+
+        for iid, role_id in guild_init_roles.items():
+            im = await _get_initiative_membership(
+                session, user_id=user_id, initiative_id=iid
+            )
+            if im:
+                if not im.oidc_managed:
+                    continue
+                if role_id is not None and im.role_id != role_id:
+                    im.role_id = role_id
+                    session.add(im)
+                    result.initiatives_updated.append(iid)
+            else:
+                await _create_initiative_membership(
+                    session,
+                    user_id=user_id,
+                    initiative_id=iid,
+                    guild_id=gid,
+                    role_id=role_id,
+                )
+                result.initiatives_added.append(iid)
+
+        # Remove stale oidc-managed initiative memberships in THIS guild that the
+        # claims no longer grant.
+        stale_inits = (
+            await session.exec(
+                select(InitiativeMember).where(
+                    InitiativeMember.user_id == user_id,
+                    InitiativeMember.oidc_managed == True,  # noqa: E712
+                )
+            )
+        ).all()
+        for im in stale_inits:
+            if im.initiative_id not in matched_initiative_ids:
+                await clear_user_task_assignments_for_initiative(
+                    session, initiative_id=im.initiative_id, user_id=user_id
+                )
+                await session.delete(im)
+                result.initiatives_removed.append(im.initiative_id)
+        await session.flush()
+
+    # --- Remove stale guild memberships ---
+    # For each oidc-managed guild the claims no longer grant: re-home owned
+    # projects + drop initiative memberships (guild-scoped, routed), then delete
+    # the shared GuildMembership row in public context.
+    from app.services.initiatives import remove_user_from_guild_initiatives
+
+    session.expunge_all()
+    await set_rls_context(session, is_superadmin=True)
+    stale_guild_ids = (
+        await session.exec(
+            select(GuildMembership.guild_id).where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.oidc_managed == True,  # noqa: E712
+            )
         )
-    )
-    for im in stale_initiatives.all():
-        if im.initiative_id not in matched_initiative_ids:
-            await clear_user_task_assignments_for_initiative(
-                session, initiative_id=im.initiative_id, user_id=user_id,
-            )
-            await session.delete(im)
-            result.initiatives_removed.append(im.initiative_id)
-
-    stale_guilds = await session.exec(
-        select(GuildMembership).where(
-            GuildMembership.user_id == user_id,
-            GuildMembership.oidc_managed == True,  # noqa: E712
+    ).all()
+    for stale_gid in stale_guild_ids:
+        if stale_gid in matched_guild_ids:
+            continue
+        session.expunge_all()
+        await set_rls_context(session, guild_id=stale_gid, is_superadmin=True)
+        await _auto_transfer_owned_projects(
+            session, user_id=user_id, guild_id=stale_gid
         )
-    )
-    for gm in stale_guilds.all():
-        if gm.guild_id not in matched_guild_ids:
-            # Re-home any projects the departing user owned in this
-            # guild before dropping their initiative memberships. The
-            # interactive ``leave_guild`` endpoint requires the user
-            # to nominate transfer recipients; an automated OIDC sync
-            # has no UI to ask, so we pick a fallback (initiative
-            # manager → guild admin) and log if neither exists.
-            await _auto_transfer_owned_projects(
-                session, user_id=user_id, guild_id=gm.guild_id,
+        await remove_user_from_guild_initiatives(
+            session, guild_id=stale_gid, user_id=user_id
+        )
+        await session.flush()
+        session.expunge_all()
+        await set_rls_context(session, is_superadmin=True)
+        await session.exec(
+            delete(GuildMembership).where(
+                GuildMembership.user_id == user_id,
+                GuildMembership.guild_id == stale_gid,
             )
-            await remove_user_from_guild_initiatives(
-                session, guild_id=gm.guild_id, user_id=user_id,
-            )
-            await session.delete(gm)
-            result.guilds_removed.append(gm.guild_id)
+        )
+        result.guilds_removed.append(stale_gid)
 
+    session.expunge_all()
+    await set_rls_context(session, is_superadmin=True)
     await session.commit()
     return result
 

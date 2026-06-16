@@ -42,8 +42,8 @@ history/
 
 ## Build, Test, and Development Commands
 
-- `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` — install runtime deps.
-- `cd backend && poetry install` — optional, but grabs dev tools (pytest, Ruff) defined in `pyproject.toml`.
+- `cd backend && uv sync` — create the `.venv` and install all runtime + dev deps from `uv.lock` ([uv](https://docs.astral.sh/uv/); `pyproject.toml` is the single source of truth, the lockfile pins exact versions).
+- `cd backend && source .venv/bin/activate` — activate the synced env so bare `pytest`/`alembic`/`uvicorn`/`ruff` work, or prefix one-offs with `uv run` (e.g. `uv run pytest`).
 - `cd backend && uvicorn app.main:app --reload` — run the API on http://localhost:8000.
 - `cd backend && alembic upgrade head` — apply the latest database migrations (or run `python -m app.db.init_db` to migrate plus seed defaults).
 - `cd backend && alembic revision --autogenerate -m "desc"` — generate a migration after SQLModel changes.
@@ -292,7 +292,7 @@ Available factories:
 Auth helpers:
 - `get_auth_token(user)` — returns a JWT string for the user
 - `get_auth_headers(user)` — returns `{"Authorization": "Bearer <token>"}` dict
-- `get_guild_headers(guild, user=None)` — returns `{"X-Guild-ID": "..."}` with optional auth
+- `get_guild_headers(session, guild, user)` — async; enters the guild for the user (writes `users.active_guild_id`, like the production `PUT /users/me/guild-context`) and returns auth headers
 
 ```python
 from app.testing import create_user, create_guild, create_guild_membership, get_guild_headers
@@ -420,12 +420,12 @@ Every guild-scoped table **must** have RLS policies. When creating a new table o
 ### Rules for writing frontend code
 
 1. **React Query cache keys for the same data must match across components.** If the sidebar uses `["initiatives", guildId]` and a page uses `["initiatives", { guildId }]`, invalidation from one won't reach the other. Use prefix invalidation (`queryKey: ["initiatives"]`) when mutations should refresh all consumers.
-2. **Always include the `X-Guild-ID` header** when calling guild-scoped endpoints. The `apiClient` interceptor handles this automatically via `activeGuildId`.
+2. **Guild context is server-held.** Requests carry no guild context: the backend resolves every guild-scoped call from `users.active_guild_id`, set via `PUT /users/me/guild-context` when the user clicks a guild (or the personal home page, which sets it to `null`). The SPA pushes this in `useGuilds` (`switchGuild`/`syncGuildFromUrl`/`syncPersonalContext`); new guild pages under `/g/$guildId` get it for free from the layout. Cross-guild operations from personal-mode surfaces use explicit, validated `?guild_id=` params on a small named set of endpoints (tasks PATCH, task-statuses list, initiatives list, recents delete) — never ambient state.
 3. **Never use `localStorage` directly.** Import `getItem`, `setItem`, `removeItem` from `@/lib/storage` instead. The storage module uses an in-memory cache backed by Capacitor Preferences on native (preventing data loss when the OS clears localStorage) and delegates to localStorage on web. `initStorage()` hydrates the cache before React renders, so all reads are synchronous.
 
 ## Guild Architecture Notes
 
-- Guilds are the primary tenancy boundary. Every user can join multiple guilds, and most API endpoints infer the active guild from the `X-Guild-ID` header (set by the SPA) or fall back to `users.active_guild_id`. Always include the guild header in new client calls when the route depends on guild context.
+- Guilds are the primary tenancy boundary. Every user can join multiple guilds; the active guild is **server-held state** (`users.active_guild_id`, `NULL` = personal/cross-guild mode) set via `PUT /users/me/guild-context` and resolved by the request dependencies on every call (`RLSSessionDep`/`GuildContextDep` 409 with `NO_GUILD_MEMBERSHIP` in personal mode; `FlexSessionDep`/optional context for `scope=global` endpoints; `AddressedRLSSessionDep` for the few explicitly guild-addressed `?guild_id=` endpoints). Membership (or a live PAM grant) is re-validated per request, so a stale flag fails closed.
 - Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project configuration, and can delete their guild; they cannot delete users from the entire app. Keep server-side checks scoped to guild roles, not legacy global roles.
 - **Platform roles are a 5-rung ladder** (`member` → `support` → `moderator` → `admin` → `owner`) resolved to a capability set in `backend/app/core/capabilities.py`. Gate platform endpoints on a capability via `require_capability(...)`, not a role name; the frontend reads the backend-computed `UserRead.capabilities` (mirror constants in `frontend/src/lib/permissions.ts`). App-wide configuration (OIDC, SMTP email, branding accents, role labels, platform AI) requires `config.manage` (owner-only) — these routes live under `/settings/admin`. The standing all-guild RLS bypass (`data.bypass`) is `admin`+`owner` only; the first/bootstrap user becomes `owner`. Never leave the platform without a `config.manage` holder (see `is_last_capability_holder`).
 - **Privileged Access Management (PAM):** lower roles get cross-guild access via time-bound, per-guild grants (`access_grants` table, `/api/v1/access-grants`), not a standing bypass — request → approve/deny → auto-expire, scoped read-only-by-default at the DB level. See the RLS section for the `pam_*` session vars.

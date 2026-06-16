@@ -1,1 +1,13 @@
+set -e
+
+# Frontend: biome check/format on staged web files (via lint-staged)
 cd frontend && pnpm lint-staged
+cd ..
+
+# Backend: ruff lint + format on staged Python files
+staged_py=$(git diff --cached --name-only --diff-filter=ACMR -- 'backend/*.py')
+if [ -n "$staged_py" ]; then
+  echo "$staged_py" | sed 's|^backend/||' | (cd backend && xargs uv run ruff check --fix)
+  echo "$staged_py" | sed 's|^backend/||' | (cd backend && xargs uv run ruff format)
+  echo "$staged_py" | xargs git add
+fi

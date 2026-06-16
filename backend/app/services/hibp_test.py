@@ -3,6 +3,7 @@
 These tests stub the outbound HTTP call with ``httpx.MockTransport`` so
 they don't touch the real HIBP API.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -19,7 +20,11 @@ def _sha1(password: str) -> str:
     # ``hibp.is_password_breached`` — without it, this helper raises
     # ValueError on FIPS-enforcing OpenSSL builds before any test
     # body runs.
-    return hashlib.sha1(password.encode("utf-8"), usedforsecurity=False).hexdigest().upper()
+    return (
+        hashlib.sha1(password.encode("utf-8"), usedforsecurity=False)
+        .hexdigest()
+        .upper()
+    )
 
 
 @pytest.fixture
@@ -117,7 +122,8 @@ class TestIsPasswordBreached:
         def handler(request: httpx.Request) -> httpx.Response:
             # Plausible-looking but non-matching suffix.
             return httpx.Response(
-                200, text="0000000000000000000000000000000000A:5\r\nFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE:1\r\n"
+                200,
+                text="0000000000000000000000000000000000A:5\r\nFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE:1\r\n",
             )
 
         _install_transport(monkeypatch, handler)

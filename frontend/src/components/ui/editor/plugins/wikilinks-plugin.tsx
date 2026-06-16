@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { $createWikilinkNode, $isWikilinkNode } from "@/components/ui/editor/nodes/wikilink-node";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { autocompleteDocuments, type DocumentAutocomplete } from "@/lib/documentUtils";
 
 // Regex to match [[ followed by any characters (for partial wikilinks)
@@ -103,6 +104,7 @@ function useWikilinkSearch(
   queryString: string | null,
   initiativeId: number | null
 ): { options: WikilinkTypeaheadOption[]; isLoading: boolean } {
+  const guildId = useActiveGuildId();
   const [results, setResults] = useState<DocumentAutocomplete[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -117,6 +119,7 @@ function useWikilinkSearch(
       setIsLoading(true);
       try {
         const docs = await autocompleteDocuments(
+          guildId,
           initiativeId,
           queryString,
           SUGGESTION_LIST_LENGTH_LIMIT
@@ -142,7 +145,7 @@ function useWikilinkSearch(
       cancelled = true;
       clearTimeout(timeoutId);
     };
-  }, [queryString, initiativeId]);
+  }, [queryString, initiativeId, guildId]);
 
   const options = useMemo(() => {
     const docOptions = results.map((doc) => new WikilinkTypeaheadOption(doc.title, doc.id, false));

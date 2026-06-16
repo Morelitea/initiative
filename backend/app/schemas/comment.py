@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
 
 class MentionEntityType(str, Enum):
@@ -23,7 +23,7 @@ class CommentAuthor(SanitizedBaseModel):
     email: str
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
-    avatar_base64: Optional[str] = None
+    avatar_base64: Optional[RawTextStr] = None
 
 
 class CommentBase(SanitizedBaseModel):
@@ -59,7 +59,9 @@ class CommentUpdate(CommentBase):
 
 
 class CommentRead(CommentBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     author_id: int

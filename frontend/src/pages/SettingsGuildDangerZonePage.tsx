@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
@@ -21,8 +22,9 @@ import { useGuilds } from "@/hooks/useGuilds";
 import { getErrorMessage } from "@/lib/errorMessage";
 
 export const SettingsGuildDangerZonePage = () => {
-  const { activeGuild, refreshGuilds } = useGuilds();
+  const { activeGuild, guilds, refreshGuilds, switchGuild } = useGuilds();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { t } = useTranslation(["guilds", "common"]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -64,16 +66,24 @@ export const SettingsGuildDangerZonePage = () => {
       setDeleting(false);
       return;
     }
-    // Deletion is confirmed (204) and irreversible at this point. Refreshing
-    // the guild list is best-effort — if it throws (e.g. a transient network
-    // hiccup) we must still navigate away rather than show a misleading
-    // "unable to delete" error for a guild that is already gone.
+    // Deletion is confirmed (204) and irreversible. Move off the deleted guild's
+    // URL onto a surviving guild: switchGuild updates the active-guild context +
+    // storage, so we never land on (or reload into) the now-dangling guild id —
+    // which is what produced the blank "not a member" screen. Best-effort — a
+    // refresh hiccup must not surface a misleading "unable to delete" for a guild
+    // that is already gone. SPA navigation (not window.location) avoids racing the
+    // storage write that a full reload would re-read.
+    const nextGuild = guilds.find((g) => g.id !== activeGuild.id);
     try {
-      await refreshGuilds();
+      if (nextGuild) {
+        await switchGuild(nextGuild.id);
+      } else {
+        await refreshGuilds();
+      }
     } catch (error) {
       console.error(error);
     }
-    window.location.replace("/");
+    void navigate({ to: "/" });
   };
 
   if (!activeGuild) {

@@ -11,7 +11,7 @@
   "verification": {
     "subject": "Vérifiez votre compte Initiative",
     "title": "Vérifiez votre adresse e-mail",
-    "greeting": "Bonjour {{name}},",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Confirmez votre adresse e-mail pour terminer la configuration de votre compte Initiative.",
     "buttonLabel": "Vérifier l'adresse e-mail",
     "fallbackText": "Si le bouton ne fonctionne pas, copiez et collez ce lien dans votre navigateur :",
@@ -20,7 +20,7 @@
   "passwordReset": {
     "subject": "Réinitialisez votre mot de passe Initiative",
     "title": "Réinitialisez votre mot de passe",
-    "greeting": "Bonjour {{name}},",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Nous avons reçu une demande de réinitialisation de votre mot de passe Initiative.",
     "buttonLabel": "Réinitialiser le mot de passe",
     "fallbackText": "Si vous n'avez pas effectué cette demande, vous pouvez ignorer cet e-mail. Le lien expire bientôt.",
@@ -29,7 +29,7 @@
   "initiativeAdded": {
     "subject": "Ajouté à l'initiative {{initiativeName}}",
     "title": "Vous avez rejoint une nouvelle initiative",
-    "greeting": "Bonjour {{name}},",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Vous avez été ajouté(e) à l'initiative <strong>{{initiativeName}}</strong>.",
     "buttonLabel": "Voir les initiatives",
     "textBody": "Vous avez été ajouté(e) à l'initiative {{initiativeName}}. Visitez {{link}} pour la consulter."
@@ -37,7 +37,7 @@
   "projectAdded": {
     "subject": "Nouveau projet dans {{initiativeName}}",
     "title": "Nouveau projet dans votre initiative",
-    "greeting": "Bonjour {{name}},",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Un nouveau projet, <strong>{{projectName}}</strong>, a été ajouté à l'initiative <strong>{{initiativeName}}</strong>.",
     "buttonLabel": "Ouvrir le projet",
     "textBody": "Un nouveau projet, {{projectName}}, a été ajouté à l'initiative {{initiativeName}}. Consultez-le à l'adresse {{link}}."
@@ -45,43 +45,107 @@
   "taskAssignment": {
     "subject": "Nouvelles tâches qui vous sont assignées",
     "title": "Récapitulatif des tâches assignées",
-    "greeting": "Bonjour {{name}},",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "body": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :",
-    "assignedBy": "assigné par {{name}}",
-    "inProject": "dans {{projectName}}",
+    "assignedBy": "assigné par <strong>{{name}}</strong>",
+    "inProject": "dans <strong>{{projectName}}</strong>",
     "footer": "Visitez Initiative pour examiner les tâches.",
     "textBody": "Voici votre récapitulatif horaire des tâches qui vous sont assignées :"
   },
   "mention": {
-    "greeting": "Bonjour {{name}},",
+    "document": {
+      "subject": "Vous avez été mentionné(e) dans {{document}}",
+      "title": "Vous avez été mentionné(e)",
+      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans <strong>{{document}}</strong>"
+    },
+    "comment": {
+      "subject": "Vous avez été mentionné(e) dans un commentaire",
+      "title": "Vous avez été mentionné(e)",
+      "body": "<strong>{{actor}}</strong> vous a mentionné(e) dans un commentaire sur <strong>{{context}}</strong>"
+    },
+    "task": {
+      "subject": "Votre tâche a été mentionnée",
+      "title": "Votre tâche a été mentionnée",
+      "body": "<strong>{{actor}}</strong> a mentionné <strong>{{task}}</strong> dans <strong>{{context}}</strong>"
+    },
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "buttonLabel": "Voir"
+  },
+  "comment": {
+    "onTask": {
+      "subject": "Nouveau commentaire sur {{task}}",
+      "title": "Nouveau commentaire sur votre tâche",
+      "body": "<strong>{{actor}}</strong> a commenté <strong>{{task}}</strong>"
+    },
+    "onDocument": {
+      "subject": "Nouveau commentaire sur {{document}}",
+      "title": "Nouveau commentaire sur votre document",
+      "body": "<strong>{{actor}}</strong> a commenté <strong>{{document}}</strong>"
+    },
+    "reply": {
+      "subject": "Réponse à votre commentaire",
+      "title": "Réponse à votre commentaire",
+      "body": "<strong>{{actor}}</strong> a répondu à votre commentaire sur <strong>{{context}}</strong>"
+    }
+  },
+  "event": {
+    "invitation": {
+      "subject": "Vous êtes invité(e) : {{event}}",
+      "title": "Nouvelle invitation à un événement",
+      "body": "<strong>{{organizer}}</strong> vous a invité(e) à <strong>{{event}}</strong> (<strong>{{when}}</strong>)."
+    },
+    "rescheduled": {
+      "subject": "Événement reprogrammé : {{event}}",
+      "title": "Événement reprogrammé",
+      "body": "<strong>{{editor}}</strong> a reprogrammé <strong>{{event}}</strong> pour <strong>{{when}}</strong>."
+    },
+    "updated": {
+      "subject": "Événement mis à jour : {{event}}",
+      "title": "Événement mis à jour",
+      "body": "<strong>{{editor}}</strong> a mis à jour <strong>{{event}}</strong> (<strong>{{when}}</strong>)."
+    },
+    "cancelled": {
+      "subject": "Événement annulé : {{event}}",
+      "title": "Événement annulé",
+      "body": "<strong>{{canceller}}</strong> a annulé <strong>{{event}}</strong> (<strong>{{when}}</strong>)."
+    },
+    "rsvp": {
+      "subject": "Mise à jour de participation : {{event}}",
+      "title": "Mise à jour de participation",
+      "body": "<strong>{{responder}}</strong> a répondu « <strong>{{status}}</strong> » à <strong>{{event}}</strong>."
+    },
+    "reminder": {
+      "subject": "Rappel : {{event}}",
+      "title": "Événement à venir",
+      "body": "<strong>{{event}}</strong> commence le <strong>{{when}}</strong>."
+    }
   },
   "overdue": {
     "subject": "Rappel de tâches en retard",
     "title": "Rappel de tâches en retard",
-    "greeting": "Bonjour {{name}},",
-    "body_one": "Vous avez {{count}} tâche en retard :",
-    "body_other": "Vous avez {{count}} tâches en retard :",
-    "taskDetail": "projet : {{projectName}}, échéance {{dueDate}}",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
+    "body_one": "Vous avez <strong>{{count}}</strong> tâche en retard :",
+    "body_other": "Vous avez <strong>{{count}}</strong> tâches en retard :",
+    "taskDetail": "projet : <strong>{{projectName}}</strong>, échéance <strong>{{dueDate}}</strong>",
     "footer": "Visitez Initiative pour vous remettre sur la bonne voie.",
     "textBody_one": "Vous avez {{count}} tâche en retard :",
     "textBody_other": "Vous avez {{count}} tâches en retard :"
   },
   "accessGrant": {
     "buttonLabel": "Ouvrir le tableau de bord des accès",
-    "greeting": "Bonjour {{name}},",
+    "greeting": "Bonjour <strong>{{name}}</strong>,",
     "levelRead": "en lecture seule",
     "levelReadWrite": "en lecture-écriture",
     "requested": {
       "subject": "Demande d'accès pour {{guildName}}",
       "title": "Nouvelle demande d'accès",
-      "body": "<strong>{{requester}}</strong> a demandé un accès {{level}} à <strong>{{guildName}}</strong>.",
+      "body": "<strong>{{requester}}</strong> a demandé un accès <strong>{{level}}</strong> à <strong>{{guildName}}</strong>.",
       "textBody": "{{requester}} a demandé un accès {{level}} à {{guildName}}. Examinez-la sur {{link}}."
     },
     "approved": {
       "subject": "Accès à {{guildName}} approuvé",
       "title": "Accès approuvé",
-      "body": "Votre accès {{level}} à <strong>{{guildName}}</strong> a été approuvé.",
+      "body": "Votre accès <strong>{{level}}</strong> à <strong>{{guildName}}</strong> a été approuvé.",
       "textBody": "Votre accès {{level}} à {{guildName}} a été approuvé. {{link}}"
     },
     "denied": {

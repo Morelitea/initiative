@@ -1,0 +1,83 @@
+{
+  "nav": {
+    "signIn": "Anmelden",
+    "getStarted": "Loslegen"
+  },
+  "hero": {
+    "tagline": "Von Gamern für Gamer entwickelt",
+    "preTitle": "Bist du bereit?",
+    "titleLine1": "WÜRFELT FÜR",
+    "titleLine2": "INITIATIVE",
+    "titleAria": "Würfelt für Initiative",
+    "subtitle": "Eine auf Gilden ausgerichtete Projektmanagement-App für Gaming-Gruppen. Erstelle deine eigene Gilde, lade deine Gruppe ein meistere gemeinsam Quests.",
+    "ctaStart": "Starte dein Abenteuer",
+    "ctaSignIn": "Bei deiner Gilde anmelden",
+    "scroll": "Scrollen",
+    "loading": "Wird geladen..."
+  },
+  "heroScreenshot": {
+    "dashboard": "Initiative-Dashboard"
+  },
+  "stats": {
+    "initiatives": "Initiativen",
+    "initiativesValue": "Unbegrenzt",
+    "partyMembers": "Party-Mitglieder",
+    "partyMembersValue": "Keine Limits",
+    "openSource": "Open Source",
+    "openSourceValue": "Für immer",
+    "selfHosted": "Selbst gehostet",
+    "selfHostedValue": "Deine Daten"
+  },
+  "features": {
+    "sectionLabel": "Arsenal",
+    "title": "Alles, was deine Party braucht",
+    "description": "Jede Gilde erhält einen privaten Arbeitsbereich mit Projekten, Aufgaben und Dokumenten. Ob du eine Kampagne leitest, Raid-Abende organisierst oder eine Gaming-Community verwaltest – halte alles an einem Ort.",
+    "campaignTitle": "Kampagnenverwaltung",
+    "campaignDescription": "Organisiere deine Pen-&-Paper-Kampagnen mit Leichtigkeit. Verfolge Handlungsstränge, NSCs und Plot-Hooks über mehrere Sitzungen hinweg.",
+    "partyTitle": "Party-Koordination",
+    "partyDescription": "Halte deine Gaming-Gruppe synchron. Weise Aufgaben zu, plane Sitzungen und sorge dafür, dass jeder seine Rolle kennt.",
+    "worldTitle": "Weltenbau",
+    "worldDescription": "Dokumentiere deine Lore, Karten und Weltdetails. Erschaffe reichhaltige Settings, die deine Spieler gerne erkunden.",
+    "questTitle": "Quest-Tracking",
+    "questDescription": "Verliere nie wieder Nebenquests aus den Augen. Verwalte Ziele, Belohnungen und Story-Fortschritt an einem Ort.",
+    "sessionTitle": "Sitzungsnotizen",
+    "sessionDescription": "Kollaborative Dokumente für Sitzungs-Rückblicke, Handouts für Spieler und gemeinsames Party-Wissen.",
+    "eventTitle": "Terminplanung",
+    "eventDescription": "Koordiniere Spieleabende, Raid-Termine und Gildenevents. Alle bleiben auf dem gleichen Stand."
+  },
+  "gallery": {
+    "sectionLabel": "In Aktion sehen",
+    "title": "Für deinen Workflow gemacht",
+    "projectAlt": "Projektmanagement-Ansicht",
+    "projectCaption": "Organisiere Projekte mit Boards, Listen und benutzerdefinierten Ansichten",
+    "documentAlt": "Dokument-Zusammenarbeit",
+    "documentCaption": "Arbeite gemeinsam mit deiner gesamten Gilde an Dokumenten"
+  },
+  "useCases": {
+    "sectionLabel": "Deine Quest wartet",
+    "title": "Deine Gilde, dein Stil",
+    "description": "Erstelle eine private Gilde für deine Gruppe. Lade Mitglieder ein, organisiere sie in Initiativen und verwaltet Projekte gemeinsam. Alle bleiben synchron und deine Daten gehören dir.",
+    "ttrpgName": "Pen-&-Paper Gruppen",
+    "ttrpgDesc": "Verwalte Kampagnen, verfolge Quests und teile Sitzungsnotizen mit deiner Abenteurergruppe.",
+    "mmoName": "MMO-Gilden",
+    "mmoDesc": "Koordiniere Raid-Termine, Beuteverteilung und Gildenevents.",
+    "esportsName": "E-Sport Teams",
+    "esportsDesc": "Verfolge Trainingspläne, Turniervorbereitung und Teamziele.",
+    "communityName": "Gaming-Communities",
+    "communityDesc": "Organisiere Events, verwalte Projekte und halte deine Community bei Laune.",
+    "cta": "Erstelle deine Gilde"
+  },
+  "cta": {
+    "title": "Bereit zum <1>Level-up</1>?",
+    "titleReady": "Bereit zum",
+    "titleHighlight": "Level-up",
+    "description": "Schließe dich Gaming-Gruppen an, die Initiative bereits nutzen, um organisiert zu bleiben und gemeinsam mehr Spaß zu haben.",
+    "button": "Kostenlos loslegen"
+  },
+  "footer": {
+    "copyright": "© {{year}} Initiative. Würfle hoch, bleib organisiert."
+  },
+  "screenshot": {
+    "placeholder": "Screenshot"
+  }
+}

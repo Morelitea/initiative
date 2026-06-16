@@ -45,16 +45,25 @@ def _make_project(
     role_permissions: list | None = None,
     memberships: list | None = None,
     guild_id: int = 1,
+    member: bool = True,
 ) -> SimpleNamespace:
-    """Build a mock project with eagerly-loaded relationships."""
+    """Build a mock project with eagerly-loaded relationships.
+
+    By default the permission-holding user is also an initiative member
+    (the normal production state); pass ``member=False`` to model a stale
+    permission row left behind after removal from the initiative.
+    """
     permissions = []
+    all_memberships = list(memberships or [])
     if user_id is not None and user_level is not None:
         permissions.append(SimpleNamespace(user_id=user_id, level=user_level))
+        if member:
+            all_memberships.append(SimpleNamespace(user_id=user_id, role_id=None))
     return SimpleNamespace(
         guild_id=guild_id,
         permissions=permissions,
         role_permissions=role_permissions or [],
-        initiative=SimpleNamespace(memberships=memberships or []),
+        initiative=SimpleNamespace(memberships=all_memberships),
     )
 
 
@@ -65,16 +74,25 @@ def _make_document(
     role_permissions: list | None = None,
     memberships: list | None = None,
     guild_id: int = 1,
+    member: bool = True,
 ) -> SimpleNamespace:
-    """Build a mock document with eagerly-loaded relationships."""
+    """Build a mock document with eagerly-loaded relationships.
+
+    By default the permission-holding user is also an initiative member
+    (the normal production state); pass ``member=False`` to model a stale
+    permission row left behind after removal from the initiative.
+    """
     permissions = []
+    all_memberships = list(memberships or [])
     if user_id is not None and user_level is not None:
         permissions.append(SimpleNamespace(user_id=user_id, level=user_level))
+        if member:
+            all_memberships.append(SimpleNamespace(user_id=user_id, role_id=None))
     return SimpleNamespace(
         guild_id=guild_id,
         permissions=permissions,
         role_permissions=role_permissions or [],
-        initiative=SimpleNamespace(memberships=memberships or []),
+        initiative=SimpleNamespace(memberships=all_memberships),
     )
 
 
@@ -92,7 +110,9 @@ def test_effective_permission_level_both_none():
 @pytest.mark.unit
 def test_effective_permission_level_user_only():
     result = effective_permission_level(
-        ProjectPermissionLevel.read, None, PROJECT_LEVEL_ORDER,
+        ProjectPermissionLevel.read,
+        None,
+        PROJECT_LEVEL_ORDER,
     )
     assert result == ProjectPermissionLevel.read
 
@@ -100,7 +120,9 @@ def test_effective_permission_level_user_only():
 @pytest.mark.unit
 def test_effective_permission_level_role_only():
     result = effective_permission_level(
-        None, ProjectPermissionLevel.write, PROJECT_LEVEL_ORDER,
+        None,
+        ProjectPermissionLevel.write,
+        PROJECT_LEVEL_ORDER,
     )
     assert result == ProjectPermissionLevel.write
 
@@ -129,11 +151,19 @@ def test_effective_permission_level_takes_higher():
 
 
 @pytest.mark.unit
-def test_compute_project_permission_guild_admin_no_dac():
-    """Guild admin with no DAC grant gets no access (no admin bypass)."""
-    project = _make_project()
-    result = compute_project_permission(project, user_id=1)
-    assert result is None
+def test_compute_project_permission_guild_admin_gets_owner():
+    """A guild admin has full access to all of their guild's data regardless of
+    DAC, so ``my_permission_level`` reports ``owner`` — otherwise the UI would
+    hide edit/delete affordances the API actually honors."""
+    from app.core.role_context import set_active_role
+
+    project = _make_project()  # no DAC permission for user_id=1
+    try:
+        set_active_role(1, "admin")
+        result = compute_project_permission(project, user_id=1)
+    finally:
+        set_active_role(None, None)
+    assert result == "owner"
 
 
 @pytest.mark.unit
@@ -158,7 +188,9 @@ def test_compute_project_permission_role_elevates():
         user_id=1,
         user_level=ProjectPermissionLevel.read,
         role_permissions=[
-            SimpleNamespace(initiative_role_id=role_id, level=ProjectPermissionLevel.write),
+            SimpleNamespace(
+                initiative_role_id=role_id, level=ProjectPermissionLevel.write
+            ),
         ],
         memberships=[
             SimpleNamespace(user_id=1, role_id=role_id),
@@ -217,6 +249,40 @@ def test_require_project_access_owner_passes():
     require_project_access(project, user, require_owner=True)  # should not raise
 
 
+@pytest.mark.unit
+def test_require_project_access_guild_admin_no_dac_full_access():
+    """A guild admin gets read/write/owner access to any project in their guild
+    without a permission row or initiative membership."""
+    from app.core.role_context import set_active_role
+
+    project = _make_project()  # no permissions, no membership for user_id=1
+    user = _make_user(user_id=1)
+    try:
+        set_active_role(1, "admin")
+        require_project_access(project, user, access="read")
+        require_project_access(project, user, access="write")
+        require_project_access(project, user, require_owner=True)  # none should raise
+    finally:
+        set_active_role(None, None)
+
+
+@pytest.mark.unit
+def test_require_project_access_guild_member_no_dac_denied():
+    """A plain guild member (non-admin) still needs DAC — the admin bypass is
+    strictly guild-admin-scoped."""
+    from app.core.role_context import set_active_role
+
+    project = _make_project()  # no permissions for user_id=1
+    user = _make_user(user_id=1)
+    try:
+        set_active_role(1, "member")
+        with pytest.raises(HTTPException) as exc_info:
+            require_project_access(project, user, access="read")
+    finally:
+        set_active_role(None, None)
+    assert exc_info.value.status_code == 403
+
+
 # ---------------------------------------------------------------------------
 # has_project_write_access
 # ---------------------------------------------------------------------------
@@ -256,11 +322,18 @@ def test_has_project_write_access_false_for_none():
 
 
 @pytest.mark.unit
-def test_compute_document_permission_guild_admin_no_dac():
-    """Guild admin with no DAC grant gets no access (no admin bypass)."""
-    doc = _make_document()
-    result = compute_document_permission(doc, user_id=1)
-    assert result is None
+def test_compute_document_permission_guild_admin_gets_owner():
+    """A guild admin has full access to all of their guild's data regardless of
+    DAC, so ``my_permission_level`` reports ``owner``."""
+    from app.core.role_context import set_active_role
+
+    doc = _make_document()  # no DAC permission for user_id=1
+    try:
+        set_active_role(1, "admin")
+        result = compute_document_permission(doc, user_id=1)
+    finally:
+        set_active_role(None, None)
+    assert result == "owner"
 
 
 @pytest.mark.unit
@@ -392,3 +465,133 @@ def test_compute_project_permission_grant_does_not_downgrade_dac():
         assert compute_project_permission(project, 99) == "owner"
     finally:
         set_active_grant(None, None)
+
+
+# ---------------------------------------------------------------------------
+# Initiative-scope gate (replacement for the dropped RESTRICTIVE RLS layer)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_stale_document_permission_denied_without_membership():
+    """An explicit permission row left behind after initiative removal must
+    not grant access (the old DB RESTRICTIVE policy enforced this)."""
+    doc = _make_document(
+        user_id=1, user_level=DocumentPermissionLevel.write, member=False
+    )
+    user = _make_user(user_id=1)
+    with pytest.raises(HTTPException) as exc_info:
+        require_document_access(doc, user, access="read")
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == DocumentMessages.NO_ACCESS
+
+
+@pytest.mark.unit
+def test_stale_project_permission_denied_without_membership():
+    project = _make_project(
+        user_id=1, user_level=ProjectPermissionLevel.owner, member=False
+    )
+    user = _make_user(user_id=1)
+    with pytest.raises(HTTPException) as exc_info:
+        require_project_access(project, user, access="read")
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.unit
+def test_guild_admin_bypasses_initiative_scope_via_param():
+    """A guild admin holding an explicit permission keeps access without
+    membership (mirrors the old policy's IS_ADMIN leg)."""
+    doc = _make_document(
+        user_id=1, user_level=DocumentPermissionLevel.read, member=False
+    )
+    user = _make_user(user_id=1)
+    with patch(_PATCH_TARGET, return_value=doc.permissions):
+        require_document_access(
+            doc, user, access="read", guild_role="admin"
+        )  # should not raise
+
+
+@pytest.mark.unit
+def test_guild_admin_bypasses_initiative_scope_via_role_context():
+    from app.core.role_context import set_active_role
+
+    doc = _make_document(
+        user_id=1, user_level=DocumentPermissionLevel.read, member=False, guild_id=7
+    )
+    user = _make_user(user_id=1)
+    try:
+        set_active_role(7, "admin")
+        with patch(_PATCH_TARGET, return_value=doc.permissions):
+            require_document_access(doc, user, access="read")  # should not raise
+    finally:
+        set_active_role(None, None)
+
+
+@pytest.mark.unit
+def test_require_document_access_guild_admin_no_dac_full_access():
+    """A guild admin gets read/write/owner access to any document in their guild
+    without a permission row or initiative membership."""
+    from app.core.role_context import set_active_role
+
+    doc = _make_document(guild_id=7)  # no permissions, no membership for user_id=1
+    user = _make_user(user_id=1)
+    try:
+        set_active_role(7, "admin")
+        require_document_access(doc, user, access="read")
+        require_document_access(doc, user, access="write")
+        require_document_access(doc, user, require_owner=True)  # none should raise
+    finally:
+        set_active_role(None, None)
+
+
+@pytest.mark.unit
+def test_role_context_for_other_guild_does_not_bypass():
+    """An admin role recorded for guild A must not unlock guild B's entities
+    (cross-guild gathers)."""
+    from app.core.role_context import set_active_role
+
+    doc = _make_document(
+        user_id=1, user_level=DocumentPermissionLevel.read, member=False, guild_id=8
+    )
+    user = _make_user(user_id=1)
+    try:
+        set_active_role(7, "admin")
+        with pytest.raises(HTTPException):
+            require_document_access(doc, user, access="read")
+    finally:
+        set_active_role(None, None)
+
+
+@pytest.mark.unit
+def test_superadmin_bypasses_initiative_scope():
+    doc = _make_document(
+        user_id=1, user_level=DocumentPermissionLevel.read, member=False
+    )
+    user = _make_user(user_id=1, role=UserRole.owner)
+    with patch(_PATCH_TARGET, return_value=doc.permissions):
+        require_document_access(doc, user, access="read")  # should not raise
+
+
+@pytest.mark.unit
+def test_pam_grant_bypasses_initiative_scope():
+    """A live grant acts as membership of every initiative in the guild."""
+    from app.core.pam_context import set_active_grant
+
+    doc = _make_document(guild_id=7)
+    user = _make_user(user_id=99)
+    try:
+        set_active_grant(7, "read")
+        require_document_access(doc, user, access="read")  # should not raise
+    finally:
+        set_active_grant(None, None)
+
+
+@pytest.mark.unit
+def test_membership_without_permission_row_still_denied():
+    """The gate is an AND-layer: membership alone grants nothing."""
+    doc = _make_document(memberships=[SimpleNamespace(user_id=1, role_id=None)])
+    user = _make_user(user_id=1)
+    with patch(_PATCH_TARGET, return_value=doc.permissions):
+        with pytest.raises(HTTPException) as exc_info:
+            require_document_access(doc, user, access="read")
+    assert exc_info.value.status_code == 403

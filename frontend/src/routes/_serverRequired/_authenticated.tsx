@@ -82,13 +82,7 @@ function AppLayout() {
     []
   );
   const shortcutLabel = isMac ? "\u2318K" : "Ctrl+K";
-  const {
-    activeGuildId,
-    guilds,
-    loading: guildsLoading,
-    canCreateGuilds,
-    createGuild,
-  } = useGuilds();
+  const { guilds, loading: guildsLoading, canCreateGuilds, createGuild } = useGuilds();
   const location = useLocation();
   const search = useSearch({ strict: false }) as { authenticated?: string };
   // Check if we just authenticated (search param passed via navigation)
@@ -100,8 +94,13 @@ function AppLayout() {
   useBackButton();
   useLegacyFilterStorageMigration();
 
+  // No cross-tab guild convergence: each tab keeps the guild from its own URL,
+  // so two tabs can sit in two different guilds at once.
+
+  // The tabs bar is cross-guild by design (names only): one user-context
+  // query, valid in any guild and in personal mode.
   const recentQuery = useRecents({
-    enabled: activeGuildId !== null && !loading && !!user,
+    enabled: !loading && !!user,
     staleTime: 30_000,
   });
 
@@ -121,8 +120,8 @@ function AppLayout() {
 
   // No-guild empty-state branch. The user-scoped settings routes
   // (``/profile/*``) and platform-admin settings (``/settings/admin/*``
-  // for an admin) don't need guild context — the APIs they call don't
-  // require an ``X-Guild-ID`` header — and a user with zero
+  // for an admin) don't need guild context — the APIs they call work
+  // without a server-held guild — and a user with zero
   // memberships would otherwise have no path to delete their account
   // or, for platform admins, configure system-wide settings. The
   // path-based decision lives in ``chooseNoGuildLayout`` so it can be
@@ -151,7 +150,11 @@ function AppLayout() {
   }
 
   const handleClearRecent = (item: RecentItemRead) => {
-    clearRecent.mutate({ entityType: item.entity_type, entityId: item.entity_id });
+    clearRecent.mutate({
+      entityType: item.entity_type,
+      entityId: item.entity_id,
+      guildId: item.guild_id,
+    });
   };
 
   const activeRecentKey = getActiveRecentKey(location.pathname);

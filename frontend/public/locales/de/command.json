@@ -1,0 +1,40 @@
+{
+  "placeholder": "In {{activeGuildName}} suchen...",
+  "noResults": "Keine Ergebnisse gefunden.",
+  "groups": {
+    "actions": "Aktionen",
+    "suggested": "Vorgeschlagen",
+    "pages": "Seiten",
+    "projects": "Projekte",
+    "tasks": "Aufgaben",
+    "documents": "Dokumente",
+    "queues": "Abläufe (Queues)",
+    "counterGroups": "Zähler"
+  },
+  "actions": {
+    "addTask": "Aufgabe hinzufügen",
+    "addDocument": "Dokument hinzufügen"
+  },
+  "pages": {
+    "myTasks": "Meine Aufgaben",
+    "tasksICreated": "Meine erstellten Aufgaben",
+    "myCalendar": "Mein Kalender",
+    "myProjects": "Meine Projekte",
+    "myDocuments": "Meine Dokumente",
+    "myStats": "Meine Statistiken",
+    "userSettings": "Benutzereinstellungen",
+    "guildSettings": "Gildeneinstellungen",
+    "allProjects": "Alle Projekte",
+    "allDocuments": "Alle Dokumente",
+    "allInitiatives": "Alle Initiativen",
+    "platformSettings": "Plattformeinstellungen",
+    "adminDashboard": "Admin-Dashboard"
+  },
+  "shortcutHint": "Suchen",
+  "shortcutTooltip": "Schnellsuche ({{shortcut}})",
+  "types": {
+    "project": "Projekt",
+    "task": "Aufgabe",
+    "document": "Dokument"
+  }
+}

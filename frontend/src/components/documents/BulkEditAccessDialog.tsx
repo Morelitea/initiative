@@ -4,10 +4,10 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
-  addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost,
-  addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost,
-  removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost,
-  removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete,
+  addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost,
+  addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost,
+  removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost,
+  removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete,
 } from "@/api/generated/documents/documents";
 import type {
   DocumentPermissionLevel,
@@ -16,8 +16,8 @@ import type {
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey,
-  listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet,
+  getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey,
+  listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet,
 } from "@/api/generated/initiatives/initiatives";
 import { invalidateAllDocuments } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
@@ -77,6 +78,7 @@ export function BulkEditAccessDialog({
   onSuccess,
 }: BulkEditAccessDialogProps) {
   const { t } = useTranslation(["documents", "common"]);
+  const guildId = useActiveGuildId();
   const { user: currentUser } = useAuth();
   const [tab, setTab] = useState<"roles" | "users">("roles");
   const [isPending, setIsPending] = useState(false);
@@ -110,11 +112,15 @@ export function BulkEditAccessDialog({
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({
     queries: initiativeIds.map((id) => ({
-      queryKey: getListInitiativeRolesApiV1InitiativesInitiativeIdRolesGetQueryKey(id),
+      queryKey: getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey(
+        guildId,
+        id
+      ),
       queryFn: () =>
-        listInitiativeRolesApiV1InitiativesInitiativeIdRolesGet(id) as unknown as Promise<
-          InitiativeRoleRead[]
-        >,
+        listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet(
+          guildId,
+          id
+        ) as unknown as Promise<InitiativeRoleRead[]>,
       enabled: open,
     })),
   });
@@ -284,7 +290,7 @@ export function BulkEditAccessDialog({
       if (userMode === "grant") {
         await Promise.all(
           documents.map((doc) =>
-            addDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkPost(doc.id, {
+            addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost(guildId, doc.id, {
               user_ids: userIds,
               level,
             })
@@ -294,9 +300,13 @@ export function BulkEditAccessDialog({
       } else {
         await Promise.all(
           documents.map((doc) =>
-            removeDocumentMembersBulkApiV1DocumentsDocumentIdMembersBulkDeletePost(doc.id, {
-              user_ids: userIds,
-            })
+            removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost(
+              guildId,
+              doc.id,
+              {
+                user_ids: userIds,
+              }
+            )
           )
         );
         toast.success(t("bulkAccess.userAccessRevoked", { count: documents.length }));
@@ -311,7 +321,17 @@ export function BulkEditAccessDialog({
     } finally {
       setIsPending(false);
     }
-  }, [selectedUserIds, userMode, documents, level, resetState, onOpenChange, onSuccess, t]);
+  }, [
+    selectedUserIds,
+    userMode,
+    documents,
+    level,
+    resetState,
+    onOpenChange,
+    onSuccess,
+    t,
+    guildId,
+  ]);
 
   const handleApplyRoles = useCallback(async () => {
     if (selectedRoleIds.size === 0) return;
@@ -337,10 +357,14 @@ export function BulkEditAccessDialog({
             if (!alreadyAssigned) {
               affectedDocIds.add(doc.id);
               promises.push(
-                addDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsPost(doc.id, {
-                  initiative_role_id: role.id,
-                  level: roleLevel,
-                })
+                addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost(
+                  guildId,
+                  doc.id,
+                  {
+                    initiative_role_id: role.id,
+                    level: roleLevel,
+                  }
+                )
               );
             }
           }
@@ -363,7 +387,8 @@ export function BulkEditAccessDialog({
             if (isAssigned) {
               affectedDocIds.add(doc.id);
               promises.push(
-                removeDocumentRolePermissionApiV1DocumentsDocumentIdRolePermissionsRoleIdDelete(
+                removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete(
+                  guildId,
                   doc.id,
                   roleId
                 )
@@ -399,6 +424,7 @@ export function BulkEditAccessDialog({
     onOpenChange,
     onSuccess,
     t,
+    guildId,
   ]);
 
   const selectedUserCount = selectedUserIds.size;

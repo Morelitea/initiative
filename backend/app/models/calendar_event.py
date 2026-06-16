@@ -23,6 +23,7 @@ class CalendarEvent(SoftDeleteMixin, table=True):
     with events_enabled can view events, managers can create/edit/delete.
     No per-event DAC.
     """
+
     __tablename__ = "calendar_events"
     _owner_field = "created_by_id"
 
@@ -30,7 +31,9 @@ class CalendarEvent(SoftDeleteMixin, table=True):
     guild_id: int = Field(foreign_key="guilds.id", nullable=False, index=True)
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     title: str = Field(nullable=False, max_length=255)
-    description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    description: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
     location: Optional[str] = Field(default=None, max_length=500)
     start_at: datetime = Field(
         sa_column=Column(DateTime(timezone=True), nullable=False),
@@ -89,6 +92,7 @@ class RSVPStatus(str, Enum):
 
 class CalendarEventAttendee(SQLModel, table=True):
     """Attendee (invitee) on a calendar event with RSVP status."""
+
     __tablename__ = "calendar_event_attendees"
 
     calendar_event_id: int = Field(
@@ -119,6 +123,7 @@ class CalendarEventAttendee(SQLModel, table=True):
 
 class CalendarEventTag(SQLModel, table=True):
     """Junction table linking calendar events to tags."""
+
     __tablename__ = "calendar_event_tags"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -136,16 +141,21 @@ class CalendarEventTag(SQLModel, table=True):
 
 class CalendarEventDocument(SQLModel, table=True):
     """Junction table linking calendar events to documents."""
+
     __tablename__ = "calendar_event_documents"
 
     calendar_event_id: int = Field(foreign_key="calendar_events.id", primary_key=True)
     document_id: int = Field(foreign_key="documents.id", primary_key=True)
     guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    attached_by_id: Optional[int] = Field(default=None, foreign_key="users.id", nullable=True)
+    attached_by_id: Optional[int] = Field(
+        default=None, foreign_key="users.id", nullable=True
+    )
     attached_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    calendar_event: Optional[CalendarEvent] = Relationship(back_populates="document_links")
+    calendar_event: Optional[CalendarEvent] = Relationship(
+        back_populates="document_links"
+    )
     document: Optional["Document"] = Relationship(back_populates="calendar_event_links")

@@ -21,12 +21,14 @@ import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import inspect as sa_inspect
+from sqlmodel import select
 
-from app.db.session import AdminSessionLocal
+from app.db.session import AdminSessionLocal, set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.calendar_event import CalendarEvent
 from app.models.comment import Comment
 from app.models.document import Document
+from app.models.guild import Guild
 from app.models.initiative import Initiative
 from app.models.project import Project
 from app.models.queue import Queue, QueueItem
@@ -82,9 +84,30 @@ async def _run_purge_pass(session, *, now: datetime) -> None:
             await hard_purge_entity(session, row)
 
 
+async def _purge_all_guilds(session, *, now: datetime) -> None:
+    """Run the purge pass once in every guild's schema.
+
+    Each guild's trashed rows live in its own schema, so the worker has to visit
+    them all. Trash purge is system maintenance with no owning user, so (unlike
+    the user-scoped notification jobs) it routes in as superadmin — which also
+    bypasses the RESTRICTIVE FOR DELETE policy, mirroring the old BYPASSRLS
+    worker. Guilds are enumerated on the admin context first; each schema gets
+    its own committed pass. Split out so tests can drive it with the test
+    session.
+    """
+    await set_rls_context(session, is_superadmin=True)
+    guild_ids = list(await session.exec(select(Guild.id).order_by(Guild.id.asc())))
+    for guild_id in guild_ids:
+        # ids collide across schemas, so clear the identity map between guilds.
+        session.expunge_all()
+        await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+        await _run_purge_pass(session, now=now)
+        await session.commit()
+
+
 async def process_trash_purges() -> None:
-    """One pass of the auto-purge loop. Idempotent and safe to run on a
-    schedule even when nothing is due.
+    """One pass of the auto-purge loop across every guild schema. Idempotent and
+    safe to run on a schedule even when nothing is due.
 
     Uses ``hard_purge_entity`` per row so that:
     1. ``Document`` upload cleanup (blobs + Upload rows) runs before each
@@ -96,5 +119,4 @@ async def process_trash_purges() -> None:
     """
     now = datetime.now(timezone.utc)
     async with AdminSessionLocal() as session:
-        await _run_purge_pass(session, now=now)
-        await session.commit()
+        await _purge_all_guilds(session, now=now)

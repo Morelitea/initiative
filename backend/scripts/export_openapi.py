@@ -1,4 +1,5 @@
 """Export the OpenAPI spec to a JSON file without starting the server."""
+
 import json
 import os
 import sys
@@ -9,9 +10,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # Set required env vars with dummy values so Settings() validates
 # without a .env file (no DB connection or crypto needed for schema export)
-os.environ.setdefault("SECRET_KEY", "openapi-export-dummy-key")
-os.environ.setdefault("DATABASE_URL_APP", "postgresql+asyncpg://app_user:x@localhost/dummy")
-os.environ.setdefault("DATABASE_URL_ADMIN", "postgresql+asyncpg://app_admin:x@localhost/dummy")
+# 64-hex dummy satisfying the startup validator; schema export does no crypto.
+os.environ.setdefault(
+    "SECRET_KEY", "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0"
+)
+os.environ.setdefault(
+    "DATABASE_URL_APP", "postgresql+asyncpg://app_user:x@localhost/dummy"
+)
+os.environ.setdefault(
+    "DATABASE_URL_ADMIN", "postgresql+asyncpg://app_admin:x@localhost/dummy"
+)
 
 from app.main import app  # noqa: E402
 

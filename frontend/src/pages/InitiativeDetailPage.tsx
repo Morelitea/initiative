@@ -26,8 +26,11 @@ import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { ProjectsView } from "./ProjectsPage";
 
 export const InitiativeDetailPage = () => {
-  const { initiativeId: initiativeIdParam } = useParams({ strict: false }) as {
+  const { initiativeId: initiativeIdParam, guildId: guildIdParam } = useParams({
+    strict: false,
+  }) as {
     initiativeId: string;
+    guildId: string;
   };
   const parsedInitiativeId = Number(initiativeIdParam);
   const hasValidInitiativeId = Number.isFinite(parsedInitiativeId);
@@ -183,8 +186,8 @@ export const InitiativeDetailPage = () => {
           {canManageInitiative ? (
             <Button variant="outline" asChild>
               <Link
-                to="/initiatives/$initiativeId/settings"
-                params={{ initiativeId: String(initiative.id) }}
+                to="/g/$guildId/initiatives/$initiativeId/settings"
+                params={{ guildId: guildIdParam, initiativeId: String(initiative.id) }}
               >
                 <Settings className="mr-2 h-4 w-4" />
                 {t("detail.initiativeSettings")}

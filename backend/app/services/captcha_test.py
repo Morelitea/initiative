@@ -5,6 +5,7 @@ hCaptcha / Cloudflare / Google endpoints. The provider-specific
 URL lookup and the fail-closed-on-network-error behaviour are the
 load-bearing invariants.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -31,7 +32,9 @@ class _FakeResponse:
 
 
 class _FakeAsyncClient:
-    def __init__(self, *, response: _FakeResponse | None, raise_on_post: Exception | None = None):
+    def __init__(
+        self, *, response: _FakeResponse | None, raise_on_post: Exception | None = None
+    ):
         self._response = response
         self._raise_on_post = raise_on_post
         self.last_url: str | None = None
@@ -52,7 +55,13 @@ class _FakeAsyncClient:
         return self._response
 
 
-def _configure(monkeypatch, *, provider: str | None, secret: str | None = "s", site: str | None = "k"):
+def _configure(
+    monkeypatch,
+    *,
+    provider: str | None,
+    secret: str | None = "s",
+    site: str | None = "k",
+):
     monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", provider)
     monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", secret)
     monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", site)
@@ -96,7 +105,9 @@ async def test_missing_token_when_configured(monkeypatch):
         ("recaptcha", "https://www.google.com/recaptcha/api/siteverify"),
     ],
 )
-async def test_provider_routes_to_correct_url(monkeypatch, provider: str, expected_url: str):
+async def test_provider_routes_to_correct_url(
+    monkeypatch, provider: str, expected_url: str
+):
     """Each known provider hits its own siteverify endpoint and forwards
     secret / response / remoteip in the form-encoded body."""
     _configure(monkeypatch, provider=provider, secret="super-secret")
@@ -123,7 +134,9 @@ async def test_omits_remote_ip_when_unknown(monkeypatch):
     don't send the field — the providers treat it as optional."""
     _configure(monkeypatch, provider="hcaptcha")
     fake_client = _FakeAsyncClient(response=_FakeResponse({"success": True}))
-    monkeypatch.setattr(captcha_service.httpx, "AsyncClient", lambda *a, **k: fake_client)
+    monkeypatch.setattr(
+        captcha_service.httpx, "AsyncClient", lambda *a, **k: fake_client
+    )
 
     await captcha_service.verify_or_raise("tok", remote_ip=None)
     assert "remoteip" not in (fake_client.last_data or {})
@@ -134,9 +147,13 @@ async def test_provider_rejection_surfaces_as_400_invalid(monkeypatch):
     """``success: false`` from the provider → 400 CAPTCHA_INVALID."""
     _configure(monkeypatch, provider="turnstile")
     fake_client = _FakeAsyncClient(
-        response=_FakeResponse({"success": False, "error-codes": ["timeout-or-duplicate"]})
+        response=_FakeResponse(
+            {"success": False, "error-codes": ["timeout-or-duplicate"]}
+        )
     )
-    monkeypatch.setattr(captcha_service.httpx, "AsyncClient", lambda *a, **k: fake_client)
+    monkeypatch.setattr(
+        captcha_service.httpx, "AsyncClient", lambda *a, **k: fake_client
+    )
 
     with pytest.raises(HTTPException) as exc:
         await captcha_service.verify_or_raise("tok", remote_ip=None)
@@ -155,7 +172,9 @@ async def test_network_error_fails_closed(monkeypatch):
     fake_client = _FakeAsyncClient(
         response=None, raise_on_post=httpx.ConnectError("DNS failure")
     )
-    monkeypatch.setattr(captcha_service.httpx, "AsyncClient", lambda *a, **k: fake_client)
+    monkeypatch.setattr(
+        captcha_service.httpx, "AsyncClient", lambda *a, **k: fake_client
+    )
 
     with pytest.raises(HTTPException) as exc:
         await captcha_service.verify_or_raise("tok", remote_ip=None)

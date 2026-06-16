@@ -20,6 +20,7 @@ import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
 import { SidebarUserFooter } from "@/components/sidebar/SidebarUserFooter";
 import { TagBrowser } from "@/components/sidebar/TagBrowser";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sidebar,
   SidebarContent,
@@ -88,19 +89,26 @@ export const AppSidebar = () => {
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
-  const initiativesQuery = useInitiatives({ enabled: Boolean(activeGuild), staleTime: 60_000 });
+  // The guild tree (initiatives/projects/documents/queues/counters/tags) is
+  // only rendered on /g/ routes, and only there does the server-held guild
+  // context line up with it — on personal pages these guild-scoped queries
+  // would 409 (no context) and cache errors that linger as zeroed counts.
+  // Gate them all on actually being in the guild UI.
+  const guildTreeEnabled = Boolean(activeGuild) && isGuildRoute;
+
+  const initiativesQuery = useInitiatives({ enabled: guildTreeEnabled, staleTime: 60_000 });
 
   const projectsQuery = useProjects(undefined, {
-    enabled: Boolean(activeGuild),
+    enabled: guildTreeEnabled,
     staleTime: 60_000,
   });
 
   const favoritesQuery = useFavoriteProjects({
-    enabled: activeGuildId !== null,
+    enabled: guildTreeEnabled,
     staleTime: 60_000,
   });
 
-  const documentsQuery = useAllDocumentIds({ enabled: Boolean(activeGuild), staleTime: 60_000 });
+  const documentsQuery = useAllDocumentIds({ enabled: guildTreeEnabled, staleTime: 60_000 });
 
   const projectsByInitiative = useMemo(() => {
     const map = new Map<number, ProjectRead[]>();
@@ -127,7 +135,7 @@ export const AppSidebar = () => {
   // Fetch queues for counts (lightweight list query)
   const queuesQuery = useQueuesList(
     { page: 1, page_size: 100 },
-    { enabled: Boolean(activeGuild), staleTime: 60_000 }
+    { enabled: guildTreeEnabled, staleTime: 60_000 }
   );
 
   const queueCountsByInitiative = useMemo(() => {
@@ -143,7 +151,7 @@ export const AppSidebar = () => {
   // Fetch counter groups for counts
   const counterGroupsQuery = useCounterGroupsList(
     { page: 1, page_size: 100 },
-    { enabled: Boolean(activeGuild), staleTime: 60_000 }
+    { enabled: guildTreeEnabled, staleTime: 60_000 }
   );
   const counterGroupCountsByInitiative = useMemo(() => {
     const map = new Map<number, number>();
@@ -173,7 +181,7 @@ export const AppSidebar = () => {
   const avatarSrc = resolveUploadUrl(user?.avatar_url) || user?.avatar_base64 || null;
 
   // Fetch tags for the tag browser
-  const tagsQuery = useTags();
+  const tagsQuery = useTags({ enabled: guildTreeEnabled });
 
   // Collapse/expand all for initiatives
   const [initiativeCollapseKey, setInitiativeCollapseKey] = useState(0);
@@ -283,226 +291,238 @@ export const AppSidebar = () => {
                   {/* </div> */}
 
                   <TabsContent value="initiatives" className="mt-0 flex-1 overflow-hidden">
-                    <SidebarContent className="h-full overflow-y-auto overflow-x-hidden">
-                      {/* Favorites Section */}
-                      {Array.isArray(favoritesQuery?.data) && favoritesQuery.data.length > 0 && (
-                        <>
-                          <SidebarGroup>
-                            <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                              <Star className="h-4 w-4" />
-                              {t("favorites")}
-                            </SidebarGroupLabel>
-                            <SidebarGroupContent>
-                              <SidebarMenu>
-                                {favoritesQuery.data.map((project) => (
-                                  <SidebarMenuItem key={project.id}>
-                                    <SidebarMenuButton
-                                      asChild
-                                      isActive={project.id === activeProjectId}
-                                    >
-                                      <Link
-                                        to={gp(`/projects/${project.id}`)}
-                                        className="flex min-w-0 items-center gap-2"
+                    <ScrollArea className="[&_[data-radix-scroll-area-viewport]>div]:block! h-full">
+                      <SidebarContent className="overflow-x-hidden overflow-y-visible">
+                        {/* Favorites Section */}
+                        {Array.isArray(favoritesQuery?.data) && favoritesQuery.data.length > 0 && (
+                          <>
+                            <SidebarGroup>
+                              <SidebarGroupLabel className="flex items-center gap-2 py-2">
+                                <Star className="h-4 w-4" />
+                                {t("favorites")}
+                              </SidebarGroupLabel>
+                              <SidebarGroupContent>
+                                <SidebarMenu>
+                                  {favoritesQuery.data.map((project) => (
+                                    <SidebarMenuItem key={project.id}>
+                                      <SidebarMenuButton
+                                        asChild
+                                        isActive={project.id === activeProjectId}
                                       >
-                                        {project.icon ? (
-                                          <span className="shrink-0 text-lg">{project.icon}</span>
-                                        ) : null}
-                                        <span className="min-w-0 flex-1 truncate">
-                                          {project.name}
-                                        </span>
+                                        <Link
+                                          to={gp(`/projects/${project.id}`)}
+                                          className="flex min-w-0 items-center gap-2"
+                                        >
+                                          {project.icon ? (
+                                            <span className="shrink-0 text-lg">{project.icon}</span>
+                                          ) : null}
+                                          <span className="min-w-0 flex-1 truncate">
+                                            {project.name}
+                                          </span>
+                                        </Link>
+                                      </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                  ))}
+                                </SidebarMenu>
+                              </SidebarGroupContent>
+                            </SidebarGroup>
+                            <SidebarSeparator />
+                          </>
+                        )}
+
+                        {/* All Projects & All Documents */}
+                        {activeGuild && (
+                          <>
+                            <SidebarGroup>
+                              <SidebarGroupContent>
+                                <SidebarMenu>
+                                  <SidebarMenuItem>
+                                    <SidebarMenuButton asChild>
+                                      <Link
+                                        to={gp("/projects")}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <ListTodo className="h-4 w-4" />
+                                        <span>{t("allProjects")}</span>
                                       </Link>
                                     </SidebarMenuButton>
                                   </SidebarMenuItem>
-                                ))}
-                              </SidebarMenu>
-                            </SidebarGroupContent>
-                          </SidebarGroup>
-                          <SidebarSeparator />
-                        </>
-                      )}
+                                  <SidebarMenuItem>
+                                    <SidebarMenuButton asChild>
+                                      <Link
+                                        to={gp("/documents")}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <ScrollText className="h-4 w-4" />
+                                        <span>{t("allDocuments")}</span>
+                                      </Link>
+                                    </SidebarMenuButton>
+                                  </SidebarMenuItem>
+                                </SidebarMenu>
+                              </SidebarGroupContent>
+                            </SidebarGroup>
+                            <SidebarSeparator />
+                          </>
+                        )}
 
-                      {/* All Projects & All Documents */}
-                      {activeGuild && (
-                        <>
-                          <SidebarGroup>
-                            <SidebarGroupContent>
+                        {/* Initiatives Section */}
+                        <SidebarGroup>
+                          <SidebarGroupLabel className="flex items-center gap-2 py-2">
+                            <Users className="h-4 w-4" />
+                            <span className="flex-1">{t("initiatives")}</span>
+                            {visibleInitiatives.length > 0 && (
+                              <Tooltip delayDuration={300}>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 shrink-0"
+                                    onClick={
+                                      allInitiativesCollapsed
+                                        ? expandAllInitiatives
+                                        : collapseAllInitiatives
+                                    }
+                                    aria-label={
+                                      allInitiativesCollapsed ? t("expandAll") : t("collapseAll")
+                                    }
+                                  >
+                                    {allInitiativesCollapsed ? (
+                                      <ChevronsUpDown className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <ChevronsDownUp className="h-3.5 w-3.5" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  <p>
+                                    {allInitiativesCollapsed ? t("expandAll") : t("collapseAll")}
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </SidebarGroupLabel>
+                          <SidebarGroupContent>
+                            {initiativesQuery.isLoading ? (
+                              <div className="space-y-2 px-4">
+                                <Skeleton className="h-8 w-full" />
+                                <Skeleton className="h-8 w-full" />
+                                <Skeleton className="h-8 w-full" />
+                              </div>
+                            ) : visibleInitiatives.length === 0 ? (
+                              <div className="px-4 py-2 text-muted-foreground text-sm">
+                                {t("noInitiativesAvailable")}
+                              </div>
+                            ) : (
+                              <div className="space-y-1">
+                                {visibleInitiatives.map((initiative) => {
+                                  const permissions = getUserPermissions(initiative);
+                                  return (
+                                    <InitiativeSection
+                                      key={initiative.id}
+                                      initiative={initiative}
+                                      projects={projectsByInitiative.get(initiative.id) ?? []}
+                                      documentCount={
+                                        documentCountsByInitiative.get(initiative.id) ?? 0
+                                      }
+                                      canManageInitiative={canManageInitiative(initiative)}
+                                      activeProjectId={activeProjectId}
+                                      userId={user?.id}
+                                      canViewDocs={permissions.canViewDocs}
+                                      canViewProjects={permissions.canViewProjects}
+                                      canViewQueues={permissions.canViewQueues}
+                                      canViewEvents={permissions.canViewEvents}
+                                      canViewAdvancedTool={permissions.canViewAdvancedTool}
+                                      canViewCounters={permissions.canViewCounters}
+                                      canCreateDocs={permissions.canCreateDocs}
+                                      canCreateProjects={permissions.canCreateProjects}
+                                      canCreateQueues={permissions.canCreateQueues}
+                                      canCreateEvents={permissions.canCreateEvents}
+                                      canCreateCounters={permissions.canCreateCounters}
+                                      queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
+                                      counterGroupCount={
+                                        counterGroupCountsByInitiative.get(initiative.id) ?? 0
+                                      }
+                                      activeGuildId={activeGuildId}
+                                      collapseKey={initiativeCollapseKey}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            )}
+
+                            {isGuildAdmin && (
                               <SidebarMenu>
                                 <SidebarMenuItem>
-                                  <SidebarMenuButton asChild>
-                                    <Link to={gp("/projects")} className="flex items-center gap-2">
-                                      <ListTodo className="h-4 w-4" />
-                                      <span>{t("allProjects")}</span>
-                                    </Link>
-                                  </SidebarMenuButton>
-                                </SidebarMenuItem>
-                                <SidebarMenuItem>
-                                  <SidebarMenuButton asChild>
-                                    <Link to={gp("/documents")} className="flex items-center gap-2">
-                                      <ScrollText className="h-4 w-4" />
-                                      <span>{t("allDocuments")}</span>
+                                  <SidebarMenuButton asChild size="sm">
+                                    <Link to={gp("/initiatives")} search={{ create: "true" }}>
+                                      <Plus className="h-4 w-4" />
+                                      <span>{t("addInitiative")}</span>
                                     </Link>
                                   </SidebarMenuButton>
                                 </SidebarMenuItem>
                               </SidebarMenu>
-                            </SidebarGroupContent>
-                          </SidebarGroup>
-                          <SidebarSeparator />
-                        </>
-                      )}
-
-                      {/* Initiatives Section */}
-                      <SidebarGroup>
-                        <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                          <Users className="h-4 w-4" />
-                          <span className="flex-1">{t("initiatives")}</span>
-                          {visibleInitiatives.length > 0 && (
-                            <Tooltip delayDuration={300}>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 shrink-0"
-                                  onClick={
-                                    allInitiativesCollapsed
-                                      ? expandAllInitiatives
-                                      : collapseAllInitiatives
-                                  }
-                                  aria-label={
-                                    allInitiativesCollapsed ? t("expandAll") : t("collapseAll")
-                                  }
-                                >
-                                  {allInitiativesCollapsed ? (
-                                    <ChevronsUpDown className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <ChevronsDownUp className="h-3.5 w-3.5" />
-                                  )}
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom">
-                                <p>{allInitiativesCollapsed ? t("expandAll") : t("collapseAll")}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </SidebarGroupLabel>
-                        <SidebarGroupContent>
-                          {initiativesQuery.isLoading ? (
-                            <div className="space-y-2 px-4">
-                              <Skeleton className="h-8 w-full" />
-                              <Skeleton className="h-8 w-full" />
-                              <Skeleton className="h-8 w-full" />
-                            </div>
-                          ) : visibleInitiatives.length === 0 ? (
-                            <div className="px-4 py-2 text-muted-foreground text-sm">
-                              {t("noInitiativesAvailable")}
-                            </div>
-                          ) : (
-                            <div className="space-y-1">
-                              {visibleInitiatives.map((initiative) => {
-                                const permissions = getUserPermissions(initiative);
-                                return (
-                                  <InitiativeSection
-                                    key={initiative.id}
-                                    initiative={initiative}
-                                    projects={projectsByInitiative.get(initiative.id) ?? []}
-                                    documentCount={
-                                      documentCountsByInitiative.get(initiative.id) ?? 0
-                                    }
-                                    canManageInitiative={canManageInitiative(initiative)}
-                                    activeProjectId={activeProjectId}
-                                    userId={user?.id}
-                                    canViewDocs={permissions.canViewDocs}
-                                    canViewProjects={permissions.canViewProjects}
-                                    canViewQueues={permissions.canViewQueues}
-                                    canViewEvents={permissions.canViewEvents}
-                                    canViewAdvancedTool={permissions.canViewAdvancedTool}
-                                    canViewCounters={permissions.canViewCounters}
-                                    canCreateDocs={permissions.canCreateDocs}
-                                    canCreateProjects={permissions.canCreateProjects}
-                                    canCreateQueues={permissions.canCreateQueues}
-                                    canCreateEvents={permissions.canCreateEvents}
-                                    canCreateCounters={permissions.canCreateCounters}
-                                    queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
-                                    counterGroupCount={
-                                      counterGroupCountsByInitiative.get(initiative.id) ?? 0
-                                    }
-                                    activeGuildId={activeGuildId}
-                                    collapseKey={initiativeCollapseKey}
-                                  />
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          {isGuildAdmin && (
-                            <SidebarMenu>
-                              <SidebarMenuItem>
-                                <SidebarMenuButton asChild size="sm">
-                                  <Link to={gp("/initiatives")} search={{ create: "true" }}>
-                                    <Plus className="h-4 w-4" />
-                                    <span>{t("addInitiative")}</span>
-                                  </Link>
-                                </SidebarMenuButton>
-                              </SidebarMenuItem>
-                            </SidebarMenu>
-                          )}
-                        </SidebarGroupContent>
-                      </SidebarGroup>
-                    </SidebarContent>
+                            )}
+                          </SidebarGroupContent>
+                        </SidebarGroup>
+                      </SidebarContent>
+                    </ScrollArea>
                   </TabsContent>
 
                   <TabsContent value="tags" className="mt-0 flex-1 overflow-hidden">
-                    <SidebarContent className="h-full overflow-y-auto overflow-x-hidden">
-                      <SidebarGroup>
-                        <SidebarGroupLabel className="flex items-center gap-2 py-2">
-                          <Tag className="h-4 w-4" />
-                          <span className="flex-1">{t("tags")}</span>
-                          {(tagsQuery.data ?? []).length > 0 && (
-                            <Tooltip delayDuration={300}>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 shrink-0"
-                                  onClick={expandAllTags}
-                                  aria-label={t("expandAll")}
-                                >
-                                  <ChevronsUpDown className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom">
-                                <p>{t("expandAll")}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                          {(tagsQuery.data ?? []).length > 0 && (
-                            <Tooltip delayDuration={300}>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 shrink-0"
-                                  onClick={collapseAllTags}
-                                  aria-label={t("collapseAll")}
-                                >
-                                  <ChevronsDownUp className="h-3.5 w-3.5" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom">
-                                <p>{t("collapseAll")}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                        </SidebarGroupLabel>
-                        <SidebarGroupContent>
-                          <TagBrowser
-                            tags={tagsQuery.data ?? []}
-                            isLoading={tagsQuery.isLoading}
-                            activeGuildId={activeGuildId}
-                            collapseKey={tagCollapseKey}
-                          />
-                        </SidebarGroupContent>
-                      </SidebarGroup>
-                    </SidebarContent>
+                    <ScrollArea className="[&_[data-radix-scroll-area-viewport]>div]:block! h-full">
+                      <SidebarContent className="overflow-x-hidden overflow-y-visible">
+                        <SidebarGroup>
+                          <SidebarGroupLabel className="flex items-center gap-2 py-2">
+                            <Tag className="h-4 w-4" />
+                            <span className="flex-1">{t("tags")}</span>
+                            {(tagsQuery.data ?? []).length > 0 && (
+                              <Tooltip delayDuration={300}>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 shrink-0"
+                                    onClick={expandAllTags}
+                                    aria-label={t("expandAll")}
+                                  >
+                                    <ChevronsUpDown className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  <p>{t("expandAll")}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                            {(tagsQuery.data ?? []).length > 0 && (
+                              <Tooltip delayDuration={300}>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 shrink-0"
+                                    onClick={collapseAllTags}
+                                    aria-label={t("collapseAll")}
+                                  >
+                                    <ChevronsDownUp className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                  <p>{t("collapseAll")}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </SidebarGroupLabel>
+                          <SidebarGroupContent>
+                            <TagBrowser
+                              tags={tagsQuery.data ?? []}
+                              isLoading={tagsQuery.isLoading}
+                              activeGuildId={activeGuildId}
+                              collapseKey={tagCollapseKey}
+                            />
+                          </SidebarGroupContent>
+                        </SidebarGroup>
+                      </SidebarContent>
+                    </ScrollArea>
                   </TabsContent>
                 </Tabs>
               </>

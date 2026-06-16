@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   DocumentSummary,
-  ListDocumentsApiV1DocumentsGetParams,
+  ListDocumentsApiV1GGuildIdDocumentsGetParams,
   TagRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
@@ -32,6 +32,7 @@ import {
   usePrefetchDocumentsList,
 } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import {
   canCreate as canCreatePermission,
   useMyInitiativePermissions,
@@ -74,6 +75,9 @@ export const DocumentsView = ({
   const prefetchDocuments = usePrefetchDocumentsList();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+  // Shared access helper — honors guild-admin / PAM / membership so this page
+  // never re-derives access from raw membership flags.
+  const { filterVisible, permissionsFor, isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
@@ -309,7 +313,7 @@ export const DocumentsView = ({
   // primitive string (same serialization => same cache key).
   const encodedPropertyFilters = propertyFilters.length > 0 ? propertyFiltersKey : null;
 
-  const documentsQueryParams: ListDocumentsApiV1DocumentsGetParams = {
+  const documentsQueryParams: ListDocumentsApiV1GGuildIdDocumentsGetParams = {
     ...(initiativeFilter !== INITIATIVE_FILTER_ALL
       ? { initiative_id: Number(initiativeFilter) }
       : {}),
@@ -339,7 +343,7 @@ export const DocumentsView = ({
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const prefetchParams: ListDocumentsApiV1DocumentsGetParams = {
+      const prefetchParams: ListDocumentsApiV1GGuildIdDocumentsGetParams = {
         ...(initiativeFilter !== INITIATIVE_FILTER_ALL
           ? { initiative_id: Number(initiativeFilter) }
           : {}),
@@ -369,16 +373,16 @@ export const DocumentsView = ({
 
   const initiativesQuery = useInitiatives();
 
-  // Filter initiatives where user can create documents
+  // Initiatives the user can create documents in — resolved through the shared
+  // access helper so guild admins are included regardless of any membership row.
   const creatableInitiatives = useMemo(() => {
-    const initiatives = initiativesQuery.data ?? [];
-    if (!user) {
+    if (!initiativesQuery.data || !user) {
       return [];
     }
-    return initiatives.filter((initiative) =>
-      initiative.members.some((member) => member.user.id === user.id && member.can_create_docs)
+    return filterVisible(initiativesQuery.data).filter(
+      (initiative) => permissionsFor(initiative).canCreateDocs
     );
-  }, [initiativesQuery.data, user]);
+  }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createDialogInitiativeId, setCreateDialogInitiativeId] = useState<number | undefined>(
@@ -415,6 +419,11 @@ export const DocumentsView = ({
 
   // Check if user can view docs for the filtered initiative
   const canViewDocs = useMemo(() => {
+    // Guild admins / PAM grantees always have access — a membership row must
+    // never downgrade them.
+    if (isGuildAdmin || isGrantGuild) {
+      return true;
+    }
     // If no specific initiative is filtered, user can view the page
     const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
     if (!effectiveInitiativeId || !user) {
@@ -429,7 +438,14 @@ export const DocumentsView = ({
       return true; // Not a member, let the backend handle access control
     }
     return membership.can_view_docs !== false;
-  }, [lockedInitiativeId, filteredInitiativeId, user, initiativesQuery.data]);
+  }, [
+    lockedInitiativeId,
+    filteredInitiativeId,
+    user,
+    initiativesQuery.data,
+    isGuildAdmin,
+    isGrantGuild,
+  ]);
 
   // Use explicit canCreate prop if provided (from role permissions), otherwise check filtered initiative permissions
   const canCreateDocuments = useMemo(() => {
@@ -520,13 +536,16 @@ export const DocumentsView = ({
   const viewableInitiatives = useMemo(() => {
     const allInitiatives = initiativesQuery.data ?? [];
     if (!user) return allInitiatives;
+    // Guild admins / PAM grantees see every initiative regardless of any
+    // membership row.
+    if (isGuildAdmin || isGrantGuild) return allInitiatives;
     return allInitiatives.filter((initiative) => {
       const membership = initiative.members.find((m) => m.user.id === user.id);
       // If not a member, include it (backend will handle access control)
       if (!membership) return true;
       return membership.can_view_docs !== false;
     });
-  }, [initiativesQuery.data, user]);
+  }, [initiativesQuery.data, user, isGuildAdmin, isGrantGuild]);
   const lockedInitiative = lockedInitiativeId
     ? (initiatives.find((initiative) => initiative.id === lockedInitiativeId) ?? null)
     : null;

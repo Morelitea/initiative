@@ -39,6 +39,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import {
   canCreate as canCreatePermission,
   useMyInitiativePermissions,
@@ -55,7 +56,6 @@ import {
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { useGuildPath } from "@/lib/guildUrl";
-import { Capability, hasCapability } from "@/lib/permissions";
 
 const INITIATIVE_FILTER_ALL = "all";
 const PROJECT_SORT_KEY = "project:list:sort";
@@ -79,6 +79,10 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const { t } = useTranslation(["projects", "common"]);
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+  // Single source of truth for "what can I do in each initiative" — honors
+  // guild-admin / PAM / membership so this page never re-derives access from
+  // raw membership flags (which would wrongly exclude guild admins).
+  const { filterVisible, permissionsFor, isGuildAdmin, isGrantGuild } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as { create?: string; initiativeId?: string };
   const router = useRouter();
@@ -237,21 +241,29 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const projectsQuery = useProjects();
 
   const initiativesQuery = useInitiatives({
-    enabled: hasCapability(user, Capability.dataBypass) || hasClaimedManagerRole,
+    // Guild admins / PAM grantees can create across the guild even without a
+    // claimed manager role, so they must fetch initiatives too.
+    enabled: hasClaimedManagerRole || isGuildAdmin || isGrantGuild,
   });
-  // Filter initiatives where user can create projects
+  // Initiatives the user can create projects in — resolved through the shared
+  // access helper so guild admins are included regardless of any membership row.
   const creatableInitiatives = useMemo(() => {
     if (!initiativesQuery.data || !user) {
       return [];
     }
-    return initiativesQuery.data.filter((initiative) =>
-      initiative.members?.some((member) => member.user.id === user.id && member.can_create_projects)
+    return filterVisible(initiativesQuery.data).filter(
+      (initiative) => permissionsFor(initiative).canCreateProjects
     );
-  }, [initiativesQuery.data, user]);
+  }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
   const isProjectManager = creatableInitiatives.length > 0;
 
   // Check if user can view projects for the filtered initiative
   const canViewProjects = useMemo(() => {
+    // Guild admins / PAM grantees always have access — a membership row must
+    // never downgrade them.
+    if (isGuildAdmin || isGrantGuild) {
+      return true;
+    }
     // If no specific initiative is filtered, user can view the page
     const effectiveInitiativeId = lockedInitiativeId ?? filteredInitiativeId;
     if (!effectiveInitiativeId || !user) {
@@ -266,7 +278,14 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       return true; // Not a member, let the backend handle access control
     }
     return membership.can_view_projects !== false;
-  }, [lockedInitiativeId, filteredInitiativeId, user, initiativesQuery.data]);
+  }, [
+    lockedInitiativeId,
+    filteredInitiativeId,
+    user,
+    initiativesQuery.data,
+    isGuildAdmin,
+    isGrantGuild,
+  ]);
 
   // Use explicit canCreate prop if provided (from role permissions), otherwise check filtered initiative permissions
   const canCreateProjects = useMemo(() => {

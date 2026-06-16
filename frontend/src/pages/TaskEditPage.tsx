@@ -17,7 +17,7 @@ import {
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { getListCommentsApiV1CommentsGetQueryKey } from "@/api/generated/comments/comments";
+import { getListCommentsApiV1GGuildIdCommentsGetQueryKey } from "@/api/generated/comments/comments";
 import type {
   CommentRead,
   PropertyDefinitionRead,
@@ -28,7 +28,7 @@ import type {
   TaskPriority,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
-import { getReadTaskApiV1TasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
+import { getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey } from "@/api/generated/tasks/tasks";
 import { invalidateProject, invalidateProjectTaskStatuses } from "@/api/query-keys";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { Markdown } from "@/components/Markdown";
@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAIEnabled } from "@/hooks/useAIEnabled";
 import { useAuth } from "@/hooks/useAuth";
 import { useComments } from "@/hooks/useComments";
@@ -115,7 +116,8 @@ export const TaskEditPage = () => {
   const { taskId } = useParams({ strict: false }) as { taskId: string };
   const parsedTaskId = Number(taskId);
   const router = useRouter();
-  useAuth();
+  const guildId = useActiveGuildId();
+  const { user: currentUser } = useAuth();
   useGuilds();
   const { t } = useTranslation(["tasks", "common", "properties"]);
   const gp = useGuildPath();
@@ -163,7 +165,10 @@ export const TaskEditPage = () => {
   const taskStatusesQuery = useProjectTaskStatuses(projectId ?? null);
 
   const commentsQueryParams = { task_id: parsedTaskId };
-  const commentsQueryKey = getListCommentsApiV1CommentsGetQueryKey(commentsQueryParams);
+  const commentsQueryKey = getListCommentsApiV1GGuildIdCommentsGetQueryKey(
+    guildId,
+    commentsQueryParams
+  );
   const commentsQuery = useComments(commentsQueryParams, {
     enabled: Number.isFinite(parsedTaskId),
   });
@@ -237,7 +242,7 @@ export const TaskEditPage = () => {
   const moveTask = useMoveTask({
     onSuccess: (updatedTask) => {
       queryClient.setQueryData<TaskListRead>(
-        getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
+        getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
         updatedTask
       );
       const previousProjectId = moveContext?.previousProjectId;
@@ -262,7 +267,7 @@ export const TaskEditPage = () => {
   const toggleArchive = useUpdateTask({
     onSuccess: (updatedTask) => {
       queryClient.setQueryData<TaskListRead>(
-        getReadTaskApiV1TasksTaskIdGetQueryKey(parsedTaskId),
+        getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, parsedTaskId),
         updatedTask
       );
       toast.success(updatedTask.is_archived ? t("edit.taskArchived") : t("edit.taskUnarchived"));
@@ -383,6 +388,8 @@ export const TaskEditPage = () => {
       return users.map((user) => ({
         id: user.id,
         label: user.full_name ?? user.email,
+        avatarUrl: user.avatar_url,
+        avatarBase64: user.avatar_base64,
       }));
     }
     const allowed = new Set<number>();
@@ -413,6 +420,8 @@ export const TaskEditPage = () => {
       .map((user) => ({
         id: user.id,
         label: user.full_name ?? user.email,
+        avatarUrl: user.avatar_url,
+        avatarBase64: user.avatar_base64,
       }));
   }, [users, project]);
 
@@ -851,22 +860,6 @@ export const TaskEditPage = () => {
                 </div>
               </div>
 
-              <section className="space-y-2">
-                <Label>{t("properties:title")}</Label>
-                <PropertyList
-                  entityKind="task"
-                  entityId={parsedTaskId}
-                  properties={combinedProperties}
-                  disabled={isReadOnly}
-                />
-                <AddPropertyButton
-                  initiativeId={project?.initiative_id ?? 0}
-                  currentPropertyIds={combinedPropertyIds}
-                  onAdd={handleAddProperty}
-                  disabled={isReadOnly || !project?.initiative_id}
-                />
-              </section>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>{t("edit.assigneesLabel")}</Label>
@@ -876,6 +869,7 @@ export const TaskEditPage = () => {
                     onChange={setAssigneeIds}
                     disabled={isReadOnly}
                     emptyMessage={t("edit.assigneesEmptyMessage", { memberLabel })}
+                    currentUserId={currentUser?.id}
                   />
                 </div>
                 <div className="space-y-2">
@@ -897,6 +891,22 @@ export const TaskEditPage = () => {
                 disabled={isReadOnly}
                 referenceDate={dueDate || startDate || task?.due_date || task?.start_date}
               />
+
+              <section className="space-y-2">
+                <Label>{t("properties:title")}</Label>
+                <PropertyList
+                  entityKind="task"
+                  entityId={parsedTaskId}
+                  properties={combinedProperties}
+                  disabled={isReadOnly}
+                />
+                <AddPropertyButton
+                  initiativeId={project?.initiative_id ?? 0}
+                  currentPropertyIds={combinedPropertyIds}
+                  onAdd={handleAddProperty}
+                  disabled={isReadOnly || !project?.initiative_id}
+                />
+              </section>
 
               <div className="flex flex-wrap gap-3">
                 <Button type="submit" disabled={updateTask.isPending || isReadOnly}>

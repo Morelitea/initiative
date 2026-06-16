@@ -79,7 +79,9 @@ class PropertyDefinitionUpdate(SanitizedBaseModel):
         return v
 
     @field_validator("options")
-    def _unique_slugs(cls, v: Optional[List[PropertyOption]]) -> Optional[List[PropertyOption]]:
+    def _unique_slugs(
+        cls, v: Optional[List[PropertyOption]]
+    ) -> Optional[List[PropertyOption]]:
         if v is None:
             return v
         slugs = [opt.value for opt in v]
@@ -89,7 +91,9 @@ class PropertyDefinitionUpdate(SanitizedBaseModel):
 
 
 class PropertyDefinitionRead(PropertyDefinitionBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     initiative_id: int
@@ -105,7 +109,9 @@ class PropertyDefinitionUpdateResponse(SanitizedBaseModel):
     updates this is always 0.
     """
 
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     definition: PropertyDefinitionRead
     orphaned_value_count: int = 0
@@ -140,7 +146,9 @@ class PropertySummary(SanitizedBaseModel):
     minimal ``{id, full_name}`` dict.
     """
 
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     property_id: int
     name: str

@@ -44,7 +44,7 @@ public class FirebaseInitializer {
         String storedServerUrl = prefs.getString(KEY_SERVER_URL, "");
         if (!serverUrl.equals(storedServerUrl) || !prefs.contains(KEY_PROJECT_ID)) {
             Log.d(TAG, "Fetching FCM config from backend: " + serverUrl);
-            if (!fetchAndStoreConfig(context, serverUrl, prefs)) {
+            if (!fetchAndStoreConfig(serverUrl, prefs)) {
                 Log.w(TAG, "Failed to fetch FCM config, push notifications disabled");
                 return false;
             }
@@ -89,12 +89,11 @@ public class FirebaseInitializer {
     /**
      * Fetch FCM configuration from backend API and store in SharedPreferences.
      *
-     * @param context Application context
      * @param serverUrl Backend server URL
      * @param prefs SharedPreferences to store config
      * @return true if config was fetched successfully, false otherwise
      */
-    private static boolean fetchAndStoreConfig(Context context, String serverUrl, SharedPreferences prefs) {
+    private static boolean fetchAndStoreConfig(String serverUrl, SharedPreferences prefs) {
         final CountDownLatch latch = new CountDownLatch(1);
         final boolean[] success = {false};
 

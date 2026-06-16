@@ -45,19 +45,16 @@ COUNTER_LEVEL_ORDER: dict[CounterPermissionLevel, int] = {
 # Visibility subquery
 # ---------------------------------------------------------------------------
 
+
 def visible_counter_group_ids_subquery(user_id: int):
     """Return a subquery of counter-group IDs the user can access (DAC only)."""
-    user_perm_subq = (
-        select(CounterGroupPermission.counter_group_id)
-        .where(CounterGroupPermission.user_id == user_id)
+    user_perm_subq = select(CounterGroupPermission.counter_group_id).where(
+        CounterGroupPermission.user_id == user_id
     )
-    role_perm_subq = (
-        select(CounterGroupRolePermission.counter_group_id)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == CounterGroupRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user_id),
-        )
+    role_perm_subq = select(CounterGroupRolePermission.counter_group_id).join(
+        InitiativeMember,
+        (InitiativeMember.role_id == CounterGroupRolePermission.initiative_role_id)
+        & (InitiativeMember.user_id == user_id),
     )
     return user_perm_subq.union(role_perm_subq)
 
@@ -65,6 +62,7 @@ def visible_counter_group_ids_subquery(user_id: int):
 # ---------------------------------------------------------------------------
 # DAC helpers
 # ---------------------------------------------------------------------------
+
 
 def counter_group_role_permission_level(
     group: Any,
@@ -149,6 +147,7 @@ def require_counter_group_access(
 # Query helpers
 # ---------------------------------------------------------------------------
 
+
 async def get_counter_group(
     session: AsyncSession,
     group_id: int,
@@ -161,10 +160,10 @@ async def get_counter_group(
         .options(
             selectinload(CounterGroup.counters),
             selectinload(CounterGroup.permissions),
-            selectinload(CounterGroup.role_permissions)
-            .selectinload(CounterGroupRolePermission.role),
-            selectinload(CounterGroup.initiative)
-            .selectinload(Initiative.memberships),
+            selectinload(CounterGroup.role_permissions).selectinload(
+                CounterGroupRolePermission.role
+            ),
+            selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
         )
     )
     if populate_existing:
@@ -231,7 +230,9 @@ async def reset_counter(session: AsyncSession, counter: Counter) -> Counter:
     return counter
 
 
-async def reset_all_counters(session: AsyncSession, group: CounterGroup) -> CounterGroup:
+async def reset_all_counters(
+    session: AsyncSession, group: CounterGroup
+) -> CounterGroup:
     counters = getattr(group, "counters", None) or []
     now = datetime.now(timezone.utc)
     for counter in counters:
@@ -269,49 +270,57 @@ async def duplicate_counter_group(
     session.add(new_group)
     await session.flush()
 
-    session.add(CounterGroupPermission(
-        counter_group_id=new_group.id,
-        user_id=user_id,
-        guild_id=guild_id,
-        level=CounterPermissionLevel.owner,
-    ))
+    session.add(
+        CounterGroupPermission(
+            counter_group_id=new_group.id,
+            user_id=user_id,
+            guild_id=guild_id,
+            level=CounterPermissionLevel.owner,
+        )
+    )
 
-    for rp in (getattr(source, "role_permissions", None) or []):
+    for rp in getattr(source, "role_permissions", None) or []:
         if rp.level == CounterPermissionLevel.owner:
             continue
-        session.add(CounterGroupRolePermission(
-            counter_group_id=new_group.id,
-            initiative_role_id=rp.initiative_role_id,
-            guild_id=guild_id,
-            level=rp.level,
-        ))
+        session.add(
+            CounterGroupRolePermission(
+                counter_group_id=new_group.id,
+                initiative_role_id=rp.initiative_role_id,
+                guild_id=guild_id,
+                level=rp.level,
+            )
+        )
 
-    for perm in (getattr(source, "permissions", None) or []):
+    for perm in getattr(source, "permissions", None) or []:
         if perm.level == CounterPermissionLevel.owner or perm.user_id == user_id:
             continue
-        session.add(CounterGroupPermission(
-            counter_group_id=new_group.id,
-            user_id=perm.user_id,
-            guild_id=guild_id,
-            level=perm.level,
-        ))
+        session.add(
+            CounterGroupPermission(
+                counter_group_id=new_group.id,
+                user_id=perm.user_id,
+                guild_id=guild_id,
+                level=perm.level,
+            )
+        )
 
-    for counter in (getattr(source, "counters", None) or []):
+    for counter in getattr(source, "counters", None) or []:
         if counter.deleted_at is not None:
             continue
-        session.add(Counter(
-            guild_id=guild_id,
-            counter_group_id=new_group.id,
-            name=counter.name,
-            color=counter.color,
-            count=counter.count,
-            min=counter.min,
-            max=counter.max,
-            step=counter.step,
-            initial_count=counter.initial_count,
-            view_mode=counter.view_mode,
-            position=counter.position,
-        ))
+        session.add(
+            Counter(
+                guild_id=guild_id,
+                counter_group_id=new_group.id,
+                name=counter.name,
+                color=counter.color,
+                count=counter.count,
+                min=counter.min,
+                max=counter.max,
+                step=counter.step,
+                initial_count=counter.initial_count,
+                view_mode=counter.view_mode,
+                position=counter.position,
+            )
+        )
 
     return new_group
 
@@ -329,12 +338,16 @@ async def sort_counters(
     deterministic and repeatable — descending is the exact reverse of
     ascending, and re-sorting an already-sorted group is idempotent.
     """
-    counters = [c for c in (getattr(group, "counters", None) or []) if c.deleted_at is None]
+    counters = [
+        c for c in (getattr(group, "counters", None) or []) if c.deleted_at is None
+    ]
 
     if field == CounterSortField.name:
+
         def key(c: Counter):
             return (c.name.casefold(), c.id)
     else:
+
         def key(c: Counter):
             return (c.count, c.name.casefold(), c.id)
 

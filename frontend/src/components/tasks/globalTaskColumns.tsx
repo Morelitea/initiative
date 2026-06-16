@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 
 import type {
-  ProjectRead,
   TaskListRead,
   TaskStatusCategory,
   TaskStatusRead,
@@ -33,7 +32,6 @@ interface GlobalTaskColumnsOptions {
   projectStatusCache: React.MutableRefObject<
     Map<number, { statuses: TaskStatusRead[]; complete: boolean }>
   >;
-  projectsById: Record<number, ProjectRead>;
   t: TranslateFn;
   showAssignees?: boolean;
 }
@@ -45,7 +43,6 @@ export function globalTaskColumns({
   changeTaskStatusById,
   fetchProjectStatuses,
   projectStatusCache,
-  projectsById,
   t,
   showAssignees = false,
 }: GlobalTaskColumnsOptions): ColumnDef<TaskListRead>[] {
@@ -226,14 +223,12 @@ export function globalTaskColumns({
       header: () => <span className="font-medium">{t("columns.projectPath")}</span>,
       cell: ({ row }) => {
         const task = row.original;
-        const project = projectsById[task.project_id];
-        const projectLabel =
-          task.project_name ?? project?.name ?? t("projectFallback", { id: task.project_id });
-        const projectIdentifier = project?.id ?? task.project_id;
+        const projectLabel = task.project_name ?? t("projectFallback", { id: task.project_id });
+        const projectIdentifier = task.project_id;
         const guildName = task.guild_name;
-        const initiativeId = task.initiative_id ?? project?.initiative_id;
-        const initiativeName = task.initiative_name ?? project?.initiative?.name;
-        const initiativeColor = task.initiative_color ?? project?.initiative?.color;
+        const initiativeId = task.initiative_id;
+        const initiativeName = task.initiative_name;
+        const initiativeColor = task.initiative_color;
         return (
           <div className="min-w-30">
             <div className="flex flex-wrap items-center gap-2">

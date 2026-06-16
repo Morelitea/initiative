@@ -25,13 +25,13 @@ export function useCounterGroupRealtime(groupId: number | null): void {
     const normalizedPath = url.pathname.endsWith("/")
       ? url.pathname.slice(0, -1)
       : url.pathname || "/api/v1";
-    url.pathname = `${normalizedPath}/counter-groups/${groupId}/ws`;
+    url.pathname = `${normalizedPath}/g/${activeGuildId}/counter-groups/${groupId}/ws`;
 
     const ws = new WebSocket(url.toString());
     wsRef.current = ws;
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ token: token ?? null, guild_id: activeGuildId }));
+      ws.send(JSON.stringify({ token: token ?? null }));
     };
 
     ws.onmessage = () => {

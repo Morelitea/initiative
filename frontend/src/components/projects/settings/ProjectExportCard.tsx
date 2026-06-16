@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { exportProjectApiV1ProjectsProjectIdExportGet } from "@/api/generated/projects/projects";
+import { exportProjectApiV1GGuildIdProjectsProjectIdExportGet } from "@/api/generated/projects/projects";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -34,12 +35,16 @@ export const ProjectExportCard = ({
   canWriteProject,
 }: ProjectExportCardProps) => {
   const { t } = useTranslation("projects");
+  const guildId = useActiveGuildId();
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const envelope = await exportProjectApiV1ProjectsProjectIdExportGet(projectId);
+      const envelope = await exportProjectApiV1GGuildIdProjectsProjectIdExportGet(
+        guildId,
+        projectId
+      );
       const blob = new Blob([JSON.stringify(envelope, null, 2)], {
         type: "application/json",
       });

@@ -16,7 +16,9 @@ async def create_notification(
     notification_type: NotificationType,
     data: Mapping[str, object],
 ) -> Notification:
-    notification = Notification(user_id=user_id, type=notification_type, data=dict(data))
+    notification = Notification(
+        user_id=user_id, type=notification_type, data=dict(data)
+    )
     session.add(notification)
     await session.flush()
     return notification

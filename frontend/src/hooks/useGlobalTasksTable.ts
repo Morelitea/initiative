@@ -6,8 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   FilterCondition,
-  ListTasksApiV1TasksGetParams,
-  ProjectRead,
+  ListMyTasksApiV1MeTasksGetParams,
   SortField,
   TaskListRead,
   TaskListResponse,
@@ -15,15 +14,16 @@ import type {
   TaskStatusCategory,
   TaskStatusRead,
 } from "@/api/generated/initiativeAPI.schemas";
-import { listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
+import { listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet } from "@/api/generated/task-statuses/task-statuses";
 import {
-  getListTasksApiV1TasksGetQueryKey,
-  listTasksApiV1TasksGet,
+  getListMyCreatedTasksApiV1MeTasksCreatedGetQueryKey,
+  getListMyTasksApiV1MeTasksGetQueryKey,
+  listMyCreatedTasksApiV1MeTasksCreatedGet,
+  listMyTasksApiV1MeTasksGet,
 } from "@/api/generated/tasks/tasks";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useArchivedProjects, useProjects, useTemplateProjects } from "@/hooks/useProjects";
-import { useUpdateTask } from "@/hooks/useTasks";
+import { useUpdateTaskInGuild } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
@@ -90,15 +90,23 @@ const SORT_FIELD_MAP: Record<string, string> = {
   priority: "priority",
 };
 
-export type GlobalTaskScope = "global" | "global_created";
+export type MyTasksView = "assigned" | "created";
 
 interface UseGlobalTasksTableOptions {
-  scope: GlobalTaskScope;
+  view: MyTasksView;
   storageKeyPrefix: string;
 }
 
-export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksTableOptions) {
+export function useGlobalTasksTable({ view, storageKeyPrefix }: UseGlobalTasksTableOptions) {
   const { t } = useTranslation(["tasks", "dates", "common"]);
+  // Cross-guild aggregates: /me/tasks (assigned) vs /me/tasks/created (created).
+  const isCreated = view === "created";
+  const listMyTasks = isCreated
+    ? listMyCreatedTasksApiV1MeTasksCreatedGet
+    : listMyTasksApiV1MeTasksGet;
+  const getMyTasksQueryKey = isCreated
+    ? getListMyCreatedTasksApiV1MeTasksCreatedGetQueryKey
+    : getListMyTasksApiV1MeTasksGetQueryKey;
   const { activeGuildId } = useGuilds();
   const localQueryClient = useQueryClient();
   const router = useRouter();
@@ -197,7 +205,7 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   const userTimezone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, []);
 
   // --- Tasks query ---
-  const tasksParams = useMemo((): ListTasksApiV1TasksGetParams => {
+  const tasksParams = useMemo((): ListMyTasksApiV1MeTasksGetParams => {
     // Build synthesized property-value conditions. The tasks backend exposes
     // ``property_values`` as a virtual field where ``value`` is the shape
     // ``{property_id, value}`` (see backend/app/api/v1/endpoints/tasks.py).
@@ -222,7 +230,6 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       ...propertyConditions,
     ];
     return {
-      scope: scope as ListTasksApiV1TasksGetParams["scope"],
       conditions: conditions.length > 0 ? conditions : undefined,
       page,
       page_size: pageSize,
@@ -230,7 +237,6 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
       tz: userTimezone,
     };
   }, [
-    scope,
     statusFilters,
     priorityFilters,
     guildFilters,
@@ -242,69 +248,38 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   ]);
 
   const tasksQuery = useQuery<TaskListResponse>({
-    queryKey: getListTasksApiV1TasksGetQueryKey(tasksParams),
-    queryFn: () => listTasksApiV1TasksGet(tasksParams) as unknown as Promise<TaskListResponse>,
+    queryKey: getMyTasksQueryKey(tasksParams),
+    queryFn: () => listMyTasks(tasksParams) as unknown as Promise<TaskListResponse>,
     placeholderData: keepPreviousData,
   });
 
   const prefetchPage = useCallback(
     (targetPage: number) => {
       if (targetPage < 1) return;
-      const prefetchParams: ListTasksApiV1TasksGetParams = { ...tasksParams, page: targetPage };
+      const prefetchParams: ListMyTasksApiV1MeTasksGetParams = {
+        ...tasksParams,
+        page: targetPage,
+      };
 
       void localQueryClient.prefetchQuery({
-        queryKey: getListTasksApiV1TasksGetQueryKey(prefetchParams),
-        queryFn: () =>
-          listTasksApiV1TasksGet(prefetchParams) as unknown as Promise<TaskListResponse>,
+        queryKey: getMyTasksQueryKey(prefetchParams),
+        queryFn: () => listMyTasks(prefetchParams) as unknown as Promise<TaskListResponse>,
         staleTime: 30_000,
       });
     },
-    [tasksParams, localQueryClient]
+    [tasksParams, localQueryClient, getMyTasksQueryKey, listMyTasks]
   );
 
-  // --- Excluded projects (archived / template) ---
-  const projectsQuery = useProjects();
-  const templatesQuery = useTemplateProjects();
-  const archivedProjectsQuery = useArchivedProjects();
-
-  const projectsById = useMemo(() => {
-    const result: Record<number, ProjectRead> = {};
-    const projects = projectsQuery.data?.items ?? [];
-    projects.forEach((project) => {
-      result[project.id] = project;
-    });
-    return result;
-  }, [projectsQuery.data]);
-
-  const excludedProjectIds = useMemo(() => {
-    const ids = new Set<number>();
-    const projects = projectsQuery.data?.items ?? [];
-    const templates = templatesQuery.data?.items ?? [];
-    const archived = archivedProjectsQuery.data?.items ?? [];
-
-    projects.forEach((project) => {
-      if (project.is_archived || project.is_template) {
-        ids.add(project.id);
-      }
-    });
-    templates.forEach((project) => {
-      ids.add(project.id);
-    });
-    archived.forEach((project) => {
-      ids.add(project.id);
-    });
-    return ids;
-  }, [projectsQuery.data, templatesQuery.data, archivedProjectsQuery.data]);
-
   // --- Status mutation ---
-  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } = useUpdateTask({
-    onSuccess: (updatedTask) => {
-      const cached = projectStatusCache.current.get(updatedTask.project_id);
-      if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
-        cached.statuses.push(updatedTask.task_status);
-      }
-    },
-  });
+  const { mutateAsync: updateTaskStatusMutate, isPending: isUpdatingTaskStatus } =
+    useUpdateTaskInGuild({
+      onSuccess: (updatedTask) => {
+        const cached = projectStatusCache.current.get(updatedTask.project_id);
+        if (cached && !cached.statuses.some((status) => status.id === updatedTask.task_status.id)) {
+          cached.statuses.push(updatedTask.task_status);
+        }
+      },
+    });
 
   // --- Task items + status cache hydration ---
   const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data]);
@@ -334,9 +309,12 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     if (!guildId) {
       return cached?.statuses ?? [];
     }
-    const statuses = (await listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(projectId, {
-      headers: { "X-Guild-ID": String(guildId) },
-    })) as unknown as TaskStatusRead[];
+    // Explicit guild address: the project lives in the task's guild, which
+    // need not be the user's current context on these cross-guild pages.
+    const statuses = (await listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+      guildId,
+      projectId
+    )) as unknown as TaskStatusRead[];
     const merged = cached
       ? [
           ...cached.statuses,
@@ -373,7 +351,9 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
         await updateTaskStatusMutate({
           taskId: task.id,
           data: { task_status_id: targetStatusId },
-          requestOptions: { headers: { "X-Guild-ID": String(targetGuildId) } },
+          // Cross-guild update from the personal My Tasks table: per-guild task
+          // ids collide, so the update must name the task's own guild (path).
+          guildId: targetGuildId,
         });
       } catch (error) {
         console.error(error);
@@ -404,10 +384,10 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
     [activeGuildId, changeTaskStatusById, resolveStatusIdForCategory, t]
   );
 
-  // --- Display tasks (exclude archived/template projects) ---
-  const displayTasks = useMemo(() => {
-    return tasks.filter((task) => !excludedProjectIds.has(task.project_id));
-  }, [tasks, excludedProjectIds]);
+  // --- Display tasks ---
+  // Archived/template projects are excluded server-side by both global
+  // scopes, so the rows come back ready to render.
+  const displayTasks = tasks;
 
   // --- Responsive filter visibility ---
   useEffect(() => {
@@ -428,19 +408,11 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
   }, []);
 
   // --- Derived loading / error states ---
-  const isInitialLoad =
-    (tasksQuery.isLoading && !tasksQuery.data) ||
-    (projectsQuery.isLoading && !projectsQuery.data) ||
-    (templatesQuery.isLoading && !templatesQuery.data) ||
-    (archivedProjectsQuery.isLoading && !archivedProjectsQuery.data);
+  const isInitialLoad = tasksQuery.isLoading && !tasksQuery.data;
 
   const isRefetching = tasksQuery.isFetching && !isInitialLoad;
 
-  const hasError =
-    tasksQuery.isError ||
-    projectsQuery.isError ||
-    templatesQuery.isError ||
-    archivedProjectsQuery.isError;
+  const hasError = tasksQuery.isError;
 
   const totalCount = tasksQuery.data?.total_count ?? 0;
   const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
@@ -460,7 +432,6 @@ export function useGlobalTasksTable({ scope, storageKeyPrefix }: UseGlobalTasksT
 
     // Query results
     tasksQuery,
-    projectsById,
 
     // Pagination
     page,

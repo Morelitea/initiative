@@ -54,7 +54,6 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/my-documen
     const { guildFilters } = readPrefetchFilters(queryClient);
 
     const params: Record<string, string | string[] | number | number[]> = {
-      scope: "global",
       page: 1,
       page_size: PAGE_SIZE,
     };
@@ -62,8 +61,9 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/my-documen
 
     try {
       await queryClient.ensureQueryData({
-        queryKey: ["documents", "global", guildFilters, "", 1, PAGE_SIZE, undefined, undefined],
-        queryFn: () => apiClient.get("/documents/", { params }).then((r) => r.data),
+        // Key + params mirror useGlobalDocuments so the prefetch warms the page query.
+        queryKey: ["/api/v1/me/documents", params],
+        queryFn: () => apiClient.get("/me/documents", { params }).then((r) => r.data),
         staleTime: 30_000,
       });
     } catch {
@@ -71,6 +71,6 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/my-documen
     }
   },
   component: lazyRouteComponent(() =>
-    import("@/pages/MyDocumentsPage").then((m) => ({ default: m.MyDocumentsPage }))
+    import("@/pages/user/MyDocumentsPage").then((m) => ({ default: m.MyDocumentsPage }))
   ),
 });

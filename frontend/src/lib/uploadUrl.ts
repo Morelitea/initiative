@@ -1,14 +1,19 @@
 import { Capacitor } from "@capacitor/core";
 
-import { apiClient, getAuthToken } from "@/api/client";
+import { apiClient } from "@/api/client";
+import { getUploadToken } from "@/lib/uploadToken";
 
 /**
- * Resolve an `/api/v1/...` path for a download served via iframe/window.open.
- * On native platforms, prepends the API server origin and appends ?token= for
- * auth (native WebViews can't send Authorization headers or HttpOnly cookies).
- * On web, returns the API path as-is (same-origin, session cookie handles auth).
+ * Resolve an `/api/v1/...` path for a request that can't carry an Authorization
+ * header — a download served via iframe/window.open, or a `keepalive`/sendBeacon
+ * POST fired on page unload. On native platforms, prepends the API server origin
+ * and appends a SHORT-LIVED, uploads-scoped ?token= for auth (native WebViews
+ * can't send Authorization headers or HttpOnly cookies). The long-lived session
+ * JWT is never put in a URL — see {@link getUploadToken}. On web, returns the API
+ * path as-is (same-origin, the HttpOnly session cookie handles auth — send the
+ * request with `credentials: "include"`).
  */
-function resolveDownloadApiPath(apiPath: string): string {
+export function resolveHeaderlessApiUrl(apiPath: string): string {
   if (!Capacitor.isNativePlatform()) {
     return apiPath;
   }
@@ -23,7 +28,7 @@ function resolveDownloadApiPath(apiPath: string): string {
     }
   }
   const resolved = origin ? `${origin}${apiPath}` : apiPath;
-  const token = getAuthToken();
+  const token = getUploadToken();
   if (token) {
     const sep = resolved.includes("?") ? "&" : "?";
     return `${resolved}${sep}token=${encodeURIComponent(token)}`;
@@ -33,13 +38,20 @@ function resolveDownloadApiPath(apiPath: string): string {
 
 /**
  * Resolve a document ID to its authorized download URL (current version).
+ *
+ * The download is guild-scoped (``/g/{guildId}/…``): served via iframe/
+ * window.open, which can't send headers, so the guild rides in the path.
  */
-export function resolveDocumentDownloadUrl(documentId: number, inline = false): string | null {
-  if (!documentId) {
+export function resolveDocumentDownloadUrl(
+  documentId: number,
+  guildId: number,
+  inline = false
+): string | null {
+  if (!documentId || !guildId) {
     return null;
   }
-  const base = `/api/v1/documents/${documentId}/download`;
-  return resolveDownloadApiPath(inline ? `${base}?inline=1` : base);
+  const base = `/api/v1/g/${guildId}/documents/${documentId}/download`;
+  return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 
 /**
@@ -50,13 +62,14 @@ export function resolveDocumentDownloadUrl(documentId: number, inline = false): 
 export function resolveDocumentVersionDownloadUrl(
   documentId: number,
   versionId: number,
+  guildId: number,
   inline = false
 ): string | null {
-  if (!documentId || !versionId) {
+  if (!documentId || !versionId || !guildId) {
     return null;
   }
-  const base = `/api/v1/documents/${documentId}/versions/${versionId}/download`;
-  return resolveDownloadApiPath(inline ? `${base}?inline=1` : base);
+  const base = `/api/v1/g/${guildId}/documents/${documentId}/versions/${versionId}/download`;
+  return resolveHeaderlessApiUrl(inline ? `${base}?inline=1` : base);
 }
 
 /**
@@ -105,11 +118,13 @@ export function resolveUploadUrl(path: string | null | undefined): string | null
     resolved = normalizedPath;
   }
 
-  // On native: append auth token for /uploads/ paths so <img> src attributes work
-  // (native WebViews can't send Authorization headers or rely on HttpOnly cookies for media)
+  // On native: append a short-lived, uploads-scoped token for /uploads/ paths so
+  // <img> src attributes work (native WebViews can't send Authorization headers
+  // or rely on HttpOnly cookies for media). The long-lived session JWT is never
+  // placed in a URL — see getUploadToken.
   // On web: the HttpOnly session cookie is sent automatically by the browser — no token needed
   if (normalizedPath.startsWith("/uploads/") && Capacitor.isNativePlatform()) {
-    const token = getAuthToken();
+    const token = getUploadToken();
     if (token) {
       const sep = resolved.includes("?") ? "&" : "?";
       return `${resolved}${sep}token=${encodeURIComponent(token)}`;

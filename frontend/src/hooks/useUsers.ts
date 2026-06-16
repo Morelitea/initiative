@@ -4,30 +4,38 @@ import { updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch } from "@/api
 import type {
   AccountDeletionRequest,
   AccountDeletionResponse,
-  ExportUsersCsvApiV1UsersExportCsvGetParams,
+  ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams,
   GuildRole,
   UserGuildMember,
   UserRead,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  approveUserApiV1UsersUserIdApprovePost,
+  approveUserApiV1GGuildIdUsersUserIdApprovePost,
   deleteOwnAccountApiV1UsersMeDeleteAccountPost,
-  exportUsersCsvApiV1UsersExportCsvGet,
-  getListUsersApiV1UsersGetQueryKey,
-  listUsersApiV1UsersGet,
+  exportUsersCsvApiV1GGuildIdUsersExportCsvGet,
+  getListUsersApiV1GGuildIdUsersGetQueryKey,
+  listUsersApiV1GGuildIdUsersGet,
   updateUsersMeApiV1UsersMePatch,
 } from "@/api/generated/users/users";
 import { invalidateCurrentUser, invalidateUsersList } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { downloadBlob } from "@/lib/csv";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
 // ── Queries ─────────────────────────────────────────────────────────────────
 
-export const useUsers = (options?: QueryOpts<UserGuildMember[]>) => {
+/**
+ * Members of a guild. Defaults to the active guild; pass `guildIdOverride` to
+ * read a specific guild's members from a cross-guild surface (e.g. the personal
+ * trash view reassigning an item that lives in another guild).
+ */
+export const useUsers = (options?: QueryOpts<UserGuildMember[]>, guildIdOverride?: number) => {
+  const activeGuildId = useActiveGuildId();
+  const guildId = guildIdOverride ?? activeGuildId;
   return useQuery<UserGuildMember[]>({
-    queryKey: getListUsersApiV1UsersGetQueryKey(),
-    queryFn: () => listUsersApiV1UsersGet() as unknown as Promise<UserGuildMember[]>,
+    queryKey: getListUsersApiV1GGuildIdUsersGetQueryKey(guildId),
+    queryFn: () => listUsersApiV1GGuildIdUsersGet(guildId) as unknown as Promise<UserGuildMember[]>,
     ...options,
   });
 };
@@ -79,11 +87,15 @@ export const useDeleteOwnAccount = (
 
 export const useApproveUser = (options?: MutationOpts<UserRead, number>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async (userId: number) => {
-      return approveUserApiV1UsersUserIdApprovePost(userId) as unknown as Promise<UserRead>;
+      return approveUserApiV1GGuildIdUsersUserIdApprovePost(
+        guildId,
+        userId
+      ) as unknown as Promise<UserRead>;
     },
     onSuccess: (...args) => {
       void invalidateUsersList();
@@ -122,18 +134,19 @@ export const useUpdateGuildMembership = (
 };
 
 type ExportGuildUsersVars = {
-  params: ExportUsersCsvApiV1UsersExportCsvGetParams;
+  params: ExportUsersCsvApiV1GGuildIdUsersExportCsvGetParams;
   filename: string;
 };
 
 /** Download the guild members CSV from the backend and trigger a browser save. */
 export const useExportGuildUsersCsv = (options?: MutationOpts<void, ExportGuildUsersVars>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+  const guildId = useActiveGuildId();
 
   return useMutation({
     ...rest,
     mutationFn: async ({ params, filename }: ExportGuildUsersVars) => {
-      const blob = (await exportUsersCsvApiV1UsersExportCsvGet(params, {
+      const blob = (await exportUsersCsvApiV1GGuildIdUsersExportCsvGet(guildId, params, {
         responseType: "blob",
         // FastAPI expects ?user_id=1&user_id=2; axios's default `[]` suffix gets ignored.
         paramsSerializer: { indexes: null },

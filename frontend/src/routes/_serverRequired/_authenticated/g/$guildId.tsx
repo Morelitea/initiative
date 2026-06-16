@@ -3,12 +3,11 @@ import { Loader2, ShieldAlert } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
-import { setCurrentGuildId } from "@/api/client";
 import { StatusMessage } from "@/components/StatusMessage";
 import { useGuilds } from "@/hooks/useGuilds";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId")({
-  beforeLoad: ({ context, params }) => {
+  beforeLoad: async ({ context, params, cause }) => {
     const guildId = Number(params.guildId);
     const { guilds } = context;
 
@@ -20,7 +19,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
     // Skip membership validation while guilds are still loading
     // The component will handle validation once data is available
     // Don't set the guild ID yet — it may be invalid and would poison
-    // the API client header if the user isn't a member.
+    // the SPA's guild state if the user isn't a member.
     if (guilds?.loading) {
       return { urlGuildId: guildId, urlGuild: null };
     }
@@ -33,8 +32,18 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
       return { urlGuildId: guildId, urlGuild: null };
     }
 
-    // Sync API client header to ensure requests go to correct guild
-    setCurrentGuildId(guildId);
+    // beforeLoad ALSO runs for link PRELOADS (defaultPreload: "intent" —
+    // hovering any cross-guild link, e.g. a recents tab). A preload must be
+    // side-effect free: resetting caches on hover would ping-pong the app
+    // between guilds. Only a real navigation adopts the guild.
+    if (cause === "preload") {
+      return { urlGuildId: guildId, urlGuild: guild };
+    }
+
+    // Adopt this tab's guild from the URL into local state (rail highlight,
+    // query keys) before child routes render. Per-tab and local only — the
+    // guild itself travels in each request's /g/{guildId} path.
+    await guilds?.syncGuildFromUrl(guildId);
 
     // Provide validated guild info to child routes via route context
     return { urlGuildId: guildId, urlGuild: guild };

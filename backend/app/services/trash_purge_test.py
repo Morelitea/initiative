@@ -95,3 +95,47 @@ async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     ).scalar_one()
     assert initiative_count == 0
     assert project_count == 0
+
+
+async def test_auto_purge_sweeps_every_guild_schema(session: AsyncSession):
+    """Expired trash lives in each guild's own schema, so the purge worker must
+    visit every guild — the old single public-scoped pass would purge nothing.
+    Stage expired trash in two guilds and assert _purge_all_guilds clears both."""
+    from app.db.session import set_rls_context
+    from app.services.trash_purge import _purge_all_guilds
+
+    user = await create_user(session)
+    past = datetime.now(timezone.utc) - timedelta(days=2)
+    targets: list[tuple[int, int]] = []  # (guild_id, initiative_id)
+
+    for label in ("Gamma", "Delta"):
+        guild = await create_guild(session, creator=user)
+        initiative = await create_initiative(session, guild, user, name=label)
+        await soft_delete_entity(
+            session, initiative, deleted_by_user_id=user.id, retention_days=1
+        )
+        await session.commit()
+        # Backdate purge_at so this initiative is due (same guild context).
+        refreshed = (
+            await session.exec(
+                select_including_deleted(Initiative).where(
+                    Initiative.id == initiative.id
+                )
+            )
+        ).one()
+        refreshed.purge_at = past
+        session.add(refreshed)
+        await session.commit()
+        targets.append((guild.id, initiative.id))
+
+    await _purge_all_guilds(session, now=datetime.now(timezone.utc))
+
+    for guild_id, initiative_id in targets:
+        await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+        count = (
+            await session.execute(
+                text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
+                {"id": initiative_id},
+            )
+        ).scalar_one()
+        assert count == 0, f"guild {guild_id} initiative {initiative_id} not purged"

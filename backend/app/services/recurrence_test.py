@@ -91,9 +91,7 @@ class TestMonthlyRecurrence:
     def test_monthly_recurrence_preserves_time(self):
         """Verify monthly interval preserves time component."""
         base_date = datetime(2026, 1, 15, 23, 45, 30, tzinfo=timezone.utc)
-        recurrence = TaskRecurrence(
-            frequency="monthly", interval=1, day_of_month=15
-        )
+        recurrence = TaskRecurrence(frequency="monthly", interval=1, day_of_month=15)
 
         next_due = get_next_due_date(base_date, recurrence)
 
@@ -108,9 +106,7 @@ class TestMonthlyRecurrence:
         """Test that monthly recurrence clamps to valid day when target month is shorter."""
         # Jan 31 -> Feb should clamp to Feb 28 (or 29 in leap year)
         base_date = datetime(2026, 1, 31, 12, 0, 0, tzinfo=timezone.utc)
-        recurrence = TaskRecurrence(
-            frequency="monthly", interval=1, day_of_month=31
-        )
+        recurrence = TaskRecurrence(frequency="monthly", interval=1, day_of_month=31)
 
         next_due = get_next_due_date(base_date, recurrence)
 
@@ -121,7 +117,9 @@ class TestMonthlyRecurrence:
 
     def test_monthly_recurrence_weekday_mode(self):
         """Test monthly recurrence with weekday mode (e.g., 'second Tuesday')."""
-        base_date = datetime(2026, 1, 13, 9, 0, 0, tzinfo=timezone.utc)  # Second Tuesday of Jan
+        base_date = datetime(
+            2026, 1, 13, 9, 0, 0, tzinfo=timezone.utc
+        )  # Second Tuesday of Jan
         recurrence = TaskRecurrence(
             frequency="monthly",
             interval=1,

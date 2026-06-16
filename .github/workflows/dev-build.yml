@@ -6,6 +6,9 @@ on:
       - dev
   workflow_dispatch: # Allow manual trigger
 
+permissions:
+  contents: read
+
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/initiative
 

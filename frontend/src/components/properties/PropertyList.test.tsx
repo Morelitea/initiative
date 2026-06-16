@@ -1,8 +1,9 @@
 import { act, fireEvent, screen } from "@testing-library/react";
-import { HttpResponse, http } from "msw";
+import { HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildPropertyOption, buildPropertySummary } from "@/__tests__/factories/properties";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { type PropertySummary, PropertyType } from "@/api/generated/initiativeAPI.schemas";
@@ -39,7 +40,7 @@ describe("PropertyList", () => {
   it("calls the document set-values mutation after the debounce when a value changes", async () => {
     const requests: Array<{ url: string; body: unknown }> = [];
     server.use(
-      http.put("/api/v1/documents/:documentId/properties", async ({ request, params }) => {
+      guildHttp.put("/documents/:documentId/properties", async ({ request, params }) => {
         requests.push({
           url: `/api/v1/documents/${params.documentId}/properties`,
           body: await request.json(),
@@ -74,7 +75,7 @@ describe("PropertyList", () => {
   it("fires the task mutation when entityKind is 'task'", async () => {
     const requests: Array<{ url: string }> = [];
     server.use(
-      http.put("/api/v1/tasks/:taskId/properties", async ({ params }) => {
+      guildHttp.put("/tasks/:taskId/properties", async ({ params }) => {
         requests.push({ url: `/api/v1/tasks/${params.taskId}/properties` });
         return HttpResponse.json({ id: Number(params.taskId), properties: [] });
       })
@@ -94,7 +95,7 @@ describe("PropertyList", () => {
   it("omits the property from the payload when removed (remove button)", async () => {
     const requests: Array<{ body: unknown }> = [];
     server.use(
-      http.put("/api/v1/documents/:documentId/properties", async ({ request }) => {
+      guildHttp.put("/documents/:documentId/properties", async ({ request }) => {
         requests.push({ body: await request.json() });
         return HttpResponse.json({ properties: [] });
       })
@@ -205,7 +206,7 @@ describe("PropertyList", () => {
   it("coalesces rapid edits into a single PUT after the debounce", async () => {
     const requests: Array<{ body: unknown }> = [];
     server.use(
-      http.put("/api/v1/documents/:documentId/properties", async ({ request }) => {
+      guildHttp.put("/documents/:documentId/properties", async ({ request }) => {
         requests.push({ body: await request.json() });
         return HttpResponse.json({ properties: [] });
       })

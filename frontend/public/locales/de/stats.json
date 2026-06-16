@@ -1,0 +1,50 @@
+{
+  "page": {
+    "title": "Meine Statistiken",
+    "subtitle": "Verfolge deine Produktivität und Kennzahlen zur Aufgabenerledigung",
+    "guildFilterPlaceholder": "Gilde auswählen",
+    "allGuilds": "Alle Gilden",
+    "loading": "Statistiken werden geladen…",
+    "error": "Statistiken konnten nicht geladen werden. Bitte versuche es später erneut."
+  },
+  "metrics": {
+    "currentStreak": "Aktuelle Serie",
+    "consecutiveDays": "Aufeinanderfolgende Arbeitstage",
+    "onTimeRate": "Pünktlichkeitsrate",
+    "onTimeSubtitle": "Vor dem Fälligkeitsdatum erledigte Aufgaben",
+    "avgCompletion": "Durchschn. Erledigung",
+    "avgCompletionSubtitle": "Von Beginn bis Abschluss",
+    "backlogTrend": "Backlog-Trend",
+    "thisWeek": "Diese Woche",
+    "days": "Tage",
+    "growing": "Wächst",
+    "shrinking": "Schrumpft"
+  },
+  "tasksCompleted": {
+    "title": "Erledigte Aufgaben",
+    "allTime": "Gesamt",
+    "thisWeek": "Diese Woche"
+  },
+  "velocity": {
+    "title": "Velocity",
+    "description": "Zugewiesene vs. erledigte Aufgaben pro Woche",
+    "descriptionLong": "Zugewiesene vs. erledigte Aufgaben pro Woche (letzte 12 Wochen)",
+    "noData": "Keine Velocity-Daten verfügbar",
+    "assigned": "Zugewiesen",
+    "completed": "Erledigt"
+  },
+  "guildBreakdown": {
+    "title": "Aufgaben nach Gilde",
+    "description": "Aufschlüsselung erledigter Aufgaben nach Gilde",
+    "noData": "Keine Gildendaten verfügbar"
+  },
+  "heatmap": {
+    "title": "Aktivitäts-Heatmap",
+    "description": "Aufgabenaktivität im letzten Jahr",
+    "noData": "Keine Aktivitätsdaten verfügbar",
+    "less": "Weniger",
+    "more": "Mehr",
+    "activity_one": "{{count}} Aktivität",
+    "activity_other": "{{count}} Aktivitäten"
+  }
+}

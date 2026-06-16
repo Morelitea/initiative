@@ -47,6 +47,9 @@ const MAX_VERSION_FILE_SIZE = 50 * 1024 * 1024;
 
 interface FileDocumentViewerProps {
   documentId: number;
+  /** The document's OWNING guild — downloads are addressed by it, not the
+   * active guild, so cross-guild surfaces (My Documents) resolve correctly. */
+  guildId: number;
   fileUrl: string;
   contentType?: string | null;
   originalFilename?: string | null;
@@ -59,6 +62,7 @@ interface FileDocumentViewerProps {
 
 export const FileDocumentViewer = ({
   documentId,
+  guildId,
   fileUrl,
   contentType,
   originalFilename,
@@ -95,11 +99,11 @@ export const FileDocumentViewer = ({
   // (The plain /download URL is constant and would otherwise show stale bytes.)
   // Falls back to the document download URL only until the version list loads.
   const resolvedUrl = selectedVersion
-    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id)
-    : resolveDocumentDownloadUrl(documentId);
+    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id, guildId)
+    : resolveDocumentDownloadUrl(documentId, guildId);
   const inlineUrl = selectedVersion
-    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id, true)
-    : resolveDocumentDownloadUrl(documentId, true);
+    ? resolveDocumentVersionDownloadUrl(documentId, selectedVersion.id, guildId, true)
+    : resolveDocumentDownloadUrl(documentId, guildId, true);
 
   // Header metadata follows the selected version (falls back to props/current).
   const displayFilename = selectedVersion?.original_filename ?? originalFilename;
@@ -472,6 +476,7 @@ export const FileDocumentViewer = ({
             className="w-full bg-muted"
             style={{ height: "70vh", minHeight: 500 }}
             title={originalFilename || t("viewer.textDocument")}
+            referrerPolicy="no-referrer"
           />
         ) : isHtml ? (
           // Use sandboxed iframe for HTML files
@@ -481,6 +486,7 @@ export const FileDocumentViewer = ({
             style={{ height: "70vh", minHeight: 500 }}
             title={originalFilename || t("viewer.htmlDocument")}
             sandbox=""
+            referrerPolicy="no-referrer"
           />
         ) : isImage ? (
           <>
@@ -494,6 +500,7 @@ export const FileDocumentViewer = ({
                 src={inlineUrl}
                 alt={originalFilename || t("viewer.imageDocument")}
                 className="max-h-full max-w-full object-contain"
+                referrerPolicy="no-referrer"
               />
             </button>
             <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
@@ -506,6 +513,7 @@ export const FileDocumentViewer = ({
                   src={inlineUrl}
                   alt={originalFilename || ""}
                   className="max-h-[90vh] max-w-[90vw] object-contain"
+                  referrerPolicy="no-referrer"
                 />
               </DialogContent>
             </Dialog>

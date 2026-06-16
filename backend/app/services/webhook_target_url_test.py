@@ -29,9 +29,7 @@ def _force_prod_flag(monkeypatch):
     this with an explicit ``monkeypatch.setattr``."""
     from app.core import config as config_module
 
-    monkeypatch.setattr(
-        config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False
-    )
+    monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False)
 
 
 @pytest.mark.unit
@@ -117,7 +115,9 @@ def test_rejects_when_hostname_resolves_to_private():
     """A public-looking hostname that *resolves* to a private address
     must still be rejected. Catches the trivial DNS bypass."""
     fake_infos = [(2, 0, 0, "", ("10.0.0.5", 0))]  # AF_INET, RFC1918
-    with patch("app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos):
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos
+    ):
         with pytest.raises(WebhookTargetUrlPrivateError):
             assert_target_url_is_public("https://internal.example.com/hook")
 
@@ -131,7 +131,9 @@ def test_rejects_when_any_resolved_address_is_private():
         (2, 0, 0, "", ("93.184.216.34", 0)),  # public
         (2, 0, 0, "", ("10.0.0.5", 0)),  # private
     ]
-    with patch("app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos):
+    with patch(
+        "app.services.webhook_target_url.socket.getaddrinfo", return_value=fake_infos
+    ):
         with pytest.raises(WebhookTargetUrlPrivateError):
             assert_target_url_is_public("https://mixed.example.com/hook")
 

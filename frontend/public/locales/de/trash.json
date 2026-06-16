@@ -1,0 +1,42 @@
+{
+  "title": "Papierkorb",
+  "description": "Elemente hier werden nach Ablauf der Aufbewahrungsfrist der Gilde endgültig gelöscht. Stelle sie jederzeit davor wieder her.",
+  "scopeGuild": "Alle in der Gilde",
+  "scopeMine": "Nur meine",
+  "empty": "Der Papierkorb ist leer.",
+  "columnType": "Typ",
+  "columnName": "Name",
+  "columnDeletedBy": "Gelöscht von",
+  "columnDeletedAt": "Gelöscht",
+  "columnPurgeAt": "Auto-Löschung",
+  "columnActions": "Aktionen",
+  "restoreButton": "Wiederherstellen",
+  "deleteNowButton": "Jetzt löschen",
+  "neverPurges": "Nie",
+  "deleteNowConfirmTitle": "Endgültig löschen?",
+  "deleteNowConfirmDescription": "Dadurch werden das {{type}} und alles darin endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.",
+  "deleteNowConfirmAction": "Für immer löschen",
+  "restoreSuccess": "Wiederhergestellt.",
+  "restoreError": "Element konnte nicht wiederhergestellt werden.",
+  "purgeSuccess": "Endgültig gelöscht.",
+  "purgeError": "Element konnte nicht endgültig gelöscht werden.",
+  "reassignDialog": {
+    "title": "Neuen Eigentümer auswählen",
+    "description": "Der ursprüngliche Eigentümer dieses {{type}} ist kein Mitglied der Initiative mehr. Wähle jemanden aus, der die Eigentümerschaft vor der Wiederherstellung übernimmt.",
+    "ownerLabel": "Neuer Eigentümer",
+    "confirm": "Mit neuem Eigentümer wiederherstellen"
+  },
+  "entityType": {
+    "project": "Projekt",
+    "task": "Aufgabe",
+    "document": "Dokument",
+    "comment": "Kommentar",
+    "initiative": "Initiative",
+    "tag": "Tag",
+    "queue": "Warteschlange",
+    "queue_item": "Warteschlangen-Eintrag",
+    "calendar_event": "Kalendertermin",
+    "counter_group": "Zählergruppe",
+    "counter": "Zähler"
+  }
+}

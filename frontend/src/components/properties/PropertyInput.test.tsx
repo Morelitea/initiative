@@ -1,9 +1,10 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildPropertyDefinition, buildPropertyOption } from "@/__tests__/factories/properties";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import { type PropertyDefinitionRead, PropertyType } from "@/api/generated/initiativeAPI.schemas";
@@ -163,7 +164,7 @@ describe("PropertyInput", () => {
     it("renders a user picker combobox backed by the users API", async () => {
       // Seed a user so the combobox has items; useUsers returns UserGuildMember[].
       server.use(
-        http.get("/api/v1/users/", () =>
+        guildHttp.get("/users/", () =>
           HttpResponse.json([
             { id: 7, full_name: "Ada Lovelace", email: "ada@example.com" },
             { id: 8, full_name: "Grace Hopper", email: "grace@example.com" },
@@ -288,7 +289,7 @@ describe("PropertyInput", () => {
       });
       const bodies: unknown[] = [];
       server.use(
-        http.patch("/api/v1/property-definitions/:id", async ({ request }) => {
+        guildHttp.patch("/property-definitions/:id", async ({ request }) => {
           const body = await request.json();
           bodies.push(body);
           return HttpResponse.json({

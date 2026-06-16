@@ -9,14 +9,35 @@ from app.models.user import User
 # to the system code page and garbling accented characters.
 _BOM = "\ufeff"
 
+# Leading characters that spreadsheet apps (Excel, Google Sheets, LibreOffice)
+# interpret as the start of a formula. A cell beginning with one of these can
+# execute arbitrary commands (e.g. =HYPERLINK(...), =cmd|...) when the export is
+# opened, so we neutralize them. See OWASP "CSV Injection".
+_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _neutralize_cell(value: object) -> object:
+    """Prefix a leading formula trigger with a single quote so spreadsheets treat
+    the cell as text. Non-string and benign values are returned unchanged."""
+    if value is None:
+        return ""
+    text = value if isinstance(value, str) else str(value)
+    if text.startswith(_FORMULA_TRIGGERS):
+        return "'" + text
+    return value
+
 
 def build_csv(headers: Sequence[str], rows: Iterable[Sequence[object]]) -> bytes:
-    """Serialize rows to a UTF-8 encoded CSV byte string with a BOM prefix."""
+    """Serialize rows to a UTF-8 encoded CSV byte string with a BOM prefix.
+
+    Every cell (headers included) is passed through ``_neutralize_cell`` so a
+    value beginning with a formula trigger cannot execute when the export is
+    opened in a spreadsheet application (CSV injection)."""
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(headers)
+    writer.writerow([_neutralize_cell(value) for value in headers])
     for row in rows:
-        writer.writerow(["" if value is None else value for value in row])
+        writer.writerow([_neutralize_cell(value) for value in row])
     return (_BOM + buffer.getvalue()).encode("utf-8")
 
 

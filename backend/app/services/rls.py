@@ -44,6 +44,7 @@ from app.db.session import set_rls_context, reapply_rls_context  # noqa: F401
 # Guild-level access checks
 # ---------------------------------------------------------------------------
 
+
 def is_guild_admin(guild_role: GuildRole) -> bool:
     """Check if the given guild role is admin."""
     return guild_role == GuildRole.admin
@@ -87,7 +88,9 @@ async def require_guild_membership(
 ) -> GuildMembership:
     """Return the membership or raise 403."""
     membership = await get_guild_membership(
-        session, guild_id=guild_id, user_id=user_id,
+        session,
+        guild_id=guild_id,
+        user_id=user_id,
     )
     if not membership:
         raise HTTPException(
@@ -101,6 +104,7 @@ async def require_guild_membership(
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 async def _get_membership_with_role(
     session: AsyncSession,
     *,
@@ -113,7 +117,11 @@ async def _get_membership_with_role(
 
     stmt = (
         select(InitiativeMember)
-        .options(selectinload(InitiativeMember.role_ref).selectinload(InitiativeRoleModel.permissions))
+        .options(
+            selectinload(InitiativeMember.role_ref).selectinload(
+                InitiativeRoleModel.permissions
+            )
+        )
         .where(
             InitiativeMember.initiative_id == initiative_id,
             InitiativeMember.user_id == user_id,
@@ -126,6 +134,7 @@ async def _get_membership_with_role(
 # ---------------------------------------------------------------------------
 # Initiative manager checks
 # ---------------------------------------------------------------------------
+
 
 async def is_initiative_manager(
     session: AsyncSession,
@@ -159,6 +168,7 @@ async def assert_initiative_manager(
 # ---------------------------------------------------------------------------
 # Initiative permission checks (RBAC via PermissionKey)
 # ---------------------------------------------------------------------------
+
 
 async def check_initiative_permission(
     session: AsyncSession,
@@ -213,7 +223,11 @@ async def has_feature_access(
     Args:
         feature: Either "docs" or "projects"
     """
-    perm_key = PermissionKey.docs_enabled if feature == "docs" else PermissionKey.projects_enabled
+    perm_key = (
+        PermissionKey.docs_enabled
+        if feature == "docs"
+        else PermissionKey.projects_enabled
+    )
     return await check_initiative_permission(
         session,
         initiative_id=initiative_id,

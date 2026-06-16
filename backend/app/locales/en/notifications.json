@@ -1,0 +1,94 @@
+{
+  "task": {
+    "assignment": {
+      "title": "New Task Assignment",
+      "body": "{{title}} in {{project}}"
+    }
+  },
+  "initiative": {
+    "added": {
+      "title": "Added to Initiative",
+      "body": "You've been added to {{initiative}}"
+    }
+  },
+  "project": {
+    "added": {
+      "title": "New Project Added",
+      "body": "{{project}} in {{initiative}}"
+    }
+  },
+  "mention": {
+    "document": {
+      "title": "You were mentioned",
+      "body": "{{actor}} mentioned you in {{document}}"
+    },
+    "comment": {
+      "title": "You were mentioned",
+      "body": "{{actor}} mentioned you in a comment on {{context}}"
+    },
+    "task": {
+      "title": "Your task was mentioned",
+      "body": "{{actor}} mentioned {{task}} in {{context}}"
+    }
+  },
+  "comment": {
+    "onTask": {
+      "title": "New comment on your task",
+      "body": "{{actor}} commented on {{task}}"
+    },
+    "onDocument": {
+      "title": "New comment on your document",
+      "body": "{{actor}} commented on {{document}}"
+    },
+    "reply": {
+      "title": "Reply to your comment",
+      "body": "{{actor}} replied to your comment on {{context}}"
+    }
+  },
+  "event": {
+    "invitation": {
+      "title": "New event invitation",
+      "body": "{{event}} ({{when}})"
+    },
+    "rescheduled": {
+      "title": "Event rescheduled",
+      "body": "{{event}} ({{when}})"
+    },
+    "updated": {
+      "title": "Event updated",
+      "body": "{{event}} ({{when}})"
+    },
+    "cancelled": {
+      "title": "Event cancelled",
+      "body": "{{event}} ({{when}})"
+    },
+    "rsvp": {
+      "title": "RSVP update",
+      "body": "{{responder}} responded {{status}} to {{event}}"
+    },
+    "reminder": {
+      "title": "Upcoming event",
+      "body": "{{event}} ({{when}})"
+    }
+  },
+  "accessGrant": {
+    "levelRead": "read-only",
+    "levelReadWrite": "read-write",
+    "requested": {
+      "title": "New access request",
+      "body": "{{requester}} requested {{level}} access to {{guild}}"
+    },
+    "approved": {
+      "title": "Access approved",
+      "body": "Your {{level}} access to {{guild}} was approved"
+    },
+    "denied": {
+      "title": "Access request denied",
+      "body": "Your access request for {{guild}} was denied"
+    },
+    "revoked": {
+      "title": "Access revoked",
+      "body": "Your access to {{guild}} was revoked"
+    }
+  }
+}

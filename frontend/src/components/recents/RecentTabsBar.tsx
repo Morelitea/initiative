@@ -5,9 +5,8 @@ import { useTranslation } from "react-i18next";
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { useGuilds } from "@/hooks/useGuilds";
 import { renderRecentIcon } from "@/lib/recentIcon";
-import { type RecentKey, recentRoute } from "@/lib/recentRoute";
+import { type RecentKey, recentKeyMatches, recentRoute } from "@/lib/recentRoute";
 import { cn } from "@/lib/utils";
 
 interface RecentTabsBarProps {
@@ -24,7 +23,6 @@ interface RecentTabsBarProps {
  */
 export const RecentTabsBar = ({ items, activeKey, loading, onClose }: RecentTabsBarProps) => {
   const { t } = useTranslation("projects");
-  const { activeGuildId } = useGuilds();
 
   if (!loading && (!items || items.length === 0)) {
     return null;
@@ -37,12 +35,14 @@ export const RecentTabsBar = ({ items, activeKey, loading, onClose }: RecentTabs
           <p className="py-3 text-muted-foreground text-xs">{t("tabsBar.loadingRecent")}</p>
         ) : (
           items?.map((item) => {
-            const isActive =
-              activeKey?.entityType === item.entity_type && activeKey?.entityId === item.entity_id;
+            const isActive = recentKeyMatches(activeKey ?? null, item);
             return (
-              <div key={`${item.entity_type}-${item.entity_id}`} className="flex items-center">
+              <div
+                key={`${item.guild_id}-${item.entity_type}-${item.entity_id}`}
+                className="flex items-center"
+              >
                 <Link
-                  to={recentRoute(item, activeGuildId)}
+                  to={recentRoute(item)}
                   className={cn(
                     "group inline-flex items-center gap-2 rounded-t-md border border-transparent px-3 py-2 text-sm transition",
                     isActive

@@ -4,7 +4,7 @@ import { lazy, Suspense } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
 const UserSettingsNotificationsPage = lazy(() =>
-  import("@/pages/UserSettingsNotificationsPage").then((m) => ({
+  import("@/pages/user/settings/UserSettingsNotificationsPage").then((m) => ({
     default: m.UserSettingsNotificationsPage,
   }))
 );

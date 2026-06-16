@@ -28,7 +28,9 @@ class RecentView(SQLModel, table=True):
     user_id: int = Field(foreign_key="users.id", primary_key=True)
     entity_type: str = Field(primary_key=True, max_length=32)
     entity_id: int = Field(primary_key=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     last_viewed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),

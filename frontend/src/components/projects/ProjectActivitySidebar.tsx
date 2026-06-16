@@ -10,10 +10,11 @@ import type {
   ProjectActivityResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey,
-  projectActivityFeedApiV1ProjectsProjectIdActivityGet,
+  getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey,
+  projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet,
 } from "@/api/generated/projects/projects";
 import { Button } from "@/components/ui/button";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
@@ -25,6 +26,7 @@ interface ProjectActivitySidebarProps {
 
 export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProps) => {
   const { activeGuildId } = useGuilds();
+  const guildId = useActiveGuildId();
   const { t } = useTranslation(["projects", "common"]);
   const dateLocale = useDateLocale();
   const [collapsed, setCollapsed] = useState(true);
@@ -34,12 +36,15 @@ export const ProjectActivitySidebar = ({ projectId }: ProjectActivitySidebarProp
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
 
   const activityQuery = useInfiniteQuery<ProjectActivityResponse>({
-    queryKey: getProjectActivityFeedApiV1ProjectsProjectIdActivityGetQueryKey(projectId!),
+    queryKey: getProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetQueryKey(
+      guildId,
+      projectId!
+    ),
     queryFn: async ({ pageParam = 1 }) => {
       if (!projectId) {
         throw new Error("Project id required");
       }
-      return projectActivityFeedApiV1ProjectsProjectIdActivityGet(projectId, {
+      return projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet(guildId, projectId, {
         page: pageParam as number,
       }) as unknown as Promise<ProjectActivityResponse>;
     },

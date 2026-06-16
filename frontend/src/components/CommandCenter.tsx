@@ -265,10 +265,10 @@ export function CommandCenter() {
           <CommandGroup heading={t("groups.suggested")}>
             {recentItems.slice(0, 5).map((item) => (
               <CommandItem
-                key={`suggested-${item.entity_type}-${item.entity_id}`}
-                value={`suggested-${item.entity_type}-${item.entity_id}-${item.name}`}
+                key={`suggested-${item.guild_id}-${item.entity_type}-${item.entity_id}`}
+                value={`suggested-${item.guild_id}-${item.entity_type}-${item.entity_id}-${item.name}`}
                 keywords={[item.name]}
-                onSelect={() => handleSelect(recentRoute(item, activeGuildId))}
+                onSelect={() => handleSelect(recentRoute(item))}
               >
                 {renderRecentIcon(item) ?? <ListTodo className="text-muted-foreground" />}
                 <span>{item.name}</span>

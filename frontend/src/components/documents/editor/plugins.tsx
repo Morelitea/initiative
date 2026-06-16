@@ -26,6 +26,7 @@ import { EmojiPickerPlugin } from "@/components/ui/editor/plugins/emoji-picker-p
 import { FloatingLinkEditorPlugin } from "@/components/ui/editor/plugins/floating-link-editor-plugin";
 import { FloatingTextFormatToolbarPlugin } from "@/components/ui/editor/plugins/floating-text-format-plugin";
 import { FloatingWikilinkEditorPlugin } from "@/components/ui/editor/plugins/floating-wikilink-editor-plugin";
+import { LinkSanitizePlugin } from "@/components/ui/editor/plugins/link-sanitize-plugin";
 import { MentionsPlugin } from "@/components/ui/editor/plugins/mentions-plugin";
 import { AlignmentPickerPlugin } from "@/components/ui/editor/plugins/picker/alignment-picker-plugin";
 import { BulletedListPickerPlugin } from "@/components/ui/editor/plugins/picker/bulleted-list-picker-plugin";
@@ -245,6 +246,7 @@ export function Plugins({
         {!readOnly && <DragDropPastePlugin />}
         <EmojiPickerPlugin />
 
+        <LinkSanitizePlugin />
         <FloatingLinkEditorPlugin
           anchorElem={floatingAnchorElem}
           isLinkEditMode={isLinkEditMode}

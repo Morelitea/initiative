@@ -4,7 +4,7 @@ import { lazy, Suspense } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
 const UserSettingsDangerZonePage = lazy(() =>
-  import("@/pages/UserSettingsDangerZonePage").then((m) => ({
+  import("@/pages/user/settings/UserSettingsDangerZonePage").then((m) => ({
     default: m.UserSettingsDangerZonePage,
   }))
 );

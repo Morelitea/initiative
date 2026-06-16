@@ -30,7 +30,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { API_BASE_URL } from "@/api/client";
-import { notifyMentionsApiV1DocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
+import { notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost } from "@/api/generated/documents/documents";
 import { CommentSection } from "@/components/comments/CommentSection";
 import { CreateWikilinkDocumentDialog } from "@/components/documents/CreateWikilinkDocumentDialog";
 import { DocumentBacklinks } from "@/components/documents/DocumentBacklinks";
@@ -114,18 +114,22 @@ import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { getItem, removeItem, setItem } from "@/lib/storage";
-import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
 import { cn } from "@/lib/utils";
 
 export const DocumentDetailPage = () => {
   const { t } = useTranslation(["documents", "properties", "common"]);
   const dateLocale = useDateLocale();
-  const { documentId } = useParams({ strict: false }) as { documentId: string };
+  const { guildId: guildIdParam, documentId } = useParams({ strict: false }) as {
+    guildId: string;
+    documentId: string;
+  };
   const parsedId = Number(documentId);
   const navigate = useNavigate();
   const setDocumentCache = useSetDocumentCache();
   const { user, token } = useAuth();
   const { activeGuildId } = useGuilds();
+  const guildId = Number(guildIdParam);
   const gp = useGuildPath();
   const sidePanel = useDocumentSidePanel();
   const { isEnabled: isAIEnabled } = useAIEnabled();
@@ -231,7 +235,7 @@ export const DocumentDetailPage = () => {
 
   // Track recently viewed documents so the layout header tabs bar can surface
   // them. Mirrors the pattern in ProjectDetailPage.
-  const recordViewMutation = useRecordRecentView("document");
+  const recordViewMutation = useRecordRecentView("document", guildId);
   const viewedDocumentId = documentQuery.data?.id;
   useEffect(() => {
     if (!viewedDocumentId) return;
@@ -463,15 +467,18 @@ export const DocumentDetailPage = () => {
           stored &&
           stored.documentId === sourceDocumentId
         ) {
-          const isAbsolute =
-            API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
-          const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
-          const syncUrl = `${baseUrl}/collaboration/documents/${sourceDocumentId}/sync-content?token=${encodeURIComponent(token)}&guild_id=${activeGuildId}`;
+          // Header-less auth (cookie on web, scoped upload token on native) —
+          // the long-lived session JWT must never ride in a URL. The guild
+          // rides in the path (`/g/{guildId}/`), like every other guild call.
+          const syncUrl = resolveHeaderlessApiUrl(
+            `/api/v1/g/${activeGuildId}/collaboration/documents/${sourceDocumentId}/sync-content`
+          );
           fetch(syncUrl, {
             method: "POST",
             body: JSON.stringify(stored.content),
             headers: { "Content-Type": "application/json" },
             keepalive: true,
+            credentials: "include",
           }).catch(() => {});
         }
         void navigate({
@@ -519,7 +526,7 @@ export const DocumentDetailPage = () => {
       // Fire-and-forget: notify users who were newly mentioned
       const newMentionIds = findNewMentions(normalizedDocumentContent, contentState);
       if (newMentionIds.length > 0) {
-        notifyMentionsApiV1DocumentsDocumentIdMentionsPost(parsedId, {
+        notifyMentionsApiV1GGuildIdDocumentsDocumentIdMentionsPost(guildId, parsedId, {
           mentioned_user_ids: newMentionIds,
         }).catch((err) => console.error("Failed to notify mentions:", err));
       }
@@ -764,13 +771,14 @@ export const DocumentDetailPage = () => {
       if (!pending || !tokenRef.current || !activeGuildIdRef.current) return;
       const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
       const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
-      const url = `${baseUrl}/documents/${pending.documentId}`;
+      // The guild rides in the path (`/g/{guildId}/`) — guild context is per-tab
+      // from the URL; the page required entering this document's guild.
+      const url = `${baseUrl}/g/${activeGuildIdRef.current}/documents/${pending.documentId}`;
       fetch(url, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokenRef.current}`,
-          "X-Guild-ID": String(activeGuildIdRef.current),
         },
         body: JSON.stringify(pending.data),
         keepalive: true,
@@ -844,10 +852,12 @@ export const DocumentDetailPage = () => {
         return;
       }
 
-      // Build the sync URL
-      const isAbsolute = API_BASE_URL.startsWith("http://") || API_BASE_URL.startsWith("https://");
-      const baseUrl = isAbsolute ? API_BASE_URL : `${window.location.origin}${API_BASE_URL}`;
-      const syncUrl = `${baseUrl}/collaboration/documents/${parsedId}/sync-content?token=${encodeURIComponent(token)}&guild_id=${activeGuildId}`;
+      // Build the sync URL. Header-less auth (cookie on web, scoped upload
+      // token on native) — the long-lived session JWT must never ride in a URL.
+      // The guild rides in the path (`/g/{guildId}/`).
+      const syncUrl = resolveHeaderlessApiUrl(
+        `/api/v1/g/${activeGuildId}/collaboration/documents/${parsedId}/sync-content`
+      );
 
       // Send content via fetch with keepalive (more reliable than sendBeacon, less likely to be blocked)
       fetch(syncUrl, {
@@ -855,6 +865,7 @@ export const DocumentDetailPage = () => {
         body: JSON.stringify(stored.content),
         headers: { "Content-Type": "application/json" },
         keepalive: true, // Ensures request completes even if page unloads
+        credentials: "include", // Web auth is the HttpOnly session cookie
       }).catch(() => {}); // Silently ignore errors on page unload
     };
 
@@ -899,7 +910,7 @@ export const DocumentDetailPage = () => {
     }
     setIsUploadingFeaturedImage(true);
     try {
-      const response = await uploadAttachment(file);
+      const response = await uploadAttachment(guildId, file);
       setFeaturedImageUrl(response.url);
       isAutosaveRef.current = true;
       saveDocument.mutate({
@@ -1192,6 +1203,7 @@ export const DocumentDetailPage = () => {
                           <img
                             src={resolveUploadUrl(featuredImageUrl) ?? undefined}
                             alt=""
+                            referrerPolicy="no-referrer"
                             className="h-full w-full object-cover"
                           />
                         ) : (
@@ -1303,6 +1315,7 @@ export const DocumentDetailPage = () => {
           >
             <FileDocumentViewer
               documentId={document.id}
+              guildId={document.guild_id}
               fileUrl={document.file_url}
               contentType={document.file_content_type}
               originalFilename={document.original_filename}

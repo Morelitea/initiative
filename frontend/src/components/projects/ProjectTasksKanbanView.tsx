@@ -80,7 +80,7 @@ export const ProjectTasksKanbanView = ({
     >
       <div
         ref={scrollContainerRef}
-        className="cursor-grab overflow-x-auto pb-4"
+        className="scrollbar-thin cursor-grab overflow-x-auto pb-4"
         data-kanban-scroll-container
       >
         <div className="flex gap-4">

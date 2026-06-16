@@ -116,19 +116,21 @@ async def list_recent_views(
     session: AsyncSession,
     *,
     user_id: int,
-    guild_id: int | None = None,
     limit: int = MAX_RECENT_VIEWS,
 ) -> Sequence[RecentView]:
     """Return the user's most recent N rows, ordered by ``last_viewed_at`` desc.
 
-    RLS restricts rows to the active guild when running as ``app_user``. We
-    also pass ``guild_id`` explicitly so the result is correct under sessions
-    that bypass RLS (e.g. admin/test sessions).
+    ``recent_views`` lives in the active guild's schema, so the search_path
+    already scopes rows to that guild — no guild_id filter is needed (and the
+    column isn't populated in-schema, since its denormalization trigger is a
+    public-table artifact).
     """
-    stmt = select(RecentView).where(RecentView.user_id == user_id)
-    if guild_id is not None:
-        stmt = stmt.where(RecentView.guild_id == guild_id)
-    stmt = stmt.order_by(RecentView.last_viewed_at.desc()).limit(limit)
+    stmt = (
+        select(RecentView)
+        .where(RecentView.user_id == user_id)
+        .order_by(RecentView.last_viewed_at.desc())
+        .limit(limit)
+    )
     return (await session.exec(stmt)).all()
 
 

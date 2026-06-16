@@ -44,6 +44,7 @@ interface ProjectBasic {
   id: number;
   name: string;
   initiative_id: number;
+  guild_id: number;
 }
 
 interface DeletionEligibilityResponse {
@@ -79,7 +80,7 @@ export function DeleteAccountDialog({
   const [step, setStep] = useState<DeletionStep>(initialAction ? "check-blockers" : "choose-type");
   const [action, setAction] = useState<SelfAction>(initialAction ?? "deactivate");
   const [eligibility, setEligibility] = useState<DeletionEligibilityResponse | null>(null);
-  const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
+  const [projectTransfers, setProjectTransfers] = useState<Record<string, number>>({});
   const [password, setPassword] = useState("");
   const [confirmationText, setConfirmationText] = useState("");
 
@@ -113,12 +114,13 @@ export function DeleteAccountDialog({
   // Fetch initiative members for project transfer
   const [initiativeMembers, setInitiativeMembers] = useState<Record<number, UserRead[]>>({});
   const fetchInitiativeMembers = useCallback(
-    async (initiativeId: number) => {
+    async (initiativeId: number, guildId: number) => {
       if (initiativeMembers[initiativeId]) return;
 
       try {
         const data = (await getMyInitiativeMembersApiV1UsersMeInitiativeMembersInitiativeIdGet(
-          initiativeId
+          initiativeId,
+          { guild_id: guildId }
         )) as unknown as UserRead[];
         setInitiativeMembers((prev) => ({
           ...prev,
@@ -156,7 +158,7 @@ export function DeleteAccountDialog({
 
     // Load initiative members for any projects we'd need to transfer.
     for (const project of result.data.owned_projects) {
-      await fetchInitiativeMembers(project.initiative_id);
+      await fetchInitiativeMembers(project.initiative_id, project.guild_id);
     }
 
     // Project transfers are required for both actions when the user
@@ -241,7 +243,9 @@ export function DeleteAccountDialog({
   const canProceedFromBlockers = eligibility?.can_delete === true;
   const canProceedFromTransfers =
     !eligibility?.owned_projects.length ||
-    eligibility.owned_projects.every((project) => !!projectTransfers[project.id]);
+    eligibility.owned_projects.every(
+      (project) => !!projectTransfers[`${project.guild_id}:${project.id}`]
+    );
   const canConfirm =
     (isOidcUser || password.length > 0) && confirmationText === expectedConfirmation;
 
@@ -389,16 +393,19 @@ export function DeleteAccountDialog({
               </p>
 
               {eligibility.owned_projects.map((project) => (
-                <div key={project.id} className="space-y-2 rounded-lg border p-4">
+                <div
+                  key={`${project.guild_id}:${project.id}`}
+                  className="space-y-2 rounded-lg border p-4"
+                >
                   <Label htmlFor={`project-${project.id}`} className="font-medium">
                     {project.name}
                   </Label>
                   <Select
-                    value={projectTransfers[project.id]?.toString()}
+                    value={projectTransfers[`${project.guild_id}:${project.id}`]?.toString()}
                     onValueChange={(value) =>
                       setProjectTransfers((prev) => ({
                         ...prev,
-                        [project.id]: parseInt(value, 10),
+                        [`${project.guild_id}:${project.id}`]: parseInt(value, 10),
                       }))
                     }
                   >

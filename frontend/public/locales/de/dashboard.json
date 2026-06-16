@@ -1,0 +1,61 @@
+{
+  "title": "Gildenübersicht",
+  "subtitle": "Gildenübersicht und Aktivität",
+  "loading": "Dashboard wird geladen\u2026",
+  "error": "Dashboard-Daten konnten nicht geladen werden. Bitte versuche es später erneut.",
+  "quickActions": {
+    "projects": "Projekte",
+    "initiatives": "Initiativen",
+    "documents": "Dokumente"
+  },
+  "metrics": {
+    "tasksThisWeek": "Aufgaben (diese Woche)",
+    "onTimeRate": "Pünktlichkeitsrate",
+    "currentStreak": "Aktuelle Serie",
+    "backlogTrend": "Backlog-Trend",
+    "days": "Tage",
+    "growing": "Wächst",
+    "shrinking": "Schrumpft"
+  },
+  "projectHealth": {
+    "title": "Projektzustand",
+    "description": "Aufgaben-Fortschritt nach Projekt",
+    "noProjects": "Noch keine Projekte",
+    "viewAll": "Alle anzeigen",
+    "tasks_one": "{{count}} Aufgabe",
+    "tasks_other": "{{count}} Aufgaben",
+    "progressLabel": "Projektfortschritt"
+  },
+  "upcomingTasks": {
+    "title": "Anstehende Aufgaben",
+    "description": "Aufgaben nach Dringlichkeit sortiert",
+    "noTasks": "Keine anstehenden Aufgaben",
+    "overdue": "Überfällig",
+    "today": "Heute",
+    "upcoming": "Anstehend",
+    "viewAll": "Alle anzeigen"
+  },
+  "recentComments": {
+    "title": "Neueste Kommentare",
+    "description": "Neueste Kommentare in der gesamten Gilde",
+    "noComments": "Noch keine Kommentare",
+    "onTask": "zu {{taskTitle}}",
+    "onDocument": "zu {{documentTitle}}",
+    "inProject": "in {{projectName}}"
+  },
+  "recentProjects": {
+    "title": "Neueste Projekte",
+    "description": "Kürzlich aktualisierte Projekte",
+    "noProjects": "Keine aktuellen Projekte"
+  },
+  "initiatives": {
+    "title": "Initiativen",
+    "description": "Aktive Initiativen in dieser Gilde",
+    "noInitiatives": "Noch keine Initiativen",
+    "viewAll": "Alle anzeigen",
+    "member_one": "{{count}} Mitglied",
+    "member_other": "{{count}} Mitglieder",
+    "project_one": "{{count}} Projekt",
+    "project_other": "{{count}} Projekte"
+  }
+}

@@ -1,29 +1,30 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getListCommentsApiV1CommentsGetQueryKey,
-  listCommentsApiV1CommentsGet,
+  getListCommentsApiV1GGuildIdCommentsGetQueryKey,
+  listCommentsApiV1GGuildIdCommentsGet,
 } from "@/api/generated/comments/comments";
 import {
-  getReadProjectApiV1ProjectsProjectIdGetQueryKey,
-  readProjectApiV1ProjectsProjectIdGet,
+  getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey,
+  readProjectApiV1GGuildIdProjectsProjectIdGet,
 } from "@/api/generated/projects/projects";
 import {
-  getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey,
-  listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet,
+  getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey,
+  listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet,
 } from "@/api/generated/task-statuses/task-statuses";
 import {
-  getReadTaskApiV1TasksTaskIdGetQueryKey,
-  readTaskApiV1TasksTaskIdGet,
+  getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey,
+  readTaskApiV1GGuildIdTasksTaskIdGet,
 } from "@/api/generated/tasks/tasks";
 import {
-  getListUsersApiV1UsersGetQueryKey,
-  listUsersApiV1UsersGet,
+  getListUsersApiV1GGuildIdUsersGetQueryKey,
+  listUsersApiV1GGuildIdUsersGet,
 } from "@/api/generated/users/users";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId/tasks_/$taskId")({
   loader: async ({ context, params }) => {
     const taskId = Number(params.taskId);
+    const guildId = Number(params.guildId);
     const { queryClient } = context;
 
     // Prefetch in background - don't block navigation on failure
@@ -31,18 +32,18 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
       // Prefetch task, users, and comments in parallel
       const [task] = await Promise.all([
         queryClient.ensureQueryData({
-          queryKey: getReadTaskApiV1TasksTaskIdGetQueryKey(taskId),
-          queryFn: () => readTaskApiV1TasksTaskIdGet(taskId),
+          queryKey: getReadTaskApiV1GGuildIdTasksTaskIdGetQueryKey(guildId, taskId),
+          queryFn: () => readTaskApiV1GGuildIdTasksTaskIdGet(guildId, taskId),
           staleTime: 30_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: getListUsersApiV1UsersGetQueryKey(),
-          queryFn: () => listUsersApiV1UsersGet(),
+          queryKey: getListUsersApiV1GGuildIdUsersGetQueryKey(guildId),
+          queryFn: () => listUsersApiV1GGuildIdUsersGet(guildId),
           staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: getListCommentsApiV1CommentsGetQueryKey({ task_id: taskId }),
-          queryFn: () => listCommentsApiV1CommentsGet({ task_id: taskId }),
+          queryKey: getListCommentsApiV1GGuildIdCommentsGetQueryKey(guildId, { task_id: taskId }),
+          queryFn: () => listCommentsApiV1GGuildIdCommentsGet(guildId, { task_id: taskId }),
           staleTime: 30_000,
         }),
       ]);
@@ -52,16 +53,24 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
       if (taskData?.project_id) {
         await Promise.all([
           queryClient.ensureQueryData({
-            queryKey: getReadProjectApiV1ProjectsProjectIdGetQueryKey(taskData.project_id),
-            queryFn: () => readProjectApiV1ProjectsProjectIdGet(taskData.project_id!),
-            staleTime: 30_000,
-          }),
-          queryClient.ensureQueryData({
-            queryKey: getListTaskStatusesApiV1ProjectsProjectIdTaskStatusesGetQueryKey(
+            queryKey: getReadProjectApiV1GGuildIdProjectsProjectIdGetQueryKey(
+              guildId,
               taskData.project_id
             ),
             queryFn: () =>
-              listTaskStatusesApiV1ProjectsProjectIdTaskStatusesGet(taskData.project_id!),
+              readProjectApiV1GGuildIdProjectsProjectIdGet(guildId, taskData.project_id!),
+            staleTime: 30_000,
+          }),
+          queryClient.ensureQueryData({
+            queryKey: getListTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGetQueryKey(
+              guildId,
+              taskData.project_id
+            ),
+            queryFn: () =>
+              listTaskStatusesApiV1GGuildIdProjectsProjectIdTaskStatusesGet(
+                guildId,
+                taskData.project_id!
+              ),
             staleTime: 60_000,
           }),
         ]);

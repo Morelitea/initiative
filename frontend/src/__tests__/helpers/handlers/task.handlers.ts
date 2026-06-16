@@ -1,17 +1,19 @@
-import { HttpResponse, http } from "msw";
+import { HttpResponse } from "msw";
 
 import { buildDefaultTaskStatuses, buildTask, buildTaskListResponse } from "@/__tests__/factories";
 
+import { guildHttp } from "../guildHttp";
+
 export const taskHandlers = [
-  http.get("/api/v1/tasks/", () => {
+  guildHttp.get("/tasks/", () => {
     return HttpResponse.json(buildTaskListResponse());
   }),
 
-  http.patch("/api/v1/tasks/:id", () => {
+  guildHttp.patch("/tasks/:id", () => {
     return HttpResponse.json(buildTask());
   }),
 
-  http.get("/api/v1/projects/:id/task-statuses/", () => {
+  guildHttp.get("/projects/:id/task-statuses/", () => {
     return HttpResponse.json(buildDefaultTaskStatuses());
   }),
 ];

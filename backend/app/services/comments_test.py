@@ -30,22 +30,30 @@ async def test_ensure_task_access_honors_grant(session: AsyncSession):
         # No grant: a non-member is denied.
         set_active_grant(None, None)
         with pytest.raises(CommentPermissionError):
-            await _ensure_task_access(session, project=project, user=grantee, access="read")
+            await _ensure_task_access(
+                session, project=project, user=grantee, access="read"
+            )
 
         # Read grant: may read comments, but not post.
         set_active_grant(guild.id, "read")
         await _ensure_task_access(session, project=project, user=grantee, access="read")
         with pytest.raises(CommentPermissionError):
-            await _ensure_task_access(session, project=project, user=grantee, access="write")
+            await _ensure_task_access(
+                session, project=project, user=grantee, access="write"
+            )
 
         # Read-write grant: may post.
         set_active_grant(guild.id, "read_write")
-        await _ensure_task_access(session, project=project, user=grantee, access="write")
+        await _ensure_task_access(
+            session, project=project, user=grantee, access="write"
+        )
 
         # A grant for a different guild doesn't apply.
         set_active_grant(guild.id + 999, "read_write")
         with pytest.raises(CommentPermissionError):
-            await _ensure_task_access(session, project=project, user=grantee, access="read")
+            await _ensure_task_access(
+                session, project=project, user=grantee, access="read"
+            )
     finally:
         set_active_grant(None, None)
 
@@ -73,11 +81,17 @@ async def test_ensure_document_access_honors_grant(session: AsyncSession):
 
     try:
         set_active_grant(guild.id, "read")
-        await _ensure_document_access(session, document=document, user=grantee, access="read")
+        await _ensure_document_access(
+            session, document=document, user=grantee, access="read"
+        )
         with pytest.raises(CommentPermissionError):
-            await _ensure_document_access(session, document=document, user=grantee, access="write")
+            await _ensure_document_access(
+                session, document=document, user=grantee, access="write"
+            )
 
         set_active_grant(guild.id, "read_write")
-        await _ensure_document_access(session, document=document, user=grantee, access="write")
+        await _ensure_document_access(
+            session, document=document, user=grantee, access="write"
+        )
     finally:
         set_active_grant(None, None)

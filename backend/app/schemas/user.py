@@ -3,12 +3,23 @@ from typing import Dict, List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field, computed_field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 from app.core.capabilities import Capability, capabilities_for
 from app.models.initiative import InitiativeRole
 from app.models.user import UserRole, UserStatus
 from app.core.config import settings
+
+# ``avatar_base64`` is a ``RawTextStr`` so it skips the global 8 KiB plain-text
+# cap (it holds an inline data URI, not free text). Left unbounded it is a
+# stored-amplification vector: the SPA sends whatever image the user picks with
+# no client-side downscale (``UserSettingsProfilePage`` reads the file straight
+# through ``FileReader.readAsDataURL``), and the value is echoed to every guild
+# member via presence/member listings. ~700 KB of base64 decodes to ~512 KB of
+# image bytes (4/3 inflation) once the ``data:image/...;base64,`` prefix is
+# accounted for — generous for any reasonable avatar while bounding the blast
+# radius. Oversized payloads are rejected with 422.
+MAX_AVATAR_BASE64_LENGTH = 700_000
 
 
 class UserBase(SanitizedBaseModel):
@@ -17,13 +28,24 @@ class UserBase(SanitizedBaseModel):
     role: UserRole = UserRole.member
 
 
-class UserCreate(UserBase):
+class UserCreate(SanitizedBaseModel):
+    # Deliberately does NOT inherit ``UserBase.role``. Platform role must
+    # never be settable from a create payload: this schema backs both
+    # self-registration (``/auth/register``) and guild-admin user creation
+    # (``POST /users/``), and neither caller is authorized to grant a
+    # platform role from the request body. Registration computes the role
+    # itself (first user = owner, everyone else = member) and the admin
+    # endpoint forces ``member``; standing platform roles change only via
+    # ``/admin/users/{id}/platform-role`` (capability-gated, bounded
+    # delegation). See SEC-1.
+    email: EmailStr
+    full_name: Optional[str] = None
     # ``max_length`` is a cheap DoS gate so we don't argon2-hash a
     # multi-megabyte payload. The min length and breach checks live in
     # ``app.core.password_policy`` and are invoked from the endpoint,
     # so all policy failures surface with a flat error code from
     # ``PasswordMessages`` that ``errors.json`` can map.
-    password: str = Field(max_length=256)
+    password: RawTextStr = Field(max_length=256)
     # Optional IANA timezone forwarded by the SPA on registration so a
     # new account starts at the user's wall clock instead of the model
     # default ``"UTC"``. Validated server-side by ``_normalize_timezone``;
@@ -39,9 +61,11 @@ class UserCreate(UserBase):
 class UserUpdate(SanitizedBaseModel):
     full_name: Optional[str] = None
     role: Optional[UserRole] = None
-    password: Optional[str] = Field(default=None, max_length=256)
+    password: Optional[RawTextStr] = Field(default=None, max_length=256)
     status: Optional[UserStatus] = None
-    avatar_base64: Optional[str] = None
+    avatar_base64: Optional[RawTextStr] = Field(
+        default=None, max_length=MAX_AVATAR_BASE64_LENGTH
+    )
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
     timezone: Optional[str] = None
@@ -75,12 +99,20 @@ class UserPublic(SanitizedBaseModel):
     placeholder for anonymized accounts wherever a person appears
     (comment authors, task assignees, mentions, calendar attendees).
     """
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     email: EmailStr
     full_name: Optional[str] = None
-    avatar_base64: Optional[str] = None
+    # No max_length here: this is a RESPONSE schema, and FastAPI validates
+    # response models, so a cap would 500 every endpoint returning a user whose
+    # avatar predates the write-side cap. The bound is enforced on the write
+    # schemas (UserUpdate / UserSelfUpdate); legacy oversized rows shrink as
+    # they are next updated.
+    avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     status: UserStatus = UserStatus.active
 
@@ -98,14 +130,17 @@ class UserGuildMember(UserPublic):
 
 
 class UserRead(UserBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     status: UserStatus
     email_verified: bool
     created_at: datetime
     updated_at: datetime
-    avatar_base64: Optional[str] = None
+    # Response schema — uncapped for the same legacy-row reason as UserPublic.
+    avatar_base64: Optional[RawTextStr] = None
     avatar_url: Optional[str] = None
     week_starts_on: int = 0
     timezone: str = "UTC"
@@ -169,8 +204,10 @@ class UserInitiativeRole(SanitizedBaseModel):
 
 class UserSelfUpdate(SanitizedBaseModel):
     full_name: Optional[str] = None
-    password: Optional[str] = Field(default=None, max_length=256)
-    avatar_base64: Optional[str] = None
+    password: Optional[RawTextStr] = Field(default=None, max_length=256)
+    avatar_base64: Optional[RawTextStr] = Field(
+        default=None, max_length=MAX_AVATAR_BASE64_LENGTH
+    )
     avatar_url: Optional[str] = None
     week_starts_on: Optional[int] = None
     timezone: Optional[str] = None
@@ -199,11 +236,16 @@ class UserSelfUpdate(SanitizedBaseModel):
 
 class ProjectBasic(SanitizedBaseModel):
     """Basic project information for deletion flow"""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     name: str
     initiative_id: int
+    # The owning guild. Projects live in per-guild schemas, so the deletion /
+    # transfer UI needs this to call the guild-scoped member-picker and
+    # transfer endpoints (which now require ``guild_id``).
+    guild_id: int
 
 
 class AccountDeletionRequest(SanitizedBaseModel):
@@ -212,14 +254,19 @@ class AccountDeletionRequest(SanitizedBaseModel):
     `hard_delete` is intentionally not allowed from this self-service endpoint;
     only platform admins can purge a row, and they do so via the admin endpoint.
     """
+
     action: Literal["deactivate", "soft_delete"]
-    password: str
+    password: RawTextStr
     confirmation_text: str
-    project_transfers: Optional[Dict[int, int]] = None  # {project_id: new_owner_id}
+    # Keyed by "guild_id:project_id" (NOT bare project_id): under schema-per-guild
+    # the same numeric project id can exist in multiple guilds the user owns, so a
+    # bare id would collide and transfer both to one recipient.
+    project_transfers: Optional[Dict[str, int]] = None
 
 
 class DeletionEligibilityResponse(SanitizedBaseModel):
     """Response indicating whether user can be deleted and any blockers"""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_delete: bool
@@ -239,6 +286,7 @@ class GuildRemovalProjectInfo(SanitizedBaseModel):
     be a member of every initiative the target user belongs to, so
     that endpoint isn't always callable from this flow.
     """
+
     model_config = ConfigDict(from_attributes=True)
 
     id: int
@@ -257,6 +305,7 @@ class GuildRemovalEligibilityResponse(SanitizedBaseModel):
     this, the existing one-click "remove member" path silently
     orphaned every project where the leaving user was sole owner.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_remove: bool
@@ -276,6 +325,7 @@ class GuildRemovalRequest(SanitizedBaseModel):
     a sole-PM situation would leave the admin with a forever-disabled
     Remove button.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     project_transfers: Dict[int, int] = Field(default_factory=dict)
@@ -284,6 +334,7 @@ class GuildRemovalRequest(SanitizedBaseModel):
 
 class AccountDeletionResponse(SanitizedBaseModel):
     """Response after a deactivate / anonymize / hard-delete action."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     success: bool

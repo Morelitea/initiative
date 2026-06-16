@@ -186,7 +186,8 @@
     "searchPlaceholder": "Buscar {{memberLabel}}",
     "noAssignees": "No hay asignados seleccionados.",
     "removeAssignee": "Quitar a {{name}}",
-    "clearAssignees": "Limpiar asignados"
+    "clearAssignees": "Limpiar asignados",
+    "you": "Tú"
   },
   "statuses": {
     "title": "Estados de tarea",

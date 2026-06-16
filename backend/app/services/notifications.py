@@ -5,10 +5,12 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import AdminSessionLocal
+from app.core.email_i18n import email_t, translate
+from app.db.session import AdminSessionLocal, reapply_rls_context, set_rls_context
+from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
 from app.models.initiative import Initiative
 from app.models.project import Project
@@ -68,21 +70,24 @@ def _event_target_path(event_id: int | None) -> str:
     return f"/events/{event_id}"
 
 
-async def _project_guild_map(session: AsyncSession, project_ids: set[int]) -> dict[int, int]:
-    if not project_ids:
-        return {}
-    stmt = (
-        select(Project.id, Initiative.guild_id)
-        .join(Project.initiative)
-        .where(Project.id.in_(tuple(project_ids)))
-    )
-    result = await session.exec(stmt)
-    rows = result.all()
-    mapping: dict[int, int] = {}
-    for project_id, guild_id in rows:
-        if project_id is not None and guild_id is not None:
-            mapping[int(project_id)] = int(guild_id)
-    return mapping
+def _initiative_target_path(initiative_id: int | None) -> str:
+    if initiative_id is None:
+        return "/initiatives"
+    return f"/initiatives/{initiative_id}"
+
+
+def _recipient_locale(user: User) -> str:
+    return getattr(user, "locale", None) or "en"
+
+
+def _nt(key: str, locale: str, **kwargs: str | int) -> str:
+    """Translate a push string from the ``notifications`` namespace.
+
+    Push notifications carry only a ``title`` and ``body``. Email copy for the
+    same events lives in the ``email`` namespace (``email_t``); the two are kept
+    separate because their wording differs (push is terse, email is richer).
+    """
+    return translate(key, locale, namespace="notifications", **kwargs)
 
 
 async def enqueue_task_assignment_event(
@@ -128,13 +133,19 @@ async def enqueue_task_assignment_event(
         session.add(event)
     # Push notification
     if assignee.push_task_assignment is not False:
+        locale = _recipient_locale(assignee)
         try:
             await push_notifications.send_push_to_user(
                 session=session,
                 user_id=assignee.id,
                 notification_type=NotificationType.task_assignment,
-                title="New Task Assignment",
-                body=f"{task.title} in {project_name}",
+                title=_nt("task.assignment.title", locale),
+                body=_nt(
+                    "task.assignment.body",
+                    locale,
+                    title=task.title,
+                    project=project_name,
+                ),
                 data={
                     "type": "task_assignment",
                     "task_id": str(task.id),
@@ -146,7 +157,9 @@ async def enqueue_task_assignment_event(
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
 
 
-async def clear_task_assignment_queue_for_user(session: AsyncSession, user_id: int) -> None:
+async def clear_task_assignment_queue_for_user(
+    session: AsyncSession, user_id: int
+) -> None:
     stmt = delete(TaskAssignmentDigestItem).where(
         TaskAssignmentDigestItem.user_id == user_id,
         TaskAssignmentDigestItem.processed_at.is_(None),
@@ -159,35 +172,50 @@ async def notify_initiative_membership(
     user: User,
     initiative_id: int,
     initiative_name: str,
+    guild_id: int,
 ) -> None:
+    target_path = _initiative_target_path(initiative_id)
     # Always create in-app notification
     await user_notifications.create_notification(
         session,
         user_id=user.id,
         notification_type=NotificationType.initiative_added,
-        data={"initiative_id": initiative_id, "initiative_name": initiative_name},
+        data={
+            "initiative_id": initiative_id,
+            "initiative_name": initiative_name,
+            "guild_id": guild_id,
+            "target_path": target_path,
+            "smart_link": _build_smart_link(target_path=target_path, guild_id=guild_id),
+        },
     )
     # Email
     if user.email_initiative_addition is not False:
         try:
-            await email_service.send_initiative_added_email(session, user, initiative_name)
+            await email_service.send_initiative_added_email(
+                session, user, initiative_name
+            )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping initiative notification for %s", user.email)
+            logger.warning(
+                "SMTP not configured; skipping initiative notification for %s",
+                user.email,
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send initiative notification: %s", exc)
     # Push notification
     if user.push_initiative_addition is not False:
+        locale = _recipient_locale(user)
         try:
             await push_notifications.send_push_to_user(
                 session=session,
                 user_id=user.id,
                 notification_type=NotificationType.initiative_added,
-                title="Added to Initiative",
-                body=f"You've been added to {initiative_name}",
+                title=_nt("initiative.added.title", locale),
+                body=_nt("initiative.added.body", locale, initiative=initiative_name),
                 data={
                     "type": "initiative_added",
                     "initiative_id": str(initiative_id),
-                    "target_path": f"/initiatives/{initiative_id}",
+                    "guild_id": str(guild_id),
+                    "target_path": target_path,
                 },
             )
         except Exception as exc:
@@ -235,18 +263,26 @@ async def notify_project_added(
                 project_id=project_id,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping project notification for %s", user.email)
+            logger.warning(
+                "SMTP not configured; skipping project notification for %s", user.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send project notification: %s", exc)
     # Push notification
     if user.push_project_added is not False:
+        locale = _recipient_locale(user)
         try:
             await push_notifications.send_push_to_user(
                 session=session,
                 user_id=user.id,
                 notification_type=NotificationType.project_added,
-                title="New Project Added",
-                body=f"{project_name} in {initiative_name}",
+                title=_nt("project.added.title", locale),
+                body=_nt(
+                    "project.added.body",
+                    locale,
+                    project=project_name,
+                    initiative=initiative_name,
+                ),
                 data={
                     "type": "project_added",
                     "project_id": str(project_id),
@@ -261,7 +297,9 @@ async def notify_project_added(
 
 async def notify_admins_pending_user(session: AsyncSession, pending_user: User) -> None:
     manager_roles = list(roles_with_capability(Capability.USERS_MANAGE))
-    stmt = select(User).where(User.role.in_(manager_roles), User.status == UserStatus.active)
+    stmt = select(User).where(
+        User.role.in_(manager_roles), User.status == UserStatus.active
+    )
     result = await session.exec(stmt)
     admins = result.scalars().all()
     if not admins:
@@ -291,6 +329,7 @@ async def notify_document_mention(
     target_path = f"/documents/{document_id}"
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    locale = _recipient_locale(mentioned_user)
     # Always create in-app notification
     await user_notifications.create_notification(
         session,
@@ -312,13 +351,26 @@ async def notify_document_mention(
             await email_service.send_mention_email(
                 session,
                 mentioned_user,
-                subject=f"You were mentioned in {document_title}",
-                headline="You were mentioned",
-                body_text=f"{mentioned_by_name} mentioned you in {document_title}",
+                subject=email_t(
+                    "mention.document.subject",
+                    locale,
+                    document=document_title,
+                    escape=False,
+                ),
+                headline=email_t("mention.document.title", locale),
+                body_text=email_t(
+                    "mention.document.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    document=document_title,
+                ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping mention email for %s", mentioned_user.email)
+            logger.warning(
+                "SMTP not configured; skipping mention email for %s",
+                mentioned_user.email,
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
     # Push notification
@@ -328,8 +380,13 @@ async def notify_document_mention(
                 session=session,
                 user_id=mentioned_user.id,
                 notification_type=NotificationType.mention,
-                title="You were mentioned",
-                body=f"{mentioned_by_name} mentioned you in {document_title}",
+                title=_nt("mention.document.title", locale),
+                body=_nt(
+                    "mention.document.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    document=document_title,
+                ),
                 data={
                     "type": "mention",
                     "document_id": str(document_id),
@@ -365,6 +422,7 @@ async def notify_comment_mention(
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    locale = _recipient_locale(mentioned_user)
 
     # Always create in-app notification
     await user_notifications.create_notification(
@@ -389,13 +447,21 @@ async def notify_comment_mention(
             await email_service.send_mention_email(
                 session,
                 mentioned_user,
-                subject="You were mentioned in a comment",
-                headline="You were mentioned",
-                body_text=f"{mentioned_by_name} mentioned you in a comment on {context_title}",
+                subject=email_t("mention.comment.subject", locale, escape=False),
+                headline=email_t("mention.comment.title", locale),
+                body_text=email_t(
+                    "mention.comment.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    context=context_title,
+                ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping mention email for %s", mentioned_user.email)
+            logger.warning(
+                "SMTP not configured; skipping mention email for %s",
+                mentioned_user.email,
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
     # Push notification
@@ -405,8 +471,13 @@ async def notify_comment_mention(
                 session=session,
                 user_id=mentioned_user.id,
                 notification_type=NotificationType.mention,
-                title="You were mentioned",
-                body=f"{mentioned_by_name} mentioned you in a comment on {context_title}",
+                title=_nt("mention.comment.title", locale),
+                body=_nt(
+                    "mention.comment.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    context=context_title,
+                ),
                 data={
                     "type": "mention",
                     "comment_id": str(comment_id),
@@ -446,6 +517,7 @@ async def notify_task_mentioned_in_comment(
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     mentioned_by_name = mentioned_by.full_name or mentioned_by.email
+    locale = _recipient_locale(assignee)
 
     # Always create in-app notification
     await user_notifications.create_notification(
@@ -472,13 +544,21 @@ async def notify_task_mentioned_in_comment(
             await email_service.send_mention_email(
                 session,
                 assignee,
-                subject="Your task was mentioned",
-                headline="Your task was mentioned",
-                body_text=f"{mentioned_by_name} mentioned {mentioned_task_title} in {context_title}",
+                subject=email_t("mention.task.subject", locale, escape=False),
+                headline=email_t("mention.task.title", locale),
+                body_text=email_t(
+                    "mention.task.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    task=mentioned_task_title,
+                    context=context_title,
+                ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping mention email for %s", assignee.email)
+            logger.warning(
+                "SMTP not configured; skipping mention email for %s", assignee.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send mention email: %s", exc)
     # Push notification
@@ -488,8 +568,14 @@ async def notify_task_mentioned_in_comment(
                 session=session,
                 user_id=assignee.id,
                 notification_type=NotificationType.mention,
-                title="Your task was mentioned",
-                body=f"{mentioned_by_name} mentioned {mentioned_task_title} in {context_title}",
+                title=_nt("mention.task.title", locale),
+                body=_nt(
+                    "mention.task.body",
+                    locale,
+                    actor=mentioned_by_name,
+                    task=mentioned_task_title,
+                    context=context_title,
+                ),
                 data={
                     "type": "mention",
                     "comment_id": str(comment_id),
@@ -520,6 +606,7 @@ async def notify_comment_on_task(
     target_path = f"/tasks/{task_id}"
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = commenter.full_name or commenter.email
+    locale = _recipient_locale(assignee)
 
     # Always create in-app notification
     await user_notifications.create_notification(
@@ -544,13 +631,19 @@ async def notify_comment_on_task(
             await email_service.send_mention_email(
                 session,
                 assignee,
-                subject=f"New comment on {task_title}",
-                headline="New comment on your task",
-                body_text=f"{commenter_name} commented on {task_title}",
+                subject=email_t(
+                    "comment.onTask.subject", locale, task=task_title, escape=False
+                ),
+                headline=email_t("comment.onTask.title", locale),
+                body_text=email_t(
+                    "comment.onTask.body", locale, actor=commenter_name, task=task_title
+                ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping comment email for %s", assignee.email)
+            logger.warning(
+                "SMTP not configured; skipping comment email for %s", assignee.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
     # Push notification
@@ -560,8 +653,10 @@ async def notify_comment_on_task(
                 session=session,
                 user_id=assignee.id,
                 notification_type=NotificationType.comment_on_task,
-                title="New comment on your task",
-                body=f"{commenter_name} commented on {task_title}",
+                title=_nt("comment.onTask.title", locale),
+                body=_nt(
+                    "comment.onTask.body", locale, actor=commenter_name, task=task_title
+                ),
                 data={
                     "type": "comment_on_task",
                     "comment_id": str(comment_id),
@@ -591,6 +686,7 @@ async def notify_comment_on_document(
     target_path = f"/documents/{document_id}"
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     commenter_name = commenter.full_name or commenter.email
+    locale = _recipient_locale(author)
 
     # Always create in-app notification
     await user_notifications.create_notification(
@@ -614,13 +710,25 @@ async def notify_comment_on_document(
             await email_service.send_mention_email(
                 session,
                 author,
-                subject=f"New comment on {document_title}",
-                headline="New comment on your document",
-                body_text=f"{commenter_name} commented on {document_title}",
+                subject=email_t(
+                    "comment.onDocument.subject",
+                    locale,
+                    document=document_title,
+                    escape=False,
+                ),
+                headline=email_t("comment.onDocument.title", locale),
+                body_text=email_t(
+                    "comment.onDocument.body",
+                    locale,
+                    actor=commenter_name,
+                    document=document_title,
+                ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping comment email for %s", author.email)
+            logger.warning(
+                "SMTP not configured; skipping comment email for %s", author.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send comment email: %s", exc)
     # Push notification
@@ -630,8 +738,13 @@ async def notify_comment_on_document(
                 session=session,
                 user_id=author.id,
                 notification_type=NotificationType.comment_on_document,
-                title="New comment on your document",
-                body=f"{commenter_name} commented on {document_title}",
+                title=_nt("comment.onDocument.title", locale),
+                body=_nt(
+                    "comment.onDocument.body",
+                    locale,
+                    actor=commenter_name,
+                    document=document_title,
+                ),
                 data={
                     "type": "comment_on_document",
                     "comment_id": str(comment_id),
@@ -668,6 +781,7 @@ async def notify_comment_reply(
 
     smart_link = _build_smart_link(target_path=target_path, guild_id=guild_id)
     replier_name = replier.full_name or replier.email
+    locale = _recipient_locale(parent_author)
 
     # Always create in-app notification
     await user_notifications.create_notification(
@@ -692,13 +806,20 @@ async def notify_comment_reply(
             await email_service.send_mention_email(
                 session,
                 parent_author,
-                subject="Reply to your comment",
-                headline="Reply to your comment",
-                body_text=f"{replier_name} replied to your comment on {context_title}",
+                subject=email_t("comment.reply.subject", locale, escape=False),
+                headline=email_t("comment.reply.title", locale),
+                body_text=email_t(
+                    "comment.reply.body",
+                    locale,
+                    actor=replier_name,
+                    context=context_title,
+                ),
                 link=smart_link,
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping reply email for %s", parent_author.email)
+            logger.warning(
+                "SMTP not configured; skipping reply email for %s", parent_author.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send reply email: %s", exc)
     # Push notification
@@ -708,8 +829,13 @@ async def notify_comment_reply(
                 session=session,
                 user_id=parent_author.id,
                 notification_type=NotificationType.comment_reply,
-                title="Reply to your comment",
-                body=f"{replier_name} replied to your comment on {context_title}",
+                title=_nt("comment.reply.title", locale),
+                body=_nt(
+                    "comment.reply.body",
+                    locale,
+                    actor=replier_name,
+                    context=context_title,
+                ),
                 data={
                     "type": "comment_reply",
                     "comment_id": str(comment_id),
@@ -780,7 +906,9 @@ async def _deliver_event_notification(
                 link=data.get("smart_link"),
             )
         except email_service.EmailNotConfiguredError:
-            logger.warning("SMTP not configured; skipping event email for %s", recipient.email)
+            logger.warning(
+                "SMTP not configured; skipping event email for %s", recipient.email
+            )
         except RuntimeError as exc:  # pragma: no cover
             logger.error("Failed to send event email: %s", exc)
     if push_enabled:
@@ -829,6 +957,7 @@ async def notify_event_invitation(
         return
     organizer_name = organizer.full_name or organizer.email
     when = _format_event_when(event, attendee)
+    locale = _recipient_locale(attendee)
     await _deliver_event_notification(
         session,
         recipient=attendee,
@@ -836,11 +965,19 @@ async def notify_event_invitation(
         data=_event_data(event, guild_id, organizer_name=organizer_name),
         email_enabled=attendee.email_events is not False,
         push_enabled=attendee.push_events is not False,
-        email_subject=f"You're invited: {event.title}",
-        email_headline="New event invitation",
-        email_body=f"{organizer_name} invited you to {event.title} ({when}).",
-        push_title="New event invitation",
-        push_body=f"{event.title} ({when})",
+        email_subject=email_t(
+            "event.invitation.subject", locale, event=event.title, escape=False
+        ),
+        email_headline=email_t("event.invitation.title", locale),
+        email_body=email_t(
+            "event.invitation.body",
+            locale,
+            organizer=organizer_name,
+            event=event.title,
+            when=when,
+        ),
+        push_title=_nt("event.invitation.title", locale),
+        push_body=_nt("event.invitation.body", locale, event=event.title, when=when),
     )
 
 
@@ -858,12 +995,8 @@ async def notify_event_updated(
         return
     editor_name = editor.full_name or editor.email
     when = _format_event_when(event, attendee)
-    if time_changed:
-        headline = "Event rescheduled"
-        body = f"{editor_name} rescheduled {event.title} to {when}."
-    else:
-        headline = "Event updated"
-        body = f"{editor_name} updated {event.title} ({when})."
+    locale = _recipient_locale(attendee)
+    key = "event.rescheduled" if time_changed else "event.updated"
     await _deliver_event_notification(
         session,
         recipient=attendee,
@@ -873,11 +1006,15 @@ async def notify_event_updated(
         ),
         email_enabled=attendee.email_events is not False,
         push_enabled=attendee.push_events is not False,
-        email_subject=f"{headline}: {event.title}",
-        email_headline=headline,
-        email_body=body,
-        push_title=headline,
-        push_body=f"{event.title} ({when})",
+        email_subject=email_t(
+            f"{key}.subject", locale, event=event.title, escape=False
+        ),
+        email_headline=email_t(f"{key}.title", locale),
+        email_body=email_t(
+            f"{key}.body", locale, editor=editor_name, event=event.title, when=when
+        ),
+        push_title=_nt(f"{key}.title", locale),
+        push_body=_nt(f"{key}.body", locale, event=event.title, when=when),
     )
 
 
@@ -894,6 +1031,7 @@ async def notify_event_cancelled(
         return
     canceller_name = canceller.full_name or canceller.email
     when = _format_event_when(event, attendee)
+    locale = _recipient_locale(attendee)
     await _deliver_event_notification(
         session,
         recipient=attendee,
@@ -901,11 +1039,19 @@ async def notify_event_cancelled(
         data=_event_data(event, guild_id, canceller_name=canceller_name),
         email_enabled=attendee.email_events is not False,
         push_enabled=attendee.push_events is not False,
-        email_subject=f"Event cancelled: {event.title}",
-        email_headline="Event cancelled",
-        email_body=f"{canceller_name} cancelled {event.title} ({when}).",
-        push_title="Event cancelled",
-        push_body=f"{event.title} ({when})",
+        email_subject=email_t(
+            "event.cancelled.subject", locale, event=event.title, escape=False
+        ),
+        email_headline=email_t("event.cancelled.title", locale),
+        email_body=email_t(
+            "event.cancelled.body",
+            locale,
+            canceller=canceller_name,
+            event=event.title,
+            when=when,
+        ),
+        push_title=_nt("event.cancelled.title", locale),
+        push_body=_nt("event.cancelled.body", locale, event=event.title, when=when),
     )
 
 
@@ -922,7 +1068,10 @@ async def notify_event_rsvp(
     if organizer.id == responder.id:
         return
     responder_name = responder.full_name or responder.email
-    status_value = rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
+    status_value = (
+        rsvp_status.value if isinstance(rsvp_status, RSVPStatus) else str(rsvp_status)
+    )
+    locale = _recipient_locale(organizer)
     await _deliver_event_notification(
         session,
         recipient=organizer,
@@ -935,11 +1084,25 @@ async def notify_event_rsvp(
         ),
         email_enabled=organizer.email_events is not False,
         push_enabled=organizer.push_events is not False,
-        email_subject=f"RSVP update: {event.title}",
-        email_headline="RSVP update",
-        email_body=f"{responder_name} responded “{status_value}” to {event.title}.",
-        push_title="RSVP update",
-        push_body=f"{responder_name} responded {status_value} to {event.title}",
+        email_subject=email_t(
+            "event.rsvp.subject", locale, event=event.title, escape=False
+        ),
+        email_headline=email_t("event.rsvp.title", locale),
+        email_body=email_t(
+            "event.rsvp.body",
+            locale,
+            responder=responder_name,
+            status=status_value,
+            event=event.title,
+        ),
+        push_title=_nt("event.rsvp.title", locale),
+        push_body=_nt(
+            "event.rsvp.body",
+            locale,
+            responder=responder_name,
+            status=status_value,
+            event=event.title,
+        ),
     )
 
 
@@ -952,6 +1115,7 @@ async def notify_event_reminder(
 ) -> None:
     """Send a scheduled lead-time reminder for an upcoming event."""
     when = _format_event_when(event, recipient)
+    locale = _recipient_locale(recipient)
     await _deliver_event_notification(
         session,
         recipient=recipient,
@@ -959,92 +1123,129 @@ async def notify_event_reminder(
         data=_event_data(event, guild_id),
         email_enabled=recipient.email_event_reminders is not False,
         push_enabled=recipient.push_event_reminders is not False,
-        email_subject=f"Reminder: {event.title}",
-        email_headline="Upcoming event",
-        email_body=f"{event.title} starts at {when}.",
-        push_title="Upcoming event",
-        push_body=f"{event.title} ({when})",
+        email_subject=email_t(
+            "event.reminder.subject", locale, event=event.title, escape=False
+        ),
+        email_headline=email_t("event.reminder.title", locale),
+        email_body=email_t("event.reminder.body", locale, event=event.title, when=when),
+        push_title=_nt("event.reminder.title", locale),
+        push_body=_nt("event.reminder.body", locale, event=event.title, when=when),
     )
 
 
-async def _pending_assignment_user_ids(session: AsyncSession) -> list[int]:
-    stmt = (
-        select(TaskAssignmentDigestItem.user_id)
-        .where(TaskAssignmentDigestItem.processed_at.is_(None))
-        .distinct()
+async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Send task-assignment digests to opted-in users as of ``now``.
+
+    Split out from ``process_task_assignment_digests`` so tests can drive it with
+    the test session. Each user's pending digest items live in their own guild
+    schemas, so they're gathered with the user's membership context (no
+    superadmin) and the items are marked processed back in each schema.
+    """
+    result = await session.exec(
+        select(User).where(User.email_task_assignment.is_not(False))
     )
-    result = await session.exec(stmt)
-    return result.scalars().all()
+    users = result.scalars().all()
+    if not users:
+        logger.debug("task-digest: no opted-in users")
+        return
+    # Capture before routing — the gather expunges the identity map.
+    candidates = [(u.id, u.email, u.last_task_assignment_digest_at) for u in users]
+    for user_id, email, last_at in candidates:
+        if last_at and last_at + timedelta(hours=1) > now:
+            continue  # rate-limited to one digest per hour
+        per_guild_items: dict[int, list[int]] = {}
 
+        # Capture user_id / per_guild_items as defaults so this closure doesn't
+        # bind the loop variables by reference (B023) — safe even if the call
+        # site is ever refactored to defer the closures.
+        async def _fetch(
+            routed: AsyncSession, gid: int, *, _uid=user_id, _items=per_guild_items
+        ) -> list[dict]:
+            items = (
+                (
+                    await routed.exec(
+                        select(TaskAssignmentDigestItem)
+                        .where(
+                            TaskAssignmentDigestItem.user_id == _uid,
+                            TaskAssignmentDigestItem.processed_at.is_(None),
+                        )
+                        .order_by(TaskAssignmentDigestItem.created_at.asc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            _items[gid] = [item.id for item in items]
+            return [
+                {
+                    "task_title": item.task_title,
+                    "project_name": item.project_name,
+                    "assigned_by_name": item.assigned_by_name,
+                    "link": _build_smart_link(
+                        target_path=_task_target_path(item.task_id, item.project_id),
+                        guild_id=gid,  # the item's guild IS the routed schema
+                    ),
+                }
+                for item in items
+            ]
 
-async def _load_user(session: AsyncSession, user_id: int) -> User | None:
-    result = await session.exec(select(User).where(User.id == user_id))
-    return result.scalar_one_or_none()
+        guild_ids = await member_guild_ids(session, user_id)
+        assignments = await gather_across_guilds(session, user_id, guild_ids, _fetch)
+        if not assignments:
+            continue
+        # Send: re-load the user (gather expunged it) in a shared-table context.
+        session.expunge_all()
+        await set_rls_context(session, user_id=user_id)
+        user = (
+            await session.exec(select(User).where(User.id == user_id))
+        ).scalar_one_or_none()
+        if (
+            user is None
+        ):  # deleted between the snapshot and now — skip, don't abort the pass
+            continue
+        try:
+            await email_service.send_task_assignment_digest_email(
+                session, user, assignments
+            )
+            logger.info(
+                "task-digest: sent %d assignment(s) to user %s", len(assignments), email
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping task digest for %s", email)
+            continue
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send task digest: %s", exc)
+            continue
+        # Mark the gathered items processed, back in each guild's schema.
+        for gid, item_ids in per_guild_items.items():
+            if not item_ids:
+                continue
+            session.expunge_all()
+            await set_rls_context(session, user_id=user_id, guild_id=gid)
+            await session.exec(
+                sa_update(TaskAssignmentDigestItem)
+                .where(TaskAssignmentDigestItem.id.in_(item_ids))
+                .values(processed_at=now)
+            )
+            await session.commit()
+            await reapply_rls_context(
+                session
+            )  # commit may have dropped the connection's context
+        session.expunge_all()
+        await set_rls_context(session, user_id=user_id)
+        user = (
+            await session.exec(select(User).where(User.id == user_id))
+        ).scalar_one_or_none()
+        if user is None:
+            continue
+        user.last_task_assignment_digest_at = now
+        session.add(user)
+        await session.commit()
 
 
 async def process_task_assignment_digests() -> None:
     async with AdminSessionLocal() as session:
-        user_ids = await _pending_assignment_user_ids(session)
-        if not user_ids:
-            logger.debug("task-digest: no pending assignment events")
-            return
-        logger.debug("task-digest: processing %d user(s)", len(user_ids))
-        now = datetime.now(timezone.utc)
-        for user_id in user_ids:
-            user = await _load_user(session, int(user_id))
-            if not user or user.email_task_assignment is False:
-                await clear_task_assignment_queue_for_user(session, user_id)
-                await session.commit()
-                continue
-            events_stmt = (
-                select(TaskAssignmentDigestItem)
-                .where(
-                    TaskAssignmentDigestItem.user_id == user_id,
-                    TaskAssignmentDigestItem.processed_at.is_(None),
-                )
-                .order_by(TaskAssignmentDigestItem.created_at.asc())
-            )
-            events_result = await session.exec(events_stmt)
-            events = events_result.scalars().all()
-            if not events:
-                continue
-            if user.last_task_assignment_digest_at and user.last_task_assignment_digest_at + timedelta(hours=1) > now:
-                continue
-            project_ids = {event.project_id for event in events if event.project_id is not None}
-            guild_map = await _project_guild_map(session, project_ids)
-            assignments = []
-            for event in events:
-                target_path = _task_target_path(event.task_id, event.project_id)
-                assignments.append(
-                    {
-                        "task_title": event.task_title,
-                        "project_name": event.project_name,
-                        "assigned_by_name": event.assigned_by_name,
-                        "link": _build_smart_link(
-                            target_path=target_path,
-                            guild_id=guild_map.get(event.project_id),
-                        ),
-                    }
-                )
-            try:
-                await email_service.send_task_assignment_digest_email(session, user, assignments)
-                logger.info(
-                    "task-digest: sent %d assignment(s) to user %s",
-                    len(assignments),
-                    user.email,
-                )
-            except email_service.EmailNotConfiguredError:
-                logger.warning("SMTP not configured; skipping task digest for %s", user.email)
-                continue
-            except RuntimeError as exc:  # pragma: no cover
-                logger.error("Failed to send task digest: %s", exc)
-                continue
-            for event in events:
-                event.processed_at = now
-                session.add(event)
-            user.last_task_assignment_digest_at = now
-            session.add(user)
-            await session.commit()
+        await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
 
 
 def _resolve_timezone(value: str | None) -> ZoneInfo:
@@ -1055,7 +1256,12 @@ def _resolve_timezone(value: str | None) -> ZoneInfo:
         return ZoneInfo("UTC")
 
 
-async def _overdue_tasks_for_user(session: AsyncSession, user: User) -> list[dict]:
+async def _overdue_tasks_for_user(session: AsyncSession, user_id: int) -> list[dict]:
+    """Overdue tasks assigned to the user *in the currently routed guild schema*.
+
+    Run once per guild via ``gather_across_guilds`` (the session is routed into
+    each of the user's guilds in turn), so it only ever sees one guild's rows.
+    """
     stmt = (
         select(Task, Project.name, Project.id, Initiative.guild_id)
         .join(Project, Task.project_id == Project.id)
@@ -1063,7 +1269,7 @@ async def _overdue_tasks_for_user(session: AsyncSession, user: User) -> list[dic
         .join(TaskAssignee, TaskAssignee.task_id == Task.id)
         .join(TaskStatus, Task.task_status_id == TaskStatus.id)
         .where(
-            TaskAssignee.user_id == user.id,
+            TaskAssignee.user_id == user_id,
             Task.due_date.is_not(None),
             Task.due_date < datetime.now(timezone.utc),
             TaskStatus.category != TaskStatusCategory.done,
@@ -1080,114 +1286,187 @@ async def _overdue_tasks_for_user(session: AsyncSession, user: User) -> list[dic
             {
                 "title": task.title,
                 "project_name": project_name,
-                "due_date": task.due_date.strftime("%Y-%m-%d %H:%M UTC") if task.due_date else "N/A",
+                "due_date": task.due_date.strftime("%Y-%m-%d %H:%M UTC")
+                if task.due_date
+                else "N/A",
                 "link": _build_smart_link(target_path=target_path, guild_id=guild_id),
             }
         )
     return tasks
 
 
+async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
+    """Send overdue-task digests to opted-in users as of ``now``.
+
+    Split out from ``process_overdue_notifications`` so tests can drive it with
+    the test session (the worker opens its own ``AdminSessionLocal``). Each
+    user's overdue tasks are gathered from their own guild schemas with their
+    membership context — no superadmin / all-guild access.
+    """
+    result = await session.exec(select(User).where(User.email_overdue_tasks.is_(True)))
+    users = result.scalars().all()
+    if not users:
+        logger.debug("overdue-digest: no users opted in")
+        return
+    # Capture plain fields up front: gathering routes per guild and expunges the
+    # identity map, which would detach these ORM rows.
+    candidates = [
+        (
+            u.id,
+            u.email,
+            u.timezone,
+            u.overdue_notification_time,
+            u.last_overdue_notification_at,
+        )
+        for u in users
+    ]
+    for user_id, email, user_tz, notify_time, last_at in candidates:
+        tz = _resolve_timezone(user_tz)
+        now_local = now.astimezone(tz)
+        try:
+            hour, minute = map(int, notify_time.split(":"))
+        except Exception:
+            hour, minute = 21, 0
+        target_local = now_local.replace(
+            hour=hour, minute=minute, second=0, microsecond=0
+        )
+        if now_local < target_local:
+            continue
+        if last_at and last_at.astimezone(tz).date() == now_local.date():
+            continue
+        # User-scoped: visit each of the user's guild schemas with their own
+        # membership context (no superadmin) and collect their overdue tasks.
+        guild_ids = await member_guild_ids(session, user_id)
+        tasks = await gather_across_guilds(
+            session,
+            user_id,
+            guild_ids,
+            # _uid default-binds user_id so the closure doesn't capture the loop
+            # variable by reference (B023).
+            lambda routed, _gid, _uid=user_id: _overdue_tasks_for_user(routed, _uid),
+        )
+        if not tasks:
+            continue
+        # Re-load the user (the gather expunged it) to send + stamp it. The
+        # email/stamp touch only shared tables, so the user-only context is fine.
+        session.expunge_all()
+        await set_rls_context(session, user_id=user_id)
+        user = (
+            await session.exec(select(User).where(User.id == user_id))
+        ).scalar_one_or_none()
+        if (
+            user is None
+        ):  # deleted between the snapshot and now — skip, don't abort the pass
+            continue
+        try:
+            await email_service.send_overdue_tasks_email(session, user, tasks)
+            logger.info(
+                "overdue-digest: sent %d overdue task(s) to user %s", len(tasks), email
+            )
+        except email_service.EmailNotConfiguredError:
+            logger.warning("SMTP not configured; skipping overdue digest for %s", email)
+            continue
+        except RuntimeError as exc:  # pragma: no cover
+            logger.error("Failed to send overdue digest: %s", exc)
+            continue
+        user.last_overdue_notification_at = now
+        session.add(user)
+        await session.commit()
+
+
 async def process_overdue_notifications() -> None:
     async with AdminSessionLocal() as session:
-        stmt = select(User).where(User.email_overdue_tasks.is_(True))
-        result = await session.exec(stmt)
-        users = result.scalars().all()
-        if not users:
-            logger.debug("overdue-digest: no users opted in")
-            return
-        now_utc = datetime.now(timezone.utc)
-        for user in users:
-            tz = _resolve_timezone(user.timezone)
-            now_local = now_utc.astimezone(tz)
-            try:
-                hour, minute = map(int, user.overdue_notification_time.split(":"))
-            except Exception:
-                hour, minute = 21, 0
-            target_local = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
-            if now_local < target_local:
-                continue
-            if user.last_overdue_notification_at:
-                last_local = user.last_overdue_notification_at.astimezone(tz)
-                if last_local.date() == now_local.date():
-                    continue
-            tasks = await _overdue_tasks_for_user(session, user)
-            if not tasks:
-                continue
-            try:
-                await email_service.send_overdue_tasks_email(session, user, tasks)
-                logger.info("overdue-digest: sent %d overdue task(s) to user %s", len(tasks), user.email)
-            except email_service.EmailNotConfiguredError:
-                logger.warning("SMTP not configured; skipping overdue digest for %s", user.email)
-                continue
-            except RuntimeError as exc:  # pragma: no cover
-                logger.error("Failed to send overdue digest: %s", exc)
-                continue
-            user.last_overdue_notification_at = now_utc
-            session.add(user)
-            await session.commit()
+        await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
 
 async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> None:
-    """Dispatch any reminders due as of ``now`` using the given session.
+    """Dispatch any reminders due as of ``now``.
 
-    Split out from ``process_event_reminders`` so tests can drive it with the
-    test session (the worker opens its own ``AdminSessionLocal``).
+    User-scoped: for each user who enabled reminders, visit their own guild
+    schemas with their membership context (no superadmin) and dispatch reminders
+    for the events they attend there. Split out from ``process_event_reminders``
+    so tests can drive it with the test session.
     """
     horizon = now + timedelta(days=1)
     # Allow events that started within the grace window so a 0-minute
-    # ("at the time of the event") reminder still fires on the next poll
-    # instead of being skipped the instant the event begins.
+    # ("at the time of the event") reminder still fires on the next poll.
     lower = now - EVENT_REMINDER_GRACE
-    stmt = (
-        select(CalendarEvent, User)
-        .join(
-            CalendarEventAttendee,
-            CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
+    users = (
+        (
+            await session.exec(
+                select(User).where(User.event_reminder_minutes_before.is_not(None))
+            )
         )
-        .join(User, User.id == CalendarEventAttendee.user_id)
-        .where(
-            CalendarEvent.deleted_at.is_(None),
-            CalendarEvent.start_at > lower,
-            CalendarEvent.start_at <= horizon,
-            CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
-            User.event_reminder_minutes_before.is_not(None),
-        )
+        .scalars()
+        .all()
     )
-    result = await session.exec(stmt)
-    rows = result.all()
-    for event, user in rows:
-        minutes = user.event_reminder_minutes_before
+    candidates = [(u.id, u.event_reminder_minutes_before) for u in users]
+    for user_id, minutes in candidates:
         if minutes is None:
             continue
-        remind_at = event.start_at - timedelta(minutes=minutes)
-        if remind_at > now:
-            continue
-        existing = await session.exec(
-            select(EventReminderDispatch.id).where(
-                EventReminderDispatch.event_id == event.id,
-                EventReminderDispatch.user_id == user.id,
-                EventReminderDispatch.event_start_at == event.start_at,
+        for guild_id in await member_guild_ids(session, user_id):
+            session.expunge_all()
+            await set_rls_context(session, user_id=user_id, guild_id=guild_id)
+            events = (
+                (
+                    await session.exec(
+                        select(CalendarEvent)
+                        .join(
+                            CalendarEventAttendee,
+                            CalendarEventAttendee.calendar_event_id == CalendarEvent.id,
+                        )
+                        .where(
+                            CalendarEventAttendee.user_id == user_id,
+                            CalendarEventAttendee.rsvp_status != RSVPStatus.declined,
+                            CalendarEvent.deleted_at.is_(None),
+                            CalendarEvent.start_at > lower,
+                            CalendarEvent.start_at <= horizon,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
             )
-        )
-        if existing.first() is not None:
-            continue
-        # Reserve the dedup row and commit it *before* dispatching the external
-        # channels. This loop polls every 60s, so if email/push went out first
-        # and the ledger commit then failed, the next poll would resend. Writing
-        # the ledger first means a commit failure here simply retries cleanly,
-        # and a success guarantees at most one send.
-        session.add(
-            EventReminderDispatch(
-                event_id=event.id,
-                user_id=user.id,
-                event_start_at=event.start_at,
-            )
-        )
-        await session.commit()
-        await notify_event_reminder(
-            session, recipient=user, event=event, guild_id=event.guild_id
-        )
-        await session.commit()
+            # Capture before the per-reminder commits expire/detach the rows.
+            due = [
+                (e.id, e.start_at, e.guild_id)
+                for e in events
+                if e.start_at - timedelta(minutes=minutes) <= now
+            ]
+            for event_id, start_at, ev_guild_id in due:
+                existing = await session.exec(
+                    select(EventReminderDispatch.id).where(
+                        EventReminderDispatch.event_id == event_id,
+                        EventReminderDispatch.user_id == user_id,
+                        EventReminderDispatch.event_start_at == start_at,
+                    )
+                )
+                if existing.first() is not None:
+                    continue
+                # Reserve the dedup row before dispatching (reserve-then-send), so
+                # a send that outlives a failed ledger commit can't double-fire.
+                session.add(
+                    EventReminderDispatch(
+                        event_id=event_id, user_id=user_id, event_start_at=start_at
+                    )
+                )
+                await session.commit()
+                await reapply_rls_context(session)
+                recipient = (
+                    await session.exec(select(User).where(User.id == user_id))
+                ).scalar_one_or_none()
+                event = (
+                    await session.exec(
+                        select(CalendarEvent).where(CalendarEvent.id == event_id)
+                    )
+                ).scalar_one_or_none()
+                if recipient is None or event is None:
+                    continue  # deleted mid-run; dedup row stays so we don't retry
+                await notify_event_reminder(
+                    session, recipient=recipient, event=event, guild_id=ev_guild_id
+                )
+                await session.commit()
+                await reapply_rls_context(session)
 
 
 async def process_event_reminders() -> None:
@@ -1201,5 +1480,3 @@ async def process_event_reminders() -> None:
     """
     async with AdminSessionLocal() as session:
         await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
-
-

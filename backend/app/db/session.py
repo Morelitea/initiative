@@ -19,6 +19,12 @@ engine = create_async_engine(settings.DATABASE_URL_APP, echo=False, future=True)
 # Admin engine: for background jobs and startup seeding (BYPASSRLS).
 admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False, future=True)
 
+# Provisioning engine: superuser credentials (same as migrations) for privileged
+# DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
+provisioning_engine = create_async_engine(
+    settings.DATABASE_URL, echo=False, future=True
+)
+
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     autocommit=False,
@@ -40,21 +46,47 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         # Reset RLS variables from any previous request on this pooled connection.
         # Uses set_config() in a single round-trip for efficiency.
-        await session.execute(text(
-            "SELECT set_config('app.current_user_id', '', false), "
-            "set_config('app.current_guild_id', '', false), "
-            "set_config('app.current_guild_role', '', false), "
-            "set_config('app.is_superadmin', 'false', false), "
-            "set_config('app.pam_guild_id', '', false), "
-            "set_config('app.pam_read', 'false', false), "
-            "set_config('app.pam_write', 'false', false)"
-        ))
+        await session.execute(
+            text(
+                "SELECT set_config('app.current_user_id', '', false), "
+                "set_config('app.current_guild_id', '', false), "
+                "set_config('app.current_guild_role', '', false), "
+                "set_config('app.is_superadmin', 'false', false), "
+                "set_config('app.pam_guild_id', '', false), "
+                "set_config('app.pam_read', 'false', false), "
+                "set_config('app.pam_write', 'false', false), "
+                # Route guild-scoped tables back to public and drop any assumed guild
+                # role on a recycled connection.
+                "set_config('search_path', 'public', false), "
+                "set_config('role', 'none', false)"
+            )
+        )
         yield session
 
 
 async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a session that bypasses RLS (for migrations, background jobs, etc.)."""
     async with AdminSessionLocal() as session:
+        # Reset routing GUCs on the recycled connection. Without this an admin
+        # session inherits whatever search_path / assumed guild role the previous
+        # checkout of this pooled connection left behind — so an unrouted admin
+        # query for a guild-scoped table could land in a stale guild_<id> schema
+        # (or `public`) nondeterministically. Start every admin session from a
+        # clean public, login-role baseline; callers that need a guild schema
+        # call set_rls_context() explicitly.
+        await session.execute(
+            text(
+                "SELECT set_config('app.current_user_id', '', false), "
+                "set_config('app.current_guild_id', '', false), "
+                "set_config('app.current_guild_role', '', false), "
+                "set_config('app.is_superadmin', 'false', false), "
+                "set_config('app.pam_guild_id', '', false), "
+                "set_config('app.pam_read', 'false', false), "
+                "set_config('app.pam_write', 'false', false), "
+                "set_config('search_path', 'public', false), "
+                "set_config('role', 'none', false)"
+            )
+        )
         yield session
 
 
@@ -118,15 +150,66 @@ async def set_rls_context(
     pr = "true" if pam_read else "false"
     pw = "true" if pam_write else "false"
 
-    await session.execute(text(
-        "SELECT set_config('app.current_user_id', :uid, false), "
-        "set_config('app.current_guild_id', :gid, false), "
-        "set_config('app.current_guild_role', :grole, false), "
-        "set_config('app.is_superadmin', :sa, false), "
-        "set_config('app.pam_guild_id', :pgid, false), "
-        "set_config('app.pam_read', :pr, false), "
-        "set_config('app.pam_write', :pw, false)"
-    ), {"uid": uid, "gid": gid, "grole": grole, "sa": sa, "pgid": pgid, "pr": pr, "pw": pw})
+    # Route guild-scoped tables to the active guild's schema AND assume that
+    # guild's role. Each guild's content lives in guild_<id>; that schema holds
+    # only the guild-scoped tables, so shared tables (users, guilds, ...) resolve
+    # in public. The login role has no standing access to any guild schema
+    # (fail-closed) — it must SET ROLE into the per-guild role, which owns its
+    # schema and inherits shared/public access from app_guild_base. int() makes
+    # the schema/role name injection-safe.
+    # Route to a guild's schema for a full guild context, or for an ACTIVE PAM
+    # grant (read or write). A grant with neither flag (e.g. requested but not yet
+    # approved) routes nowhere, so the grantee sees nothing. Schema names are
+    # per-database; role names are cluster-global and may carry a prefix. Lazy
+    # import avoids a circular import — schema_provisioning imports this module.
+    from app.db.schema_provisioning import (
+        guild_readonly_role_name,
+        guild_role_name,
+        guild_schema_name,
+    )
+
+    pam_active = pam_read or pam_write
+    route_guild = (
+        guild_id if guild_id is not None else (pam_guild_id if pam_active else None)
+    )
+    if route_guild is None:
+        sp, role_target = "public", "none"
+    else:
+        sp = f"{guild_schema_name(route_guild)}, public"
+        # A pure read grant (read, not write, no full membership) assumes the
+        # read-only role so writes to the schema are denied at the role level.
+        read_only_grant = guild_id is None and pam_read and not pam_write
+        name_fn = guild_readonly_role_name if read_only_grant else guild_role_name
+        role_target = name_fn(route_guild)
+
+    # Reset to the login role first: a session already SET ROLE'd into guild A
+    # cannot SET ROLE into guild B (it isn't a member). 'none' returns to the
+    # authenticated login role, which IS a member of every provisioned guild role.
+    await session.execute(text("SELECT set_config('role', 'none', false)"))
+    await session.execute(
+        text(
+            "SELECT set_config('app.current_user_id', :uid, false), "
+            "set_config('app.current_guild_id', :gid, false), "
+            "set_config('app.current_guild_role', :grole, false), "
+            "set_config('app.is_superadmin', :sa, false), "
+            "set_config('app.pam_guild_id', :pgid, false), "
+            "set_config('app.pam_read', :pr, false), "
+            "set_config('app.pam_write', :pw, false), "
+            "set_config('search_path', :sp, false), "
+            "set_config('role', :role, false)"
+        ),
+        {
+            "uid": uid,
+            "gid": gid,
+            "grole": grole,
+            "sa": sa,
+            "pgid": pgid,
+            "pr": pr,
+            "pw": pw,
+            "sp": sp,
+            "role": role_target,
+        },
+    )
 
 
 async def reapply_rls_context(session: AsyncSession) -> None:

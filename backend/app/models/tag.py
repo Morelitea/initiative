@@ -22,6 +22,7 @@ class Tag(SoftDeleteMixin, table=True):
     Supports nested tag naming via "/" convention (e.g., "books/fiction").
     The "/" is purely visual/organizational - no parent-child DB relationships.
     """
+
     __tablename__ = "tags"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -33,7 +34,7 @@ class Tag(SoftDeleteMixin, table=True):
     )
     color: str = Field(
         default="#6366F1",
-        sa_column=Column(String(length=7), nullable=False, server_default="'#6366F1'"),
+        sa_column=Column(String(length=9), nullable=False, server_default="#6366F1"),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
@@ -69,6 +70,7 @@ class Tag(SoftDeleteMixin, table=True):
 
 class TaskTag(SQLModel, table=True):
     """Junction table linking tasks to tags."""
+
     __tablename__ = "task_tags"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -86,6 +88,7 @@ class TaskTag(SQLModel, table=True):
 
 class ProjectTag(SQLModel, table=True):
     """Junction table linking projects to tags."""
+
     __tablename__ = "project_tags"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -103,6 +106,7 @@ class ProjectTag(SQLModel, table=True):
 
 class DocumentTag(SQLModel, table=True):
     """Junction table linking documents to tags."""
+
     __tablename__ = "document_tags"
     __allow_unmapped__ = True
     model_config = ConfigDict(arbitrary_types_allowed=True)

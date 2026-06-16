@@ -52,7 +52,9 @@ class ProjectRolePermissionUpdate(SanitizedBaseModel):
 
 
 class ProjectRolePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     initiative_role_id: int
     role_name: str = ""
@@ -84,7 +86,9 @@ class ProjectPermissionUpdate(SanitizedBaseModel):
 
 
 class ProjectPermissionRead(ProjectPermissionBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     created_at: datetime
 
@@ -97,7 +101,9 @@ class ProjectTaskSummary(SanitizedBaseModel):
 
 
 class ProjectRead(ProjectBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     owner_id: int

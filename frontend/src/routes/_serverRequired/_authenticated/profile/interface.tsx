@@ -4,7 +4,7 @@ import { lazy, Suspense } from "react";
 import { useAuth } from "@/hooks/useAuth";
 
 const UserSettingsInterfacePage = lazy(() =>
-  import("@/pages/UserSettingsInterfacePage").then((m) => ({
+  import("@/pages/user/settings/UserSettingsInterfacePage").then((m) => ({
     default: m.UserSettingsInterfacePage,
   }))
 );

@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from pydantic import Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
 class ICalEventPreview(SanitizedBaseModel):
@@ -22,12 +22,12 @@ class ICalParseResult(SanitizedBaseModel):
 
 
 class ICalParseRequest(SanitizedBaseModel):
-    ics_content: str = Field(..., max_length=2_000_000)
+    ics_content: RawTextStr = Field(..., max_length=2_000_000)
 
 
 class ICalImportRequest(SanitizedBaseModel):
     initiative_id: int
-    ics_content: str = Field(..., max_length=2_000_000)
+    ics_content: RawTextStr = Field(..., max_length=2_000_000)
 
 
 class ICalImportResult(SanitizedBaseModel):

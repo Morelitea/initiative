@@ -111,7 +111,7 @@ export function AdminDeleteUserDialog({
   const [step, setStep] = useState<DeletionStep>("choose-type");
   const [action, setAction] = useState<AdminAction>(validActions[0]);
   const [eligibility, setEligibility] = useState<AdminDeletionEligibilityResponse | null>(null);
-  const [projectTransfers, setProjectTransfers] = useState<Record<number, number>>({});
+  const [projectTransfers, setProjectTransfers] = useState<Record<string, number>>({});
   const [confirmationText, setConfirmationText] = useState("");
   const [agreedToConsequences, setAgreedToConsequences] = useState(false);
 
@@ -145,12 +145,13 @@ export function AdminDeleteUserDialog({
   // Fetch initiative members for project transfer
   const [initiativeMembers, setInitiativeMembers] = useState<Record<number, UserRead[]>>({});
   const fetchInitiativeMembers = useCallback(
-    async (initiativeId: number) => {
+    async (initiativeId: number, guildId: number) => {
       if (initiativeMembers[initiativeId]) return;
 
       try {
         const members = await (adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet(
-          initiativeId
+          initiativeId,
+          { guild_id: guildId }
         ) as unknown as Promise<UserRead[]>);
         setInitiativeMembers((prev) => ({
           ...prev,
@@ -230,7 +231,7 @@ export function AdminDeleteUserDialog({
 
       // Load initiative members for all owned projects
       for (const project of result.data.owned_projects) {
-        await fetchInitiativeMembers(project.initiative_id);
+        await fetchInitiativeMembers(project.initiative_id, project.guild_id);
       }
 
       // If blockers are now resolved, move forward
@@ -254,7 +255,7 @@ export function AdminDeleteUserDialog({
 
         // Load initiative members for all owned projects
         for (const project of result.data.owned_projects) {
-          await fetchInitiativeMembers(project.initiative_id);
+          await fetchInitiativeMembers(project.initiative_id, project.guild_id);
         }
 
         // Check if there are blockers that can be resolved
@@ -321,14 +322,14 @@ export function AdminDeleteUserDialog({
     deleteGuild.mutate(guildId);
   };
 
-  const handleDeleteInitiative = (initiativeId: number) => {
+  const handleDeleteInitiative = (initiativeId: number, guildId: number) => {
     setIsResolvingBlocker(true);
-    deleteInitiative.mutate(initiativeId);
+    deleteInitiative.mutate({ initiativeId, guildId });
   };
 
-  const handlePromoteInitiativeMember = (initiativeId: number, userId: number) => {
+  const handlePromoteInitiativeMember = (initiativeId: number, userId: number, guildId: number) => {
     setIsResolvingBlocker(true);
-    promoteInitiativeMember.mutate({ initiativeId, userId });
+    promoteInitiativeMember.mutate({ initiativeId, userId, guildId });
   };
 
   // Check if there are blockers (guild or initiative)
@@ -341,7 +342,9 @@ export function AdminDeleteUserDialog({
   const canProceedFromBlockers = eligibility?.can_delete === true;
   const canProceedFromTransfers =
     !eligibility?.owned_projects.length ||
-    eligibility.owned_projects.every((project) => !!projectTransfers[project.id]);
+    eligibility.owned_projects.every(
+      (project) => !!projectTransfers[`${project.guild_id}:${project.id}`]
+    );
   const confirmationRequired = targetUser.email.split("@")[0].toUpperCase();
   const canConfirm =
     confirmationText === confirmationRequired && (action !== "hard_delete" || agreedToConsequences);
@@ -611,7 +614,8 @@ export function AdminDeleteUserDialog({
                                       onValueChange={(value) =>
                                         handlePromoteInitiativeMember(
                                           initBlocker.initiative_id,
-                                          parseInt(value, 10)
+                                          parseInt(value, 10),
+                                          initBlocker.guild_id
                                         )
                                       }
                                       placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
@@ -654,7 +658,10 @@ export function AdminDeleteUserDialog({
               </p>
 
               {eligibility.owned_projects.map((project) => (
-                <div key={project.id} className="space-y-2 rounded-lg border p-4">
+                <div
+                  key={`${project.guild_id}:${project.id}`}
+                  className="space-y-2 rounded-lg border p-4"
+                >
                   <Label className="font-medium">{project.name}</Label>
                   <SearchableCombobox
                     items={
@@ -663,11 +670,11 @@ export function AdminDeleteUserDialog({
                         label: formatMemberLabel(member),
                       })) ?? []
                     }
-                    value={projectTransfers[project.id]?.toString()}
+                    value={projectTransfers[`${project.guild_id}:${project.id}`]?.toString()}
                     onValueChange={(value) =>
                       setProjectTransfers((prev) => ({
                         ...prev,
-                        [project.id]: parseInt(value, 10),
+                        [`${project.guild_id}:${project.id}`]: parseInt(value, 10),
                       }))
                     }
                     placeholder={t("adminDeleteUser.transferSelectPlaceholder")}
@@ -825,7 +832,11 @@ export function AdminDeleteUserDialog({
         confirmLabel={t("adminDeleteUser.deleteInitiative")}
         destructive
         onConfirm={() =>
-          initiativeDeleteConfirm && handleDeleteInitiative(initiativeDeleteConfirm.initiative_id)
+          initiativeDeleteConfirm &&
+          handleDeleteInitiative(
+            initiativeDeleteConfirm.initiative_id,
+            initiativeDeleteConfirm.guild_id
+          )
         }
         isLoading={deleteInitiative.isPending}
       />

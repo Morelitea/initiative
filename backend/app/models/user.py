@@ -46,7 +46,11 @@ class User(SQLModel, table=True):
     full_name: Optional[str] = Field(default=None)
     hashed_password: str
     role: UserRole = Field(
-        sa_column=Column(SQLEnum(UserRole, name="user_role"), nullable=False, server_default=UserRole.member.value)
+        sa_column=Column(
+            SQLEnum(UserRole, name="user_role"),
+            nullable=False,
+            server_default=UserRole.member.value,
+        )
     )
     status: UserStatus = Field(
         default=UserStatus.active,
@@ -163,10 +167,18 @@ class User(SQLModel, table=True):
         default=None,
         sa_column=Column(Boolean, nullable=True),
     )
-    ai_provider: Optional[str] = Field(default=None, sa_column=Column(String(50), nullable=True))
-    ai_api_key_encrypted: Optional[str] = Field(default=None, sa_column=Column(String(2000), nullable=True))
-    ai_base_url: Optional[str] = Field(default=None, sa_column=Column(String(1000), nullable=True))
-    ai_model: Optional[str] = Field(default=None, sa_column=Column(String(500), nullable=True))
+    ai_provider: Optional[str] = Field(
+        default=None, sa_column=Column(String(50), nullable=True)
+    )
+    ai_api_key_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(2000), nullable=True)
+    )
+    ai_base_url: Optional[str] = Field(
+        default=None, sa_column=Column(String(1000), nullable=True)
+    )
+    ai_model: Optional[str] = Field(
+        default=None, sa_column=Column(String(500), nullable=True)
+    )
 
     # UI Preferences
     # OIDC refresh token sync
@@ -219,10 +231,13 @@ class User(SQLModel, table=True):
     def email(self) -> str:
         """Return the decrypted email address. Used by schema serialization."""
         from app.core.encryption import decrypt_field, SALT_EMAIL
+
         return decrypt_field(self.email_encrypted, SALT_EMAIL)
 
     projects_owned: List["Project"] = Relationship(back_populates="owner")
-    tasks_assigned: List["Task"] = Relationship(back_populates="assignees", link_model=TaskAssignee)
+    tasks_assigned: List["Task"] = Relationship(
+        back_populates="assignees", link_model=TaskAssignee
+    )
     project_permissions: List["ProjectPermission"] = Relationship(back_populates="user")
     initiative_memberships: List["InitiativeMember"] = Relationship(
         back_populates="user",

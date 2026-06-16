@@ -20,6 +20,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
+from app.core.email_i18n import translate
 from app.models.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
 from app.models.notification import NotificationType
 from app.models.user import User, UserRole, UserStatus
@@ -68,7 +69,11 @@ def _capped_duration(requested: Optional[int], role: UserRole) -> int:
     """Resolve a requested duration for a grantee of ``role`` to the effective
     one, or raise if it exceeds that role's maximum."""
     cap = max_minutes_for_role(role)
-    minutes = requested if requested is not None else min(settings.PAM_DEFAULT_DURATION_MINUTES, cap)
+    minutes = (
+        requested
+        if requested is not None
+        else min(settings.PAM_DEFAULT_DURATION_MINUTES, cap)
+    )
     if minutes > cap:
         raise AccessGrantError("DURATION_TOO_LONG")
     return minutes
@@ -97,19 +102,12 @@ async def _approvers(session: AsyncSession) -> list[User]:
     return list(result.all())
 
 
-def _level_word(access_level: Optional[str]) -> str:
-    """Plain-English access level for push bodies (push isn't localized, matching
-    the existing task/project push convention)."""
-    return "read-write" if access_level == "read_write" else "read-only"
-
-
 async def _push_and_email(
     session: AsyncSession,
     *,
     recipient: User,
     notification_type: NotificationType,
-    push_title: str,
-    push_body: str,
+    push_key: str,
     email_event: str,
     guild_name: Optional[str],
     access_level: Optional[str] = None,
@@ -119,16 +117,45 @@ async def _push_and_email(
 
     Always attempted (these are operational/security notices with no per-user
     opt-out); silently no-ops when FCM / SMTP aren't configured, and never lets
-    a delivery failure break the request.
+    a delivery failure break the request. ``push_key`` selects the
+    ``accessGrant.<key>`` entry in the ``notifications`` namespace, localized to
+    the recipient.
+
+    ``access_level`` and ``requester`` populate the ``{{level}}`` / ``{{requester}}``
+    placeholders that only some body templates contain — ``requester`` is used by
+    the ``requested`` event only and is intentionally ``None`` for approve/deny/
+    revoke. Each is passed to the interpolator only when present, so it maps to
+    exactly the placeholders its template declares.
     """
+    locale = getattr(recipient, "locale", None) or "en"
+    body_vars: dict[str, str] = {"guild": guild_name or "a guild"}
+    if access_level is not None:
+        level_key = (
+            "accessGrant.levelReadWrite"
+            if access_level == "read_write"
+            else "accessGrant.levelRead"
+        )
+        body_vars["level"] = translate(level_key, locale, namespace="notifications")
+    if requester is not None:
+        body_vars["requester"] = requester
     try:
         await push_notifications.send_push_to_user(
             session=session,
             user_id=recipient.id,
             notification_type=notification_type,
-            title=push_title,
-            body=push_body,
-            data={"type": notification_type.value, "target_path": "/settings/admin/access"},
+            title=translate(
+                f"accessGrant.{push_key}.title", locale, namespace="notifications"
+            ),
+            body=translate(
+                f"accessGrant.{push_key}.body",
+                locale,
+                namespace="notifications",
+                **body_vars,
+            ),
+            data={
+                "type": notification_type.value,
+                "target_path": "/settings/admin/access",
+            },
         )
     except Exception as exc:  # best effort
         logger.error("PAM push notification failed: %s", exc, exc_info=True)
@@ -192,7 +219,6 @@ async def request_grant(
     await session.flush()
 
     requester_name = requester.full_name or requester.email
-    level_word = _level_word(grant.access_level)
     for approver in await _approvers(session):
         await user_notifications.create_notification(
             session,
@@ -211,8 +237,7 @@ async def request_grant(
             session,
             recipient=approver,
             notification_type=NotificationType.access_grant_requested,
-            push_title="New access request",
-            push_body=f"{requester_name} requested {level_word} access to {guild.name}",
+            push_key="requested",
             email_event="requested",
             guild_name=guild.name,
             access_level=grant.access_level,
@@ -241,7 +266,9 @@ async def approve(
     # the recipient's tier).
     grantee = await session.get(User, grant.user_id)
     grantee_role = grantee.role if grantee else UserRole.support
-    duration = _capped_duration(duration_minutes or grant.requested_duration_minutes, grantee_role)
+    duration = _capped_duration(
+        duration_minutes or grant.requested_duration_minutes, grantee_role
+    )
     now = _now()
     grant.status = AccessGrantStatus.approved.value
     grant.approved_by_id = approver.id
@@ -252,7 +279,6 @@ async def approve(
     await session.flush()
 
     data = await _event_notification_data(session, grant)
-    guild_name = data["guild_name"] or "a guild"
     await user_notifications.create_notification(
         session,
         user_id=grant.user_id,
@@ -264,8 +290,7 @@ async def approve(
             session,
             recipient=grantee,
             notification_type=NotificationType.access_grant_approved,
-            push_title="Access approved",
-            push_body=f"Your {_level_word(grant.access_level)} access to {guild_name} was approved",
+            push_key="approved",
             email_event="approved",
             guild_name=data["guild_name"],
             access_level=grant.access_level,
@@ -273,7 +298,9 @@ async def approve(
     return grant
 
 
-async def deny(session: AsyncSession, *, grant: AccessGrant, approver: User) -> AccessGrant:
+async def deny(
+    session: AsyncSession, *, grant: AccessGrant, approver: User
+) -> AccessGrant:
     if grant.status != AccessGrantStatus.pending.value:
         raise AccessGrantError("NOT_PENDING")
     now = _now()
@@ -286,7 +313,6 @@ async def deny(session: AsyncSession, *, grant: AccessGrant, approver: User) -> 
 
     grantee = await session.get(User, grant.user_id)
     data = await _event_notification_data(session, grant)
-    guild_name = data["guild_name"] or "a guild"
     await user_notifications.create_notification(
         session,
         user_id=grant.user_id,
@@ -298,15 +324,16 @@ async def deny(session: AsyncSession, *, grant: AccessGrant, approver: User) -> 
             session,
             recipient=grantee,
             notification_type=NotificationType.access_grant_denied,
-            push_title="Access request denied",
-            push_body=f"Your access request for {guild_name} was denied",
+            push_key="denied",
             email_event="denied",
             guild_name=data["guild_name"],
         )
     return grant
 
 
-async def revoke(session: AsyncSession, *, grant: AccessGrant, revoker: User) -> AccessGrant:
+async def revoke(
+    session: AsyncSession, *, grant: AccessGrant, revoker: User
+) -> AccessGrant:
     # Revoke is only meaningful for an approved grant (live or not-yet-expired);
     # a pending one should be denied, a terminal one is already over.
     if grant.status != AccessGrantStatus.approved.value:
@@ -321,7 +348,6 @@ async def revoke(session: AsyncSession, *, grant: AccessGrant, revoker: User) ->
 
     grantee = await session.get(User, grant.user_id)
     data = await _event_notification_data(session, grant)
-    guild_name = data["guild_name"] or "a guild"
     await user_notifications.create_notification(
         session,
         user_id=grant.user_id,
@@ -333,15 +359,16 @@ async def revoke(session: AsyncSession, *, grant: AccessGrant, revoker: User) ->
             session,
             recipient=grantee,
             notification_type=NotificationType.access_grant_revoked,
-            push_title="Access revoked",
-            push_body=f"Your access to {guild_name} was revoked",
+            push_key="revoked",
             email_event="revoked",
             guild_name=data["guild_name"],
         )
     return grant
 
 
-async def cancel_own_pending(session: AsyncSession, *, grant: AccessGrant, user: User) -> None:
+async def cancel_own_pending(
+    session: AsyncSession, *, grant: AccessGrant, user: User
+) -> None:
     """A requester withdraws their own still-pending request."""
     if grant.requested_by_id != user.id:
         raise AccessGrantError("CANNOT_CANCEL_OTHERS")
@@ -433,7 +460,9 @@ async def expire_due(session: AsyncSession) -> int:
     return len(rows)
 
 
-async def to_read(session: AsyncSession, grants: list[AccessGrant]) -> list[AccessGrantRead]:
+async def to_read(
+    session: AsyncSession, grants: list[AccessGrant]
+) -> list[AccessGrantRead]:
     """Serialize grants, batch-loading display enrichment (user/guild names)."""
     if not grants:
         return []

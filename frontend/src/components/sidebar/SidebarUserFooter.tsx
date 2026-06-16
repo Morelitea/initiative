@@ -61,7 +61,10 @@ export const SidebarUserFooter = ({
     <SidebarFooter className="border-t border-r">
       <div className="flex flex-col">
         <div className="flex items-center gap-2 p-2">
-          <DropdownMenu>
+          {/* modal={false}: a modal dropdown nested in the non-modal mobile
+              sidebar drawer dismisses the drawer on open. Matches the
+              notification-bell popover, which is non-modal and doesn't. */}
+          <DropdownMenu modal={false}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"

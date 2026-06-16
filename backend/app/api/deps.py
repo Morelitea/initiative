@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
-from fastapi import Cookie, Depends, Header, HTTPException, Query, Request, status
+from fastapi import Cookie, Depends, HTTPException, Path, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from sqlmodel import select
@@ -12,11 +12,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.pam_context import set_active_grant
+from app.core.role_context import set_active_role
 from app.core.messages import AuthMessages, GuildMessages
 from app.core.security import (
-    AutoDelegationClaims,
     AutoDelegationVerificationError,
+    UploadTokenError,
     verify_auto_delegation_token,
+    verify_upload_token,
 )
 from app.db.session import get_session, set_rls_context
 from app.models.access_grant import AccessGrant, AccessLevel
@@ -31,10 +33,14 @@ from app.services import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False
+)
 
 
-async def _authenticate_device_token(session: AsyncSession, token: str) -> Optional[User]:
+async def _authenticate_device_token(
+    session: AsyncSession, token: str
+) -> Optional[User]:
     """Authenticate using a device token and return the associated user."""
     device_token = await user_tokens.get_device_token(session, token=token)
     if not device_token:
@@ -42,28 +48,6 @@ async def _authenticate_device_token(session: AsyncSession, token: str) -> Optio
     statement = select(User).where(User.id == device_token.user_id)
     result = await session.exec(statement)
     return result.one_or_none()
-
-
-def _delegation_guild_matches_header(
-    request: Request, claims: AutoDelegationClaims
-) -> bool:
-    """Reject delegation tokens whose ``guild_id`` claim contradicts the
-    request's ``X-Guild-ID`` header.
-
-    The header is what RLS will use to scope the query; if the token was
-    issued for guild 42 and the request asks for guild 99, that's a
-    cross-guild attempt — a user who's a member of both guilds shouldn't
-    be able to use a token issued in one to access the other. When the
-    header is absent (cross-guild endpoints like ``/users/me``) we allow,
-    relying on the endpoint itself to scope appropriately.
-    """
-    raw = request.headers.get("X-Guild-ID")
-    if not raw:
-        return True
-    try:
-        return int(raw) == claims.guild_id
-    except (TypeError, ValueError):
-        return False
 
 
 async def _authenticate_auto_delegation(
@@ -83,10 +67,16 @@ async def _authenticate_auto_delegation(
     master switches gate the actual operation as if the user were
     calling directly.
 
-    Three security checks fire here in order:
+    Two security checks fire here in order:
       1. Token verifies (signature, audience, issuer, required claims).
       2. ``jti`` is not in the blocklist — first presentation only.
-      3. ``guild_id`` claim matches ``X-Guild-ID`` header when present.
+
+    A verified token also pins the request's guild context to the token's
+    ``guild_id`` claim (via ``request.state.delegated_guild_id``): delegation
+    tokens are minted for exactly one guild, and a machine caller has no
+    guild context of its own to resolve from. The claim is validated against
+    the user's memberships and must agree with the ``/g/{guild_id}`` path, so an
+    auto workflow always acts in the guild its token was issued for.
     """
     if not settings.AUTO_DELEGATION_PUBLIC_KEY_PEM:
         return None  # delegation disabled — let other auth paths run
@@ -96,9 +86,6 @@ async def _authenticate_auto_delegation(
     except AutoDelegationVerificationError:
         # Could be a session JWT or API key arriving on the same header.
         # Returning None lets the caller try those instead of failing.
-        return None
-
-    if not _delegation_guild_matches_header(request, claims):
         return None
 
     # Replay guard: a delegation JWT is one-shot. Even though the JWT is
@@ -129,6 +116,11 @@ async def _authenticate_auto_delegation(
         )
     except auto_delegation_blocklist.DelegationReplayError:
         return None
+
+    # Bind the request to the token's guild (see docstring). Stored on
+    # request.state so the guild-context resolver can read it without the
+    # claims object having to travel through every auth signature.
+    request.state.delegated_guild_id = claims.guild_id
 
     return user
 
@@ -192,7 +184,9 @@ async def get_current_user(
     # 401 interceptor depends on this to auto-redirect to /welcome when
     # the access token expires.
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
+        )
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError as exc:
         raise HTTPException(
@@ -212,9 +206,13 @@ async def get_current_user(
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
     if token_data.ver is None or token_data.ver != user.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
+        )
     return user
 
 
@@ -231,17 +229,24 @@ async def get_current_user_optional(
 
 
 async def get_current_active_user(
-    current_user: Annotated[User, Depends(get_current_user)]
+    current_user: Annotated[User, Depends(get_current_user)],
 ) -> User:
     if current_user.status != UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
     return current_user
 
 
 def require_roles(*roles: UserRole) -> Callable:
-    async def dependency(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+    async def dependency(
+        current_user: Annotated[User, Depends(get_current_active_user)],
+    ) -> User:
         if roles and current_user.role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INSUFFICIENT_PRIVILEGES)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
+            )
         return current_user
 
     return dependency
@@ -255,9 +260,14 @@ def require_capability(capability: Capability) -> Callable:
     role name (see ``app.core.capabilities``).
     """
 
-    async def dependency(current_user: Annotated[User, Depends(get_current_active_user)]) -> User:
+    async def dependency(
+        current_user: Annotated[User, Depends(get_current_active_user)],
+    ) -> User:
         if not user_has_capability(current_user, capability):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=AuthMessages.INSUFFICIENT_PRIVILEGES)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AuthMessages.INSUFFICIENT_PRIVILEGES,
+            )
         return current_user
 
     return dependency
@@ -275,7 +285,7 @@ class GuildContext:
 
     @property
     def guild_id(self) -> int:
-        return self.guild.id  # type: ignore[return-value]
+        return self.guild.id  # ty: ignore[invalid-return-type]
 
     @property
     def role(self) -> GuildRole:
@@ -286,11 +296,30 @@ class GuildContext:
         return self.grant is not None
 
 
-async def get_guild_membership(
-    session: SessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    requested_guild_id: Optional[int] = Header(None, alias="X-Guild-ID"),
+async def _load_guild_context(
+    request: Request,
+    session: AsyncSession,
+    current_user: User,
+    guild_id: int,
 ) -> GuildContext:
+    """Resolve and validate the guild context for the path-addressed guild.
+
+    The guild comes from the request path (``/g/{guild_id}/...``); it is only
+    a selector, never a trust boundary. Access is validated fresh on every
+    request — real membership or a live PAM grant, else 403 — so a forged or
+    stale path can never read another guild's data. The ``int`` path converter
+    guarantees ``guild_id`` is an integer before it reaches the privileged
+    ``SET ROLE``/``search_path`` sink.
+    """
+    # Auto-delegation tokens are pinned to one guild at mint time; refuse if the
+    # path addresses a different guild than the token was minted for.
+    delegated = getattr(request.state, "delegated_guild_id", None)
+    if delegated is not None and delegated != guild_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+
     # Set minimal RLS context before querying guild_memberships (RLS-protected).
     # Full guild context is set later by get_guild_session / RLSSessionDep.
     await set_rls_context(
@@ -299,16 +328,6 @@ async def get_guild_membership(
         is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
-    guild_id = await guilds_service.resolve_user_guild_id(
-        session,
-        user=current_user,
-        guild_id=requested_guild_id,
-    )
-    if guild_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.NO_GUILD_MEMBERSHIP,
-        )
     membership = await guilds_service.get_membership(
         session,
         guild_id=guild_id,
@@ -325,7 +344,10 @@ async def get_guild_membership(
             session, user_id=current_user.id, guild_id=guild_id
         )
         if grant is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_ACCESS_DENIED)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_ACCESS_DENIED,
+            )
         # Apply the pam context now so the grantee can actually read the guild
         # row (and below, get_guild_session re-applies the full context). The
         # guilds table has an additive pam_read policy keyed on pam_guild_id.
@@ -345,13 +367,89 @@ async def get_guild_membership(
     return GuildContext(guild=guild, membership=membership)
 
 
+async def get_guild_membership(
+    request: Request,
+    session: SessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_id: Annotated[int, Path(description="Guild this request operates in")],
+) -> GuildContext:
+    """Strict guild context resolved from the ``/g/{guild_id}`` path segment.
+
+    Every guild-scoped router mounts under that prefix, so FastAPI injects
+    ``guild_id`` from the path into this dependency. Membership (or a live PAM
+    grant) is validated fresh; a non-member or stale grant gets 403. A
+    guild-scoped route mounted *outside* the prefix fails at startup (missing
+    path param) — a useful guard that every such route is path-addressed.
+    """
+    return await _load_guild_context(request, session, current_user, guild_id)
+
+
 def require_guild_roles(*roles: GuildRole) -> Callable:
-    async def dependency(context: Annotated[GuildContext, Depends(get_guild_membership)]) -> GuildContext:
+    async def dependency(
+        context: Annotated[GuildContext, Depends(get_guild_membership)],
+    ) -> GuildContext:
         if roles and context.membership.role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=GuildMessages.GUILD_PERMISSION_REQUIRED)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=GuildMessages.GUILD_PERMISSION_REQUIRED,
+            )
         return context
 
     return dependency
+
+
+async def _apply_guild_session_context(
+    session: AsyncSession,
+    current_user: User,
+    guild_context: GuildContext,
+) -> AsyncSession:
+    """Route ``session`` into ``guild_context``'s guild: set the RLS/session
+    variables (and the request-scoped PAM/role contexts) for the user+guild,
+    PAM-scoped when access is via a grant."""
+    if guild_context.is_pam:
+        # Scoped, time-bound access via a PAM grant — NOT the all-guild bypass.
+        # Read grants get SELECT into this guild only; read_write also gets
+        # writes. guild_role is left unset so guild-role-gated paths don't treat
+        # the grantee as a member.
+        grant = guild_context.grant
+        access_level = (
+            grant.access_level if grant is not None else AccessLevel.read.value
+        )
+        # Mirror the grant into the request-scoped PAM context so the app-layer
+        # resource access checks (require_*_access) honor it consistently with
+        # RLS — what the grantee can list, they can also open/edit per level.
+        set_active_grant(guild_context.guild_id, access_level)
+        # No real membership — leave the role context clear so role-gated
+        # paths (initiative-scope guild-admin bypass) don't treat the grantee
+        # as a member.
+        set_active_role(None, None)
+        # Leave current_guild_id unset — the existing write policies treat a
+        # matching current_guild_id as proof of membership. Scope the grant via
+        # pam_guild_id instead.
+        await set_rls_context(
+            session,
+            user_id=current_user.id,
+            guild_id=None,
+            guild_role=None,
+            is_superadmin=False,
+            pam_guild_id=guild_context.guild_id,
+            pam_read=True,
+            pam_write=(access_level == AccessLevel.read_write.value),
+        )
+        return session
+
+    set_active_grant(None, None)
+    # Record the membership role for this request's active guild so the sync
+    # access checks can apply the guild-admin leg of the initiative-scope gate.
+    set_active_role(guild_context.guild_id, guild_context.role.value)
+    await set_rls_context(
+        session,
+        user_id=current_user.id,
+        guild_id=guild_context.guild_id,
+        guild_role=guild_context.role.value,
+        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
+    )
+    return session
 
 
 async def get_guild_session(
@@ -370,41 +468,7 @@ async def get_guild_session(
     may be returned to the pool, so call reapply_rls_context(session)
     before any post-commit queries.
     """
-    if guild_context.is_pam:
-        # Scoped, time-bound access via a PAM grant — NOT the all-guild bypass.
-        # Read grants get SELECT into this guild only; read_write also gets
-        # writes. guild_role is left unset so guild-role-gated paths don't treat
-        # the grantee as a member.
-        grant = guild_context.grant
-        access_level = grant.access_level if grant is not None else AccessLevel.read.value
-        # Mirror the grant into the request-scoped PAM context so the app-layer
-        # resource access checks (require_*_access) honor it consistently with
-        # RLS — what the grantee can list, they can also open/edit per level.
-        set_active_grant(guild_context.guild_id, access_level)
-        # Leave current_guild_id unset — the existing write policies treat a
-        # matching current_guild_id as proof of membership. Scope the grant via
-        # pam_guild_id instead.
-        await set_rls_context(
-            session,
-            user_id=current_user.id,
-            guild_id=None,
-            guild_role=None,
-            is_superadmin=False,
-            pam_guild_id=guild_context.guild_id,
-            pam_read=True,
-            pam_write=(access_level == AccessLevel.read_write.value),
-        )
-        return session
-
-    set_active_grant(None, None)
-    await set_rls_context(
-        session,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-        guild_role=guild_context.role.value,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
-    )
-    return session
+    return await _apply_guild_session_context(session, current_user, guild_context)
 
 
 # Dependency for routes that need RLS-aware database access
@@ -432,6 +496,67 @@ async def get_user_session(
 UserSessionDep = Annotated[AsyncSession, Depends(get_user_session)]
 
 
+async def _load_active_user_by_id(session: AsyncSession, user_id: int) -> User:
+    """Load a user by id for the uploads route, enforcing active status.
+
+    Shared by the scoped-upload-token path so a deactivated account can't
+    keep pulling media with a still-valid token.
+    """
+    statement = select(User).where(User.id == user_id)
+    result = await session.exec(statement)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
+    if user.status != UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
+    return user
+
+
+async def _authenticate_upload_query_token(
+    session: AsyncSession, token_param: str
+) -> User:
+    """Resolve a ``?token=`` query-param credential for /uploads/*.
+
+    Query params leak via logs, browser history, and Referer headers, so this
+    path deliberately accepts ONLY URL-safe, narrowly-scoped credentials:
+
+      1. A short-lived, uploads-scoped JWT minted by ``POST /auth/upload-token``
+         (native <img>/<iframe> media loads can't send headers or cookies).
+      2. A device token (native long-lived credential, already used this way).
+
+    It intentionally does NOT accept a full session JWT or an API key — those
+    are long-lived, full-API credentials that must never ride in a URL. A
+    session JWT presented here therefore 401s.
+    """
+    # 1. Scoped upload token (preferred for native media).
+    try:
+        user_id = verify_upload_token(token_param)
+    except UploadTokenError:
+        pass
+    else:
+        return await _load_active_user_by_id(session, user_id)
+
+    # 2. Device token fallback (native apps historically pass these as ?token=).
+    user = await _authenticate_device_token(session, token_param)
+    if user:
+        if user.status != UserStatus.active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AuthMessages.INACTIVE_USER,
+            )
+        return user
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 async def get_upload_user(
     request: Request,
     session: SessionDep,
@@ -439,10 +564,19 @@ async def get_upload_user(
     token_param: Annotated[Optional[str], Query(alias="token")] = None,
     session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
 ) -> User:
-    """Auth dependency for /uploads/* — accepts token from Authorization header OR ?token= query param.
+    """Auth dependency for /uploads/* and authenticated document downloads.
 
-    Supports all three auth schemes so that <img> and <iframe> tags (which can't
-    send Authorization headers) work by appending ?token=<jwt> to the URL.
+    Two trust tiers, by where the credential arrives:
+
+      * Authorization header or HttpOnly cookie — not exposed in URLs, so the
+        full credential set is honored (session JWT, API key, delegation JWT,
+        DeviceToken scheme). This is the web <img> path (cookie) and direct API
+        callers.
+      * ``?token=`` query param — leaks via logs/history/Referer, so only a
+        short-lived uploads-scoped token or a device token is accepted (see
+        ``_authenticate_upload_query_token``). A full session JWT here is
+        rejected; native clients fetch a scoped token from
+        ``POST /auth/upload-token`` instead.
     """
     auth_header = request.headers.get("Authorization", "")
 
@@ -452,7 +586,10 @@ async def get_upload_user(
         user = await _authenticate_device_token(session, device_token)
         if user:
             if user.status != UserStatus.active:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=AuthMessages.INACTIVE_USER,
+                )
             return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -460,20 +597,28 @@ async def get_upload_user(
             headers={"WWW-Authenticate": "DeviceToken"},
         )
 
-    # 2. Bearer token (Authorization header), ?token= query param, or HttpOnly cookie (web sessions)
-    token = bearer_token or token_param or session_cookie
-    if not token:
+    # 2. Header bearer or cookie carries the full-trust credential. A ?token=
+    #    query param, by contrast, is restricted to URL-safe scoped credentials.
+    header_token = bearer_token or session_cookie
+    if not header_token:
+        if token_param:
+            return await _authenticate_upload_query_token(session, token_param)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.NOT_AUTHENTICATED,
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    token = header_token
+
     # Try API key authentication first
     user = await api_keys_service.authenticate_api_key(session, token)
     if user:
         if user.status != UserStatus.active:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AuthMessages.INACTIVE_USER,
+            )
         return user
 
     # Try delegation JWT from initiative-auto. Same chain placement as
@@ -491,17 +636,11 @@ async def get_upload_user(
     # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
     # so the SPA can auto-redirect to /welcome when the session lapses.
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
+        )
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError:
-        # JWT decode failed — if token came from query param, also try as device token
-        # (native app users may pass their device token as a query param)
-        if token_param and not bearer_token:
-            user = await _authenticate_device_token(session, token_param)
-            if user:
-                if user.status != UserStatus.active:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
-                return user
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=AuthMessages.COULD_NOT_VALIDATE_CREDENTIALS,
@@ -519,11 +658,17 @@ async def get_upload_user(
     result = await session.exec(statement)
     user = result.one_or_none()
     if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
+        )
     if token_data.ver is None or token_data.ver != user.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=AuthMessages.INVALID_TOKEN
+        )
     if user.status != UserStatus.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=AuthMessages.INACTIVE_USER
+        )
     return user
 
 

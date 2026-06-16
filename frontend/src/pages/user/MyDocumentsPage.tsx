@@ -1,0 +1,484 @@
+import { keepPreviousData } from "@tanstack/react-query";
+import { Link, useRouter, useSearch } from "@tanstack/react-router";
+import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import { formatDistanceToNow } from "date-fns";
+import { ChevronDown, Filter, Loader2, Plus, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import type { DocumentSummary } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllDocuments } from "@/api/query-keys";
+import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
+import { PullToRefresh } from "@/components/PullToRefresh";
+import { SortIcon } from "@/components/SortIcon";
+import { TagBadge } from "@/components/tags/TagBadge";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { DataTable } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { MultiSelect } from "@/components/ui/multi-select";
+import { useDateLocale } from "@/hooks/useDateLocale";
+import { useGlobalDocuments, usePrefetchGlobalDocuments } from "@/hooks/useDocuments";
+import { useGuilds } from "@/hooks/useGuilds";
+import { useViewPreference } from "@/hooks/useViewPreference";
+import { guildPath } from "@/lib/guildUrl";
+import { InitiativeColorDot } from "@/lib/initiativeColors";
+
+const MY_DOCUMENTS_FILTERS_KEY = "initiative-my-documents-filters";
+type StoredPrefs = {
+  guildFilters: number[];
+  sortBy: string | undefined;
+  sortDir: string | undefined;
+};
+const FILTER_DEFAULTS: StoredPrefs = {
+  guildFilters: [],
+  sortBy: undefined,
+  sortDir: undefined,
+};
+
+const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
+  if (raw === null || typeof raw !== "object") return FILTER_DEFAULTS;
+  const v = raw as Partial<StoredPrefs>;
+  return {
+    guildFilters: Array.isArray(v.guildFilters)
+      ? v.guildFilters.filter((x): x is number => typeof x === "number")
+      : [],
+    sortBy: typeof v.sortBy === "string" ? v.sortBy : undefined,
+    sortDir: typeof v.sortDir === "string" ? v.sortDir : undefined,
+  };
+};
+const PAGE_SIZE = 20;
+
+/** Map DataTable column IDs to backend sort field names */
+const SORT_FIELD_MAP: Record<string, string> = {
+  title: "title",
+  updatedAt: "updated_at",
+};
+
+/** Reverse map: backend field name → column ID */
+const SORT_FIELD_REVERSE: Record<string, string> = Object.fromEntries(
+  Object.entries(SORT_FIELD_MAP).map(([col, field]) => [field, col])
+);
+
+const getDefaultFiltersVisibility = () => {
+  if (typeof window === "undefined") {
+    return true;
+  }
+  return window.matchMedia("(min-width: 640px)").matches;
+};
+
+export const MyDocumentsPage = () => {
+  const { t } = useTranslation(["documents", "common"]);
+  const { guilds, activeGuildId } = useGuilds();
+  const prefetchGlobalDocuments = usePrefetchGlobalDocuments();
+  const router = useRouter();
+  const dateLocale = useDateLocale();
+  const searchParams = useSearch({ strict: false }) as { page?: number };
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+
+  const handleRefresh = useCallback(async () => {
+    await invalidateAllDocuments();
+  }, []);
+
+  const [storedPrefsRaw, setStoredPrefs] = useViewPreference<StoredPrefs>(
+    MY_DOCUMENTS_FILTERS_KEY,
+    FILTER_DEFAULTS
+  );
+  const storedPrefs = useMemo(() => sanitizeStoredPrefs(storedPrefsRaw), [storedPrefsRaw]);
+  const { guildFilters, sortBy, sortDir } = storedPrefs;
+  const setGuildFilters = useCallback(
+    (next: number[] | ((prev: number[]) => number[])) =>
+      setStoredPrefs((prev) => {
+        const safe = sanitizeStoredPrefs(prev);
+        return {
+          ...safe,
+          guildFilters: typeof next === "function" ? next(safe.guildFilters) : next,
+        };
+      }),
+    [setStoredPrefs]
+  );
+  const setSortBy = useCallback(
+    (next: string | undefined) =>
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), sortBy: next })),
+    [setStoredPrefs]
+  );
+  const setSortDir = useCallback(
+    (next: string | undefined) =>
+      setStoredPrefs((prev) => ({ ...sanitizeStoredPrefs(prev), sortDir: next })),
+    [setStoredPrefs]
+  );
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+
+  const [page, setPageState] = useState(() => searchParams.page ?? 1);
+  const [pageSize, setPageSize] = useState(PAGE_SIZE);
+
+  const handleSortingChange = useCallback(
+    (sorting: SortingState) => {
+      if (sorting.length > 0) {
+        const field = SORT_FIELD_MAP[sorting[0].id];
+        if (field) {
+          setSortBy(field);
+          setSortDir(sorting[0].desc ? "desc" : "asc");
+        }
+      } else {
+        setSortBy(undefined);
+        setSortDir(undefined);
+      }
+    },
+    [setSortDir, setSortBy]
+  );
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const setPage = useCallback(
+    (updater: number | ((prev: number) => number)) => {
+      setPageState((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        void router.navigate({
+          to: ".",
+          search: {
+            ...searchParamsRef.current,
+            page: next <= 1 ? undefined : next,
+          },
+          replace: true,
+        });
+        return next;
+      });
+    },
+    [router]
+  );
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [guildFilters, debouncedSearch, setPage]);
+
+  const documentsGlobalParams = useMemo(() => {
+    const params: Record<string, string | string[] | number | number[]> = {};
+    if (guildFilters.length > 0) params.guild_ids = guildFilters;
+    if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+    if (sortBy) params.sort_by = sortBy;
+    if (sortDir) params.sort_dir = sortDir;
+    params.page = page;
+    params.page_size = pageSize;
+    return params;
+  }, [guildFilters, debouncedSearch, sortBy, sortDir, page, pageSize]);
+
+  const documentsQuery = useGlobalDocuments(documentsGlobalParams, {
+    placeholderData: keepPreviousData,
+  });
+
+  const prefetchPage = useCallback(
+    (targetPage: number) => {
+      if (targetPage < 1) return;
+      const prefetchParams = { ...documentsGlobalParams, page: targetPage };
+      void prefetchGlobalDocuments(prefetchParams);
+    },
+    [documentsGlobalParams, prefetchGlobalDocuments]
+  );
+
+  // Helper to create guild-scoped paths for a document
+  const docGuildPath = useCallback(
+    (doc: DocumentSummary, path: string) => {
+      const guildId = doc.initiative?.guild_id ?? activeGuildId;
+      return guildId ? guildPath(guildId, path) : path;
+    },
+    [activeGuildId]
+  );
+
+  const documents = useMemo(() => documentsQuery.data?.items ?? [], [documentsQuery.data]);
+
+  const columns: ColumnDef<DocumentSummary>[] = useMemo(
+    () => [
+      {
+        id: "guild",
+        accessorFn: (doc) => doc.initiative?.guild_id,
+        header: () => <span className="font-medium">{t("columns.guild")}</span>,
+        cell: ({ row }) => {
+          const doc = row.original;
+          const guild = guilds.find((g) => g.id === doc.initiative?.guild_id);
+          const guildName = guild?.name ?? t("myDocuments.noGuild");
+          return <span className="text-muted-foreground text-sm">{guildName}</span>;
+        },
+        enableSorting: false,
+      },
+      {
+        accessorKey: "title",
+        header: ({ column }) => {
+          const isSorted = column.getIsSorted();
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                {t("columns.title")}
+                <SortIcon isSorted={isSorted} />
+              </Button>
+            </div>
+          );
+        },
+        cell: ({ row }) => {
+          const doc = row.original;
+          return (
+            <Link
+              to={docGuildPath(doc, `/documents/${doc.id}`)}
+              className="flex items-center gap-2 font-medium text-foreground hover:underline"
+            >
+              {doc.title}
+              {doc.is_template && (
+                <Badge variant="secondary" className="text-xs">
+                  {t("type.template")}
+                </Badge>
+              )}
+            </Link>
+          );
+        },
+        enableSorting: true,
+      },
+      {
+        id: "initiative",
+        accessorFn: (doc) => doc.initiative?.name,
+        header: () => <span className="font-medium">{t("columns.initiative")}</span>,
+        cell: ({ row }) => {
+          const doc = row.original;
+          const initiative = doc.initiative;
+          if (!initiative) {
+            return <span className="text-muted-foreground text-sm">&mdash;</span>;
+          }
+          return (
+            <Link
+              to={docGuildPath(doc, `/initiatives/${initiative.id}`)}
+              className="flex items-center gap-2 text-muted-foreground text-sm hover:underline"
+            >
+              <InitiativeColorDot color={initiative.color} />
+              {initiative.name}
+            </Link>
+          );
+        },
+        enableSorting: false,
+      },
+      {
+        id: "tags",
+        header: () => <span className="font-medium">{t("columns.tags")}</span>,
+        cell: ({ row }) => {
+          const doc = row.original;
+          const docTags = doc.tags ?? [];
+          if (docTags.length === 0) {
+            return <span className="text-muted-foreground text-sm">&mdash;</span>;
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {docTags.slice(0, 3).map((tag) => (
+                <TagBadge
+                  key={tag.id}
+                  tag={tag}
+                  size="sm"
+                  to={docGuildPath(doc, `/tags/${tag.id}`)}
+                />
+              ))}
+              {docTags.length > 3 && (
+                <span className="text-muted-foreground text-xs">+{docTags.length - 3}</span>
+              )}
+            </div>
+          );
+        },
+        enableSorting: false,
+      },
+      {
+        id: "updatedAt",
+        accessorKey: "updated_at",
+        header: ({ column }) => {
+          const isSorted = column.getIsSorted();
+          return (
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" onClick={() => column.toggleSorting(isSorted === "asc")}>
+                {t("columns.lastUpdated")}
+                <SortIcon isSorted={isSorted} />
+              </Button>
+            </div>
+          );
+        },
+        cell: ({ row }) => {
+          const doc = row.original;
+          const updatedAt = doc.updated_at ? new Date(doc.updated_at) : null;
+          if (!updatedAt || Number.isNaN(updatedAt.getTime())) {
+            return <span className="text-muted-foreground text-sm">&mdash;</span>;
+          }
+          return (
+            <span className="text-muted-foreground text-sm">
+              {formatDistanceToNow(updatedAt, { addSuffix: true, locale: dateLocale })}
+            </span>
+          );
+        },
+        enableSorting: true,
+      },
+    ],
+    [t, guilds, docGuildPath, dateLocale]
+  );
+
+  // Responsive filter visibility
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const mediaQuery = window.matchMedia("(min-width: 640px)");
+    const handleChange = (event: MediaQueryListEvent) => {
+      setFiltersOpen(event.matches);
+    };
+    setFiltersOpen(mediaQuery.matches);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    }
+    mediaQuery.addListener(handleChange);
+    return () => mediaQuery.removeListener(handleChange);
+  }, []);
+
+  const initialSorting = useMemo(() => {
+    if (!sortBy) return undefined;
+    const colId = SORT_FIELD_REVERSE[sortBy];
+    if (!colId) return undefined;
+    return [{ id: colId, desc: sortDir === "desc" }];
+  }, [sortDir, sortBy]);
+
+  const isInitialLoad = documentsQuery.isLoading && !documentsQuery.data;
+  const isRefetching = documentsQuery.isFetching && !isInitialLoad;
+  const hasError = documentsQuery.isError;
+
+  const totalCount = documentsQuery.data?.total_count ?? 0;
+  const totalPages = pageSize > 0 ? Math.ceil(totalCount / pageSize) : 1;
+
+  return (
+    <PullToRefresh onRefresh={handleRefresh}>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="font-semibold text-3xl tracking-tight">{t("myDocuments.title")}</h1>
+            <p className="text-muted-foreground">{t("myDocuments.subtitle")}</p>
+          </div>
+          <Button size="sm" onClick={() => getOpenCreateDocumentWizard()?.()}>
+            <Plus className="mr-1 h-4 w-4" />
+            {t("page.newDocument")}
+          </Button>
+        </div>
+
+        <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="space-y-2">
+          <div className="flex items-center justify-between sm:hidden">
+            <div className="inline-flex items-center gap-2 font-medium text-muted-foreground text-sm">
+              <Filter className="h-4 w-4" />
+              {t("myDocuments.filters")}
+            </div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 px-3">
+                {filtersOpen ? t("myDocuments.hideFilters") : t("myDocuments.showFilters")}
+                <ChevronDown
+                  className={`ml-1 h-4 w-4 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent forceMount className="data-[state=closed]:hidden">
+            <div className="mt-2 flex flex-wrap items-end gap-4 rounded-md border border-muted bg-background/40 p-3 sm:mt-0">
+              <div className="w-full sm:w-60 lg:flex-1">
+                <Label
+                  htmlFor="doc-guild-filter"
+                  className="mb-2 block font-medium text-muted-foreground text-xs"
+                >
+                  {t("myDocuments.filterByGuild")}
+                </Label>
+                <MultiSelect
+                  selectedValues={guildFilters.map(String)}
+                  options={guilds.map((guild) => ({
+                    value: String(guild.id),
+                    label: guild.name,
+                  }))}
+                  onChange={(values) => {
+                    const numericValues = values.map(Number).filter(Number.isFinite);
+                    setGuildFilters(numericValues);
+                  }}
+                  placeholder={t("myDocuments.allGuilds")}
+                  emptyMessage={t("myDocuments.noGuilds")}
+                />
+              </div>
+              <div className="w-full sm:w-60 lg:flex-1">
+                <Label
+                  htmlFor="doc-search"
+                  className="mb-2 block font-medium text-muted-foreground text-xs"
+                >
+                  {t("myDocuments.searchPlaceholder")}
+                </Label>
+                <div className="relative">
+                  <Search className="absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="doc-search"
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={t("myDocuments.searchPlaceholder")}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
+
+        <div className="relative">
+          {isRefetching ? (
+            <div className="absolute inset-0 z-10 flex items-start justify-center bg-background/60 pt-4">
+              <div className="flex items-center gap-2 rounded-md border border-border bg-background px-4 py-2 shadow-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-muted-foreground text-sm">{t("myDocuments.updating")}</span>
+              </div>
+            </div>
+          ) : null}
+          {isInitialLoad ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          ) : hasError ? (
+            <p className="py-8 text-center text-destructive text-sm">
+              {t("myDocuments.loadError")}
+            </p>
+          ) : documents.length === 0 && !debouncedSearch && guildFilters.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground text-sm">
+              {t("myDocuments.empty")}
+            </p>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={documents}
+              initialSorting={initialSorting}
+              enablePagination
+              manualPagination
+              manualSorting
+              onSortingChange={handleSortingChange}
+              pageCount={totalPages}
+              rowCount={totalCount}
+              pageIndex={page - 1}
+              onPaginationChange={(pag) => {
+                if (pag.pageSize !== pageSize) {
+                  setPageSize(pag.pageSize);
+                  setPage(1);
+                } else {
+                  setPage(pag.pageIndex + 1);
+                }
+              }}
+              onPrefetchPage={(pageIndex) => prefetchPage(pageIndex + 1)}
+            />
+          )}
+        </div>
+      </div>
+    </PullToRefresh>
+  );
+};

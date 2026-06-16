@@ -1,21 +1,22 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getListInitiativesApiV1InitiativesGetQueryKey,
-  listInitiativesApiV1InitiativesGet,
+  getListInitiativesApiV1GGuildIdInitiativesGetQueryKey,
+  listInitiativesApiV1GGuildIdInitiativesGet,
 } from "@/api/generated/initiatives/initiatives";
 
 export const Route = createFileRoute(
   "/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId"
 )({
-  loader: async ({ context }) => {
+  loader: async ({ context, params }) => {
     const { queryClient } = context;
+    const guildId = Number(params.guildId);
 
     // Prefetch in background - don't block navigation on failure
     try {
       await queryClient.ensureQueryData({
-        queryKey: getListInitiativesApiV1InitiativesGetQueryKey(),
-        queryFn: () => listInitiativesApiV1InitiativesGet(),
+        queryKey: getListInitiativesApiV1GGuildIdInitiativesGetQueryKey(guildId),
+        queryFn: () => listInitiativesApiV1GGuildIdInitiativesGet(guildId),
         staleTime: 30_000,
       });
     } catch {

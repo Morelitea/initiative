@@ -56,7 +56,9 @@ async def build_project_export(
             selectinload(Project.tasks).selectinload(Task.task_status),
             selectinload(Project.tasks).selectinload(Task.assignees),
             selectinload(Project.tasks).selectinload(Task.subtasks),
-            selectinload(Project.tasks).selectinload(Task.tag_links).selectinload(TaskTag.tag),
+            selectinload(Project.tasks)
+            .selectinload(Task.tag_links)
+            .selectinload(TaskTag.tag),
             selectinload(Project.tasks)
             .selectinload(Task.property_values)
             .selectinload(TaskPropertyValue.property_definition),
@@ -125,7 +127,9 @@ async def build_project_export(
         for link in task.tag_links or []:
             if link.tag and link.tag.name not in seen_task_tags:
                 seen_task_tags.add(link.tag.name)
-                task_tags.append(ProjectExportTag(name=link.tag.name, color=link.tag.color))
+                task_tags.append(
+                    ProjectExportTag(name=link.tag.name, color=link.tag.color)
+                )
 
         assignee_emails = [u.email for u in (task.assignees or []) if u.email]
 
@@ -204,10 +208,16 @@ def _serialize_property_value(
         property_name=pv.property_definition.name,
         property_type=prop_type,
     )
-    if prop_type == PropertyType.text or prop_type == PropertyType.url or prop_type == PropertyType.select:
+    if (
+        prop_type == PropertyType.text
+        or prop_type == PropertyType.url
+        or prop_type == PropertyType.select
+    ):
         base.value_text = pv.value_text
     elif prop_type == PropertyType.number:
-        base.value_number = float(pv.value_number) if pv.value_number is not None else None
+        base.value_number = (
+            float(pv.value_number) if pv.value_number is not None else None
+        )
     elif prop_type == PropertyType.checkbox:
         base.value_boolean = pv.value_boolean
     elif prop_type == PropertyType.date:

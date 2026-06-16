@@ -6,13 +6,15 @@ from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -40,17 +42,82 @@ reserved_prefixes = [
     if prefix and prefix.strip("/")
 ]
 
+# Gate the interactive docs + raw OpenAPI schema behind a setting (pentest
+# SEC-16). When disabled, FastAPI serves no /docs and no /openapi.json, so the
+# full route/parameter/error map isn't handed out. Defaults to on for dev
+# ergonomics; recommend ENABLE_API_DOCS=False in production.
+# docs_url is left None even when docs are enabled: the default route would
+# inherit the app-wide CSP and the jsDelivr-hosted Swagger assets get blocked.
+# A custom route below serves the same UI with a docs-scoped CSP instead.
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=__version__,
-    docs_url=f"{settings.API_V1_STR}/docs",
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    docs_url=None,
+    openapi_url=(
+        f"{settings.API_V1_STR}/openapi.json" if settings.ENABLE_API_DOCS else None
+    ),
     redoc_url=None,
 )
+
+if settings.ENABLE_API_DOCS:
+    from fastapi.openapi.docs import get_swagger_ui_html
+
+    _DOCS_CSP = settings.docs_content_security_policy
+
+    @app.get(f"{settings.API_V1_STR}/docs", include_in_schema=False)
+    async def swagger_ui_html() -> Response:
+        # get_swagger_ui_html returns the Swagger HTML that loads its JS/CSS from
+        # jsDelivr; attach the docs-scoped CSP so only this response permits them.
+        # The middleware uses setdefault, so this explicit header wins.
+        response = get_swagger_ui_html(
+            openapi_url=f"{settings.API_V1_STR}/openapi.json",
+            title=f"{settings.PROJECT_NAME} - Swagger UI",
+        )
+        response.headers["Content-Security-Policy"] = _DOCS_CSP
+        return response
+
 
 # Initialize rate limiter (uses shared limiter from app.core.rate_limit)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Register the middleware so the limiter's `default_limits` actually apply to
+# *every* route, not just the handful with an explicit `@limiter.limit(...)`
+# decorator (SEC-14). Without this the global default was inert. The middleware
+# short-circuits when `limiter.enabled` is False (the test suite sets that), and
+# routes that already carry a decorator are exempted from the default here.
+app.add_middleware(SlowAPIMiddleware)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Strip the echoed ``input`` (and the pydantic docs ``url``) from 422
+    bodies so a failed validation can't leak the submitted value — e.g. a
+    password or client secret on an auth/settings endpoint (pentest LOW-001).
+    Field locations and messages are kept: they're already public via the
+    OpenAPI schema and the SPA surfaces them.
+    """
+    safe_errors = [
+        {key: value for key, value in error.items() if key in ("type", "loc", "msg")}
+        for error in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": safe_errors},
+    )
+
+
+# Computed once — Settings are fixed for the process lifetime (pentest MED-001).
+_CONTENT_SECURITY_POLICY = settings.content_security_policy
+
+# Emit HSTS only when the public origin is HTTPS (pentest SEC-16): the header is
+# inert over plain HTTP and pinning a dev http:// origin to HTTPS would break it.
+# Two years + includeSubDomains is the preload-eligible baseline; computed once
+# since Settings are immutable for the process lifetime.
+_STRICT_TRANSPORT_SECURITY = (
+    "max-age=63072000; includeSubDomains" if settings.app_url_is_https else None
+)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -58,7 +125,16 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Referrer-Policy", "strict-origin-when-cross-origin"
+        )
+        # setdefault: preserve any stricter per-response CSP (e.g. the upload
+        # route's `script-src 'none'`) instead of overriding it.
+        response.headers.setdefault("Content-Security-Policy", _CONTENT_SECURITY_POLICY)
+        if _STRICT_TRANSPORT_SECURITY is not None:
+            # Unconditional (not setdefault): unlike CSP there is no legitimate
+            # per-route reason to weaken HSTS, so the middleware always wins.
+            response.headers["Strict-Transport-Security"] = _STRICT_TRANSPORT_SECURITY
         return response
 
 
@@ -66,27 +142,29 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ALLOWED_ORIGINS,
+    # Explicit allowlist (never "*"): wildcard + allow_credentials reflects any
+    # origin and would let any site make authenticated requests (CRIT-001).
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.get("/uploads/{filename:path}", include_in_schema=False)
+
+@app.get("/uploads/{guild_id}/{filename:path}", include_in_schema=False)
 @limiter.limit("600/minute")
 async def serve_upload_file(
     request: Request,
+    guild_id: int,
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
     session: Annotated[AsyncSession, Depends(get_admin_session)],
 ) -> FileResponse:
-    """Serve an uploaded file — requires authentication and guild membership."""
+    """Serve an uploaded file — requires authentication and an Upload row in
+    the path-addressed guild."""
     from pathlib import Path as FilePath
 
-    from sqlmodel import select
-
-    from app.models.guild import GuildMembership
-    from app.models.upload import Upload
+    from sqlalchemy import text
 
     try:
         file_path = (uploads_path / filename).resolve()
@@ -96,20 +174,52 @@ async def serve_upload_file(
     if not file_path.is_file():
         raise HTTPException(status_code=404)
 
-    # Guild authorization: look up upload record and verify membership
-    record_result = await session.exec(
-        select(Upload).where(Upload.filename == FilePath(filename).name)
+    # Guild authorization via the ``/uploads/{guild_id}/…`` path: media is
+    # referenced by pages inside a guild, and ``<img>``/iframe can't send headers,
+    # so the guild rides in the URL (and a cookie is per-browser, not per-tab).
+    # Validate access (membership or live PAM grant) against the path guild →
+    # route into that ONE guild schema and look the filename up there. Fail
+    # closed: no access, no schema, or no Upload row in that guild all 404
+    # without confirming the blob exists. The frozen ``public.uploads`` backup
+    # is never read.
+    from app.db.session import set_rls_context
+    from app.db.schema_provisioning import guild_schema_name
+    from app.services import access_grants as access_grants_service
+    from app.services import guilds as guilds_service
+
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
     )
-    record = record_result.one_or_none()
-    if record is not None:
-        membership_result = await session.exec(
-            select(GuildMembership).where(
-                GuildMembership.guild_id == record.guild_id,
-                GuildMembership.user_id == current_user.id,
-            )
+    if membership is None:
+        grant = await access_grants_service.get_live_grant(
+            session, user_id=current_user.id, guild_id=guild_id
         )
-        if membership_result.one_or_none() is None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
+        if grant is None:
+            raise HTTPException(status_code=404)
+
+    # The admin login role has NO table grants on a guild schema, so SET ROLE
+    # into the guild role (``set_rls_context``) before reading its ``uploads``
+    # — and only if the schema actually exists (pg_namespace is readable by
+    # any role; SET ROLE into a missing role would error).
+    fname = FilePath(filename).name
+    schema = guild_schema_name(int(guild_id))
+    exists = (
+        await session.execute(
+            text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
+            {"ns": schema},
+        )
+    ).first()
+    if exists is None:
+        raise HTTPException(status_code=404)
+    await set_rls_context(session, guild_id=int(guild_id), is_superadmin=True)
+    hit = (
+        await session.execute(
+            text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),
+            {"fn": fname},
+        )
+    ).first()
+    if hit is None:
+        raise HTTPException(status_code=404)
 
     headers: dict[str, str] = {}
     if filename.lower().endswith((".svg", ".html", ".htm")):
@@ -204,7 +314,11 @@ def _inject_query_schemas(openapi_schema: dict) -> None:
     for enum_cls in (FilterOp, SortDir):
         schemas.setdefault(
             enum_cls.__name__,
-            {"title": enum_cls.__name__, "type": "string", "enum": [e.value for e in enum_cls]},
+            {
+                "title": enum_cls.__name__,
+                "type": "string",
+                "enum": [e.value for e in enum_cls],
+            },
         )
 
     # Override query parameters to expose their real types instead of the raw
@@ -256,7 +370,9 @@ def custom_openapi() -> dict:
             security = operation.get("security")
             if not security:
                 continue
-            has_api_key = any(isinstance(item, dict) and "ApiKeyAuth" in item for item in security)
+            has_api_key = any(
+                isinstance(item, dict) and "ApiKeyAuth" in item for item in security
+            )
             if not has_api_key:
                 security.append({"ApiKeyAuth": []})
 
@@ -272,9 +388,48 @@ async def on_startup() -> None:
     from app.db.init_db import check_pre_baseline_db
     from app.db.soft_delete_filter import install_soft_delete_filter
 
+    # Surface the effective CORS allowlist so a misconfigured split-origin
+    # deployment (SPA served from a host other than APP_URL) is self-diagnosing.
+    logger.info("CORS allowed origins: %s", settings.cors_origins)
+
     install_soft_delete_filter()
     await check_pre_baseline_db()
     await run_migrations()
+    # Move any pre-cutover guild data from public into per-guild schemas. Idempotent
+    # — a no-op once converted — so packaged deploys convert themselves on boot.
+    from app.db.guild_conversion import convert_public_to_guild_schemas
+
+    await convert_public_to_guild_schemas()
+    # Re-run the idempotent per-guild provisioning for every guild so any
+    # table/column/index/grant added to guild_schema.sql since a guild was
+    # provisioned is back-filled, and any guild left without a schema (e.g. a
+    # crash mid-provision) is healed. One broken guild is logged and skipped.
+    from app.db.schema_provisioning import backfill_guild_schemas
+
+    backfill = await backfill_guild_schemas()
+    if backfill.failed:
+        # WARNING so partial failure survives INFO-filtered logs (per-guild
+        # tracebacks were already logged inside the back-fill).
+        logger.warning(
+            "guild schema back-fill: %d provisioned, %d FAILED (of %d) — guilds %s",
+            backfill.provisioned,
+            backfill.failed,
+            backfill.total,
+            backfill.failed_guild_ids,
+        )
+    else:
+        logger.info(
+            "guild schema back-fill: %d provisioned (of %d)",
+            backfill.provisioned,
+            backfill.total,
+        )
+    # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
+    # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
+    # before traffic is served, so a packaged deploy rotates itself on boot.
+    # Idempotent — a no-op once rotated (then unset PREVIOUS_SECRET_KEY).
+    from app.db.secret_key_rotation import maybe_rotate_at_startup
+
+    await maybe_rotate_at_startup()
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
     app.state.notification_tasks = background_tasks_service.start_background_tasks()

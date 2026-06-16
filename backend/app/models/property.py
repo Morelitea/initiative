@@ -4,7 +4,17 @@ from enum import Enum
 from typing import Any, List, Optional, TYPE_CHECKING
 
 from pydantic import ConfigDict
-from sqlalchemy import Boolean, Column, Date, DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 
@@ -43,7 +53,14 @@ class PropertyDefinition(SQLModel, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
+    initiative_id: int = Field(
+        sa_column=Column(
+            Integer,
+            ForeignKey("initiatives.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+    )
     name: str = Field(
         sa_column=Column(String(length=100), nullable=False),
     )
@@ -70,7 +87,7 @@ class PropertyDefinition(SQLModel, table=True):
     )
     color: Optional[str] = Field(
         default=None,
-        sa_column=Column(String(length=7), nullable=True),
+        sa_column=Column(String(length=9), nullable=True),
     )
     options: Optional[List[dict]] = Field(
         default=None,
@@ -294,7 +311,9 @@ class CalendarEventPropertyValue(SQLModel, table=True):
         sa_column=Column(DateTime(timezone=True), nullable=False),
     )
 
-    calendar_event: Optional["CalendarEvent"] = Relationship(back_populates="property_values")
+    calendar_event: Optional["CalendarEvent"] = Relationship(
+        back_populates="property_values"
+    )
     property_definition: Optional[PropertyDefinition] = Relationship(
         back_populates="event_values"
     )

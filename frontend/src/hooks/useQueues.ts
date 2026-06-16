@@ -8,7 +8,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import type {
-  ListQueuesApiV1QueuesGetParams,
+  ListQueuesApiV1GGuildIdQueuesGetParams,
   QueueCreate,
   QueueItemCreate,
   QueueItemRead,
@@ -23,32 +23,33 @@ import type {
   QueueUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  addQueueItemApiV1QueuesQueueIdItemsPost,
-  advanceTurnApiV1QueuesQueueIdNextPost,
-  createQueueApiV1QueuesPost,
-  deleteQueueApiV1QueuesQueueIdDelete,
-  deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete,
-  getListQueuesApiV1QueuesGetQueryKey,
-  getReadQueueApiV1QueuesQueueIdGetQueryKey,
-  holdCurrentTurnApiV1QueuesQueueIdHoldPost,
-  listQueuesApiV1QueuesGet,
-  previousTurnApiV1QueuesQueueIdPreviousPost,
-  readQueueApiV1QueuesQueueIdGet,
-  releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost,
-  reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut,
-  resetQueueApiV1QueuesQueueIdResetPost,
-  setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost,
-  setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut,
-  setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut,
-  setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut,
-  setQueuePermissionsApiV1QueuesQueueIdPermissionsPut,
-  setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut,
-  startQueueApiV1QueuesQueueIdStartPost,
-  stopQueueApiV1QueuesQueueIdStopPost,
-  updateQueueApiV1QueuesQueueIdPatch,
-  updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch,
+  addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost,
+  advanceTurnApiV1GGuildIdQueuesQueueIdNextPost,
+  createQueueApiV1GGuildIdQueuesPost,
+  deleteQueueApiV1GGuildIdQueuesQueueIdDelete,
+  deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete,
+  getListQueuesApiV1GGuildIdQueuesGetQueryKey,
+  getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey,
+  holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost,
+  listQueuesApiV1GGuildIdQueuesGet,
+  previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost,
+  readQueueApiV1GGuildIdQueuesQueueIdGet,
+  releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost,
+  reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut,
+  resetQueueApiV1GGuildIdQueuesQueueIdResetPost,
+  setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost,
+  setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut,
+  setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut,
+  setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut,
+  setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut,
+  setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut,
+  startQueueApiV1GGuildIdQueuesQueueIdStartPost,
+  stopQueueApiV1GGuildIdQueuesQueueIdStopPost,
+  updateQueueApiV1GGuildIdQueuesQueueIdPatch,
+  updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch,
 } from "@/api/generated/queues/queues";
 import { invalidateAllQueues, invalidateQueue } from "@/api/query-keys";
+import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -56,22 +57,26 @@ import type { QueryOpts } from "@/types/query";
 // ── Queries ─────────────────────────────────────────────────────────────────
 
 export const useQueuesList = (
-  params: ListQueuesApiV1QueuesGetParams,
+  params: ListQueuesApiV1GGuildIdQueuesGetParams,
   options?: QueryOpts<QueueListResponse>
 ) => {
+  const guildId = useActiveGuildId();
   return useQuery<QueueListResponse>({
-    queryKey: getListQueuesApiV1QueuesGetQueryKey(params),
-    queryFn: () => listQueuesApiV1QueuesGet(params) as unknown as Promise<QueueListResponse>,
+    queryKey: getListQueuesApiV1GGuildIdQueuesGetQueryKey(guildId, params),
+    queryFn: () =>
+      listQueuesApiV1GGuildIdQueuesGet(guildId, params) as unknown as Promise<QueueListResponse>,
     placeholderData: keepPreviousData,
     ...options,
   });
 };
 
 export const useQueue = (queueId: number | null, options?: QueryOpts<QueueRead>) => {
+  const guildId = useActiveGuildId();
   const { enabled: userEnabled = true, ...rest } = options ?? {};
   return useQuery<QueueRead>({
-    queryKey: getReadQueueApiV1QueuesQueueIdGetQueryKey(queueId!),
-    queryFn: () => readQueueApiV1QueuesQueueIdGet(queueId!) as unknown as Promise<QueueRead>,
+    queryKey: getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey(guildId, queueId!),
+    queryFn: () =>
+      readQueueApiV1GGuildIdQueuesQueueIdGet(guildId, queueId!) as unknown as Promise<QueueRead>,
     enabled: queueId !== null && Number.isFinite(queueId) && userEnabled,
     ...rest,
   });
@@ -81,12 +86,13 @@ export const useQueue = (queueId: number | null, options?: QueryOpts<QueueRead>)
 
 export const useCreateQueue = (options?: MutationOpts<QueueRead, QueueCreate>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: QueueCreate) => {
-      return createQueueApiV1QueuesPost(data) as unknown as Promise<QueueRead>;
+      return createQueueApiV1GGuildIdQueuesPost(guildId, data) as unknown as Promise<QueueRead>;
     },
     onSuccess: (...args) => {
       void invalidateAllQueues();
@@ -102,12 +108,17 @@ export const useCreateQueue = (options?: MutationOpts<QueueRead, QueueCreate>) =
 
 export const useUpdateQueue = (queueId: number, options?: MutationOpts<QueueRead, QueueUpdate>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: QueueUpdate) => {
-      return updateQueueApiV1QueuesQueueIdPatch(queueId, data) as unknown as Promise<QueueRead>;
+      return updateQueueApiV1GGuildIdQueuesQueueIdPatch(
+        guildId,
+        queueId,
+        data
+      ) as unknown as Promise<QueueRead>;
     },
     onSuccess: (...args) => {
       void invalidateQueue(queueId);
@@ -124,12 +135,13 @@ export const useUpdateQueue = (queueId: number, options?: MutationOpts<QueueRead
 
 export const useDeleteQueue = (options?: MutationOpts<void, number>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (queueId: number) => {
-      await deleteQueueApiV1QueuesQueueIdDelete(queueId);
+      await deleteQueueApiV1GGuildIdQueuesQueueIdDelete(guildId, queueId);
     },
     onSuccess: (...args) => {
       void invalidateAllQueues();
@@ -150,12 +162,14 @@ export const useCreateQueueItem = (
   options?: MutationOpts<QueueItemRead, QueueItemCreate>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: QueueItemCreate) => {
-      return addQueueItemApiV1QueuesQueueIdItemsPost(
+      return addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost(
+        guildId,
         queueId,
         data
       ) as unknown as Promise<QueueItemRead>;
@@ -178,12 +192,14 @@ export const useUpdateQueueItem = (
   options?: MutationOpts<QueueItemRead, { itemId: number; data: QueueItemUpdate }>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ itemId, data }: { itemId: number; data: QueueItemUpdate }) => {
-      return updateQueueItemApiV1QueuesQueueIdItemsItemIdPatch(
+      return updateQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdPatch(
+        guildId,
         queueId,
         itemId,
         data
@@ -204,12 +220,13 @@ export const useUpdateQueueItem = (
 
 export const useDeleteQueueItem = (queueId: number, options?: MutationOpts<void, number>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (itemId: number) => {
-      await deleteQueueItemApiV1QueuesQueueIdItemsItemIdDelete(queueId, itemId);
+      await deleteQueueItemApiV1GGuildIdQueuesQueueIdItemsItemIdDelete(guildId, queueId, itemId);
     },
     onSuccess: (...args) => {
       void invalidateQueue(queueId);
@@ -229,12 +246,14 @@ export const useReorderQueueItems = (
   options?: MutationOpts<QueueRead, QueueItemReorderRequest>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: QueueItemReorderRequest) => {
-      return reorderQueueItemsApiV1QueuesQueueIdItemsReorderPut(
+      return reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut(
+        guildId,
         queueId,
         data
       ) as unknown as Promise<QueueRead>;
@@ -487,11 +506,12 @@ export const releaseHeldState = (
  * fetch is reconciled by `onSettled`'s invalidation either way.
  */
 const applyOptimisticTurn = (
+  guildId: number,
   queryClient: QueryClient,
   queueId: number,
   apply: (queue: QueueRead) => QueueRead
 ): QueueTurnContext => {
-  const key = getReadQueueApiV1QueuesQueueIdGetQueryKey(queueId);
+  const key = getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey(guildId, queueId);
   void queryClient.cancelQueries({ queryKey: key });
   const previous = queryClient.getQueryData<QueueRead>(key);
   if (previous) {
@@ -502,29 +522,37 @@ const applyOptimisticTurn = (
 
 /** Restore the pre-mutation queue snapshot after a failed turn change. */
 const rollbackOptimisticTurn = (
+  guildId: number,
   queryClient: QueryClient,
   queueId: number,
   context: QueueTurnContext | undefined
 ) => {
   if (context?.previous) {
-    queryClient.setQueryData(getReadQueueApiV1QueuesQueueIdGetQueryKey(queueId), context.previous);
+    queryClient.setQueryData(
+      getReadQueueApiV1GGuildIdQueuesQueueIdGetQueryKey(guildId, queueId),
+      context.previous
+    );
   }
 };
 
 export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
 
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return advanceTurnApiV1QueuesQueueIdNextPost(queueId) as unknown as Promise<QueueRead>;
+      return advanceTurnApiV1GGuildIdQueuesQueueIdNextPost(
+        guildId,
+        queueId
+      ) as unknown as Promise<QueueRead>;
     },
-    onMutate: () => applyOptimisticTurn(queryClient, queueId, advanceQueueState),
+    onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, advanceQueueState),
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(queryClient, queueId, onMutateResult);
+      rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
       toast.error(t("error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -538,18 +566,22 @@ export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead
 
 export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
 
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return previousTurnApiV1QueuesQueueIdPreviousPost(queueId) as unknown as Promise<QueueRead>;
+      return previousTurnApiV1GGuildIdQueuesQueueIdPreviousPost(
+        guildId,
+        queueId
+      ) as unknown as Promise<QueueRead>;
     },
-    onMutate: () => applyOptimisticTurn(queryClient, queueId, previousQueueState),
+    onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, previousQueueState),
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(queryClient, queueId, onMutateResult);
+      rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
       toast.error(t("error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -563,18 +595,22 @@ export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRea
 
 export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
 
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return startQueueApiV1QueuesQueueIdStartPost(queueId) as unknown as Promise<QueueRead>;
+      return startQueueApiV1GGuildIdQueuesQueueIdStartPost(
+        guildId,
+        queueId
+      ) as unknown as Promise<QueueRead>;
     },
-    onMutate: () => applyOptimisticTurn(queryClient, queueId, startQueueState),
+    onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, startQueueState),
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(queryClient, queueId, onMutateResult);
+      rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
       toast.error(t("error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -588,18 +624,22 @@ export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead,
 
 export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
 
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return stopQueueApiV1QueuesQueueIdStopPost(queueId) as unknown as Promise<QueueRead>;
+      return stopQueueApiV1GGuildIdQueuesQueueIdStopPost(
+        guildId,
+        queueId
+      ) as unknown as Promise<QueueRead>;
     },
-    onMutate: () => applyOptimisticTurn(queryClient, queueId, stopQueueState),
+    onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, stopQueueState),
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(queryClient, queueId, onMutateResult);
+      rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
       toast.error(t("error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -613,18 +653,22 @@ export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, 
 
 export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
 
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return resetQueueApiV1QueuesQueueIdResetPost(queueId) as unknown as Promise<QueueRead>;
+      return resetQueueApiV1GGuildIdQueuesQueueIdResetPost(
+        guildId,
+        queueId
+      ) as unknown as Promise<QueueRead>;
     },
-    onMutate: () => applyOptimisticTurn(queryClient, queueId, resetQueueState),
+    onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, resetQueueState),
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(queryClient, queueId, onMutateResult);
+      rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
       toast.error(t("error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -638,22 +682,26 @@ export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead,
 
 export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRead, number>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
 
   return useMutation<QueueRead, Error, number, QueueTurnContext>({
     ...rest,
     mutationFn: async (itemId: number) => {
-      return setActiveItemApiV1QueuesQueueIdSetActiveItemIdPost(
+      return setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost(
+        guildId,
         queueId,
         itemId
       ) as unknown as Promise<QueueRead>;
     },
     onMutate: (itemId) =>
-      applyOptimisticTurn(queryClient, queueId, (queue) => setActiveItemState(queue, itemId)),
+      applyOptimisticTurn(guildId, queryClient, queueId, (queue) =>
+        setActiveItemState(queue, itemId)
+      ),
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(queryClient, queueId, onMutateResult);
+      rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
       toast.error(t("error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -667,18 +715,22 @@ export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRe
 
 export const useHoldCurrent = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
 
   return useMutation<QueueRead, Error, void, QueueTurnContext>({
     ...rest,
     mutationFn: async () => {
-      return holdCurrentTurnApiV1QueuesQueueIdHoldPost(queueId) as unknown as Promise<QueueRead>;
+      return holdCurrentTurnApiV1GGuildIdQueuesQueueIdHoldPost(
+        guildId,
+        queueId
+      ) as unknown as Promise<QueueRead>;
     },
-    onMutate: () => applyOptimisticTurn(queryClient, queueId, holdCurrentState),
+    onMutate: () => applyOptimisticTurn(guildId, queryClient, queueId, holdCurrentState),
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(queryClient, queueId, onMutateResult);
+      rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
       toast.error(t("error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -701,23 +753,24 @@ export const useReleaseHeld = (
   options?: MutationOpts<QueueRead, ReleaseHeldVariables>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
 
   return useMutation<QueueRead, Error, ReleaseHeldVariables, QueueTurnContext>({
     ...rest,
     mutationFn: async ({ itemId, reposition }) => {
-      return releaseHeldItemApiV1QueuesQueueIdReleaseItemIdPost(queueId, itemId, {
+      return releaseHeldItemApiV1GGuildIdQueuesQueueIdReleaseItemIdPost(guildId, queueId, itemId, {
         reposition: reposition ?? false,
       }) as unknown as Promise<QueueRead>;
     },
     onMutate: ({ itemId, reposition }) =>
-      applyOptimisticTurn(queryClient, queueId, (queue) =>
+      applyOptimisticTurn(guildId, queryClient, queueId, (queue) =>
         releaseHeldState(queue, itemId, { reposition })
       ),
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
-      rollbackOptimisticTurn(queryClient, queueId, onMutateResult);
+      rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
       toast.error(t("error"));
       onError?.(err, vars, onMutateResult, context);
     },
@@ -736,12 +789,14 @@ export const useSetQueueItemTags = (
   options?: MutationOpts<QueueItemRead, { itemId: number; tagIds: number[] }>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ itemId, tagIds }: { itemId: number; tagIds: number[] }) => {
-      return setQueueItemTagsApiV1QueuesQueueIdItemsItemIdTagsPut(
+      return setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut(
+        guildId,
         queueId,
         itemId,
         tagIds
@@ -765,12 +820,14 @@ export const useSetQueueItemDocuments = (
   options?: MutationOpts<QueueItemRead, { itemId: number; documentIds: number[] }>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ itemId, documentIds }: { itemId: number; documentIds: number[] }) => {
-      return setQueueItemDocumentsApiV1QueuesQueueIdItemsItemIdDocumentsPut(
+      return setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut(
+        guildId,
         queueId,
         itemId,
         documentIds
@@ -794,12 +851,14 @@ export const useSetQueueItemTasks = (
   options?: MutationOpts<QueueItemRead, { itemId: number; taskIds: number[] }>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async ({ itemId, taskIds }: { itemId: number; taskIds: number[] }) => {
-      return setQueueItemTasksApiV1QueuesQueueIdItemsItemIdTasksPut(
+      return setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut(
+        guildId,
         queueId,
         itemId,
         taskIds
@@ -825,12 +884,14 @@ export const useSetQueuePermissions = (
   options?: MutationOpts<QueuePermissionRead[], QueuePermissionCreate[]>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: QueuePermissionCreate[]) => {
-      return setQueuePermissionsApiV1QueuesQueueIdPermissionsPut(
+      return setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut(
+        guildId,
         queueId,
         data
       ) as unknown as Promise<QueuePermissionRead[]>;
@@ -853,12 +914,14 @@ export const useSetQueueRolePermissions = (
   options?: MutationOpts<QueueRolePermissionRead[], QueueRolePermissionCreate[]>
 ) => {
   const { t } = useTranslation("queues");
+  const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
     mutationFn: async (data: QueueRolePermissionCreate[]) => {
-      return setQueueRolePermissionsApiV1QueuesQueueIdRolePermissionsPut(
+      return setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut(
+        guildId,
         queueId,
         data
       ) as unknown as Promise<QueueRolePermissionRead[]>;

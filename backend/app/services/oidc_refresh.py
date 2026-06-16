@@ -7,7 +7,12 @@ import httpx
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import decrypt_field, decrypt_token, encrypt_token, SALT_OIDC_CLIENT_SECRET
+from app.core.encryption import (
+    decrypt_field,
+    decrypt_token,
+    encrypt_token,
+    SALT_OIDC_CLIENT_SECRET,
+)
 from app.db.session import AdminSessionLocal
 from app.models.user import User
 from app.services import app_settings as app_settings_service
@@ -45,7 +50,9 @@ async def _refresh_and_sync_user(
     try:
         refresh_token = decrypt_token(user.oidc_refresh_token_encrypted)
     except Exception:
-        logger.warning("Failed to decrypt refresh token for user %s; clearing", user.email)
+        logger.warning(
+            "Failed to decrypt refresh token for user %s; clearing", user.email
+        )
         user.oidc_refresh_token_encrypted = None
         session.add(user)
         await session.commit()
@@ -76,7 +83,9 @@ async def _refresh_and_sync_user(
 
             access_token = token_data.get("access_token")
             if not access_token:
-                logger.warning("No access_token in refresh response for user %s", user.email)
+                logger.warning(
+                    "No access_token in refresh response for user %s", user.email
+                )
                 return False
 
             # Handle token rotation - commit immediately to prevent loss
@@ -148,7 +157,11 @@ async def process_oidc_refresh_sync() -> None:
         claim_path = getattr(app_settings, "oidc_role_claim_path", None)
         if not claim_path:
             return
-        if not (app_settings.oidc_issuer and app_settings.oidc_client_id and app_settings.oidc_client_secret_encrypted):
+        if not (
+            app_settings.oidc_issuer
+            and app_settings.oidc_client_id
+            and app_settings.oidc_client_secret_encrypted
+        ):
             return
 
         try:
@@ -160,7 +173,9 @@ async def process_oidc_refresh_sync() -> None:
         token_endpoint = metadata.get("token_endpoint")
         userinfo_endpoint = metadata.get("userinfo_endpoint")
         if not token_endpoint or not userinfo_endpoint:
-            logger.warning("OIDC metadata missing token/userinfo endpoint; skipping sync")
+            logger.warning(
+                "OIDC metadata missing token/userinfo endpoint; skipping sync"
+            )
             return
 
         cutoff = datetime.now(timezone.utc) - _SYNC_INTERVAL
@@ -184,7 +199,9 @@ async def process_oidc_refresh_sync() -> None:
                 token_endpoint=token_endpoint,
                 userinfo_endpoint=userinfo_endpoint,
                 client_id=app_settings.oidc_client_id,
-                client_secret=decrypt_field(app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET),
+                client_secret=decrypt_field(
+                    app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
+                ),
                 claim_path=claim_path,
             )
             if ok:

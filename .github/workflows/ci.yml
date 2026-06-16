@@ -6,6 +6,9 @@ on:
   push:
     branches: [main, dev]
 
+permissions:
+  contents: read
+
 jobs:
   backend-tests:
     name: Backend Lint & Tests
@@ -29,7 +32,8 @@ jobs:
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
       DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5432/initiative_test
       DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5432/initiative_test
-      SECRET_KEY: ${{ secrets.CI_SECRET_KEY }}
+      # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
+      SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
       AUTO_APPROVED_EMAIL_DOMAINS: '["example.com"]'
 
     steps:
@@ -96,20 +100,19 @@ jobs:
             fi
           fi
 
-      - name: Set up Python
+      - name: Install uv
         if: steps.changes.outputs.skip != 'true'
-        uses: actions/setup-python@v6
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
 
       - name: Install dependencies
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio pytest-cov ruff
+          uv sync --frozen
 
       - name: Run Alembic migrations
         # conftest.py auto-applies migrations before tests run, so this
@@ -118,19 +121,37 @@ jobs:
         if: steps.changes.outputs.skip != 'true' && steps.changes.outputs.alembic_changed == 'true'
         run: |
           cd backend
-          alembic upgrade head
-
+          uv run alembic upgrade head
+          
+          
       - name: Lint with Ruff
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          ruff check app
+          uv run ruff check app
+
+      - name: Check formatting with Ruff
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          cd backend
+          uv run ruff format --check app
+
+      - name: Type-check with ty
+        # Scoped gate: only ty's `invalid-return-type` rule is enforced (every
+        # other rule is ignored), mirroring the old Pyright `reportReturnType`
+        # gate — fails on return-type regressions without drowning in the
+        # SQLModel/ORM-expression false positives ty reports by default.
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          cd backend
+          uv run ty check app --ignore all --error invalid-return-type
+
 
       - name: Run tests
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          python -m pytest ${{ steps.changes.outputs.scope }} -v --tb=short
+          uv run python -m pytest ${{ steps.changes.outputs.scope }} -v --tb=short
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
@@ -216,25 +237,25 @@ jobs:
             echo "Backend or codegen config changes detected"
           fi
 
-      - name: Set up Python
+      - name: Install uv
         if: steps.filter.outputs.skip != 'true'
-        uses: actions/setup-python@v6
+        uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: backend/requirements.txt
+          version: "0.11.21"
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
 
       - name: Install backend dependencies
         if: steps.filter.outputs.skip != 'true'
         run: |
           cd backend
-          pip install -r requirements.txt
+          uv sync --frozen --no-dev
 
       - name: Export OpenAPI spec
         if: steps.filter.outputs.skip != 'true'
         run: |
           cd backend
-          python scripts/export_openapi.py ../frontend/openapi.json
+          uv run python scripts/export_openapi.py ../frontend/openapi.json
 
       - name: Set up Node.js
         if: steps.filter.outputs.skip != 'true'

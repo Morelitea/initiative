@@ -35,7 +35,9 @@ class WebhookSubscriptionRead(SanitizedBaseModel):
     on create it never leaves the DB again. Receivers either store the
     secret from the create response or rotate the subscription."""
 
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     guild_id: int

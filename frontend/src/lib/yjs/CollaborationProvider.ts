@@ -39,10 +39,10 @@ export interface CollaboratorInfo {
 
 export interface CollaborationProviderOptions {
   connect?: boolean;
-  /** Auth params sent via MSG_AUTH message after connection (not in URL for security) */
+  /** Auth params sent via MSG_AUTH message after connection (not in URL for
+   * security). The guild comes from the user's server-held context. */
   auth?: {
     token: string | null;
-    guildId: number;
   };
 }
 
@@ -121,7 +121,7 @@ export class CollaborationProvider implements Provider {
   private _status: string = "disconnected";
   private shouldConnect: boolean;
   private connectionId: string;
-  private authParams: { token: string | null; guildId: number } | null = null;
+  private authParams: { token: string | null } | null = null;
 
   // Typed event handlers
   private syncHandlers: Set<SyncCallback> = new Set();
@@ -512,10 +512,7 @@ export class CollaborationProvider implements Provider {
 
     // Send authentication message first (required by server)
     if (this.authParams) {
-      const authPayload = JSON.stringify({
-        token: this.authParams.token,
-        guild_id: this.authParams.guildId,
-      });
+      const authPayload = JSON.stringify({ token: this.authParams.token });
       this.sendMessage(MSG_AUTH, new TextEncoder().encode(authPayload));
     }
 

@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, roles_with_capability
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash
+from app.db.session import set_rls_context
 from app.models.user import User, UserRole, UserStatus
 from app.models.guild import GuildMembership, GuildRole
 from app.models.project import Project, ProjectPermission
@@ -124,12 +125,9 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
     Returns list of guild names where user is the last admin.
     """
     # Get all guilds where user is an admin
-    stmt = (
-        select(GuildMembership)
-        .where(
-            GuildMembership.user_id == user_id,
-            GuildMembership.role == GuildRole.admin,
-        )
+    stmt = select(GuildMembership).where(
+        GuildMembership.user_id == user_id,
+        GuildMembership.role == GuildRole.admin,
     )
     result = await session.exec(stmt)
     user_admin_memberships = result.all()
@@ -138,13 +136,10 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
 
     for membership in user_admin_memberships:
         # Count other admins in this guild
-        count_stmt = (
-            select(func.count(GuildMembership.user_id))
-            .where(
-                GuildMembership.guild_id == membership.guild_id,
-                GuildMembership.role == GuildRole.admin,
-                GuildMembership.user_id != user_id,
-            )
+        count_stmt = select(func.count(GuildMembership.user_id)).where(
+            GuildMembership.guild_id == membership.guild_id,
+            GuildMembership.role == GuildRole.admin,
+            GuildMembership.user_id != user_id,
         )
         count_result = await session.exec(count_stmt)
         other_admin_count = count_result.one()
@@ -152,6 +147,7 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
         if other_admin_count == 0:
             # User is the last admin, get guild name
             from app.models.guild import Guild
+
             guild_stmt = select(Guild).where(Guild.id == membership.guild_id)
             guild_result = await session.exec(guild_stmt)
             guild = guild_result.one_or_none()
@@ -161,21 +157,16 @@ async def is_last_guild_admin(session: AsyncSession, user_id: int) -> List[str]:
     return last_admin_guild_names
 
 
-async def get_guild_blocker_details(
-    session: AsyncSession, user_id: int
-) -> List[dict]:
+async def get_guild_blocker_details(session: AsyncSession, user_id: int) -> List[dict]:
     """
     Get detailed info about guilds where user is the last admin.
     Returns list of dicts with guild_id, guild_name, and other_members who could be promoted.
     """
     from app.models.guild import Guild
 
-    stmt = (
-        select(GuildMembership)
-        .where(
-            GuildMembership.user_id == user_id,
-            GuildMembership.role == GuildRole.admin,
-        )
+    stmt = select(GuildMembership).where(
+        GuildMembership.user_id == user_id,
+        GuildMembership.role == GuildRole.admin,
     )
     result = await session.exec(stmt)
     user_admin_memberships = result.all()
@@ -184,13 +175,10 @@ async def get_guild_blocker_details(
 
     for membership in user_admin_memberships:
         # Count other admins in this guild
-        count_stmt = (
-            select(func.count(GuildMembership.user_id))
-            .where(
-                GuildMembership.guild_id == membership.guild_id,
-                GuildMembership.role == GuildRole.admin,
-                GuildMembership.user_id != user_id,
-            )
+        count_stmt = select(func.count(GuildMembership.user_id)).where(
+            GuildMembership.guild_id == membership.guild_id,
+            GuildMembership.role == GuildRole.admin,
+            GuildMembership.user_id != user_id,
         )
         count_result = await session.exec(count_stmt)
         other_admin_count = count_result.one()
@@ -216,13 +204,30 @@ async def get_guild_blocker_details(
             members_result = await session.exec(members_stmt)
             other_members = members_result.all()
 
-            blockers.append({
-                "guild_id": guild.id,
-                "guild_name": guild.name,
-                "other_members": other_members,
-            })
+            blockers.append(
+                {
+                    "guild_id": guild.id,
+                    "guild_name": guild.name,
+                    "other_members": other_members,
+                }
+            )
 
     return blockers
+
+
+async def _user_guild_ids(session: AsyncSession, user_id: int) -> List[int]:
+    """Guild ids the user belongs to. ``guild_memberships`` is shared/public, so
+    this needs no guild routing — it's the entry point for fanning per-guild
+    routed reads/writes out across the user's guilds."""
+    return list(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id
+                )
+            )
+        ).all()
+    )
 
 
 async def get_initiative_blocker_details(
@@ -231,66 +236,81 @@ async def get_initiative_blocker_details(
     """
     Get detailed info about initiatives where user is the sole PM.
     Returns list of dicts with initiative_id, initiative_name, guild_id, and other_members.
+
+    Initiatives live in per-guild schemas, so this fans out across the user's
+    guilds and runs the sole-PM query routed into each schema as superadmin.
+    A single cross-schema query is impossible; querying the unrouted (public)
+    default would read the frozen backup and miss every real blocker.
     """
     from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 
-    # Find initiatives where user is sole manager (PM).
-    # InitiativeMember links to InitiativeRoleModel via role_id;
-    # manager roles have is_manager=True.
-    manager_count_subquery = (
-        select(
-            InitiativeMember.initiative_id,
-            func.count().label("pm_count"),
+    blockers: List[dict] = []
+    for gid in await _user_guild_ids(session, user_id):
+        session.expunge_all()
+        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+
+        # Find initiatives where user is sole manager (PM). InitiativeMember
+        # links to InitiativeRoleModel via role_id; manager roles have
+        # is_manager=True.
+        manager_count_subquery = (
+            select(
+                InitiativeMember.initiative_id,
+                func.count().label("pm_count"),
+            )
+            .join(
+                InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
+            )
+            .where(InitiativeRoleModel.is_manager.is_(True))
+            .group_by(InitiativeMember.initiative_id)
+            .subquery()
         )
-        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
-        .where(InitiativeRoleModel.is_manager.is_(True))
-        .group_by(InitiativeMember.initiative_id)
-        .subquery()
-    )
-
-    user_manager_initiatives = (
-        select(InitiativeMember.initiative_id)
-        .join(InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id)
-        .where(
-            InitiativeMember.user_id == user_id,
-            InitiativeRoleModel.is_manager.is_(True),
-        )
-    )
-
-    stmt = (
-        select(Initiative)
-        .join(manager_count_subquery, manager_count_subquery.c.initiative_id == Initiative.id)
-        .where(
-            Initiative.id.in_(user_manager_initiatives),
-            manager_count_subquery.c.pm_count == 1,
-        )
-    )
-    result = await session.exec(stmt)
-    initiatives = result.unique().all()
-
-    blockers = []
-
-    for initiative in initiatives:
-        # Get other members who could be promoted to PM
-        members_stmt = (
-            select(User)
-            .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        user_manager_initiatives = (
+            select(InitiativeMember.initiative_id)
+            .join(
+                InitiativeRoleModel, InitiativeRoleModel.id == InitiativeMember.role_id
+            )
             .where(
-                InitiativeMember.initiative_id == initiative.id,
-                InitiativeMember.user_id != user_id,
-                User.status == UserStatus.active,
+                InitiativeMember.user_id == user_id,
+                InitiativeRoleModel.is_manager.is_(True),
             )
         )
-        members_result = await session.exec(members_stmt)
-        other_members = members_result.all()
+        stmt = (
+            select(Initiative)
+            .join(
+                manager_count_subquery,
+                manager_count_subquery.c.initiative_id == Initiative.id,
+            )
+            .where(
+                Initiative.id.in_(user_manager_initiatives),
+                manager_count_subquery.c.pm_count == 1,
+            )
+        )
+        initiatives = (await session.exec(stmt)).unique().all()
 
-        blockers.append({
-            "initiative_id": initiative.id,
-            "initiative_name": initiative.name,
-            "guild_id": initiative.guild_id,
-            "other_members": other_members,
-        })
+        for initiative in initiatives:
+            members_stmt = (
+                select(User)
+                .join(InitiativeMember, InitiativeMember.user_id == User.id)
+                .where(
+                    InitiativeMember.initiative_id == initiative.id,
+                    InitiativeMember.user_id != user_id,
+                    User.status == UserStatus.active,
+                )
+            )
+            other_members = (await session.exec(members_stmt)).all()
+            blockers.append(
+                {
+                    "initiative_id": initiative.id,
+                    "initiative_name": initiative.name,
+                    "guild_id": initiative.guild_id,
+                    "other_members": other_members,
+                }
+            )
 
+    # Reset to the public baseline so callers' subsequent reads aren't trapped
+    # in the last guild's schema.
+    session.expunge_all()
+    await set_rls_context(session, is_superadmin=True)
     return blockers
 
 
@@ -367,10 +387,14 @@ async def check_deletion_eligibility(
     user_id: int,
     *,
     admin_context: bool = False,
-) -> tuple[bool, List[str], List[str], List[Project]]:
+) -> tuple[bool, List[str], List[str], List["ProjectBasic"]]:  # noqa: F821
     """
     Check if user can be deleted.
     Returns: (can_delete, blockers, warnings, owned_projects)
+
+    ``owned_projects`` are ``ProjectBasic`` (carrying ``guild_id``, since the
+    projects are aggregated across the user's per-guild schemas) — the UI uses
+    that guild id to call the guild-scoped transfer / member-picker endpoints.
 
     Args:
         session: Database session
@@ -378,6 +402,7 @@ async def check_deletion_eligibility(
         admin_context: If True, adjust message wording for admin perspective
     """
     from app.services import initiatives as initiatives_service
+    from app.schemas.user import ProjectBasic
 
     blockers = []
     warnings = []
@@ -397,10 +422,32 @@ async def check_deletion_eligibility(
                     f"Promote another user to admin or delete the guild before deleting your account."
                 )
 
-    # Check if user is sole PM of any initiative
-    sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
-        session, user_id
-    )
+    # Sole-PM initiatives and owned projects are guild-scoped: fan out across
+    # the user's guilds, routed into each schema as superadmin, and aggregate.
+    # (initiatives_requiring_new_pm / get_owned_projects on the unrouted public
+    # default would read the frozen backup and under-report blockers — letting
+    # a deletion proceed that should have been blocked.) The detached ORM rows
+    # collected here are only read for scalar fields downstream, so expunging
+    # between guilds (to avoid id-collision cache hits) is safe.
+    sole_pm_initiatives: List = []
+    owned_projects: List[ProjectBasic] = []
+    for gid in await _user_guild_ids(session, user_id):
+        session.expunge_all()
+        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        sole_pm_initiatives.extend(
+            await initiatives_service.initiatives_requiring_new_pm(session, user_id)
+        )
+        # Capture each project's guild id (known from the routed context) so the
+        # UI can target the right per-guild schema for transfers.
+        owned_projects.extend(
+            ProjectBasic(
+                id=p.id, name=p.name, initiative_id=p.initiative_id, guild_id=gid
+            )
+            for p in await get_owned_projects(session, user_id)
+        )
+    session.expunge_all()
+    await set_rls_context(session, is_superadmin=True)
+
     if sole_pm_initiatives:
         for initiative in sole_pm_initiatives:
             if admin_context:
@@ -414,13 +461,15 @@ async def check_deletion_eligibility(
                     f"Promote another member to project manager or delete the initiative before deleting your account."
                 )
 
-    # Get owned projects
-    owned_projects = await get_owned_projects(session, user_id)
     if owned_projects:
         if admin_context:
-            warnings.append(f"User owns {len(owned_projects)} project(s) that must be transferred")
+            warnings.append(
+                f"User owns {len(owned_projects)} project(s) that must be transferred"
+            )
         else:
-            warnings.append(f"You own {len(owned_projects)} project(s) that must be transferred")
+            warnings.append(
+                f"You own {len(owned_projects)} project(s) that must be transferred"
+            )
 
     can_delete = len(blockers) == 0
 
@@ -441,25 +490,47 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
     """
     from app.services import initiatives as initiatives_service
 
-    user = (await session.exec(select(User).where(User.id == user_id))).one()
+    # ``guild_memberships`` is a shared/public table, so this enumerates the
+    # user's guilds without needing any guild routing.
+    guild_ids = list(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id
+                )
+            )
+        ).all()
+    )
 
+    # Initiative membership + owned-document handoff is guild-scoped — its rows
+    # live in each guild's schema. Route into every guild as superadmin (system
+    # cleanup, bypasses RESTRICTIVE policies) before the per-guild work. No
+    # commit here: we ``flush`` so the SQL lands in the shared transaction the
+    # caller will commit once, preserving the atomicity guarantee. ``expunge_all``
+    # between guilds avoids ORM identity-map collisions (ids repeat per schema).
+    for gid in guild_ids:
+        session.expunge_all()
+        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        await initiatives_service.remove_user_from_guild_initiatives(
+            session,
+            guild_id=gid,
+            user_id=user_id,
+        )
+        await session.flush()
+
+    # Back to the public, login-role baseline for the shared-table work: the
+    # membership rows themselves and the caller's PII/status writes.
+    session.expunge_all()
+    await set_rls_context(session, is_superadmin=True)
     memberships = (
         await session.exec(
             select(GuildMembership).where(GuildMembership.user_id == user_id)
         )
     ).all()
-
-    for membership in memberships:
-        await initiatives_service.remove_user_from_guild_initiatives(
-            session,
-            guild_id=membership.guild_id,
-            user_id=user_id,
-        )
-
     for membership in memberships:
         await session.delete(membership)
 
-    return user
+    return (await session.exec(select(User).where(User.id == user_id))).one()
 
 
 async def deactivate_user(session: AsyncSession, user_id: int) -> None:
@@ -518,7 +589,9 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     # yields a string that's obviously not a real email. Domain is
     # RFC 2606 example.com so EmailStr serialization on user-facing
     # endpoints (admin user list, etc.) doesn't reject the row.
-    sentinel_email = f"anonymized-{user_id}-{secrets.token_hex(8)}@anonymized.example.com"
+    sentinel_email = (
+        f"anonymized-{user_id}-{secrets.token_hex(8)}@anonymized.example.com"
+    )
     user.email_hash = hash_email(sentinel_email)
     user.email_encrypted = encrypt_field(sentinel_email, SALT_EMAIL)
 
@@ -589,7 +662,9 @@ async def transfer_project_ownership(
     owner-level permissions and the access dropdown can't reconcile
     the value.
     """
-    project = (await session.exec(select(Project).where(Project.id == project_id))).one()
+    project = (
+        await session.exec(select(Project).where(Project.id == project_id))
+    ).one()
 
     new_owner = (
         await session.exec(select(User).where(User.id == new_owner_id))
@@ -627,10 +702,12 @@ async def transfer_project_ownership(
 
     if permission:
         from app.models.project import ProjectPermissionLevel
+
         permission.level = ProjectPermissionLevel.owner
         session.add(permission)
     else:
         from app.models.project import ProjectPermissionLevel
+
         permission = ProjectPermission(
             project_id=project_id,
             user_id=new_owner_id,
@@ -639,6 +716,37 @@ async def transfer_project_ownership(
         session.add(permission)
 
     await session.flush()
+
+
+async def transfer_owned_projects(
+    session: AsyncSession,
+    user_id: int,
+    project_transfers: Dict[str, int],
+) -> None:
+    """Transfer every project the user owns to its mapped recipient, routed
+    per guild.
+
+    Projects live in per-guild schemas, so this fans out across the user's
+    guilds (routed as superadmin) and transfers the owned projects found in
+    each. ``project_transfers`` is keyed by ``"guild_id:project_id"`` because a
+    bare project id is ambiguous across guild schemas. Running the transfer on
+    the unrouted public default would target the frozen backup and leave the
+    live project still owned by the departing user. Propagates
+    :class:`InvalidTransferRecipient` so the caller can surface a 400. Resets to
+    the public baseline on the way out.
+    """
+    for gid in await _user_guild_ids(session, user_id):
+        session.expunge_all()
+        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        for project in await get_owned_projects(session, user_id):
+            key = f"{gid}:{project.id}"
+            if key not in project_transfers:
+                continue
+            await transfer_project_ownership(
+                session, project.id, project_transfers[key]
+            )
+    session.expunge_all()
+    await set_rls_context(session, is_superadmin=True)
 
 
 async def reassign_user_content(
@@ -730,10 +838,14 @@ async def count_capability_holders(
         return 0
     if for_update:
         # Lock the matching users to prevent a race when demoting/deleting.
-        stmt = select(User).where(
-            User.role.in_(roles),
-            User.status == UserStatus.active,
-        ).with_for_update()
+        stmt = (
+            select(User)
+            .where(
+                User.role.in_(roles),
+                User.status == UserStatus.active,
+            )
+            .with_for_update()
+        )
         result = await session.exec(stmt)
         return len(result.all())
     stmt = select(func.count(User.id)).where(
@@ -745,7 +857,11 @@ async def count_capability_holders(
 
 
 async def is_last_capability_holder(
-    session: AsyncSession, user_id: int, capability: Capability, *, for_update: bool = False
+    session: AsyncSession,
+    user_id: int,
+    capability: Capability,
+    *,
+    for_update: bool = False,
 ) -> bool:
     """True iff removing this user would leave zero active holders of ``capability``.
 
@@ -790,9 +906,13 @@ async def is_last_capability_holder(
 # Backwards-compatible wrappers. The invariant we protect is "can the platform
 # still manage its own configuration", i.e. at least one ``owner`` remains
 # (``config.manage`` is owner-only).
-async def count_platform_admins(session: AsyncSession, *, for_update: bool = False) -> int:
+async def count_platform_admins(
+    session: AsyncSession, *, for_update: bool = False
+) -> int:
     """Count active users who can manage platform configuration (owners)."""
-    return await count_capability_holders(session, Capability.CONFIG_MANAGE, for_update=for_update)
+    return await count_capability_holders(
+        session, Capability.CONFIG_MANAGE, for_update=for_update
+    )
 
 
 async def is_last_platform_admin(
@@ -807,7 +927,7 @@ async def is_last_platform_admin(
 async def hard_delete_user(
     session: AsyncSession,
     user_id: int,
-    project_transfers: Dict[int, int],
+    project_transfers: Dict[str, int],
 ) -> None:
     """
     Permanently delete a user account.
@@ -815,126 +935,147 @@ async def hard_delete_user(
     Args:
         session: Database session
         user_id: ID of user to delete
-        project_transfers: Dict mapping project_id to new_owner_id
+        project_transfers: Dict mapping "guild_id:project_id" to new_owner_id
+            (composite key, since project ids repeat across per-guild schemas)
     """
-    # Get system user
-    system_user = await get_or_create_system_user(session)
-
-    # Transfer all owned projects
-    owned_projects = await get_owned_projects(session, user_id)
-    for project in owned_projects:
-        if project.id not in project_transfers:
-            raise ValueError(f"No transfer recipient specified for project {project.id}")
-
-        new_owner_id = project_transfers[project.id]
-        await transfer_project_ownership(session, project.id, new_owner_id)
-
-    # Walk every guild the user is in and run the standard
-    # initiative-removal flow so document ownership transfers to PMs
-    # before the bulk DocumentPermission delete below would have wiped
-    # the owner row entirely. Mirrors what ``deactivate_user`` does.
     from app.services import initiatives as initiatives_service
-
-    guild_memberships_stmt = select(GuildMembership.guild_id).where(
-        GuildMembership.user_id == user_id
-    )
-    guild_ids = list((await session.exec(guild_memberships_stmt)).all())
-    for gid in guild_ids:
-        await initiatives_service.remove_user_from_guild_initiatives(
-            session, guild_id=gid, user_id=user_id,
-        )
-
-    # Reassign user content to system user
-    await reassign_user_content(session, user_id, system_user.id)
-
-    # Delete user-specific data (not shared content)
-
-    # Notifications
-    await session.exec(delete(Notification).where(Notification.user_id == user_id))
-
-    # Project UI state
-    await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))
-    await session.exec(delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id))
-    await session.exec(delete(RecentView).where(RecentView.user_id == user_id))
-
-    # User API keys
-    await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
-
-    # User tokens (password reset, email verification)
-    await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
-
-    # Task assignment digest items
-    await session.exec(delete(TaskAssignmentDigestItem).where(TaskAssignmentDigestItem.user_id == user_id))
-
-    # Update TaskAssignmentDigestItem assigned_by to NULL (nullable field)
-    await session.exec(
-        update(TaskAssignmentDigestItem)
-        .where(TaskAssignmentDigestItem.assigned_by_id == user_id)
-        .values(assigned_by_id=None)
-    )
-
-    # Delete associations with composite keys (must be explicit)
-    await session.exec(delete(ProjectPermission).where(ProjectPermission.user_id == user_id))
-    await session.exec(delete(TaskAssignee).where(TaskAssignee.user_id == user_id))
-
-    # Other per-user state without ON DELETE CASCADE on the FK.
     from app.models.queue import QueueItem, QueuePermission
     from app.models.document import DocumentPermission
     from app.models.push_token import PushToken
     from app.models.calendar_event import CalendarEventAttendee
+    from app.models.guild import Guild, GuildInvite
     from app.models.property import (
         TaskPropertyValue,
         DocumentPropertyValue,
         CalendarEventPropertyValue,
     )
 
-    await session.exec(delete(QueuePermission).where(QueuePermission.user_id == user_id))
-    # Queue items: assigned-to is nullable, so just clear the pointer
-    # rather than dropping the queue entry.
-    await session.exec(
-        update(QueueItem).where(QueueItem.user_id == user_id).values(user_id=None)
-    )
-    await session.exec(delete(DocumentPermission).where(DocumentPermission.user_id == user_id))
-    await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
-    await session.exec(
-        delete(CalendarEventAttendee).where(CalendarEventAttendee.user_id == user_id)
+    # Get system user (shared ``users`` row — no routing needed).
+    system_user = await get_or_create_system_user(session)
+    system_user_id = system_user.id
+
+    # ``guild_memberships`` is shared/public, so enumerate the user's guilds on
+    # the default context.
+    guild_ids = list(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id).where(
+                    GuildMembership.user_id == user_id
+                )
+            )
+        ).all()
     )
 
-    # User-typed custom-property values: NULL the reference (the property
-    # value rows belong to the entity, not the user, so we don't delete
-    # them — we just clear the resolved user pointer).
-    for table in (TaskPropertyValue, DocumentPropertyValue, CalendarEventPropertyValue):
-        await session.exec(
-            update(table)
-            .where(table.value_user_id == user_id)
-            .values(value_user_id=None)
+    # Phase 1 — guild-scoped cleanup, ROUTED INTO EACH GUILD'S SCHEMA. Every
+    # statement below targets a guild-scoped table whose live rows live in
+    # ``guild_<id>``; running them on the default (public) context would hit the
+    # frozen pre-conversion backup and silently leave the user's content behind
+    # in every guild. ``flush`` (not commit) keeps everything in the single
+    # transaction committed at the end, so a failure rolls the whole delete back.
+    for gid in guild_ids:
+        session.expunge_all()
+        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+
+        # Transfer projects this user owns in THIS guild before their
+        # permission rows are wiped. get_owned_projects is now guild-scoped by
+        # the routed search_path; the transfer map is keyed by
+        # "guild_id:project_id" to disambiguate ids that repeat across schemas.
+        for project in await get_owned_projects(session, user_id):
+            key = f"{gid}:{project.id}"
+            if key not in project_transfers:
+                raise ValueError(
+                    f"No transfer recipient specified for project {project.id} "
+                    f"in guild {gid}"
+                )
+            await transfer_project_ownership(
+                session, project.id, project_transfers[key]
+            )
+
+        # Initiative removal hands owned documents off to PMs before the
+        # DocumentPermission wipe below.
+        await initiatives_service.remove_user_from_guild_initiatives(
+            session, guild_id=gid, user_id=user_id
         )
 
-    # Clear nullable foreign key references
-    from app.models.guild import Guild, GuildInvite
+        # Reassign authored content (documents, comments, uploads, queues, …)
+        # to the system user so it survives the deletion.
+        await reassign_user_content(session, user_id, system_user_id)
 
-    # Clear guild creator references
+        # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
+        await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))
+        await session.exec(
+            delete(ProjectFavorite).where(ProjectFavorite.user_id == user_id)
+        )
+        await session.exec(delete(RecentView).where(RecentView.user_id == user_id))
+        await session.exec(
+            delete(TaskAssignmentDigestItem).where(
+                TaskAssignmentDigestItem.user_id == user_id
+            )
+        )
+        await session.exec(
+            update(TaskAssignmentDigestItem)
+            .where(TaskAssignmentDigestItem.assigned_by_id == user_id)
+            .values(assigned_by_id=None)
+        )
+        await session.exec(
+            delete(ProjectPermission).where(ProjectPermission.user_id == user_id)
+        )
+        await session.exec(delete(TaskAssignee).where(TaskAssignee.user_id == user_id))
+        await session.exec(
+            delete(QueuePermission).where(QueuePermission.user_id == user_id)
+        )
+        # Queue items: assigned-to is nullable, so just clear the pointer.
+        await session.exec(
+            update(QueueItem).where(QueueItem.user_id == user_id).values(user_id=None)
+        )
+        await session.exec(
+            delete(DocumentPermission).where(DocumentPermission.user_id == user_id)
+        )
+        await session.exec(
+            delete(CalendarEventAttendee).where(
+                CalendarEventAttendee.user_id == user_id
+            )
+        )
+        # User-typed custom-property values: NULL the reference (the value rows
+        # belong to the entity, not the user).
+        for table in (
+            TaskPropertyValue,
+            DocumentPropertyValue,
+            CalendarEventPropertyValue,
+        ):
+            await session.exec(
+                update(table)
+                .where(table.value_user_id == user_id)
+                .values(value_user_id=None)
+            )
+        await session.flush()
+
+    # Phase 2 — shared/public cleanup. Reset to the public, login-role baseline
+    # (BYPASSRLS) so these shared-table writes aren't trapped in the last guild's
+    # schema/role.
+    session.expunge_all()
+    await set_rls_context(session, is_superadmin=True)
+
+    await session.exec(delete(Notification).where(Notification.user_id == user_id))
+    await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
+    await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
+    await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
+
+    # Clear nullable creator references on shared guild rows.
     await session.exec(
         update(Guild)
         .where(Guild.created_by_user_id == user_id)
         .values(created_by_user_id=None)
     )
-
-    # Clear guild invite creator references
     await session.exec(
         update(GuildInvite)
         .where(GuildInvite.created_by_user_id == user_id)
         .values(created_by_user_id=None)
     )
 
-    # The following will cascade delete automatically via SQLAlchemy relationships:
-    # - GuildMemberships (cascade="all, delete-orphan")
-    # - InitiativeMembers (cascade="all, delete-orphan")
-
-    # Delete the user
-    stmt = select(User).where(User.id == user_id)
-    result = await session.exec(stmt)
-    user = result.one()
+    # GuildMemberships cascade-delete via the User relationship. InitiativeMembers
+    # were already removed per guild above.
+    user = (await session.exec(select(User).where(User.id == user_id))).one()
     await session.delete(user)
 
     await session.commit()

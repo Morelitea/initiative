@@ -115,10 +115,14 @@ async def _send_to_fcm(
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(url, json=message, headers=headers, timeout=10.0)
+            response = await client.post(
+                url, json=message, headers=headers, timeout=10.0
+            )
 
             if response.status_code == 200:
-                logger.info(f"Push notification sent successfully to token: {token[:20]}...")
+                logger.info(
+                    f"Push notification sent successfully to token: {token[:20]}..."
+                )
                 return (True, False)
             elif response.status_code in (404, 410):
                 # Token invalid or unregistered - should be deleted
@@ -223,7 +227,9 @@ async def send_push_to_user(
         if success:
             successful += 1
             # Update last_used_at
-            await push_tokens.update_last_used(session, push_token=token_record.push_token)
+            await push_tokens.update_last_used(
+                session, push_token=token_record.push_token
+            )
         elif should_delete:
             # Token is invalid (404/410 from FCM), mark for deletion
             tokens_to_delete.append(token_record.push_token)

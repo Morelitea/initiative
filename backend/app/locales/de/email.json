@@ -1,0 +1,164 @@
+{
+  "layout": {
+    "footerDisclaimer": "Diese Nachricht wurde von Initiative gesendet. Wenn du sie nicht erwartet hast, kannst du diese E-Mail ignorieren.",
+    "updateNotifications": "Benachrichtigungseinstellungen anpassen"
+  },
+  "test": {
+    "subject": "Test der SMTP-Konfiguration",
+    "title": "SMTP-Testnachricht",
+    "body": "Diese Testnachricht bestätigt, dass die SMTP‑Einstellungen korrekt konfiguriert sind."
+  },
+  "verification": {
+    "subject": "Bestätige dein Initiative-Konto",
+    "title": "Bestätige deine E-Mail-Adresse",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "bestätige deine E-Mail-Adresse, um die Einrichtung deines Initiative-Kontos abzuschließen.",
+    "buttonLabel": "E-Mail bestätigen",
+    "fallbackText": "Falls die Schaltfläche nicht funktioniert, kopiere diesen Link und füge ihn in deinen Browser ein:",
+    "textBody": "Bestätige dein Initiative-Konto unter {{link}}"
+  },
+  "passwordReset": {
+    "subject": "Setze dein Initiative-Passwort zurück",
+    "title": "Passwort zurücksetzen",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "wir haben eine Anfrage erhalten, dein Initiative-Passwort zurückzusetzen.",
+    "buttonLabel": "Passwort zurücksetzen",
+    "fallbackText": "Wenn du das nicht angefordert hast, kannst du diese E-Mail ignorieren. Der Link läuft bald ab.",
+    "textBody": "Setze dein Initiative-Passwort unter {{link}} zurück"
+  },
+  "initiativeAdded": {
+    "subject": "Zur Initiative {{initiativeName}} hinzugefügt",
+    "title": "Du bist einer neuen Initiative beigetreten",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "du wurdest zur Initiative <strong>{{initiativeName}}</strong> hinzugefügt.",
+    "buttonLabel": "Initiativen ansehen",
+    "textBody": "Du wurdest zur Initiative {{initiativeName}} hinzugefügt. Besuche {{link}}, um sie anzusehen."
+  },
+  "projectAdded": {
+    "subject": "Neues Projekt in {{initiativeName}}",
+    "title": "Neues Projekt in deiner Initiative",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "ein neues Projekt, <strong>{{projectName}}</strong>, wurde zur Initiative <strong>{{initiativeName}}</strong> hinzugefügt.",
+    "buttonLabel": "Projekt öffnen",
+    "textBody": "Ein neues Projekt, {{projectName}}, wurde zur Initiative {{initiativeName}} hinzugefügt. Sieh es dir unter {{link}} an."
+  },
+  "taskAssignment": {
+    "subject": "Dir wurden neue Aufgaben zugewiesen",
+    "title": "Übersicht der Aufgabenzuweisungen",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body": "hier ist deine stündliche Übersicht der dir zugewiesenen Aufgaben:",
+    "assignedBy": "zugewiesen von <strong>{{name}}</strong>",
+    "inProject": "in <strong>{{projectName}}</strong>",
+    "footer": "Besuche Initiative, um die Aufgaben zu prüfen.",
+    "textBody": "Hier ist deine stündliche Übersicht der dir zugewiesenen Aufgaben:"
+  },
+  "mention": {
+    "document": {
+      "subject": "Du wurdest in {{document}} erwähnt",
+      "title": "Du wurdest erwähnt",
+      "body": "<strong>{{actor}}</strong> hat dich in <strong>{{document}}</strong> erwähnt"
+    },
+    "comment": {
+      "subject": "Du wurdest in einem Kommentar erwähnt",
+      "title": "Du wurdest erwähnt",
+      "body": "<strong>{{actor}}</strong> hat dich in einem Kommentar zu <strong>{{context}}</strong> erwähnt"
+    },
+    "task": {
+      "subject": "Deine Aufgabe wurde erwähnt",
+      "title": "Deine Aufgabe wurde erwähnt",
+      "body": "<strong>{{actor}}</strong> hat <strong>{{task}}</strong> in <strong>{{context}}</strong> erwähnt"
+    },
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "buttonLabel": "Ansehen"
+  },
+  "comment": {
+    "onTask": {
+      "subject": "Neuer Kommentar zu {{task}}",
+      "title": "Neuer Kommentar zu deiner Aufgabe",
+      "body": "<strong>{{actor}}</strong> hat <strong>{{task}}</strong> kommentiert"
+    },
+    "onDocument": {
+      "subject": "Neuer Kommentar zu {{document}}",
+      "title": "Neuer Kommentar zu deinem Dokument",
+      "body": "<strong>{{actor}}</strong> hat <strong>{{document}}</strong> kommentiert"
+    },
+    "reply": {
+      "subject": "Antwort auf deinen Kommentar",
+      "title": "Antwort auf deinen Kommentar",
+      "body": "<strong>{{actor}}</strong> hat auf deinen Kommentar zu <strong>{{context}}</strong> geantwortet"
+    }
+  },
+  "event": {
+    "invitation": {
+      "subject": "Du bist eingeladen: {{event}}",
+      "title": "Neue Termineinladung",
+      "body": "<strong>{{organizer}}</strong> hat dich zu <strong>{{event}}</strong> (<strong>{{when}}</strong>) eingeladen."
+    },
+    "rescheduled": {
+      "subject": "Termin verschoben: {{event}}",
+      "title": "Termin verschoben",
+      "body": "<strong>{{editor}}</strong> hat <strong>{{event}}</strong> auf <strong>{{when}}</strong> verschoben."
+    },
+    "updated": {
+      "subject": "Termin aktualisiert: {{event}}",
+      "title": "Termin aktualisiert",
+      "body": "<strong>{{editor}}</strong> hat <strong>{{event}}</strong> (<strong>{{when}}</strong>) aktualisiert."
+    },
+    "cancelled": {
+      "subject": "Termin abgesagt: {{event}}",
+      "title": "Termin abgesagt",
+      "body": "<strong>{{canceller}}</strong> hat <strong>{{event}}</strong> (<strong>{{when}}</strong>) abgesagt."
+    },
+    "rsvp": {
+      "subject": "Teilnahme-Update: {{event}}",
+      "title": "Teilnahme-Update",
+      "body": "<strong>{{responder}}</strong> hat mit „<strong>{{status}}</strong>“ auf <strong>{{event}}</strong> geantwortet."
+    },
+    "reminder": {
+      "subject": "Erinnerung: {{event}}",
+      "title": "Anstehender Termin",
+      "body": "<strong>{{event}}</strong> beginnt am <strong>{{when}}</strong>."
+    }
+  },
+  "overdue": {
+    "subject": "Erinnerung an überfällige Aufgaben",
+    "title": "Erinnerung an überfällige Aufgaben",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "body_one": "du hast <strong>{{count}}</strong> überfällige Aufgabe:",
+    "body_other": "du hast <strong>{{count}}</strong> überfällige Aufgaben:",
+    "taskDetail": "Projekt: <strong>{{projectName}}</strong>, fällig am <strong>{{dueDate}}</strong>",
+    "footer": "Besuche Initiative, um wieder auf Kurs zu kommen.",
+    "textBody_one": "Du hast {{count}} überfällige Aufgabe:",
+    "textBody_other": "Du hast {{count}} überfällige Aufgaben:"
+  },
+  "accessGrant": {
+    "buttonLabel": "Zugriffs-Dashboard öffnen",
+    "greeting": "Hallo <strong>{{name}}</strong>,",
+    "levelRead": "Lesezugriff",
+    "levelReadWrite": "Lese- und Schreibzugriff",
+    "requested": {
+      "subject": "Zugriffsanfrage für {{guildName}}",
+      "title": "Neue Zugriffsanfrage",
+      "body": "<strong>{{requester}}</strong> hat <strong>{{level}}</strong> auf <strong>{{guildName}}</strong> angefragt.",
+      "textBody": "{{requester}} hat {{level}} auf {{guildName}} angefragt. Prüfe die Anfrage unter {{link}}."
+    },
+    "approved": {
+      "subject": "Zugriff auf {{guildName}} genehmigt",
+      "title": "Zugriff genehmigt",
+      "body": "Dein <strong>{{level}}</strong> auf <strong>{{guildName}}</strong> wurde genehmigt.",
+      "textBody": "Dein {{level}} auf {{guildName}} wurde genehmigt. {{link}}"
+    },
+    "denied": {
+      "subject": "Zugriffsanfrage für {{guildName}} abgelehnt",
+      "title": "Zugriffsanfrage abgelehnt",
+      "body": "Deine Zugriffsanfrage für <strong>{{guildName}}</strong> wurde abgelehnt.",
+      "textBody": "Deine Zugriffsanfrage für {{guildName}} wurde abgelehnt. {{link}}"
+    },
+    "revoked": {
+      "subject": "Zugriff auf {{guildName}} entzogen",
+      "title": "Zugriff entzogen",
+      "body": "Dein Zugriff auf <strong>{{guildName}}</strong> wurde entzogen.",
+      "textBody": "Dein Zugriff auf {{guildName}} wurde entzogen. {{link}}"
+    }
+  }
+}

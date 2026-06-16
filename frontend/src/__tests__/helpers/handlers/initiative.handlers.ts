@@ -1,17 +1,19 @@
-import { HttpResponse, http } from "msw";
+import { HttpResponse } from "msw";
 
 import { buildInitiative } from "@/__tests__/factories";
 
+import { guildHttp } from "../guildHttp";
+
 export const initiativeHandlers = [
-  http.get("/api/v1/initiatives/", () => {
+  guildHttp.get("/initiatives/", () => {
     return HttpResponse.json([buildInitiative()]);
   }),
 
-  http.post("/api/v1/initiatives/", () => {
+  guildHttp.post("/initiatives/", () => {
     return HttpResponse.json(buildInitiative());
   }),
 
-  http.get("/api/v1/initiatives/:id/my-permissions", () => {
+  guildHttp.get("/initiatives/:id/my-permissions", () => {
     return HttpResponse.json({
       role_id: 1,
       role_name: "project_manager",

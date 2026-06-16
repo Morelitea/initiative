@@ -1,0 +1,94 @@
+{
+  "task": {
+    "assignment": {
+      "title": "Nouvelle tâche assignée",
+      "body": "{{title}} dans {{project}}"
+    }
+  },
+  "initiative": {
+    "added": {
+      "title": "Ajouté à l'initiative",
+      "body": "Vous avez été ajouté(e) à {{initiative}}"
+    }
+  },
+  "project": {
+    "added": {
+      "title": "Nouveau projet ajouté",
+      "body": "{{project}} dans {{initiative}}"
+    }
+  },
+  "mention": {
+    "document": {
+      "title": "Vous avez été mentionné(e)",
+      "body": "{{actor}} vous a mentionné(e) dans {{document}}"
+    },
+    "comment": {
+      "title": "Vous avez été mentionné(e)",
+      "body": "{{actor}} vous a mentionné(e) dans un commentaire sur {{context}}"
+    },
+    "task": {
+      "title": "Votre tâche a été mentionnée",
+      "body": "{{actor}} a mentionné {{task}} dans {{context}}"
+    }
+  },
+  "comment": {
+    "onTask": {
+      "title": "Nouveau commentaire sur votre tâche",
+      "body": "{{actor}} a commenté {{task}}"
+    },
+    "onDocument": {
+      "title": "Nouveau commentaire sur votre document",
+      "body": "{{actor}} a commenté {{document}}"
+    },
+    "reply": {
+      "title": "Réponse à votre commentaire",
+      "body": "{{actor}} a répondu à votre commentaire sur {{context}}"
+    }
+  },
+  "event": {
+    "invitation": {
+      "title": "Nouvelle invitation à un événement",
+      "body": "{{event}} ({{when}})"
+    },
+    "rescheduled": {
+      "title": "Événement reprogrammé",
+      "body": "{{event}} ({{when}})"
+    },
+    "updated": {
+      "title": "Événement mis à jour",
+      "body": "{{event}} ({{when}})"
+    },
+    "cancelled": {
+      "title": "Événement annulé",
+      "body": "{{event}} ({{when}})"
+    },
+    "rsvp": {
+      "title": "Mise à jour de participation",
+      "body": "{{responder}} a répondu {{status}} à {{event}}"
+    },
+    "reminder": {
+      "title": "Événement à venir",
+      "body": "{{event}} ({{when}})"
+    }
+  },
+  "accessGrant": {
+    "levelRead": "en lecture seule",
+    "levelReadWrite": "en lecture-écriture",
+    "requested": {
+      "title": "Nouvelle demande d'accès",
+      "body": "{{requester}} a demandé un accès {{level}} à {{guild}}"
+    },
+    "approved": {
+      "title": "Accès approuvé",
+      "body": "Votre accès {{level}} à {{guild}} a été approuvé"
+    },
+    "denied": {
+      "title": "Demande d'accès refusée",
+      "body": "Votre demande d'accès à {{guild}} a été refusée"
+    },
+    "revoked": {
+      "title": "Accès révoqué",
+      "body": "Votre accès à {{guild}} a été révoqué"
+    }
+  }
+}

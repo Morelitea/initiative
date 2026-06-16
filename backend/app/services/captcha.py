@@ -20,6 +20,7 @@ works exactly as before. The register endpoint also short-circuits
 on the bootstrap-first-user path so a fresh deployment isn't blocked
 by a captcha it hasn't been told to require.
 """
+
 from __future__ import annotations
 
 import logging
@@ -100,9 +101,7 @@ async def verify_or_raise(token: str | None, *, remote_ip: str | None) -> None:
     except (httpx.HTTPError, ValueError) as exc:
         # Fail-closed — if we can't reach the provider, treat as
         # invalid rather than letting a registration through unchecked.
-        logger.warning(
-            "Captcha verification request to %s failed: %s", provider, exc
-        )
+        logger.warning("Captcha verification request to %s failed: %s", provider, exc)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=AuthMessages.CAPTCHA_INVALID,

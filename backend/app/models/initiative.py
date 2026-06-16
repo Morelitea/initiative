@@ -2,7 +2,16 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, Enum as SAEnum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlmodel import Field, Relationship, SQLModel
 
 from app.models._mixins import SoftDeleteMixin
@@ -98,6 +107,7 @@ BUILTIN_ROLE_PERMISSIONS = {
 
 class InitiativeRoleModel(SQLModel, table=True):
     """Defines roles available per initiative."""
+
     __tablename__ = "initiative_roles"
     __table_args__ = (
         UniqueConstraint("initiative_id", "name", name="uq_initiative_role_name"),
@@ -127,6 +137,7 @@ class InitiativeRoleModel(SQLModel, table=True):
 
 class InitiativeRolePermission(SQLModel, table=True):
     """Permission toggles per role."""
+
     __tablename__ = "initiative_role_permissions"
 
     initiative_role_id: int = Field(
@@ -138,7 +149,13 @@ class InitiativeRolePermission(SQLModel, table=True):
     )
     permission_key: PermissionKey = Field(
         sa_column=Column(
-            SAEnum(PermissionKey, name="permissionkey", create_constraint=False, native_enum=False, length=50),
+            SAEnum(
+                PermissionKey,
+                name="permissionkey",
+                create_constraint=False,
+                native_enum=False,
+                length=50,
+            ),
             primary_key=True,
         )
     )
@@ -152,7 +169,9 @@ class InitiativeMember(SQLModel, table=True):
 
     initiative_id: int = Field(foreign_key="initiatives.id", primary_key=True)
     user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: Optional[int] = Field(default=None, foreign_key="guilds.id", nullable=True)
+    guild_id: Optional[int] = Field(
+        default=None, foreign_key="guilds.id", nullable=True
+    )
     role_id: Optional[int] = Field(
         default=None,
         sa_column=Column(

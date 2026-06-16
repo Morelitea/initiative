@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import html as _html
 import re
 import smtplib
 import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
+from functools import lru_cache
+from pathlib import Path
 from typing import Sequence
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -17,6 +20,11 @@ from app.core.encryption import decrypt_field, SALT_SMTP_PASSWORD
 from app.models.app_setting import AppSetting
 from app.models.user import User
 from app.services import app_settings as app_settings_service
+
+try:  # premailer inlines our <style> rules so they survive Gmail/Outlook stripping <style>
+    from premailer import transform as _premailer_transform
+except Exception:  # pragma: no cover - optional dependency guard
+    _premailer_transform = None
 
 logger = logging.getLogger(__name__)
 
@@ -50,31 +58,27 @@ async def _email_context(session: AsyncSession) -> tuple[AppSetting, str]:
     return settings_obj, _accent_color(settings_obj)
 
 
-BRAND_LOGO_SVG = """
-<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 438 471' width='32' height='34' fill='currentColor'>
-  <path
-      d="M218.82 470.128a20.242 20.242 0 0 1-8.27-1.639L14.387 384.823C5.724 381.128 0 371.834 0 361.464v-238.72c0-.652.023-1.3.067-1.943.298-4.21 1.546-8.282 3.62-11.81 1.54-2.615 3.524-4.918 5.884-6.758a21.969 21.969 0 0 1 2.994-1.966l196.161-97.74C211.98.753 215.431-.054 218.82.002c3.39-.057 6.84.751 10.094 2.523l196.161 97.741a21.969 21.969 0 0 1 2.994 1.966c2.36 1.84 4.345 4.143 5.885 6.757 2.073 3.53 3.321 7.601 3.62 11.811.043.643.066 1.291.066 1.942v238.721c0 10.37-5.724 19.664-14.388 23.36l-196.16 83.665a20.242 20.242 0 0 1-8.272 1.64ZM137.623 188.27a24.668 24.668 0 0 1-22.62 1.39l-70.298-31.046v185.628l120.247 51.288V243.097a53.369 53.369 0 0 1 27.81-46.853 53.367 53.367 0 0 1 52.116 0l.5.28a53.369 53.369 0 0 1 27.31 46.573V395.53l120.247-51.288V158.613l-70.648 31.25a24.67 24.67 0 0 1-22.634-1.383l-.186-.112a24.669 24.669 0 0 1 2.616-43.713l56.324-25.09L218.82 52.643 79.233 119.565l55.934 24.884a24.668 24.668 0 0 1 2.626 43.718l-.17.102Z"
-      fill="currentColor"
-    />
-    <ellipse
-      cx="257.233"
-      cy="209.745"
-      rx="52.118"
-      ry="36.171"
-      transform="matrix(.76806 0 0 1.13407 21.073 -109.942)"
-      fill="currentColor"
-    />
-    <path
-      d="m137.623 188.27.17-.103a24.669 24.669 0 0 0-2.626-43.718l-55.934-24.884L218.82 52.643l139.587 66.922-56.324 25.09a24.67 24.67 0 0 0-2.616 43.713l.186.112a24.67 24.67 0 0 0 22.634 1.383l70.648-31.25v185.628L272.688 395.53V243.097a53.369 53.369 0 0 0-27.31-46.574l-.5-.279a53.367 53.367 0 0 0-52.116 0l-.5.28a53.369 53.369 0 0 0-27.31 46.573V395.53L44.705 344.241V158.613l70.298 31.045a24.668 24.668 0 0 0 22.62-1.389Zm81.02-101.366c-22.093 0-40.03 18.381-40.03 41.021s17.937 41.021 40.03 41.021c22.092 0 40.028-18.38 40.028-41.02 0-22.64-17.936-41.022-40.029-41.022Z"
-      opacity=".25"
-      fill="currentColor"
-    />
-  </svg>
-</svg>
-""".strip()
+# Email clients (Gmail, Outlook, Yahoo) strip inline <svg>, so the brand mark is
+# shipped as a raster PNG and embedded inline via a Content-ID reference. This
+# displays without an external fetch — no "show images" prompt, no broken icon.
+_LOGO_PATH = Path(__file__).resolve().parent.parent / "assets" / "email-logo.png"
+LOGO_CID = "initiative-logo"
 
 
-def _build_html_layout(title: str, body: str, accent_color: str, locale: str = "en") -> str:
+@lru_cache(maxsize=1)
+def _logo_bytes() -> bytes | None:
+    try:
+        return _LOGO_PATH.read_bytes()
+    except (
+        OSError
+    ):  # pragma: no cover - asset is committed; guard against odd packaging
+        logger.warning("Email logo asset missing at %s", _LOGO_PATH)
+        return None
+
+
+def _build_html_layout(
+    title: str, body: str, accent_color: str, locale: str = "en"
+) -> str:
     footer_disclaimer = email_t("layout.footerDisclaimer", locale=locale)
     update_link_text = email_t("layout.updateNotifications", locale=locale)
     return f"""\
@@ -89,9 +93,9 @@ def _build_html_layout(title: str, body: str, accent_color: str, locale: str = "
         }}
       </style>
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
-        <div style="width:48px;height:48px;border-radius:14px;color:{accent_color};display:flex;align-items:center;justify-content:center;">
-          <a href="{app_config.APP_URL}">{BRAND_LOGO_SVG}</a>
-        </div>
+        <a href="{app_config.APP_URL}" style="display:inline-block;">
+          <img src="cid:{LOGO_CID}" width="44" height="44" alt="Initiative" style="display:block;width:44px;height:44px;border:0;border-radius:12px;" />
+        </a>
         <div>
           <p style="margin:0;font-size:18px;font-weight:700;color:{accent_color};"><a href="{app_config.APP_URL}">initiative</a></p>
         </div>
@@ -102,7 +106,7 @@ def _build_html_layout(title: str, body: str, accent_color: str, locale: str = "
         {footer_disclaimer}
       </p>
       <p>
-        <a href="{app_config.APP_URL}/profile/notifications">{update_link_text}</a>.
+        <a href="{app_config.APP_URL}/profile/notifications">{update_link_text}</a>
       </p>
     </div>
   </body>
@@ -111,7 +115,20 @@ def _build_html_layout(title: str, body: str, accent_color: str, locale: str = "
 
 
 def _strip_html(html: str) -> str:
-    return re.sub(r"<[^>]+>", "", html)
+    """Reduce an HTML email fragment to its plain-text alternative.
+
+    Strips trusted template tags, then unescapes entities so values that were
+    HTML-escaped for the HTML part (see ``email_i18n``) read as the user's
+    literal text in the text/plain part.
+
+    Deliberate consequence: a user-supplied value that itself looks like markup
+    (e.g. a display name of ``<a href="https://x">…</a>``) appears verbatim in
+    the text part — including any URL, which a client's auto-linkification may
+    make clickable. That is acceptable for text/plain (no styling or trust
+    cues, unlike the brand-styled HTML part), and the alternative — leaving
+    entities encoded — would corrupt legitimate names like ``Tom & Jerry``.
+    """
+    return _html.unescape(re.sub(r"<[^>]+>", "", html))
 
 
 def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
@@ -126,7 +143,9 @@ def _build_smtp_config(settings_obj: AppSetting) -> SMTPConfig:
         secure=bool(settings_obj.smtp_secure),
         reject_unauthorized=bool(settings_obj.smtp_reject_unauthorized),
         username=settings_obj.smtp_username,
-        password=decrypt_field(settings_obj.smtp_password_encrypted, SALT_SMTP_PASSWORD) if settings_obj.smtp_password_encrypted else None,
+        password=decrypt_field(settings_obj.smtp_password_encrypted, SALT_SMTP_PASSWORD)
+        if settings_obj.smtp_password_encrypted
+        else None,
         from_address=from_address,
     )
 
@@ -152,11 +171,17 @@ def _deliver(config: SMTPConfig, message: EmailMessage) -> None:
                 client.starttls(context=context)
                 client.ehlo()
             except smtplib.SMTPException:
-                logger.debug("STARTTLS not available for SMTP host %s:%s", config.host, config.port)
+                logger.debug(
+                    "STARTTLS not available for SMTP host %s:%s",
+                    config.host,
+                    config.port,
+                )
             _send_via_client(client, config, message)
 
 
-def _send_via_client(client: smtplib.SMTP, config: SMTPConfig, message: EmailMessage) -> None:
+def _send_via_client(
+    client: smtplib.SMTP, config: SMTPConfig, message: EmailMessage
+) -> None:
     if config.username and config.password:
         client.login(config.username, config.password)
     client.send_message(message)
@@ -170,12 +195,59 @@ def _display_name(user: User) -> str:
     return user.full_name or user.email
 
 
+def _inline_css(html: str) -> str:
+    """Inline <style> rules into element style attributes via premailer.
+
+    Gmail's mobile app and several clients strip <style> blocks, which would
+    drop our link colours/weights. Inlining makes them survive. Failures here
+    must never block an email, so we fall back to the original HTML.
+    """
+    if _premailer_transform is None:
+        return html
+    try:
+        return _premailer_transform(
+            html,
+            keep_style_tags=False,
+            remove_classes=True,
+            disable_validation=True,
+            cssutils_logging_level=logging.CRITICAL,
+        )
+    except Exception:  # pragma: no cover - defensive: never fail send over styling
+        logger.warning(
+            "premailer CSS inlining failed; sending un-inlined HTML", exc_info=True
+        )
+        return html
+
+
 def _cta_button(label: str, link: str, accent: str) -> str:
     return (
         f'<a href="{link}" style="background-color:{accent};color:#ffffff;'
-        f'padding:12px 18px;border-radius:8px;text-decoration:none;'
+        f"padding:12px 18px;border-radius:8px;text-decoration:none;"
         f'font-weight:600;display:inline-block;">{label}</a>'
     )
+
+
+def _embed_logo(message: EmailMessage) -> None:
+    """Attach the brand logo as an inline image referenced by ``cid:LOGO_CID``.
+
+    The HTML alternative is wrapped in a multipart/related part holding the PNG,
+    so the logo renders inline without an external fetch. No-op when the asset
+    is missing (the <img> alt text shows instead).
+    """
+    logo = _logo_bytes()
+    if not logo:
+        return
+    payload = message.get_payload()
+    if not isinstance(payload, list):
+        return
+    # Locate the text/html alternative explicitly rather than assuming a
+    # position, so this stays correct regardless of how the message was built.
+    html_part = next(
+        (part for part in payload if part.get_content_type() == "text/html"), None
+    )
+    if html_part is None:
+        return
+    html_part.add_related(logo, "image", "png", cid=f"<{LOGO_CID}>")
 
 
 async def send_email(
@@ -198,7 +270,8 @@ async def send_email(
     message["To"] = ", ".join(recipients)
     plain = text_body or _strip_html(html_body)
     message.set_content(plain)
-    message.add_alternative(html_body, subtype="html")
+    message.add_alternative(_inline_css(html_body), subtype="html")
+    _embed_logo(message)
     try:
         await asyncio.to_thread(_deliver, config, message)
     except EmailNotConfiguredError:
@@ -220,9 +293,9 @@ async def send_test_email(session: AsyncSession, recipient: str) -> None:
     await send_email(
         session,
         recipients=[recipient],
-        subject=email_t("test.subject", locale=locale),
+        subject=email_t("test.subject", locale=locale, escape=False),
         html_body=html_body,
-        text_body=email_t("test.body", locale=locale),
+        text_body=email_t("test.body", locale=locale, escape=False),
         settings_obj=settings_obj,
     )
 
@@ -234,12 +307,16 @@ def _frontend_url(path: str) -> str:
     return f"{base}{path}"
 
 
-async def send_verification_email(session: AsyncSession, user: User, token: str) -> None:
+async def send_verification_email(
+    session: AsyncSession, user: User, token: str
+) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url(f"/verify-email?token={token}")
-    button = _cta_button(email_t("verification.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("verification.buttonLabel", locale=locale), link, accent
+    )
     body = f"""
     <p>{email_t("verification.greeting", locale=locale, name=name)}</p>
     <p>{email_t("verification.body", locale=locale)}</p>
@@ -249,23 +326,27 @@ async def send_verification_email(session: AsyncSession, user: User, token: str)
     html_body = _build_html_layout(
         email_t("verification.title", locale=locale), body, accent, locale=locale
     )
-    text_body = email_t("verification.textBody", locale=locale, link=link)
+    text_body = email_t("verification.textBody", locale=locale, link=link, escape=False)
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t("verification.subject", locale=locale),
+        subject=email_t("verification.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
     )
 
 
-async def send_password_reset_email(session: AsyncSession, user: User, token: str) -> None:
+async def send_password_reset_email(
+    session: AsyncSession, user: User, token: str
+) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url(f"/reset-password?token={token}")
-    button = _cta_button(email_t("passwordReset.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("passwordReset.buttonLabel", locale=locale), link, accent
+    )
     body = f"""
     <p>{email_t("passwordReset.greeting", locale=locale, name=name)}</p>
     <p>{email_t("passwordReset.body", locale=locale)}</p>
@@ -275,23 +356,29 @@ async def send_password_reset_email(session: AsyncSession, user: User, token: st
     html_body = _build_html_layout(
         email_t("passwordReset.title", locale=locale), body, accent, locale=locale
     )
-    text_body = email_t("passwordReset.textBody", locale=locale, link=link)
+    text_body = email_t(
+        "passwordReset.textBody", locale=locale, link=link, escape=False
+    )
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t("passwordReset.subject", locale=locale),
+        subject=email_t("passwordReset.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
     )
 
 
-async def send_initiative_added_email(session: AsyncSession, user: User, initiative_name: str) -> None:
+async def send_initiative_added_email(
+    session: AsyncSession, user: User, initiative_name: str
+) -> None:
     settings_obj, accent = await _email_context(session)
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url("/initiatives")
-    button = _cta_button(email_t("initiativeAdded.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("initiativeAdded.buttonLabel", locale=locale), link, accent
+    )
     body = f"""
     <p>{email_t("initiativeAdded.greeting", locale=locale, name=name)}</p>
     <p>{email_t("initiativeAdded.body", locale=locale, initiativeName=initiative_name)}</p>
@@ -301,12 +388,21 @@ async def send_initiative_added_email(session: AsyncSession, user: User, initiat
         email_t("initiativeAdded.title", locale=locale), body, accent, locale=locale
     )
     text_body = email_t(
-        "initiativeAdded.textBody", locale=locale, initiativeName=initiative_name, link=link
+        "initiativeAdded.textBody",
+        locale=locale,
+        initiativeName=initiative_name,
+        link=link,
+        escape=False,
     )
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t("initiativeAdded.subject", locale=locale, initiativeName=initiative_name),
+        subject=email_t(
+            "initiativeAdded.subject",
+            locale=locale,
+            initiativeName=initiative_name,
+            escape=False,
+        ),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -325,7 +421,9 @@ async def send_project_added_to_initiative_email(
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url(f"/projects/{project_id}")
-    button = _cta_button(email_t("projectAdded.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("projectAdded.buttonLabel", locale=locale), link, accent
+    )
     body = f"""
     <p>{email_t("projectAdded.greeting", locale=locale, name=name)}</p>
     <p>{email_t("projectAdded.body", locale=locale, projectName=project_name, initiativeName=initiative_name)}</p>
@@ -340,11 +438,17 @@ async def send_project_added_to_initiative_email(
         projectName=project_name,
         initiativeName=initiative_name,
         link=link,
+        escape=False,
     )
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t("projectAdded.subject", locale=locale, initiativeName=initiative_name),
+        subject=email_t(
+            "projectAdded.subject",
+            locale=locale,
+            initiativeName=initiative_name,
+            escape=False,
+        ),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -370,15 +474,23 @@ async def send_access_grant_email(
     locale = _user_locale(user)
     name = _display_name(user)
     link = _frontend_url("/settings/admin/access")
-    button = _cta_button(email_t("accessGrant.buttonLabel", locale=locale), link, accent)
+    button = _cta_button(
+        email_t("accessGrant.buttonLabel", locale=locale), link, accent
+    )
     level_label = ""
     if access_level:
         level_key = (
-            "accessGrant.levelReadWrite" if access_level == "read_write" else "accessGrant.levelRead"
+            "accessGrant.levelReadWrite"
+            if access_level == "read_write"
+            else "accessGrant.levelRead"
         )
         level_label = email_t(level_key, locale=locale)
     base = f"accessGrant.{event}"
-    vars_ = {"guildName": guild_name, "level": level_label, "requester": requester or ""}
+    vars_ = {
+        "guildName": guild_name,
+        "level": level_label,
+        "requester": requester or "",
+    }
     body = f"""
     <p>{email_t("accessGrant.greeting", locale=locale, name=name)}</p>
     <p>{email_t(f"{base}.body", locale=locale, **vars_)}</p>
@@ -387,11 +499,15 @@ async def send_access_grant_email(
     html_body = _build_html_layout(
         email_t(f"{base}.title", locale=locale), body, accent, locale=locale
     )
-    text_body = email_t(f"{base}.textBody", locale=locale, link=link, **vars_)
+    text_body = email_t(
+        f"{base}.textBody", locale=locale, link=link, escape=False, **vars_
+    )
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t(f"{base}.subject", locale=locale, guildName=guild_name),
+        subject=email_t(
+            f"{base}.subject", locale=locale, guildName=guild_name, escape=False
+        ),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -410,11 +526,17 @@ async def send_task_assignment_digest_email(
     name = _display_name(user)
 
     def assignment_html(item: dict) -> str:
-        title = item.get("task_title") or "Task"
+        # ``title`` is user-controlled and spliced into markup directly (not via
+        # email_t), so escape it here.
+        title = _html.escape(item.get("task_title") or "Task")
         project_name = item.get("project_name") or "a project"
         assigned_by = item.get("assigned_by_name")
         link = item.get("link")
-        title_markup = f'<a href="{link}"><strong>{title}</strong></a>' if link else f"<strong>{title}</strong>"
+        title_markup = (
+            f'<a href="{link}"><strong>{title}</strong></a>'
+            if link
+            else f"<strong>{title}</strong>"
+        )
         assigned_fragment = (
             f" ({email_t('taskAssignment.assignedBy', locale=locale, name=assigned_by)})"
             if assigned_by
@@ -427,9 +549,25 @@ async def send_task_assignment_digest_email(
         project_name = item.get("project_name") or "a project"
         assigned_by = item.get("assigned_by_name")
         link = item.get("link")
-        line = f"- {title} {email_t('taskAssignment.inProject', locale=locale, projectName=project_name)}"
+        in_project = _strip_html(
+            email_t(
+                "taskAssignment.inProject",
+                locale=locale,
+                projectName=project_name,
+                escape=False,
+            )
+        )
+        line = f"- {title} {in_project}"
         if assigned_by:
-            line += f" ({email_t('taskAssignment.assignedBy', locale=locale, name=assigned_by)})"
+            assigned = _strip_html(
+                email_t(
+                    "taskAssignment.assignedBy",
+                    locale=locale,
+                    name=assigned_by,
+                    escape=False,
+                )
+            )
+            line += f" ({assigned})"
         if link:
             line += f" -> {link}"
         return line
@@ -445,15 +583,15 @@ async def send_task_assignment_digest_email(
         email_t("taskAssignment.title", locale=locale), body, accent, locale=locale
     )
     text_lines = [
-        email_t("taskAssignment.textBody", locale=locale),
+        email_t("taskAssignment.textBody", locale=locale, escape=False),
         *(assignment_text(item) for item in assignments),
-        email_t("taskAssignment.footer", locale=locale),
+        email_t("taskAssignment.footer", locale=locale, escape=False),
     ]
     text_body = "\n".join(text_lines)
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t("taskAssignment.subject", locale=locale),
+        subject=email_t("taskAssignment.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,
@@ -473,7 +611,9 @@ async def send_mention_email(
     locale = _user_locale(user)
     name = _display_name(user)
     if link:
-        button = _cta_button(email_t("mention.buttonLabel", locale=locale), link, accent)
+        button = _cta_button(
+            email_t("mention.buttonLabel", locale=locale), link, accent
+        )
         body = f"""
     <p>{email_t("mention.greeting", locale=locale, name=name)}</p>
     <p>{body_text}</p>
@@ -485,7 +625,9 @@ async def send_mention_email(
     <p>{body_text}</p>
     """
     html_body = _build_html_layout(headline, body, accent, locale=locale)
-    plain = f"{body_text}"
+    # body_text is an HTML fragment (locale strings bold {{vars}} via <strong>);
+    # strip tags for the plain-text alternative.
+    plain = _strip_html(body_text)
     if link:
         plain += f"\n\nView: {link}"
     await send_email(
@@ -510,12 +652,23 @@ async def send_overdue_tasks_email(
     name = _display_name(user)
 
     def overdue_html(item: dict) -> str:
-        title = item.get("title") or "Task"
+        # ``title`` is user-controlled and spliced into markup directly (not via
+        # email_t), so escape it here.
+        title = _html.escape(item.get("title") or "Task")
         project_name = item.get("project_name") or "a project"
         due_date = item.get("due_date") or "N/A"
         link = item.get("link")
-        title_markup = f'<a href="{link}"><strong>{title}</strong></a>' if link else f"<strong>{title}</strong>"
-        detail = email_t("overdue.taskDetail", locale=locale, projectName=project_name, dueDate=due_date)
+        title_markup = (
+            f'<a href="{link}"><strong>{title}</strong></a>'
+            if link
+            else f"<strong>{title}</strong>"
+        )
+        detail = email_t(
+            "overdue.taskDetail",
+            locale=locale,
+            projectName=project_name,
+            dueDate=due_date,
+        )
         return f"<li>{title_markup} ({detail})</li>"
 
     def overdue_text(item: dict) -> str:
@@ -523,7 +676,15 @@ async def send_overdue_tasks_email(
         project_name = item.get("project_name") or "a project"
         due_date = item.get("due_date") or "N/A"
         link = item.get("link")
-        detail = email_t("overdue.taskDetail", locale=locale, projectName=project_name, dueDate=due_date)
+        detail = _strip_html(
+            email_t(
+                "overdue.taskDetail",
+                locale=locale,
+                projectName=project_name,
+                dueDate=due_date,
+                escape=False,
+            )
+        )
         line = f"- {title} ({detail})"
         if link:
             line += f" -> {link}"
@@ -541,15 +702,15 @@ async def send_overdue_tasks_email(
         email_t("overdue.title", locale=locale), body, accent, locale=locale
     )
     text_lines = [
-        email_t("overdue.textBody", locale=locale, count=task_count),
+        email_t("overdue.textBody", locale=locale, count=task_count, escape=False),
         *(overdue_text(item) for item in tasks),
-        email_t("overdue.footer", locale=locale),
+        email_t("overdue.footer", locale=locale, escape=False),
     ]
     text_body = "\n".join(text_lines)
     await send_email(
         session,
         recipients=[user.email],
-        subject=email_t("overdue.subject", locale=locale),
+        subject=email_t("overdue.subject", locale=locale, escape=False),
         html_body=html_body,
         text_body=text_body,
         settings_obj=settings_obj,

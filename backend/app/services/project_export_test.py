@@ -36,12 +36,20 @@ async def _seed_populated_project(session: AsyncSession):
     owner = await create_user(session, email="owner@example.com")
     assignee = await create_user(session, email="alice@example.com")
     guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
-    await create_guild_membership(session, user=assignee, guild=guild, role=GuildRole.member)
-    initiative = await create_initiative(session, guild, owner, name="Source Initiative")
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=assignee, guild=guild, role=GuildRole.member
+    )
+    initiative = await create_initiative(
+        session, guild, owner, name="Source Initiative"
+    )
     await create_initiative_member(session, initiative, assignee, role_name="member")
 
-    project = await create_project(session, initiative, owner, name="Source Project", icon="🚀")
+    project = await create_project(
+        session, initiative, owner, name="Source Project", icon="🚀"
+    )
 
     # Statuses
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
@@ -56,7 +64,10 @@ async def _seed_populated_project(session: AsyncSession):
 
     # Property definition (select)
     severity = await create_property_definition(
-        session, initiative, name="Severity", type=PropertyType.select,
+        session,
+        initiative,
+        name="Severity",
+        type=PropertyType.select,
         options=[{"value": "low", "label": "Low"}, {"value": "high", "label": "High"}],
     )
 
@@ -74,11 +85,25 @@ async def _seed_populated_project(session: AsyncSession):
     await session.refresh(task)
     session.add(TaskTag(task_id=task.id, tag_id=tag.id))
     session.add(TaskAssignee(task_id=task.id, user_id=assignee.id, guild_id=guild.id))
-    session.add(Subtask(task_id=task.id, guild_id=guild.id, content="step 1", position=0))
-    session.add(Subtask(task_id=task.id, guild_id=guild.id, content="step 2", position=1, is_completed=True))
-    session.add(TaskPropertyValue(
-        task_id=task.id, property_id=severity.id, value_text="high",
-    ))
+    session.add(
+        Subtask(task_id=task.id, guild_id=guild.id, content="step 1", position=0)
+    )
+    session.add(
+        Subtask(
+            task_id=task.id,
+            guild_id=guild.id,
+            content="step 2",
+            position=1,
+            is_completed=True,
+        )
+    )
+    session.add(
+        TaskPropertyValue(
+            task_id=task.id,
+            property_id=severity.id,
+            value_text="high",
+        )
+    )
     await session.commit()
 
     return owner, assignee, guild, initiative, project
@@ -86,7 +111,13 @@ async def _seed_populated_project(session: AsyncSession):
 
 @pytest.mark.integration
 async def test_round_trip_into_different_initiative(session: AsyncSession):
-    owner, assignee, guild, source_initiative, source_project = await _seed_populated_project(session)
+    (
+        owner,
+        assignee,
+        guild,
+        source_initiative,
+        source_project,
+    ) = await _seed_populated_project(session)
 
     # Build the export envelope
     envelope = await export_service.build_project_export(
@@ -98,7 +129,12 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert envelope.schema_version == 1
     assert envelope.project.name == "Source Project"
     assert envelope.project.icon == "🚀"
-    assert {s.name for s in envelope.task_statuses} >= {"Backlog", "To-do", "In progress", "Done"} or len(envelope.task_statuses) >= 1
+    assert {s.name for s in envelope.task_statuses} >= {
+        "Backlog",
+        "To-do",
+        "In progress",
+        "Done",
+    } or len(envelope.task_statuses) >= 1
     assert {t.name for t in envelope.tags} == {"blocker"}
     assert {p.name for p in envelope.property_definitions} == {"Severity"}
     assert len(envelope.tasks) == 1
@@ -112,8 +148,12 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
     assert exported_task.property_values[0].value_text == "high"
 
     # Target initiative in the same guild — assignee is a member of both
-    target_initiative = await create_initiative(session, guild, owner, name="Target Initiative")
-    await create_initiative_member(session, target_initiative, assignee, role_name="member")
+    target_initiative = await create_initiative(
+        session, guild, owner, name="Target Initiative"
+    )
+    await create_initiative_member(
+        session, target_initiative, assignee, role_name="member"
+    )
 
     # Import
     result = await import_service.import_project(
@@ -138,7 +178,9 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             selectinload(Project.tasks).selectinload(Task.subtasks),
             selectinload(Project.tasks).selectinload(Task.assignees),
-            selectinload(Project.tasks).selectinload(Task.tag_links).selectinload(TaskTag.tag),
+            selectinload(Project.tasks)
+            .selectinload(Task.tag_links)
+            .selectinload(TaskTag.tag),
             selectinload(Project.tasks)
             .selectinload(Task.property_values)
             .selectinload(TaskPropertyValue.property_definition),
@@ -164,13 +206,24 @@ async def test_round_trip_into_different_initiative(session: AsyncSession):
 
 @pytest.mark.integration
 async def test_property_type_collision_renames(session: AsyncSession):
-    owner, assignee, guild, source_initiative, source_project = await _seed_populated_project(session)
-    envelope = await export_service.build_project_export(session, project_id=source_project.id)
+    (
+        owner,
+        assignee,
+        guild,
+        source_initiative,
+        source_project,
+    ) = await _seed_populated_project(session)
+    envelope = await export_service.build_project_export(
+        session, project_id=source_project.id
+    )
 
     target_initiative = await create_initiative(session, guild, owner, name="Target")
     # Pre-create a property in target with the same name but different type
     existing_prop = await create_property_definition(
-        session, target_initiative, name="Severity", type=PropertyType.text,
+        session,
+        target_initiative,
+        name="Severity",
+        type=PropertyType.text,
     )
 
     result = await import_service.import_project(
@@ -201,8 +254,16 @@ async def test_property_options_mismatch_renames(session: AsyncSession):
     """Same name + type but different option values → treat as collision
     and rename. Reusing the existing definition would silently store
     values that aren't valid options on the target side."""
-    owner, assignee, guild, source_initiative, source_project = await _seed_populated_project(session)
-    envelope = await export_service.build_project_export(session, project_id=source_project.id)
+    (
+        owner,
+        assignee,
+        guild,
+        source_initiative,
+        source_project,
+    ) = await _seed_populated_project(session)
+    envelope = await export_service.build_project_export(
+        session, project_id=source_project.id
+    )
 
     target_initiative = await create_initiative(session, guild, owner, name="Target")
     # Same name, same type (select), but completely different options
@@ -246,8 +307,16 @@ async def test_property_options_mismatch_renames(session: AsyncSession):
 async def test_property_options_label_only_difference_matches(session: AsyncSession):
     """Labels are cosmetic; same value set with different labels still
     counts as a match (no rename, no new definition)."""
-    owner, assignee, guild, source_initiative, source_project = await _seed_populated_project(session)
-    envelope = await export_service.build_project_export(session, project_id=source_project.id)
+    (
+        owner,
+        assignee,
+        guild,
+        source_initiative,
+        source_project,
+    ) = await _seed_populated_project(session)
+    envelope = await export_service.build_project_export(
+        session, project_id=source_project.id
+    )
 
     target_initiative = await create_initiative(session, guild, owner, name="Target")
     await create_property_definition(
@@ -273,8 +342,16 @@ async def test_property_options_label_only_difference_matches(session: AsyncSess
 
 @pytest.mark.integration
 async def test_unmatched_assignees_reported(session: AsyncSession):
-    owner, assignee, guild, source_initiative, source_project = await _seed_populated_project(session)
-    envelope = await export_service.build_project_export(session, project_id=source_project.id)
+    (
+        owner,
+        assignee,
+        guild,
+        source_initiative,
+        source_project,
+    ) = await _seed_populated_project(session)
+    envelope = await export_service.build_project_export(
+        session, project_id=source_project.id
+    )
 
     # Target initiative has *no* members other than the owner — alice isn't a member here
     target_initiative = await create_initiative(session, guild, owner, name="Target")
@@ -293,7 +370,9 @@ async def test_unmatched_assignees_reported(session: AsyncSession):
 async def test_schema_version_unsupported_rejected(session: AsyncSession):
     owner = await create_user(session)
     guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild, role=GuildRole.admin)
+    await create_guild_membership(
+        session, user=owner, guild=guild, role=GuildRole.admin
+    )
     target_initiative = await create_initiative(session, guild, owner)
 
     # Hand-roll a minimal envelope with an unsupported version
@@ -311,7 +390,9 @@ async def test_schema_version_unsupported_rejected(session: AsyncSession):
         project=ProjectExportProject(name="X"),
         tags=[],
         task_statuses=[
-            ProjectExportTaskStatus(name="B", category=TaskStatusCategory.backlog, is_default=True)
+            ProjectExportTaskStatus(
+                name="B", category=TaskStatusCategory.backlog, is_default=True
+            )
         ],
         property_definitions=[],
         tasks=[],

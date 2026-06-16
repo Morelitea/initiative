@@ -70,7 +70,10 @@ export function CounterGroupDetailPage() {
   const { t } = useTranslation(["counters", "common"]);
   const router = useRouter();
   const gp = useGuildPath();
-  const { groupId: groupIdParam } = useParams({ strict: false }) as { groupId?: string };
+  const { guildId, groupId: groupIdParam } = useParams({ strict: false }) as {
+    guildId: string;
+    groupId?: string;
+  };
   const groupId = groupIdParam ? Number(groupIdParam) : null;
 
   const groupQuery = useCounterGroup(groupId);
@@ -113,7 +116,7 @@ export function CounterGroupDetailPage() {
   }, [group?.counters]);
 
   // Track recently viewed counter groups for the layout header tabs bar.
-  const recordViewMutation = useRecordRecentView("counter_group");
+  const recordViewMutation = useRecordRecentView("counter_group", Number(guildId));
   const viewedGroupId = group?.id;
   useEffect(() => {
     if (!viewedGroupId) return;

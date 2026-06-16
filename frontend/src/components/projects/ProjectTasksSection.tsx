@@ -24,7 +24,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   FilterCondition,
-  ListTasksApiV1TasksGetParams,
+  ListTasksApiV1GGuildIdTasksGetParams,
   TaskListRead,
   TaskListReadRecurrenceStrategy,
   TaskPriority,
@@ -326,7 +326,7 @@ export const ProjectTasksSection = ({
       value: { property_id: entry.property_id, value: entry.value },
     })),
   ];
-  const taskListParams: ListTasksApiV1TasksGetParams = {
+  const taskListParams: ListTasksApiV1GGuildIdTasksGetParams = {
     conditions,
     page_size: 0,
     ...(showArchived && { include_archived: true }),

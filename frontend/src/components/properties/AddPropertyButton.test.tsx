@@ -1,9 +1,10 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
+import { HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildPropertyDefinition } from "@/__tests__/factories/properties";
+import { guildHttp } from "@/__tests__/helpers/guildHttp";
 import { server } from "@/__tests__/helpers/msw-server";
 import { renderWithProviders } from "@/__tests__/helpers/render";
 import type { PropertyDefinitionRead, PropertyType } from "@/api/generated/initiativeAPI.schemas";
@@ -11,7 +12,7 @@ import type { PropertyDefinitionRead, PropertyType } from "@/api/generated/initi
 import { AddPropertyButton } from "./AddPropertyButton";
 
 const mockDefinitions = (defs: PropertyDefinitionRead[]) => {
-  server.use(http.get("/api/v1/property-definitions/", () => HttpResponse.json(defs)));
+  server.use(guildHttp.get("/property-definitions/", () => HttpResponse.json(defs)));
 };
 
 describe("AddPropertyButton", () => {
@@ -79,7 +80,7 @@ describe("AddPropertyButton", () => {
 
     const bodies: unknown[] = [];
     server.use(
-      http.post("/api/v1/property-definitions/", async ({ request }) => {
+      guildHttp.post("/property-definitions/", async ({ request }) => {
         const body = await request.json();
         bodies.push(body);
         return HttpResponse.json(

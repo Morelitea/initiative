@@ -1,0 +1,94 @@
+{
+  "task": {
+    "assignment": {
+      "title": "Nueva tarea asignada",
+      "body": "{{title}} en {{project}}"
+    }
+  },
+  "initiative": {
+    "added": {
+      "title": "Agregado a la iniciativa",
+      "body": "Has sido agregado a {{initiative}}"
+    }
+  },
+  "project": {
+    "added": {
+      "title": "Nuevo proyecto agregado",
+      "body": "{{project}} en {{initiative}}"
+    }
+  },
+  "mention": {
+    "document": {
+      "title": "Te mencionaron",
+      "body": "{{actor}} te mencionó en {{document}}"
+    },
+    "comment": {
+      "title": "Te mencionaron",
+      "body": "{{actor}} te mencionó en un comentario en {{context}}"
+    },
+    "task": {
+      "title": "Tu tarea fue mencionada",
+      "body": "{{actor}} mencionó {{task}} en {{context}}"
+    }
+  },
+  "comment": {
+    "onTask": {
+      "title": "Nuevo comentario en tu tarea",
+      "body": "{{actor}} comentó en {{task}}"
+    },
+    "onDocument": {
+      "title": "Nuevo comentario en tu documento",
+      "body": "{{actor}} comentó en {{document}}"
+    },
+    "reply": {
+      "title": "Respuesta a tu comentario",
+      "body": "{{actor}} respondió a tu comentario en {{context}}"
+    }
+  },
+  "event": {
+    "invitation": {
+      "title": "Nueva invitación a un evento",
+      "body": "{{event}} ({{when}})"
+    },
+    "rescheduled": {
+      "title": "Evento reprogramado",
+      "body": "{{event}} ({{when}})"
+    },
+    "updated": {
+      "title": "Evento actualizado",
+      "body": "{{event}} ({{when}})"
+    },
+    "cancelled": {
+      "title": "Evento cancelado",
+      "body": "{{event}} ({{when}})"
+    },
+    "rsvp": {
+      "title": "Actualización de confirmación",
+      "body": "{{responder}} respondió {{status}} a {{event}}"
+    },
+    "reminder": {
+      "title": "Próximo evento",
+      "body": "{{event}} ({{when}})"
+    }
+  },
+  "accessGrant": {
+    "levelRead": "de solo lectura",
+    "levelReadWrite": "de lectura y escritura",
+    "requested": {
+      "title": "Nueva solicitud de acceso",
+      "body": "{{requester}} solicitó acceso {{level}} a {{guild}}"
+    },
+    "approved": {
+      "title": "Acceso aprobado",
+      "body": "Tu acceso {{level}} a {{guild}} fue aprobado"
+    },
+    "denied": {
+      "title": "Solicitud de acceso denegada",
+      "body": "Tu solicitud de acceso a {{guild}} fue denegada"
+    },
+    "revoked": {
+      "title": "Acceso revocado",
+      "body": "Tu acceso a {{guild}} fue revocado"
+    }
+  }
+}

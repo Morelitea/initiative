@@ -19,8 +19,8 @@ from typing import Optional, Tuple
 
 # (guild_id, access_level) for the active grant, or None when the request isn't
 # served via a grant. access_level is "read" | "read_write".
-_active_grant: contextvars.ContextVar[Optional[Tuple[int, str]]] = contextvars.ContextVar(
-    "pam_active_grant", default=None
+_active_grant: contextvars.ContextVar[Optional[Tuple[int, str]]] = (
+    contextvars.ContextVar("pam_active_grant", default=None)
 )
 
 
@@ -30,6 +30,17 @@ def set_active_grant(guild_id: Optional[int], access_level: Optional[str]) -> No
         _active_grant.set(None)
     else:
         _active_grant.set((guild_id, access_level))
+
+
+def active_grant_guild() -> Optional[int]:
+    """The guild covered by this request's live grant, or None.
+
+    Lets request-time SQL builders (e.g. ``initiative_scope_clause``) embed
+    the granted guild as a literal predicate, mirroring how the old
+    ``is_initiative_member()`` SQL function honored ``app.pam_*`` GUCs.
+    """
+    current = _active_grant.get()
+    return current[0] if current is not None else None
 
 
 def active_grant_level(guild_id: int) -> Optional[str]:
@@ -51,7 +62,9 @@ def has_active_grant(guild_id: int) -> bool:
     return active_grant_level(guild_id) is not None
 
 
-def grant_satisfies(guild_id: int, *, access: str = "read", require_owner: bool = False) -> bool:
+def grant_satisfies(
+    guild_id: int, *, access: str = "read", require_owner: bool = False
+) -> bool:
     """Whether a live grant covers ``guild_id`` at the requested access level.
 
     A grant never confers ownership (owner-only operations stay gated on real

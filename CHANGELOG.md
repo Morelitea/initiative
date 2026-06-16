@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-06-15
+
+### Added
+
+- **`SECRET_KEY` rotation.** `SECRET_KEY` encrypts stored data (emails, OIDC/SMTP/AI secrets) and roots the email-lookup hash, so it can't be swapped in place — a bare change would lock out every user and orphan those secrets. To rotate it, set `PREVIOUS_SECRET_KEY` to the old value, set `SECRET_KEY` to a new one, and redeploy: the app re-encrypts everything on startup (idempotent), or run `python -m app.db.secret_key_rotation` manually. Unset `PREVIOUS_SECRET_KEY` once the logs report 0 failures. A failed `SECRET_KEY` validation now spells out this path in the error.
+- **`JWT_SIGNING_KEY` for independent session-token rotation.** Optional dedicated key for signing session/login JWTs; when set it decouples token signing from `SECRET_KEY`, so it can be rotated freely — the only effect is logging everyone out, with no impact on encrypted-at-rest data. Falls back to `SECRET_KEY` when unset, so existing deployments are unaffected.
+- Expandable guild sidebar — the guild rail opens into a flyout showing each guild's full name and member count.
+- German (Deutsch) interface language.
+- Guild schemas are re-checked on every boot, so upgrades automatically add new tables to existing guilds.
+
+### Changed
+
+- **⚠️ BREAKING: cross-guild ("my") data moved to a new `/api/v1/me/*` API.** The personal views (My Tasks, Created Tasks, My Projects, My Documents, My Calendar, and user stats) are now served by dedicated `/me/*` endpoints, replacing the old `?scope=global`, `/projects/global`, `/calendar-events/global`, and `/users/me/stats` routes. **The personal calendar (iCal) export URL changed** from `/api/v1/calendar-events/global/export.ics` to `/api/v1/me/calendar-events/export.ics` — any subscribed calendar feeds or bookmarks pointing at the old URL must be updated. Direct API integrations calling the old routes must move to `/me/*`.
+- **⚠️ BREAKING: guild-scoped API moved under `/api/v1/g/{guild_id}/*`.** Every guild-scoped endpoint — projects, tasks, documents, initiatives, queues, counters, tags, comments, attachments, imports, calendar events, task statuses, trash, and guild member management — now takes the guild in the URL path instead of resolving it from a single server-held "active guild". This lets separate tabs/windows operate in different guilds at once. The legacy `?scope=global` / `?guild_id=` query addressing and the `X-Resolved-Guild` echo header are removed; direct API integrations must move to the `/g/{guild_id}/…` paths (cross-guild "my" views stay at `/api/v1/me/*`).
+- **⚠️ BREAKING: trash is split into a personal and a guild view.** Your own deleted items are now a cross-guild list at `/api/v1/me/trash` (the personal Trash page), while the all-of-guild view at `/api/v1/g/{guild_id}/trash/` is guild-admin only (no more `?scope=mine|guild`). Restore and purge are addressed per item by its owning guild.
+- **⚠️ BREAKING: uploaded media is now served at `/uploads/{guild_id}/{filename}`.** Document files and embedded/featured images carry their guild in the URL so they render correctly on cross-guild pages (e.g. My Documents shows files from several guilds at once). Existing stored URLs are migrated automatically (`20260613_0103`); any hard-coded `/uploads/{filename}` links or external bookmarks must add the guild segment. Realtime sockets (events, queues, counters, collaboration) and document downloads likewise take the guild from the `/g/{guild_id}/…` path. User avatars and guild branding are unaffected (stored inline / as external URLs, never under `/uploads/`).
+- **Each browser tab now holds its own guild, taken from the URL.** You can keep two tabs open in two different guilds at once — they no longer fight over a single shared "active guild". The server-held `active_guild_id` (and its `PUT /users/me/guild-context` endpoint) is removed entirely; downloads, embedded media, and live connections all resolve their guild from the page URL. The recent-items tabs bar still spans every guild you belong to.
+- Notification emails and push messages are now sent in your language.
+- The mobile sidebar follows your finger when swiping it open or closed.
+- The assignee selector is now a searchable dropdown with checkboxes and avatar chips, matching the tag picker.
+- Slim, styled scrollbars in the sidebars and on the kanban board.
+- Transactional emails are easier to read: names and key details are bolded, and styling survives Gmail mobile.
+- Guild admins now have complete read/write access to every initiative's projects, documents, tasks, and comments in their guild, regardless of initiative membership or per-item permissions. In initiative member settings they appear in a collapsed "Guild admins" group (greyed out, can't be removed) and can be promoted to project manager, but are never assigned a standard member or custom role.
+
+### Fixed
+
+- Guild admins can again create and manage projects and documents in initiatives they don't explicitly belong to (such as a guild's default initiative) — the create and visibility checks now honor guild-admin access instead of requiring a per-initiative role.
+- My Tasks and Tasks I Created now sort correctly across guilds — tasks from every guild are merged and globally re-sorted by date window (Overdue, Today, This Week, This Month, Later) and due date, instead of being grouped guild-by-guild.
+- A batch of schema-per-guild fixes: property definitions, uploads and document downloads, account deletion/deactivation cleanup, OIDC role sync, cross-guild calendars, and the "added to initiative" notification all read and write the correct guild's data again.
+- The Initiative logo now displays in emails.
+- Corrected malformed stored defaults for tag and task-status colors and icons.
+- Spell-check dictionaries, Excalidraw whiteboard fonts, and the Swagger API docs page are no longer blocked by the Content-Security-Policy.
+- Opening the user or theme menu from the sidebar footer on mobile no longer collapses the sidebar.
+
+### Security
+
+- Restored initiative-level access checks lost in the schema-per-guild cutover — leftover permission rows no longer grant access after someone is removed from an initiative.
+- Email-bound guild invites can only be redeemed by the matching email address.
+- HTTPS deployments now send HSTS; API docs can be disabled in production (`ENABLE_API_DOCS`); SMTP test errors no longer leak mail server details.
+- Rate limiting now covers every route, and "return all rows" list requests are capped.
+- Device, email-verification, and password-reset tokens are hashed at rest; device tokens now expire after 90 days of inactivity.
+- Text fields are no longer HTML-encoded on save ("Foo & Bar" stays as typed) and are length-capped.
+- CORS no longer reflects arbitrary origins, and a Content-Security-Policy is sent on every response.
+- Validation errors no longer echo the submitted value (such as a password).
+- Links in documents are restricted to safe protocols, so a stored `javascript:` link renders inert.
+- Emails escape user-supplied names, so a display name can't inject a live link.
+- `SECRET_KEY` is validated at startup (no placeholders, minimum 32 characters).
+- CSV exports are protected against spreadsheet formula injection.
+- Real-time updates only deliver events for the guild you're connected to, and logging out or resetting a password closes websocket sessions and other logins too.
+- Upload hardening: size limits enforced while reading, 404 for files with no database record, short-lived scoped media tokens on native, and a cap on avatar size.
+- OIDC logins require a verified email before linking to an existing account, and guild admins can no longer assign platform roles when creating users.
+
 ## [0.50.2] - 2026-06-08
 
 ### Added

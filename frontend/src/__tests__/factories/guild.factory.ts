@@ -17,6 +17,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     position: counter - 1,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
+    member_count: 1,
     ...overrides,
   };
 }

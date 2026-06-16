@@ -1,0 +1,52 @@
+{
+  "detail": {
+    "notFound": "Tag nicht gefunden",
+    "notFoundDescription": "Dieser Tag wurde möglicherweise gelöscht oder du bist einem ungültigen Link gefolgt.",
+    "backToTags": "← Zurück zur Startseite",
+    "taggedItems_one": "{{count}} getaggtes Element",
+    "taggedItems_other": "{{count}} getaggte Elemente",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteTitle": "Tag löschen?",
+    "deleteDescription": "Der Tag \"{{name}}\" wird in den Papierkorb verschoben und in allen Aufgaben, Projekten und Dokumenten ausgeblendet, die ihn verwenden. Du kannst ihn unter Einstellungen → Papierkorb wiederherstellen, bevor die Aufbewahrungsfrist endet.",
+    "deleted": "Tag gelöscht",
+    "saving": "Wird gespeichert…",
+    "save": "Speichern",
+    "tasksTab": "Aufgaben ({{count}})",
+    "projectsTab": "Projekte ({{count}})",
+    "documentsTab": "Dokumente ({{count}})"
+  },
+
+  "picker": {
+    "defaultPlaceholder": "Tags hinzufügen...",
+    "createHeading": "Neuen Tag erstellen",
+    "namePlaceholder": "Tag-Name",
+    "creating": "Wird erstellt…",
+    "create": "Erstellen",
+    "searchPlaceholder": "Tags suchen oder erstellen...",
+    "loading": "Wird geladen…",
+    "existingTags": "Vorhandene Tags",
+    "noTagsFound": "Keine Tags gefunden.",
+    "createTag": "\"{{name}}\" erstellen",
+    "selected": "{{count}} ausgewählt"
+  },
+
+  "tree": {
+    "notTagged": "Nicht getaggt",
+    "collapse": "Einklappen",
+    "expand": "Ausklappen"
+  },
+
+  "badge": {
+    "remove": "Tag {{name}} entfernen"
+  },
+
+  "updated": "Tag aktualisiert.",
+  "deleted": "Tag gelöscht.",
+  "createError": "Tag kann nicht erstellt werden.",
+  "updateError": "Tag kann nicht aktualisiert werden.",
+  "deleteError": "Tag kann nicht gelöscht werden.",
+  "taskTagsError": "Aufgaben-Tags können nicht aktualisiert werden.",
+  "projectTagsError": "Projekt-Tags können nicht aktualisiert werden.",
+  "documentTagsError": "Dokument-Tags können nicht aktualisiert werden."
+}

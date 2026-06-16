@@ -70,7 +70,6 @@ export const AUTH_UNAUTHORIZED_EVENT = "initiative:auth:unauthorized";
 
 let authToken: string | null = null;
 let isDeviceToken = false;
-let activeGuildId: number | null = null;
 // Tracks whether we currently believe a user session is active. On web the
 // in-memory authToken is never set after a page reload (cookie auth is
 // HttpOnly, so there's nothing for JS to restore). The 401 interceptor used
@@ -90,12 +89,6 @@ export const setAuthToken = (token: string | null, deviceToken = false) => {
 };
 
 export const getAuthToken = (): string | null => authToken;
-
-export const setCurrentGuildId = (guildId: number | null) => {
-  activeGuildId = guildId;
-};
-
-export const getCurrentGuildId = () => activeGuildId;
 
 export const setHasActiveSession = (value: boolean) => {
   hasActiveSession = value;
@@ -137,15 +130,6 @@ apiClient.interceptors.request.use((config) => {
     const scheme = isDeviceToken ? "DeviceToken" : "Bearer";
     config.headers.Authorization = `${scheme} ${authToken}`;
   }
-  if (activeGuildId !== null) {
-    config.headers = config.headers ?? {};
-    const hasCustomGuildHeader = Object.keys(config.headers).some(
-      (key) => key.toLowerCase() === "x-guild-id"
-    );
-    if (!hasCustomGuildHeader) {
-      config.headers["X-Guild-ID"] = String(activeGuildId);
-    }
-  }
   return config;
 });
 
@@ -155,12 +139,12 @@ const emitUnauthorized = () => {
   }
 };
 
-apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401 && hasActiveSession) {
-      emitUnauthorized();
-    }
-    return Promise.reject(error);
+// Guild context lives in the request URL (/g/{guildId}/…), per tab — there is
+// no ambient guild context to guard a response against, so the only response
+// concern left is surfacing an expired session.
+apiClient.interceptors.response.use(undefined, (error) => {
+  if (error.response?.status === 401 && hasActiveSession) {
+    emitUnauthorized();
   }
-);
+  return Promise.reject(error);
+});

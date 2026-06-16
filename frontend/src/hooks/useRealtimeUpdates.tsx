@@ -1,3 +1,4 @@
+import { useParams } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 import { API_BASE_URL } from "@/api/client";
@@ -17,7 +18,7 @@ import { useAuth } from "./useAuth";
 // Message type for authentication (must match backend)
 const MSG_AUTH = 5;
 
-const buildWebsocketUrl = () => {
+const buildWebsocketUrl = (guildId: number) => {
   if (typeof window === "undefined") {
     return null;
   }
@@ -32,20 +33,25 @@ const buildWebsocketUrl = () => {
       : base.pathname || "/api/v1";
 
     base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
-    base.pathname = `${normalizedPath}/events/updates`;
+    base.pathname = `${normalizedPath}/g/${guildId}/events/updates`;
     base.search = "";
     base.hash = "";
     // Token is sent via MSG_AUTH message, not URL params (for security)
     return base.toString();
   } catch {
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    return `${protocol}://${window.location.host}/api/v1/events/updates`;
+    return `${protocol}://${window.location.host}/api/v1/g/${guildId}/events/updates`;
   }
 };
 
 /**
  * Send authentication message over WebSocket.
  * Must be sent immediately after connection opens.
+ *
+ * The socket is scoped server-side to the user's server-held guild context
+ * (the backend only streams that guild's events), so the payload carries the
+ * token only. The hook reconnects on guild switch — after the context PUT —
+ * so the subscription always tracks the active guild.
  */
 const sendAuthMessage = (websocket: WebSocket, token: string | null) => {
   const payload = JSON.stringify({ token });
@@ -89,12 +95,20 @@ const handleCommentEvent = (data?: Record<string, unknown>) => {
 
 export const useRealtimeUpdates = () => {
   const { token, user, logout } = useAuth();
+  // Key the socket off THIS tab's URL guild (the /g/{guildId} route param), so
+  // each tab streams its own guild. On personal routes (/, /me/*) there's no
+  // param → null → no socket. The backend authorizes the socket from the same
+  // path segment, so the URL is the single source of truth.
+  const params = useParams({ strict: false }) as { guildId?: string };
+  const routeGuildId = params.guildId ? Number(params.guildId) : null;
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const authFailureCountRef = useRef<number>(0);
 
   useEffect(() => {
-    if (!user) {
+    // The socket is scoped to a single guild — in personal mode there's
+    // nothing to subscribe to, and the backend would reject the auth payload.
+    if (!user || routeGuildId === null) {
       if (websocketRef.current) {
         websocketRef.current.close();
         websocketRef.current = null;
@@ -106,6 +120,9 @@ export const useRealtimeUpdates = () => {
       authFailureCountRef.current = 0;
       return;
     }
+    // routeGuildId is non-null past the guard; capture for the /g/{guildId}
+    // websocket path used in the connect() closure below.
+    const guildId = routeGuildId;
 
     let isActive = true;
 
@@ -123,7 +140,7 @@ export const useRealtimeUpdates = () => {
       if (!isActive) {
         return;
       }
-      const wsUrl = buildWebsocketUrl();
+      const wsUrl = buildWebsocketUrl(guildId);
       if (!wsUrl) {
         scheduleReconnect();
         return;
@@ -133,7 +150,8 @@ export const useRealtimeUpdates = () => {
       websocketRef.current = websocket;
 
       websocket.onopen = () => {
-        // Send auth message immediately after connection (token not in URL for security)
+        // Send auth message immediately after connection (token not in URL for
+        // security). The guild id scopes the stream to the active guild.
         sendAuthMessage(websocket, token);
         // Reset failure count on successful connection
         authFailureCountRef.current = 0;
@@ -201,5 +219,5 @@ export const useRealtimeUpdates = () => {
         websocketRef.current = null;
       }
     };
-  }, [token, user, logout]);
+  }, [token, user, routeGuildId, logout]);
 };

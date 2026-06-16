@@ -1,10 +1,10 @@
 import { createFileRoute, lazyRouteComponent } from "@tanstack/react-router";
 
 import {
-  getGetTagApiV1TagsTagIdGetQueryKey,
-  getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryKey,
-  getTagApiV1TagsTagIdGet,
-  getTagEntitiesApiV1TagsTagIdEntitiesGet,
+  getGetTagApiV1GGuildIdTagsTagIdGetQueryKey,
+  getGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryKey,
+  getTagApiV1GGuildIdTagsTagIdGet,
+  getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet,
 } from "@/api/generated/tags/tags";
 
 type TagDetailSearchParams = {
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
           : undefined,
   }),
   loader: async ({ context, params }) => {
+    const guildId = Number(params.guildId);
     const tagId = Number(params.tagId);
     const { queryClient } = context;
 
@@ -28,13 +29,13 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId
     try {
       await Promise.all([
         queryClient.ensureQueryData({
-          queryKey: getGetTagApiV1TagsTagIdGetQueryKey(tagId),
-          queryFn: () => getTagApiV1TagsTagIdGet(tagId),
+          queryKey: getGetTagApiV1GGuildIdTagsTagIdGetQueryKey(guildId, tagId),
+          queryFn: () => getTagApiV1GGuildIdTagsTagIdGet(guildId, tagId),
           staleTime: 60_000,
         }),
         queryClient.ensureQueryData({
-          queryKey: getGetTagEntitiesApiV1TagsTagIdEntitiesGetQueryKey(tagId),
-          queryFn: () => getTagEntitiesApiV1TagsTagIdEntitiesGet(tagId),
+          queryKey: getGetTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGetQueryKey(guildId, tagId),
+          queryFn: () => getTagEntitiesApiV1GGuildIdTagsTagIdEntitiesGet(guildId, tagId),
           staleTime: 30_000,
         }),
       ]);

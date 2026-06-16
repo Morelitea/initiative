@@ -172,13 +172,17 @@ export const useAdminDeleteGuild = (options?: MutationOpts<void, number>) => {
  * user is the sole project manager of an initiative with no other
  * members the admin can promote in their place.
  */
-export const useAdminDeleteInitiative = (options?: MutationOpts<void, number>) => {
+export const useAdminDeleteInitiative = (
+  options?: MutationOpts<void, { initiativeId: number; guildId: number }>
+) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (initiativeId: number) => {
-      await adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(initiativeId);
+    mutationFn: async ({ initiativeId, guildId }: { initiativeId: number; guildId: number }) => {
+      await adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete(initiativeId, {
+        guild_id: guildId,
+      });
     },
     onSuccess: (...args) => {
       void invalidateAdminUsers();
@@ -193,17 +197,26 @@ export const useAdminDeleteInitiative = (options?: MutationOpts<void, number>) =
 
 /** Promote an initiative member to project manager (admin only). */
 export const useAdminPromoteInitiativeMember = (
-  options?: MutationOpts<void, { initiativeId: number; userId: number }>
+  options?: MutationOpts<void, { initiativeId: number; userId: number; guildId: number }>
 ) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async ({ initiativeId, userId }: { initiativeId: number; userId: number }) => {
+    mutationFn: async ({
+      initiativeId,
+      userId,
+      guildId,
+    }: {
+      initiativeId: number;
+      userId: number;
+      guildId: number;
+    }) => {
       await adminUpdateInitiativeMemberRoleApiV1AdminInitiativesInitiativeIdMembersUserIdRolePatch(
         initiativeId,
         userId,
-        { role: "project_manager" }
+        { role: "project_manager" },
+        { guild_id: guildId }
       );
     },
     onSuccess: (...args) => {

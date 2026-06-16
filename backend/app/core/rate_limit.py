@@ -28,5 +28,26 @@ def get_real_client_ip(request: Request) -> str:
     return get_remote_address(request)
 
 
-# Shared limiter instance - import this in endpoints
-limiter = Limiter(key_func=get_real_client_ip, default_limits=["100/minute"])
+def _default_limits() -> list[str]:
+    """Build the global default-limit list from settings.
+
+    ``RATE_LIMIT_DEFAULT`` is a slowapi/limits string (e.g. ``"100/minute"``);
+    an empty/whitespace value disables the global default entirely. We must NOT
+    pass an empty string into ``Limiter`` — slowapi eagerly parses each entry and
+    ``""`` raises ``ValueError`` — so an unset value yields an empty list, which
+    slowapi treats as "no default limit". Per-route ``@limiter.limit(...)``
+    decorators are unaffected either way.
+    """
+    raw = settings.RATE_LIMIT_DEFAULT.strip()
+    return [raw] if raw else []
+
+
+# Shared limiter instance - import this in endpoints. The default limit and the
+# counter storage backend are both settings-driven so a multi-worker deployment
+# can point at Redis (RATE_LIMIT_STORAGE_URI) or relax/disable the global default
+# (RATE_LIMIT_DEFAULT) with no code change.
+limiter = Limiter(
+    key_func=get_real_client_ip,
+    default_limits=_default_limits(),
+    storage_uri=settings.RATE_LIMIT_STORAGE_URI,
+)

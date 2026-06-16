@@ -75,7 +75,6 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/created-ta
       { field: "due_date", dir: "asc" },
     ];
     const params: Record<string, string | number> = {
-      scope: "global_created",
       page: 1,
       page_size: PAGE_SIZE,
       sorting: JSON.stringify(defaultSorting),
@@ -86,8 +85,8 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/created-ta
       await queryClient.ensureQueryData({
         queryKey: [
           "tasks",
-          "global",
-          "global_created",
+          "me",
+          "created",
           statusFilters,
           priorityFilters,
           guildFilters,
@@ -95,7 +94,7 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/created-ta
           PAGE_SIZE,
           "date_group+due_date",
         ],
-        queryFn: () => apiClient.get("/tasks/", { params }).then((r) => r.data),
+        queryFn: () => apiClient.get("/me/tasks/created", { params }).then((r) => r.data),
         staleTime: 30_000,
       });
     } catch {
@@ -103,6 +102,6 @@ export const Route = createFileRoute("/_serverRequired/_authenticated/created-ta
     }
   },
   component: lazyRouteComponent(() =>
-    import("@/pages/CreatedTasksPage").then((m) => ({ default: m.CreatedTasksPage }))
+    import("@/pages/user/MyCreatedTasksPage").then((m) => ({ default: m.MyCreatedTasksPage }))
   ),
 });

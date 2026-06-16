@@ -29,11 +29,17 @@ LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.title="Initiative"
 LABEL org.opencontainers.image.description="Initiative project management application"
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+# uv binary (pinned) for native, lockfile-based dependency installs
+COPY --from=ghcr.io/astral-sh/uv:0.11.21 /uv /uvx /bin/
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-system
 WORKDIR /app
-COPY backend/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+# Install dependencies first as a cached layer keyed on the lockfile (no app source needed —
+# this is a package=false project). --no-dev keeps test/lint tooling out of the runtime image.
+COPY backend/pyproject.toml backend/uv.lock backend/.python-version ./
+RUN uv sync --frozen --no-dev
 COPY backend/ .
+# Put the synced venv on PATH so uvicorn/alembic/python resolve to it (start.sh/entrypoint.sh unchanged).
+ENV PATH="/app/.venv/bin:$PATH"
 COPY VERSION ./VERSION
 COPY MIN_NATIVE_VERSION ./MIN_NATIVE_VERSION
 COPY CHANGELOG.md ./CHANGELOG.md

@@ -57,7 +57,11 @@ def _add_months(source: datetime, months: int) -> tuple[int, int]:
 def _nth_weekday_of_month(year: int, month: int, weekday: int, position: str) -> int:
     offset = WEEK_POSITION_TO_OFFSET.get(position, 0)
     _, days_in_month = monthrange(year, month)
-    matches = [day for day in range(1, days_in_month + 1) if datetime(year, month, day).weekday() == weekday]
+    matches = [
+        day
+        for day in range(1, days_in_month + 1)
+        if datetime(year, month, day).weekday() == weekday
+    ]
     if not matches:
         return 1
     if position == "last":
@@ -69,7 +73,9 @@ def _nth_weekday_of_month(year: int, month: int, weekday: int, position: str) ->
 
 def _next_weekly_date(base: datetime, recurrence: TaskRecurrence) -> datetime:
     weekdays = recurrence.weekdays or [WEEKDAY_NAMES[base.weekday()]]
-    weekday_indexes = sorted(WEEKDAY_TO_INDEX.get(day, base.weekday()) for day in weekdays)
+    weekday_indexes = sorted(
+        WEEKDAY_TO_INDEX.get(day, base.weekday()) for day in weekdays
+    )
 
     # For weekly recurrence, we assume the base date is already on one of the target weekdays
     # (as determined by the frontend in the user's timezone). We simply add the interval in weeks.
@@ -126,7 +132,9 @@ def _next_yearly_date(base: datetime, recurrence: TaskRecurrence) -> datetime:
         weekday_position = recurrence.weekday_position or "first"
         weekday_value = recurrence.weekday or "monday"
         weekday_index = WEEKDAY_TO_INDEX.get(weekday_value, 0)
-        target_day = _nth_weekday_of_month(target_year, target_month, weekday_index, weekday_position)
+        target_day = _nth_weekday_of_month(
+            target_year, target_month, weekday_index, weekday_position
+        )
     else:
         # If day_of_month is specified, use it and account for timezone offset
         if recurrence.day_of_month:

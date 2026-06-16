@@ -5,7 +5,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
-from app.schemas.base import RichTextStr, SanitizedBaseModel
+from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
 from app.models.guild import GuildRole
 from app.schemas.user import GuildRemovalProjectInfo
@@ -14,7 +14,7 @@ from app.schemas.user import GuildRemovalProjectInfo
 class GuildBase(SanitizedBaseModel):
     name: str
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[str] = None
+    icon_base64: Optional[RawTextStr] = None
 
 
 class GuildCreate(GuildBase):
@@ -22,7 +22,9 @@ class GuildCreate(GuildBase):
 
 
 class GuildRead(GuildBase):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     role: GuildRole
@@ -30,6 +32,7 @@ class GuildRead(GuildBase):
     created_at: datetime
     updated_at: datetime
     retention_days: Optional[int] = None
+    member_count: int = 0
 
 
 class GuildInviteCreate(SanitizedBaseModel):
@@ -39,7 +42,9 @@ class GuildInviteCreate(SanitizedBaseModel):
 
 
 class GuildInviteRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     code: str
@@ -72,7 +77,7 @@ class GuildInviteStatus(SanitizedBaseModel):
 class GuildUpdate(SanitizedBaseModel):
     name: Optional[str] = None
     description: Optional[RichTextStr] = None
-    icon_base64: Optional[str] = None
+    icon_base64: Optional[RawTextStr] = None
     # Trash retention period in days. None means "never auto-purge".
     # Sentinel "unset" semantics: explicitly omit the field to leave the
     # current setting untouched; set null to switch to never-purge.
@@ -92,7 +97,8 @@ class GuildDeletionRequest(SanitizedBaseModel):
       OIDC-only users (who have no usable password), mirroring the
       account-deletion endpoint, which is why it defaults to empty.
     """
-    password: str = ""
+
+    password: RawTextStr = ""
     confirmation_text: str
 
 
@@ -102,15 +108,18 @@ class GuildOrderUpdate(SanitizedBaseModel):
 
 
 class GuildSummary(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True, json_schema_serialization_defaults_required=True)
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
 
     id: int
     name: str
-    icon_base64: Optional[str] = None
+    icon_base64: Optional[RawTextStr] = None
 
 
 class GuildMembershipUpdate(SanitizedBaseModel):
     """Schema for updating a user's guild membership role."""
+
     role: GuildRole
 
 
@@ -126,6 +135,7 @@ class LeaveGuildEligibilityResponse(SanitizedBaseModel):
     endpoint requires a transfer-or-delete disposition for each entry
     on this list before it will proceed.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     can_leave: bool
@@ -145,6 +155,7 @@ class LeaveGuildRequest(SanitizedBaseModel):
     nothing; rejected by the endpoint with
     ``CANNOT_LEAVE_OWNS_PROJECTS`` otherwise.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     project_transfers: dict[int, int] = Field(default_factory=dict)

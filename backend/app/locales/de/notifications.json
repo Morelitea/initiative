@@ -1,0 +1,94 @@
+{
+  "task": {
+    "assignment": {
+      "title": "Neue Aufgabenzuweisung",
+      "body": "{{title}} in {{project}}"
+    }
+  },
+  "initiative": {
+    "added": {
+      "title": "Zur Initiative hinzugefügt",
+      "body": "Du wurdest zu {{initiative}} hinzugefügt"
+    }
+  },
+  "project": {
+    "added": {
+      "title": "Neues Projekt hinzugefügt",
+      "body": "{{project}} in {{initiative}}"
+    }
+  },
+  "mention": {
+    "document": {
+      "title": "Du wurdest erwähnt",
+      "body": "{{actor}} hat dich in {{document}} erwähnt"
+    },
+    "comment": {
+      "title": "Du wurdest erwähnt",
+      "body": "{{actor}} hat dich in einem Kommentar zu {{context}} erwähnt"
+    },
+    "task": {
+      "title": "Deine Aufgabe wurde erwähnt",
+      "body": "{{actor}} hat {{task}} in {{context}} erwähnt"
+    }
+  },
+  "comment": {
+    "onTask": {
+      "title": "Neuer Kommentar zu deiner Aufgabe",
+      "body": "{{actor}} hat {{task}} kommentiert"
+    },
+    "onDocument": {
+      "title": "Neuer Kommentar zu deinem Dokument",
+      "body": "{{actor}} hat {{document}} kommentiert"
+    },
+    "reply": {
+      "title": "Antwort auf deinen Kommentar",
+      "body": "{{actor}} hat auf deinen Kommentar zu {{context}} geantwortet"
+    }
+  },
+  "event": {
+    "invitation": {
+      "title": "Neue Termineinladung",
+      "body": "{{event}} ({{when}})"
+    },
+    "rescheduled": {
+      "title": "Termin verschoben",
+      "body": "{{event}} ({{when}})"
+    },
+    "updated": {
+      "title": "Termin aktualisiert",
+      "body": "{{event}} ({{when}})"
+    },
+    "cancelled": {
+      "title": "Termin abgesagt",
+      "body": "{{event}} ({{when}})"
+    },
+    "rsvp": {
+      "title": "Teilnahme-Update",
+      "body": "{{responder}} hat mit {{status}} auf {{event}} geantwortet"
+    },
+    "reminder": {
+      "title": "Anstehender Termin",
+      "body": "{{event}} ({{when}})"
+    }
+  },
+  "accessGrant": {
+    "levelRead": "Lesezugriff",
+    "levelReadWrite": "Lese- und Schreibzugriff",
+    "requested": {
+      "title": "Neue Zugriffsanfrage",
+      "body": "{{requester}} hat {{level}} auf {{guild}} angefragt"
+    },
+    "approved": {
+      "title": "Zugriff genehmigt",
+      "body": "Dein {{level}} auf {{guild}} wurde genehmigt"
+    },
+    "denied": {
+      "title": "Zugriffsanfrage abgelehnt",
+      "body": "Deine Zugriffsanfrage für {{guild}} wurde abgelehnt"
+    },
+    "revoked": {
+      "title": "Zugriff entzogen",
+      "body": "Dein Zugriff auf {{guild}} wurde entzogen"
+    }
+  }
+}

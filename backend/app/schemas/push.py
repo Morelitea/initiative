@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import ConfigDict, Field
 
-from app.schemas.base import SanitizedBaseModel
+from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 
 class PushTokenRegisterRequest(SanitizedBaseModel):
@@ -21,6 +21,7 @@ class PushTokenUnregisterRequest(SanitizedBaseModel):
 
 class PushTokenResponse(SanitizedBaseModel):
     """Generic response for push token operations."""
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     status: str
@@ -32,10 +33,11 @@ class FCMConfigResponse(SanitizedBaseModel):
     Only exposes public fields (API key, project ID, sender ID).
     Does NOT expose service account credentials.
     """
+
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
     enabled: bool
     project_id: Optional[str] = None
     application_id: Optional[str] = None
-    api_key: Optional[str] = None
+    api_key: Optional[RawTextStr] = None
     sender_id: Optional[str] = None
