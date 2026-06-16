@@ -60,6 +60,9 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # guild provisioning (apply_guild_rls references it) for every guild, so
         # there is no safe rollback past this point — roll forward only.
         "20260616_0110",
+        # drop legacy is_initiative_member: reviving a dead, search_path-broken
+        # second access rule has no value — roll forward only.
+        "20260616_0111",
     }
 )
 
@@ -365,16 +368,17 @@ class TestMigrationsAgainstDatabase:
         head = script.get_current_head()
 
         # The reversible walk normally starts at the head. But when the head
-        # itself is intentionally irreversible (its own ``downgrade()``
-        # raises), we can't descend through it — so anchor the walk at the
-        # highest reversible revision (the head's parent) instead. Every
-        # reachable reversible downgrade below the boundary still runs; the
-        # head's own upgrade is covered by the TestMostRecentRevision tests.
+        # (or a run of revisions below it) is intentionally irreversible — its
+        # own ``downgrade()`` raises — we can't descend through it, so anchor
+        # the walk at the highest reversible revision by stepping down past
+        # every irreversible one at the top. Every reachable reversible
+        # downgrade below the boundary still runs; the irreversible heads' own
+        # upgrades are covered by the TestMostRecentRevision tests.
         anchor = head
-        if head in INTENTIONALLY_IRREVERSIBLE:
-            parent = script.get_revision(head).down_revision
+        while anchor in INTENTIONALLY_IRREVERSIBLE:
+            parent = script.get_revision(anchor).down_revision
             assert isinstance(parent, str) and parent, (
-                f"Irreversible head {head!r} needs a single parent to anchor "
+                f"Irreversible revision {anchor!r} needs a single parent to anchor "
                 f"the reversible walk; got down_revision={parent!r}."
             )
             anchor = parent

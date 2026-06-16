@@ -12,6 +12,7 @@ from typing import Awaitable, Callable, Optional, Sequence, TypeVar
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.role_context import set_active_role
 from app.db.session import set_rls_context
 from app.models.guild import GuildMembership
 
@@ -46,13 +47,46 @@ async def gather_across_guilds(
 ) -> list[T]:
     """Route into each guild's schema, call ``fetch(session, guild_id)``, and
     concatenate the results. The identity map is expunged between guilds because
-    ids are unique only within a schema, not across them."""
+    ids are unique only within a schema, not across them.
+
+    Each guild is routed with the user's actual membership ROLE, so a guild admin
+    clears ``initiative_access``'s admin leg and gets default access to ALL of
+    that guild's content — exactly like a ``/g/{guild_id}`` request. Without the
+    role the admin leg never fires and these cross-guild views would hide content
+    in initiatives the user isn't a *member* of (e.g. a task assigned to an admin
+    who was never added to its initiative)."""
+    if not guild_ids:
+        return []
+    # One shared-table read for every guild's role (own rows), under the
+    # user-only context, before we start routing into schemas.
+    await set_rls_context(session, user_id=user_id)
+    role_rows = await session.exec(
+        select(GuildMembership.guild_id, GuildMembership.role).where(
+            GuildMembership.user_id == user_id,
+            GuildMembership.guild_id.in_(tuple(guild_ids)),
+        )
+    )
+    roles = {guild_id: role for guild_id, role in role_rows}
+
     results: list[T] = []
-    for guild_id in guild_ids:
-        # Expunge BEFORE each guild: a cached object with this schema's id (from a
-        # prior guild, or anything already on the session) would otherwise be
-        # returned by the identity map instead of this guild's row.
-        session.expunge_all()
-        await set_rls_context(session, user_id=user_id, guild_id=guild_id)
-        results.extend(await fetch(session, guild_id))
+    try:
+        for guild_id in guild_ids:
+            # Expunge BEFORE each guild: a cached object with this schema's id (from
+            # a prior guild, or anything already on the session) would otherwise be
+            # returned by the identity map instead of this guild's row.
+            session.expunge_all()
+            role = roles.get(guild_id)
+            role_value = role.value if role is not None else None
+            await set_rls_context(
+                session, user_id=user_id, guild_id=guild_id, guild_role=role_value
+            )
+            # Mirror the guild dependency: the DB GUC drives RLS (initiative_access
+            # admin leg), and the request role_context drives the *app-layer*
+            # guild-admin short-circuit in permissions.py (so my_permission_level /
+            # require_*_access see the admin as owner when fetch() serializes here).
+            set_active_role(guild_id, role_value)
+            results.extend(await fetch(session, guild_id))
+    finally:
+        # Don't let the last guild's role linger in the request contextvar.
+        set_active_role(None, None)
     return results
