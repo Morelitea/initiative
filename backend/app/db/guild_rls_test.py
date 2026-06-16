@@ -46,6 +46,30 @@ def test_guild_rls_sql_is_current():
 
 
 @pytest.mark.database
+async def test_initiative_access_is_the_only_access_function(engine):
+    """One source of truth: the legacy ``is_initiative_member`` access rule must
+    be gone (dropped in migration 0111), and ``initiative_access`` must exist."""
+    async with engine.connect() as conn:
+        legacy = (
+            await conn.execute(
+                text(
+                    "SELECT count(*) FROM pg_proc WHERE proname = 'is_initiative_member'"
+                )
+            )
+        ).scalar()
+        current = (
+            await conn.execute(
+                text("SELECT count(*) FROM pg_proc WHERE proname = 'initiative_access'")
+            )
+        ).scalar()
+    assert legacy == 0, (
+        "public.is_initiative_member still exists — initiative_access is meant to "
+        "be the single initiative access rule (see migration 0111)."
+    )
+    assert current >= 1, "public.initiative_access is missing."
+
+
+@pytest.mark.database
 async def test_every_initiative_scoped_table_has_policies(engine):
     """Provision a real guild schema and verify the policy invariant per table."""
     schema = guild_schema_name(_GID_POLICIES)
