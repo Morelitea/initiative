@@ -398,8 +398,9 @@ export const useRestoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePos
  * which admits guild admins via the canonical roster from 0108), so the guild
  * role itself does the hard delete. ``_load_trash_entity`` 404s unless the entity
  * is in THIS guild's trash (and still soft-deleted) — that is the authorization
- * boundary, and doing the delete on the same routed session closes the
- * cross-session TOCTOU window the old two-session design had to guard.
+ * boundary — and ``for_update=True`` locks the row so a concurrent restore can't
+ * slip in between the ``deleted_at`` check and the delete (which would otherwise
+ * permanently remove a just-restored live row).
  * @summary Purge Trash Entity
  */
 export const purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete = (
