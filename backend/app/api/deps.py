@@ -483,11 +483,19 @@ async def get_user_session(
 
     For cross-guild operations like guild creation, listing user's guilds,
     or accepting invites where no specific guild context is needed.
+
+    This is the authenticated *public/platform* path: it carries no guild
+    context, so the session assumes the caller's platform-tier role
+    (``platform_<users.role>``) rather than the broad login role — the request
+    is role-scoped at the database and fails closed if a downstream query forgets
+    to route. Guild-addressed work uses ``get_guild_session`` instead, which
+    ``SET ROLE``s into the guild role.
     """
     await set_rls_context(
         session,
         user_id=current_user.id,
         is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
+        platform_role=current_user.role.value,
     )
     return session
 

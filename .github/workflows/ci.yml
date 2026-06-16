@@ -151,7 +151,7 @@ jobs:
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          uv run python -m pytest ${{ steps.changes.outputs.scope }} -v --tb=short
+          uv run python -m pytest ${{ steps.changes.outputs.scope }} -n auto --tb=short
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests

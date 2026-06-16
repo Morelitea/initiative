@@ -369,6 +369,14 @@ class Settings(BaseSettings):
     # (test_guild_<id>) are distinct; schemas are per-database and stay unprefixed.
     GUILD_ROLE_PREFIX: str = ""
 
+    # Prefix for the platform-ladder Postgres ROLE names (platform_member …
+    # platform_owner + platform_base). Like the guild roles these are
+    # cluster-global, so the suite sets this to "test_" (test_platform_<tier>) to
+    # avoid colliding with a co-located dev DB's unprefixed platform roles. The
+    # creating migration and the routing role-name helper read the SAME setting,
+    # so a SET ROLE always targets the role the migration actually created.
+    PLATFORM_ROLE_PREFIX: str = ""
+
     # Privileged Access Management (PAM): time-bound, per-guild access grants.
     PAM_DEFAULT_DURATION_MINUTES: int = 240  # 4 hours
     PAM_MAX_DURATION_MINUTES: int = 1440  # 24 hours (absolute ceiling on any grant)

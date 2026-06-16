@@ -99,6 +99,7 @@ async def set_rls_context(
     pam_guild_id: Optional[int] = None,
     pam_read: bool = False,
     pam_write: bool = False,
+    platform_role: Optional[str] = None,
 ) -> None:
     """Set PostgreSQL session variables for RLS policy evaluation.
 
@@ -120,10 +121,24 @@ async def set_rls_context(
     unset and be scoped via ``pam_guild_id`` instead. PAM access is distinct
     from ``is_superadmin`` (all-guild bypass): a grantee gets scoped access,
     not god-mode.
+
+    ``platform_role`` is the caller's platform tier (``users.role``). When the
+    request carries no guild context (and no active PAM grant), the public/platform
+    path assumes ``platform_<tier>`` instead of the bare login role, so the request
+    is role-scoped at the database (fail-closed) rather than running with the login
+    role's broad standing grants. It is ignored when the request routes into a guild
+    schema (the guild role governs there).
     """
     _VALID_ROLES = {"admin", "member"}
     if guild_role is not None and guild_role not in _VALID_ROLES:
         raise ValueError(f"Invalid guild_role: {guild_role!r}")
+    # Validate the tier before it reaches the SET ROLE name sink. The value comes
+    # from the ``users.role`` enum, but treat the privileged role-name injection
+    # point as untrusted: reject anything not on the known ladder.
+    from app.db.schema_provisioning import PLATFORM_TIERS
+
+    if platform_role is not None and platform_role not in PLATFORM_TIERS:
+        raise ValueError(f"Invalid platform_role: {platform_role!r}")
 
     # Store params on the session so reapply_rls_context() can re-set them
     # after session.commit() which may release the connection to the pool.
@@ -135,6 +150,7 @@ async def set_rls_context(
         "pam_guild_id": pam_guild_id,
         "pam_read": pam_read,
         "pam_write": pam_write,
+        "platform_role": platform_role,
     }
 
     # Use set_config() (a regular SQL function) instead of SET commands.
@@ -166,6 +182,7 @@ async def set_rls_context(
         guild_readonly_role_name,
         guild_role_name,
         guild_schema_name,
+        platform_role_name,
     )
 
     pam_active = pam_read or pam_write
@@ -173,7 +190,15 @@ async def set_rls_context(
         guild_id if guild_id is not None else (pam_guild_id if pam_active else None)
     )
     if route_guild is None:
-        sp, role_target = "public", "none"
+        # Public/platform path: no guild schema involved. Assume the caller's
+        # platform-tier role when one is supplied so the request is role-scoped
+        # (fail-closed) instead of running with the bare login role's broad
+        # grants; 'none' (the login role) only for unauthenticated/unrouted
+        # contexts that pass no tier.
+        sp = "public"
+        role_target = (
+            platform_role_name(platform_role) if platform_role is not None else "none"
+        )
     else:
         sp = f"{guild_schema_name(route_guild)}, public"
         # A pure read grant (read, not write, no full membership) assumes the
