@@ -133,6 +133,23 @@ def recent_views_path() -> PathBuilder:
     return build
 
 
+def document_links_path() -> PathBuilder:
+    """A link must clear initiative access on BOTH endpoints. With only the
+    source checked, a write-member of one initiative could point
+    ``target_document_id`` at a document in an initiative they can't reach (and
+    on read a cross-initiative link would leak the other side's existence)."""
+
+    def _leg(fk: str, t: str, w: bool) -> str:
+        return (
+            f"EXISTS (SELECT 1 FROM documents WHERE documents.id = {t}.{fk} "
+            f"AND {_access('documents.initiative_id', w)})"
+        )
+
+    return lambda t, w: (
+        f"({_leg('source_document_id', t, w)} AND {_leg('target_document_id', t, w)})"
+    )
+
+
 # table -> how its rows resolve an initiative for initiative_access(...).
 # MUST cover exactly INITIATIVE_SCOPED_TABLES (asserted below).
 INITIATIVE_PATHS: dict[str, PathBuilder] = {
@@ -153,7 +170,7 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "document_tags": via("documents", "document_id"),
     "document_permissions": via("documents", "document_id"),
     "document_file_versions": via("documents", "document_id"),
-    "document_links": via("documents", "source_document_id"),
+    "document_links": document_links_path(),
     # One hop -> initiative_roles (role-based ACL rows)
     "project_role_permissions": via("initiative_roles", "initiative_role_id"),
     "document_role_permissions": via("initiative_roles", "initiative_role_id"),
@@ -200,25 +217,30 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
 }
 
 # --- Hard enforcement: the registry must mirror the classification ----------
+# Plain raises (not asserts): these guard real invariants and must survive
+# ``python -O``, which strips assert statements.
 _missing = INITIATIVE_SCOPED_TABLES - INITIATIVE_PATHS.keys()
 _stale = INITIATIVE_PATHS.keys() - INITIATIVE_SCOPED_TABLES
-assert not _missing, (
-    f"INITIATIVE_SCOPED_TABLES has tables with no RLS path in gen_guild_rls.py: "
-    f"{sorted(_missing)}. Add a path (or move the table to GUILD_LEVEL_TABLES)."
-)
-assert not _stale, (
-    f"gen_guild_rls.py has paths for non-initiative-scoped tables: {sorted(_stale)}. "
-    f"Remove them (or add the table to INITIATIVE_SCOPED_TABLES)."
-)
+if _missing:
+    raise RuntimeError(
+        f"INITIATIVE_SCOPED_TABLES has tables with no RLS path in gen_guild_rls.py: "
+        f"{sorted(_missing)}. Add a path (or move the table to GUILD_LEVEL_TABLES)."
+    )
+if _stale:
+    raise RuntimeError(
+        f"gen_guild_rls.py has paths for non-initiative-scoped tables: {sorted(_stale)}. "
+        f"Remove them (or add the table to INITIATIVE_SCOPED_TABLES)."
+    )
 
 # recent_views' polymorphic path must cover every entity type the app records.
 from app.models.recent_view import RECENT_ENTITY_TYPES  # noqa: E402
 
 _uncovered = set(RECENT_ENTITY_TYPES) - _RECENT_ENTITY_TABLES.keys()
-assert not _uncovered, (
-    f"recent_views_path() is missing initiative joins for entity types "
-    f"{sorted(_uncovered)} — add them to _RECENT_ENTITY_TABLES."
-)
+if _uncovered:
+    raise RuntimeError(
+        f"recent_views_path() is missing initiative joins for entity types "
+        f"{sorted(_uncovered)} — add them to _RECENT_ENTITY_TABLES."
+    )
 
 
 _HEADER = """\
