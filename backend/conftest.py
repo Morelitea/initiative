@@ -9,9 +9,7 @@ This module provides the core testing infrastructure including:
 """
 
 import asyncio
-import fcntl
 import os
-import tempfile
 from collections.abc import AsyncGenerator
 from contextlib import suppress
 from pathlib import Path
@@ -94,8 +92,12 @@ async def _ensure_test_database() -> None:
                 return
             except asyncpg.DuplicateDatabaseError:
                 return  # another worker won the race; that's fine
-            except asyncpg.PostgresError:
-                await asyncio.sleep(0.5)  # template locked by a peer; retry
+            except asyncpg.ObjectInUseError:
+                # The ONLY expected transient error: template1 is momentarily
+                # locked by a peer's CREATE DATABASE. Retry. Any other PostgresError
+                # (auth, permissions, bad config) is real — let it propagate rather
+                # than spin 12x and mask it behind a generic RuntimeError.
+                await asyncio.sleep(0.5)
         raise RuntimeError(f"could not create test database {TEST_DB_NAME!r}")
     finally:
         await conn.close()
@@ -121,33 +123,61 @@ async def _set_db_statement_timeout() -> None:
         await conn.close()
 
 
-# Cross-process lock serializing migrations across xdist workers. The migrations
-# touch SHARED cluster-global roles (app_user/app_admin/app_guild_base + GRANTs),
-# so concurrent runs collide with "tuple concurrently updated" on the shared pg
-# catalog. Workers migrate one at a time under this lock — each still migrates its
-# OWN per-worker DB; only the shared role operations are serialized.
-_MIGRATION_LOCK = Path(tempfile.gettempdir()) / "initiative_test_migrations.lock"
+# Cross-worker serialization for the migrations' SHARED cluster-global role DDL
+# (app_user/app_admin/app_guild_base/platform_* + GRANTs) — concurrent xdist
+# workers otherwise collide with "tuple concurrently updated" on the shared
+# catalog. A PostgreSQL ADVISORY LOCK does this PORTABLY: unlike a POSIX file lock
+# it needs no fcntl (so it works on Windows) and no extra dependency, it
+# auto-releases if a worker dies (its connection drops), and advisory locks share
+# ONE cluster-wide key space across the per-worker databases, so every worker
+# serializes on the same key. Each worker still migrates its OWN DB; only the
+# shared role operations are serialized.
+_MIGRATION_LOCK_KEY = 0x1417A7E5  # arbitrary, suite-specific; the app uses none
+
+
+def _alembic_upgrade_head() -> None:
+    """Run ``alembic upgrade head`` synchronously. Alembic's env.py drives its own
+    event loop (``asyncio.run``), so this must run OUTSIDE a running loop — call it
+    via ``asyncio.to_thread`` from async code."""
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    config.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
+    config.attributes["configure_logger"] = False
+    config.attributes["url_configured"] = True
+    command.upgrade(config, "head")
+
+
+async def _migrate_under_lock() -> None:
+    """Ensure the worker's DB exists and migrate it while holding the cross-worker
+    advisory lock. The lock rides a dedicated connection to the always-present
+    ``postgres`` DB for the whole migration; ``command.upgrade`` runs in a worker
+    thread (where it can spin its own loop) while THIS loop keeps the lock
+    connection — and thus the lock — alive."""
+    parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
+    lock_conn = await asyncpg.connect(
+        user=parsed.username,
+        password=parsed.password,
+        host=parsed.hostname,
+        port=parsed.port or 5432,
+        database="postgres",
+    )
+    try:
+        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        await _ensure_test_database()
+        await asyncio.to_thread(_alembic_upgrade_head)
+    finally:
+        await lock_conn.close()  # closing the connection releases the advisory lock
 
 
 def _run_test_migrations() -> None:
-    """Ensure the worker's test database exists, migrate it, and arm the
-    statement_timeout net (after migrations, so a slow migration isn't bounded).
+    """Ensure the worker's test database exists and migrate it (serialized across
+    workers by the advisory lock), then arm the statement_timeout net.
 
-    Serialized across workers via a file lock (see _MIGRATION_LOCK) so the shared
-    cluster-global role DDL/GRANTs don't race on the catalog."""
-    with open(_MIGRATION_LOCK, "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            asyncio.run(_ensure_test_database())
-            config = Config(str(BACKEND_DIR / "alembic.ini"))
-            config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
-            config.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
-            config.attributes["configure_logger"] = False
-            config.attributes["url_configured"] = True
-            command.upgrade(config, "head")
-            asyncio.run(_set_db_statement_timeout())
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    ``_set_db_statement_timeout`` is a per-worker ``ALTER DATABASE`` on this
+    worker's OWN DB — no shared catalog — so it runs OUTSIDE the cross-worker lock,
+    and after migrations so a slow migration isn't bounded by it."""
+    asyncio.run(_migrate_under_lock())
+    asyncio.run(_set_db_statement_timeout())
 
 
 @pytest.fixture(scope="session", autouse=True)
