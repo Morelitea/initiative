@@ -201,20 +201,55 @@ async def check_initiative_permission(
     membership = await _get_membership_with_role(
         session, initiative_id=initiative_id, user_id=user.id
     )
-    if not membership or not membership.role_ref:
+    return _role_grants(membership.role_ref if membership else None, permission_key)
+
+
+def _role_grants(
+    role_ref: InitiativeRoleModel | None, permission_key: PermissionKey
+) -> bool:
+    """Resolve a single role's grant for ``permission_key`` — the same rule as
+    :func:`check_initiative_permission` (manager ⇒ all; explicit row; else the
+    documented default), factored out so the bulk resolver can't drift from it."""
+    if role_ref is None:
         return False
-
-    # Managers with is_manager=True have all permissions
-    if membership.role_ref.is_manager:
+    if role_ref.is_manager:
         return True
-
-    # Check specific permission
-    for perm in membership.role_ref.permissions:
+    for perm in role_ref.permissions:
         if perm.permission_key == permission_key:
             return perm.enabled
-
-    # Permission not explicitly set - use documented default
     return DEFAULT_PERMISSION_VALUES.get(permission_key, False)
+
+
+async def accessible_initiative_ids(
+    session: AsyncSession,
+    *,
+    user: User,
+    permission_key: PermissionKey,
+) -> set[int]:
+    """Initiative ids (in the routed guild schema) where the user's initiative
+    role grants ``permission_key`` — the bulk form of
+    :func:`check_initiative_permission`, for scoping tool *lists* to the SAME
+    role-permission the frontend reflects.
+
+    One query over the user's memberships (bounded by how many initiatives they're
+    in), so it stays cheap at scale; the per-row decision reuses ``_role_grants``.
+    Guild-admin / PAM are handled separately by the caller (they see everything);
+    this is purely the membership-role tier.
+    """
+    from sqlalchemy.orm import selectinload
+    from sqlmodel import select
+
+    stmt = (
+        select(InitiativeMember)
+        .options(
+            selectinload(InitiativeMember.role_ref).selectinload(
+                InitiativeRoleModel.permissions
+            )
+        )
+        .where(InitiativeMember.user_id == user.id)
+    )
+    rows = (await session.exec(stmt)).all()
+    return {m.initiative_id for m in rows if _role_grants(m.role_ref, permission_key)}
 
 
 async def has_feature_access(
