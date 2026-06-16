@@ -97,6 +97,11 @@ export interface ClearRecentTarget {
  * context-menu actions). Issues one guild-addressed delete per tab in
  * parallel — each tab can live in a different guild — then invalidates the
  * recents query a single time.
+ *
+ * Uses ``onSettled`` (not ``onSuccess``) so the cache is refreshed even on a
+ * partial failure: ``Promise.all`` rejects on the first failed DELETE, but
+ * earlier deletes may already have succeeded server-side, so we must resync
+ * regardless of outcome rather than leave stale tabs until the query expires.
  */
 export const useClearRecentViews = () => {
   return useMutation({
@@ -107,7 +112,7 @@ export const useClearRecentViews = () => {
         )
       );
     },
-    onSuccess: () => {
+    onSettled: () => {
       void invalidateRecents();
     },
   });
