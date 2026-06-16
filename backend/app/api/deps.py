@@ -282,6 +282,12 @@ class GuildContext:
     # so ``.role`` stays valid for endpoint guards, while RLS context is driven
     # off the grant (scoped pam_read/pam_write, not the all-guild bypass).
     grant: Optional[AccessGrant] = None
+    # True when the grant is a read_write *break-glass* grant held by a
+    # ``data.bypass`` user. Break-glass is deliberately unlimited — the holder
+    # acts as a full guild admin for the grant's window (synthesized admin role
+    # + guild-admin RLS context), unlike a regular PAM grant which stays scoped
+    # to content read/write. Still grant-gated: no live grant, no reach.
+    break_glass: bool = False
 
     @property
     def guild_id(self) -> int:
@@ -322,10 +328,12 @@ async def _load_guild_context(
 
     # Set minimal RLS context before querying guild_memberships (RLS-protected).
     # Full guild context is set later by get_guild_session / RLSSessionDep.
+    # No standing bypass: a user reads their own membership row via the own-row
+    # policy leg; a non-member ``data.bypass`` holder finds nothing here and must
+    # break-glass into a PAM grant (below) to reach the guild — never ambiently.
     await set_rls_context(
         session,
         user_id=current_user.id,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     membership = await guilds_service.get_membership(
@@ -348,6 +356,15 @@ async def _load_guild_context(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=GuildMessages.GUILD_ACCESS_DENIED,
             )
+        # A read_write grant held by a ``data.bypass`` user is a *break-glass*
+        # grant: the holder acts as a full guild admin for its window (see
+        # GuildContext.break_glass). A read grant — or any grant held by a
+        # non-bypass requester (support/moderator's request→approve flow) — stays
+        # a scoped PAM grantee. Both are gated on the live grant existing.
+        is_read_write = grant.access_level == AccessLevel.read_write.value
+        break_glass = is_read_write and user_has_capability(
+            current_user, Capability.DATA_BYPASS
+        )
         # Apply the pam context now so the grantee can actually read the guild
         # row (and below, get_guild_session re-applies the full context). The
         # guilds table has an additive pam_read policy keyed on pam_guild_id.
@@ -356,13 +373,19 @@ async def _load_guild_context(
             user_id=current_user.id,
             pam_guild_id=guild_id,
             pam_read=True,
-            pam_write=(grant.access_level == AccessLevel.read_write.value),
+            pam_write=is_read_write,
         )
         guild = await guilds_service.get_guild(session, guild_id=guild_id)
+        # Break-glass acts as a guild admin; a scoped grantee gets a member-role
+        # stand-in so ``.role`` is valid without conferring admin guards.
         synthetic = GuildMembership(
-            guild_id=guild_id, user_id=current_user.id, role=GuildRole.member
+            guild_id=guild_id,
+            user_id=current_user.id,
+            role=GuildRole.admin if break_glass else GuildRole.member,
         )
-        return GuildContext(guild=guild, membership=synthetic, grant=grant)
+        return GuildContext(
+            guild=guild, membership=synthetic, grant=grant, break_glass=break_glass
+        )
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
     return GuildContext(guild=guild, membership=membership)
 
@@ -406,6 +429,25 @@ async def _apply_guild_session_context(
     """Route ``session`` into ``guild_context``'s guild: set the RLS/session
     variables (and the request-scoped PAM/role contexts) for the user+guild,
     PAM-scoped when access is via a grant."""
+    if guild_context.break_glass:
+        # Break-glass (read_write grant + data.bypass): deliberately unlimited —
+        # the holder acts as a full guild admin for the grant's window. Route
+        # exactly like a real guild admin (current_guild_id + current_guild_role
+        # 'admin' + SET ROLE guild_<id>) so every guild-admin RLS/app-layer leg
+        # fires, including management ops. We intentionally DON'T set the PAM
+        # active-grant context: that would trip the grant-only management blocks
+        # (e.g. PROJECT_GRANT_CANNOT_MANAGE_MEMBERS) — break-glass has no limits.
+        # Still grant-gated: this path is only reached because a live grant exists.
+        set_active_grant(None, None)
+        set_active_role(guild_context.guild_id, GuildRole.admin.value)
+        await set_rls_context(
+            session,
+            user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+            guild_role=GuildRole.admin.value,
+        )
+        return session
+
     if guild_context.is_pam:
         # Scoped, time-bound access via a PAM grant — NOT the all-guild bypass.
         # Read grants get SELECT into this guild only; read_write also gets
@@ -442,12 +484,15 @@ async def _apply_guild_session_context(
     # Record the membership role for this request's active guild so the sync
     # access checks can apply the guild-admin leg of the initiative-scope gate.
     set_active_role(guild_context.guild_id, guild_context.role.value)
+    # No standing all-guild bypass: a guild admin sees the whole guild via the
+    # ``current_guild_role='admin'`` RLS leg (and the guild role they SET into),
+    # not ``is_superadmin``. A ``data.bypass`` holder who isn't a member reaches
+    # this guild only through a break-glass PAM grant (the ``is_pam`` branch above).
     await set_rls_context(
         session,
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role.value,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
     return session
 
@@ -483,11 +528,23 @@ async def get_user_session(
 
     For cross-guild operations like guild creation, listing user's guilds,
     or accepting invites where no specific guild context is needed.
+
+    This is the authenticated *public/platform* path: it carries no guild
+    context, so the session assumes the caller's platform-tier role
+    (``platform_<users.role>``) rather than the broad login role — the request
+    is role-scoped at the database and fails closed if a downstream query forgets
+    to route. Guild-addressed work uses ``get_guild_session`` instead, which
+    ``SET ROLE``s into the guild role.
+
+    No standing ``is_superadmin`` bypass: a platform admin's cross-user/guild
+    reach on this path is authorized by the ``platform_<tier>`` RLS policies
+    (Phase 2), and reaching a guild's *data* requires an explicit break-glass
+    PAM grant (§7), never an ambient flag.
     """
     await set_rls_context(
         session,
         user_id=current_user.id,
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
+        platform_role=current_user.role.value,
     )
     return session
 

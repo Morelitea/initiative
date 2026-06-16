@@ -13,7 +13,9 @@ Security layers managed here:
      Members can only read and participate via subsequent layers.
      Enforced in application code: ``require_guild_admin()``,
      ``is_guild_admin()``, ``require_guild_membership()``.
-  3. Initiative membership — RESTRICTIVE RLS: is_initiative_member()
+  3. Initiative membership — PERMISSIVE RLS on every guild-schema content
+     table, all deferring to ``public.initiative_access()`` (the single
+     source of truth: initiative member OR guild admin OR PAM grant).
   4. Initiative RBAC — Application-level feature access via PermissionKey
 
 The complementary DAC (Discretionary Access Control) layer for
@@ -33,7 +35,6 @@ from app.models.initiative import (
     PermissionKey,
     DEFAULT_PERMISSION_VALUES,
 )
-from app.core.capabilities import Capability, user_has_capability
 from app.models.user import User
 
 # Re-export RLS context helpers so callers can import from a single place.
@@ -143,8 +144,11 @@ async def is_initiative_manager(
     user: User,
 ) -> bool:
     """Check if user has manager-level role in the initiative."""
-    if user_has_capability(user, Capability.DATA_BYPASS):
-        return True
+    # No standing platform bypass: ``data.bypass`` no longer confers manager
+    # authority. An admin/owner reaches a guild only via an explicit break-glass
+    # grant, and a grant — like the existing PAM model — confers scoped content
+    # read/write (enforced by RLS + the resource-access helpers), never initiative
+    # management. So manager status is membership-derived only.
     membership = await _get_membership_with_role(
         session, initiative_id=initiative_id, user_id=user.id
     )
@@ -188,27 +192,64 @@ async def check_initiative_permission(
     Returns:
         True if user has the permission, False otherwise
     """
-    # App admins bypass permission checks
-    if user_has_capability(user, Capability.DATA_BYPASS):
-        return True
-
+    # No standing platform bypass: ``data.bypass`` no longer grants every
+    # permission. A break-glass / PAM grantee's content visibility and read/write
+    # are handled by the dedicated PAM path (list filters' ``has_active_grant``,
+    # the ``require_*_access`` helpers, and RLS at the assumed guild role) — a
+    # grant never confers initiative-level permission keys here, so permission is
+    # membership-derived only.
     membership = await _get_membership_with_role(
         session, initiative_id=initiative_id, user_id=user.id
     )
-    if not membership or not membership.role_ref:
+    return _role_grants(membership.role_ref if membership else None, permission_key)
+
+
+def _role_grants(
+    role_ref: InitiativeRoleModel | None, permission_key: PermissionKey
+) -> bool:
+    """Resolve a single role's grant for ``permission_key`` — the same rule as
+    :func:`check_initiative_permission` (manager ⇒ all; explicit row; else the
+    documented default), factored out so the bulk resolver can't drift from it."""
+    if role_ref is None:
         return False
-
-    # Managers with is_manager=True have all permissions
-    if membership.role_ref.is_manager:
+    if role_ref.is_manager:
         return True
-
-    # Check specific permission
-    for perm in membership.role_ref.permissions:
+    for perm in role_ref.permissions:
         if perm.permission_key == permission_key:
             return perm.enabled
-
-    # Permission not explicitly set - use documented default
     return DEFAULT_PERMISSION_VALUES.get(permission_key, False)
+
+
+async def accessible_initiative_ids(
+    session: AsyncSession,
+    *,
+    user: User,
+    permission_key: PermissionKey,
+) -> set[int]:
+    """Initiative ids (in the routed guild schema) where the user's initiative
+    role grants ``permission_key`` — the bulk form of
+    :func:`check_initiative_permission`, for scoping tool *lists* to the SAME
+    role-permission the frontend reflects.
+
+    One query over the user's memberships (bounded by how many initiatives they're
+    in), so it stays cheap at scale; the per-row decision reuses ``_role_grants``.
+    Guild-admin / PAM are handled separately by the caller (they see everything);
+    this is purely the membership-role tier.
+    """
+    from sqlalchemy.orm import selectinload
+    from sqlmodel import select
+
+    stmt = (
+        select(InitiativeMember)
+        .options(
+            selectinload(InitiativeMember.role_ref).selectinload(
+                InitiativeRoleModel.permissions
+            )
+        )
+        .where(InitiativeMember.user_id == user.id)
+    )
+    rows = (await session.exec(stmt)).all()
+    return {m.initiative_id for m in rows if _role_grants(m.role_ref, permission_key)}
 
 
 async def has_feature_access(

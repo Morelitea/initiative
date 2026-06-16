@@ -151,7 +151,7 @@ jobs:
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          uv run python -m pytest ${{ steps.changes.outputs.scope }} -v --tb=short
+          uv run python -m pytest ${{ steps.changes.outputs.scope }} -n auto --tb=short
 
   frontend-lint-and-test:
     name: Frontend Lint & Tests
@@ -250,6 +250,20 @@ jobs:
         run: |
           cd backend
           uv sync --frozen --no-dev
+
+      - name: Check guild RLS policies are regenerated
+        if: steps.filter.outputs.skip != 'true'
+        run: |
+          cd backend
+          uv run python scripts/gen_guild_rls.py
+          if ! git diff --exit-code alembic/guild/guild_rls.sql; then
+            echo ""
+            echo "ERROR: alembic/guild/guild_rls.sql is out of date!"
+            echo "Run 'python scripts/gen_guild_rls.py' in backend/ and commit the result."
+            echo ""
+            exit 1
+          fi
+          echo "Guild RLS policies are up to date."
 
       - name: Export OpenAPI spec
         if: steps.filter.outputs.skip != 'true'

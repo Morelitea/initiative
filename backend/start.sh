@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+# Resolve uvicorn/alembic/python from the uv-managed venv even if the runtime
+# overrode the image's ENV PATH (e.g. Synology re-applying a stale container env).
+export PATH="/app/.venv/bin:$PATH"
+
 ARGS="app.main:app --host 0.0.0.0 --port 8173"
 
 if [ "${BEHIND_PROXY:-false}" = "true" ]; then

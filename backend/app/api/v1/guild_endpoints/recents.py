@@ -255,9 +255,11 @@ async def list_recents(
     ).all()
     role_by_guild = {m.guild_id: m.role for m in memberships}
 
+    limit = recent_views_service.clamp_recent_limit(current_user.recent_tabs_limit)
+
     async def _fetch(guild_session, guild_id: int) -> List[RecentItemRead]:  # type: ignore[no-untyped-def]
         rows = await recent_views_service.list_recent_views(
-            guild_session, user_id=current_user.id
+            guild_session, user_id=current_user.id, limit=limit
         )
         if not rows:
             return []
@@ -273,7 +275,7 @@ async def list_recents(
         session, current_user.id, list(role_by_guild.keys()), _fetch
     )
     items.sort(key=lambda item: item.last_viewed_at, reverse=True)
-    return items[: recent_views_service.MAX_RECENT_VIEWS]
+    return items[:limit]
 
 
 @guild_router.delete(

@@ -33,7 +33,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 
 import type { UserOption } from "./projectTasksConfig";
 
@@ -91,8 +90,6 @@ export const ProjectTaskComposer = ({
   autoFocusTitle = false,
 }: ProjectTaskComposerProps) => {
   const { t } = useTranslation(["projects", "common"]);
-  const { data: roleLabels } = useRoleLabels();
-  const memberLabel = getRoleLabel("member", roleLabels);
   const { user: currentUser } = useAuth();
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -160,7 +157,7 @@ export const ProjectTaskComposer = ({
                         options={users}
                         onChange={onAssigneesChange}
                         disabled={isSubmitting}
-                        emptyMessage={t("taskComposer.assigneesEmptyMessage", { memberLabel })}
+                        emptyMessage={t("taskComposer.assigneesEmptyMessage")}
                         currentUserId={currentUser?.id}
                       />
                     </div>

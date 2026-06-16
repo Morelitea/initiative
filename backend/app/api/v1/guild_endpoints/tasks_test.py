@@ -95,6 +95,45 @@ async def test_list_tasks_in_project(client: AsyncClient, session: AsyncSession)
 
 
 @pytest.mark.integration
+async def test_list_tasks_guild_admin_sees_unjoined_project(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild admin sees every project's tasks, even ones they never joined.
+
+    Regression: the admin is NOT an initiative member of the project's
+    initiative and holds no explicit/role DAC permission on the project (the
+    "Barovia Arc" scenario). They must still list its tasks — guild admins have
+    full guild access. Previously ``_allowed_project_ids`` lacked a guild-admin
+    branch, so the admin got "no results".
+    """
+    admin = await create_user(session, email="admin@example.com")
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(session, user=owner, guild=guild)
+
+    # ``owner`` (not the admin) builds the initiative + project, so the admin is
+    # neither a member nor a permission holder.
+    initiative = await _create_initiative(session, guild, owner)
+    project = await _create_project(session, initiative, owner)
+    task1 = await _create_task(session, project, "Hidden Task 1")
+    task2 = await _create_task(session, project, "Hidden Task 2")
+
+    headers = await get_guild_headers(session, guild, admin)
+    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
+    )
+
+    assert response.status_code == 200
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert task1.id in task_ids
+    assert task2.id in task_ids
+
+
+@pytest.mark.integration
 async def test_create_task(client: AsyncClient, session: AsyncSession):
     """Test creating a new task."""
     from app.services import task_statuses as task_statuses_service
@@ -162,7 +201,9 @@ async def test_create_task_requires_project_access(
         f"/api/v1/g/{guild.id}/tasks/", headers=headers, json=payload
     )
 
-    assert response.status_code == 403
+    assert (
+        response.status_code == 404
+    )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
 @pytest.mark.integration
@@ -246,7 +287,9 @@ async def test_update_task_without_permission_forbidden(
         f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers, json=payload
     )
 
-    assert response.status_code == 403
+    assert (
+        response.status_code == 404
+    )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
 @pytest.mark.integration
@@ -288,7 +331,9 @@ async def test_delete_task_without_permission_forbidden(
         f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers
     )
 
-    assert response.status_code == 403
+    assert (
+        response.status_code == 404
+    )  # RLS hides the content resource from a non-initiative-member (404, not 403)
 
 
 @pytest.mark.integration

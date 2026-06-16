@@ -15,7 +15,7 @@ dependencies = [
     "argon2-cffi>=25.1.0,<26",
     "bcrypt==5.0.0",
     "pydantic-settings>=2.14.1,<3",
-    "python-multipart>=0.0.27,<0.0.33",
+    "python-multipart>=0.0.31,<0.0.33",
     "email-validator>=2.3.0,<3",
     "httpx>=0.28.1,<0.29",
     "google-auth>=2.53.0",
@@ -37,6 +37,7 @@ dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=1.3.0,<2",
     "pytest-cov>=7.1.0,<8",
+    "pytest-xdist>=3.6",
     "ruff>=0.4.7,<0.16",
     "ty>=0.0.48,<0.1",
 ]

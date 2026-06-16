@@ -156,7 +156,10 @@ async def test_is_initiative_manager_with_member_role(session: AsyncSession):
 
 
 @pytest.mark.service
-async def test_is_initiative_manager_app_admin_bypasses(session: AsyncSession):
+async def test_is_initiative_manager_no_standing_bypass(session: AsyncSession):
+    """Phase 3: ``data.bypass`` no longer confers standing manager authority. A
+    platform admin who isn't an initiative member (and holds no live grant) is
+    NOT a manager — they must break-glass to reach the guild."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -173,7 +176,7 @@ async def test_is_initiative_manager_app_admin_bypasses(session: AsyncSession):
         session, initiative_id=initiative.id, user=app_admin
     )
 
-    assert result is True
+    assert result is False
 
 
 @pytest.mark.service
@@ -201,7 +204,10 @@ async def test_assert_initiative_manager_raises_for_member(session: AsyncSession
 
 
 @pytest.mark.service
-async def test_check_initiative_permission_admin_bypasses(session: AsyncSession):
+async def test_check_initiative_permission_no_standing_bypass(session: AsyncSession):
+    """Phase 3: ``data.bypass`` no longer grants every initiative permission. A
+    platform admin who isn't a member (and holds no live grant) gets only the
+    documented default for the key — here ``create_projects`` defaults False."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
@@ -220,7 +226,7 @@ async def test_check_initiative_permission_admin_bypasses(session: AsyncSession)
         permission_key=PermissionKey.create_projects,
     )
 
-    assert result is True
+    assert result is False
 
 
 @pytest.mark.service

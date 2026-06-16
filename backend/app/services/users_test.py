@@ -340,7 +340,11 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     ``users_no_delete`` restrictive policy that blocks DELETE for any
     non-bypass session. Application code that tries to drop a user row
     via the regular ``app_user`` role would silently affect zero rows
-    without this policy."""
+    without this policy.
+
+    Phase 2 (migration 0109) replaced the single wide-open ``users_open``
+    policy with per-tier least-privilege policies; this also asserts that
+    decomposition (open policy gone, floors + tier policies present)."""
     from sqlalchemy import text
 
     rls_enabled = await session.exec(
@@ -361,7 +365,15 @@ async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     rows = list(policies)
     names = {row[0] for row in rows}
     assert "users_no_delete" in names
-    assert "users_open" in names
+    # Phase 2 decomposed the broad open policy into per-tier policies.
+    assert "users_open" not in names
+    assert {
+        "users_app_floor",
+        "users_guild_floor",
+        "users_platform_self",
+        "users_platform_read",
+        "users_platform_manage",
+    } <= names
     deny_policy = next(row for row in rows if row[0] == "users_no_delete")
     # polcmd '6' = DELETE; polpermissive False = restrictive.
     # See: https://www.postgresql.org/docs/current/catalog-pg-policy.html

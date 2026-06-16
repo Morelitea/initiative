@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-q
 
 import {
   approveAccessGrantApiV1AccessGrantsGrantIdApprovePost,
+  breakGlassAccessApiV1AccessGrantsBreakGlassPost,
   cancelAccessRequestApiV1AccessGrantsGrantIdDelete,
   createAccessRequestApiV1AccessGrantsPost,
   denyAccessGrantApiV1AccessGrantsGrantIdDenyPost,
@@ -12,6 +13,7 @@ import type {
   AccessGrantApprove,
   AccessGrantCreate,
   AccessGrantRead,
+  BreakGlassCreate,
 } from "@/api/generated/initiativeAPI.schemas";
 import type { MutationOpts } from "@/types/mutation";
 
@@ -134,6 +136,27 @@ export const useRevokeAccessGrant = (options?: MutationOpts<AccessGrantRead, num
     mutationFn: (grantId: number) =>
       revokeAccessGrantApiV1AccessGrantsGrantIdRevokePost(
         grantId
+      ) as unknown as Promise<AccessGrantRead>,
+    onSuccess: (...args) => {
+      void invalidate();
+      onSuccess?.(...args);
+    },
+  });
+};
+
+/**
+ * Self-issue a break-glass grant (requires data.bypass). Unlike a request, this
+ * is created AND approved in one step, so it's live immediately — the holder can
+ * then enter the guild via its ``/g/{guild_id}`` path until it expires.
+ */
+export const useBreakGlass = (options?: MutationOpts<AccessGrantRead, BreakGlassCreate>) => {
+  const invalidate = useInvalidateAccessGrants();
+  const { onSuccess, ...rest } = options ?? {};
+  return useMutation({
+    ...rest,
+    mutationFn: (payload: BreakGlassCreate) =>
+      breakGlassAccessApiV1AccessGrantsBreakGlassPost(
+        payload
       ) as unknown as Promise<AccessGrantRead>,
     onSuccess: (...args) => {
       void invalidate();

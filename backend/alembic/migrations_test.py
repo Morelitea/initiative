@@ -25,6 +25,7 @@ helpers are idempotent.
 from __future__ import annotations
 
 import asyncio
+import os
 from pathlib import Path
 from typing import Iterator
 from urllib.parse import urlparse
@@ -51,14 +52,38 @@ BASELINE_REVISION = "20260216_0053"
 # ``NotImplementedError`` and which therefore have to be skipped when
 # walking the chain backwards. Add new entries (with a justification
 # comment) when introducing other irreversible migrations.
-INTENTIONALLY_IRREVERSIBLE = frozenset({
-    BASELINE_REVISION,
-    "20260426_0077",  # drop_automation_tables — domain removed from repo
-})
+INTENTIONALLY_IRREVERSIBLE = frozenset(
+    {
+        BASELINE_REVISION,
+        "20260426_0077",  # drop_automation_tables — domain removed from repo
+        # initiative RLS: dropping public.initiative_access would break boot-time
+        # guild provisioning (apply_guild_rls references it) for every guild, so
+        # there is no safe rollback past this point — roll forward only.
+        "20260616_0110",
+        # drop legacy is_initiative_member: reviving a dead, search_path-broken
+        # second access rule has no value — roll forward only.
+        "20260616_0111",
+    }
+)
 
-MIGRATIONS_DB_NAME = "initiative_migrations_test"
+# Per-worker so parallel xdist workers don't drop/recreate the same DB. xdist's
+# worker id is used verbatim ("gw0"/… distributed, "master" standalone).
+_WORKER = os.environ.get("PYTEST_XDIST_WORKER", "master")
+MIGRATIONS_DB_NAME = f"initiative_migrations_test_{_WORKER}"
 _BASE_DB_URL = settings.DATABASE_URL.rsplit("/", 1)[0]
 MIGRATIONS_TEST_DATABASE_URL = f"{_BASE_DB_URL}/{MIGRATIONS_DB_NAME}"
+
+# These tests exercise migration up *and down*, so they CREATE and DROP the
+# cluster-global app roles. Use a role prefix distinct from the main suite's
+# (conftest sets ``test_{worker}_``) so this file's downgrades never drop the
+# roles the rest of the suite depends on. Per-worker too, to stay parallel-safe.
+_MIGRATIONS_ROLE_PREFIX = f"migtest_{_WORKER}_"
+
+# Same advisory-lock KEY as conftest._run_test_migrations — a cluster-wide
+# pg_advisory_lock serializes ALL migration runs across xdist workers (and across
+# both files) so the shared cluster-global role DDL never races. Must stay equal
+# to conftest's _MIGRATION_LOCK_KEY. (Portable; replaces a POSIX file lock.)
+_MIGRATION_LOCK_KEY = 0x1417A7E5
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +111,18 @@ def _run_alembic(action: str, revision: str) -> None:
 
     A fresh Config is built every call so we never reuse a closed engine
     after a previous step.
+
+    The app role prefixes are swapped to this file's dedicated namespace for the
+    duration of the migration (the platform-role migration reads them at apply
+    time), then restored — so up/down here churns ``migtest_*`` roles, never the
+    main suite's ``test_*`` roles.
     """
+    asyncio.run(_run_alembic_async(action, revision))
+
+
+def _alembic_command(action: str, revision: str) -> None:
+    """Run the (synchronous) alembic command. Alembic's env.py spins its own event
+    loop, so this must run OUTSIDE a running loop — invoked via asyncio.to_thread."""
     config = _alembic_config(MIGRATIONS_TEST_DATABASE_URL)
     if action == "upgrade":
         command.upgrade(config, revision)
@@ -94,6 +130,27 @@ def _run_alembic(action: str, revision: str) -> None:
         command.downgrade(config, revision)
     else:  # pragma: no cover — guard against typos in test bodies
         raise ValueError(f"Unknown alembic action: {action!r}")
+
+
+async def _run_alembic_async(action: str, revision: str) -> None:
+    # Serialize with the suite's migration advisory lock: even with a distinct role
+    # prefix, the baseline still touches SHARED cluster-global roles (e.g. ALTER
+    # ROLE app_user), which races ("tuple concurrently updated") against a
+    # concurrent worker's migration. The lock rides a dedicated 'postgres'
+    # connection (held for the whole migration); the alembic command runs in a
+    # worker thread (where it can spin its own loop). Same key as conftest.
+    lock_conn = await asyncpg.connect(**_parse_admin_url(), database="postgres")
+    try:
+        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        saved = (settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX)
+        settings.GUILD_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
+        settings.PLATFORM_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
+        try:
+            await asyncio.to_thread(_alembic_command, action, revision)
+        finally:
+            settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX = saved
+    finally:
+        await lock_conn.close()  # closing the connection releases the advisory lock
 
 
 def _ordered_revisions_base_to_head() -> list[str]:
@@ -126,7 +183,9 @@ async def _drop_db() -> None:
     """
     conn = await asyncpg.connect(database="postgres", **_parse_admin_url())
     try:
-        await conn.execute(f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)')
+        await conn.execute(
+            f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)'
+        )
     finally:
         await conn.close()
 
@@ -135,7 +194,9 @@ async def _drop_and_create_db() -> None:
     """Drop+recreate the dedicated migrations test database."""
     conn = await asyncpg.connect(database="postgres", **_parse_admin_url())
     try:
-        await conn.execute(f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)')
+        await conn.execute(
+            f'DROP DATABASE IF EXISTS "{MIGRATIONS_DB_NAME}" WITH (FORCE)'
+        )
         await conn.execute(f'CREATE DATABASE "{MIGRATIONS_DB_NAME}"')
     finally:
         await conn.close()
@@ -168,13 +229,15 @@ def _current_alembic_revision() -> str | None:
 async def _table_exists_async(table_name: str) -> bool:
     conn = await _connect_test_db()
     try:
-        return bool(await conn.fetchval(
-            "SELECT EXISTS ("
-            "  SELECT 1 FROM information_schema.tables "
-            "  WHERE table_schema = 'public' AND table_name = $1"
-            ")",
-            table_name,
-        ))
+        return bool(
+            await conn.fetchval(
+                "SELECT EXISTS ("
+                "  SELECT 1 FROM information_schema.tables "
+                "  WHERE table_schema = 'public' AND table_name = $1"
+                ")",
+                table_name,
+            )
+        )
     finally:
         await conn.close()
 
@@ -242,7 +305,14 @@ class TestMigrationsAgainstDatabase:
 
         # Sanity-check that some core tables actually exist; if any of
         # these are missing the baseline DDL silently failed.
-        for table in ("users", "guilds", "initiatives", "projects", "tasks", "alembic_version"):
+        for table in (
+            "users",
+            "guilds",
+            "initiatives",
+            "projects",
+            "tasks",
+            "alembic_version",
+        ):
             assert _table_exists(table), f"expected table {table!r} after upgrade head"
 
     def test_upgrade_head_is_idempotent(self, fresh_migrations_db: str) -> None:
@@ -257,7 +327,9 @@ class TestMigrationsAgainstDatabase:
             "a migration is not idempotent."
         )
 
-    def test_step_by_step_upgrade_from_base_to_head(self, fresh_migrations_db: str) -> None:
+    def test_step_by_step_upgrade_from_base_to_head(
+        self, fresh_migrations_db: str
+    ) -> None:
         """Apply each revision one at a time and check the stamp after
         every step. Catches partial failures that ``upgrade head``
         might paper over."""
@@ -292,11 +364,28 @@ class TestMigrationsAgainstDatabase:
         broken downgrades are the main cause of broken release
         rollbacks, so this is the single highest-value DB test here.
         """
-        _run_alembic("upgrade", "head")
-        head = _script_directory().get_current_head()
-        assert _current_alembic_revision() == head
-
         script = _script_directory()
+        head = script.get_current_head()
+
+        # The reversible walk normally starts at the head. But when the head
+        # (or a run of revisions below it) is intentionally irreversible — its
+        # own ``downgrade()`` raises — we can't descend through it, so anchor
+        # the walk at the highest reversible revision by stepping down past
+        # every irreversible one at the top. Every reachable reversible
+        # downgrade below the boundary still runs; the irreversible heads' own
+        # upgrades are covered by the TestMostRecentRevision tests.
+        anchor = head
+        while anchor in INTENTIONALLY_IRREVERSIBLE:
+            parent = script.get_revision(anchor).down_revision
+            assert isinstance(parent, str) and parent, (
+                f"Irreversible revision {anchor!r} needs a single parent to anchor "
+                f"the reversible walk; got down_revision={parent!r}."
+            )
+            anchor = parent
+
+        _run_alembic("upgrade", anchor)
+        assert _current_alembic_revision() == anchor
+
         steps_taken = 0
         while True:
             current = _current_alembic_revision()
@@ -320,8 +409,7 @@ class TestMigrationsAgainstDatabase:
             steps_taken += 1
             stamp = _current_alembic_revision()
             assert stamp == parent, (
-                f"downgrade -1 from {current} should land on {parent}, "
-                f"got {stamp!r}"
+                f"downgrade -1 from {current} should land on {parent}, got {stamp!r}"
             )
 
         assert steps_taken > 0, (
@@ -330,8 +418,8 @@ class TestMigrationsAgainstDatabase:
             "INTENTIONALLY_IRREVERSIBLE."
         )
 
-        _run_alembic("upgrade", "head")
-        assert _current_alembic_revision() == head
+        _run_alembic("upgrade", anchor)
+        assert _current_alembic_revision() == anchor
 
     def test_baseline_downgrade_raises(self, fresh_migrations_db: str) -> None:
         """The baseline cannot be downgraded — verify it actually raises

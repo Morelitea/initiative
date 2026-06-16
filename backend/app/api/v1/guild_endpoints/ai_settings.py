@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
-    SessionDep,
+    UserSessionDep,
     get_current_active_user,
     get_guild_membership,
     require_guild_roles,
@@ -52,20 +52,24 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 # Platform-level endpoints (platform admin only)
 @platform_router.get("/ai/platform", response_model=PlatformAISettingsResponse)
 async def get_platform_ai_settings(
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> PlatformAISettingsResponse:
-    """Get platform-level AI settings. Platform admin only."""
+    """Get platform-level AI settings (``config.manage`` — owner only, owner-scoped)."""
     return await ai_settings_service.get_platform_ai_settings(session)
 
 
 @platform_router.put("/ai/platform", response_model=PlatformAISettingsResponse)
 async def update_platform_ai_settings(
     payload: PlatformAISettingsUpdate,
-    session: SessionDep,
+    session: UserSessionDep,
     _admin: ConfigManageDep,
 ) -> PlatformAISettingsResponse:
-    """Update platform-level AI settings. Platform admin only."""
+    """Update platform-level AI settings (``config.manage`` — owner only).
+
+    Owner-scoped session: ``app_settings`` is owner-only after Phase 2 (GRANT + RLS),
+    so this write runs as ``platform_owner`` rather than the bare login role.
+    """
     data = payload.model_dump(exclude_unset=True)
     api_key_provided = "api_key" in data
     return await ai_settings_service.update_platform_ai_settings(

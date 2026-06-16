@@ -176,6 +176,62 @@ async def test_recents_are_cross_guild_names_only(
 
 
 @pytest.mark.integration
+async def test_recent_tabs_limit_caps_list_and_prune(
+    client: AsyncClient, session: AsyncSession
+):
+    """The user's ``recent_tabs_limit`` bounds both what's stored (prune) and
+    what the tabs-bar endpoint returns."""
+    user, guild, initiative = await _make_user_with_guild_and_initiative(
+        session, email="limit@example.com"
+    )
+    headers = await get_guild_headers(session, guild, user)
+
+    # Lower the user's recents cap to 2 via self-update.
+    r = await client.patch(
+        "/api/v1/users/me", json={"recent_tabs_limit": 2}, headers=headers
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["recent_tabs_limit"] == 2
+
+    # Open four projects, oldest first.
+    projects = [
+        await create_project(session, initiative, user, name=f"P{i}") for i in range(4)
+    ]
+    for project in projects:
+        rv = await client.post(
+            f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+        )
+        assert rv.status_code == 200
+        await asyncio.sleep(0.02)
+
+    # Only the two most-recently-opened survive — the rest were pruned.
+    r = await client.get("/api/v1/recents/", headers=headers)
+    assert r.status_code == 200
+    items = r.json()
+    assert [i["entity_id"] for i in items] == [projects[3].id, projects[2].id]
+
+
+@pytest.mark.integration
+async def test_recent_tabs_limit_rejects_out_of_range(
+    client: AsyncClient, session: AsyncSession
+):
+    """The cap is validated to [1, 100]."""
+    user, guild, _ = await _make_user_with_guild_and_initiative(
+        session, email="limit-bad@example.com"
+    )
+    headers = await get_guild_headers(session, guild, user)
+
+    r = await client.patch(
+        "/api/v1/users/me", json={"recent_tabs_limit": 0}, headers=headers
+    )
+    assert r.status_code == 422
+    r = await client.patch(
+        "/api/v1/users/me", json={"recent_tabs_limit": 101}, headers=headers
+    )
+    assert r.status_code == 422
+
+
+@pytest.mark.integration
 async def test_clear_recent_is_guild_addressed(
     client: AsyncClient, session: AsyncSession
 ):

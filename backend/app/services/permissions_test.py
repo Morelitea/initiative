@@ -563,13 +563,17 @@ def test_role_context_for_other_guild_does_not_bypass():
 
 
 @pytest.mark.unit
-def test_superadmin_bypasses_initiative_scope():
-    doc = _make_document(
-        user_id=1, user_level=DocumentPermissionLevel.read, member=False
-    )
+def test_data_bypass_no_longer_bypasses_initiative_scope():
+    """Phase 3: ``data.bypass`` is no longer a standing all-guild bypass. An
+    owner/admin who isn't a member and holds no live grant is DENIED — they must
+    break-glass into a grant first (covered by
+    ``test_pam_grant_bypasses_initiative_scope``)."""
+    doc = _make_document(user_id=1, member=False)
     user = _make_user(user_id=1, role=UserRole.owner)
     with patch(_PATCH_TARGET, return_value=doc.permissions):
-        require_document_access(doc, user, access="read")  # should not raise
+        with pytest.raises(HTTPException) as exc_info:
+            require_document_access(doc, user, access="read")
+    assert exc_info.value.status_code == 403
 
 
 @pytest.mark.unit

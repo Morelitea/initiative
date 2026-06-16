@@ -369,6 +369,14 @@ class Settings(BaseSettings):
     # (test_guild_<id>) are distinct; schemas are per-database and stay unprefixed.
     GUILD_ROLE_PREFIX: str = ""
 
+    # Prefix for the platform-ladder Postgres ROLE names (platform_member …
+    # platform_owner + platform_base). Like the guild roles these are
+    # cluster-global, so the suite sets this to "test_" (test_platform_<tier>) to
+    # avoid colliding with a co-located dev DB's unprefixed platform roles. The
+    # creating migration and the routing role-name helper read the SAME setting,
+    # so a SET ROLE always targets the role the migration actually created.
+    PLATFORM_ROLE_PREFIX: str = ""
+
     # Privileged Access Management (PAM): time-bound, per-guild access grants.
     PAM_DEFAULT_DURATION_MINUTES: int = 240  # 4 hours
     PAM_MAX_DURATION_MINUTES: int = 1440  # 24 hours (absolute ceiling on any grant)
@@ -377,6 +385,11 @@ class Settings(BaseSettings):
     PAM_SUPPORT_MAX_MINUTES: int = 240  # 4 hours
     PAM_MODERATOR_MAX_MINUTES: int = 480  # 8 hours
     PAM_ADMIN_MAX_MINUTES: int = 1440  # 24 hours
+    # Break-glass (self-approved, data.bypass holders): deliberately short — a
+    # self-issued emergency grant skips the second-person approval, so its window
+    # is conservative and re-triggered to extend. Capped below the role maxima.
+    PAM_BREAK_GLASS_DEFAULT_MINUTES: int = 60  # 1 hour
+    PAM_BREAK_GLASS_MAX_MINUTES: int = 240  # 4 hours (ceiling on a self-approved grant)
 
     # Optional advanced tool plug-in: when ADVANCED_TOOL_URL is set, the SPA
     # surfaces a per-initiative toggle that, when enabled, embeds the URL as

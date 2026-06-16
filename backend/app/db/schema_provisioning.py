@@ -1,12 +1,15 @@
 """Provision and tear down a per-guild PostgreSQL schema.
 
 `provision_guild_schema` creates `guild_<id>` (tables via `apply_guild_schema`,
-which RUNS the canonical Alembic-owned DDL in `alembic/guild/guild_schema.sql`)
-plus per-guild Postgres roles; `drop_guild_schema` removes both. Idempotent —
-re-running back-fills any guild-scoped table a later migration added. The model
-is never used to build the DB: Alembic is the single source, applied per schema.
+which RUNS the canonical Alembic-owned DDL in `alembic/guild/guild_schema.sql`),
+per-guild Postgres roles, and the initiative-level RLS policies (via
+`apply_guild_rls`, running `alembic/guild/guild_rls.sql`); `drop_guild_schema`
+removes the schema + roles. Idempotent — re-running back-fills any guild-scoped
+table a later migration added and re-asserts the policies. The model is never
+used to build the DB: Alembic is the single source, applied per schema.
 Per-request routing (search_path + SET ROLE in `set_rls_context`) sends
-guild-scoped queries into the schema.
+guild-scoped queries into the schema, where the RLS policies (deferring to
+`public.initiative_access`) enforce initiative membership for non-admin roles.
 
 `backfill_guild_schemas` re-runs that idempotent provisioning for *every*
 existing guild on every boot (`main.on_startup`, after the legacy conversion).
@@ -67,11 +70,36 @@ def guild_readonly_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_ro"
 
 
+# The platform privilege ladder, least -> most. Positional mapping from
+# ``users.role`` (an enum with these exact values). The migration creates one
+# ``platform_<tier>`` NOLOGIN role per entry plus a shared ``platform_base``
+# floor; the public/platform request path assumes ``platform_<users.role>``.
+PLATFORM_TIERS: tuple[str, ...] = ("member", "support", "moderator", "admin", "owner")
+
+
+def platform_role_name(role: str) -> str:
+    """Cluster-global Postgres role for a platform tier, e.g. ``platform_admin``.
+
+    Carries ``settings.PLATFORM_ROLE_PREFIX`` (empty in prod/dev; ``test_`` under
+    the suite) so these cluster-global roles don't collide with a co-located dev
+    DB's. ``role`` is a ``users.role`` value and is validated by the caller against
+    :data:`PLATFORM_TIERS` before reaching the privileged ``SET ROLE`` sink.
+    """
+    return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
+
+
 # The single source for a guild schema's structure: schema-relative DDL generated
 # from the public tables Alembic builds (regenerate with scripts/gen_guild_schema.py
 # after any guild-scoped migration). The model is never used to build the DB.
 GUILD_SCHEMA_SQL_PATH = (
     Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_schema.sql"
+)
+
+# Companion to guild_schema.sql: initiative-level RLS for the schema's tables.
+# The access RULE lives once in public.initiative_access (member OR guild-admin OR
+# PAM); these policies just resolve each table's initiative id and defer to it.
+GUILD_RLS_SQL_PATH = (
+    Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_rls.sql"
 )
 
 
@@ -89,6 +117,24 @@ async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
     raw = await conn.get_raw_connection()
     # search_path so unqualified CREATEs land in the schema and intra-schema FKs
     # resolve there; reset to public so it doesn't leak onto the pooled connection.
+    await raw.driver_connection.execute(
+        f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
+    )
+
+
+async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
+    """Apply the initiative-level RLS policies to ``schema``'s tables by RUNNING
+    the canonical ``guild_rls.sql`` with the search_path pointed at it.
+
+    Schema-relative + idempotent (``ENABLE/FORCE`` + ``DROP POLICY IF EXISTS`` +
+    ``CREATE POLICY``), so a re-run (provisioning, boot back-fill) re-asserts the
+    policies harmlessly. Policies defer to ``public.initiative_access`` (qualified,
+    so it resolves regardless of search_path); the per-table EXISTS joins resolve
+    against the guild-local tables. Requires ``public.initiative_access`` to exist
+    (created by migration 20260616_0110).
+    """
+    ddl = GUILD_RLS_SQL_PATH.read_text()
+    raw = await conn.get_raw_connection()
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
     )
@@ -166,6 +212,7 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     await _ensure_role(conn, ro_role)
     await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
     await _exec_batch(conn, _grant_statements(schema, role, ro_role))
+    await apply_guild_rls(conn, schema)  # initiative-level RLS policies
     return schema
 
 

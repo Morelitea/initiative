@@ -22,6 +22,7 @@ from app.schemas.access_grant import (
     AccessGrantApprove,
     AccessGrantCreate,
     AccessGrantRead,
+    BreakGlassCreate,
 )
 from app.services import access_grants as service
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -35,6 +36,10 @@ AccessRequestDep = Annotated[
 AccessApproveDep = Annotated[
     User, Depends(require_capability(Capability.ACCESS_APPROVE))
 ]
+# Break-glass is gated on data.bypass — the repurposed capability that lets an
+# admin/owner self-issue an audited, time-bound grant instead of holding a
+# standing all-guild bypass.
+BreakGlassDep = Annotated[User, Depends(require_capability(Capability.DATA_BYPASS))]
 
 # Map service error codes to (status, detail). All details are machine-readable
 # codes the frontend localizes via errors.json.
@@ -47,6 +52,7 @@ _ERROR_STATUS: dict[str, int] = {
     "NOT_ACTIVE": status.HTTP_400_BAD_REQUEST,
     "CANNOT_APPROVE_OWN": status.HTTP_400_BAD_REQUEST,
     "CANNOT_CANCEL_OTHERS": status.HTTP_403_FORBIDDEN,
+    "ALREADY_LIVE": status.HTTP_409_CONFLICT,
 }
 _ERROR_DETAIL: dict[str, str] = {
     "GUILD_NOT_FOUND": AccessGrantMessages.GUILD_NOT_FOUND,
@@ -57,6 +63,7 @@ _ERROR_DETAIL: dict[str, str] = {
     "NOT_ACTIVE": AccessGrantMessages.NOT_ACTIVE,
     "CANNOT_APPROVE_OWN": AccessGrantMessages.CANNOT_APPROVE_OWN,
     "CANNOT_CANCEL_OTHERS": AccessGrantMessages.CANNOT_CANCEL_OTHERS,
+    "ALREADY_LIVE": AccessGrantMessages.ALREADY_LIVE,
 }
 
 
@@ -83,6 +90,31 @@ async def create_access_request(
         grant = await service.request_grant(
             session, requester=current_user, payload=payload
         )
+    except service.AccessGrantError as exc:
+        _raise(exc)
+    read = await _one(session, grant)
+    await session.commit()
+    return read
+
+
+@router.post(
+    "/break-glass", response_model=AccessGrantRead, status_code=status.HTTP_201_CREATED
+)
+async def break_glass_access(
+    payload: BreakGlassCreate,
+    session: AdminSessionDep,
+    current_user: BreakGlassDep,
+) -> AccessGrantRead:
+    """Self-issue a time-bound break-glass grant to a guild (requires
+    ``data.bypass``).
+
+    Repurposes the old standing all-guild bypass: instead of ambient god-mode,
+    an admin/owner records a scoped, expiring, read-by-default PAM grant in one
+    step (created + self-approved). The grant is the audit trail; the holder then
+    routes into the guild via the normal PAM path until it expires.
+    """
+    try:
+        grant = await service.break_glass(session, actor=current_user, payload=payload)
     except service.AccessGrantError as exc:
         _raise(exc)
     read = await _one(session, grant)

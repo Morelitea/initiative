@@ -17,6 +17,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
+from app.models.user import UserRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -332,9 +333,18 @@ async def test_delete_guild_oidc_user_skips_password(
 
 
 @pytest.mark.integration
-async def test_reorder_guilds(client: AsyncClient, session: AsyncSession):
-    """Test reordering user's guilds."""
-    user = await create_user(session, email="test@example.com")
+@pytest.mark.parametrize("role", ["member", "support", "moderator", "admin", "owner"])
+async def test_reorder_guilds(client: AsyncClient, session: AsyncSession, role: str):
+    """EVERY platform tier can reorder their own guilds in personal mode.
+
+    The request runs as ``platform_<role>`` with no guild context. The
+    ``guild_memberships_update`` RLS policy (``guild_id = current_guild_id``)
+    rejects that for every tier, so the SECURITY DEFINER ``reorder_guild_memberships``
+    function (migration 0107) is the uniform self-service path — no role relies on
+    a standing all-guild bypass. Parametrized across the whole ladder so a member
+    (lowest) and an owner (highest) are both proven to work the same way.
+    """
+    user = await create_user(session, email="test@example.com", role=UserRole(role))
     guild1 = await create_guild(session, name="Guild 1")
     guild2 = await create_guild(session, name="Guild 2")
     guild3 = await create_guild(session, name="Guild 3")
@@ -830,7 +840,11 @@ async def test_leave_eligibility_lists_owned_projects(
     before calling the leave endpoint, so we'd silently regress to
     the orphan-project bug.
     """
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
 
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
@@ -842,6 +856,7 @@ async def test_leave_eligibility_lists_owned_projects(
         session, user=leaver, guild=guild, role=GuildRole.member
     )
     initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
     project = await create_project(session, initiative=initiative, owner=leaver)
 
     response = await client.get(
@@ -862,7 +877,11 @@ async def test_leave_blocks_when_owned_projects_lack_transfer(
 ):
     """Without ``project_transfers``, leaving with owned projects is rejected
     rather than silently orphaning them."""
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
 
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
@@ -874,6 +893,7 @@ async def test_leave_blocks_when_owned_projects_lack_transfer(
         session, user=leaver, guild=guild, role=GuildRole.member
     )
     initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
     await create_project(session, initiative=initiative, owner=leaver)
 
     response = await client.request(
@@ -998,7 +1018,11 @@ async def test_leave_with_deletion_soft_deletes_project(
     handing it off, so a user with no obvious successor can still
     leave without orphaning the project."""
     from app.models.project import Project
-    from app.testing.factories import create_initiative, create_project
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+    )
 
     admin = await create_user(session, email="admin@example.com")
     leaver = await create_user(session, email="leaver@example.com")
@@ -1010,6 +1034,7 @@ async def test_leave_with_deletion_soft_deletes_project(
         session, user=leaver, guild=guild, role=GuildRole.member
     )
     initiative = await create_initiative(session, guild=guild, creator=admin)
+    await create_initiative_member(session, initiative=initiative, user=leaver)
     project = await create_project(session, initiative=initiative, owner=leaver)
 
     response = await client.request(

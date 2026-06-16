@@ -64,6 +64,7 @@ export interface MappingInitiativeOption extends MappingOptionItem {
 
 export interface MappingRoleOption extends MappingOptionItem {
   initiative_id: number;
+  guild_id: number;
 }
 
 export interface MappingOptions {

@@ -55,7 +55,6 @@ async def test_export_platform_users_csv_as_admin(
         "updated_at",
         "timezone",
         "locale",
-        "initiative_roles",
     ]
     emails = {row[1] for row in data_rows}
     assert "admin@example.com" in emails
@@ -242,7 +241,9 @@ async def test_admin_delete_rejects_surplus_project_transfers(
     from app.models.project import Project
     from app.db.session import set_rls_context
 
-    await set_rls_context(session, guild_id=guild.id, is_superadmin=True)
+    # Verify as a guild admin: initiative_access ignores is_superadmin, so route
+    # with the admin role to read the (untouched) bystander project.
+    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
     refreshed = (
         await session.exec(_select(Project).where(Project.id == bystander_project.id))
     ).one()

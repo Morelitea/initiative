@@ -30,7 +30,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useDateLocale } from "@/hooks/useDateLocale";
 import { useGuilds } from "@/hooks/useGuilds";
-import { getRoleLabel, useRoleLabels } from "@/hooks/useRoleLabels";
 import {
   useApproveUser,
   useExportGuildUsersCsv,
@@ -56,8 +55,6 @@ export const SettingsUsersPage = () => {
   // Guild admin check is based on guild membership role only (independent from platform role)
   const isGuildAdmin = activeGuild?.role === "admin";
 
-  const { data: roleLabels } = useRoleLabels();
-  const adminLabel = getRoleLabel("admin", roleLabels);
   const activeGuildId = activeGuild?.id ?? null;
 
   const [invites, setInvites] = useState<GuildInviteRead[]>([]);
@@ -144,9 +141,7 @@ export const SettingsUsersPage = () => {
   };
 
   if (!isGuildAdmin) {
-    return (
-      <p className="text-muted-foreground text-sm">{t("users.adminRequired", { adminLabel })}</p>
-    );
+    return <p className="text-muted-foreground text-sm">{t("users.adminRequired")}</p>;
   }
 
   if (usersQuery.isLoading) {
@@ -206,7 +201,7 @@ export const SettingsUsersPage = () => {
               <SelectContent>
                 {GUILD_ROLE_OPTIONS.map((roleOption) => (
                   <SelectItem key={roleOption} value={roleOption}>
-                    {getRoleLabel(roleOption, roleLabels)}
+                    {t(`users.guildRole.${roleOption}` as never)}
                   </SelectItem>
                 ))}
               </SelectContent>

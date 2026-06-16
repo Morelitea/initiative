@@ -87,11 +87,13 @@ export const OidcClaimMappingsSection = () => {
   }, [optionsQuery.data, form.guild_id]);
 
   const filteredRoles = useMemo(() => {
-    if (!optionsQuery.data || !form.initiative_id) return [];
+    if (!optionsQuery.data || !form.initiative_id || !form.guild_id) return [];
+    // Initiative ids are unique only within a guild, so match guild_id too to
+    // avoid leaking roles from a colliding initiative id in another guild.
     return optionsQuery.data.initiative_roles.filter(
-      (r) => r.initiative_id === Number(form.initiative_id)
+      (r) => r.initiative_id === Number(form.initiative_id) && r.guild_id === Number(form.guild_id)
     );
-  }, [optionsQuery.data, form.initiative_id]);
+  }, [optionsQuery.data, form.initiative_id, form.guild_id]);
 
   const resetForm = () => {
     setFormOpen(false);

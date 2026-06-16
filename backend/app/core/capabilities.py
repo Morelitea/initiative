@@ -46,8 +46,12 @@ class Capability(str, Enum):
     GUILDS_MANAGE = "guilds.manage"
     ROLES_ASSIGN = "roles.assign"
 
-    # The standing, all-guild RLS bypass (``app.is_superadmin``). admin+owner
-    # only — PAM grants are the least-privilege alternative for everyone else.
+    # The right to self-issue a break-glass PAM grant (admin+owner only). This is
+    # NOT a standing all-guild bypass: instead of ambient ``app.is_superadmin``
+    # god-mode, the holder records a scoped, time-bound, audited grant in one step
+    # (created + self-approved) to reach one guild's data, then routes through the
+    # normal PAM path until it expires. Lower tiers reach a guild via the
+    # request→approve flow instead.
     DATA_BYPASS = "data.bypass"
 
     # Privileged Access Management (time-bound, per-guild grants).
@@ -91,8 +95,9 @@ _OWNER: FrozenSet[Capability] = (
         Capability.CONFIG_MANAGE,
     }
 ) - {
-    # Owners approve access requests; they don't request elevated access for
-    # themselves (they already hold the standing all-guild bypass).
+    # Owners approve access requests; they don't go through the request→approve
+    # flow for themselves — they reach a guild via the self-approved break-glass
+    # path (``data.bypass`` + ``access.approve``), so ``access.request`` is dropped.
     Capability.ACCESS_REQUEST,
 }
 

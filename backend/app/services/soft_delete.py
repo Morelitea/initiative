@@ -297,12 +297,17 @@ async def _gather_descendants(
 
 
 async def hard_purge_entity(
-    admin_session: AsyncSession,
+    session: AsyncSession,
     entity: SoftDeleteMixin,
 ) -> None:
-    """Hard-delete the entity and every descendant. Caller must use
-    AdminSessionDep (BYPASSRLS) because the in-app ``app_user`` role's
-    RESTRICTIVE DELETE policy denies DELETEs except for guild-admin sessions.
+    """Hard-delete the entity and every descendant.
+
+    The caller's ``session`` must be able to clear the RESTRICTIVE FOR DELETE
+    policies on these tables — either a routed **guild-admin** RLS session (the
+    interactive purge endpoint) or a BYPASSRLS ``app_admin`` session (the
+    background auto-purge worker, which has no guild context). The caller is also
+    responsible for locking the target against a concurrent restore and for
+    committing.
 
     Descendants are walked via the same CASCADE_CHILDREN registry the
     soft-delete path uses, then deleted in reverse (grandchildren first)
@@ -310,19 +315,17 @@ async def hard_purge_entity(
     descendant set, upload cleanup runs before the DELETEs so blobs on
     disk and ``Upload`` rows pinned only by the doomed documents are also
     removed.
-
-    Caller commits.
     """
     from app.services.attachments import purge_document_uploads
 
-    descendants = await _gather_descendants(admin_session, entity)
+    descendants = await _gather_descendants(session, entity)
     all_doomed: list[SoftDeleteMixin] = [entity, *descendants]
 
     doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:
-        await purge_document_uploads(admin_session, doomed_documents)
+        await purge_document_uploads(session, doomed_documents)
 
     # Reverse so we delete leaves before parents — needed because most FKs
     # in this codebase don't use DB-level ON DELETE CASCADE.
     for row in reversed(all_doomed):
-        await admin_session.delete(row)
+        await session.delete(row)

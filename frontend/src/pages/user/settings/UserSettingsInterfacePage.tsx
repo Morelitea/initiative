@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { UserRead } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateRecents } from "@/api/query-keys";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -35,6 +37,16 @@ const WEEK_START_OPTIONS = [
   { labelKey: "dates:weekdays.friday", value: 5 },
   { labelKey: "dates:weekdays.saturday", value: 6 },
 ];
+
+const RECENT_TABS_LIMIT_MIN = 1;
+const RECENT_TABS_LIMIT_MAX = 100;
+const RECENT_TABS_LIMIT_DEFAULT = 20;
+
+const clampRecentTabsLimit = (value: number): number =>
+  Math.min(
+    RECENT_TABS_LIMIT_MAX,
+    Math.max(RECENT_TABS_LIMIT_MIN, Math.round(value || RECENT_TABS_LIMIT_DEFAULT))
+  );
 
 const LANGUAGE_OPTIONS = [
   { label: "English", value: "en" },
@@ -169,6 +181,9 @@ export const UserSettingsInterfacePage = ({
 }: UserSettingsInterfacePageProps) => {
   const { t, i18n } = useTranslation(["settings", "dates"]);
   const [weekStartsOn, setWeekStartsOn] = useState(user.week_starts_on ?? 0);
+  const [recentTabsLimit, setRecentTabsLimit] = useState(
+    user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT
+  );
   const [colorTheme, setColorTheme] = useState(user.color_theme ?? "kobold");
   const [locale, setLocale] = useState(user.locale ?? "en");
   const [visualFeedback, setVisualFeedback] = useState<TaskCompletionVisualFeedback>(() =>
@@ -188,6 +203,7 @@ export const UserSettingsInterfacePage = ({
 
   useEffect(() => {
     setWeekStartsOn(user.week_starts_on ?? 0);
+    setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
     setColorTheme(user.color_theme ?? "kobold");
     setLocale(user.locale ?? "en");
     setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
@@ -199,6 +215,12 @@ export const UserSettingsInterfacePage = ({
     onSuccess: async (_, variables) => {
       if (variables.week_starts_on !== undefined) {
         setWeekStartsOn(Number(variables.week_starts_on));
+      }
+      if (variables.recent_tabs_limit !== undefined) {
+        setRecentTabsLimit(Number(variables.recent_tabs_limit));
+        // The header tabs bar caches recents for 30s; refetch so a higher
+        // limit surfaces more items immediately.
+        void invalidateRecents();
       }
       if (variables.color_theme !== undefined) {
         setColorTheme(String(variables.color_theme));
@@ -225,6 +247,7 @@ export const UserSettingsInterfacePage = ({
     onError: () => {
       toast.error(t("interface.updateError"));
       setWeekStartsOn(user.week_starts_on ?? 0);
+      setRecentTabsLimit(user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT);
       setColorTheme(user.color_theme ?? "kobold");
       setLocale(user.locale ?? "en");
       setVisualFeedback(parseTaskCompletionVisualFeedback(user.task_completion_visual_feedback));
@@ -232,6 +255,14 @@ export const UserSettingsInterfacePage = ({
       setHapticFeedback(user.task_completion_haptic_feedback ?? true);
     },
   });
+
+  const commitRecentTabsLimit = () => {
+    const clamped = clampRecentTabsLimit(recentTabsLimit);
+    setRecentTabsLimit(clamped);
+    if (clamped !== (user.recent_tabs_limit ?? RECENT_TABS_LIMIT_DEFAULT)) {
+      updateInterfacePrefs.mutate({ recent_tabs_limit: clamped });
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -329,6 +360,30 @@ export const UserSettingsInterfacePage = ({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">{t("interface.recentTabsLimit")}</p>
+              <p className="text-muted-foreground text-sm">
+                {t("interface.recentTabsLimitDescription")}
+              </p>
+            </div>
+            <Input
+              type="number"
+              min={RECENT_TABS_LIMIT_MIN}
+              max={RECENT_TABS_LIMIT_MAX}
+              value={recentTabsLimit}
+              onChange={(event) => setRecentTabsLimit(Number(event.target.value))}
+              onBlur={commitRecentTabsLimit}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.currentTarget.blur();
+                }
+              }}
+              disabled={updateInterfacePrefs.isPending}
+              aria-label={t("interface.recentTabsLimit")}
+              className="sm:w-52"
+            />
           </div>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

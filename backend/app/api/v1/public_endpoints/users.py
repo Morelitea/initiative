@@ -26,7 +26,6 @@ from app.db.session import get_admin_session, reapply_rls_context, set_rls_conte
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.guild import GuildRole, GuildMembership
 from app.models.initiative import InitiativeMember
-from app.core.capabilities import Capability, user_has_capability
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.user import (
     UserCreate,
@@ -57,6 +56,7 @@ from app.services import api_keys as api_keys_service
 from app.services import csv_export
 from app.services import stats_service
 from app.services import user_tokens as user_tokens_service
+from app.services import recent_views as recent_views_service
 
 # Allowed values for the optional "task completion visual feedback" effect.
 # Mirrored on the frontend in src/lib/taskCompletionVisualFeedback.ts; keep
@@ -230,7 +230,6 @@ async def create_user(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     normalized_email = user_in.email.lower().strip()
@@ -318,6 +317,10 @@ async def update_users_me(
         normalized_week_start = normalize_week_starts_on(update_data["week_starts_on"])
         if normalized_week_start is not None:
             current_user.week_starts_on = normalized_week_start
+    if "recent_tabs_limit" in update_data:
+        current_user.recent_tabs_limit = recent_views_service.clamp_recent_limit(
+            update_data["recent_tabs_limit"]
+        )
     if "timezone" in update_data:
         normalized_timezone = normalize_timezone(update_data["timezone"])
         if normalized_timezone:
@@ -399,7 +402,6 @@ async def update_user(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     stmt = (
@@ -486,7 +488,6 @@ async def approve_user(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
     )
 
     stmt = (
@@ -786,7 +787,6 @@ async def check_guild_removal_eligibility(
         user_id=current_admin.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_admin, Capability.DATA_BYPASS),
     )
 
     sole_pm_initiatives = await initiatives_service.initiatives_requiring_new_pm(
@@ -846,7 +846,6 @@ async def delete_user(
         user_id=current_admin.id,
         guild_id=guild_context.guild_id,
         guild_role="admin",
-        is_superadmin=user_has_capability(current_admin, Capability.DATA_BYPASS),
     )
 
     # Use FOR UPDATE to prevent race condition when checking last admin

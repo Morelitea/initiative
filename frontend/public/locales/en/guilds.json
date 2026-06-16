@@ -127,7 +127,11 @@
     "retentionUpdatedSuccessfully": "Retention updated."
   },
   "users": {
-    "adminRequired": "You need {{adminLabel}} permissions to view this page.",
+    "adminRequired": "You need admin permissions to view this page.",
+    "guildRole": {
+      "admin": "Admin",
+      "member": "Member"
+    },
     "loadingSettings": "Loading settings…",
     "unableToLoadSettings": "Unable to load settings.",
     "invitesTitle": "Guild invites",

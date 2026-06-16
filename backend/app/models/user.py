@@ -81,6 +81,14 @@ class User(SQLModel, table=True):
         default=0,
         sa_column=Column(Integer, nullable=False, server_default="0"),
     )
+    # How many recently-opened items the header tabs bar keeps and shows for
+    # this user, across all entity types and guilds. Drives both the display
+    # count and the per-guild prune cap (see app.services.recent_views).
+    # Clamped to [1, 100] on write; default 20 preserves the historic behavior.
+    recent_tabs_limit: int = Field(
+        default=20,
+        sa_column=Column(Integer, nullable=False, server_default="20"),
+    )
     email_verified: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),

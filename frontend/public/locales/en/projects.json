@@ -155,7 +155,10 @@
 
   "tabsBar": {
     "loadingRecent": "Loading recent items\u2026",
-    "closeItem": "Close {{name}}"
+    "closeItem": "Close {{name}}",
+    "close": "Close",
+    "closeOthers": "Close others",
+    "closeAll": "Close all"
   },
 
   "favorite": {
@@ -185,7 +188,7 @@
     "priorityHigh": "High priority",
     "priorityUrgent": "Urgent",
     "assigneesLabel": "Assignees",
-    "assigneesEmptyMessage": "Invite initiative {{memberLabel}} role holders to assign work.",
+    "assigneesEmptyMessage": "Invite initiative members to assign work.",
     "startDateLabel": "Start date",
     "dueDateLabel": "Due date",
     "optional": "Optional",
@@ -195,8 +198,8 @@
   },
 
   "assignee": {
-    "emptyMessage": "Invite initiative {{memberLabel}} role holders to assign tasks.",
-    "searchPlaceholder": "Search {{memberLabel}}",
+    "emptyMessage": "Invite initiative members to assign tasks.",
+    "searchPlaceholder": "Search members",
     "noAssignees": "No assignees selected.",
     "removeAssignee": "Remove {{name}}",
     "clearAssignees": "Clear assignees",

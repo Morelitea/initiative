@@ -279,6 +279,9 @@ class AccessGrantMessages:
     NOT_ACTIVE = "ACCESS_GRANT_NOT_ACTIVE"
     CANNOT_APPROVE_OWN = "ACCESS_GRANT_CANNOT_APPROVE_OWN"
     CANNOT_CANCEL_OTHERS = "ACCESS_GRANT_CANNOT_CANCEL_OTHERS"
+    # Break-glass (self-approved, data.bypass holders): a live grant for this
+    # guild already exists, so there's nothing to self-issue.
+    ALREADY_LIVE = "ACCESS_GRANT_ALREADY_LIVE"
 
 
 class PasswordMessages:

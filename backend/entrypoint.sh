@@ -1,6 +1,11 @@
 #!/bin/sh
 set -e
 
+# Ensure the uv-managed virtualenv is on PATH even when the runtime re-applies a
+# stale PATH captured from a previous image (e.g. Synology Container Manager
+# persists the old container's env on upgrade, clobbering the image's ENV PATH).
+export PATH="/app/.venv/bin:$PATH"
+
 # Default to UID/GID 1000 if not specified
 APP_UID="${PUID:-1000}"
 APP_GID="${PGID:-1000}"
@@ -16,16 +21,20 @@ if [ "$APP_UID" -eq 0 ] || [ "$APP_GID" -eq 0 ]; then
   echo "ERROR: PUID and PGID must not be 0 (root)" >&2; exit 1
 fi
 
-# Create group with requested GID (skip if GID already exists)
+# Create group with requested GID (skip if GID already exists).
+# Not --system: the default GID 1000 is outside the system range (<=999), which
+# makes a strict adduser/useradd refuse it ("gid 1000 is greater than SYS_GID_MAX").
 if ! getent group "$APP_GID" >/dev/null 2>&1; then
-    addgroup --system --gid "$APP_GID" app
+    addgroup --gid "$APP_GID" app
 fi
 
-# Create user with requested UID (skip if UID already exists)
+# Create user with requested UID (skip if UID already exists). See the group note
+# above re: --system. --disabled-password/--gecos keep adduser non-interactive.
 if ! getent passwd "$APP_UID" >/dev/null 2>&1; then
     # Resolve the group name for the target GID
     APP_GROUP=$(getent group "$APP_GID" | cut -d: -f1)
-    adduser --system --uid "$APP_UID" --ingroup "$APP_GROUP" --no-create-home app
+    adduser --uid "$APP_UID" --ingroup "$APP_GROUP" --no-create-home \
+        --disabled-password --gecos "" app
 fi
 
 # Ensure uploads directory is writable

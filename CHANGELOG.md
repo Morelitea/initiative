@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-06-16
+
+### Security
+
+- **⚠️ BREAKING: initiative content is now members-only, enforced by the database.** If you're in a guild but not a member of one of its initiatives, that initiative's projects, tasks, documents, and other content are now hidden from you (previously they were blocked but still visible as "exists"). This database change cannot be rolled back.
+- **Initiative isolation now covers the last few gaps.** Some related data — project/document sharing and links, project tags, and per-user state like favorites, recent history, and reminders — was still reachable by guild members outside the initiative; it's now members-only like everything else. New initiative tables are required to carry these database rules going forward, so the gap can't reopen.
+- **Platform-role RLS hardening (Phase 2).** The purely-platform tables (`users`, `access_grants`, `app_settings`) now enforce least-privilege at the database via per-tier `platform_<role>` policies instead of relying on the app layer alone: a member sees only their own user row, support+ can read all users, moderator+ can manage them, and app-wide config (`app_settings`: OIDC, SMTP, branding, platform AI) is owner-only to write
+
+### Added
+
+- **Rename built-in initiative roles.** The built-in "Project manager" and "Member" roles can now be renamed per initiative (e.g. "Project manager" → "Dungeon Master") from the initiative's Roles settings tab. The chosen name shows up wherever that member's role appears — rosters, badges, and the initiative list.
+- **Configurable recent-items tab bar.** A new "Recent items in tab bar" setting (Profile → Interface) controls how many recently-opened items the header tab bar keeps and shows, from 1 to 100 (default 20). Right-clicking a tab now opens a context menu with Close, Close others, and Close all.
+
+### Changed
+
+- The platform users CSV export (`/admin/users/export.csv`) no longer includes the `initiative_roles` column. Initiative roles are guild-scoped; a platform-level user export now contains platform data only.
+
+### Fixed
+
+- OIDC claim mappings with the "initiative" target type showed an empty initiative dropdown after picking a guild, and saving such a mapping failed. The admin settings endpoint looked for initiatives and roles in the shared schema, where they don't live, instead of inside each guild's own schema; it now routes into every guild to list them, and the role dropdown is correctly scoped to the selected guild.
+- Container failing to start on Synology NAS (and other runtimes that re-apply a stale `PATH` on image upgrade) with `start.sh: exec: uvicorn: not found`. The startup scripts now put the bundled virtualenv on `PATH` explicitly instead of relying on the image's `ENV PATH`.
+- `adduser`/`addgroup` warning and failure for the default `PUID`/`PGID` of `1000` (`uid 1000 is greater than SYS_UID_MAX 999`); the container user is no longer created in the system-account range.
+
+### Removed
+
+- **Platform-wide role labels.** The branding setting that renamed "Admin", "Project manager", and "Member" app-wide has been removed in favour of per-initiative role names (above), which offer finer-grained control. The `app_settings.role_labels` column and the `GET`/`PUT /settings/roles` endpoints are gone.
+
 ## [0.51.1] - 2026-06-15
 
 ### Fixed

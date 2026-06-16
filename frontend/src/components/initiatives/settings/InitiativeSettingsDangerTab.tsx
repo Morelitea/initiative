@@ -9,7 +9,6 @@ interface InitiativeSettingsDangerTabProps {
   isDefault: boolean;
   canDeleteInitiative: boolean;
   isDeleting: boolean;
-  adminLabel: string;
   onDeleteInitiative: () => void;
 }
 
@@ -17,7 +16,6 @@ export const InitiativeSettingsDangerTab = ({
   isDefault,
   canDeleteInitiative,
   isDeleting,
-  adminLabel,
   onDeleteInitiative,
 }: InitiativeSettingsDangerTabProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
@@ -50,9 +48,7 @@ export const InitiativeSettingsDangerTab = ({
               )}
             </Button>
           ) : (
-            <p className="text-muted-foreground text-sm">
-              {t("settings.contactAdmin", { adminLabel })}
-            </p>
+            <p className="text-muted-foreground text-sm">{t("settings.contactAdmin")}</p>
           )}
           {isDefault ? (
             <p className="text-muted-foreground text-xs">{t("settings.defaultCannotDelete")}</p>

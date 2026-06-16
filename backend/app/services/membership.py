@@ -1,11 +1,12 @@
 """Shared guild- and initiative-membership checks.
 
-The schema-per-guild cutover removed the DB-level initiative-membership
-RESTRICTIVE policy layer (``is_initiative_member()``), so initiative scoping
-is now enforced entirely in application code. This module is the single
-source of truth for those checks: clause builders for embedding membership
-predicates in any SELECT, and batch lookups that resolve membership for many
-users (or many initiatives) in one round trip instead of a per-user loop.
+Initiative scoping has **one** definition: the ``public.initiative_access`` SQL
+function (initiative member OR guild admin OR PAM grant, read from the request
+GUCs). The guild-schema RLS policies call it as the fail-closed DB backstop, and
+``initiative_scope_clause`` here calls the *same* function so app-built queries
+use the identical rule — no parallel re-implementation. This module also provides
+the guild/initiative-membership batch lookups (resolve membership for many users
+or initiatives in one round trip instead of a per-user loop).
 
 Routing contract:
   - ``guild_memberships`` is a shared/public table — the guild helpers work on
@@ -18,14 +19,11 @@ Routing contract:
 
 from typing import Collection, Iterable, Optional
 
-from sqlalchemy import ColumnElement, exists, or_, select
+from sqlalchemy import ColumnElement, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.capabilities import Capability, roles_with_capability
-from app.core.pam_context import active_grant_guild
 from app.models.guild import GuildMembership, GuildRole
 from app.models.initiative import InitiativeMember
-from app.models.user import User
 
 
 # ---------------------------------------------------------------------------
@@ -68,51 +66,26 @@ def guild_member_clause(
     return exists(select(1).where(*conditions))
 
 
-def initiative_access_clause(
-    user_id: int,
-    initiative_id_col: ColumnElement[int] | int,
-    guild_id_col: ColumnElement[int] | int,
-) -> ColumnElement[bool]:
-    """The app-level replacement for the old RESTRICTIVE RLS expression
-    ``is_initiative_member(...) OR guild-admin OR superadmin``: member of the
-    initiative, or admin of the guild that owns it.
-
-    The superadmin leg is intentionally not encoded in SQL — callers that
-    serve ``data.bypass`` holders skip the gate instead (they can see the
-    user object; the query cannot).
-    """
-    return or_(
-        initiative_member_clause(user_id, initiative_id_col),
-        guild_member_clause(user_id, guild_id_col, role=GuildRole.admin),
-    )
-
-
 def initiative_scope_clause(
     user_id: int,
     initiative_id_col: ColumnElement[int] | int,
-    guild_id_col: ColumnElement[int] | int,
+    guild_id_col: ColumnElement[int] | int | None = None,
+    *,
+    need_write: bool = False,
 ) -> ColumnElement[bool]:
-    """Full app-level replacement for the old RESTRICTIVE RLS expression
-    ``is_initiative_member(...) OR IS_ADMIN OR IS_SUPER``, evaluated per row in
-    SQL so it stays correct inside cross-guild gathers and arbitrary batch
-    sizes: initiative member, OR admin of the row's guild, OR a platform role
-    holding ``data.bypass``, OR a live PAM grant covering the row's guild.
+    """Initiative-scope predicate for embedding in any SELECT — the **single
+    source of truth**: it defers to the ``public.initiative_access`` SQL function
+    (initiative member OR guild admin OR PAM grant, read from the request GUCs),
+    the exact same predicate the guild-schema RLS policies use. There is one rule,
+    in one place, called by both the database and the app.
 
-    The PAM leg mirrors the old ``is_initiative_member()`` SQL function (which
-    honored the ``app.pam_*`` GUCs): the request's active grant — if any — is
-    embedded as a literal guild predicate at build time, keeping this clause
-    consistent with the loaded-data gate (``initiative_scope_ok``). Build the
-    clause per request, inside the request's context.
+    Because the function reads ``app.current_guild_role`` / ``app.pam_*`` from the
+    session GUCs, the guild-admin and PAM legs come "for free" on any routed
+    session (``RLSSessionDep`` or a per-guild ``set_rls_context``); ``guild_id_col``
+    is accepted for call-site compatibility but no longer needed. ``need_write``
+    selects the read vs. write PAM leg.
     """
-    bypass_roles = tuple(roles_with_capability(Capability.DATA_BYPASS))
-    legs = [
-        initiative_access_clause(user_id, initiative_id_col, guild_id_col),
-        exists(select(1).where(User.id == user_id, User.role.in_(bypass_roles))),
-    ]
-    granted_guild = active_grant_guild()
-    if granted_guild is not None:
-        legs.append(guild_id_col == granted_guild)
-    return or_(*legs)
+    return func.initiative_access(initiative_id_col, user_id, need_write)
 
 
 def member_initiative_ids_select(user_id: int):

@@ -61,11 +61,12 @@ async def _create_task(
 
 
 async def _assign(session, task, user_id):
-    """Assign ``task`` to ``user_id``. TaskAssignee has no guild_id, so route
-    the write into the task's guild schema explicitly."""
+    """Assign ``task`` to ``user_id``. Route the write as the task's creator (a
+    member with initiative write access) — the task_assignees RLS checks the
+    ACTOR's access, and the assignee need not be an initiative member."""
     from app.db.session import set_rls_context
 
-    await set_rls_context(session, user_id=user_id, guild_id=task.guild_id)
+    await set_rls_context(session, user_id=task.created_by_id, guild_id=task.guild_id)
     session.add(TaskAssignee(task_id=task.id, user_id=user_id))
     await session.commit()
 
@@ -133,6 +134,47 @@ async def test_list_my_tasks_excludes_unassigned_and_others(
     assert mine.id in task_ids
     assert created_not_assigned.id not in task_ids
     assert others.id not in task_ids
+
+
+@pytest.mark.integration
+async def test_admin_sees_assigned_task_in_non_member_initiative(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild ADMIN has default access to all guild content, so /me/tasks shows
+    a task assigned to them even in an initiative they were never added to as a
+    member. Regression: ``gather_across_guilds`` must route each guild with the
+    user's role so ``initiative_access``'s admin leg fires (without it the admin
+    only got the member leg and the task was hidden)."""
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session, creator=admin, name="Guild")
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+
+    # Initiative + project owned by the member; the admin is NOT a member of it.
+    initiative = await create_initiative(
+        session, guild, member, name="Member Initiative"
+    )
+    project = await create_project(session, initiative, member, name="Member Project")
+
+    task = await _create_task(
+        session, project, "Assigned to admin", created_by_id=member.id
+    )
+    await _assign(session, task, admin.id)
+
+    headers = await get_guild_headers(session, guild, admin)
+    response = await client.get("/api/v1/me/tasks", headers=headers)
+
+    assert response.status_code == 200, response.text
+    task_ids = {t["id"] for t in response.json()["items"]}
+    assert task.id in task_ids, (
+        "Guild admin should see a task assigned to them even in an initiative "
+        "they aren't a member of (initiative_access admin leg)."
+    )
 
 
 @pytest.mark.integration

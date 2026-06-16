@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useAuth } from "@/hooks/useAuth";
 import { useImportFromVikunja, useParseVikunjaJson } from "@/hooks/useImports";
 import { useProjects, useProjectTaskStatuses } from "@/hooks/useProjects";
 import { toast } from "@/lib/chesterToast";
@@ -83,7 +82,6 @@ const suggestStatusForBucket = (
 
 export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogProps) => {
   const { t } = useTranslation("import");
-  const { user } = useAuth();
   const [step, setStep] = useState<Step>("upload");
   const [jsonContent, setJsonContent] = useState("");
   const [parseResult, setParseResult] = useState<VikunjaParseResult | null>(null);
@@ -199,12 +197,13 @@ export const VikunjaImportDialog = ({ open, onOpenChange }: VikunjaImportDialogP
     bucketMapping,
   ]);
 
-  // Filter to only show projects where user has write or owner permission
+  // Filter to only show projects where the user can write. Use the backend-computed
+  // my_permission_level (which accounts for DAC, role-based access, guild admin, and
+  // PAM grants) instead of re-deriving from the raw permissions list on the client.
   const activeProjects =
     projectsQuery.data?.items?.filter((p) => {
       if (p.is_archived || p.is_template) return false;
-      const userPermission = p.permissions?.find((perm) => perm.user_id === user?.id);
-      return userPermission?.level === "owner" || userPermission?.level === "write";
+      return p.my_permission_level === "owner" || p.my_permission_level === "write";
     }) ?? [];
   const statuses = taskStatusesQuery.data ?? [];
 

@@ -127,7 +127,11 @@
     "retentionUpdatedSuccessfully": "Rétention mise à jour."
   },
   "users": {
-    "adminRequired": "Vous avez besoin des permissions {{adminLabel}} pour voir cette page.",
+    "adminRequired": "Vous avez besoin des permissions administrateur pour voir cette page.",
+    "guildRole": {
+      "admin": "Administrateur",
+      "member": "Membre"
+    },
     "loadingSettings": "Chargement des paramètres…",
     "unableToLoadSettings": "Impossible de charger les paramètres.",
     "invitesTitle": "Invitations du groupe",

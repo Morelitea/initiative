@@ -146,7 +146,10 @@
   },
   "tabsBar": {
     "loadingRecent": "Cargando elementos recientes\u2026",
-    "closeItem": "Cerrar {{name}}"
+    "closeItem": "Cerrar {{name}}",
+    "close": "Cerrar",
+    "closeOthers": "Cerrar las dem\u00e1s",
+    "closeAll": "Cerrar todas"
   },
   "favorite": {
     "remove": "Quitar de favoritos",
@@ -173,7 +176,7 @@
     "priorityHigh": "Prioridad alta",
     "priorityUrgent": "Urgente",
     "assigneesLabel": "Asignados",
-    "assigneesEmptyMessage": "Invita a titulares del rol {{memberLabel}} de la iniciativa para asignar trabajo.",
+    "assigneesEmptyMessage": "Invita a miembros de la iniciativa para asignar trabajo.",
     "startDateLabel": "Fecha de inicio",
     "dueDateLabel": "Fecha de vencimiento",
     "optional": "Opcional",
@@ -182,8 +185,8 @@
     "createError": "No se pudo crear la tarea."
   },
   "assignee": {
-    "emptyMessage": "Invita a titulares del rol {{memberLabel}} de la iniciativa para asignar tareas.",
-    "searchPlaceholder": "Buscar {{memberLabel}}",
+    "emptyMessage": "Invita a miembros de la iniciativa para asignar tareas.",
+    "searchPlaceholder": "Buscar miembros",
     "noAssignees": "No hay asignados seleccionados.",
     "removeAssignee": "Quitar a {{name}}",
     "clearAssignees": "Limpiar asignados",

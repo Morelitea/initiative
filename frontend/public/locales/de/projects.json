@@ -155,7 +155,10 @@
 
   "tabsBar": {
     "loadingRecent": "Aktuelle Elemente werden geladen…",
-    "closeItem": "{{name}} schließen"
+    "closeItem": "{{name}} schließen",
+    "close": "Schließen",
+    "closeOthers": "Andere schließen",
+    "closeAll": "Alle schließen"
   },
 
   "favorite": {
@@ -185,7 +188,7 @@
     "priorityHigh": "Hohe Priorität",
     "priorityUrgent": "Dringend",
     "assigneesLabel": "Zuständige Personen",
-    "assigneesEmptyMessage": "Lade Inhaber der Initiativrolle {{memberLabel}} ein, um Arbeit zuzuweisen.",
+    "assigneesEmptyMessage": "Lade Initiativmitglieder ein, um Arbeit zuzuweisen.",
     "startDateLabel": "Startdatum",
     "dueDateLabel": "Fälligkeitsdatum",
     "optional": "Optional",
@@ -195,8 +198,8 @@
   },
 
   "assignee": {
-    "emptyMessage": "Lade Inhaber der Initiativrolle {{memberLabel}} ein, um Aufgaben zuzuweisen.",
-    "searchPlaceholder": "{{memberLabel}} suchen",
+    "emptyMessage": "Lade Initiativmitglieder ein, um Aufgaben zuzuweisen.",
+    "searchPlaceholder": "Mitglieder suchen",
     "noAssignees": "Keine zuständigen Personen ausgewählt.",
     "removeAssignee": "{{name}} entfernen",
     "clearAssignees": "Zuständige Personen entfernen",

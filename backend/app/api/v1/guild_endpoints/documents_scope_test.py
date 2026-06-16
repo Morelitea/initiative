@@ -78,11 +78,13 @@ async def test_initiative_removal_ends_document_access(
     )
     assert response.status_code == 200
 
-    # Access is gone: open is 403, the list no longer contains the doc.
+    # Access is gone: once out of the initiative, the initiative RLS hides the
+    # document entirely — open is 404 (not a 403 existence leak), and the list no
+    # longer contains it.
     response = await client.get(
         f"/api/v1/g/{guild.id}/documents/{doc_id}", headers=member_headers
     )
-    assert response.status_code == 403
+    assert response.status_code == 404
     response = await client.get(
         f"/api/v1/g/{guild.id}/documents/", headers=member_headers
     )
