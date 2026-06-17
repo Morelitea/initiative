@@ -141,14 +141,16 @@ export const DateTimePicker = ({
     | 4
     | 5
     | 6;
-  const currentYear = new Date().getFullYear();
-  const mergedCalendarProps = {
-    captionLayout: "dropdown" as const,
-    startMonth: new Date(currentYear - 120, 0),
-    endMonth: new Date(currentYear + 10, 11),
-    ...(calendarProps ?? {}),
-    weekStartsOn: resolvedWeekStartsOn,
-  };
+  const mergedCalendarProps = React.useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return {
+      captionLayout: "dropdown" as const,
+      startMonth: new Date(currentYear - 120, 0),
+      endMonth: new Date(currentYear + 10, 11),
+      ...(calendarProps ?? {}),
+      weekStartsOn: resolvedWeekStartsOn,
+    };
+  }, [calendarProps, resolvedWeekStartsOn]);
 
   const handleSelectDate = (date: Date | undefined) => {
     if (!date) {
@@ -172,18 +174,35 @@ export const DateTimePicker = ({
     onChange(formatForStorage(next, includeTime));
   };
 
-  const commitInput = () => {
+  // `allowClear` distinguishes an explicit commit (Enter) from an incidental
+  // blur. On blur we must NOT emit onChange("") for an empty field: the browser
+  // fires blur (mousedown) before a calendar day's click (mouseup), so clearing
+  // here would send a spurious "clear" mutation right before the real "set".
+  // Clearing is intentional only via Enter or the Clear button.
+  const commitInput = (allowClear: boolean) => {
     const trimmed = inputValue.trim();
     if (!trimmed) {
-      onChange("");
+      if (allowClear) {
+        if (value) {
+          onChange("");
+        }
+      } else {
+        setInputValue(displayValue);
+      }
       return;
     }
     const parsed = parseManualDate(trimmed, includeTime, selectedDate ?? new Date());
-    if (parsed) {
-      onChange(formatForStorage(parsed, includeTime));
-    } else {
+    if (!parsed) {
       // Couldn't parse — revert to the last valid value.
       setInputValue(displayValue);
+      return;
+    }
+    const next = formatForStorage(parsed, includeTime);
+    if (next === value) {
+      // No change — just normalize the text to the canonical display.
+      setInputValue(displayValue);
+    } else {
+      onChange(next);
     }
   };
 
@@ -231,11 +250,11 @@ export const DateTimePicker = ({
             aria-label={t("picker.typeDate")}
             disabled={disabled}
             onChange={(event) => setInputValue(event.target.value)}
-            onBlur={commitInput}
+            onBlur={() => commitInput(false)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
-                commitInput();
+                commitInput(true);
               }
             }}
           />
