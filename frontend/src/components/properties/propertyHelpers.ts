@@ -48,6 +48,33 @@ export const buildUniqueOptionSlug = (label: string, existing: PropertyOption[])
   return `${base}-${Date.now()}`;
 };
 
+/**
+ * Normalize a draft option list for submission. The editor UI only collects a
+ * label per option; the stored ``value`` slug is derived here. An option that
+ * already carries a value (i.e. loaded from an existing definition) keeps it
+ * verbatim so persisted task/document values stay attached; a freshly added
+ * option derives its value from the label. Colliding slugs are disambiguated
+ * with a numeric suffix, blank rows are dropped.
+ */
+export const normalizeOptionList = (options: PropertyOption[]): PropertyOption[] => {
+  const result: PropertyOption[] = [];
+  const used = new Set<string>();
+  for (const option of options) {
+    const label = option.label.trim() || option.value.trim();
+    if (!label) continue;
+    let value = option.value.trim() || slugify(label);
+    if (!value) continue;
+    if (used.has(value)) {
+      let i = 2;
+      while (used.has(`${value}-${i}`)) i += 1;
+      value = `${value}-${i}`;
+    }
+    used.add(value);
+    result.push({ value, label, color: option.color ?? null });
+  }
+  return result;
+};
+
 export const findOptionByLabel = (
   definition: PropertyDefinitionRead,
   label: string

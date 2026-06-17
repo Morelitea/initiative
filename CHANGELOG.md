@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Adding an option to a select / multi-select custom property lost input focus after each keystroke, so only one character could be typed at a time. Option rows are no longer re-keyed by the value being edited.
+
+### Changed
+
+- Creating a custom-property option now asks only for a label; the stored option value is derived from the label automatically (and de-duplicated), removing the redundant Value field from the editor.
+
+## [0.52.0] - 2026-06-16
+
 ### Security
 
 - **⚠️ BREAKING: initiative content is now members-only, enforced by the database.** If you're in a guild but not a member of one of its initiatives, that initiative's projects, tasks, documents, and other content are now hidden from you (previously they were blocked but still visible as "exists"). This database change cannot be rolled back.
@@ -26,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Guild admins and break-glass grant-holders now have default read/write access to all initiative content.** An admin (or an active PAM/break-glass grant) who wasn't explicitly listed on a project, document, queue, counter, or calendar event could see "no results" for that content even though their role grants full access. Access is now resolved the same way for every content type, so the admin/break-glass override applies uniformly instead of per-endpoint.
+- OIDC claim mappings with the "initiative" target type showed an empty initiative dropdown after picking a guild, and saving such a mapping failed. The admin settings endpoint looked for initiatives and roles in the shared schema, where they don't live, instead of inside each guild's own schema; it now routes into every guild to list them, and the role dropdown is correctly scoped to the selected guild.
 - Container failing to start on Synology NAS (and other runtimes that re-apply a stale `PATH` on image upgrade) with `start.sh: exec: uvicorn: not found`. The startup scripts now put the bundled virtualenv on `PATH` explicitly instead of relying on the image's `ENV PATH`.
 - `adduser`/`addgroup` warning and failure for the default `PUID`/`PGID` of `1000` (`uid 1000 is greater than SYS_UID_MAX 999`); the container user is no longer created in the system-account range.
 
