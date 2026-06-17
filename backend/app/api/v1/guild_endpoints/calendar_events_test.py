@@ -474,6 +474,9 @@ async def test_my_calendar_events_filters_events_without_member_grant(
     member = await create_user(session, email="me-member@example.com")
     guild = await create_guild(session, creator=admin)
     await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
         session, user=member, guild=guild, role=GuildRole.member
     )
     initiative = await create_initiative(session, guild, admin, name="MeFilter")
@@ -529,6 +532,9 @@ async def test_my_calendar_events_admin_sees_events_outside_their_initiatives(
     admin = await create_user(session, email="me-admin2@example.com")
     other = await create_user(session, email="me-other@example.com")
     guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
     await create_guild_membership(
         session, user=other, guild=guild, role=GuildRole.member
     )
