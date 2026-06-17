@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Adding an option to a select / multi-select custom property lost input focus after each keystroke, so only one character could be typed at a time. Option rows are no longer re-keyed by the value being edited.
+
+### Changed
+
+- Creating a custom-property option now asks only for a label; the stored option value is derived from the label automatically (and de-duplicated), removing the redundant Value field from the editor.
+
 ## [0.52.0] - 2026-06-16
 
 ### Security
