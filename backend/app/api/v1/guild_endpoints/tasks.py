@@ -34,7 +34,8 @@ from app.api.deps import (
 )
 from app.db.session import reapply_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
-from app.models.project import Project, ProjectPermission, ProjectRolePermission
+from app.models.project import Project
+from app.models.resource_grant import ResourceGrant
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.task import (
     Task,
@@ -871,8 +872,7 @@ async def _get_project_with_access(
             Initiative.guild_id == guild_id,
         )
         .options(
-            selectinload(Project.permissions),
-            selectinload(Project.role_permissions),
+            selectinload(Project.grants).selectinload(ResourceGrant.role),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.user),
@@ -889,18 +889,7 @@ async def _get_project_with_access(
             status_code=status.HTTP_400_BAD_REQUEST, detail=ProjectMessages.IS_ARCHIVED
         )
 
-    # Ensure permission is loaded (may need fallback query)
-    permission = permissions_service.user_permission_from_project(project, user.id)
-    if not permission:
-        stmt = select(ProjectPermission).where(
-            ProjectPermission.project_id == project.id,
-            ProjectPermission.user_id == user.id,
-        )
-        result = await session.exec(stmt)
-        permission = result.one_or_none()
-        if permission:
-            project.permissions.append(permission)
-
+    # project.grants is eager-loaded above; require_project_access reads it.
     permissions_service.require_project_access(project, user, access=access)
 
     return project
@@ -954,41 +943,20 @@ async def _allowed_project_ids(
         full_result = await session.execute(full_stmt)
         return {row[0] for row in full_result.all() if row[0] is not None}
 
-    # User-specific permissions
-    user_conditions = [
-        ProjectPermission.user_id == user.id,
+    # Projects the user has a grant on (own or via an initiative role), scoped to
+    # the guild and (optionally) excluding archived/template projects.
+    conditions = [
+        Project.id.in_(
+            permissions_service.visible_resource_ids_subquery("project", user.id)
+        ),
         Initiative.guild_id == guild_id,
         Project.is_archived == False,  # noqa: E712
     ]
     if not include_templates:
-        user_conditions.append(Project.is_template == False)  # noqa: E712
-    user_perm_subq = (
-        select(ProjectPermission.project_id)
-        .join(Project)
-        .join(Project.initiative)
-        .where(*user_conditions)
-    )
-    # Role-based permissions
-    role_conditions = [
-        Initiative.guild_id == guild_id,
-        Project.is_archived == False,  # noqa: E712
-    ]
-    if not include_templates:
-        role_conditions.append(Project.is_template == False)  # noqa: E712
-    role_perm_subq = (
-        select(ProjectRolePermission.project_id)
-        .join(Project, Project.id == ProjectRolePermission.project_id)
-        .join(Project.initiative)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user.id),
-        )
-        .where(*role_conditions)
-    )
-    combined = user_perm_subq.union(role_perm_subq)
-    permission_ids_result = await session.execute(combined)
-    return {row[0] for row in permission_ids_result.all() if row[0] is not None}
+        conditions.append(Project.is_template == False)  # noqa: E712
+    stmt = select(Project.id).join(Project.initiative).where(*conditions)
+    result = await session.execute(stmt)
+    return {row[0] for row in result.all() if row[0] is not None}
 
 
 def _property_value_filter_clauses(

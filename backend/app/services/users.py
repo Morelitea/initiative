@@ -13,7 +13,8 @@ from app.core.security import get_password_hash
 from app.db.session import set_rls_context
 from app.models.user import User, UserRole, UserStatus
 from app.models.guild import GuildMembership, GuildRole
-from app.models.project import Project, ProjectPermission
+from app.models.project import Project
+from app.models.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.task import TaskAssignee
 from app.models.document import Document, ProjectDocument
 from app.models.comment import Comment
@@ -357,7 +358,7 @@ async def fetch_pm_candidates(
     the project, so handing them the row matches the user's intent and
     keeps them empowered to make further changes (reassign, rename,
     archive). Non-manager members can still appear via direct
-    ``ProjectPermission`` rows; this helper just narrows the picker.
+    project ``ResourceGrant`` rows; this helper just narrows the picker.
 
     Shared between the leave-eligibility (``guilds.py``) and admin
     remove-eligibility (``users.py``) endpoints so the rules don't
@@ -653,7 +654,7 @@ async def transfer_project_ownership(
     ``GET /admin/initiatives/.../members``); this is the server-side
     safety net for clients that bypass those endpoints.
 
-    Drops the previous owner's ``ProjectPermission`` row as part of
+    Drops the previous owner's project ``ResourceGrant`` row as part of
     the transfer. Every call site is a "user is leaving" path
     (self-deactivation, leave-guild, admin-removal, OIDC sync), so
     the departing user shouldn't retain access — and leaving the
@@ -680,38 +681,40 @@ async def transfer_project_ownership(
     session.add(project)
     await session.flush()
 
-    # Drop the previous owner's per-user permission row (if any) before
+    # Drop the previous owner's per-user grant row (if any) before
     # creating / upgrading the new owner's. Skipped when transferring
     # to oneself (no-op) or when the previous owner happens to be the
     # new owner — ``previous_owner_id != new_owner_id`` covers both.
     if previous_owner_id is not None and previous_owner_id != new_owner_id:
         await session.exec(
-            delete(ProjectPermission).where(
-                ProjectPermission.project_id == project_id,
-                ProjectPermission.user_id == previous_owner_id,
+            delete(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.resource_id == project_id,
+                ResourceGrant.user_id == previous_owner_id,
             )
         )
 
-    # Ensure new owner has owner permission
-    perm_stmt = select(ProjectPermission).where(
-        ProjectPermission.project_id == project_id,
-        ProjectPermission.user_id == new_owner_id,
+    # Ensure new owner has an owner-level grant
+    perm_stmt = select(ResourceGrant).where(
+        ResourceGrant.resource_type == "project",
+        ResourceGrant.resource_id == project_id,
+        ResourceGrant.user_id == new_owner_id,
     )
     perm_result = await session.exec(perm_stmt)
     permission = perm_result.one_or_none()
 
     if permission:
-        from app.models.project import ProjectPermissionLevel
-
-        permission.level = ProjectPermissionLevel.owner
+        permission.level = ResourceAccessLevel.owner
         session.add(permission)
     else:
-        from app.models.project import ProjectPermissionLevel
-
-        permission = ProjectPermission(
-            project_id=project_id,
+        permission = ResourceGrant(
+            resource_type="project",
+            resource_id=project_id,
             user_id=new_owner_id,
-            level=ProjectPermissionLevel.owner,
+            role_id=None,
+            level=ResourceAccessLevel.owner,
+            guild_id=project.guild_id,
+            initiative_id=project.initiative_id,
         )
         session.add(permission)
 
@@ -939,8 +942,7 @@ async def hard_delete_user(
             (composite key, since project ids repeat across per-guild schemas)
     """
     from app.services import initiatives as initiatives_service
-    from app.models.queue import QueueItem, QueuePermission
-    from app.models.document import DocumentPermission
+    from app.models.queue import QueueItem
     from app.models.push_token import PushToken
     from app.models.calendar_event import CalendarEventAttendee
     from app.models.guild import Guild, GuildInvite
@@ -992,7 +994,7 @@ async def hard_delete_user(
             )
 
         # Initiative removal hands owned documents off to PMs before the
-        # DocumentPermission wipe below.
+        # document-grant wipe below.
         await initiatives_service.remove_user_from_guild_initiatives(
             session, guild_id=gid, user_id=user_id
         )
@@ -1017,19 +1019,16 @@ async def hard_delete_user(
             .where(TaskAssignmentDigestItem.assigned_by_id == user_id)
             .values(assigned_by_id=None)
         )
+        # All per-user DAC grants (project, document, queue, counter group,
+        # calendar event) live in the polymorphic resource_grants table now;
+        # one delete clears every resource type for this user in the schema.
         await session.exec(
-            delete(ProjectPermission).where(ProjectPermission.user_id == user_id)
+            delete(ResourceGrant).where(ResourceGrant.user_id == user_id)
         )
         await session.exec(delete(TaskAssignee).where(TaskAssignee.user_id == user_id))
-        await session.exec(
-            delete(QueuePermission).where(QueuePermission.user_id == user_id)
-        )
         # Queue items: assigned-to is nullable, so just clear the pointer.
         await session.exec(
             update(QueueItem).where(QueueItem.user_id == user_id).values(user_id=None)
-        )
-        await session.exec(
-            delete(DocumentPermission).where(DocumentPermission.user_id == user_id)
         )
         await session.exec(
             delete(CalendarEventAttendee).where(

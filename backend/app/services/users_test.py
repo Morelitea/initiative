@@ -447,7 +447,7 @@ async def test_transfer_project_ownership_drops_previous_owners_permission_row(
     leaves the project with two "owners" and a broken access
     dropdown that can't reconcile its value.
     """
-    from app.models.project import ProjectPermission
+    from app.models.resource_grant import ResourceGrant
     from app.testing.factories import create_initiative, create_project
 
     admin = await create_user(session, email="admin@example.com")
@@ -470,9 +470,10 @@ async def test_transfer_project_ownership_drops_previous_owners_permission_row(
     # ProjectPermission.
     pre = (
         await session.exec(
-            select(ProjectPermission).where(
-                ProjectPermission.project_id == project.id,
-                ProjectPermission.user_id == departing.id,
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.resource_id == project.id,
+                ResourceGrant.user_id == departing.id,
             )
         )
     ).one()
@@ -484,9 +485,10 @@ async def test_transfer_project_ownership_drops_previous_owners_permission_row(
     # Departing owner's row is gone.
     assert (
         await session.exec(
-            select(ProjectPermission).where(
-                ProjectPermission.project_id == project.id,
-                ProjectPermission.user_id == departing.id,
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.resource_id == project.id,
+                ResourceGrant.user_id == departing.id,
             )
         )
     ).one_or_none() is None
@@ -494,13 +496,14 @@ async def test_transfer_project_ownership_drops_previous_owners_permission_row(
     # Successor has owner-level permission.
     successor_perm = (
         await session.exec(
-            select(ProjectPermission).where(
-                ProjectPermission.project_id == project.id,
-                ProjectPermission.user_id == successor.id,
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.resource_id == project.id,
+                ResourceGrant.user_id == successor.id,
             )
         )
     ).one()
-    assert successor_perm.level.value == "owner"
+    assert successor_perm.level == "owner"
 
 
 @pytest.mark.unit

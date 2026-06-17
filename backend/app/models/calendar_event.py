@@ -10,6 +10,7 @@ from app.models._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.initiative import Initiative
+    from app.models.resource_grant import ResourceGrant
     from app.models.property import CalendarEventPropertyValue
     from app.models.user import User
     from app.models.tag import Tag
@@ -19,9 +20,8 @@ if TYPE_CHECKING:  # pragma: no cover
 class CalendarEvent(SoftDeleteMixin, table=True):
     """Initiative-scoped calendar event (Google Calendar-like).
 
-    Access is controlled at the initiative level — any initiative member
-    with events_enabled can view events, managers can create/edit/delete.
-    No per-event DAC.
+    Access today: initiative members (events_enabled) read, the create_events role
+    permission writes. Per-event DAC arrives with the resource_grants repoint.
     """
 
     __tablename__ = "calendar_events"
@@ -80,6 +80,15 @@ class CalendarEvent(SoftDeleteMixin, table=True):
     property_values: List["CalendarEventPropertyValue"] = Relationship(
         back_populates="calendar_event",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
+    grants: List["ResourceGrant"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(foreign(ResourceGrant.resource_id) == CalendarEvent.id, "
+                "ResourceGrant.resource_type == 'calendar_event')"
+            ),
+            "viewonly": True,
+        }
     )
 
 

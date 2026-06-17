@@ -15,10 +15,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.security import create_upload_token
 from app.models.document import (
     Document,
-    DocumentPermission,
-    DocumentPermissionLevel,
     DocumentType,
 )
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing import (
     create_guild,
     create_guild_membership,
@@ -47,11 +46,13 @@ async def _create_native_document(
     session.add(doc)
     await session.flush()
 
-    perm = DocumentPermission(
-        document_id=doc.id,
+    perm = ResourceGrant(
+        resource_type="document",
+        resource_id=doc.id,
         user_id=owner.id,
-        level=DocumentPermissionLevel.owner,
+        level=ResourceAccessLevel.owner,
         guild_id=initiative.guild_id,
+        initiative_id=doc.initiative_id,
     )
     session.add(perm)
     await session.commit()

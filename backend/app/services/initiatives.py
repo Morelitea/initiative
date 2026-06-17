@@ -459,12 +459,14 @@ async def remove_user_from_guild_initiatives(
     # policies gone (schema-per-guild), a stale row would otherwise remain a
     # live grant after removal.
     if initiative_ids:
-        from app.models.document import Document, DocumentPermission
+        from app.models.document import Document
+        from app.models.resource_grant import ResourceGrant
 
         await session.exec(
-            delete(DocumentPermission).where(
-                DocumentPermission.user_id == user_id,
-                DocumentPermission.document_id.in_(
+            delete(ResourceGrant).where(
+                ResourceGrant.resource_type == "document",
+                ResourceGrant.user_id == user_id,
+                ResourceGrant.resource_id.in_(
                     select(Document.id).where(
                         Document.initiative_id.in_(tuple(initiative_ids))
                     )

@@ -29,7 +29,8 @@ from sqlmodel import select
 from app.core.messages import ProjectExportMessages
 from app.db.session import reapply_rls_context
 from app.models.initiative import Initiative, InitiativeMember
-from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
+from app.models.project import Project
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.property import PropertyDefinition, PropertyType, TaskPropertyValue
 from app.models.tag import ProjectTag, Tag, TaskTag
 from app.models.task import Subtask, Task, TaskAssignee, TaskStatus, TaskStatusCategory
@@ -103,11 +104,14 @@ async def import_project(
 
     # Owner permission row (matches the `create_project` flow's invariant)
     session.add(
-        ProjectPermission(
-            project_id=project.id,
+        ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
             user_id=importer.id,
+            role_id=None,
+            level=ResourceAccessLevel.owner,
             guild_id=target_guild_id,
-            level=ProjectPermissionLevel.owner,
+            initiative_id=project.initiative_id,
         )
     )
 

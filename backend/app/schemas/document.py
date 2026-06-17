@@ -228,33 +228,36 @@ def _serialize_project_links(document: "Document") -> List[DocumentProjectLink]:
 
 
 def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]:
-    """Serialize all document permissions."""
-    permissions = getattr(document, "permissions", None) or []
+    """Serialize all document user permissions from resource_grants."""
+    grants = getattr(document, "grants", None) or []
     return [
         DocumentPermissionRead(
-            user_id=permission.user_id,
-            level=permission.level,
-            created_at=permission.created_at,
+            user_id=g.user_id,
+            level=g.level,
+            created_at=g.created_at,
         )
-        for permission in permissions
+        for g in grants
+        if g.user_id is not None
     ]
 
 
 def _serialize_role_permissions(
     document: "Document",
 ) -> List[DocumentRolePermissionRead]:
-    """Serialize all document role permissions."""
-    role_permissions = getattr(document, "role_permissions", None) or []
+    """Serialize all document role permissions from resource_grants."""
+    grants = getattr(document, "grants", None) or []
     result: List[DocumentRolePermissionRead] = []
-    for rp in role_permissions:
-        role = getattr(rp, "role", None)
+    for g in grants:
+        if g.role_id is None:
+            continue
+        role = getattr(g, "role", None)
         result.append(
             DocumentRolePermissionRead(
-                initiative_role_id=rp.initiative_role_id,
+                initiative_role_id=g.role_id,
                 role_name=getattr(role, "name", "") if role else "",
                 role_display_name=getattr(role, "display_name", "") if role else "",
-                level=rp.level,
-                created_at=rp.created_at,
+                level=g.level,
+                created_at=g.created_at,
             )
         )
     return result

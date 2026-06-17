@@ -2,8 +2,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer
-from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
+from sqlalchemy import Column, DateTime
+from sqlmodel import Field, Relationship
 
 from app.models._mixins import SoftDeleteMixin
 
@@ -12,11 +12,12 @@ if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only
     from app.models.project_order import ProjectOrder
     from app.models.task import Task, TaskStatus
     from app.models.user import User
-    from app.models.initiative import Initiative, InitiativeRoleModel
+    from app.models.initiative import Initiative
     from app.models.project_activity import ProjectFavorite
     from app.models.document import ProjectDocument
     from app.models.guild import Guild
     from app.models.tag import ProjectTag
+    from app.models.resource_grant import ResourceGrant
 
 
 class Project(SoftDeleteMixin, table=True):
@@ -62,10 +63,6 @@ class Project(SoftDeleteMixin, table=True):
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    permissions: List["ProjectPermission"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     orders: List["ProjectOrder"] = Relationship(
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -82,9 +79,14 @@ class Project(SoftDeleteMixin, table=True):
         back_populates="project",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    role_permissions: List["ProjectRolePermission"] = Relationship(
-        back_populates="project",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    grants: List["ResourceGrant"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(foreign(ResourceGrant.resource_id) == Project.id, "
+                "ResourceGrant.resource_type == 'project')"
+            ),
+            "viewonly": True,
+        }
     )
 
 
@@ -92,59 +94,3 @@ class ProjectPermissionLevel(str, Enum):
     owner = "owner"
     write = "write"
     read = "read"
-
-
-class ProjectPermission(SQLModel, table=True):
-    __tablename__ = "project_permissions"
-
-    project_id: int = Field(foreign_key="projects.id", primary_key=True)
-    user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
-    level: ProjectPermissionLevel = Field(
-        default=ProjectPermissionLevel.write,
-        sa_column=Column(
-            SQLEnum(ProjectPermissionLevel, name="project_permission_level"),
-            nullable=False,
-        ),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    project: Optional[Project] = Relationship(back_populates="permissions")
-    user: Optional["User"] = Relationship(back_populates="project_permissions")
-
-
-class ProjectRolePermission(SQLModel, table=True):
-    __tablename__ = "project_role_permissions"
-
-    project_id: int = Field(foreign_key="projects.id", primary_key=True)
-    initiative_role_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("initiative_roles.id", ondelete="CASCADE"),
-            primary_key=True,
-        )
-    )
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    level: ProjectPermissionLevel = Field(
-        default=ProjectPermissionLevel.read,
-        sa_column=Column(
-            SQLEnum(
-                ProjectPermissionLevel,
-                name="project_permission_level",
-                create_type=False,
-            ),
-            nullable=False,
-        ),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    project: Optional[Project] = Relationship(back_populates="role_permissions")
-    role: Optional["InitiativeRoleModel"] = Relationship()

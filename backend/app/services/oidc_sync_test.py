@@ -184,7 +184,7 @@ async def test_auto_transfer_leaves_orphan_when_no_fallback(
     # the sole manager of the initiative, and the project owner. With
     # the leaver excluded, no other candidate is available — neither a
     # different initiative manager nor a guild admin.
-    from app.models.project import ProjectPermission
+    from app.models.resource_grant import ResourceGrant
 
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=leaver)
@@ -213,9 +213,10 @@ async def test_auto_transfer_leaves_orphan_when_no_fallback(
     # transfer flow).
     perm = (
         await session.exec(
-            select(ProjectPermission).where(
-                ProjectPermission.project_id == project.id,
-                ProjectPermission.user_id == leaver.id,
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.resource_id == project.id,
+                ResourceGrant.user_id == leaver.id,
             )
         )
     ).one_or_none()
@@ -235,7 +236,7 @@ async def test_auto_transfer_handles_inactive_fallback_race(
     the surrounding ``stale_guilds`` loop in
     ``sync_oidc_assignments``, leaving later guild removals
     half-applied. Now caught and treated like the no-fallback path."""
-    from app.models.project import ProjectPermission
+    from app.models.resource_grant import ResourceGrant
     from app.models.user import User
     from app.services import oidc_sync as oidc_sync_module
 
@@ -287,9 +288,10 @@ async def test_auto_transfer_handles_inactive_fallback_race(
     assert refreshed.owner_id == leaver.id
     assert (
         await session.exec(
-            select(ProjectPermission).where(
-                ProjectPermission.project_id == project.id,
-                ProjectPermission.user_id == leaver.id,
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.resource_id == project.id,
+                ResourceGrant.user_id == leaver.id,
             )
         )
     ).one_or_none() is None

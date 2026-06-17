@@ -18,8 +18,9 @@ from app.core.security import create_advanced_tool_handoff_token
 from app.core.config import settings
 from app.db.session import reapply_rls_context
 from app.models.access_grant import AccessLevel
-from app.models.document import Document, DocumentPermission
-from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
+from app.models.document import Document
+from app.models.project import Project
+from app.models.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.initiative import (
     Initiative,
     InitiativeMember,
@@ -1025,10 +1026,11 @@ async def remove_initiative_member(
 
         if project_ids:
             # Handle orphaned projects - grant owner access to PMs before deleting
-            owner_permissions_stmt = select(ProjectPermission).where(
-                ProjectPermission.user_id == user_id,
-                ProjectPermission.project_id.in_(tuple(project_ids)),
-                ProjectPermission.level == ProjectPermissionLevel.owner,
+            owner_permissions_stmt = select(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.user_id == user_id,
+                ResourceGrant.resource_id.in_(tuple(project_ids)),
+                ResourceGrant.level == ResourceAccessLevel.owner,
             )
             owner_permissions_result = await session.exec(owner_permissions_stmt)
             owner_permissions = owner_permissions_result.all()
@@ -1052,9 +1054,11 @@ async def remove_initiative_member(
 
                 # For each project where user had owner permission, grant owner to PMs
                 for perm in owner_permissions:
-                    # Get existing permissions for this project
-                    existing_perms_stmt = select(ProjectPermission.user_id).where(
-                        ProjectPermission.project_id == perm.project_id
+                    # Get existing user grants for this project
+                    existing_perms_stmt = select(ResourceGrant.user_id).where(
+                        ResourceGrant.resource_type == "project",
+                        ResourceGrant.resource_id == perm.resource_id,
+                        ResourceGrant.user_id.is_not(None),
                     )
                     existing_result = await session.exec(existing_perms_stmt)
                     existing_user_ids = set(existing_result.all())
@@ -1062,19 +1066,23 @@ async def remove_initiative_member(
                     # Grant owner access to PMs who don't have any permission yet
                     for pm_user_id in pm_user_ids:
                         if pm_user_id not in existing_user_ids:
-                            pm_permission = ProjectPermission(
-                                project_id=perm.project_id,
+                            pm_permission = ResourceGrant(
+                                resource_type="project",
+                                resource_id=perm.resource_id,
                                 user_id=pm_user_id,
-                                level=ProjectPermissionLevel.owner,
+                                role_id=None,
+                                level=ResourceAccessLevel.owner,
                                 guild_id=initiative.guild_id,
+                                initiative_id=initiative_id,
                             )
                             session.add(pm_permission)
 
-            # Remove project permissions for this user in all initiative projects
+            # Remove project grants for this user in all initiative projects
             delete_permissions_stmt = (
-                delete(ProjectPermission)
-                .where(ProjectPermission.user_id == user_id)
-                .where(ProjectPermission.project_id.in_(tuple(project_ids)))
+                delete(ResourceGrant)
+                .where(ResourceGrant.resource_type == "project")
+                .where(ResourceGrant.user_id == user_id)
+                .where(ResourceGrant.resource_id.in_(tuple(project_ids)))
             )
             await session.exec(delete_permissions_stmt)
 
@@ -1091,13 +1099,14 @@ async def remove_initiative_member(
                 )
                 await session.exec(delete_stmt)
 
-        # Remove the user's document permissions in this initiative. With the
+        # Remove the user's document grants in this initiative. With the
         # DB-level initiative-scope policies gone (schema-per-guild), a stale
         # row would otherwise remain a live grant after removal.
         await session.exec(
-            delete(DocumentPermission).where(
-                DocumentPermission.user_id == user_id,
-                DocumentPermission.document_id.in_(
+            delete(ResourceGrant).where(
+                ResourceGrant.resource_type == "document",
+                ResourceGrant.user_id == user_id,
+                ResourceGrant.resource_id.in_(
                     select(Document.id).where(Document.initiative_id == initiative_id)
                 ),
             )

@@ -23,6 +23,7 @@ from app.models.calendar_event import (
 from app.models.document import Document
 from app.models.initiative import Initiative
 from app.models.property import CalendarEventPropertyValue
+from app.models.resource_grant import ResourceGrant
 from app.models.tag import Tag
 
 
@@ -50,6 +51,7 @@ async def get_event(
                 CalendarEventDocument.document
             ),
             selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
+            selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
             selectinload(CalendarEvent.property_values).selectinload(
                 CalendarEventPropertyValue.property_definition
             ),

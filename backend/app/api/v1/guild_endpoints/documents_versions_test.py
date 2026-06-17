@@ -15,10 +15,9 @@ from app.services import attachments as attachments_service
 from app.models.document import (
     Document,
     DocumentFileVersion,
-    DocumentPermission,
-    DocumentPermissionLevel,
 )
 from app.models.guild import GuildRole
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.upload import Upload
 from app.testing.factories import (
     create_guild,
@@ -117,11 +116,13 @@ async def test_upload_version_creates_v2_and_mirrors_document(
     )
     # Grant the writer write access.
     session.add(
-        DocumentPermission(
-            document_id=doc["id"],
+        ResourceGrant(
+            resource_type="document",
+            resource_id=doc["id"],
             user_id=writer.id,
-            level=DocumentPermissionLevel.write,
+            level=ResourceAccessLevel.write,
             guild_id=guild.id,
+            initiative_id=initiative.id,
         )
     )
     await session.commit()
@@ -176,11 +177,13 @@ async def test_upload_version_read_user_forbidden(
         client, session, guild=guild, user=owner, initiative=initiative
     )
     session.add(
-        DocumentPermission(
-            document_id=doc["id"],
+        ResourceGrant(
+            resource_type="document",
+            resource_id=doc["id"],
             user_id=reader.id,
-            level=DocumentPermissionLevel.read,
+            level=ResourceAccessLevel.read,
             guild_id=guild.id,
+            initiative_id=initiative.id,
         )
     )
     await session.commit()
@@ -312,11 +315,13 @@ async def test_list_versions_read_user_allowed_and_ordered(
         client, session, guild=guild, user=owner, initiative=initiative
     )
     session.add(
-        DocumentPermission(
-            document_id=doc["id"],
+        ResourceGrant(
+            resource_type="document",
+            resource_id=doc["id"],
             user_id=reader.id,
-            level=DocumentPermissionLevel.read,
+            level=ResourceAccessLevel.read,
             guild_id=guild.id,
+            initiative_id=initiative.id,
         )
     )
     await session.commit()
@@ -613,11 +618,13 @@ async def test_delete_version_non_owner_forbidden(
         client, session, guild=guild, user=owner, initiative=initiative
     )
     session.add(
-        DocumentPermission(
-            document_id=doc["id"],
+        ResourceGrant(
+            resource_type="document",
+            resource_id=doc["id"],
             user_id=writer.id,
-            level=DocumentPermissionLevel.write,
+            level=ResourceAccessLevel.write,
             guild_id=guild.id,
+            initiative_id=initiative.id,
         )
     )
     await session.commit()

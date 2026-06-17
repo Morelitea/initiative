@@ -110,36 +110,6 @@ DROP POLICY IF EXISTS initiative_member_delete ON comments;
 CREATE POLICY initiative_member_delete ON comments AS PERMISSIVE FOR DELETE
   USING (((comments.task_id IS NOT NULL AND EXISTS (SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = comments.task_id AND public.initiative_access(pr.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (comments.document_id IS NOT NULL AND EXISTS (SELECT 1 FROM documents d WHERE d.id = comments.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)))));
 
-ALTER TABLE counter_group_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE counter_group_permissions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS initiative_member_select ON counter_group_permissions;
-CREATE POLICY initiative_member_select ON counter_group_permissions AS PERMISSIVE FOR SELECT
-  USING (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
-DROP POLICY IF EXISTS initiative_member_insert ON counter_group_permissions;
-CREATE POLICY initiative_member_insert ON counter_group_permissions AS PERMISSIVE FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_update ON counter_group_permissions;
-CREATE POLICY initiative_member_update ON counter_group_permissions AS PERMISSIVE FOR UPDATE
-  USING (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_delete ON counter_group_permissions;
-CREATE POLICY initiative_member_delete ON counter_group_permissions AS PERMISSIVE FOR DELETE
-  USING (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-
-ALTER TABLE counter_group_role_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE counter_group_role_permissions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS initiative_member_select ON counter_group_role_permissions;
-CREATE POLICY initiative_member_select ON counter_group_role_permissions AS PERMISSIVE FOR SELECT
-  USING (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_role_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
-DROP POLICY IF EXISTS initiative_member_insert ON counter_group_role_permissions;
-CREATE POLICY initiative_member_insert ON counter_group_role_permissions AS PERMISSIVE FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_role_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_update ON counter_group_role_permissions;
-CREATE POLICY initiative_member_update ON counter_group_role_permissions AS PERMISSIVE FOR UPDATE
-  USING (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_role_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_role_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_delete ON counter_group_role_permissions;
-CREATE POLICY initiative_member_delete ON counter_group_role_permissions AS PERMISSIVE FOR DELETE
-  USING (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counter_group_role_permissions.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-
 ALTER TABLE counter_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE counter_groups FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS initiative_member_select ON counter_groups;
@@ -200,21 +170,6 @@ DROP POLICY IF EXISTS initiative_member_delete ON document_links;
 CREATE POLICY initiative_member_delete ON document_links AS PERMISSIVE FOR DELETE
   USING ((EXISTS (SELECT 1 FROM documents WHERE documents.id = document_links.source_document_id AND public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)) AND EXISTS (SELECT 1 FROM documents WHERE documents.id = document_links.target_document_id AND public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))));
 
-ALTER TABLE document_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE document_permissions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS initiative_member_select ON document_permissions;
-CREATE POLICY initiative_member_select ON document_permissions AS PERMISSIVE FOR SELECT
-  USING (EXISTS (SELECT 1 FROM documents WHERE documents.id = document_permissions.document_id AND public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
-DROP POLICY IF EXISTS initiative_member_insert ON document_permissions;
-CREATE POLICY initiative_member_insert ON document_permissions AS PERMISSIVE FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM documents WHERE documents.id = document_permissions.document_id AND public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_update ON document_permissions;
-CREATE POLICY initiative_member_update ON document_permissions AS PERMISSIVE FOR UPDATE
-  USING (EXISTS (SELECT 1 FROM documents WHERE documents.id = document_permissions.document_id AND public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM documents WHERE documents.id = document_permissions.document_id AND public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_delete ON document_permissions;
-CREATE POLICY initiative_member_delete ON document_permissions AS PERMISSIVE FOR DELETE
-  USING (EXISTS (SELECT 1 FROM documents WHERE documents.id = document_permissions.document_id AND public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-
 ALTER TABLE document_property_values ENABLE ROW LEVEL SECURITY;
 ALTER TABLE document_property_values FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS initiative_member_select ON document_property_values;
@@ -229,21 +184,6 @@ CREATE POLICY initiative_member_update ON document_property_values AS PERMISSIVE
 DROP POLICY IF EXISTS initiative_member_delete ON document_property_values;
 CREATE POLICY initiative_member_delete ON document_property_values AS PERMISSIVE FOR DELETE
   USING (EXISTS (SELECT 1 FROM documents d JOIN property_definitions pd ON pd.id = document_property_values.property_id WHERE d.id = document_property_values.document_id AND d.initiative_id = pd.initiative_id AND public.initiative_access(pd.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-
-ALTER TABLE document_role_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE document_role_permissions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS initiative_member_select ON document_role_permissions;
-CREATE POLICY initiative_member_select ON document_role_permissions AS PERMISSIVE FOR SELECT
-  USING (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = document_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
-DROP POLICY IF EXISTS initiative_member_insert ON document_role_permissions;
-CREATE POLICY initiative_member_insert ON document_role_permissions AS PERMISSIVE FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = document_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_update ON document_role_permissions;
-CREATE POLICY initiative_member_update ON document_role_permissions AS PERMISSIVE FOR UPDATE
-  USING (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = document_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = document_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_delete ON document_role_permissions;
-CREATE POLICY initiative_member_delete ON document_role_permissions AS PERMISSIVE FOR DELETE
-  USING (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = document_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
 
 ALTER TABLE document_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE document_tags FORCE ROW LEVEL SECURITY;
@@ -334,36 +274,6 @@ CREATE POLICY initiative_member_update ON project_orders AS PERMISSIVE FOR UPDAT
 DROP POLICY IF EXISTS initiative_member_delete ON project_orders;
 CREATE POLICY initiative_member_delete ON project_orders AS PERMISSIVE FOR DELETE
   USING (EXISTS (SELECT 1 FROM projects WHERE projects.id = project_orders.project_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-
-ALTER TABLE project_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE project_permissions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS initiative_member_select ON project_permissions;
-CREATE POLICY initiative_member_select ON project_permissions AS PERMISSIVE FOR SELECT
-  USING (EXISTS (SELECT 1 FROM projects WHERE projects.id = project_permissions.project_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
-DROP POLICY IF EXISTS initiative_member_insert ON project_permissions;
-CREATE POLICY initiative_member_insert ON project_permissions AS PERMISSIVE FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM projects WHERE projects.id = project_permissions.project_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_update ON project_permissions;
-CREATE POLICY initiative_member_update ON project_permissions AS PERMISSIVE FOR UPDATE
-  USING (EXISTS (SELECT 1 FROM projects WHERE projects.id = project_permissions.project_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM projects WHERE projects.id = project_permissions.project_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_delete ON project_permissions;
-CREATE POLICY initiative_member_delete ON project_permissions AS PERMISSIVE FOR DELETE
-  USING (EXISTS (SELECT 1 FROM projects WHERE projects.id = project_permissions.project_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-
-ALTER TABLE project_role_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE project_role_permissions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS initiative_member_select ON project_role_permissions;
-CREATE POLICY initiative_member_select ON project_role_permissions AS PERMISSIVE FOR SELECT
-  USING (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = project_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
-DROP POLICY IF EXISTS initiative_member_insert ON project_role_permissions;
-CREATE POLICY initiative_member_insert ON project_role_permissions AS PERMISSIVE FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = project_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_update ON project_role_permissions;
-CREATE POLICY initiative_member_update ON project_role_permissions AS PERMISSIVE FOR UPDATE
-  USING (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = project_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = project_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_delete ON project_role_permissions;
-CREATE POLICY initiative_member_delete ON project_role_permissions AS PERMISSIVE FOR DELETE
-  USING (EXISTS (SELECT 1 FROM initiative_roles WHERE initiative_roles.id = project_role_permissions.initiative_role_id AND public.initiative_access(initiative_roles.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
 
 ALTER TABLE project_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE project_tags FORCE ROW LEVEL SECURITY;
@@ -470,36 +380,6 @@ DROP POLICY IF EXISTS initiative_member_delete ON queue_items;
 CREATE POLICY initiative_member_delete ON queue_items AS PERMISSIVE FOR DELETE
   USING (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_items.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
 
-ALTER TABLE queue_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE queue_permissions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS initiative_member_select ON queue_permissions;
-CREATE POLICY initiative_member_select ON queue_permissions AS PERMISSIVE FOR SELECT
-  USING (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
-DROP POLICY IF EXISTS initiative_member_insert ON queue_permissions;
-CREATE POLICY initiative_member_insert ON queue_permissions AS PERMISSIVE FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_update ON queue_permissions;
-CREATE POLICY initiative_member_update ON queue_permissions AS PERMISSIVE FOR UPDATE
-  USING (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_delete ON queue_permissions;
-CREATE POLICY initiative_member_delete ON queue_permissions AS PERMISSIVE FOR DELETE
-  USING (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-
-ALTER TABLE queue_role_permissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE queue_role_permissions FORCE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS initiative_member_select ON queue_role_permissions;
-CREATE POLICY initiative_member_select ON queue_role_permissions AS PERMISSIVE FOR SELECT
-  USING (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_role_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false)));
-DROP POLICY IF EXISTS initiative_member_insert ON queue_role_permissions;
-CREATE POLICY initiative_member_insert ON queue_role_permissions AS PERMISSIVE FOR INSERT
-  WITH CHECK (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_role_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_update ON queue_role_permissions;
-CREATE POLICY initiative_member_update ON queue_role_permissions AS PERMISSIVE FOR UPDATE
-  USING (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_role_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) WITH CHECK (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_role_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-DROP POLICY IF EXISTS initiative_member_delete ON queue_role_permissions;
-CREATE POLICY initiative_member_delete ON queue_role_permissions AS PERMISSIVE FOR DELETE
-  USING (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_role_permissions.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
-
 ALTER TABLE queues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE queues FORCE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS initiative_member_select ON queues;
@@ -529,6 +409,21 @@ CREATE POLICY initiative_member_update ON recent_views AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON recent_views;
 CREATE POLICY initiative_member_delete ON recent_views AS PERMISSIVE FOR DELETE
   USING (((recent_views.entity_type = 'project' AND EXISTS (SELECT 1 FROM projects WHERE projects.id = recent_views.entity_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (recent_views.entity_type = 'document' AND EXISTS (SELECT 1 FROM documents WHERE documents.id = recent_views.entity_id AND public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (recent_views.entity_type = 'queue' AND EXISTS (SELECT 1 FROM queues WHERE queues.id = recent_views.entity_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (recent_views.entity_type = 'counter_group' AND EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = recent_views.entity_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)))));
+
+ALTER TABLE resource_grants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE resource_grants FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS initiative_member_select ON resource_grants;
+CREATE POLICY initiative_member_select ON resource_grants AS PERMISSIVE FOR SELECT
+  USING (public.initiative_access(resource_grants.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, false));
+DROP POLICY IF EXISTS initiative_member_insert ON resource_grants;
+CREATE POLICY initiative_member_insert ON resource_grants AS PERMISSIVE FOR INSERT
+  WITH CHECK (public.initiative_access(resource_grants.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true));
+DROP POLICY IF EXISTS initiative_member_update ON resource_grants;
+CREATE POLICY initiative_member_update ON resource_grants AS PERMISSIVE FOR UPDATE
+  USING (public.initiative_access(resource_grants.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)) WITH CHECK (public.initiative_access(resource_grants.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true));
+DROP POLICY IF EXISTS initiative_member_delete ON resource_grants;
+CREATE POLICY initiative_member_delete ON resource_grants AS PERMISSIVE FOR DELETE
+  USING (public.initiative_access(resource_grants.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true));
 
 ALTER TABLE subtasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subtasks FORCE ROW LEVEL SECURITY;

@@ -15,6 +15,7 @@ from app.api.deps import (
     GuildContext,
 )
 from app.models.project import Project
+from app.models.resource_grant import ResourceGrant
 from app.models.initiative import Initiative
 from app.models.user import User
 from app.schemas.import_data import (
@@ -53,8 +54,7 @@ async def _validate_project_write_access(
             Initiative.guild_id == guild_id,
         )
         .options(
-            selectinload(Project.permissions),
-            selectinload(Project.role_permissions),
+            selectinload(Project.grants).selectinload(ResourceGrant.role),
             selectinload(Project.initiative).selectinload(Initiative.memberships),
         )
     )

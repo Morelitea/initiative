@@ -5,13 +5,20 @@ assigned to an event are eager-loaded and embedded in the summary (not just
 the full ``CalendarEventRead`` detail response).
 """
 
+import importlib.util
+from pathlib import Path
+
 import pytest
 from httpx import AsyncClient
-from sqlmodel import select
+from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy import text
 
+from app.db.schema_provisioning import guild_schema_name
 from app.models.guild import GuildRole
+from app.models.initiative import InitiativeRoleModel
 from app.models.notification import Notification, NotificationType
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tag import Tag
 from app.testing import (
     create_calendar_event,
@@ -23,6 +30,23 @@ from app.testing import (
     get_auth_headers,
     get_guild_headers,
 )
+
+
+def _load_backfill_migration():
+    """Import migration 0115 by path (its filename starts with a digit, so it
+    can't be a normal import)."""
+    root = next(
+        p
+        for p in Path(__file__).resolve().parents
+        if (p / "alembic" / "versions").is_dir()
+    )
+    mod_path = (
+        root / "alembic" / "versions" / "20260616_0115_backfill_resource_grants.py"
+    )
+    spec = importlib.util.spec_from_file_location("mig_0115_backfill", mod_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 async def _notifications_for(
@@ -375,3 +399,148 @@ async def test_global_calendar_events_reads_guild_schema(
     assert response.status_code == 200
     body = response.json()
     assert event.id in {item["id"] for item in body["items"]}
+
+
+@pytest.mark.integration
+async def test_migration_backfills_calendar_event_grants(session: AsyncSession):
+    """Migration 0115 seeds default grants for pre-existing events (which had no
+    legacy permission table): creator owner, manager roles write, others read.
+
+    Without this, the DAC visibility subquery returns empty for non-admins after
+    upgrade and every pre-existing event silently disappears for members.
+    """
+    creator = await create_user(session, email="ev-creator@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=creator, guild=guild, role=GuildRole.admin
+    )
+    initiative = await create_initiative(session, guild, creator, name="Backfill")
+    event = await create_calendar_event(session, initiative, creator, title="Old")
+
+    # Capture each role's expected level while normal (routed) reads still work —
+    # initiative_roles is guild-scoped, so query it before the manual search_path.
+    roles = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == initiative.id
+            )
+        )
+    ).all()
+    assert roles, "initiative should have built-in roles to grant"
+    expected_role_levels = {
+        role.id: (
+            ResourceAccessLevel.write if role.is_manager else ResourceAccessLevel.read
+        )
+        for role in roles
+    }
+
+    schema = guild_schema_name(guild.id)
+    await session.exec(text(f'SET search_path TO "{schema}", public'))
+    # Simulate the pre-migration world: the event exists with no grants at all.
+    await session.exec(
+        delete(ResourceGrant).where(ResourceGrant.resource_type == "calendar_event")
+    )
+
+    # Run the real migration backfill against this guild schema.
+    mod = _load_backfill_migration()
+    conn = await session.connection()
+    await conn.run_sync(mod._backfill_calendar_events)
+
+    grants = (
+        await session.exec(
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == "calendar_event",
+                ResourceGrant.resource_id == event.id,
+            )
+        )
+    ).all()
+    await session.exec(text("SET search_path TO public"))
+
+    # Creator owns the event; every initiative role gets write (managers) or read.
+    user_grants = {g.user_id: g.level for g in grants if g.user_id is not None}
+    assert user_grants == {creator.id: ResourceAccessLevel.owner}
+    role_grants = {g.role_id: g.level for g in grants if g.role_id is not None}
+    assert role_grants == expected_role_levels
+
+
+@pytest.mark.integration
+async def test_my_calendar_events_filters_events_without_member_grant(
+    client: AsyncClient, session: AsyncSession
+):
+    """The cross-guild /me list applies the same per-event DAC filter as the
+    per-guild list: a non-admin member doesn't see an event they hold no grant
+    for (even though they're an initiative member and RLS shows the row)."""
+    admin = await create_user(session, email="me-admin@example.com")
+    member = await create_user(session, email="me-member@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+    initiative = await create_initiative(session, guild, admin, name="MeFilter")
+    initiative.events_enabled = True
+    session.add(initiative)
+    await create_initiative_member(session, initiative, member, role_name="member")
+    await session.commit()
+    event = await create_calendar_event(session, initiative, admin, title="NoGrant")
+
+    # Strip the member-role grant so the member has no path to this event.
+    schema = guild_schema_name(guild.id)
+    member_role = (
+        await session.exec(
+            select(InitiativeRoleModel).where(
+                InitiativeRoleModel.initiative_id == initiative.id,
+                InitiativeRoleModel.name == "member",
+            )
+        )
+    ).one()
+    await session.exec(text(f'SET search_path TO "{schema}", public'))
+    await session.exec(
+        delete(ResourceGrant).where(
+            ResourceGrant.resource_type == "calendar_event",
+            ResourceGrant.resource_id == event.id,
+            ResourceGrant.role_id == member_role.id,
+        )
+    )
+    await session.exec(text("SET search_path TO public"))
+    await session.commit()
+
+    # Member: the ungranted event is hidden on /me.
+    resp = await client.get(
+        "/api/v1/me/calendar-events", headers=get_auth_headers(member)
+    )
+    assert resp.status_code == 200
+    assert event.id not in {item["id"] for item in resp.json()["items"]}
+
+    # Admin: sees it via the guild-admin bypass.
+    resp = await client.get(
+        "/api/v1/me/calendar-events", headers=get_auth_headers(admin)
+    )
+    assert resp.status_code == 200
+    assert event.id in {item["id"] for item in resp.json()["items"]}
+
+
+@pytest.mark.integration
+async def test_my_calendar_events_admin_sees_events_outside_their_initiatives(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild admin sees events in initiatives they were never added to (the
+    admin leg of initiative_access fires under their guild role). The /me DAC
+    filter must not re-hide them."""
+    admin = await create_user(session, email="me-admin2@example.com")
+    other = await create_user(session, email="me-other@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=other, guild=guild, role=GuildRole.member
+    )
+    # `other` owns the initiative; the admin is NOT a member of it.
+    initiative = await create_initiative(session, guild, other, name="NotMine")
+    initiative.events_enabled = True
+    session.add(initiative)
+    await session.commit()
+    event = await create_calendar_event(session, initiative, other, title="Foreign")
+
+    resp = await client.get(
+        "/api/v1/me/calendar-events", headers=get_auth_headers(admin)
+    )
+    assert resp.status_code == 200
+    assert event.id in {item["id"] for item in resp.json()["items"]}

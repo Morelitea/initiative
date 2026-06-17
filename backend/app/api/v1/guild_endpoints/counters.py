@@ -32,8 +32,6 @@ from app.db.session import AsyncSessionLocal, reapply_rls_context, set_rls_conte
 from app.models.counter import (
     Counter,
     CounterGroup,
-    CounterGroupPermission,
-    CounterGroupRolePermission,
     CounterPermissionLevel,
     CounterViewMode,
 )
@@ -44,6 +42,7 @@ from app.models.initiative import (
     InitiativeRoleModel,
     PermissionKey,
 )
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.user import User
 from app.schemas.counter import (
     CounterCreate,
@@ -67,6 +66,7 @@ from app.schemas.counter import (
 )
 from app.services import counters as counters_service
 from app.services import recent_views as recent_views_service
+from app.api import resource_access
 from app.services import rls as rls_service
 from app.services.counter_realtime import counter_manager
 from app.services.ws_auth import authenticate_ws_token
@@ -137,28 +137,16 @@ async def _get_counter_group_with_access(
     access: str = "read",
     manage_access: bool = False,
 ) -> CounterGroup:
-    group = await counters_service.get_counter_group(session, group_id)
-    if not group:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=CounterMessages.GROUP_NOT_FOUND,
-        )
-    if group.initiative and not group.initiative.counters_enabled:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CounterMessages.FEATURE_DISABLED,
-        )
-    # A PAM grant gives content read/write only — never access-control
-    # management. Those writes target counter_group_permissions which RLS won't
-    # let a grant write, so reject grantees with a clean 403 (not a 500).
-    if manage_access and guild_context.is_pam:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CounterMessages.GRANT_CANNOT_MANAGE,
-        )
-    if not rls_service.is_guild_admin(guild_context.role):
-        counters_service.require_counter_group_access(group, user, access=access)
-    return group
+    """Fetch + authorize a counter group via the shared enforcement path."""
+    return await resource_access.load_authorized(
+        session,
+        "counter_group",
+        group_id,
+        user,
+        guild_context,
+        access=access,
+        manage_access=manage_access,
+    )
 
 
 async def _get_counter_for_group(
@@ -184,9 +172,9 @@ def _compute_my_permission(
     user: User,
     guild_context: GuildContext,
 ) -> str | None:
-    if rls_service.is_guild_admin(guild_context.role):
-        return CounterPermissionLevel.owner.value
-    return counters_service.compute_counter_group_permission(group, user.id)
+    return resource_access.my_permission_level(
+        group, "counter_group", user, guild_context
+    )
 
 
 async def _refetch_group(session: RLSSessionDep, group_id: int) -> CounterGroup:
@@ -253,8 +241,7 @@ async def list_counter_groups(
         .where(*conditions)
         .options(
             selectinload(CounterGroup.counters),
-            selectinload(CounterGroup.permissions),
-            selectinload(CounterGroup.role_permissions),
+            selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
             selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
         )
         .order_by(CounterGroup.updated_at.desc(), CounterGroup.id.desc())
@@ -284,14 +271,14 @@ async def list_counter_groups(
 
 @router.get("/{group_id}", response_model=CounterGroupRead)
 async def read_counter_group(
-    group_id: int,
-    session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
+    group: Annotated[
+        CounterGroup,
+        Depends(resource_access.resource_dependency("counter_group", "read")),
+    ],
 ) -> CounterGroupRead:
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="read"
-    )
+    """Access enforced by resource_dependency before the body runs."""
     return serialize_counter_group(
         group,
         my_permission_level=_compute_my_permission(group, current_user, guild_context),
@@ -331,11 +318,14 @@ async def create_counter_group(
     session.add(group)
     await session.flush()
 
-    owner_perm = CounterGroupPermission(
-        counter_group_id=group.id,
+    owner_perm = ResourceGrant(
+        resource_type="counter_group",
+        resource_id=group.id,
         user_id=current_user.id,
+        role_id=None,
+        level=ResourceAccessLevel.owner,
         guild_id=guild_context.guild_id,
-        level=CounterPermissionLevel.owner,
+        initiative_id=group.initiative_id,
     )
     session.add(owner_perm)
 
@@ -361,11 +351,14 @@ async def create_counter_group(
             ):
                 continue
             session.add(
-                CounterGroupRolePermission(
-                    counter_group_id=group.id,
-                    initiative_role_id=rp.initiative_role_id,
-                    guild_id=guild_context.guild_id,
+                ResourceGrant(
+                    resource_type="counter_group",
+                    resource_id=group.id,
+                    user_id=None,
+                    role_id=rp.initiative_role_id,
                     level=rp.level,
+                    guild_id=guild_context.guild_id,
+                    initiative_id=group.initiative_id,
                 )
             )
 
@@ -387,11 +380,14 @@ async def create_counter_group(
         for up in group_in.user_permissions:
             if up.user_id in valid_ids and up.level != CounterPermissionLevel.owner:
                 session.add(
-                    CounterGroupPermission(
-                        counter_group_id=group.id,
+                    ResourceGrant(
+                        resource_type="counter_group",
+                        resource_id=group.id,
                         user_id=up.user_id,
-                        guild_id=guild_context.guild_id,
+                        role_id=None,
                         level=up.level,
+                        guild_id=guild_context.guild_id,
+                        initiative_id=group.initiative_id,
                     )
                 )
 
@@ -864,23 +860,26 @@ async def list_counter_group_permissions(
 
     permissions = [
         CounterGroupPermissionRead(
-            user_id=p.user_id,
-            level=p.level,
-            created_at=p.created_at,
+            user_id=g.user_id,
+            level=g.level,
+            created_at=g.created_at,
         )
-        for p in (group.permissions or [])
+        for g in (group.grants or [])
+        if g.user_id is not None
     ]
 
     role_permissions = []
-    for rp in group.role_permissions or []:
-        role = getattr(rp, "role", None)
+    for g in group.grants or []:
+        if g.role_id is None:
+            continue
+        role = getattr(g, "role", None)
         role_permissions.append(
             CounterGroupRolePermissionRead(
-                initiative_role_id=rp.initiative_role_id,
+                initiative_role_id=g.role_id,
                 role_name=getattr(role, "name", "") if role else "",
                 role_display_name=getattr(role, "display_name", "") if role else "",
-                level=rp.level,
-                created_at=rp.created_at,
+                level=g.level,
+                created_at=g.created_at,
             )
         )
 
@@ -910,20 +909,26 @@ async def set_counter_group_permissions(
     )
 
     owner_user_id: int | None = None
-    for p in group.permissions or []:
-        if p.level == CounterPermissionLevel.owner:
-            owner_user_id = p.user_id
+    for g in group.grants or []:
+        if g.user_id is not None and g.level == ResourceAccessLevel.owner:
+            owner_user_id = g.user_id
             break
 
+    # Delete all non-owner user grants (role grants are managed separately)
+    base_conditions = [
+        ResourceGrant.resource_type == "counter_group",
+        ResourceGrant.resource_id == group.id,
+        ResourceGrant.user_id.is_not(None),
+    ]
     if owner_user_id is not None:
-        delete_stmt = sa_delete(CounterGroupPermission).where(
-            CounterGroupPermission.counter_group_id == group.id,
-            CounterGroupPermission.user_id != owner_user_id,
+        delete_stmt = sa_delete(ResourceGrant).where(
+            *base_conditions,
+            ResourceGrant.user_id != owner_user_id,
         )
     else:
-        delete_stmt = sa_delete(CounterGroupPermission).where(
-            CounterGroupPermission.counter_group_id == group.id,
-            CounterGroupPermission.level != CounterPermissionLevel.owner,
+        delete_stmt = sa_delete(ResourceGrant).where(
+            *base_conditions,
+            ResourceGrant.level != ResourceAccessLevel.owner,
         )
     await session.exec(delete_stmt)
 
@@ -933,11 +938,14 @@ async def set_counter_group_permissions(
         if perm_in.level == CounterPermissionLevel.owner:
             continue
         session.add(
-            CounterGroupPermission(
-                counter_group_id=group.id,
+            ResourceGrant(
+                resource_type="counter_group",
+                resource_id=group.id,
                 user_id=perm_in.user_id,
-                guild_id=group.guild_id,
+                role_id=None,
                 level=perm_in.level,
+                guild_id=group.guild_id,
+                initiative_id=group.initiative_id,
             )
         )
 
@@ -947,11 +955,12 @@ async def set_counter_group_permissions(
     hydrated = await _refetch_group(session, group.id)
     perms_result = [
         CounterGroupPermissionRead(
-            user_id=p.user_id,
-            level=p.level,
-            created_at=p.created_at,
+            user_id=g.user_id,
+            level=g.level,
+            created_at=g.created_at,
         )
-        for p in (hydrated.permissions or [])
+        for g in (hydrated.grants or [])
+        if g.user_id is not None
     ]
     await counter_manager.broadcast(
         group_id,
@@ -981,8 +990,11 @@ async def set_counter_group_role_permissions(
         manage_access=True,
     )
 
-    delete_stmt = sa_delete(CounterGroupRolePermission).where(
-        CounterGroupRolePermission.counter_group_id == group.id,
+    # Delete all existing role grants (user grants are managed separately)
+    delete_stmt = sa_delete(ResourceGrant).where(
+        ResourceGrant.resource_type == "counter_group",
+        ResourceGrant.resource_id == group.id,
+        ResourceGrant.role_id.is_not(None),
     )
     await session.exec(delete_stmt)
 
@@ -990,11 +1002,14 @@ async def set_counter_group_role_permissions(
         if rp_in.level == CounterPermissionLevel.owner:
             continue
         session.add(
-            CounterGroupRolePermission(
-                counter_group_id=group.id,
-                initiative_role_id=rp_in.initiative_role_id,
-                guild_id=group.guild_id,
+            ResourceGrant(
+                resource_type="counter_group",
+                resource_id=group.id,
+                user_id=None,
+                role_id=rp_in.initiative_role_id,
                 level=rp_in.level,
+                guild_id=group.guild_id,
+                initiative_id=group.initiative_id,
             )
         )
 
@@ -1003,15 +1018,17 @@ async def set_counter_group_role_permissions(
 
     hydrated = await _refetch_group(session, group.id)
     role_perms_result: List[CounterGroupRolePermissionRead] = []
-    for rp in hydrated.role_permissions or []:
-        role = getattr(rp, "role", None)
+    for g in hydrated.grants or []:
+        if g.role_id is None:
+            continue
+        role = getattr(g, "role", None)
         role_perms_result.append(
             CounterGroupRolePermissionRead(
-                initiative_role_id=rp.initiative_role_id,
+                initiative_role_id=g.role_id,
                 role_name=getattr(role, "name", "") if role else "",
                 role_display_name=getattr(role, "display_name", "") if role else "",
-                level=rp.level,
-                created_at=rp.created_at,
+                level=g.level,
+                created_at=g.created_at,
             )
         )
     await counter_manager.broadcast(

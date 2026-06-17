@@ -149,28 +149,20 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "counter_groups": direct(),
     "calendar_events": direct(),
     "property_definitions": direct(),
+    "resource_grants": direct(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),
     "project_documents": via("projects", "project_id"),
-    "project_permissions": via("projects", "project_id"),
     "project_tags": via("projects", "project_id"),
     # One hop -> documents
     "document_tags": via("documents", "document_id"),
-    "document_permissions": via("documents", "document_id"),
     "document_file_versions": via("documents", "document_id"),
     "document_links": document_links_path(),
-    # One hop -> initiative_roles (role-based ACL rows)
-    "project_role_permissions": via("initiative_roles", "initiative_role_id"),
-    "document_role_permissions": via("initiative_roles", "initiative_role_id"),
     # One hop -> queues
     "queue_items": via("queues", "queue_id"),
-    "queue_permissions": via("queues", "queue_id"),
-    "queue_role_permissions": via("queues", "queue_id"),
     # One hop -> counter_groups
     "counters": via("counter_groups", "counter_group_id"),
-    "counter_group_permissions": via("counter_groups", "counter_group_id"),
-    "counter_group_role_permissions": via("counter_groups", "counter_group_id"),
     # One hop -> calendar_events
     "calendar_event_attendees": via("calendar_events", "calendar_event_id"),
     "calendar_event_documents": via("calendar_events", "calendar_event_id"),

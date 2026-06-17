@@ -4,12 +4,13 @@ from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, Text
-from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
+from sqlmodel import Enum as SQLEnum, Field, Relationship
 
 from app.models._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.initiative import Initiative, InitiativeRoleModel
+    from app.models.initiative import Initiative
+    from app.models.resource_grant import ResourceGrant
 
 
 class CounterViewMode(str, Enum):
@@ -56,13 +57,14 @@ class CounterGroup(SoftDeleteMixin, table=True):
             "order_by": "Counter.position",
         },
     )
-    permissions: List["CounterGroupPermission"] = Relationship(
-        back_populates="group",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    role_permissions: List["CounterGroupRolePermission"] = Relationship(
-        back_populates="group",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    grants: List["ResourceGrant"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(foreign(ResourceGrant.resource_id) == CounterGroup.id, "
+                "ResourceGrant.resource_type == 'counter_group')"
+            ),
+            "viewonly": True,
+        }
     )
 
 
@@ -132,64 +134,3 @@ class Counter(SoftDeleteMixin, table=True):
     )
 
     group: Optional[CounterGroup] = Relationship(back_populates="counters")
-
-
-class CounterGroupPermission(SQLModel, table=True):
-    """Per-user permission on a counter group."""
-
-    __tablename__ = "counter_group_permissions"
-
-    counter_group_id: int = Field(foreign_key="counter_groups.id", primary_key=True)
-    user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    level: CounterPermissionLevel = Field(
-        default=CounterPermissionLevel.write,
-        sa_column=Column(
-            SQLEnum(
-                CounterPermissionLevel,
-                name="counter_permission_level",
-                create_type=False,
-            ),
-            nullable=False,
-        ),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    group: Optional[CounterGroup] = Relationship(back_populates="permissions")
-
-
-class CounterGroupRolePermission(SQLModel, table=True):
-    """Per-initiative-role permission on a counter group."""
-
-    __tablename__ = "counter_group_role_permissions"
-
-    counter_group_id: int = Field(foreign_key="counter_groups.id", primary_key=True)
-    initiative_role_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("initiative_roles.id", ondelete="CASCADE"),
-            primary_key=True,
-        ),
-    )
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    level: CounterPermissionLevel = Field(
-        default=CounterPermissionLevel.read,
-        sa_column=Column(
-            SQLEnum(
-                CounterPermissionLevel,
-                name="counter_permission_level",
-                create_type=False,
-            ),
-            nullable=False,
-        ),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    group: Optional[CounterGroup] = Relationship(back_populates="role_permissions")
-    role: Optional["InitiativeRoleModel"] = Relationship()

@@ -436,7 +436,7 @@ async def _auto_transfer_owned_projects(
     """
     from sqlmodel import delete as sql_delete
 
-    from app.models.project import ProjectPermission
+    from app.models.resource_grant import ResourceGrant
     from app.services.users import (
         InvalidTransferRecipient,
         get_owned_projects_in_guild,
@@ -444,16 +444,17 @@ async def _auto_transfer_owned_projects(
     )
 
     async def _drop_departing_permission(project_id: int) -> None:
-        # Mirror the ``ProjectPermission`` cleanup that
+        # Mirror the project-grant cleanup that
         # ``transfer_project_ownership`` does on its success path. The
         # row is already unreachable (the user's ``InitiativeMember``
         # is about to be deleted), but a re-sync that adds the user
         # back would otherwise resurrect a stale ``level=owner`` entry
         # — the same regression Bug 5 fixed for the transfer path.
         await session.exec(
-            sql_delete(ProjectPermission).where(
-                ProjectPermission.project_id == project_id,
-                ProjectPermission.user_id == user_id,
+            sql_delete(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.resource_id == project_id,
+                ResourceGrant.user_id == user_id,
             )
         )
 

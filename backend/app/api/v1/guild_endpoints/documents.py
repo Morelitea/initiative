@@ -42,9 +42,7 @@ from app.models.access_grant import AccessLevel
 from app.models.document import (
     Document,
     DocumentFileVersion,
-    DocumentPermission,
     DocumentPermissionLevel,
-    DocumentRolePermission,
     DocumentType,
     ProjectDocument,
 )
@@ -56,6 +54,7 @@ from app.models.initiative import (
     PermissionKey,
 )
 from app.models.property import DocumentPropertyValue
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tag import Tag, DocumentTag
 from app.models.user import User
 from app.models.guild import GuildRole
@@ -88,6 +87,7 @@ from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.property import PropertyValuesSetRequest
 from app.schemas.tag import TagSetRequest
 from app.services import attachments as attachments_service
+from app.api import resource_access
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
 from app.services import notifications as notifications_service
@@ -123,6 +123,18 @@ def _apply_document_sort(statement, sort_by: Optional[str], sort_dir: Optional[s
     else:
         statement = statement.order_by(Document.updated_at.desc(), Document.id.desc())
     return statement
+
+
+def _grant_for_user(document: Document, user_id: int) -> ResourceGrant | None:
+    """Find a user's (non-role) document grant from the loaded grants."""
+    return next(
+        (
+            g
+            for g in (document.grants or [])
+            if g.user_id == user_id and g.role_id is None
+        ),
+        None,
+    )
 
 
 async def _get_initiative_or_404(
@@ -250,33 +262,23 @@ def _require_document_access(
     manage_access: bool = False,
     guild_role: GuildRole | str | None = None,
 ) -> None:
-    """Check if user has required access to a document.
-
-    ``manage_access=True`` marks an access-control operation (adding/removing
-    members or changing permission levels). A PAM grant confers content
-    read/write only — never access-control management — and those writes target
-    ``document_permissions`` which RLS won't let a grant write, so reject
-    grantees here with a clean 403 instead of letting the write fault (500).
-    """
-    if manage_access and has_active_grant(document.guild_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=DocumentMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        )
-    permissions_service.require_document_access(
+    """Authorize a document via the shared engine. ``manage_access=True`` (member/
+    permission ops) additionally rejects PAM grantees — a grant never manages
+    access."""
+    resource_access.authorize(
+        "document",
         document,
         user,
         access=access,
         require_owner=require_owner,
+        manage_access=manage_access,
         guild_role=guild_role,
     )
 
 
-def _get_document_permission(
-    document: Document, user_id: int
-) -> DocumentPermission | None:
-    """Get a user's permission for a document from the loaded permissions."""
-    return permissions_service.get_document_permission(document, user_id)
+def _get_document_permission(document: Document, user_id: int) -> ResourceGrant | None:
+    """Get a user's permission grant for a document from the loaded grants."""
+    return _grant_for_user(document, user_id)
 
 
 def _file_download_response(
@@ -468,10 +470,7 @@ async def _list_global_documents(
                 selectinload(Document.project_links).selectinload(
                     ProjectDocument.project
                 ),
-                selectinload(Document.permissions),
-                selectinload(Document.role_permissions).selectinload(
-                    DocumentRolePermission.role
-                ),
+                selectinload(Document.grants).selectinload(ResourceGrant.role),
                 selectinload(Document.tag_links).selectinload(DocumentTag.tag),
                 selectinload(Document.property_values).selectinload(
                     DocumentPropertyValue.property_definition
@@ -697,10 +696,7 @@ async def list_documents(
                 ),
             ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
-            selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(
-                DocumentRolePermission.role
-            ),
+            selectinload(Document.grants).selectinload(ResourceGrant.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
@@ -887,11 +883,14 @@ async def create_document(
     await session.flush()
 
     # Add owner permission for the creator
-    owner_permission = DocumentPermission(
-        document_id=document.id,
+    owner_permission = ResourceGrant(
+        resource_type="document",
+        resource_id=document.id,
         user_id=current_user.id,
-        level=DocumentPermissionLevel.owner,
+        role_id=None,
+        level=ResourceAccessLevel.owner,
         guild_id=guild_context.guild_id,
+        initiative_id=document.initiative_id,
     )
     session.add(owner_permission)
 
@@ -919,11 +918,14 @@ async def create_document(
             ):
                 continue
             session.add(
-                DocumentRolePermission(
-                    document_id=document.id,
-                    initiative_role_id=rp.initiative_role_id,
-                    guild_id=guild_context.guild_id,
+                ResourceGrant(
+                    resource_type="document",
+                    resource_id=document.id,
+                    user_id=None,
+                    role_id=rp.initiative_role_id,
                     level=rp.level,
+                    guild_id=guild_context.guild_id,
+                    initiative_id=document.initiative_id,
                 )
             )
 
@@ -946,11 +948,14 @@ async def create_document(
         for up in document_in.user_permissions:
             if up.user_id in valid_ids and up.level != DocumentPermissionLevel.owner:
                 session.add(
-                    DocumentPermission(
-                        document_id=document.id,
+                    ResourceGrant(
+                        resource_type="document",
+                        resource_id=document.id,
                         user_id=up.user_id,
+                        role_id=None,
                         level=up.level,
                         guild_id=guild_context.guild_id,
+                        initiative_id=document.initiative_id,
                     )
                 )
 
@@ -1066,11 +1071,14 @@ async def upload_document_file(
     await session.flush()
 
     # Add owner permission for the creator
-    owner_permission = DocumentPermission(
-        document_id=document.id,
+    owner_permission = ResourceGrant(
+        resource_type="document",
+        resource_id=document.id,
         user_id=current_user.id,
-        level=DocumentPermissionLevel.owner,
+        role_id=None,
+        level=ResourceAccessLevel.owner,
         guild_id=guild_context.guild_id,
+        initiative_id=document.initiative_id,
     )
     # Record the initial version (v1). The documents row mirrors this version's
     # file fields; subsequent uploads add higher-numbered versions.
@@ -1629,7 +1637,7 @@ async def add_document_member(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> DocumentPermission:
+) -> ResourceGrant:
     """Add a member to a document with specified permission level."""
     document = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id
@@ -1668,11 +1676,14 @@ async def add_document_member(
         await session.refresh(existing)
         return existing
 
-    permission = DocumentPermission(
-        document_id=document_id,
+    permission = ResourceGrant(
+        resource_type="document",
+        resource_id=document_id,
         user_id=member_in.user_id,
+        role_id=None,
         level=member_in.level,
         guild_id=guild_context.guild_id,
+        initiative_id=document.initiative_id,
     )
     session.add(permission)
     await session.commit()
@@ -1692,7 +1703,7 @@ async def add_document_members_bulk(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> List[DocumentPermission]:
+) -> List[ResourceGrant]:
     """Add multiple members to a document with the same permission level."""
     document = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id
@@ -1716,15 +1727,14 @@ async def add_document_members_bulk(
     )
     valid_member_ids = set(initiative_members_result.all())
 
-    # Get existing permissions
-    existing_user_ids = {p.user_id for p in (document.permissions or [])}
+    # Get existing user grants (role grants have user_id NULL)
+    user_grants = [g for g in (document.grants or []) if g.user_id is not None]
+    existing_user_ids = {g.user_id for g in user_grants}
     owner_ids = {
-        p.user_id
-        for p in (document.permissions or [])
-        if p.level == DocumentPermissionLevel.owner
+        g.user_id for g in user_grants if g.level == DocumentPermissionLevel.owner
     }
 
-    created_permissions: List[DocumentPermission] = []
+    created_permissions: List[ResourceGrant] = []
     for user_id in bulk_in.user_ids:
         # Skip invalid users (not initiative members)
         if user_id not in valid_member_ids:
@@ -1734,20 +1744,21 @@ async def add_document_members_bulk(
             continue
         # Update existing permission
         if user_id in existing_user_ids:
-            existing = next(
-                (p for p in document.permissions if p.user_id == user_id), None
-            )
+            existing = next((g for g in user_grants if g.user_id == user_id), None)
             if existing and existing.level != DocumentPermissionLevel.owner:
                 existing.level = bulk_in.level
                 session.add(existing)
                 created_permissions.append(existing)
             continue
         # Create new permission
-        permission = DocumentPermission(
-            document_id=document_id,
+        permission = ResourceGrant(
+            resource_type="document",
+            resource_id=document_id,
             user_id=user_id,
+            role_id=None,
             level=bulk_in.level,
             guild_id=guild_context.guild_id,
+            initiative_id=document.initiative_id,
         )
         session.add(permission)
         created_permissions.append(permission)
@@ -1778,11 +1789,11 @@ async def remove_document_members_bulk(
     if not bulk_in.user_ids:
         return
 
-    # Get owner IDs to exclude from deletion
+    # Get owner IDs to exclude from deletion (user grants only)
     owner_ids = {
-        p.user_id
-        for p in (document.permissions or [])
-        if p.level == DocumentPermissionLevel.owner
+        g.user_id
+        for g in (document.grants or [])
+        if g.user_id is not None and g.level == DocumentPermissionLevel.owner
     }
 
     for user_id in bulk_in.user_ids:
@@ -1804,7 +1815,7 @@ async def update_document_member(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> DocumentPermission:
+) -> ResourceGrant:
     """Update a document member's permission level."""
     document = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id
@@ -2026,10 +2037,7 @@ async def set_document_tags(
         .where(Document.id == document_id)
         .options(
             selectinload(Document.initiative),
-            selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(
-                DocumentRolePermission.role
-            ),
+            selectinload(Document.grants).selectinload(ResourceGrant.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
@@ -2152,9 +2160,10 @@ async def add_document_role_permission(
         )
 
     # Check if already exists
-    existing_stmt = select(DocumentRolePermission).where(
-        DocumentRolePermission.document_id == document_id,
-        DocumentRolePermission.initiative_role_id == role_perm_in.initiative_role_id,
+    existing_stmt = select(ResourceGrant).where(
+        ResourceGrant.resource_type == "document",
+        ResourceGrant.resource_id == document_id,
+        ResourceGrant.role_id == role_perm_in.initiative_role_id,
     )
     existing_result = await session.exec(existing_stmt)
     existing = existing_result.one_or_none()
@@ -2165,25 +2174,28 @@ async def add_document_role_permission(
         await reapply_rls_context(session)
         await session.refresh(existing)
         return DocumentRolePermissionRead(
-            initiative_role_id=existing.initiative_role_id,
+            initiative_role_id=existing.role_id,
             role_name=role.name,
             role_display_name=role.display_name,
             level=existing.level,
             created_at=existing.created_at,
         )
 
-    role_perm = DocumentRolePermission(
-        document_id=document_id,
-        initiative_role_id=role_perm_in.initiative_role_id,
+    role_perm = ResourceGrant(
+        resource_type="document",
+        resource_id=document_id,
+        user_id=None,
+        role_id=role_perm_in.initiative_role_id,
         level=role_perm_in.level,
         guild_id=guild_context.guild_id,
+        initiative_id=document.initiative_id,
     )
     session.add(role_perm)
     await session.commit()
     await reapply_rls_context(session)
     await session.refresh(role_perm)
     return DocumentRolePermissionRead(
-        initiative_role_id=role_perm.initiative_role_id,
+        initiative_role_id=role_perm.role_id,
         role_name=role.name,
         role_display_name=role.display_name,
         level=role_perm.level,
@@ -2215,9 +2227,10 @@ async def update_document_role_permission(
             detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE,
         )
 
-    stmt = select(DocumentRolePermission).where(
-        DocumentRolePermission.document_id == document_id,
-        DocumentRolePermission.initiative_role_id == role_id,
+    stmt = select(ResourceGrant).where(
+        ResourceGrant.resource_type == "document",
+        ResourceGrant.resource_id == document_id,
+        ResourceGrant.role_id == role_id,
     )
     result = await session.exec(stmt)
     role_perm = result.one_or_none()
@@ -2238,7 +2251,7 @@ async def update_document_role_permission(
     role_result = await session.exec(role_stmt)
     role = role_result.one_or_none()
     return DocumentRolePermissionRead(
-        initiative_role_id=role_perm.initiative_role_id,
+        initiative_role_id=role_perm.role_id,
         role_name=role.name if role else "",
         role_display_name=role.display_name if role else "",
         level=role_perm.level,
@@ -2262,9 +2275,10 @@ async def remove_document_role_permission(
     )
     _require_document_access(document, current_user, access="write", manage_access=True)
 
-    stmt = select(DocumentRolePermission).where(
-        DocumentRolePermission.document_id == document_id,
-        DocumentRolePermission.initiative_role_id == role_id,
+    stmt = select(ResourceGrant).where(
+        ResourceGrant.resource_type == "document",
+        ResourceGrant.resource_id == document_id,
+        ResourceGrant.role_id == role_id,
     )
     result = await session.exec(stmt)
     role_perm = result.one_or_none()
@@ -2285,10 +2299,7 @@ def _download_document_options():
                 InitiativeRoleModel.permissions
             ),
         ),
-        selectinload(Document.permissions),
-        selectinload(Document.role_permissions).selectinload(
-            DocumentRolePermission.role
-        ),
+        selectinload(Document.grants).selectinload(ResourceGrant.role),
     )
 
 

@@ -36,8 +36,9 @@ from app.api.deps import (
 from app.core.config import settings
 from app.core.pam_context import grant_satisfies, set_active_grant
 from app.db.session import AsyncSessionLocal, set_rls_context
-from app.models.document import Document, DocumentRolePermission
+from app.models.document import Document
 from app.models.guild import GuildMembership
+from app.models.resource_grant import ResourceGrant
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
 from app.services.collaboration import (
@@ -85,10 +86,7 @@ async def _get_document_with_permissions(
             selectinload(Document.initiative)
             .selectinload(Initiative.memberships)
             .selectinload(InitiativeMember.role_ref),
-            selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(
-                DocumentRolePermission.role
-            ),
+            selectinload(Document.grants).selectinload(ResourceGrant.role),
         )
     )
     result = await session.exec(stmt)
@@ -112,9 +110,9 @@ async def _check_document_access(
 ) -> tuple[bool, bool]:
     """Check document access level. Returns (can_read, can_write).
 
-    DAC via explicit DocumentPermission/role, OR a live PAM grant covering the
-    guild (read, plus write for read_write grants). The grant context is set by
-    the WebSocket handler before this is called.
+    DAC via explicit resource grants (user or role), OR a live PAM grant
+    covering the guild (read, plus write for read_write grants). The grant
+    context is set by the WebSocket handler before this is called.
     """
     # A live PAM grant covers the whole guild — no membership row required.
     if grant_satisfies(document.guild_id, access="read"):
