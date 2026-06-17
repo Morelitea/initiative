@@ -1,5 +1,5 @@
 import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -229,25 +229,20 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
     });
   };
 
-  const normalizedOptions = useCallback(
-    (options: PropertyOption[]): PropertyOption[] => normalizeOptionList(options),
-    []
-  );
-
   const canSubmit = useMemo(() => {
     if (!formState.name.trim()) return false;
     if (typeRequiresOptions(formState.type)) {
-      return normalizedOptions(formState.options).length > 0;
+      return normalizeOptionList(formState.options).length > 0;
     }
     return true;
-  }, [formState, normalizedOptions]);
+  }, [formState]);
 
   const handleSubmit = async () => {
     if (!canSubmit || !dialogState) return;
 
     const trimmedName = formState.name.trim();
     const options = typeRequiresOptions(formState.type)
-      ? normalizedOptions(formState.options)
+      ? normalizeOptionList(formState.options)
       : undefined;
 
     if (dialogState.mode === "create") {
