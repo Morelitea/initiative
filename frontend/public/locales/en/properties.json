@@ -24,7 +24,7 @@
     "typeLabel": "Type",
     "createButton": "Create",
     "optionValuePlaceholder": "Value",
-    "optionLabelPlaceholder": "Label",
+    "optionLabelPlaceholder": "Option label",
     "addOption": "Add option",
     "removeOption": "Remove option",
     "optionsRequired": "Add at least one option"
@@ -58,7 +58,7 @@
     "addOption": "Add option",
     "removeOption": "Remove option",
     "optionValuePlaceholder": "Value",
-    "optionLabelPlaceholder": "Label",
+    "optionLabelPlaceholder": "Option label",
     "colorLabel": "Color",
     "delete": "Delete property",
     "deleteConfirmTitle": "Delete this property?",

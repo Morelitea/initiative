@@ -10,7 +10,7 @@ import {
   PropertyType,
   type PropertyType as PropertyTypeValue,
 } from "@/api/generated/initiativeAPI.schemas";
-import { slugify, typeRequiresOptions } from "@/components/properties/propertyHelpers";
+import { normalizeOptionList, typeRequiresOptions } from "@/components/properties/propertyHelpers";
 import { iconForPropertyType } from "@/components/properties/propertyTypeIcons";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,28 +120,12 @@ const OptionListEditor = ({ options, onChange, disabled }: OptionListEditorProps
       ) : null}
       <ul className="space-y-2">
         {options.map((option, index) => (
-          <li key={option.value} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-            <Input
-              value={option.value}
-              onChange={(e) =>
-                handlePatch(index, {
-                  value: e.target.value,
-                })
-              }
-              onBlur={(e) => {
-                // Auto-slugify the value when the user leaves the field so it
-                // satisfies the backend pattern. Preserve the label verbatim.
-                const raw = e.target.value;
-                if (!raw) return;
-                const slug = slugify(raw);
-                if (slug && slug !== raw) {
-                  handlePatch(index, { value: slug });
-                }
-              }}
-              placeholder={t("properties:manager.optionValuePlaceholder")}
-              className="h-9 flex-1"
-              disabled={disabled}
-            />
+          // Key by index, not by a field the user is editing: keying on
+          // ``option.value``/``label`` remounts the input on every keystroke
+          // and steals focus. The inputs are fully controlled by props and
+          // rows only change via add/remove, so the index key is correct.
+          // biome-ignore lint/suspicious/noArrayIndexKey: controlled rows with no stable id; keying on the edited field steals focus
+          <li key={index} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
             <Input
               value={option.label}
               onChange={(e) => handlePatch(index, { label: e.target.value })}
@@ -245,15 +229,10 @@ export const InitiativeSettingsPropertiesTab = ({ initiativeId }: { initiativeId
     });
   };
 
-  const normalizedOptions = useCallback((options: PropertyOption[]): PropertyOption[] => {
-    return options
-      .map((option) => ({
-        value: option.value.trim() || slugify(option.label),
-        label: option.label.trim() || option.value.trim(),
-        color: option.color ?? null,
-      }))
-      .filter((option) => option.value !== "" && option.label !== "");
-  }, []);
+  const normalizedOptions = useCallback(
+    (options: PropertyOption[]): PropertyOption[] => normalizeOptionList(options),
+    []
+  );
 
   const canSubmit = useMemo(() => {
     if (!formState.name.trim()) return false;
