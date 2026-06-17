@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Per-resource access grants are now a single table.** Direct access grants for projects, documents, queues, counter groups, and calendar events were stored in eight separate per-resource permission tables; they are now one polymorphic `resource_grants` table resolved through a single centralized authorization path. Existing grants migrate automatically on upgrade. This database change cannot be rolled back.
+- **Per-resource access grants are now a single table.** Direct access grants for projects, documents, queues, and counter groups were stored in eight separate per-resource permission tables; they are now one polymorphic `resource_grants` table resolved through a single centralized authorization path, which also brings calendar events under the same model. Existing grants migrate automatically on upgrade; pre-existing calendar events are seeded with default grants (the creator owns it, managers can edit, everyone else can view) so they stay visible to members. This database change cannot be rolled back.
 - The platform users CSV export (`/admin/users/export.csv`) no longer includes the `initiative_roles` column. Initiative roles are guild-scoped; a platform-level user export now contains platform data only.
 
 ### Fixed
