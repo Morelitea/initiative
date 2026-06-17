@@ -27,9 +27,11 @@ from app.models.calendar_event import (
     CalendarEventTag,
     RSVPStatus,
 )
+from app.models.guild import GuildRole
 from app.models.initiative import Initiative, PermissionKey
 from app.models.property import CalendarEventPropertyValue
 from app.models.user import User
+from app.core import role_context
 from app.core.messages import CalendarEventMessages, InitiativeMessages
 from app.schemas.calendar_event import (
     CalendarEventCreate,
@@ -168,6 +170,23 @@ async def _exec_events(session, stmt) -> list[CalendarEvent]:
     return list(result.unique().scalars().all())
 
 
+def _cross_guild_event_dac_clause(guild_id: int, user_id: int):
+    """DAC visibility clause for the cross-guild ``/me`` calendar views.
+
+    Mirrors the per-guild ``list_calendar_events`` filter: a non-admin member
+    sees only events granted to them (own user grant or via an initiative role);
+    a guild admin sees all (the ``initiative_access`` admin leg, driven by the
+    role ``gather_across_guilds`` set). Returns ``None`` (no extra filter) for
+    admins. PAM never applies here — ``gather_across_guilds`` only visits guilds
+    the user is a real member of.
+    """
+    if role_context.active_guild_role(guild_id) == GuildRole.admin.value:
+        return None
+    return CalendarEvent.id.in_(
+        permissions_service.visible_resource_ids_subquery("calendar_event", user_id)
+    )
+
+
 @me_router.get("/calendar-events", response_model=CalendarEventListResponse)
 async def list_my_calendar_events(
     session: AdminSessionDep,
@@ -187,7 +206,7 @@ async def list_my_calendar_events(
     holds) and merge, then sort + paginate the merged set in Python.
     """
 
-    def _fetch(guild_session, _guild_id):  # type: ignore[no-untyped-def]
+    def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         conditions = [
             Initiative.events_enabled == True,  # noqa: E712
         ]
@@ -195,6 +214,9 @@ async def list_my_calendar_events(
             conditions.append(CalendarEvent.start_at >= start_after)
         if start_before is not None:
             conditions.append(CalendarEvent.start_at <= start_before)
+        dac_clause = _cross_guild_event_dac_clause(guild_id, current_user.id)
+        if dac_clause is not None:
+            conditions.append(dac_clause)
         stmt = (
             select(CalendarEvent)
             .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
@@ -303,7 +325,7 @@ async def export_my_calendar_events_ics(
     (the unrouted public query would read the frozen backup).
     """
 
-    def _fetch(guild_session, _guild_id):  # type: ignore[no-untyped-def]
+    def _fetch(guild_session, guild_id):  # type: ignore[no-untyped-def]
         conditions = [
             Initiative.events_enabled == True,  # noqa: E712
         ]
@@ -311,6 +333,9 @@ async def export_my_calendar_events_ics(
             conditions.append(CalendarEvent.start_at >= start_after)
         if start_before is not None:
             conditions.append(CalendarEvent.start_at <= start_before)
+        dac_clause = _cross_guild_event_dac_clause(guild_id, current_user.id)
+        if dac_clause is not None:
+            conditions.append(dac_clause)
         stmt = (
             select(CalendarEvent)
             .join(Initiative, Initiative.id == CalendarEvent.initiative_id)
