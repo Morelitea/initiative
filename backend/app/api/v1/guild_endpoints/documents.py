@@ -42,7 +42,6 @@ from app.models.access_grant import AccessLevel
 from app.models.document import (
     Document,
     DocumentFileVersion,
-    DocumentPermissionLevel,
     DocumentType,
     ProjectDocument,
 )
@@ -67,15 +66,7 @@ from app.schemas.document import (
     DocumentDuplicateRequest,
     DocumentListResponse,
     DocumentSummary,
-    DocumentPermissionBulkCreate,
-    DocumentPermissionBulkDelete,
-    DocumentPermissionCreate,
-    DocumentPermissionRead,
-    DocumentPermissionUpdate,
     DocumentRead,
-    DocumentRolePermissionCreate,
-    DocumentRolePermissionRead,
-    DocumentRolePermissionUpdate,
     DocumentFileVersionRead,
     DocumentUpdate,
     serialize_document,
@@ -83,6 +74,7 @@ from app.schemas.document import (
     serialize_document_file_versions,
     serialize_document_summary,
 )
+from app.schemas.resource_grant import ResourceGrantSchema
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.property import PropertyValuesSetRequest
 from app.schemas.tag import TagSetRequest
@@ -894,70 +886,17 @@ async def create_document(
     )
     session.add(owner_permission)
 
-    # Process optional role permissions from request
-    if document_in.role_permissions:
-        # Validate each role belongs to this initiative
-        role_ids = {
-            rp.initiative_role_id
-            for rp in document_in.role_permissions
-            if rp.level != DocumentPermissionLevel.owner
-        }
-        valid_role_ids: set[int] = set()
-        if role_ids:
-            result = await session.exec(
-                select(InitiativeRoleModel.id).where(
-                    InitiativeRoleModel.id.in_(role_ids),
-                    InitiativeRoleModel.initiative_id == initiative.id,
-                )
-            )
-            valid_role_ids = set(result.all())
-        for rp in document_in.role_permissions:
-            if (
-                rp.initiative_role_id not in valid_role_ids
-                or rp.level == DocumentPermissionLevel.owner
-            ):
-                continue
-            session.add(
-                ResourceGrant(
-                    resource_type="document",
-                    resource_id=document.id,
-                    user_id=None,
-                    role_id=rp.initiative_role_id,
-                    level=rp.level,
-                    guild_id=guild_context.guild_id,
-                    initiative_id=document.initiative_id,
-                )
-            )
-
-    # Process optional user permissions (batch-validate initiative membership)
-    if document_in.user_permissions:
-        requested = {
-            up.user_id
-            for up in document_in.user_permissions
-            if up.user_id != current_user.id
-        }
-        valid_ids: set[int] = set()
-        if requested:
-            result = await session.exec(
-                select(InitiativeMember.user_id).where(
-                    InitiativeMember.initiative_id == initiative.id,
-                    InitiativeMember.user_id.in_(requested),
-                )
-            )
-            valid_ids = set(result.all())
-        for up in document_in.user_permissions:
-            if up.user_id in valid_ids and up.level != DocumentPermissionLevel.owner:
-                session.add(
-                    ResourceGrant(
-                        resource_type="document",
-                        resource_id=document.id,
-                        user_id=up.user_id,
-                        role_id=None,
-                        level=up.level,
-                        guild_id=guild_context.guild_id,
-                        initiative_id=document.initiative_id,
-                    )
-                )
+    # Apply the initial sharing exactly the way edits do — one grant list, one
+    # code path (defaults to Viewer for all members, set on DocumentCreate.grants).
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type="document",
+        resource_id=document.id,
+        guild_id=guild_context.guild_id,
+        initiative_id=document.initiative_id,
+        owner_id=current_user.id,
+        grants=document_in.grants,
+    )
 
     # Sync wikilinks to document_links table
     await documents_service.sync_document_links(
@@ -1098,6 +1037,19 @@ async def upload_document_file(
 
     session.add(owner_permission)
     session.add(initial_version)
+    # File uploads default to Viewer for all members, like native docs.
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=document.id,
+            user_id=None,
+            role_id=None,
+            all_initiative_members=True,
+            level=ResourceAccessLevel.read,
+            guild_id=guild_context.guild_id,
+            initiative_id=document.initiative_id,
+        )
+    )
     await session.commit()
     await reapply_rls_context(session)
 
@@ -1626,254 +1578,6 @@ async def copy_document(
     )
 
 
-@router.post(
-    "/{document_id}/members",
-    response_model=DocumentPermissionRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def add_document_member(
-    document_id: int,
-    member_in: DocumentPermissionCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ResourceGrant:
-    """Add a member to a document with specified permission level."""
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
-    )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-    if member_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.CANNOT_ASSIGN_OWNER,
-        )
-
-    # Verify user is an initiative member
-    initiative_membership = await initiatives_service.get_initiative_membership(
-        session,
-        initiative_id=document.initiative_id,
-        user_id=member_in.user_id,
-    )
-    if not initiative_membership:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.USER_MUST_BE_MEMBER,
-        )
-
-    # Check if user already has a permission
-    existing = _get_document_permission(document, member_in.user_id)
-    if existing:
-        if existing.level == DocumentPermissionLevel.owner:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=DocumentMessages.CANNOT_MODIFY_OWNER,
-            )
-        existing.level = member_in.level
-        session.add(existing)
-        await session.commit()
-        await reapply_rls_context(session)
-        await session.refresh(existing)
-        return existing
-
-    permission = ResourceGrant(
-        resource_type="document",
-        resource_id=document_id,
-        user_id=member_in.user_id,
-        role_id=None,
-        level=member_in.level,
-        guild_id=guild_context.guild_id,
-        initiative_id=document.initiative_id,
-    )
-    session.add(permission)
-    await session.commit()
-    await reapply_rls_context(session)
-    await session.refresh(permission)
-    return permission
-
-
-@router.post(
-    "/{document_id}/members/bulk",
-    response_model=List[DocumentPermissionRead],
-    status_code=status.HTTP_201_CREATED,
-)
-async def add_document_members_bulk(
-    document_id: int,
-    bulk_in: DocumentPermissionBulkCreate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[ResourceGrant]:
-    """Add multiple members to a document with the same permission level."""
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
-    )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-    if bulk_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.CANNOT_ASSIGN_OWNER,
-        )
-
-    if not bulk_in.user_ids:
-        return []
-
-    # Get all initiative members in one query
-    initiative_members_result = await session.exec(
-        select(InitiativeMember.user_id).where(
-            InitiativeMember.initiative_id == document.initiative_id,
-            InitiativeMember.user_id.in_(bulk_in.user_ids),
-        )
-    )
-    valid_member_ids = set(initiative_members_result.all())
-
-    # Get existing user grants (role grants have user_id NULL)
-    user_grants = [g for g in (document.grants or []) if g.user_id is not None]
-    existing_user_ids = {g.user_id for g in user_grants}
-    owner_ids = {
-        g.user_id for g in user_grants if g.level == DocumentPermissionLevel.owner
-    }
-
-    created_permissions: List[ResourceGrant] = []
-    for user_id in bulk_in.user_ids:
-        # Skip invalid users (not initiative members)
-        if user_id not in valid_member_ids:
-            continue
-        # Skip owners - cannot modify their permission
-        if user_id in owner_ids:
-            continue
-        # Update existing permission
-        if user_id in existing_user_ids:
-            existing = next((g for g in user_grants if g.user_id == user_id), None)
-            if existing and existing.level != DocumentPermissionLevel.owner:
-                existing.level = bulk_in.level
-                session.add(existing)
-                created_permissions.append(existing)
-            continue
-        # Create new permission
-        permission = ResourceGrant(
-            resource_type="document",
-            resource_id=document_id,
-            user_id=user_id,
-            role_id=None,
-            level=bulk_in.level,
-            guild_id=guild_context.guild_id,
-            initiative_id=document.initiative_id,
-        )
-        session.add(permission)
-        created_permissions.append(permission)
-
-    await session.commit()
-    await reapply_rls_context(session)
-    for permission in created_permissions:
-        await session.refresh(permission)
-    return created_permissions
-
-
-@router.post(
-    "/{document_id}/members/bulk-delete", status_code=status.HTTP_204_NO_CONTENT
-)
-async def remove_document_members_bulk(
-    document_id: int,
-    bulk_in: DocumentPermissionBulkDelete,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Remove multiple members from a document."""
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
-    )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-
-    if not bulk_in.user_ids:
-        return
-
-    # Get owner IDs to exclude from deletion (user grants only)
-    owner_ids = {
-        g.user_id
-        for g in (document.grants or [])
-        if g.user_id is not None and g.level == DocumentPermissionLevel.owner
-    }
-
-    for user_id in bulk_in.user_ids:
-        # Skip owners - cannot remove them
-        if user_id in owner_ids:
-            continue
-        permission = _get_document_permission(document, user_id)
-        if permission:
-            await session.delete(permission)
-
-    await session.commit()
-
-
-@router.patch("/{document_id}/members/{user_id}", response_model=DocumentPermissionRead)
-async def update_document_member(
-    document_id: int,
-    user_id: int,
-    update_in: DocumentPermissionUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> ResourceGrant:
-    """Update a document member's permission level."""
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
-    )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-    if update_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.CANNOT_ASSIGN_OWNER,
-        )
-
-    permission = _get_document_permission(document, user_id)
-    if not permission:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=DocumentMessages.PERMISSION_NOT_FOUND,
-        )
-    if permission.level == DocumentPermissionLevel.owner:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.CANNOT_MODIFY_OWNER,
-        )
-
-    permission.level = update_in.level
-    session.add(permission)
-    await session.commit()
-    await reapply_rls_context(session)
-    await session.refresh(permission)
-    return permission
-
-
-@router.delete(
-    "/{document_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def remove_document_member(
-    document_id: int,
-    user_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Remove a member's permission from a document."""
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
-    )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-    permission = _get_document_permission(document, user_id)
-    if not permission:
-        return
-    if permission.level == DocumentPermissionLevel.owner:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.CANNOT_REMOVE_OWNER,
-        )
-    await session.delete(permission)
-    await session.commit()
-
-
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: int,
@@ -2120,172 +1824,50 @@ async def set_document_properties(
     )
 
 
-# ── Role-based permission CRUD ───────────────────────────────────
-
-
-@router.post(
-    "/{document_id}/role-permissions",
-    response_model=DocumentRolePermissionRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def add_document_role_permission(
+@router.put("/{document_id}/grants", response_model=DocumentRead)
+async def set_document_grants(
     document_id: int,
-    role_perm_in: DocumentRolePermissionCreate,
+    grants: list[ResourceGrantSchema],
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> DocumentRolePermissionRead:
-    """Add a role-based permission to a document."""
+) -> DocumentRead:
+    """Replace the document's entire sharing state in one call — the body is the
+    full list of grants (all-initiative-members / per-user / per-role). Every
+    non-owner grant is rebuilt from it; the owner is always preserved.
+    """
     document = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id
     )
     _require_document_access(document, current_user, access="write", manage_access=True)
-
-    if role_perm_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE,
-        )
-
-    # Validate the role belongs to the same initiative as the document
-    stmt = select(InitiativeRoleModel).where(
-        InitiativeRoleModel.id == role_perm_in.initiative_role_id
+    owner_id = next(
+        (
+            g.user_id
+            for g in document.grants
+            if g.level == ResourceAccessLevel.owner and g.user_id is not None
+        ),
+        document.created_by_id,
     )
-    result = await session.exec(stmt)
-    role = result.one_or_none()
-    if not role or role.initiative_id != document.initiative_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.ROLE_WRONG_INITIATIVE,
-        )
 
-    # Check if already exists
-    existing_stmt = select(ResourceGrant).where(
-        ResourceGrant.resource_type == "document",
-        ResourceGrant.resource_id == document_id,
-        ResourceGrant.role_id == role_perm_in.initiative_role_id,
-    )
-    existing_result = await session.exec(existing_stmt)
-    existing = existing_result.one_or_none()
-    if existing:
-        existing.level = role_perm_in.level
-        session.add(existing)
-        await session.commit()
-        await reapply_rls_context(session)
-        await session.refresh(existing)
-        return DocumentRolePermissionRead(
-            initiative_role_id=existing.role_id,
-            role_name=role.name,
-            role_display_name=role.display_name,
-            level=existing.level,
-            created_at=existing.created_at,
-        )
-
-    role_perm = ResourceGrant(
+    await permissions_service.replace_resource_grants(
+        session,
         resource_type="document",
         resource_id=document_id,
-        user_id=None,
-        role_id=role_perm_in.initiative_role_id,
-        level=role_perm_in.level,
         guild_id=guild_context.guild_id,
         initiative_id=document.initiative_id,
+        owner_id=owner_id,
+        grants=grants,
     )
-    session.add(role_perm)
+
     await session.commit()
     await reapply_rls_context(session)
-    await session.refresh(role_perm)
-    return DocumentRolePermissionRead(
-        initiative_role_id=role_perm.role_id,
-        role_name=role.name,
-        role_display_name=role.display_name,
-        level=role_perm.level,
-        created_at=role_perm.created_at,
-    )
-
-
-@router.patch(
-    "/{document_id}/role-permissions/{role_id}",
-    response_model=DocumentRolePermissionRead,
-)
-async def update_document_role_permission(
-    document_id: int,
-    role_id: int,
-    update_in: DocumentRolePermissionUpdate,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> DocumentRolePermissionRead:
-    """Update a role-based permission level on a document."""
-    document = await _get_document_or_404(
+    hydrated = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id
     )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-
-    if update_in.level == DocumentPermissionLevel.owner:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=DocumentMessages.CANNOT_ASSIGN_OWNER_TO_ROLE,
-        )
-
-    stmt = select(ResourceGrant).where(
-        ResourceGrant.resource_type == "document",
-        ResourceGrant.resource_id == document_id,
-        ResourceGrant.role_id == role_id,
+    return serialize_document(
+        hydrated,
+        my_permission_level=_compute_my_doc_permission_level(hydrated, current_user.id),
     )
-    result = await session.exec(stmt)
-    role_perm = result.one_or_none()
-    if not role_perm:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=DocumentMessages.ROLE_PERMISSION_NOT_FOUND,
-        )
-
-    role_perm.level = update_in.level
-    session.add(role_perm)
-    await session.commit()
-    await reapply_rls_context(session)
-    await session.refresh(role_perm)
-
-    # Get role info
-    role_stmt = select(InitiativeRoleModel).where(InitiativeRoleModel.id == role_id)
-    role_result = await session.exec(role_stmt)
-    role = role_result.one_or_none()
-    return DocumentRolePermissionRead(
-        initiative_role_id=role_perm.role_id,
-        role_name=role.name if role else "",
-        role_display_name=role.display_name if role else "",
-        level=role_perm.level,
-        created_at=role_perm.created_at,
-    )
-
-
-@router.delete(
-    "/{document_id}/role-permissions/{role_id}", status_code=status.HTTP_204_NO_CONTENT
-)
-async def remove_document_role_permission(
-    document_id: int,
-    role_id: int,
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> None:
-    """Remove a role-based permission from a document."""
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
-    )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-
-    stmt = select(ResourceGrant).where(
-        ResourceGrant.resource_type == "document",
-        ResourceGrant.resource_id == document_id,
-        ResourceGrant.role_id == role_id,
-    )
-    result = await session.exec(stmt)
-    role_perm = result.one_or_none()
-    if not role_perm:
-        return
-    await session.delete(role_perm)
-    await session.commit()
 
 
 def _download_document_options():

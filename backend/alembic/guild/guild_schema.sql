@@ -374,8 +374,9 @@ CREATE TABLE IF NOT EXISTS resource_grants (
 	role_id INTEGER, 
 	level VARCHAR(16) NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	all_initiative_members BOOLEAN DEFAULT false NOT NULL, 
 	CONSTRAINT resource_grants_pkey PRIMARY KEY (id), 
-	CONSTRAINT resource_grants_unique_grantee UNIQUE NULLS NOT DISTINCT (resource_type, resource_id, user_id, role_id)
+	CONSTRAINT resource_grants_unique_grantee UNIQUE NULLS DISTINCT (resource_type, resource_id, user_id, role_id)
 );
 CREATE TABLE IF NOT EXISTS subtasks (
 	id SERIAL NOT NULL, 
@@ -618,7 +619,7 @@ CREATE INDEX IF NOT EXISTS ix_webhook_subscriptions_guild_id ON webhook_subscrip
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_comments_task_or_document' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "comments" ADD CONSTRAINT "ck_comments_task_or_document" CHECK (((task_id IS NULL) <> (document_id IS NULL))); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_initiative_role_permissions_permission_key' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "initiative_role_permissions" ADD CONSTRAINT "ck_initiative_role_permissions_permission_key" CHECK (((permission_key)::text = ANY ((ARRAY['docs_enabled'::character varying, 'projects_enabled'::character varying, 'create_docs'::character varying, 'create_projects'::character varying, 'queues_enabled'::character varying, 'create_queues'::character varying, 'events_enabled'::character varying, 'create_events'::character varying, 'advanced_tool_enabled'::character varying, 'create_advanced_tool'::character varying, 'counters_enabled'::character varying, 'create_counters'::character varying])::text[]))); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_recent_views_entity_type' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "recent_views" ADD CONSTRAINT "ck_recent_views_entity_type" CHECK ((entity_type = ANY (ARRAY['project'::text, 'document'::text, 'queue'::text, 'counter_group'::text]))); END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'resource_grants_one_grantee' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "resource_grants" ADD CONSTRAINT "resource_grants_one_grantee" CHECK (((user_id IS NULL) <> (role_id IS NULL))); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'resource_grants_one_grantee' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "resource_grants" ADD CONSTRAINT "resource_grants_one_grantee" CHECK ((((((user_id IS NOT NULL))::integer + ((role_id IS NOT NULL))::integer) + (all_initiative_members)::integer) = 1)); END IF; END $$;
 
 -- intra-schema FOREIGN KEYs
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'calendar_event_attendees_calendar_event_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "calendar_event_attendees" ADD CONSTRAINT "calendar_event_attendees_calendar_event_id_fkey" FOREIGN KEY (calendar_event_id) REFERENCES calendar_events(id) ON DELETE CASCADE; END IF; END $$;

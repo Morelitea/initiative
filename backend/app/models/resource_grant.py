@@ -1,8 +1,20 @@
 """Polymorphic per-resource access grants — the single DAC table.
 
-One row = a user OR an initiative role may access a resource at a level. Replaces
-the per-resource ``*_permissions`` / ``*_role_permissions`` tables (see
-history/resource-grants-consolidation-design.md).
+One row grants access to a resource at a level for exactly one of three grantee
+kinds:
+
+- a **user** (``user_id`` set),
+- an **initiative role** (``role_id`` set), or
+- the **whole initiative** — a "general access" row with neither ``user_id`` nor
+  ``role_id`` set and ``all_initiative_members`` true; ``level`` (read/write)
+  gives the Viewer/Editor level. The backend aggregates every member of the
+  row's ``initiative_id`` for it (see ``app.services.permissions``).
+  ``all_initiative_members`` may only be set when there is no user/role grantee
+  (enforced by the ``resource_grants_one_grantee`` check).
+
+Replaces the per-resource ``*_permissions`` / ``*_role_permissions`` tables (see
+history/resource-grants-consolidation-design.md). General access:
+history/general-access-sharing-design.md.
 """
 
 from datetime import datetime, timezone
@@ -10,6 +22,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -17,6 +30,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -40,8 +54,13 @@ class ResourceGrant(SQLModel, table=True):
     __tablename__ = "resource_grants"
 
     __table_args__ = (
+        # Exactly one grantee kind per row: a user, an initiative role, or the
+        # whole initiative (all_initiative_members). This keeps the old XOR (never
+        # user AND role) and forbids the share boolean whenever a user/role
+        # grantee is set.
         CheckConstraint(
-            "(user_id IS NULL) <> (role_id IS NULL)",
+            "(user_id IS NOT NULL)::int + (role_id IS NOT NULL)::int "
+            "+ (all_initiative_members)::int = 1",
             name="resource_grants_one_grantee",
         ),
         # NULLS NOT DISTINCT so the unused grantee column (NULL) compares equal —
@@ -93,6 +112,14 @@ class ResourceGrant(SQLModel, table=True):
     )
     level: ResourceAccessLevel = Field(
         sa_column=Column(String(length=16), nullable=False)
+    )
+    # All-initiative-members grant — when true (and there is no user/role
+    # grantee), the row grants every member of ``initiative_id`` access at
+    # ``level`` (read = Viewer, write = Editor). The constraint forbids it being
+    # set alongside a user/role.
+    all_initiative_members: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default=text("false")),
     )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),

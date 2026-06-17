@@ -54,12 +54,12 @@ async def test_initiative_removal_ends_document_access(
     assert response.status_code == 201
     doc_id = response.json()["id"]
 
-    response = await client.post(
-        f"/api/v1/g/{guild.id}/documents/{doc_id}/members",
+    response = await client.put(
+        f"/api/v1/g/{guild.id}/documents/{doc_id}/grants",
         headers=admin_headers,
-        json={"user_id": member.id, "level": "write"},
+        json=[{"user_id": member.id, "level": "write"}],
     )
-    assert response.status_code == 201
+    assert response.status_code == 200
 
     # Member can open and list the document while in the initiative.
     response = await client.get(

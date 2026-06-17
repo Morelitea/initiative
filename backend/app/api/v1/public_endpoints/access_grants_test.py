@@ -345,9 +345,9 @@ async def test_grant_cannot_manage_project_members(
     )
 
     headers = await get_guild_headers(session, guild, support)
-    resp = await client.post(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/members",
-        json={"user_id": target.id, "level": "write"},
+    resp = await client.put(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
+        json=[{"user_id": target.id, "level": "write"}],
         headers=headers,
     )
     assert resp.status_code == 403, resp.text
@@ -358,8 +358,8 @@ async def test_grant_cannot_manage_project_members(
 async def test_grant_cannot_manage_counter_group_access(
     client: AsyncClient, session: AsyncSession
 ):
-    """A read_write grant can't manage counter group access (writes
-    counter_group_permissions, which RLS blocks) — clean 403, not 500."""
+    """A read_write grant can't manage counter group access (a grant confers
+    content read/write only) — clean 403, not 500."""
     from app.models.counter import CounterGroup
 
     owner = await create_user(
@@ -382,7 +382,7 @@ async def test_grant_cannot_manage_counter_group_access(
 
     headers = await get_guild_headers(session, guild, support)
     resp = await client.put(
-        f"/api/v1/g/{guild.id}/counter-groups/{cg.id}/permissions",
+        f"/api/v1/g/{guild.id}/counter-groups/{cg.id}/grants",
         json=[],
         headers=headers,
     )

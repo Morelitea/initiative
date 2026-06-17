@@ -453,6 +453,33 @@ export interface EventRecurrence {
   end_date?: string | null;
 }
 
+export type ResourceGrantSchemaLevel =
+  (typeof ResourceGrantSchemaLevel)[keyof typeof ResourceGrantSchemaLevel];
+
+export const ResourceGrantSchemaLevel = {
+  read: "read",
+  write: "write",
+  owner: "owner",
+} as const;
+
+/**
+ * One ``resource_grants`` row — exactly the columns that define a grant: a
+ * ``level`` for a user (``user_id``), an initiative role (``role_id``), or all
+ * initiative members (``all_initiative_members``). Exactly one grantee is set.
+ *
+ * The identical shape both reports a resource's grants (``grants`` is a list of
+ * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
+ * read-only or write-only. The server always preserves the resource's owner
+ * grant. Role display names are resolved client-side from the initiative's roles
+ * by ``role_id``.
+ */
+export interface ResourceGrantSchema {
+  level: ResourceGrantSchemaLevel;
+  user_id?: number | null;
+  role_id?: number | null;
+  all_initiative_members?: boolean;
+}
+
 export interface CalendarEventCreate {
   /**
    * @minLength 1
@@ -470,6 +497,7 @@ export interface CalendarEventCreate {
   attendee_ids?: number[] | null;
   tag_ids?: number[] | null;
   document_ids?: number[] | null;
+  grants?: ResourceGrantSchema[];
 }
 
 export interface CalendarEventDocumentRead {
@@ -559,6 +587,8 @@ export interface CalendarEventSummary {
   attendee_previews: CalendarEventAttendeePreview[];
   property_values: PropertySummary[];
   tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  my_permission_level: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -597,6 +627,8 @@ export interface CalendarEventRead {
   attendee_previews: CalendarEventAttendeePreview[];
   property_values: PropertySummary[];
   tags: TagSummary[];
+  grants: ResourceGrantSchema[];
+  my_permission_level: string | null;
   created_at: string;
   updated_at: string;
   attendees: CalendarEventAttendeeRead[];
@@ -673,25 +705,6 @@ export interface CounterCreate {
   position?: number | string;
 }
 
-export type CounterPermissionLevel =
-  (typeof CounterPermissionLevel)[keyof typeof CounterPermissionLevel];
-
-export const CounterPermissionLevel = {
-  owner: "owner",
-  write: "write",
-  read: "read",
-} as const;
-
-export interface CounterGroupRolePermissionCreate {
-  initiative_role_id: number;
-  level?: CounterPermissionLevel;
-}
-
-export interface CounterGroupPermissionCreate {
-  user_id: number;
-  level?: CounterPermissionLevel;
-}
-
 export interface CounterGroupCreate {
   /**
    * @minLength 1
@@ -700,8 +713,7 @@ export interface CounterGroupCreate {
   name: string;
   description?: string | null;
   initiative_id: number;
-  role_permissions?: CounterGroupRolePermissionCreate[] | null;
-  user_permissions?: CounterGroupPermissionCreate[] | null;
+  grants?: ResourceGrantSchema[];
 }
 
 export interface CounterGroupDuplicateRequest {
@@ -733,12 +745,6 @@ export interface CounterGroupListResponse {
   has_next: boolean;
 }
 
-export interface CounterGroupPermissionRead {
-  user_id: number;
-  level: CounterPermissionLevel;
-  created_at: string;
-}
-
 /**
  * Serialized counter. Numeric fields are returned as plain decimal
  * strings (e.g. "0", "12.5") rather than ``Decimal`` so JSON never emits
@@ -762,14 +768,6 @@ export interface CounterRead {
   updated_at: string;
 }
 
-export interface CounterGroupRolePermissionRead {
-  initiative_role_id: number;
-  role_name: string;
-  role_display_name: string;
-  level: CounterPermissionLevel;
-  created_at: string;
-}
-
 export interface CounterGroupRead {
   /**
    * @minLength 1
@@ -786,8 +784,7 @@ export interface CounterGroupRead {
   created_at: string;
   updated_at: string;
   counters: CounterRead[];
-  permissions: CounterGroupPermissionRead[];
-  role_permissions: CounterGroupRolePermissionRead[];
+  grants: ResourceGrantSchema[];
 }
 
 export interface CounterGroupUpdate {
@@ -915,25 +912,6 @@ export const DocumentCreateDocumentType = {
   spreadsheet: "spreadsheet",
 } as const;
 
-export type DocumentPermissionLevel =
-  (typeof DocumentPermissionLevel)[keyof typeof DocumentPermissionLevel];
-
-export const DocumentPermissionLevel = {
-  owner: "owner",
-  write: "write",
-  read: "read",
-} as const;
-
-export interface DocumentRolePermissionCreate {
-  initiative_role_id: number;
-  level?: DocumentPermissionLevel;
-}
-
-export interface DocumentPermissionCreate {
-  user_id: number;
-  level?: DocumentPermissionLevel;
-}
-
 export interface DocumentCreate {
   title: string;
   initiative_id: number;
@@ -941,8 +919,7 @@ export interface DocumentCreate {
   is_template?: boolean;
   content?: DocumentCreateContent;
   document_type?: DocumentCreateDocumentType;
-  role_permissions?: DocumentRolePermissionCreate[] | null;
-  user_permissions?: DocumentPermissionCreate[] | null;
+  grants?: ResourceGrantSchema[];
 }
 
 export interface DocumentDuplicateRequest {
@@ -1014,20 +991,6 @@ export interface DocumentProjectLink {
   attached_at: string;
 }
 
-export interface DocumentPermissionRead {
-  user_id: number;
-  level: DocumentPermissionLevel;
-  created_at: string;
-}
-
-export interface DocumentRolePermissionRead {
-  initiative_role_id: number;
-  role_name: string;
-  role_display_name: string;
-  level: DocumentPermissionLevel;
-  created_at: string;
-}
-
 export type DocumentSummaryDocumentType =
   (typeof DocumentSummaryDocumentType)[keyof typeof DocumentSummaryDocumentType];
 
@@ -1053,8 +1016,7 @@ export interface DocumentSummary {
   initiative: InitiativeRead | null;
   projects: DocumentProjectLink[];
   comment_count: number;
-  permissions: DocumentPermissionRead[];
-  role_permissions: DocumentRolePermissionRead[];
+  grants: ResourceGrantSchema[];
   tags: TagSummary[];
   properties: PropertySummary[];
   document_type: DocumentSummaryDocumentType;
@@ -1075,19 +1037,6 @@ export interface DocumentListResponse {
   has_next: boolean;
   sort_by: string | null;
   sort_dir: string | null;
-}
-
-export interface DocumentPermissionBulkCreate {
-  user_ids: number[];
-  level?: DocumentPermissionLevel;
-}
-
-export interface DocumentPermissionBulkDelete {
-  user_ids: number[];
-}
-
-export interface DocumentPermissionUpdate {
-  level: DocumentPermissionLevel;
 }
 
 export type DocumentReadDocumentType =
@@ -1117,8 +1066,7 @@ export interface DocumentRead {
   initiative: InitiativeRead | null;
   projects: DocumentProjectLink[];
   comment_count: number;
-  permissions: DocumentPermissionRead[];
-  role_permissions: DocumentRolePermissionRead[];
+  grants: ResourceGrantSchema[];
   tags: TagSummary[];
   properties: PropertySummary[];
   document_type: DocumentReadDocumentType;
@@ -1130,10 +1078,6 @@ export interface DocumentRead {
   my_permission_level: string | null;
   yjs_updated_at: string | null;
   content: DocumentReadContent;
-}
-
-export interface DocumentRolePermissionUpdate {
-  level: DocumentPermissionLevel;
 }
 
 export type DocumentUpdateContent = { [key: string]: unknown } | null;
@@ -1815,25 +1759,6 @@ export interface ProjectActivityResponse {
   next_page: number | null;
 }
 
-export type ProjectPermissionLevel =
-  (typeof ProjectPermissionLevel)[keyof typeof ProjectPermissionLevel];
-
-export const ProjectPermissionLevel = {
-  owner: "owner",
-  write: "write",
-  read: "read",
-} as const;
-
-export interface ProjectRolePermissionCreate {
-  initiative_role_id: number;
-  level?: ProjectPermissionLevel;
-}
-
-export interface ProjectPermissionCreate {
-  user_id: number;
-  level?: ProjectPermissionLevel;
-}
-
 export interface ProjectCreate {
   name: string;
   description?: string | null;
@@ -1842,8 +1767,7 @@ export interface ProjectCreate {
   initiative_id?: number | null;
   is_template?: boolean;
   template_id?: number | null;
-  role_permissions?: ProjectRolePermissionCreate[] | null;
-  user_permissions?: ProjectPermissionCreate[] | null;
+  grants?: ResourceGrantSchema[];
 }
 
 export interface ProjectDocumentSummary {
@@ -2026,20 +1950,6 @@ export interface ProjectImportResult {
   assignee_unmatched_emails?: string[];
 }
 
-export interface ProjectPermissionRead {
-  user_id: number;
-  level: ProjectPermissionLevel;
-  created_at: string;
-}
-
-export interface ProjectRolePermissionRead {
-  initiative_role_id: number;
-  role_name: string;
-  role_display_name: string;
-  level: ProjectPermissionLevel;
-  created_at: string;
-}
-
 export interface ProjectTaskSummary {
   total: number;
   completed: number;
@@ -2060,8 +1970,6 @@ export interface ProjectRead {
   pinned_at: string | null;
   owner: UserPublic | null;
   initiative: InitiativeRead | null;
-  permissions: ProjectPermissionRead[];
-  role_permissions: ProjectRolePermissionRead[];
   sort_order: number | null;
   is_favorited: boolean;
   last_viewed_at: string | null;
@@ -2069,6 +1977,7 @@ export interface ProjectRead {
   task_summary: ProjectTaskSummary;
   tags: TagSummary[];
   my_permission_level: string | null;
+  grants: ResourceGrantSchema[];
 }
 
 export interface ProjectListResponse {
@@ -2079,25 +1988,8 @@ export interface ProjectListResponse {
   has_next: boolean;
 }
 
-export interface ProjectPermissionBulkCreate {
-  user_ids: number[];
-  level?: ProjectPermissionLevel;
-}
-
-export interface ProjectPermissionBulkDelete {
-  user_ids: number[];
-}
-
-export interface ProjectPermissionUpdate {
-  level: ProjectPermissionLevel;
-}
-
 export interface ProjectReorderRequest {
   project_ids?: number[];
-}
-
-export interface ProjectRolePermissionUpdate {
-  level: ProjectPermissionLevel;
 }
 
 export interface ProjectUpdate {
@@ -2247,24 +2139,6 @@ export interface PushTokenUnregisterRequest {
   push_token: string;
 }
 
-export type QueuePermissionLevel = (typeof QueuePermissionLevel)[keyof typeof QueuePermissionLevel];
-
-export const QueuePermissionLevel = {
-  owner: "owner",
-  write: "write",
-  read: "read",
-} as const;
-
-export interface QueueRolePermissionCreate {
-  initiative_role_id: number;
-  level?: QueuePermissionLevel;
-}
-
-export interface QueuePermissionCreate {
-  user_id: number;
-  level?: QueuePermissionLevel;
-}
-
 export interface QueueCreate {
   /**
    * @minLength 1
@@ -2273,8 +2147,7 @@ export interface QueueCreate {
   name: string;
   description?: string | null;
   initiative_id: number;
-  role_permissions?: QueueRolePermissionCreate[] | null;
-  user_permissions?: QueuePermissionCreate[] | null;
+  grants?: ResourceGrantSchema[];
 }
 
 export interface QueueItemCreate {
@@ -2371,20 +2244,6 @@ export interface QueueListResponse {
   has_next: boolean;
 }
 
-export interface QueuePermissionRead {
-  user_id: number;
-  level: QueuePermissionLevel;
-  created_at: string;
-}
-
-export interface QueueRolePermissionRead {
-  initiative_role_id: number;
-  role_name: string;
-  role_display_name: string;
-  level: QueuePermissionLevel;
-  created_at: string;
-}
-
 export interface QueueRead {
   /**
    * @minLength 1
@@ -2404,8 +2263,7 @@ export interface QueueRead {
   my_permission_level: string | null;
   items: QueueItemRead[];
   current_item: QueueItemRead | null;
-  permissions: QueuePermissionRead[];
-  role_permissions: QueueRolePermissionRead[];
+  grants: ResourceGrantSchema[];
 }
 
 /**
@@ -3846,10 +3704,6 @@ export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   page_size?: number;
 };
 
-export type ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet200 = {
-  [key: string]: unknown;
-};
-
 export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
   initiative_id?: number | null;
   /**
@@ -3861,10 +3715,6 @@ export type ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams = {
    * @maximum 100
    */
   page_size?: number;
-};
-
-export type ListCounterGroupPermissionsApiV1GGuildIdCounterGroupsGroupIdPermissionsGet200 = {
-  [key: string]: unknown;
 };
 
 export type ExportCalendarEventsIcsApiV1GGuildIdCalendarEventsExportIcsGetParams = {

@@ -104,10 +104,8 @@ async def test_create_document_with_permissions(
     payload = {
         "title": "Doc With Permissions",
         "initiative_id": initiative.id,
-        "role_permissions": [
+        "grants": [
             {"initiative_role_id": member_role.id, "level": "read"},
-        ],
-        "user_permissions": [
             {"user_id": member.id, "level": "write"},
         ],
     }
@@ -120,26 +118,23 @@ async def test_create_document_with_permissions(
     data = response.json()
     assert data["title"] == "Doc With Permissions"
 
-    # Owner permission exists
-    perm_user_ids = {p["user_id"] for p in data["permissions"]}
-    assert admin.id in perm_user_ids
-    assert member.id in perm_user_ids
-
-    # Role permission exists
-    assert len(data["role_permissions"]) == 1
-    assert data["role_permissions"][0]["initiative_role_id"] == member_role.id
-    assert data["role_permissions"][0]["level"] == "read"
-
-    # Member's user permission is write
-    member_perm = next(p for p in data["permissions"] if p["user_id"] == member.id)
-    assert member_perm["level"] == "write"
+    grants = data["grants"]
+    # Owner grant + member's write user grant.
+    user_grants = {g["user_id"]: g["level"] for g in grants if g["user_id"]}
+    assert user_grants.get(admin.id) == "owner"
+    assert user_grants.get(member.id) == "write"
+    # Role grant for the member role at read.
+    role_grants = [g for g in grants if g["role_id"] is not None]
+    assert len(role_grants) == 1
+    assert role_grants[0]["role_id"] == member_role.id
+    assert role_grants[0]["level"] == "read"
 
 
 @pytest.mark.integration
-async def test_create_document_without_permissions(
+async def test_create_document_defaults_to_all_members_viewer(
     client: AsyncClient, session: AsyncSession
 ):
-    """Test creating a document without extra permissions yields only owner."""
+    """Omitting `grants` defaults to Viewer for all initiative members (+ owner)."""
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session)
     await create_guild_membership(
@@ -150,7 +145,7 @@ async def test_create_document_without_permissions(
 
     headers = await get_guild_headers(session, guild, admin)
     payload = {
-        "title": "Doc No Perms",
+        "title": "Doc Default Share",
         "initiative_id": initiative.id,
     }
 
@@ -160,11 +155,12 @@ async def test_create_document_without_permissions(
 
     assert response.status_code == 201
     data = response.json()
-    # Only the owner permission should exist
-    assert len(data["permissions"]) == 1
-    assert data["permissions"][0]["user_id"] == admin.id
-    assert data["permissions"][0]["level"] == "owner"
-    assert len(data["role_permissions"]) == 0
+    assert any(
+        g["user_id"] == admin.id and g["level"] == "owner" for g in data["grants"]
+    )
+    assert any(
+        g["all_initiative_members"] and g["level"] == "read" for g in data["grants"]
+    )
 
 
 @pytest.mark.integration
@@ -194,7 +190,7 @@ async def test_create_document_rejects_foreign_initiative_role(
     payload = {
         "title": "Doc Cross Initiative",
         "initiative_id": initiative_a.id,
-        "role_permissions": [
+        "grants": [
             {"initiative_role_id": foreign_role.id, "level": "read"},
         ],
     }
@@ -206,7 +202,7 @@ async def test_create_document_rejects_foreign_initiative_role(
     assert response.status_code == 201
     data = response.json()
     # Foreign role must have been silently dropped
-    assert len(data["role_permissions"]) == 0
+    assert len([g for g in data["grants"] if g["role_id"] is not None]) == 0
 
 
 @pytest.mark.integration
@@ -228,7 +224,7 @@ async def test_create_document_skips_owner_level_grants(
     payload = {
         "title": "Doc Owner Skip",
         "initiative_id": initiative.id,
-        "user_permissions": [{"user_id": member.id, "level": "owner"}],
+        "grants": [{"user_id": member.id, "level": "owner"}],
     }
 
     response = await client.post(
@@ -236,10 +232,8 @@ async def test_create_document_skips_owner_level_grants(
     )
 
     assert response.status_code == 201
-    member_perms = [
-        p for p in response.json()["permissions"] if p["user_id"] == member.id
-    ]
-    assert len(member_perms) == 0
+    member_grants = [g for g in response.json()["grants"] if g["user_id"] == member.id]
+    assert len(member_grants) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -337,8 +331,10 @@ async def test_copy_template_with_read_only_access(
     assert data["created_by_id"] == reader.id
 
     # Reader is owner of the new doc.
-    new_perm_levels = {p["user_id"]: p["level"] for p in data["permissions"]}
-    assert new_perm_levels.get(reader.id) == "owner"
+    new_grant_levels = {
+        g["user_id"]: g["level"] for g in data["grants"] if g["user_id"]
+    }
+    assert new_grant_levels.get(reader.id) == "owner"
 
     # Source template is unchanged.
     await session.refresh(template)

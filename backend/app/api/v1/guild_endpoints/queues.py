@@ -19,7 +19,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from sqlalchemy import delete as sa_delete, func
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -34,18 +34,16 @@ from app.db.session import AsyncSessionLocal, reapply_rls_context, set_rls_conte
 from app.models.queue import (
     Queue,
     QueueItem,
-    QueuePermissionLevel,
 )
 from app.models.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.guild import GuildMembership
 from app.models.initiative import (
     Initiative,
-    InitiativeMember,
-    InitiativeRoleModel,
     PermissionKey,
 )
 from app.models.user import User
 from app.core.messages import QueueMessages, InitiativeMessages
+from app.schemas.resource_grant import ResourceGrantSchema
 from app.schemas.queue import (
     QueueCreate,
     QueueUpdate,
@@ -56,15 +54,12 @@ from app.schemas.queue import (
     QueueItemRead,
     QueueItemReorderRequest,
     QueueReleaseRequest,
-    QueuePermissionCreate,
-    QueuePermissionRead,
-    QueueRolePermissionCreate,
-    QueueRolePermissionRead,
     serialize_queue,
     serialize_queue_summary,
     serialize_queue_item,
 )
 from app.api import resource_access
+from app.services import permissions as permissions_service
 from app.services import queues as queues_service
 from app.services import recent_views as recent_views_service
 from app.services import rls as rls_service
@@ -335,69 +330,17 @@ async def create_queue(
     )
     session.add(owner_perm)
 
-    # Process optional role permissions
-    if queue_in.role_permissions:
-        role_ids = {
-            rp.initiative_role_id
-            for rp in queue_in.role_permissions
-            if rp.level != QueuePermissionLevel.owner
-        }
-        valid_role_ids: set[int] = set()
-        if role_ids:
-            result = await session.exec(
-                select(InitiativeRoleModel.id).where(
-                    InitiativeRoleModel.id.in_(role_ids),
-                    InitiativeRoleModel.initiative_id == initiative.id,
-                )
-            )
-            valid_role_ids = set(result.all())
-        for rp in queue_in.role_permissions:
-            if (
-                rp.initiative_role_id not in valid_role_ids
-                or rp.level == QueuePermissionLevel.owner
-            ):
-                continue
-            session.add(
-                ResourceGrant(
-                    resource_type="queue",
-                    resource_id=queue.id,
-                    user_id=None,
-                    role_id=rp.initiative_role_id,
-                    level=rp.level,
-                    guild_id=guild_context.guild_id,
-                    initiative_id=queue.initiative_id,
-                )
-            )
-
-    # Process optional user permissions
-    if queue_in.user_permissions:
-        requested = {
-            up.user_id
-            for up in queue_in.user_permissions
-            if up.user_id != current_user.id
-        }
-        valid_ids: set[int] = set()
-        if requested:
-            result = await session.exec(
-                select(InitiativeMember.user_id).where(
-                    InitiativeMember.initiative_id == initiative.id,
-                    InitiativeMember.user_id.in_(requested),
-                )
-            )
-            valid_ids = set(result.all())
-        for up in queue_in.user_permissions:
-            if up.user_id in valid_ids and up.level != QueuePermissionLevel.owner:
-                session.add(
-                    ResourceGrant(
-                        resource_type="queue",
-                        resource_id=queue.id,
-                        user_id=up.user_id,
-                        role_id=None,
-                        level=up.level,
-                        guild_id=guild_context.guild_id,
-                        initiative_id=queue.initiative_id,
-                    )
-                )
+    # Apply the initial sharing exactly the way edits do — one grant list, one
+    # code path (empty default = owner-only until shared).
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type="queue",
+        resource_id=queue.id,
+        guild_id=guild_context.guild_id,
+        initiative_id=queue.initiative_id,
+        owner_id=current_user.id,
+        grants=queue_in.grants,
+    )
 
     await session.commit()
     await reapply_rls_context(session)
@@ -1056,203 +999,65 @@ async def set_queue_item_tasks(
 
 
 # ---------------------------------------------------------------------------
-# Permissions (DAC)
+# Sharing (resource grants)
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{queue_id}/permissions")
-async def list_queue_permissions(
+@router.put("/{queue_id}/grants", response_model=QueueRead)
+async def set_queue_grants(
     queue_id: int,
+    grants: List[ResourceGrantSchema],
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> dict:
-    """List user and role permissions on a queue. Requires read access."""
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="read"
-    )
-
-    permissions = [
-        QueuePermissionRead(
-            user_id=g.user_id,
-            level=g.level,
-            created_at=g.created_at,
-        )
-        for g in (queue.grants or [])
-        if g.user_id is not None
-    ]
-
-    role_permissions = []
-    for g in queue.grants or []:
-        if g.role_id is None:
-            continue
-        role = getattr(g, "role", None)
-        role_permissions.append(
-            QueueRolePermissionRead(
-                initiative_role_id=g.role_id,
-                role_name=getattr(role, "name", "") if role else "",
-                role_display_name=getattr(role, "display_name", "") if role else "",
-                level=g.level,
-                created_at=g.created_at,
-            )
-        )
-
-    return {
-        "permissions": permissions,
-        "role_permissions": role_permissions,
-    }
-
-
-@router.put("/{queue_id}/permissions", response_model=List[QueuePermissionRead])
-async def set_queue_permissions(
-    queue_id: int,
-    permissions_in: List[QueuePermissionCreate],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[QueuePermissionRead]:
-    """Set user permissions on a queue. Requires owner or guild admin.
-
-    Replaces all non-owner permissions. The owner's permission cannot be changed.
+) -> QueueRead:
+    """Replace the queue's entire sharing state in one call — the body is the
+    full list of grants (all-initiative-members / per-user / per-role). Every
+    non-owner grant is rebuilt from it; the owner is always preserved.
     """
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="read"
+    queue = await resource_access.load_authorized(
+        session,
+        "queue",
+        queue_id,
+        current_user,
+        guild_context,
+        access="write",
+        manage_access=True,
     )
-    if not rls_service.is_guild_admin(guild_context.role):
-        queues_service.require_queue_access(queue, current_user, require_owner=True)
 
-    # Find the owner's user_id
-    owner_user_id: int | None = None
+    # The owner is the user holding the owner-level grant, else the creator.
+    owner_id = queue.created_by_id
     for g in queue.grants or []:
         if g.user_id is not None and g.level == ResourceAccessLevel.owner:
-            owner_user_id = g.user_id
+            owner_id = g.user_id
             break
 
-    # Delete all non-owner user grants (role grants are managed separately)
-    base_conditions = [
-        ResourceGrant.resource_type == "queue",
-        ResourceGrant.resource_id == queue.id,
-        ResourceGrant.user_id.is_not(None),
-    ]
-    if owner_user_id is not None:
-        delete_stmt = sa_delete(ResourceGrant).where(
-            *base_conditions,
-            ResourceGrant.user_id != owner_user_id,
-        )
-    else:
-        delete_stmt = sa_delete(ResourceGrant).where(
-            *base_conditions,
-            ResourceGrant.level != ResourceAccessLevel.owner,
-        )
-    await session.exec(delete_stmt)
-
-    # Add new permissions (skip owner-level and skip the current owner)
-    for perm_in in permissions_in:
-        if perm_in.user_id == owner_user_id:
-            continue
-        if perm_in.level == QueuePermissionLevel.owner:
-            continue
-        session.add(
-            ResourceGrant(
-                resource_type="queue",
-                resource_id=queue.id,
-                user_id=perm_in.user_id,
-                role_id=None,
-                level=perm_in.level,
-                guild_id=queue.guild_id,
-                initiative_id=queue.initiative_id,
-            )
-        )
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type="queue",
+        resource_id=queue.id,
+        guild_id=queue.guild_id,
+        initiative_id=queue.initiative_id,
+        owner_id=owner_id,
+        grants=grants,
+    )
 
     await session.commit()
     await reapply_rls_context(session)
 
     hydrated = await _refetch_queue(session, queue.id)
-    perms_result = [
-        QueuePermissionRead(
-            user_id=g.user_id,
-            level=g.level,
-            created_at=g.created_at,
-        )
-        for g in (hydrated.grants or [])
-        if g.user_id is not None
-    ]
+    result = serialize_queue(
+        hydrated,
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
+    )
     await queue_manager.broadcast(
         queue_id,
         "permissions_changed",
-        {"permissions": [p.model_dump(mode="json") for p in perms_result]},
+        {"grants": [g.model_dump(mode="json") for g in result.grants]},
     )
-    return perms_result
-
-
-@router.put(
-    "/{queue_id}/role-permissions", response_model=List[QueueRolePermissionRead]
-)
-async def set_queue_role_permissions(
-    queue_id: int,
-    role_permissions_in: List[QueueRolePermissionCreate],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[QueueRolePermissionRead]:
-    """Set role permissions on a queue. Requires owner or guild admin.
-
-    Replaces all existing role permissions.
-    """
-    queue = await _get_queue_with_access(
-        session, queue_id, current_user, guild_context, access="read"
-    )
-    if not rls_service.is_guild_admin(guild_context.role):
-        queues_service.require_queue_access(queue, current_user, require_owner=True)
-
-    # Delete all existing role grants (user grants are managed separately)
-    delete_stmt = sa_delete(ResourceGrant).where(
-        ResourceGrant.resource_type == "queue",
-        ResourceGrant.resource_id == queue.id,
-        ResourceGrant.role_id.is_not(None),
-    )
-    await session.exec(delete_stmt)
-
-    # Add new role permissions (skip owner-level)
-    for rp_in in role_permissions_in:
-        if rp_in.level == QueuePermissionLevel.owner:
-            continue
-        session.add(
-            ResourceGrant(
-                resource_type="queue",
-                resource_id=queue.id,
-                user_id=None,
-                role_id=rp_in.initiative_role_id,
-                level=rp_in.level,
-                guild_id=queue.guild_id,
-                initiative_id=queue.initiative_id,
-            )
-        )
-
-    await session.commit()
-    await reapply_rls_context(session)
-
-    hydrated = await _refetch_queue(session, queue.id)
-    role_perms_result: List[QueueRolePermissionRead] = []
-    for g in hydrated.grants or []:
-        if g.role_id is None:
-            continue
-        role = getattr(g, "role", None)
-        role_perms_result.append(
-            QueueRolePermissionRead(
-                initiative_role_id=g.role_id,
-                role_name=getattr(role, "name", "") if role else "",
-                role_display_name=getattr(role, "display_name", "") if role else "",
-                level=g.level,
-                created_at=g.created_at,
-            )
-        )
-    await queue_manager.broadcast(
-        queue_id,
-        "permissions_changed",
-        {"role_permissions": [rp.model_dump(mode="json") for rp in role_perms_result]},
-    )
-    return role_perms_result
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -19,7 +19,7 @@ from enum import Enum
 from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlmodel import select
 
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
@@ -35,7 +35,7 @@ from app.models.document import (
     Document,
     DocumentPermissionLevel,
 )
-from app.models.initiative import InitiativeMember
+from app.models.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.user import User
 from app.core.messages import (
     ProjectMessages,
@@ -44,7 +44,7 @@ from app.core.messages import (
     CounterMessages,
     CalendarEventMessages,
 )
-from app.models.resource_grant import ResourceGrant
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 
 
 # ---------------------------------------------------------------------------
@@ -179,8 +179,12 @@ def lift_level_for_grant(dac_level: str | None, guild_id: int | None) -> str | N
 
 def visible_resource_ids_subquery(resource_type: str, user_id: int):
     """resource_ids of ``resource_type`` the user can access via a grant — their
-    own user grant OR a grant to one of their initiative roles."""
+    own user grant, a grant to one of their initiative roles, OR an
+    all-initiative-members grant on a resource in an initiative they belong to."""
     my_roles = select(InitiativeMember.role_id).where(
+        InitiativeMember.user_id == user_id
+    )
+    my_initiatives = select(InitiativeMember.initiative_id).where(
         InitiativeMember.user_id == user_id
     )
     return select(ResourceGrant.resource_id).where(
@@ -188,6 +192,10 @@ def visible_resource_ids_subquery(resource_type: str, user_id: int):
         or_(
             ResourceGrant.user_id == user_id,
             ResourceGrant.role_id.in_(my_roles),
+            and_(
+                ResourceGrant.all_initiative_members.is_(True),
+                ResourceGrant.initiative_id.in_(my_initiatives),
+            ),
         ),
     )
 
@@ -339,9 +347,27 @@ def _grant_level(level: Any) -> str:
     return level.value if hasattr(level, "value") else level
 
 
+def serialize_grants(row: Any) -> list:
+    """Serialize a resource's eager-loaded ``grants`` into the unified grant list
+    — one ``ResourceGrantSchema`` per ``resource_grants`` row (user, role, or
+    all-initiative-members), owner included."""
+    from app.schemas.resource_grant import ResourceGrantSchema
+
+    return [
+        ResourceGrantSchema(
+            level=_grant_level(g.level),
+            user_id=g.user_id,
+            role_id=g.role_id,
+            all_initiative_members=bool(getattr(g, "all_initiative_members", False)),
+        )
+        for g in getattr(row, "grants", None) or []
+    ]
+
+
 def effective_level(resource: DacResource, row: Any, user_id: int) -> str | None:
     """Highest grant level (read<write<owner) for ``user_id`` on ``row`` — from the
-    user's own grant or a grant to one of their initiative roles, else None. Reads
+    user's own grant, a grant to one of their initiative roles, or an
+    all-initiative-members grant when the user is a member, else None. Reads
     eagerly-loaded ``grants`` + ``initiative.memberships``."""
     grants = getattr(row, "grants", None) or []
     initiative = getattr(row, "initiative", None)
@@ -351,14 +377,110 @@ def effective_level(resource: DacResource, row: Any, user_id: int) -> str | None
     role_ids = {
         m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None
     }
+    is_member = any(m.user_id == user_id for m in memberships)
     best: str | None = None
     best_rank = -1
     for g in grants:
-        if g.user_id == user_id or (g.role_id is not None and g.role_id in role_ids):
+        applies = (
+            g.user_id == user_id
+            or (g.role_id is not None and g.role_id in role_ids)
+            or (getattr(g, "all_initiative_members", False) and is_member)
+        )
+        if applies:
             lvl = _grant_level(g.level)
             if _LEVEL_RANK[lvl] > best_rank:
                 best_rank, best = _LEVEL_RANK[lvl], lvl
     return best
+
+
+async def replace_resource_grants(
+    session: Any,
+    *,
+    resource_type: str,
+    resource_id: int,
+    guild_id: int,
+    initiative_id: int,
+    owner_id: int,
+    grants: Any,
+) -> None:
+    """Rebuild a resource's non-owner grants from ``grants`` (a list of
+    ResourceAccessGrant rows). Each row is sorted by grantee kind — all-initiative-
+    members, per-user, or per-role. The owner grant is preserved; owner-level
+    entries and grantees outside the initiative are dropped. Caller commits +
+    reapplies RLS."""
+    all_members_level: str | None = None
+    user_levels: dict[int, str] = {}
+    role_levels: dict[int, str] = {}
+    for g in grants:
+        level = g.level
+        if level not in ("read", "write"):
+            continue  # owner is preserved server-side, never set via this list
+        if getattr(g, "all_initiative_members", False):
+            all_members_level = level
+        elif g.user_id is not None and g.user_id != owner_id:
+            user_levels[g.user_id] = level
+        elif g.role_id is not None:
+            role_levels[g.role_id] = level
+
+    valid_users: set[int] = set()
+    if user_levels:
+        valid_users = set(
+            (
+                await session.exec(
+                    select(InitiativeMember.user_id).where(
+                        InitiativeMember.initiative_id == initiative_id,
+                        InitiativeMember.user_id.in_(list(user_levels)),
+                    )
+                )
+            ).all()
+        )
+    valid_roles: set[int] = set()
+    if role_levels:
+        valid_roles = set(
+            (
+                await session.exec(
+                    select(InitiativeRoleModel.id).where(
+                        InitiativeRoleModel.initiative_id == initiative_id,
+                        InitiativeRoleModel.id.in_(list(role_levels)),
+                    )
+                )
+            ).all()
+        )
+
+    existing = (
+        await session.exec(
+            select(ResourceGrant).where(
+                ResourceGrant.resource_type == resource_type,
+                ResourceGrant.resource_id == resource_id,
+            )
+        )
+    ).all()
+    for g in existing:
+        if _grant_level(g.level) != "owner":
+            await session.delete(g)
+
+    def _grant(level: str, **kw: Any) -> ResourceGrant:
+        return ResourceGrant(
+            resource_type=resource_type,
+            resource_id=resource_id,
+            guild_id=guild_id,
+            initiative_id=initiative_id,
+            level=ResourceAccessLevel(level),
+            **kw,
+        )
+
+    if all_members_level is not None:
+        session.add(_grant(all_members_level, all_initiative_members=True))
+    session.add_all(
+        _grant(level, user_id=uid)
+        for uid, level in user_levels.items()
+        if uid in valid_users
+    )
+    session.add_all(
+        _grant(level, role_id=rid)
+        for rid, level in role_levels.items()
+        if rid in valid_roles
+    )
 
 
 def require_access(
@@ -462,6 +584,11 @@ def compute_document_permission(
 ) -> str | None:
     """Effective document permission string for the client (delegates to the engine)."""
     return compute_permission(DAC_RESOURCES["document"], document, user_id)
+
+
+def compute_calendar_event_permission(event: Any, user_id: int) -> str | None:
+    """Effective calendar-event permission string for the client (delegates to the engine)."""
+    return compute_permission(DAC_RESOURCES["calendar_event"], event, user_id)
 
 
 def require_document_access(

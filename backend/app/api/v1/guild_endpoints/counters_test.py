@@ -715,7 +715,7 @@ async def test_sort_counters_read_only_forbidden(
 
     # Grant the member read-only access on the group.
     grant = await client.put(
-        f"/api/v1/g/{guild.id}/counter-groups/{gid}/permissions",
+        f"/api/v1/g/{guild.id}/counter-groups/{gid}/grants",
         headers=admin_headers,
         json=[{"user_id": member.id, "level": "read"}],
     )
@@ -829,7 +829,7 @@ async def test_duplicate_counter_group_read_user_becomes_owner(
     await _add_counter(client, admin_headers, guild, sid, name="A", position="0")
 
     grant = await client.put(
-        f"/api/v1/g/{guild.id}/counter-groups/{sid}/permissions",
+        f"/api/v1/g/{guild.id}/counter-groups/{sid}/grants",
         headers=admin_headers,
         json=[{"user_id": member.id, "level": "read"}],
     )

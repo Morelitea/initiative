@@ -8,48 +8,12 @@ from typing import List, Optional, TYPE_CHECKING
 from pydantic import ConfigDict, Field, model_validator
 
 from app.core.messages import CounterMessages
-from app.models.counter import CounterPermissionLevel, CounterViewMode
+from app.models.counter import CounterViewMode
 from app.schemas.base import SanitizedBaseModel
+from app.schemas.resource_grant import ResourceGrantSchema
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.counter import Counter, CounterGroup
-
-
-# ---------------------------------------------------------------------------
-# Permission schemas
-# ---------------------------------------------------------------------------
-
-
-class CounterGroupPermissionCreate(SanitizedBaseModel):
-    user_id: int
-    level: CounterPermissionLevel = CounterPermissionLevel.write
-
-
-class CounterGroupPermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    user_id: int
-    level: CounterPermissionLevel
-    created_at: datetime
-
-
-class CounterGroupRolePermissionCreate(SanitizedBaseModel):
-    initiative_role_id: int
-    level: CounterPermissionLevel = CounterPermissionLevel.read
-
-
-class CounterGroupRolePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    initiative_role_id: int
-    role_name: str = ""
-    role_display_name: str = ""
-    level: CounterPermissionLevel
-    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -172,8 +136,13 @@ class CounterGroupBase(SanitizedBaseModel):
 
 class CounterGroupCreate(CounterGroupBase):
     initiative_id: int
-    role_permissions: Optional[List[CounterGroupRolePermissionCreate]] = None
-    user_permissions: Optional[List[CounterGroupPermissionCreate]] = None
+    # Initial sharing — the same grant list the PUT /grants endpoint takes.
+    # Defaults to Viewer for all initiative members.
+    grants: List[ResourceGrantSchema] = Field(
+        default_factory=lambda: [
+            ResourceGrantSchema(all_initiative_members=True, level="read")
+        ]
+    )
 
 
 class CounterGroupUpdate(SanitizedBaseModel):
@@ -212,23 +181,8 @@ class CounterGroupListResponse(SanitizedBaseModel):
 
 class CounterGroupRead(CounterGroupSummary):
     counters: List[CounterRead] = Field(default_factory=list)
-    permissions: List[CounterGroupPermissionRead] = Field(default_factory=list)
-    role_permissions: List[CounterGroupRolePermissionRead] = Field(default_factory=list)
-
-
-# ---------------------------------------------------------------------------
-# Permission-update payloads (for PUT /permissions and /role-permissions)
-# ---------------------------------------------------------------------------
-
-
-class CounterGroupPermissionsUpdate(SanitizedBaseModel):
-    permissions: List[CounterGroupPermissionCreate] = Field(default_factory=list)
-
-
-class CounterGroupRolePermissionsUpdate(SanitizedBaseModel):
-    role_permissions: List[CounterGroupRolePermissionCreate] = Field(
-        default_factory=list
-    )
+    # The full sharing state — every resource_grants row for this group.
+    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -274,38 +228,6 @@ def serialize_counter(counter: "Counter") -> CounterRead:
     )
 
 
-def _serialize_permissions(group: "CounterGroup") -> List[CounterGroupPermissionRead]:
-    grants = getattr(group, "grants", None) or []
-    return [
-        CounterGroupPermissionRead(
-            user_id=g.user_id, level=g.level, created_at=g.created_at
-        )
-        for g in grants
-        if g.user_id is not None
-    ]
-
-
-def _serialize_role_permissions(
-    group: "CounterGroup",
-) -> List[CounterGroupRolePermissionRead]:
-    grants = getattr(group, "grants", None) or []
-    result: List[CounterGroupRolePermissionRead] = []
-    for g in grants:
-        if g.role_id is None:
-            continue
-        role = getattr(g, "role", None)
-        result.append(
-            CounterGroupRolePermissionRead(
-                initiative_role_id=g.role_id,
-                role_name=getattr(role, "name", "") if role else "",
-                role_display_name=getattr(role, "display_name", "") if role else "",
-                level=g.level,
-                created_at=g.created_at,
-            )
-        )
-    return result
-
-
 def _active_counters(group: "CounterGroup") -> list:
     counters = getattr(group, "counters", None) or []
     return [c for c in counters if getattr(c, "deleted_at", None) is None]
@@ -339,9 +261,11 @@ def serialize_counter_group(
         group, my_permission_level=my_permission_level
     )
     counters = sorted(_active_counters(group), key=lambda c: c.position)
+    # Local import avoids a schema -> service import cycle.
+    from app.services.permissions import serialize_grants
+
     return CounterGroupRead(
         **summary.model_dump(),
         counters=[serialize_counter(c) for c in counters],
-        permissions=_serialize_permissions(group),
-        role_permissions=_serialize_role_permissions(group),
+        grants=serialize_grants(group),
     )
