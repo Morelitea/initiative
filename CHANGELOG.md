@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Creating a custom-property option now asks only for a label; the stored option value is derived from the label automatically (and de-duplicated), removing the redundant Value field from the editor.
+- The date picker now accepts a typed date — a text field at the top of the popover parses common formats (e.g. `2026-06-16`, `06/16/2026`, `Jun 16, 2026`) on Enter or blur — and exposes month/year dropdowns in the calendar header for quickly jumping across years instead of clicking month-by-month.
 
 ## [0.52.0] - 2026-06-16
 
