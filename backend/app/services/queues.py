@@ -9,7 +9,6 @@ This module handles:
 """
 
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete as sa_delete
@@ -18,35 +17,25 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
 from app.core.messages import QueueMessages
-from app.core.pam_context import grant_satisfies
-from app.services.permissions import lift_level_for_grant
+from app.services import permissions as permissions_service
+from app.services.permissions import (
+    DAC_RESOURCES,
+    compute_permission,
+    require_access,
+)
 from app.models.document import Document
-from app.models.initiative import Initiative, InitiativeMember
+from app.models.initiative import Initiative
 from app.models.queue import (
     Queue,
     QueueItem,
     QueueItemDocument,
     QueueItemTag,
     QueueItemTask,
-    QueuePermission,
-    QueuePermissionLevel,
-    QueueRolePermission,
 )
+from app.models.resource_grant import ResourceGrant
 from app.models.tag import Tag
 from app.models.task import Task
 from app.models.user import User
-from app.services.permissions import effective_permission_level, role_permission_level
-
-
-# ---------------------------------------------------------------------------
-# DAC constants
-# ---------------------------------------------------------------------------
-
-QUEUE_LEVEL_ORDER: dict[QueuePermissionLevel, int] = {
-    QueuePermissionLevel.read: 0,
-    QueuePermissionLevel.write: 1,
-    QueuePermissionLevel.owner: 2,
-}
 
 
 # ---------------------------------------------------------------------------
@@ -57,87 +46,17 @@ QUEUE_LEVEL_ORDER: dict[QueuePermissionLevel, int] = {
 def visible_queue_ids_subquery(user_id: int):
     """Return a subquery of queue IDs the user can access.
 
-    Combines user-specific ``QueuePermission`` rows with role-based
-    ``QueueRolePermission`` rows matched via ``InitiativeMember``.
+    Delegates to the polymorphic ``ResourceGrant`` engine, combining
+    user-specific and role-based grants for the ``"queue"`` resource type.
     """
-    user_perm_subq = select(QueuePermission.queue_id).where(
-        QueuePermission.user_id == user_id
-    )
-    role_perm_subq = select(QueueRolePermission.queue_id).join(
-        InitiativeMember,
-        (InitiativeMember.role_id == QueueRolePermission.initiative_role_id)
-        & (InitiativeMember.user_id == user_id),
-    )
-    return user_perm_subq.union(role_perm_subq)
+    return permissions_service.visible_resource_ids_subquery("queue", user_id)
 
 
-# ---------------------------------------------------------------------------
-# DAC helpers (mirror the project/document pattern in permissions.py)
-# ---------------------------------------------------------------------------
+# DAC — thin wrappers over the registry engine (the "queue" row of DAC_RESOURCES).
 
 
-def queue_role_permission_level(
-    queue: Any,
-    user_id: int,
-) -> QueuePermissionLevel | None:
-    """Get the highest role-based queue permission for a user.
-
-    Reads from eagerly-loaded ``queue.role_permissions`` and
-    ``queue.initiative.memberships``.
-    """
-    role_perms = getattr(queue, "role_permissions", None)
-    initiative = getattr(queue, "initiative", None)
-    memberships = getattr(initiative, "memberships", None) if initiative else None
-    return role_permission_level(role_perms, memberships, user_id, QUEUE_LEVEL_ORDER)
-
-
-def effective_queue_permission(
-    user_level: QueuePermissionLevel | None,
-    role_level: QueuePermissionLevel | None,
-) -> QueuePermissionLevel | None:
-    """MAX of a user-specific and role-based queue permission level."""
-    return effective_permission_level(user_level, role_level, QUEUE_LEVEL_ORDER)
-
-
-def compute_queue_permission(
-    queue: Queue,
-    user_id: int,
-) -> str | None:
-    """Compute the effective permission level string for a user on a queue.
-
-    Uses eagerly-loaded relationships (permissions, role_permissions,
-    initiative.memberships) so no DB queries are needed.
-    Pure DAC — no guild admin bypass.
-    """
-    # User-specific permission
-    user_level: QueuePermissionLevel | None = None
-    permissions = getattr(queue, "permissions", None) or []
-    for perm in permissions:
-        if perm.user_id == user_id:
-            user_level = perm.level
-            break
-
-    role_level = queue_role_permission_level(queue, user_id)
-    effective = effective_queue_permission(user_level, role_level)
-    return lift_level_for_grant(
-        effective.value if effective else None, getattr(queue, "guild_id", None)
-    )
-
-
-def _effective_queue_level(
-    queue: Queue,
-    user: User,
-) -> QueuePermissionLevel | None:
-    """Internal: compute effective queue permission level enum."""
-    user_level: QueuePermissionLevel | None = None
-    permissions = getattr(queue, "permissions", None) or []
-    for perm in permissions:
-        if perm.user_id == user.id:
-            user_level = perm.level
-            break
-
-    role_level = queue_role_permission_level(queue, user.id)
-    return effective_queue_permission(user_level, role_level)
+def compute_queue_permission(queue: Queue, user_id: int) -> str | None:
+    return compute_permission(DAC_RESOURCES["queue"], queue, user_id)
 
 
 def require_queue_access(
@@ -147,35 +66,13 @@ def require_queue_access(
     access: str = "read",
     require_owner: bool = False,
 ) -> None:
-    """Raise HTTPException if user lacks required queue access.
-
-    DAC: Access granted through explicit QueuePermission or role-based
-    permission.  Effective level = MAX(user-specific, role-based).
-    A live PAM grant covering the queue's guild also satisfies read/write.
-    """
-    if grant_satisfies(queue.guild_id, access=access, require_owner=require_owner):
-        return
-    effective = _effective_queue_level(queue, user)
-
-    if require_owner:
-        if effective != QueuePermissionLevel.owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=QueueMessages.OWNER_REQUIRED,
-            )
-        return
-
-    if effective is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=QueueMessages.PERMISSION_REQUIRED,
-        )
-
-    if access == "write" and effective == QueuePermissionLevel.read:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=QueueMessages.WRITE_ACCESS_REQUIRED,
-        )
+    require_access(
+        DAC_RESOURCES["queue"],
+        queue,
+        user,
+        access=access,
+        require_owner=require_owner,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -204,8 +101,7 @@ async def get_queue(
             .selectinload(QueueItem.task_links)
             .selectinload(QueueItemTask.task),
             selectinload(Queue.items).selectinload(QueueItem.user),
-            selectinload(Queue.permissions),
-            selectinload(Queue.role_permissions).selectinload(QueueRolePermission.role),
+            selectinload(Queue.grants).selectinload(ResourceGrant.role),
             selectinload(Queue.initiative).selectinload(Initiative.memberships),
         )
     )

@@ -3,7 +3,7 @@
 from app.models.app_setting import AppSetting
 from app.models.guild import Guild, GuildMembership, GuildInvite
 from app.models.guild_setting import GuildSetting
-from app.models.project import Project, ProjectPermission, ProjectRolePermission
+from app.models.project import Project
 from app.models.task import Task, TaskAssignee, TaskStatus, Subtask
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
@@ -14,8 +14,6 @@ from app.models.comment import Comment
 from app.models.document import (
     Document,
     DocumentFileVersion,
-    DocumentPermission,
-    DocumentRolePermission,
     ProjectDocument,
     DocumentLink,
 )
@@ -31,8 +29,6 @@ from app.models.queue import (
     Queue,
     QueueItem,
     QueueItemTag,
-    QueuePermission,
-    QueueRolePermission,
     QueueItemDocument,
     QueueItemTask,
 )
@@ -46,8 +42,6 @@ from app.models.event_reminder_dispatch import EventReminderDispatch
 from app.models.counter import (
     Counter,
     CounterGroup,
-    CounterGroupPermission,
-    CounterGroupRolePermission,
 )
 from app.models.upload import Upload
 from app.models.user_view_preference import UserViewPreference
@@ -57,16 +51,17 @@ from app.models.push_token import PushToken
 from app.models.auto_delegation_jti import AutoDelegationJti
 from app.models.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.webhook_subscription import WebhookSubscription
+from app.models.resource_grant import ResourceGrant
 
 __all__ = [
     "User",
     "AccessGrant",
+    "ResourceGrant",
     "Project",
     "Task",
     "TaskAssignee",
     "TaskStatus",
     "Subtask",
-    "ProjectPermission",
     "AppSetting",
     "Guild",
     "GuildMembership",
@@ -80,11 +75,8 @@ __all__ = [
     "Comment",
     "Document",
     "DocumentFileVersion",
-    "DocumentPermission",
-    "DocumentRolePermission",
     "ProjectDocument",
     "DocumentLink",
-    "ProjectRolePermission",
     "Notification",
     "OIDCClaimMapping",
     "Tag",
@@ -97,8 +89,6 @@ __all__ = [
     "Queue",
     "QueueItem",
     "QueueItemTag",
-    "QueuePermission",
-    "QueueRolePermission",
     "QueueItemDocument",
     "QueueItemTask",
     "CalendarEvent",
@@ -108,8 +98,6 @@ __all__ = [
     "EventReminderDispatch",
     "Counter",
     "CounterGroup",
-    "CounterGroupPermission",
-    "CounterGroupRolePermission",
     "Upload",
     "UserViewPreference",
     "UserToken",

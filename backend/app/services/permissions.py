@@ -6,8 +6,7 @@ enforced by PostgreSQL, DAC permissions are filtering tools applied in
 application code to determine what a user can read, write, or own.
 
 Security layers managed here:
-  - Project permissions — ``ProjectPermission`` + ``ProjectRolePermission``
-  - Document permissions — ``DocumentPermission`` + ``DocumentRolePermission``
+  - Resource grants — user/role access rows in ``ResourceGrant`` (polymorphic)
   - Visibility subqueries — reusable UNION subqueries for listing endpoints
   - Access enforcement — ``require_project_access`` / ``require_document_access``
 
@@ -15,33 +14,37 @@ The complementary mandatory access control layer (guild isolation,
 initiative membership, initiative RBAC) lives in ``rls.py``.
 """
 
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
-from sqlalchemy import inspect
+from sqlalchemy import or_
 from sqlmodel import select
 
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
 from app.core.role_context import active_guild_role
-from app.services.membership import guild_member_clause, initiative_scope_clause
+from app.services.membership import guild_member_clause
 
 from app.models.guild import GuildRole
 from app.models.project import (
     Project,
-    ProjectPermission,
     ProjectPermissionLevel,
-    ProjectRolePermission,
 )
 from app.models.document import (
     Document,
-    DocumentPermission,
     DocumentPermissionLevel,
-    DocumentRolePermission,
 )
 from app.models.initiative import InitiativeMember
 from app.models.user import User
-from app.core.messages import ProjectMessages, DocumentMessages
+from app.core.messages import (
+    ProjectMessages,
+    DocumentMessages,
+    QueueMessages,
+    CounterMessages,
+    CalendarEventMessages,
+)
+from app.models.resource_grant import ResourceGrant
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +80,8 @@ def role_permission_level(
     Works with both ProjectPermissionLevel and DocumentPermissionLevel enums.
 
     Args:
-        role_permissions: The role permission records (ProjectRolePermission
-            or DocumentRolePermission).
+        role_permissions: The role-based grant records (rows with an
+            ``initiative_role_id`` and ``level``).
         memberships: The initiative memberships (Initiative.memberships).
         user_id: The user to check.
         level_order: Mapping from permission level enum to numeric rank
@@ -170,74 +173,39 @@ def lift_level_for_grant(dac_level: str | None, guild_id: int | None) -> str | N
 
 
 # ── Visibility subqueries ────────────────────────────────────────
-# Reusable subqueries that return IDs of entities a user can see.
-# These eliminate the duplicated UNION pattern across endpoints.
+# IDs of a resource the user can see, from resource_grants (one query). Run under
+# RLS, so stale grants in an initiative the user left are already filtered out.
+
+
+def visible_resource_ids_subquery(resource_type: str, user_id: int):
+    """resource_ids of ``resource_type`` the user can access via a grant — their
+    own user grant OR a grant to one of their initiative roles."""
+    my_roles = select(InitiativeMember.role_id).where(
+        InitiativeMember.user_id == user_id
+    )
+    return select(ResourceGrant.resource_id).where(
+        ResourceGrant.resource_type == resource_type,
+        or_(
+            ResourceGrant.user_id == user_id,
+            ResourceGrant.role_id.in_(my_roles),
+        ),
+    )
 
 
 def visible_project_ids_subquery(user_id: int):
-    """Return a subquery of project IDs the user can access.
-
-    Combines user-specific ``ProjectPermission`` rows with role-based
-    ``ProjectRolePermission`` rows matched via ``InitiativeMember``.
-
-    The explicit-permission branch is additionally gated on initiative scope
-    (member / guild admin / platform bypass): a permission row left behind
-    after the user was removed from the initiative must not grant access.
-    The DB-level RESTRICTIVE policies used to enforce this; under
-    schema-per-guild this subquery is the enforcement point.
-
-    A third branch surfaces *every* project in a guild the user administers:
-    guild admins have full access to all of their guild's data regardless of a
-    permission row, so they must see all of it in listings, not only the
-    projects they were explicitly granted.
-    """
-    user_perm_subq = (
-        select(ProjectPermission.project_id)
-        .join(Project, Project.id == ProjectPermission.project_id)
-        .where(
-            ProjectPermission.user_id == user_id,
-            initiative_scope_clause(user_id, Project.initiative_id, Project.guild_id),
-        )
-    )
-    role_perm_subq = select(ProjectRolePermission.project_id).join(
-        InitiativeMember,
-        (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
-        & (InitiativeMember.user_id == user_id),
-    )
+    """Project IDs the user can access: granted ∪ (all projects if guild admin)."""
     guild_admin_subq = select(Project.id).where(
         guild_member_clause(user_id, Project.guild_id, role=GuildRole.admin)
     )
-    return user_perm_subq.union(role_perm_subq, guild_admin_subq)
+    return visible_resource_ids_subquery("project", user_id).union(guild_admin_subq)
 
 
 def visible_document_ids_subquery(user_id: int):
-    """Return a subquery of document IDs the user can access.
-
-    Combines user-specific ``DocumentPermission`` rows with role-based
-    ``DocumentRolePermission`` rows matched via ``InitiativeMember``.
-
-    The explicit-permission branch is additionally gated on initiative scope
-    (member / guild admin / platform bypass) — see
-    ``visible_project_ids_subquery`` for why. The third branch likewise surfaces
-    every document in a guild the user administers.
-    """
-    user_perm_subq = (
-        select(DocumentPermission.document_id)
-        .join(Document, Document.id == DocumentPermission.document_id)
-        .where(
-            DocumentPermission.user_id == user_id,
-            initiative_scope_clause(user_id, Document.initiative_id, Document.guild_id),
-        )
-    )
-    role_perm_subq = select(DocumentRolePermission.document_id).join(
-        InitiativeMember,
-        (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-        & (InitiativeMember.user_id == user_id),
-    )
+    """Document IDs the user can access: granted ∪ (all documents if guild admin)."""
     guild_admin_subq = select(Document.id).where(
         guild_member_clause(user_id, Document.guild_id, role=GuildRole.admin)
     )
-    return user_perm_subq.union(role_perm_subq, guild_admin_subq)
+    return visible_resource_ids_subquery("document", user_id).union(guild_admin_subq)
 
 
 # ── Initiative-scope gate (loaded-data variant) ──────────────────
@@ -263,6 +231,23 @@ def is_request_guild_admin(
     role = guild_role if guild_role is not None else active_guild_role(guild_id)
     role_value = role.value if isinstance(role, GuildRole) else role
     return role_value == GuildRole.admin.value
+
+
+def request_bypasses_dac(
+    guild_id: int | None,
+    *,
+    access: str = "read",
+    require_owner: bool = False,
+    guild_role: GuildRole | str | None = None,
+) -> bool:
+    """The single "sees/edits regardless of DAC rows?" check — satisfying PAM
+    grant OR guild admin. Defined once so a call site can't apply one leg and
+    drop the other (the regression that hid a guild admin's tasks)."""
+    if guild_id is None:
+        return False
+    if grant_satisfies(guild_id, access=access, require_owner=require_owner):
+        return True
+    return is_request_guild_admin(guild_id, guild_role=guild_role)
 
 
 def initiative_scope_ok(
@@ -297,81 +282,145 @@ def initiative_scope_ok(
     return is_request_guild_admin(guild_id, guild_role=guild_role)
 
 
+# ── Generic DAC engine (registry-driven) ─────────────────────────
+# Every DAC resource resolves access from its ``grants`` (resource_grants rows)
+# the same way — one registry row + one engine.
+
+
+@dataclass(frozen=True)
+class DacResource:
+    name: str
+    scope_gate: bool  # gate on initiative_scope_ok? (project/document yes)
+    denied_msg: str
+    owner_msg: str
+    write_msg: str
+
+
+DAC_RESOURCES: dict[str, DacResource] = {
+    "project": DacResource(
+        "project",
+        True,
+        ProjectMessages.NO_ACCESS,
+        ProjectMessages.OWNER_REQUIRED,
+        ProjectMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    "document": DacResource(
+        "document",
+        True,
+        DocumentMessages.NO_ACCESS,
+        DocumentMessages.OWNER_REQUIRED,
+        DocumentMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    "queue": DacResource(
+        "queue",
+        False,
+        QueueMessages.PERMISSION_REQUIRED,
+        QueueMessages.OWNER_REQUIRED,
+        QueueMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    "counter_group": DacResource(
+        "counter_group",
+        False,
+        CounterMessages.PERMISSION_REQUIRED,
+        CounterMessages.OWNER_REQUIRED,
+        CounterMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    "calendar_event": DacResource(
+        "calendar_event",
+        False,
+        CalendarEventMessages.PERMISSION_REQUIRED,
+        CalendarEventMessages.OWNER_REQUIRED,
+        CalendarEventMessages.WRITE_ACCESS_REQUIRED,
+    ),
+}
+
+
+def _grant_level(level: Any) -> str:
+    return level.value if hasattr(level, "value") else level
+
+
+def effective_level(resource: DacResource, row: Any, user_id: int) -> str | None:
+    """Highest grant level (read<write<owner) for ``user_id`` on ``row`` — from the
+    user's own grant or a grant to one of their initiative roles, else None. Reads
+    eagerly-loaded ``grants`` + ``initiative.memberships``."""
+    grants = getattr(row, "grants", None) or []
+    initiative = getattr(row, "initiative", None)
+    memberships = (
+        getattr(initiative, "memberships", None) if initiative is not None else None
+    ) or []
+    role_ids = {
+        m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None
+    }
+    best: str | None = None
+    best_rank = -1
+    for g in grants:
+        if g.user_id == user_id or (g.role_id is not None and g.role_id in role_ids):
+            lvl = _grant_level(g.level)
+            if _LEVEL_RANK[lvl] > best_rank:
+                best_rank, best = _LEVEL_RANK[lvl], lvl
+    return best
+
+
+def require_access(
+    resource: DacResource,
+    row: Any,
+    user: User,
+    *,
+    access: str = "read",
+    require_owner: bool = False,
+    guild_role: GuildRole | str | None = None,
+) -> None:
+    """Raise 403 unless ``user`` may act on ``row``: bypass (admin/PAM) →
+    (scope_gate) initiative scope → effective DAC level vs requested access."""
+    guild_id = getattr(row, "guild_id", None)
+    if request_bypasses_dac(
+        guild_id, access=access, require_owner=require_owner, guild_role=guild_role
+    ):
+        return
+    if resource.scope_gate and not initiative_scope_ok(
+        row, user, guild_role=guild_role
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=resource.denied_msg
+        )
+    effective = effective_level(resource, row, user.id)
+
+    if require_owner:
+        if effective != "owner":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail=resource.owner_msg
+            )
+        return
+
+    if effective is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=resource.denied_msg
+        )
+
+    if access == "write" and effective == "read":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
+        )
+
+
+def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | None:
+    """``my_permission_level`` for the client: guild admin → owner, else effective
+    DAC level lifted to any active PAM grant."""
+    guild_id = getattr(row, "guild_id", None)
+    if is_request_guild_admin(guild_id):
+        return "owner"
+    return lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
+
+
 # ── High-level helpers for projects ─────────────────────────────
-
-
-def user_permission_from_project(
-    project: Any,
-    user_id: int,
-) -> Any | None:
-    """Find the user's explicit ProjectPermission from eagerly-loaded list."""
-    permissions = getattr(project, "permissions", None)
-    if not permissions:
-        return None
-    for permission in permissions:
-        if permission.user_id == user_id:
-            return permission
-    return None
-
-
-def project_role_permission_level(
-    project: Any,
-    user_id: int,
-) -> ProjectPermissionLevel | None:
-    """Get the highest role-based project permission for a user.
-
-    Reads from eagerly-loaded ``project.role_permissions`` and
-    ``project.initiative.memberships``.
-    """
-    role_perms = getattr(project, "role_permissions", None)
-    initiative = getattr(project, "initiative", None)
-    memberships = getattr(initiative, "memberships", None) if initiative else None
-    return role_permission_level(role_perms, memberships, user_id, PROJECT_LEVEL_ORDER)
-
-
-def effective_project_permission(
-    user_level: ProjectPermissionLevel | None,
-    role_level: ProjectPermissionLevel | None,
-) -> ProjectPermissionLevel | None:
-    """MAX of a user-specific and role-based project permission level."""
-    return effective_permission_level(user_level, role_level, PROJECT_LEVEL_ORDER)
 
 
 def compute_project_permission(
     project: Project,
     user_id: int,
 ) -> str | None:
-    """Compute the effective permission level string for a user on a project.
-
-    A guild admin gets ``owner`` — they have full access to all of their guild's
-    data regardless of DAC (see ``require_project_access``), so the
-    ``my_permission_level`` the client sees must report it or the UI would hide
-    edit/delete affordances the API actually honors. This short-circuit also
-    avoids the (otherwise wasted) DAC computation for admins.
-
-    Otherwise pure DAC from eagerly-loaded relationships (permissions,
-    role_permissions, initiative.memberships) so no DB queries are needed,
-    lifted to any active PAM grant level.
-    """
-    guild_id = getattr(project, "guild_id", None)
-    if is_request_guild_admin(guild_id):
-        return ProjectPermissionLevel.owner.value
-    user_perm = user_permission_from_project(project, user_id)
-    user_level = user_perm.level if user_perm else None
-    role_level = project_role_permission_level(project, user_id)
-    effective = effective_project_permission(user_level, role_level)
-    return lift_level_for_grant(effective.value if effective else None, guild_id)
-
-
-def _effective_project_level(
-    project: Project,
-    user_id: int,
-) -> ProjectPermissionLevel | None:
-    """Internal: compute effective project permission level enum."""
-    user_perm = user_permission_from_project(project, user_id)
-    user_level = user_perm.level if user_perm else None
-    role_level = project_role_permission_level(project, user_id)
-    return effective_project_permission(user_level, role_level)
+    """Effective project permission string for the client (delegates to the engine)."""
+    return compute_permission(DAC_RESOURCES["project"], project, user_id)
 
 
 def require_project_access(
@@ -382,49 +431,15 @@ def require_project_access(
     require_owner: bool = False,
     guild_role: GuildRole | str | None = None,
 ) -> None:
-    """Raise HTTPException if user lacks required project access.
-
-    DAC: Access granted through explicit ProjectPermission or role-based
-    permission.  Effective level = MAX(user-specific, role-based).
-    A live PAM grant covering the project's guild also satisfies read/write.
-
-    Access additionally requires initiative scope (member / guild admin /
-    platform bypass) — a stale permission row alone never grants access.
-
-    A guild admin has full read/write/owner access to every project in their
-    guild regardless of initiative membership or DAC, so they short-circuit the
-    DAC checks below entirely.
-    """
-    if grant_satisfies(project.guild_id, access=access, require_owner=require_owner):
-        return
-    if is_request_guild_admin(project.guild_id, guild_role=guild_role):
-        return
-    if not initiative_scope_ok(project, user, guild_role=guild_role):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ProjectMessages.NO_ACCESS,
-        )
-    effective = _effective_project_level(project, user.id)
-
-    if require_owner:
-        if effective != ProjectPermissionLevel.owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=ProjectMessages.OWNER_REQUIRED,
-            )
-        return
-
-    if effective is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ProjectMessages.NO_ACCESS,
-        )
-
-    if access == "write" and effective == ProjectPermissionLevel.read:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ProjectMessages.WRITE_ACCESS_REQUIRED,
-        )
+    """Raise 403 unless the user may act on the project (delegates to the engine)."""
+    require_access(
+        DAC_RESOURCES["project"],
+        project,
+        user,
+        access=access,
+        require_owner=require_owner,
+        guild_role=guild_role,
+    )
 
 
 def has_project_write_access(
@@ -432,91 +447,21 @@ def has_project_write_access(
     user: User,
 ) -> bool:
     """Check if user has write access (synchronous, for filtering)."""
-    effective = _effective_project_level(project, user.id)
-    return effective is not None and effective in (
-        ProjectPermissionLevel.owner,
-        ProjectPermissionLevel.write,
+    return effective_level(DAC_RESOURCES["project"], project, user.id) in (
+        "write",
+        "owner",
     )
 
 
 # ── High-level helpers for documents ─────────────────────────────
 
 
-def document_role_permission_level(
-    document: Any,
-    user_id: int,
-) -> DocumentPermissionLevel | None:
-    """Get the highest role-based document permission for a user.
-
-    Reads from eagerly-loaded ``document.role_permissions`` and
-    ``document.initiative.memberships``.
-    """
-    role_perms = getattr(document, "role_permissions", None)
-    initiative = getattr(document, "initiative", None)
-    memberships = getattr(initiative, "memberships", None) if initiative else None
-    return role_permission_level(role_perms, memberships, user_id, DOCUMENT_LEVEL_ORDER)
-
-
-def effective_document_permission(
-    user_level: DocumentPermissionLevel | None,
-    role_level: DocumentPermissionLevel | None,
-) -> DocumentPermissionLevel | None:
-    """MAX of a user-specific and role-based document permission level."""
-    return effective_permission_level(user_level, role_level, DOCUMENT_LEVEL_ORDER)
-
-
-def _get_loaded_document_permissions(document: Document) -> list[DocumentPermission]:
-    """Get permissions from document, asserting they were eagerly loaded."""
-    state = inspect(document)
-    if "permissions" not in state.dict or state.attrs.permissions.loaded_value is None:
-        raise RuntimeError(
-            f"Document {document.id} permissions not loaded. "
-            "Use selectinload(Document.permissions) in query."
-        )
-    return document.permissions or []
-
-
 def compute_document_permission(
     document: Document,
     user_id: int,
 ) -> str | None:
-    """Compute the effective permission level string for a user on a document.
-
-    A guild admin gets ``owner`` — full access to all of their guild's data
-    regardless of DAC (see ``require_document_access``) — so the client renders
-    edit/delete affordances; the short-circuit also skips the otherwise-wasted
-    DAC computation. Otherwise pure DAC from eagerly-loaded relationships
-    (permissions, role_permissions, initiative.memberships) so no DB queries are
-    needed, lifted to any active PAM grant level.
-    """
-    guild_id = getattr(document, "guild_id", None)
-    if is_request_guild_admin(guild_id):
-        return DocumentPermissionLevel.owner.value
-    user_level: DocumentPermissionLevel | None = None
-    permissions = getattr(document, "permissions", None) or []
-    for perm in permissions:
-        if perm.user_id == user_id:
-            user_level = perm.level
-            break
-
-    role_level = document_role_permission_level(document, user_id)
-    effective = effective_document_permission(user_level, role_level)
-    return lift_level_for_grant(effective.value if effective else None, guild_id)
-
-
-def _effective_document_level(
-    document: Document,
-    user: User,
-) -> DocumentPermissionLevel | None:
-    """Internal: compute effective document permission level enum."""
-    permissions = _get_loaded_document_permissions(document)
-    user_level: DocumentPermissionLevel | None = None
-    for perm in permissions:
-        if perm.user_id == user.id:
-            user_level = perm.level
-            break
-    role_level = document_role_permission_level(document, user.id)
-    return effective_document_permission(user_level, role_level)
+    """Effective document permission string for the client (delegates to the engine)."""
+    return compute_permission(DAC_RESOURCES["document"], document, user_id)
 
 
 def require_document_access(
@@ -527,56 +472,12 @@ def require_document_access(
     require_owner: bool = False,
     guild_role: GuildRole | str | None = None,
 ) -> None:
-    """Raise HTTPException if user lacks required document access.
-
-    DAC: Access granted through explicit DocumentPermission or role-based
-    permission.  Effective level = MAX(user-specific, role-based).
-    A live PAM grant covering the document's guild also satisfies read/write.
-
-    Access additionally requires initiative scope (member / guild admin /
-    platform bypass) — a stale permission row alone never grants access.
-
-    A guild admin has full read/write/owner access to every document in their
-    guild regardless of initiative membership or DAC, so they short-circuit the
-    DAC checks below entirely.
-    """
-    if grant_satisfies(document.guild_id, access=access, require_owner=require_owner):
-        return
-    if is_request_guild_admin(document.guild_id, guild_role=guild_role):
-        return
-    if not initiative_scope_ok(document, user, guild_role=guild_role):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=DocumentMessages.NO_ACCESS,
-        )
-    effective = _effective_document_level(document, user)
-
-    if require_owner:
-        if effective != DocumentPermissionLevel.owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=DocumentMessages.OWNER_REQUIRED,
-            )
-        return
-
-    if effective is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=DocumentMessages.NO_ACCESS,
-        )
-
-    if access == "write" and effective == DocumentPermissionLevel.read:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=DocumentMessages.WRITE_ACCESS_REQUIRED,
-        )
-
-
-def get_document_permission(
-    document: Document, user_id: int
-) -> DocumentPermission | None:
-    """Get a user's permission for a document from the loaded permissions."""
-    return next(
-        (p for p in _get_loaded_document_permissions(document) if p.user_id == user_id),
-        None,
+    """Raise 403 unless the user may act on the document (delegates to the engine)."""
+    require_access(
+        DAC_RESOURCES["document"],
+        document,
+        user,
+        access=access,
+        require_owner=require_owner,
+        guild_role=guild_role,
     )

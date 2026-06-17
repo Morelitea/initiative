@@ -261,25 +261,28 @@ def serialize_queue_item(item: "QueueItem") -> QueueItemRead:
 
 
 def _serialize_permissions(queue: "Queue") -> List[QueuePermissionRead]:
-    permissions = getattr(queue, "permissions", None) or []
+    grants = getattr(queue, "grants", None) or []
     return [
-        QueuePermissionRead(user_id=p.user_id, level=p.level, created_at=p.created_at)
-        for p in permissions
+        QueuePermissionRead(user_id=g.user_id, level=g.level, created_at=g.created_at)
+        for g in grants
+        if g.user_id is not None
     ]
 
 
 def _serialize_role_permissions(queue: "Queue") -> List[QueueRolePermissionRead]:
-    role_permissions = getattr(queue, "role_permissions", None) or []
+    grants = getattr(queue, "grants", None) or []
     result: List[QueueRolePermissionRead] = []
-    for rp in role_permissions:
-        role = getattr(rp, "role", None)
+    for g in grants:
+        if g.role_id is None:
+            continue
+        role = getattr(g, "role", None)
         result.append(
             QueueRolePermissionRead(
-                initiative_role_id=rp.initiative_role_id,
+                initiative_role_id=g.role_id,
                 role_name=getattr(role, "name", "") if role else "",
                 role_display_name=getattr(role, "display_name", "") if role else "",
-                level=rp.level,
-                created_at=rp.created_at,
+                level=g.level,
+                created_at=g.created_at,
             )
         )
     return result

@@ -21,10 +21,9 @@ from app.db.session import reapply_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.models.project import (
     Project,
-    ProjectPermission,
     ProjectPermissionLevel,
-    ProjectRolePermission,
 )
+from app.models.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.project_order import ProjectOrder
 from app.models.project_activity import ProjectFavorite
 from app.models.recent_view import RecentView
@@ -40,6 +39,7 @@ from app.models.user import User
 from app.models.guild import GuildRole
 from app.models.document import Document, ProjectDocument
 from app.models.tag import Tag, ProjectTag, TaskTag
+from app.api import resource_access
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import documents as documents_service
@@ -98,19 +98,29 @@ GuildAdminContext = Annotated[
 MAX_RECENT_PROJECTS = 20
 
 
+def _project_permissions(project: Project) -> List[ProjectPermissionRead]:
+    """Serialize project user permissions from user-scoped resource grants."""
+    return [
+        ProjectPermissionRead(user_id=g.user_id, level=g.level, created_at=g.created_at)
+        for g in getattr(project, "grants", None) or []
+        if g.user_id is not None
+    ]
+
+
 def _project_role_permissions(project: Project) -> List[ProjectRolePermissionRead]:
-    """Serialize project role permissions."""
-    role_permissions = getattr(project, "role_permissions", None) or []
+    """Serialize project role permissions from role-scoped resource grants."""
     result: List[ProjectRolePermissionRead] = []
-    for rp in role_permissions:
-        role = getattr(rp, "role", None)
+    for g in getattr(project, "grants", None) or []:
+        if g.role_id is None:
+            continue
+        role = getattr(g, "role", None)
         result.append(
             ProjectRolePermissionRead(
-                initiative_role_id=rp.initiative_role_id,
+                initiative_role_id=g.role_id,
                 role_name=getattr(role, "name", "") if role else "",
                 role_display_name=getattr(role, "display_name", "") if role else "",
-                level=rp.level,
-                created_at=rp.created_at,
+                level=g.level,
+                created_at=g.created_at,
             )
         )
     return result
@@ -150,15 +160,15 @@ def _project_documents(
 
 
 def _user_can_access_document(doc, user_id: int, project: Project) -> bool:
-    """Check if a user has access to a document via explicit or role-based permission."""
-    # Check explicit document permissions
-    doc_permissions = getattr(doc, "permissions", None) or []
-    for perm in doc_permissions:
-        if perm.user_id == user_id:
+    """Check if a user has access to a document via a user or role grant."""
+    grants = getattr(doc, "grants", None) or []
+    # Check explicit per-user grants
+    for grant in grants:
+        if grant.user_id == user_id:
             return True
-    # Check role-based document permissions
-    doc_role_permissions = getattr(doc, "role_permissions", None) or []
-    if doc_role_permissions:
+    # Check role-based grants against the user's roles in the project's initiative
+    role_grant_ids = {g.role_id for g in grants if g.role_id is not None}
+    if role_grant_ids:
         initiative = getattr(project, "initiative", None)
         if initiative:
             memberships = getattr(initiative, "memberships", None) or []
@@ -167,9 +177,8 @@ def _user_can_access_document(doc, user_id: int, project: Project) -> bool:
                 for m in memberships
                 if m.user_id == user_id and m.role_id is not None
             }
-            for rp in doc_role_permissions:
-                if rp.initiative_role_id in user_role_ids:
-                    return True
+            if role_grant_ids & user_role_ids:
+                return True
     return False
 
 
@@ -218,6 +227,7 @@ def _project_payload(
         update={
             "documents": _project_documents(project, user_id=user_id),
             "task_summary": summary,
+            "permissions": _project_permissions(project),
             "role_permissions": _project_role_permissions(project),
             "my_permission_level": my_permission_level,
         }
@@ -232,10 +242,7 @@ async def _get_project_or_404(
         select(Project)
         .where(Project.id == project_id)
         .options(
-            selectinload(Project.permissions).selectinload(ProjectPermission.user),
-            selectinload(Project.role_permissions).selectinload(
-                ProjectRolePermission.role
-            ),
+            selectinload(Project.grants).selectinload(ResourceGrant.role),
             selectinload(Project.owner),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
@@ -248,8 +255,7 @@ async def _get_project_or_404(
             selectinload(Project.document_links)
             .selectinload(ProjectDocument.document)
             .options(
-                selectinload(Document.permissions),
-                selectinload(Document.role_permissions),
+                selectinload(Document.grants).selectinload(ResourceGrant.role),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -333,18 +339,21 @@ async def _get_initiative_membership(
 
 async def _get_project_permission(
     project: Project, user_id: int, session: SessionDep
-) -> ProjectPermission | None:
-    cached = permissions_service.user_permission_from_project(project, user_id)
-    if cached:
-        return cached
-    stmt = select(ProjectPermission).where(
-        ProjectPermission.project_id == project.id,
-        ProjectPermission.user_id == user_id,
+) -> ResourceGrant | None:
+    # The user's own grant (role grants have user_id None) from the
+    # eagerly-loaded list, falling back to a query if it wasn't loaded.
+    for grant in getattr(project, "grants", None) or []:
+        if grant.user_id == user_id:
+            return grant
+    stmt = select(ResourceGrant).where(
+        ResourceGrant.resource_type == "project",
+        ResourceGrant.resource_id == project.id,
+        ResourceGrant.user_id == user_id,
     )
     result = await session.exec(stmt)
     permission = result.one_or_none()
     if permission:
-        project.permissions.append(permission)
+        project.grants.append(permission)
     return permission
 
 
@@ -533,10 +542,7 @@ async def _visible_projects(
         .join(Project.initiative)
         .where(*conditions)
         .options(
-            selectinload(Project.permissions).selectinload(ProjectPermission.user),
-            selectinload(Project.role_permissions).selectinload(
-                ProjectRolePermission.role
-            ),
+            selectinload(Project.grants).selectinload(ResourceGrant.role),
             selectinload(Project.owner),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
@@ -549,8 +555,7 @@ async def _visible_projects(
             selectinload(Project.document_links)
             .selectinload(ProjectDocument.document)
             .options(
-                selectinload(Document.permissions),
-                selectinload(Document.role_permissions),
+                selectinload(Document.grants).selectinload(ResourceGrant.role),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -699,10 +704,7 @@ async def _projects_by_ids(
             Initiative.guild_id == guild_id,
         )
         .options(
-            selectinload(Project.permissions).selectinload(ProjectPermission.user),
-            selectinload(Project.role_permissions).selectinload(
-                ProjectRolePermission.role
-            ),
+            selectinload(Project.grants).selectinload(ResourceGrant.role),
             selectinload(Project.owner),
             selectinload(Project.initiative)
             .selectinload(Initiative.memberships)
@@ -715,8 +717,7 @@ async def _projects_by_ids(
             selectinload(Project.document_links)
             .selectinload(ProjectDocument.document)
             .options(
-                selectinload(Document.permissions),
-                selectinload(Document.role_permissions),
+                selectinload(Document.grants).selectinload(ResourceGrant.role),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -750,6 +751,7 @@ def _build_project_payload(
             "documents": _project_documents(project, user_id=user_id),
             "task_summary": summary,
             "tags": _project_tags(project),
+            "permissions": _project_permissions(project),
             "role_permissions": _project_role_permissions(project),
             "my_permission_level": my_permission_level,
         }
@@ -803,29 +805,17 @@ async def _require_project_membership(
     require_manager: bool = False,
     manage_access: bool = False,
 ):
-    """Check if user has required access to a project.
-
-    Thin wrapper around ``permissions_service.require_project_access`` that
-    also supports loading permissions from the DB when not eagerly loaded.
-
-    ``manage_access=True`` marks an access-control operation (adding/removing
-    members, changing permission levels). A PAM grant confers content
-    read/write only — never access-control management — and those writes target
-    ``project_permissions`` which RLS won't let a grant write, so we reject
-    grantees here with a clean 403 instead of letting the write fault (500).
-    """
-    # Ensure permission is loaded (may hit DB if not eagerly loaded)
+    """Authorize a project via the shared engine. ``manage_access=True`` (member/
+    permission ops) additionally rejects PAM grantees — a grant never manages
+    access. Loads the permission row first in case it wasn't eager-loaded."""
     await _get_project_permission(project, current_user.id, session)
-    if manage_access and has_active_grant(project.guild_id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=ProjectMessages.GRANT_CANNOT_MANAGE_MEMBERS,
-        )
-    permissions_service.require_project_access(
+    resource_access.authorize(
+        "project",
         project,
         current_user,
         access=access,
         require_owner=require_manager,
+        manage_access=manage_access,
     )
 
 
@@ -904,10 +894,7 @@ async def _list_global_projects(
             select(Project)
             .where(*conditions)
             .options(
-                selectinload(Project.permissions).selectinload(ProjectPermission.user),
-                selectinload(Project.role_permissions).selectinload(
-                    ProjectRolePermission.role
-                ),
+                selectinload(Project.grants).selectinload(ResourceGrant.role),
                 selectinload(Project.owner),
                 selectinload(Project.initiative)
                 .selectinload(Initiative.memberships)
@@ -920,8 +907,7 @@ async def _list_global_projects(
                 selectinload(Project.document_links)
                 .selectinload(ProjectDocument.document)
                 .options(
-                    selectinload(Document.permissions),
-                    selectinload(Document.role_permissions),
+                    selectinload(Document.grants).selectinload(ResourceGrant.role),
                 ),
                 selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             )
@@ -1129,11 +1115,14 @@ async def create_project(
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
     fallback_status_ids = {status.category: status.id for status in statuses}
 
-    owner_permission = ProjectPermission(
-        project_id=project.id,
+    owner_permission = ResourceGrant(
+        resource_type="project",
+        resource_id=project.id,
         user_id=owner_id,
-        level=ProjectPermissionLevel.owner,
+        role_id=None,
+        level=ResourceAccessLevel.owner,
         guild_id=guild_context.guild_id,
+        initiative_id=project.initiative_id,
     )
     session.add(owner_permission)
 
@@ -1162,11 +1151,14 @@ async def create_project(
             ):
                 continue
             session.add(
-                ProjectRolePermission(
-                    project_id=project.id,
-                    initiative_role_id=rp.initiative_role_id,
-                    guild_id=guild_context.guild_id,
+                ResourceGrant(
+                    resource_type="project",
+                    resource_id=project.id,
+                    user_id=None,
+                    role_id=rp.initiative_role_id,
                     level=rp.level,
+                    guild_id=guild_context.guild_id,
+                    initiative_id=project.initiative_id,
                 )
             )
 
@@ -1187,11 +1179,14 @@ async def create_project(
         for up in project_in.user_permissions:
             if up.user_id in valid_ids and up.level != ProjectPermissionLevel.owner:
                 session.add(
-                    ProjectPermission(
-                        project_id=project.id,
+                    ResourceGrant(
+                        resource_type="project",
+                        resource_id=project.id,
                         user_id=up.user_id,
+                        role_id=None,
                         level=up.level,
                         guild_id=guild_context.guild_id,
+                        initiative_id=project.initiative_id,
                     )
                 )
                 granted_user_ids.add(up.user_id)
@@ -1360,11 +1355,14 @@ async def duplicate_project(
     await session.flush()
 
     session.add(
-        ProjectPermission(
-            project_id=new_project.id,
+        ResourceGrant(
+            resource_type="project",
+            resource_id=new_project.id,
             user_id=owner_id,
-            level=ProjectPermissionLevel.owner,
+            role_id=None,
+            level=ResourceAccessLevel.owner,
             guild_id=guild_context.guild_id,
+            initiative_id=new_project.initiative_id,
         )
     )
 
@@ -1372,11 +1370,14 @@ async def duplicate_project(
     if source_project.initiative:
         for membership in source_project.initiative.memberships:
             if membership.user_id != owner_id and membership.user:
-                read_permission = ProjectPermission(
-                    project_id=new_project.id,
+                read_permission = ResourceGrant(
+                    resource_type="project",
+                    resource_id=new_project.id,
                     user_id=membership.user_id,
-                    level=ProjectPermissionLevel.read,
+                    role_id=None,
+                    level=ResourceAccessLevel.read,
                     guild_id=guild_context.guild_id,
+                    initiative_id=new_project.initiative_id,
                 )
                 session.add(read_permission)
 
@@ -1911,7 +1912,7 @@ async def add_project_member(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> ProjectPermission:
+) -> ResourceGrant:
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _require_project_membership(
         project,
@@ -1945,11 +1946,14 @@ async def add_project_member(
         await session.refresh(existing)
         return existing
 
-    permission = ProjectPermission(
-        project_id=project_id,
+    permission = ResourceGrant(
+        resource_type="project",
+        resource_id=project_id,
         user_id=member_in.user_id,
+        role_id=None,
         level=member_in.level,
         guild_id=guild_context.guild_id,
+        initiative_id=project.initiative_id,
     )
     session.add(permission)
     await session.commit()
@@ -1969,7 +1973,7 @@ async def add_project_members_bulk(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> List[ProjectPermission]:
+) -> List[ResourceGrant]:
     """Add multiple members to a project with the same permission level."""
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _require_project_membership(
@@ -2003,16 +2007,17 @@ async def add_project_members_bulk(
     else:
         valid_member_ids = set(bulk_in.user_ids)
 
-    # Get existing permissions
+    # Get existing user permissions (role grants have user_id None — exclude them)
     existing_permissions_result = await session.exec(
-        select(ProjectPermission).where(
-            ProjectPermission.project_id == project_id,
-            ProjectPermission.user_id.in_(bulk_in.user_ids),
+        select(ResourceGrant).where(
+            ResourceGrant.resource_type == "project",
+            ResourceGrant.resource_id == project_id,
+            ResourceGrant.user_id.in_(bulk_in.user_ids),
         )
     )
     existing_permissions = {p.user_id: p for p in existing_permissions_result.all()}
 
-    created_permissions: List[ProjectPermission] = []
+    created_permissions: List[ResourceGrant] = []
     for user_id in bulk_in.user_ids:
         # Skip invalid users (not initiative members)
         if user_id not in valid_member_ids:
@@ -2023,17 +2028,20 @@ async def add_project_members_bulk(
         # Update existing permission
         if user_id in existing_permissions:
             existing = existing_permissions[user_id]
-            if existing.level != ProjectPermissionLevel.owner:
+            if existing.level != ResourceAccessLevel.owner:
                 existing.level = bulk_in.level
                 session.add(existing)
                 created_permissions.append(existing)
             continue
         # Create new permission
-        permission = ProjectPermission(
-            project_id=project_id,
+        permission = ResourceGrant(
+            resource_type="project",
+            resource_id=project_id,
             user_id=user_id,
+            role_id=None,
             level=bulk_in.level,
             guild_id=guild_context.guild_id,
+            initiative_id=project.initiative_id,
         )
         session.add(permission)
         created_permissions.append(permission)
@@ -2069,11 +2077,13 @@ async def remove_project_members_bulk(
     if not bulk_in.user_ids:
         return
 
-    # Get existing permissions to delete
+    # Get existing user permissions to delete (role grants have user_id None,
+    # so the user-id IN filter already excludes them)
     permissions_result = await session.exec(
-        select(ProjectPermission).where(
-            ProjectPermission.project_id == project_id,
-            ProjectPermission.user_id.in_(bulk_in.user_ids),
+        select(ResourceGrant).where(
+            ResourceGrant.resource_type == "project",
+            ResourceGrant.resource_id == project_id,
+            ResourceGrant.user_id.in_(bulk_in.user_ids),
         )
     )
     permissions = permissions_result.all()
@@ -2101,7 +2111,7 @@ async def update_project_member(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> ProjectPermission:
+) -> ResourceGrant:
     """Update a project member's permission level."""
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _require_project_membership(
@@ -2130,7 +2140,7 @@ async def update_project_member(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=ProjectMessages.PERMISSION_NOT_FOUND,
         )
-    if permission.level == ProjectPermissionLevel.owner:
+    if permission.level == ResourceAccessLevel.owner:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ProjectMessages.CANNOT_MODIFY_OWNER,
@@ -2387,9 +2397,10 @@ async def add_project_role_permission(
         )
 
     # Check if already exists
-    existing_stmt = select(ProjectRolePermission).where(
-        ProjectRolePermission.project_id == project_id,
-        ProjectRolePermission.initiative_role_id == role_perm_in.initiative_role_id,
+    existing_stmt = select(ResourceGrant).where(
+        ResourceGrant.resource_type == "project",
+        ResourceGrant.resource_id == project_id,
+        ResourceGrant.role_id == role_perm_in.initiative_role_id,
     )
     existing_result = await session.exec(existing_stmt)
     existing = existing_result.one_or_none()
@@ -2400,25 +2411,28 @@ async def add_project_role_permission(
         await reapply_rls_context(session)
         await session.refresh(existing)
         return ProjectRolePermissionRead(
-            initiative_role_id=existing.initiative_role_id,
+            initiative_role_id=existing.role_id,
             role_name=role.name,
             role_display_name=role.display_name,
             level=existing.level,
             created_at=existing.created_at,
         )
 
-    role_perm = ProjectRolePermission(
-        project_id=project_id,
-        initiative_role_id=role_perm_in.initiative_role_id,
+    role_perm = ResourceGrant(
+        resource_type="project",
+        resource_id=project_id,
+        user_id=None,
+        role_id=role_perm_in.initiative_role_id,
         level=role_perm_in.level,
         guild_id=guild_context.guild_id,
+        initiative_id=project.initiative_id,
     )
     session.add(role_perm)
     await session.commit()
     await reapply_rls_context(session)
     await session.refresh(role_perm)
     return ProjectRolePermissionRead(
-        initiative_role_id=role_perm.initiative_role_id,
+        initiative_role_id=role_perm.role_id,
         role_name=role.name,
         role_display_name=role.display_name,
         level=role_perm.level,
@@ -2450,9 +2464,10 @@ async def update_project_role_permission(
             detail=ProjectMessages.CANNOT_ASSIGN_OWNER_TO_ROLE,
         )
 
-    stmt = select(ProjectRolePermission).where(
-        ProjectRolePermission.project_id == project_id,
-        ProjectRolePermission.initiative_role_id == role_id,
+    stmt = select(ResourceGrant).where(
+        ResourceGrant.resource_type == "project",
+        ResourceGrant.resource_id == project_id,
+        ResourceGrant.role_id == role_id,
     )
     result = await session.exec(stmt)
     role_perm = result.one_or_none()
@@ -2473,7 +2488,7 @@ async def update_project_role_permission(
     role_result = await session.exec(role_stmt)
     role = role_result.one_or_none()
     return ProjectRolePermissionRead(
-        initiative_role_id=role_perm.initiative_role_id,
+        initiative_role_id=role_perm.role_id,
         role_name=role.name if role else "",
         role_display_name=role.display_name if role else "",
         level=role_perm.level,
@@ -2498,9 +2513,10 @@ async def remove_project_role_permission(
     )
     _ensure_not_archived(project)
 
-    stmt = select(ProjectRolePermission).where(
-        ProjectRolePermission.project_id == project_id,
-        ProjectRolePermission.initiative_role_id == role_id,
+    stmt = select(ResourceGrant).where(
+        ResourceGrant.resource_type == "project",
+        ResourceGrant.resource_id == project_id,
+        ResourceGrant.role_id == role_id,
     )
     result = await session.exec(stmt)
     role_perm = result.one_or_none()

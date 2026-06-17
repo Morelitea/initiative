@@ -246,7 +246,6 @@ class User(SQLModel, table=True):
     tasks_assigned: List["Task"] = Relationship(
         back_populates="assignees", link_model=TaskAssignee
     )
-    project_permissions: List["ProjectPermission"] = Relationship(back_populates="user")
     initiative_memberships: List["InitiativeMember"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -261,7 +260,6 @@ class User(SQLModel, table=True):
 
 
 from app.models.project import Project  # noqa: E402  # isort:skip
-from app.models.project import ProjectPermission  # noqa: E402  # isort:skip
 from app.models.task import Task  # noqa: E402  # isort:skip
 from app.models.project_order import ProjectOrder  # noqa: E402  # isort:skip
 from app.models.api_key import UserApiKey  # noqa: E402  # isort:skip

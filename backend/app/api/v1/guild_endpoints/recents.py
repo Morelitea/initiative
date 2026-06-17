@@ -34,6 +34,7 @@ from app.models.guild import GuildMembership, GuildRole
 from app.models.initiative import Initiative
 from app.models.queue import Queue
 from app.models.project import Project
+from app.models.resource_grant import ResourceGrant
 from app.models.recent_view import RecentView
 from app.models.user import User
 from app.schemas.recent_view import RecentItemRead
@@ -77,8 +78,7 @@ async def _enrich_recent_rows(
             select(Project)
             .where(Project.id.in_(project_ids))
             .options(
-                selectinload(Project.permissions),
-                selectinload(Project.role_permissions),
+                selectinload(Project.grants).selectinload(ResourceGrant.role),
                 selectinload(Project.initiative).selectinload(Initiative.memberships),
             )
         )
@@ -91,8 +91,7 @@ async def _enrich_recent_rows(
             select(Document)
             .where(Document.id.in_(document_ids))
             .options(
-                selectinload(Document.permissions),
-                selectinload(Document.role_permissions),
+                selectinload(Document.grants).selectinload(ResourceGrant.role),
                 selectinload(Document.initiative).selectinload(Initiative.memberships),
             )
         )
@@ -105,8 +104,7 @@ async def _enrich_recent_rows(
             select(Queue)
             .where(Queue.id.in_(queue_ids))
             .options(
-                selectinload(Queue.permissions),
-                selectinload(Queue.role_permissions),
+                selectinload(Queue.grants).selectinload(ResourceGrant.role),
                 selectinload(Queue.initiative).selectinload(Initiative.memberships),
             )
         )
@@ -119,8 +117,7 @@ async def _enrich_recent_rows(
             select(CounterGroup)
             .where(CounterGroup.id.in_(cg_ids))
             .options(
-                selectinload(CounterGroup.permissions),
-                selectinload(CounterGroup.role_permissions),
+                selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
                 selectinload(CounterGroup.initiative).selectinload(
                     Initiative.memberships
                 ),

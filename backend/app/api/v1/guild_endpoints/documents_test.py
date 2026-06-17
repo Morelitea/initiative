@@ -13,12 +13,11 @@ from app.core.config import settings
 from app.core.security import create_upload_token
 from app.models.document import (
     Document,
-    DocumentPermission,
-    DocumentPermissionLevel,
     DocumentType,
 )
 from app.models.guild import GuildRole
 from app.models.initiative import InitiativeRoleModel
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -63,11 +62,13 @@ async def _create_file_document(
     session.add(doc)
     await session.flush()
 
-    perm = DocumentPermission(
-        document_id=doc.id,
+    perm = ResourceGrant(
+        resource_type="document",
+        resource_id=doc.id,
         user_id=owner.id,
-        level=DocumentPermissionLevel.owner,
+        level=ResourceAccessLevel.owner,
         guild_id=initiative.guild_id,
+        initiative_id=doc.initiative_id,
     )
     session.add(perm)
     await session.commit()
@@ -268,11 +269,13 @@ async def _make_native_doc(
     session.add(doc)
     await session.flush()
     session.add(
-        DocumentPermission(
-            document_id=doc.id,
+        ResourceGrant(
+            resource_type="document",
+            resource_id=doc.id,
             user_id=creator.id,
-            level=DocumentPermissionLevel.owner,
+            level=ResourceAccessLevel.owner,
             guild_id=initiative.guild_id,
+            initiative_id=doc.initiative_id,
         )
     )
     await session.commit()
@@ -309,11 +312,13 @@ async def test_copy_template_with_read_only_access(
     )
     # Grant reader explicit read-only access on the template.
     session.add(
-        DocumentPermission(
-            document_id=template.id,
+        ResourceGrant(
+            resource_type="document",
+            resource_id=template.id,
             user_id=reader.id,
-            level=DocumentPermissionLevel.read,
+            level=ResourceAccessLevel.read,
             guild_id=guild.id,
+            initiative_id=template.initiative_id,
         )
     )
     await session.commit()
@@ -367,11 +372,13 @@ async def test_copy_non_template_still_requires_write_access(
         is_template=False,
     )
     session.add(
-        DocumentPermission(
-            document_id=doc.id,
+        ResourceGrant(
+            resource_type="document",
+            resource_id=doc.id,
             user_id=reader.id,
-            level=DocumentPermissionLevel.read,
+            level=ResourceAccessLevel.read,
             guild_id=guild.id,
+            initiative_id=doc.initiative_id,
         )
     )
     await session.commit()
@@ -503,11 +510,13 @@ async def test_download_read_permission_grants_access(
     doc = await _create_file_document(
         session, initiative=initiative, owner=owner, filename="dl_reader.pdf"
     )
-    read_perm = DocumentPermission(
-        document_id=doc.id,
+    read_perm = ResourceGrant(
+        resource_type="document",
+        resource_id=doc.id,
         user_id=reader.id,
-        level=DocumentPermissionLevel.read,
+        level=ResourceAccessLevel.read,
         guild_id=guild.id,
+        initiative_id=doc.initiative_id,
     )
     session.add(read_perm)
     await session.commit()

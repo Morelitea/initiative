@@ -17,8 +17,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
-
-from app.models.project import ProjectPermissionLevel
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
@@ -102,13 +101,13 @@ async def test_list_projects_member_sees_initiative_projects(
     project = await _create_project(session, initiative, admin)
 
     # Give member read access to the project (pure DAC requires explicit permission)
-    from app.models.project import ProjectPermission, ProjectPermissionLevel
-
-    member_permission = ProjectPermission(
-        project_id=project.id,
+    member_permission = ResourceGrant(
+        resource_type="project",
+        resource_id=project.id,
         user_id=member.id,
-        level=ProjectPermissionLevel.read,
+        level=ResourceAccessLevel.read,
         guild_id=project.guild_id,
+        initiative_id=project.initiative_id,
     )
     session.add(member_permission)
     await session.commit()
@@ -335,13 +334,13 @@ async def test_update_project_as_admin(client: AsyncClient, session: AsyncSessio
     project = await _create_project(session, initiative, owner)
 
     # Give admin write access to the project (pure DAC requires explicit permission)
-    from app.models.project import ProjectPermission, ProjectPermissionLevel
-
-    admin_permission = ProjectPermission(
-        project_id=project.id,
+    admin_permission = ResourceGrant(
+        resource_type="project",
+        resource_id=project.id,
         user_id=admin.id,
-        level=ProjectPermissionLevel.owner,
+        level=ResourceAccessLevel.owner,
         guild_id=project.guild_id,
+        initiative_id=project.initiative_id,
     )
     session.add(admin_permission)
     await session.commit()
@@ -417,13 +416,13 @@ async def test_delete_project_as_admin(client: AsyncClient, session: AsyncSessio
     project = await _create_project(session, initiative, owner)
 
     # Give admin owner access to the project (pure DAC requires explicit permission)
-    from app.models.project import ProjectPermission, ProjectPermissionLevel
-
-    admin_permission = ProjectPermission(
-        project_id=project.id,
+    admin_permission = ResourceGrant(
+        resource_type="project",
+        resource_id=project.id,
         user_id=admin.id,
-        level=ProjectPermissionLevel.owner,
+        level=ResourceAccessLevel.owner,
         guild_id=project.guild_id,
+        initiative_id=project.initiative_id,
     )
     session.add(admin_permission)
     await session.commit()
@@ -636,8 +635,6 @@ async def test_add_project_member(client: AsyncClient, session: AsyncSession):
 @pytest.mark.integration
 async def test_remove_project_member(client: AsyncClient, session: AsyncSession):
     """Test removing a member from a project."""
-    from app.models.project import ProjectPermission
-
     owner = await create_user(session, email="owner@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
@@ -648,10 +645,13 @@ async def test_remove_project_member(client: AsyncClient, session: AsyncSession)
     project = await _create_project(session, initiative, owner)
 
     # Add member permission
-    permission = ProjectPermission(
-        project_id=project.id,
+    permission = ResourceGrant(
+        resource_type="project",
+        resource_id=project.id,
         user_id=member.id,
-        level=ProjectPermissionLevel.write,
+        level=ResourceAccessLevel.write,
+        guild_id=project.guild_id,
+        initiative_id=project.initiative_id,
     )
     session.add(permission)
     await session.commit()

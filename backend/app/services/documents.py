@@ -16,15 +16,14 @@ from app.models.comment import Comment
 from app.models.document import (
     Document,
     DocumentLink,
-    DocumentPermission,
     DocumentPermissionLevel,
-    DocumentRolePermission,
     DocumentType,
     ProjectDocument,
 )
 from app.models.upload import Upload
 from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
 from app.models.property import DocumentPropertyValue
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tag import DocumentTag
 from app.models.project import Project
 from app.core.config import settings
@@ -151,10 +150,7 @@ async def get_document(
                 ),
             ),
             selectinload(Document.project_links).selectinload(ProjectDocument.project),
-            selectinload(Document.permissions),
-            selectinload(Document.role_permissions).selectinload(
-                DocumentRolePermission.role
-            ),
+            selectinload(Document.grants).selectinload(ResourceGrant.role),
             selectinload(Document.tag_links).selectinload(DocumentTag.tag),
             selectinload(Document.property_values).selectinload(
                 DocumentPropertyValue.property_definition
@@ -283,11 +279,14 @@ async def duplicate_document(
     await session.flush()
 
     # Add owner permission for the user creating the duplicate
-    owner_permission = DocumentPermission(
-        document_id=duplicated.id,
+    owner_permission = ResourceGrant(
+        resource_type="document",
+        resource_id=duplicated.id,
         user_id=user_id,
-        level=DocumentPermissionLevel.owner,
+        role_id=None,
+        level=ResourceAccessLevel.owner,
         guild_id=guild_id or source.guild_id,
+        initiative_id=duplicated.initiative_id,
     )
     session.add(owner_permission)
 
@@ -349,19 +348,23 @@ async def handle_owner_removal(
     "orphaned". This function removes the owner's permission and grants owner
     access to all initiative PMs so they can fully manage the document.
     """
-    # Find documents where user is owner
+    # Find documents where user is owner (via their resource_grants row)
     stmt = (
         select(Document)
-        .join(DocumentPermission)
+        .join(
+            ResourceGrant,
+            (ResourceGrant.resource_type == "document")
+            & (ResourceGrant.resource_id == Document.id),
+        )
         .where(
             Document.initiative_id == initiative_id,
-            DocumentPermission.user_id == user_id,
-            DocumentPermission.level == DocumentPermissionLevel.owner,
+            ResourceGrant.user_id == user_id,
+            ResourceGrant.level == DocumentPermissionLevel.owner,
         )
-        .options(selectinload(Document.permissions))
+        .options(selectinload(Document.grants))
     )
     result = await session.exec(stmt)
-    documents = result.all()
+    documents = result.unique().all()
 
     if not documents:
         return
@@ -378,12 +381,13 @@ async def handle_owner_removal(
     pm_user_ids = {pm.user_id for pm in pm_result.all()}
 
     for doc in documents:
+        user_grants = [g for g in (doc.grants or []) if g.user_id is not None]
         # Remove owner's permission
         owner_permission = next(
             (
-                p
-                for p in doc.permissions
-                if p.user_id == user_id and p.level == DocumentPermissionLevel.owner
+                g
+                for g in user_grants
+                if g.user_id == user_id and g.level == DocumentPermissionLevel.owner
             ),
             None,
         )
@@ -395,24 +399,25 @@ async def handle_owner_removal(
         # initiative where every PM was previously listed at a lower
         # level would end up with no owner at all once the original
         # owner's row is dropped.
-        existing_by_user = {
-            p.user_id: p for p in doc.permissions if p.user_id != user_id
-        }
+        existing_by_user = {g.user_id: g for g in user_grants if g.user_id != user_id}
         for pm_user_id in pm_user_ids:
             if pm_user_id == user_id:
                 continue
             existing = existing_by_user.get(pm_user_id)
             if existing is None:
                 session.add(
-                    DocumentPermission(
-                        document_id=doc.id,
+                    ResourceGrant(
+                        resource_type="document",
+                        resource_id=doc.id,
                         user_id=pm_user_id,
-                        level=DocumentPermissionLevel.owner,
+                        role_id=None,
+                        level=ResourceAccessLevel.owner,
                         guild_id=doc.guild_id,
+                        initiative_id=doc.initiative_id,
                     )
                 )
             elif existing.level != DocumentPermissionLevel.owner:
-                existing.level = DocumentPermissionLevel.owner
+                existing.level = ResourceAccessLevel.owner
                 session.add(existing)
 
     await session.flush()
@@ -583,16 +588,12 @@ async def get_backlinks(
 
     Only returns documents the user has permission to access.
     """
+    from app.services import permissions as permissions_service
+
     # Subquery: documents where user has explicit or role-based permission
-    user_perm_subq = select(DocumentPermission.document_id).where(
-        DocumentPermission.user_id == user_id
+    has_permission_subq = permissions_service.visible_resource_ids_subquery(
+        "document", user_id
     )
-    role_perm_subq = select(DocumentRolePermission.document_id).join(
-        InitiativeMember,
-        (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-        & (InitiativeMember.user_id == user_id),
-    )
-    has_permission_subq = user_perm_subq.union(role_perm_subq)
 
     stmt = (
         select(Document)

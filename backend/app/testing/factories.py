@@ -16,7 +16,8 @@ from app.models.calendar_event import CalendarEvent
 from app.models.document import Document
 from app.models.guild import Guild, GuildMembership, GuildRole
 from app.models.initiative import Initiative, InitiativeMember
-from app.models.project import Project, ProjectPermission, ProjectPermissionLevel
+from app.models.project import Project
+from app.models.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.models.property import (
     CalendarEventPropertyValue,
     DocumentPropertyValue,
@@ -358,14 +359,17 @@ async def create_project(
         await session.commit()
         await session.refresh(project)
 
-        # Create owner permission so the project is visible via DAC
-        owner_permission = ProjectPermission(
-            project_id=project.id,
-            user_id=owner.id,
-            level=ProjectPermissionLevel.owner,
-            guild_id=project.guild_id,
+        # Owner grant so the project is visible via DAC.
+        session.add(
+            ResourceGrant(
+                resource_type="project",
+                resource_id=project.id,
+                user_id=owner.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=project.guild_id,
+                initiative_id=project.initiative_id,
+            )
         )
-        session.add(owner_permission)
         await session.commit()
 
     return project
@@ -455,8 +459,6 @@ async def create_queue(
     Returns:
         Created Queue instance
     """
-    from app.models.queue import QueuePermission, QueuePermissionLevel
-
     defaults = {
         "name": f"Test Queue {datetime.now(timezone.utc).timestamp()}",
         "description": "A test queue",
@@ -473,14 +475,17 @@ async def create_queue(
         await session.commit()
         await session.refresh(queue)
 
-        # Create owner permission for creator
-        owner_perm = QueuePermission(
-            queue_id=queue.id,
-            user_id=creator.id,
-            guild_id=queue.guild_id,
-            level=QueuePermissionLevel.owner,
+        # Owner grant for creator.
+        session.add(
+            ResourceGrant(
+                resource_type="queue",
+                resource_id=queue.id,
+                user_id=creator.id,
+                guild_id=queue.guild_id,
+                initiative_id=queue.initiative_id,
+                level=ResourceAccessLevel.owner,
+            )
         )
-        session.add(owner_perm)
         await session.commit()
 
     return queue
@@ -746,6 +751,43 @@ async def create_calendar_event(
     if commit:
         await session.commit()
         await session.refresh(event)
+
+        # Per-event DAC grants, mirroring the create endpoint: creator owns it,
+        # each initiative role gets write (managers) or read.
+        from app.models.initiative import InitiativeRoleModel
+        from sqlmodel import select
+
+        session.add(
+            ResourceGrant(
+                resource_type="calendar_event",
+                resource_id=event.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=event.guild_id,
+                initiative_id=event.initiative_id,
+            )
+        )
+        roles = (
+            await session.exec(
+                select(InitiativeRoleModel).where(
+                    InitiativeRoleModel.initiative_id == initiative.id
+                )
+            )
+        ).all()
+        for role in roles:
+            session.add(
+                ResourceGrant(
+                    resource_type="calendar_event",
+                    resource_id=event.id,
+                    role_id=role.id,
+                    level=ResourceAccessLevel.write
+                    if role.is_manager
+                    else ResourceAccessLevel.read,
+                    guild_id=event.guild_id,
+                    initiative_id=event.initiative_id,
+                )
+            )
+        await session.commit()
 
     return event
 

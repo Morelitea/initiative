@@ -275,29 +275,32 @@ def serialize_counter(counter: "Counter") -> CounterRead:
 
 
 def _serialize_permissions(group: "CounterGroup") -> List[CounterGroupPermissionRead]:
-    perms = getattr(group, "permissions", None) or []
+    grants = getattr(group, "grants", None) or []
     return [
         CounterGroupPermissionRead(
-            user_id=p.user_id, level=p.level, created_at=p.created_at
+            user_id=g.user_id, level=g.level, created_at=g.created_at
         )
-        for p in perms
+        for g in grants
+        if g.user_id is not None
     ]
 
 
 def _serialize_role_permissions(
     group: "CounterGroup",
 ) -> List[CounterGroupRolePermissionRead]:
-    role_perms = getattr(group, "role_permissions", None) or []
+    grants = getattr(group, "grants", None) or []
     result: List[CounterGroupRolePermissionRead] = []
-    for rp in role_perms:
-        role = getattr(rp, "role", None)
+    for g in grants:
+        if g.role_id is None:
+            continue
+        role = getattr(g, "role", None)
         result.append(
             CounterGroupRolePermissionRead(
-                initiative_role_id=rp.initiative_role_id,
+                initiative_role_id=g.role_id,
                 role_name=getattr(role, "name", "") if role else "",
                 role_display_name=getattr(role, "display_name", "") if role else "",
-                level=rp.level,
-                created_at=rp.created_at,
+                level=g.level,
+                created_at=g.created_at,
             )
         )
     return result

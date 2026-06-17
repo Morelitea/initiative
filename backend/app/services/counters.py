@@ -7,38 +7,26 @@ Initiative; Counters are independent numeric values clamped to optional
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Optional
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
-from app.core.messages import CounterMessages
-from app.core.pam_context import grant_satisfies
-from app.services.permissions import lift_level_for_grant
+from app.services import permissions as permissions_service
+from app.services.permissions import (
+    DAC_RESOURCES,
+    compute_permission,
+    require_access,
+)
 from app.models.counter import (
     Counter,
     CounterGroup,
-    CounterGroupPermission,
-    CounterGroupRolePermission,
-    CounterPermissionLevel,
 )
-from app.models.initiative import Initiative, InitiativeMember
+from app.models.initiative import Initiative
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.user import User
 from app.schemas.counter import CounterSortDirection, CounterSortField
-from app.services.permissions import effective_permission_level, role_permission_level
-
-
-# ---------------------------------------------------------------------------
-# DAC constants
-# ---------------------------------------------------------------------------
-
-COUNTER_LEVEL_ORDER: dict[CounterPermissionLevel, int] = {
-    CounterPermissionLevel.read: 0,
-    CounterPermissionLevel.write: 1,
-    CounterPermissionLevel.owner: 2,
-}
 
 
 # ---------------------------------------------------------------------------
@@ -48,66 +36,14 @@ COUNTER_LEVEL_ORDER: dict[CounterPermissionLevel, int] = {
 
 def visible_counter_group_ids_subquery(user_id: int):
     """Return a subquery of counter-group IDs the user can access (DAC only)."""
-    user_perm_subq = select(CounterGroupPermission.counter_group_id).where(
-        CounterGroupPermission.user_id == user_id
-    )
-    role_perm_subq = select(CounterGroupRolePermission.counter_group_id).join(
-        InitiativeMember,
-        (InitiativeMember.role_id == CounterGroupRolePermission.initiative_role_id)
-        & (InitiativeMember.user_id == user_id),
-    )
-    return user_perm_subq.union(role_perm_subq)
+    return permissions_service.visible_resource_ids_subquery("counter_group", user_id)
 
 
-# ---------------------------------------------------------------------------
-# DAC helpers
-# ---------------------------------------------------------------------------
+# DAC — thin wrappers over the registry engine (the "counter_group" row).
 
 
-def counter_group_role_permission_level(
-    group: Any,
-    user_id: int,
-) -> CounterPermissionLevel | None:
-    role_perms = getattr(group, "role_permissions", None)
-    initiative = getattr(group, "initiative", None)
-    memberships = getattr(initiative, "memberships", None) if initiative else None
-    return role_permission_level(role_perms, memberships, user_id, COUNTER_LEVEL_ORDER)
-
-
-def effective_counter_group_permission(
-    user_level: CounterPermissionLevel | None,
-    role_level: CounterPermissionLevel | None,
-) -> CounterPermissionLevel | None:
-    return effective_permission_level(user_level, role_level, COUNTER_LEVEL_ORDER)
-
-
-def compute_counter_group_permission(
-    group: CounterGroup,
-    user_id: int,
-) -> str | None:
-    user_level: CounterPermissionLevel | None = None
-    perms = getattr(group, "permissions", None) or []
-    for perm in perms:
-        if perm.user_id == user_id:
-            user_level = perm.level
-            break
-
-    role_level = counter_group_role_permission_level(group, user_id)
-    effective = effective_counter_group_permission(user_level, role_level)
-    return lift_level_for_grant(
-        effective.value if effective else None, getattr(group, "guild_id", None)
-    )
-
-
-def _effective_level(group: CounterGroup, user: User) -> CounterPermissionLevel | None:
-    user_level: CounterPermissionLevel | None = None
-    perms = getattr(group, "permissions", None) or []
-    for perm in perms:
-        if perm.user_id == user.id:
-            user_level = perm.level
-            break
-    role_level = counter_group_role_permission_level(group, user.id)
-    return effective_counter_group_permission(user_level, role_level)
+def compute_counter_group_permission(group: CounterGroup, user_id: int) -> str | None:
+    return compute_permission(DAC_RESOURCES["counter_group"], group, user_id)
 
 
 def require_counter_group_access(
@@ -117,30 +53,13 @@ def require_counter_group_access(
     access: str = "read",
     require_owner: bool = False,
 ) -> None:
-    # A live PAM grant covering the group's guild satisfies read/write.
-    if grant_satisfies(group.guild_id, access=access, require_owner=require_owner):
-        return
-    effective = _effective_level(group, user)
-
-    if require_owner:
-        if effective != CounterPermissionLevel.owner:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=CounterMessages.OWNER_REQUIRED,
-            )
-        return
-
-    if effective is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CounterMessages.PERMISSION_REQUIRED,
-        )
-
-    if access == "write" and effective == CounterPermissionLevel.read:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=CounterMessages.WRITE_ACCESS_REQUIRED,
-        )
+    require_access(
+        DAC_RESOURCES["counter_group"],
+        group,
+        user,
+        access=access,
+        require_owner=require_owner,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -159,10 +78,7 @@ async def get_counter_group(
         .where(CounterGroup.id == group_id)
         .options(
             selectinload(CounterGroup.counters),
-            selectinload(CounterGroup.permissions),
-            selectinload(CounterGroup.role_permissions).selectinload(
-                CounterGroupRolePermission.role
-            ),
+            selectinload(CounterGroup.grants).selectinload(ResourceGrant.role),
             selectinload(CounterGroup.initiative).selectinload(Initiative.memberships),
         )
     )
@@ -271,37 +187,44 @@ async def duplicate_counter_group(
     await session.flush()
 
     session.add(
-        CounterGroupPermission(
-            counter_group_id=new_group.id,
+        ResourceGrant(
+            resource_type="counter_group",
+            resource_id=new_group.id,
             user_id=user_id,
+            role_id=None,
+            level=ResourceAccessLevel.owner,
             guild_id=guild_id,
-            level=CounterPermissionLevel.owner,
+            initiative_id=new_group.initiative_id,
         )
     )
 
-    for rp in getattr(source, "role_permissions", None) or []:
-        if rp.level == CounterPermissionLevel.owner:
+    for grant in getattr(source, "grants", None) or []:
+        if grant.level == ResourceAccessLevel.owner:
             continue
-        session.add(
-            CounterGroupRolePermission(
-                counter_group_id=new_group.id,
-                initiative_role_id=rp.initiative_role_id,
-                guild_id=guild_id,
-                level=rp.level,
+        if grant.role_id is not None:
+            session.add(
+                ResourceGrant(
+                    resource_type="counter_group",
+                    resource_id=new_group.id,
+                    user_id=None,
+                    role_id=grant.role_id,
+                    level=grant.level,
+                    guild_id=guild_id,
+                    initiative_id=new_group.initiative_id,
+                )
             )
-        )
-
-    for perm in getattr(source, "permissions", None) or []:
-        if perm.level == CounterPermissionLevel.owner or perm.user_id == user_id:
-            continue
-        session.add(
-            CounterGroupPermission(
-                counter_group_id=new_group.id,
-                user_id=perm.user_id,
-                guild_id=guild_id,
-                level=perm.level,
+        elif grant.user_id is not None and grant.user_id != user_id:
+            session.add(
+                ResourceGrant(
+                    resource_type="counter_group",
+                    resource_id=new_group.id,
+                    user_id=grant.user_id,
+                    role_id=None,
+                    level=grant.level,
+                    guild_id=guild_id,
+                    initiative_id=new_group.initiative_id,
+                )
             )
-        )
 
     for counter in getattr(source, "counters", None) or []:
         if counter.deleted_at is not None:

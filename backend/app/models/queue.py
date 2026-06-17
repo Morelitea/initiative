@@ -13,16 +13,17 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship, SQLModel
 
 from app.models._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.initiative import Initiative, InitiativeRoleModel
+    from app.models.initiative import Initiative
     from app.models.user import User
     from app.models.tag import Tag
     from app.models.document import Document
     from app.models.task import Task
+    from app.models.resource_grant import ResourceGrant
 
 
 class Queue(SoftDeleteMixin, table=True):
@@ -70,13 +71,14 @@ class Queue(SoftDeleteMixin, table=True):
             "foreign_keys": "[QueueItem.queue_id]",
         },
     )
-    permissions: List["QueuePermission"] = Relationship(
-        back_populates="queue",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
-    role_permissions: List["QueueRolePermission"] = Relationship(
-        back_populates="queue",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    grants: List["ResourceGrant"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(foreign(ResourceGrant.resource_id) == Queue.id, "
+                "ResourceGrant.resource_type == 'queue')"
+            ),
+            "viewonly": True,
+        }
     )
 
 
@@ -175,67 +177,6 @@ class QueuePermissionLevel(str, Enum):
     owner = "owner"
     write = "write"
     read = "read"
-
-
-class QueuePermission(SQLModel, table=True):
-    """Per-user permission on a queue."""
-
-    __tablename__ = "queue_permissions"
-
-    queue_id: int = Field(foreign_key="queues.id", primary_key=True)
-    user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    level: QueuePermissionLevel = Field(
-        default=QueuePermissionLevel.write,
-        sa_column=Column(
-            SQLEnum(
-                QueuePermissionLevel,
-                name="queue_permission_level",
-                create_type=False,
-            ),
-            nullable=False,
-        ),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    queue: Optional[Queue] = Relationship(back_populates="permissions")
-
-
-class QueueRolePermission(SQLModel, table=True):
-    """Per-initiative-role permission on a queue."""
-
-    __tablename__ = "queue_role_permissions"
-
-    queue_id: int = Field(foreign_key="queues.id", primary_key=True)
-    initiative_role_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("initiative_roles.id", ondelete="CASCADE"),
-            primary_key=True,
-        ),
-    )
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    level: QueuePermissionLevel = Field(
-        default=QueuePermissionLevel.read,
-        sa_column=Column(
-            SQLEnum(
-                QueuePermissionLevel,
-                name="queue_permission_level",
-                create_type=False,
-            ),
-            nullable=False,
-        ),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    queue: Optional[Queue] = Relationship(back_populates="role_permissions")
-    role: Optional["InitiativeRoleModel"] = Relationship()
 
 
 class QueueItemDocument(SQLModel, table=True):

@@ -75,9 +75,9 @@ async def test_ensure_document_access_honors_grant(session: AsyncSession):
     session.add(document)
     await session.commit()
     await session.refresh(document)
-    # Eager-load the relationship the DAC fallback reads (the real endpoint
+    # Eager-load the relationship the DAC engine reads (the real endpoint
     # loads it via selectinload); avoids a lazy load in the async test.
-    await session.refresh(document, ["permissions"])
+    await session.refresh(document, ["grants"])
 
     try:
         set_active_grant(guild.id, "read")

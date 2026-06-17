@@ -18,11 +18,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.document import (
     Document,
-    DocumentPermission,
-    DocumentPermissionLevel,
     DocumentType,
 )
 from app.models.guild import GuildRole
+from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.property import (
     DocumentPropertyValue,
     PropertyType,
@@ -69,11 +68,13 @@ async def _create_document(
     session.add(doc)
     await session.flush()
 
-    perm = DocumentPermission(
-        document_id=doc.id,
+    perm = ResourceGrant(
+        resource_type="document",
+        resource_id=doc.id,
         user_id=owner.id,
-        level=DocumentPermissionLevel.owner,
+        level=ResourceAccessLevel.owner,
         guild_id=initiative.guild_id,
+        initiative_id=doc.initiative_id,
     )
     session.add(perm)
     await session.commit()

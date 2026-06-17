@@ -20,12 +20,13 @@ from sqlmodel import Enum as SQLEnum, Field, Relationship, SQLModel
 from app.models._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.initiative import Initiative, InitiativeRoleModel
+    from app.models.initiative import Initiative
     from app.models.project import Project
     from app.models.tag import DocumentTag
     from app.models.queue import QueueItemDocument
     from app.models.calendar_event import CalendarEventDocument
     from app.models.property import DocumentPropertyValue
+    from app.models.resource_grant import ResourceGrant
 
 
 class DocumentType(str, Enum):
@@ -113,10 +114,6 @@ class Document(SoftDeleteMixin, table=True):
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    permissions: List["DocumentPermission"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
-    )
     tag_links: List["DocumentTag"] = Relationship(
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
@@ -125,9 +122,14 @@ class Document(SoftDeleteMixin, table=True):
         back_populates="document",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    role_permissions: List["DocumentRolePermission"] = Relationship(
-        back_populates="document",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    grants: List["ResourceGrant"] = Relationship(
+        sa_relationship_kwargs={
+            "primaryjoin": (
+                "and_(foreign(ResourceGrant.resource_id) == Document.id, "
+                "ResourceGrant.resource_type == 'document')"
+            ),
+            "viewonly": True,
+        }
     )
     queue_item_links: List["QueueItemDocument"] = Relationship(
         back_populates="document",
@@ -221,65 +223,6 @@ class DocumentPermissionLevel(str, Enum):
     owner = "owner"
     write = "write"
     read = "read"
-
-
-class DocumentPermission(SQLModel, table=True):
-    __tablename__ = "document_permissions"
-
-    document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    user_id: int = Field(foreign_key="users.id", primary_key=True, index=True)
-    guild_id: Optional[int] = Field(
-        default=None, foreign_key="guilds.id", nullable=True
-    )
-    level: DocumentPermissionLevel = Field(
-        default=DocumentPermissionLevel.write,
-        sa_column=Column(
-            SQLEnum(
-                DocumentPermissionLevel,
-                name="document_permission_level",
-                create_type=False,
-            ),
-            nullable=False,
-        ),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    document: Optional[Document] = Relationship(back_populates="permissions")
-
-
-class DocumentRolePermission(SQLModel, table=True):
-    __tablename__ = "document_role_permissions"
-
-    document_id: int = Field(foreign_key="documents.id", primary_key=True)
-    initiative_role_id: int = Field(
-        sa_column=Column(
-            Integer,
-            ForeignKey("initiative_roles.id", ondelete="CASCADE"),
-            primary_key=True,
-        )
-    )
-    guild_id: int = Field(foreign_key="guilds.id", nullable=False)
-    level: DocumentPermissionLevel = Field(
-        default=DocumentPermissionLevel.read,
-        sa_column=Column(
-            SQLEnum(
-                DocumentPermissionLevel,
-                name="document_permission_level",
-                create_type=False,
-            ),
-            nullable=False,
-        ),
-    )
-    created_at: datetime = Field(
-        default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
-    )
-
-    document: Optional[Document] = Relationship(back_populates="role_permissions")
-    role: Optional["InitiativeRoleModel"] = Relationship()
 
 
 class DocumentLink(SQLModel, table=True):

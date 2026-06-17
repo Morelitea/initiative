@@ -63,6 +63,11 @@ INTENTIONALLY_IRREVERSIBLE = frozenset(
         # drop legacy is_initiative_member: reviving a dead, search_path-broken
         # second access rule has no value — roll forward only.
         "20260616_0111",
+        # drop legacy per-resource permission tables: their data was consolidated
+        # into resource_grants by 0115's backfill, then the 8 tables were dropped.
+        # Recreating them would mean rebuilding 8 schemas + repopulating from
+        # resource_grants — restore from a backup instead; roll forward only.
+        "20260616_0116",
     }
 )
 

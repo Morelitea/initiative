@@ -13,15 +13,16 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.messages import CommentMessages
 from app.core.pam_context import grant_satisfies
 from app.models.comment import Comment
-from app.models.document import Document, DocumentPermission, DocumentRolePermission
+from app.models.document import Document
 from app.models.guild import GuildRole
 from app.models.initiative import Initiative, InitiativeMember
-from app.models.project import Project, ProjectPermission, ProjectRolePermission
+from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
 from app.services import documents as documents_service
 from app.services import initiatives as initiatives_service
 from app.services import notifications
+from app.services import permissions as permissions_service
 from app.services.mention_parser import (
     extract_mentioned_user_ids,
     extract_mentioned_task_ids,
@@ -97,26 +98,16 @@ async def _has_project_permission(
     project_id: int,
     user_id: int,
 ) -> bool:
-    # Check user-specific permission
-    stmt = select(ProjectPermission).where(
-        ProjectPermission.project_id == project_id,
-        ProjectPermission.user_id == user_id,
+    # The project is accessible if it appears among the resource ids the user
+    # can reach via a grant (own user grant OR a grant to one of their roles).
+    accessible_ids = permissions_service.visible_resource_ids_subquery(
+        "project", user_id
+    ).subquery()
+    stmt = select(accessible_ids.c.resource_id).where(
+        accessible_ids.c.resource_id == project_id
     )
     result = await session.exec(stmt)
-    if result.one_or_none() is not None:
-        return True
-    # Check role-based permission
-    role_stmt = (
-        select(ProjectRolePermission)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == ProjectRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user_id),
-        )
-        .where(ProjectRolePermission.project_id == project_id)
-    )
-    role_result = await session.exec(role_stmt)
-    return role_result.first() is not None
+    return result.first() is not None
 
 
 async def _ensure_task_access(
@@ -162,29 +153,16 @@ async def _ensure_document_access(
         return
     if grant_satisfies(document.guild_id, access=access):
         return
-    # Check user-specific permission
-    permissions = getattr(document, "permissions", None)
-    if permissions is None:
-        stmt = select(DocumentPermission).where(
-            DocumentPermission.document_id == document.id
-        )
-        result = await session.exec(stmt)
-        permissions = result.all()
-    for permission in permissions or []:
-        if permission.user_id == user.id:
-            return
-    # Check role-based permission
-    role_stmt = (
-        select(DocumentRolePermission)
-        .join(
-            InitiativeMember,
-            (InitiativeMember.role_id == DocumentRolePermission.initiative_role_id)
-            & (InitiativeMember.user_id == user.id),
-        )
-        .where(DocumentRolePermission.document_id == document.id)
+    # The document is accessible if it appears among the resource ids the user
+    # can reach via a grant (own user grant OR a grant to one of their roles).
+    accessible_ids = permissions_service.visible_resource_ids_subquery(
+        "document", user.id
+    ).subquery()
+    stmt = select(accessible_ids.c.resource_id).where(
+        accessible_ids.c.resource_id == document.id
     )
-    role_result = await session.exec(role_stmt)
-    if role_result.first() is not None:
+    result = await session.exec(stmt)
+    if result.first() is not None:
         return
     raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
 
