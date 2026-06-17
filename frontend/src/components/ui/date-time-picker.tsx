@@ -211,9 +211,12 @@ export const DateTimePicker = ({
   };
 
   const handleOpenChange = (next: boolean) => {
-    // Each time the popover opens, jump the calendar back to the selected date.
     if (next) {
+      // On open, jump the calendar back to the selected date and reset the text
+      // field — closing via Escape unmounts the input without firing onBlur, so
+      // any uncommitted text would otherwise linger until the value changes.
       setVisibleMonth(selectedDate ?? new Date());
+      setInputValue(displayValue);
     }
     setOpen(next);
   };
