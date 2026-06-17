@@ -313,6 +313,7 @@ export const useCreateCounterGroupApiV1GGuildIdCounterGroupsPost = <
   );
 };
 /**
+ * Access enforced by resource_dependency before the body runs.
  * @summary Read Counter Group
  */
 export const readCounterGroupApiV1GGuildIdCounterGroupsGroupIdGet = (

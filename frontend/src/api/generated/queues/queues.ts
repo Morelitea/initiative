@@ -288,7 +288,7 @@ export const useCreateQueueApiV1GGuildIdQueuesPost = <
   return useMutation(getCreateQueueApiV1GGuildIdQueuesPostMutationOptions(options), queryClient);
 };
 /**
- * Get a queue with all items, permissions, and current state.
+ * Get a queue; access enforced by resource_dependency before the body runs.
  * @summary Read Queue
  */
 export const readQueueApiV1GGuildIdQueuesQueueIdGet = (
