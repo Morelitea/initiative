@@ -3,7 +3,14 @@
 Copies every existing user/role grant for projects, documents, queues and counter
 groups into the polymorphic resource_grants table, in each guild schema. Idempotent
 (ON CONFLICT DO NOTHING) and additive — the old tables stay authoritative until the
-engine switch + drop. Calendar events had no per-event grants, so nothing to copy.
+engine switch + drop.
+
+Calendar events had no per-event permission table before this PR — every initiative
+member could see all events by virtue of membership. Now that events are DAC-gated
+like the other tools, pre-existing events would become invisible to non-admins. So
+we seed default grants for every existing event matching what ``create_calendar_event``
+now writes for new events: the creator owns it, and each initiative role gets write
+(managers) or read (everyone else) so events stay member-visible by default.
 
 Revision ID: 20260616_0115
 Revises: 20260616_0114
@@ -80,11 +87,45 @@ def _backfill(conn) -> None:
         )
 
 
+def _backfill_calendar_events(conn) -> None:
+    """Seed default grants for pre-existing calendar events (no legacy table to
+    copy from). Mirrors ``create_calendar_event``: creator owns the event, every
+    initiative role gets write (managers) or read (everyone else)."""
+    # Creator → owner.
+    conn.execute(
+        text(
+            """
+            INSERT INTO resource_grants
+                (guild_id, initiative_id, resource_type, resource_id, user_id, level, created_at)
+            SELECT ce.guild_id, ce.initiative_id, 'calendar_event', ce.id,
+                   ce.created_by_id, 'owner', ce.created_at
+            FROM calendar_events ce
+            ON CONFLICT DO NOTHING
+            """
+        )
+    )
+    # Each initiative role → write (managers) / read (others).
+    conn.execute(
+        text(
+            """
+            INSERT INTO resource_grants
+                (guild_id, initiative_id, resource_type, resource_id, role_id, level, created_at)
+            SELECT ce.guild_id, ce.initiative_id, 'calendar_event', ce.id, ir.id,
+                   CASE WHEN ir.is_manager THEN 'write' ELSE 'read' END, ce.created_at
+            FROM calendar_events ce
+            JOIN initiative_roles ir ON ir.initiative_id = ce.initiative_id
+            ON CONFLICT DO NOTHING
+            """
+        )
+    )
+
+
 def upgrade() -> None:
     conn = op.get_bind()
     for schema in _guild_schemas(conn):
         conn.execute(text(f'SET search_path TO "{schema}", public'))
         _backfill(conn)
+        _backfill_calendar_events(conn)
     conn.execute(text("SET search_path TO public"))
 
 
