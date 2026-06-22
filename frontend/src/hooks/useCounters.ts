@@ -17,8 +17,7 @@ import {
   resetAllCountersApiV1GGuildIdCounterGroupsGroupIdResetAllPost,
   resetCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdResetPost,
   setCounterCountApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdSetPost,
-  setCounterGroupPermissionsApiV1GGuildIdCounterGroupsGroupIdPermissionsPut,
-  setCounterGroupRolePermissionsApiV1GGuildIdCounterGroupsGroupIdRolePermissionsPut,
+  setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut,
   sortCountersApiV1GGuildIdCounterGroupsGroupIdSortPost,
   updateCounterApiV1GGuildIdCounterGroupsGroupIdCountersCounterIdPatch,
   updateCounterGroupApiV1GGuildIdCounterGroupsGroupIdPatch,
@@ -28,17 +27,14 @@ import type {
   CounterGroupCreate,
   CounterGroupDuplicateRequest,
   CounterGroupListResponse,
-  CounterGroupPermissionCreate,
-  CounterGroupPermissionRead,
   CounterGroupRead,
-  CounterGroupRolePermissionCreate,
-  CounterGroupRolePermissionRead,
   CounterGroupUpdate,
   CounterRead,
   CounterSetCountRequest,
   CounterSortRequest,
   CounterUpdate,
   ListCounterGroupsApiV1GGuildIdCounterGroupsGetParams,
+  ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCounterGroups, invalidateCounterGroup } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
@@ -50,6 +46,7 @@ import {
   optimisticSetCount,
 } from "@/lib/counter-math";
 import { fireCounterStepFeedback } from "@/lib/counterStepFeedback";
+import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -759,56 +756,29 @@ export const useSteppedCount = (groupId: number) => {
   };
 };
 
-// ── Permission mutations ────────────────────────────────────────────────────
+// ── Grants mutation (unified resource sharing) ──────────────────────────────
 
-export const useSetCounterGroupPermissions = (
+export const useSetCounterGroupGrants = (
   groupId: number,
-  options?: MutationOpts<CounterGroupPermissionRead[], CounterGroupPermissionCreate[]>
+  options?: MutationOpts<CounterGroupRead, ResourceGrantSchema[]>
 ) => {
-  const { t } = useTranslation("counters");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
     ...rest,
-    mutationFn: async (data: CounterGroupPermissionCreate[]) =>
-      setCounterGroupPermissionsApiV1GGuildIdCounterGroupsGroupIdPermissionsPut(
+    mutationFn: async (grants: ResourceGrantSchema[]) =>
+      setCounterGroupGrantsApiV1GGuildIdCounterGroupsGroupIdGrantsPut(
         guildId,
         groupId,
-        data
-      ) as unknown as Promise<CounterGroupPermissionRead[]>,
+        grants
+      ) as unknown as Promise<CounterGroupRead>,
     onSuccess: (...args) => {
       void invalidateCounterGroup(groupId);
+      void invalidateAllCounterGroups();
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useSetCounterGroupRolePermissions = (
-  groupId: number,
-  options?: MutationOpts<CounterGroupRolePermissionRead[], CounterGroupRolePermissionCreate[]>
-) => {
-  const { t } = useTranslation("counters");
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: CounterGroupRolePermissionCreate[]) =>
-      setCounterGroupRolePermissionsApiV1GGuildIdCounterGroupsGroupIdRolePermissionsPut(
-        guildId,
-        groupId,
-        data
-      ) as unknown as Promise<CounterGroupRolePermissionRead[]>,
-    onSuccess: (...args) => {
-      void invalidateCounterGroup(groupId);
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counters:error"));
       onError?.(...args);
     },
     onSettled,

@@ -390,19 +390,19 @@ export const TaskEditPage = () => {
       }));
     }
     const allowed = new Set<number>();
-    // Explicit user permissions
-    project.permissions?.forEach((permission) => {
-      if (permission.level === "owner" || permission.level === "write") {
-        allowed.add(permission.user_id);
+    // Explicit per-user grants
+    project.grants?.forEach((grant) => {
+      if (grant.user_id != null && (grant.level === "owner" || grant.level === "write")) {
+        allowed.add(grant.user_id);
       }
     });
 
-    // Role-based permissions: find roles with write access,
+    // Role-based grants: find roles with write access,
     // then include initiative members with those roles
     const writeRoleIds = new Set(
-      project.role_permissions
-        ?.filter((rp) => rp.level === "write")
-        .map((rp) => rp.initiative_role_id) ?? []
+      project.grants
+        ?.filter((grant) => grant.role_id != null && grant.level === "write")
+        .map((grant) => grant.role_id as number) ?? []
     );
     if (writeRoleIds.size > 0) {
       project.initiative?.members?.forEach((member) => {

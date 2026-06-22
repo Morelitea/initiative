@@ -84,7 +84,6 @@
   "backToGroup": "Zurück zur Gruppe",
   "counterCount_one": "{{count}} Zähler",
   "counterCount_other": "{{count}} Zähler",
-
   "focus": {
     "openFocus": "Vollbild öffnen",
     "exit": "Vollbild verlassen",
@@ -94,13 +93,11 @@
     "notFound": "Zähler in dieser Gruppe nicht gefunden"
   },
   "createFirst": "Erstelle deine erste Zählergruppe",
-
   "settings": "Einstellungen",
   "settingsDescription": "Verwalte Details, Zugriff und erweiterte Optionen der Zählergruppe.",
   "details": "Details",
   "access": "Zugriff",
   "advanced": "Erweitert",
-  "accessDescription": "Lege fest, wer diese Zählergruppe anzeigen und bearbeiten kann.",
   "dangerZone": "Gefahrenzone",
   "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Gruppen landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
   "permissionRead": "Kann ansehen",
@@ -111,7 +108,6 @@
   "userPermissions": "Benutzerberechtigungen",
   "userPermissionsDescription": "Gewähre einzelnen Mitgliedern Zugriff.",
   "filterByName": "Nach Namen filtern...",
-
   "filters": {
     "heading": "Filter",
     "show": "Anzeigen",

@@ -30,5 +30,24 @@
   "filterByName": "Filter by name…",
   "selectedCount_one": "{{count}} selected",
   "selectedCount_other": "{{count}} selected",
-  "changeAccess": "Change access…"
+  "changeAccess": "Change access…",
+  "share": {
+    "title": "Share",
+    "allMembers": "All initiative members",
+    "restricted": "Restricted",
+    "allMembersHint": "Everyone in the initiative can access this.",
+    "restrictedHint": "Only people and roles you add can access this.",
+    "viewer": "Viewer",
+    "editor": "Editor",
+    "owner": "Owner",
+    "people": "People",
+    "roles": "Roles",
+    "addPeople": "Add people",
+    "addRoles": "Add roles",
+    "searchPeople": "Search people…",
+    "searchRoles": "Search roles…",
+    "noPeople": "No people found.",
+    "noRoles": "No roles found.",
+    "remove": "Remove"
+  }
 }

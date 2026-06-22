@@ -84,7 +84,6 @@
   "itemCount_one": "{{count}} élément",
   "itemCount_other": "{{count}} éléments",
   "createFirst": "Créer votre première file",
-
   "linkedUser": "Membre lié",
   "linkedUserHelp": "Liez optionnellement cet élément à un membre",
   "selectUser": "Sélectionner un membre...",
@@ -97,13 +96,11 @@
   "selectTask": "Lier une tâche...",
   "noTasks": "Aucune tâche liée",
   "removeLink": "Retirer",
-
   "settings": "Paramètres",
   "settingsDescription": "Gérez les détails, l'accès et les options avancées de la file.",
   "details": "Détails",
   "access": "Accès",
   "advanced": "Avancé",
-  "accessDescription": "Contrôlez qui peut voir et modifier cette file.",
   "dangerZone": "Zone de danger",
   "dangerZoneDescription": "Actions destructrices. Les files supprimées vont à la corbeille et peuvent être restaurées avant la fin de la période de rétention.",
   "permissionRead": "Peut voir",
@@ -133,11 +130,9 @@
   "changeAccess": "Modifier l'accès...",
   "removing": "Suppression en cours...",
   "addAllCount": "Tout ajouter ({{count}})",
-
   "viewLabel": "Vue",
   "viewList": "Vue en liste",
   "viewOnDeck": "En attente",
-
   "filters": {
     "heading": "Filtres",
     "show": "Afficher",

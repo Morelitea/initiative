@@ -30,5 +30,24 @@
   "filterByName": "Nach Name filtern…",
   "selectedCount_one": "{{count}} ausgewählt",
   "selectedCount_other": "{{count}} ausgewählt",
-  "changeAccess": "Zugriff ändern…"
+  "changeAccess": "Zugriff ändern…",
+  "share": {
+    "title": "Freigabe",
+    "allMembers": "Alle Initiative-Mitglieder",
+    "restricted": "Eingeschränkt",
+    "allMembersHint": "Alle in der Initiative können darauf zugreifen.",
+    "restrictedHint": "Nur von Ihnen hinzugefügte Personen und Rollen haben Zugriff.",
+    "viewer": "Betrachter",
+    "editor": "Bearbeiter",
+    "owner": "Eigentümer",
+    "people": "Personen",
+    "roles": "Rollen",
+    "addPeople": "Personen hinzufügen",
+    "addRoles": "Rollen hinzufügen",
+    "searchPeople": "Personen suchen…",
+    "searchRoles": "Rollen suchen…",
+    "noPeople": "Keine Personen gefunden.",
+    "noRoles": "Keine Rollen gefunden.",
+    "remove": "Entfernen"
+  }
 }

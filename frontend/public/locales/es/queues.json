@@ -84,7 +84,6 @@
   "itemCount_one": "{{count}} elemento",
   "itemCount_other": "{{count}} elementos",
   "createFirst": "Crea tu primera cola",
-
   "linkedUser": "Miembro vinculado",
   "linkedUserHelp": "Vincular opcionalmente este elemento a un miembro",
   "selectUser": "Seleccionar un miembro...",
@@ -97,13 +96,11 @@
   "selectTask": "Vincular una tarea...",
   "noTasks": "Sin tareas vinculadas",
   "removeLink": "Eliminar",
-
   "settings": "Configuración",
   "settingsDescription": "Gestiona los detalles, acceso y opciones avanzadas de la cola.",
   "details": "Detalles",
   "access": "Acceso",
   "advanced": "Avanzado",
-  "accessDescription": "Controla quién puede ver y editar esta cola.",
   "dangerZone": "Zona de peligro",
   "dangerZoneDescription": "Acciones destructivas. Las colas eliminadas van a la papelera y pueden restaurarse antes de que finalice el período de retención.",
   "permissionRead": "Puede ver",
@@ -133,11 +130,9 @@
   "changeAccess": "Cambiar acceso...",
   "removing": "Eliminando...",
   "addAllCount": "Añadir todos ({{count}})",
-
   "viewLabel": "Vista",
   "viewList": "Vista de lista",
   "viewOnDeck": "En espera",
-
   "filters": {
     "heading": "Filtros",
     "show": "Mostrar",

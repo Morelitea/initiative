@@ -3,17 +3,11 @@ import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost,
-  addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost,
-  removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost,
-  removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete,
-} from "@/api/generated/documents/documents";
+import { setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut } from "@/api/generated/documents/documents";
 import type {
-  DocumentPermissionLevel,
   DocumentSummary,
-  InitiativeMemberRead,
   InitiativeRoleRead,
+  ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey,
@@ -86,7 +80,7 @@ export function BulkEditAccessDialog({
   // Individual user state
   const [userMode, setUserMode] = useState<"grant" | "revoke">("grant");
   const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
-  const [level, setLevel] = useState<DocumentPermissionLevel>("read");
+  const [level, setLevel] = useState<"read" | "write">("read");
   const [userPickerOpen, setUserPickerOpen] = useState(false);
   const [userSearch, setUserSearch] = useState("");
 
@@ -146,24 +140,31 @@ export function BulkEditAccessDialog({
     return roles.sort((a, b) => a.displayName.localeCompare(b.displayName));
   }, [roleQueries, initiativeIds, initiatives]);
 
-  // Roles that are currently assigned on at least one selected document (for revoke)
+  // Resolve a role id to its display info (from the fetched initiative roles).
+  const rolesById = useMemo(() => {
+    const map = new Map<number, SelectableRole>();
+    for (const role of availableRoles) map.set(role.id, role);
+    return map;
+  }, [availableRoles]);
+
+  // Roles that are currently granted on at least one selected document (for revoke)
   const revocableRoles = useMemo(() => {
     const roleMap = new Map<number, SelectableRole>();
     for (const doc of documents) {
-      for (const rp of doc.role_permissions ?? []) {
-        if (!roleMap.has(rp.initiative_role_id)) {
-          roleMap.set(rp.initiative_role_id, {
-            id: rp.initiative_role_id,
-            name: rp.role_name,
-            displayName: rp.role_display_name,
-            initiativeId: doc.initiative_id,
-            initiativeName: doc.initiative?.name ?? `Initiative ${doc.initiative_id}`,
-          });
-        }
+      for (const grant of doc.grants ?? []) {
+        if (grant.role_id == null || roleMap.has(grant.role_id)) continue;
+        const known = rolesById.get(grant.role_id);
+        roleMap.set(grant.role_id, {
+          id: grant.role_id,
+          name: known?.name ?? `role-${grant.role_id}`,
+          displayName: known?.displayName ?? `Role ${grant.role_id}`,
+          initiativeId: doc.initiative_id,
+          initiativeName: doc.initiative?.name ?? `Initiative ${doc.initiative_id}`,
+        });
       }
     }
     return Array.from(roleMap.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [documents]);
+  }, [documents, rolesById]);
 
   const displayRoles = roleMode === "grant" ? availableRoles : revocableRoles;
 
@@ -199,20 +200,19 @@ export function BulkEditAccessDialog({
   const revocableUsers = useMemo(() => {
     const userMap = new Map<number, SelectableUser>();
     for (const doc of documents) {
-      for (const perm of doc.permissions ?? []) {
+      for (const grant of doc.grants ?? []) {
+        const userId = grant.user_id;
         if (
-          perm.level !== "owner" &&
-          perm.user_id !== currentUser?.id &&
-          !userMap.has(perm.user_id)
+          userId != null &&
+          grant.level !== "owner" &&
+          userId !== currentUser?.id &&
+          !userMap.has(userId)
         ) {
           // Try to find user info from initiative members
-          const initiative = doc.initiative;
-          const member = initiative?.members?.find(
-            (m: InitiativeMemberRead) => m.user.id === perm.user_id
-          );
-          userMap.set(perm.user_id, {
-            id: perm.user_id,
-            name: member?.user?.full_name || member?.user?.email || `User ${perm.user_id}`,
+          const member = doc.initiative?.members?.find((m) => m.user.id === userId);
+          userMap.set(userId, {
+            id: userId,
+            name: member?.user?.full_name || member?.user?.email || `User ${userId}`,
             email: member?.user?.email || "",
           });
         }
@@ -285,30 +285,31 @@ export function BulkEditAccessDialog({
 
     setIsPending(true);
     try {
-      const userIds = [...selectedUserIds];
+      const userIds = new Set(selectedUserIds);
+
+      // Rebuild each document's non-owner grant list (the owner is preserved
+      // server-side regardless of what we send).
+      await Promise.all(
+        documents.map((doc) => {
+          const existing = (doc.grants ?? []).filter((g) => g.level !== "owner");
+          let next: ResourceGrantSchema[];
+          if (userMode === "grant") {
+            // Drop any existing per-user grant for the targeted users, then add
+            // them back at the chosen level.
+            next = existing.filter((g) => g.user_id == null || !userIds.has(g.user_id));
+            for (const userId of userIds) {
+              next.push({ user_id: userId, level });
+            }
+          } else {
+            next = existing.filter((g) => g.user_id == null || !userIds.has(g.user_id));
+          }
+          return setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, next);
+        })
+      );
 
       if (userMode === "grant") {
-        await Promise.all(
-          documents.map((doc) =>
-            addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost(guildId, doc.id, {
-              user_ids: userIds,
-              level,
-            })
-          )
-        );
         toast.success(t("bulkAccess.userAccessGranted", { count: documents.length }));
       } else {
-        await Promise.all(
-          documents.map((doc) =>
-            removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost(
-              guildId,
-              doc.id,
-              {
-                user_ids: userIds,
-              }
-            )
-          )
-        );
         toast.success(t("bulkAccess.userAccessRevoked", { count: documents.length }));
       }
 
@@ -341,68 +342,49 @@ export function BulkEditAccessDialog({
       const roleIds = [...selectedRoleIds];
 
       const affectedDocIds = new Set<number>();
+      const updates: Promise<unknown>[] = [];
 
-      if (roleMode === "grant") {
-        // For each document, grant each selected role (only if the role belongs to that doc's initiative)
-        const promises: Promise<unknown>[] = [];
-        for (const doc of documents) {
-          const docRoles = availableRoles.filter(
-            (r) => r.initiativeId === doc.initiative_id && roleIds.includes(r.id)
+      for (const doc of documents) {
+        const existing = (doc.grants ?? []).filter((g) => g.level !== "owner");
+        const grantedRoleIds = new Set(
+          existing.filter((g) => g.role_id != null).map((g) => g.role_id as number)
+        );
+
+        if (roleMode === "grant") {
+          // Only grant roles that belong to this doc's initiative and aren't already granted.
+          const docRoleIds = availableRoles
+            .filter((r) => r.initiativeId === doc.initiative_id && roleIds.includes(r.id))
+            .map((r) => r.id)
+            .filter((id) => !grantedRoleIds.has(id));
+          if (docRoleIds.length === 0) continue;
+          affectedDocIds.add(doc.id);
+          const next: ResourceGrantSchema[] = [
+            ...existing,
+            ...docRoleIds.map((id) => ({ role_id: id, level: roleLevel })),
+          ];
+          updates.push(
+            setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, next)
           );
-          for (const role of docRoles) {
-            // Skip if already assigned
-            const alreadyAssigned = (doc.role_permissions ?? []).some(
-              (rp) => rp.initiative_role_id === role.id
-            );
-            if (!alreadyAssigned) {
-              affectedDocIds.add(doc.id);
-              promises.push(
-                addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost(
-                  guildId,
-                  doc.id,
-                  {
-                    initiative_role_id: role.id,
-                    level: roleLevel,
-                  }
-                )
-              );
-            }
-          }
-        }
-        await Promise.all(promises);
-        const affected = affectedDocIds.size;
-        if (affected === 0) {
-          toast.info(t("bulkAccess.rolesAlreadyAssigned"));
         } else {
-          toast.success(t("bulkAccess.roleAccessGranted", { count: affected }));
+          const toRevoke = roleIds.filter((id) => grantedRoleIds.has(id));
+          if (toRevoke.length === 0) continue;
+          affectedDocIds.add(doc.id);
+          const revokeSet = new Set(toRevoke);
+          const next = existing.filter((g) => g.role_id == null || !revokeSet.has(g.role_id));
+          updates.push(
+            setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, next)
+          );
         }
+      }
+
+      await Promise.all(updates);
+      const affected = affectedDocIds.size;
+      if (affected === 0) {
+        toast.info(t("bulkAccess.rolesAlreadyAssigned"));
+      } else if (roleMode === "grant") {
+        toast.success(t("bulkAccess.roleAccessGranted", { count: affected }));
       } else {
-        // For each document, revoke each selected role
-        const promises: Promise<unknown>[] = [];
-        for (const doc of documents) {
-          for (const roleId of roleIds) {
-            const isAssigned = (doc.role_permissions ?? []).some(
-              (rp) => rp.initiative_role_id === roleId
-            );
-            if (isAssigned) {
-              affectedDocIds.add(doc.id);
-              promises.push(
-                removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete(
-                  guildId,
-                  doc.id,
-                  roleId
-                )
-              );
-            }
-          }
-        }
-        await Promise.all(promises);
-        const affected = affectedDocIds.size;
-        if (affected === 0) {
-          toast.info(t("bulkAccess.rolesAlreadyAssigned"));
-        } else {
-          toast.success(t("bulkAccess.roleAccessRevoked", { count: affected }));
-        }
+        toast.success(t("bulkAccess.roleAccessRevoked", { count: affected }));
       }
 
       void invalidateAllDocuments();
@@ -608,10 +590,7 @@ export function BulkEditAccessDialog({
                     <label htmlFor="userLevel" className="font-medium text-sm">
                       {t("bulkAccess.permissionLevel")}
                     </label>
-                    <Select
-                      value={level}
-                      onValueChange={(v) => setLevel(v as DocumentPermissionLevel)}
-                    >
+                    <Select value={level} onValueChange={(v) => setLevel(v as "read" | "write")}>
                       <SelectTrigger id="userLevel">
                         <SelectValue />
                       </SelectTrigger>

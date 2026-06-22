@@ -84,7 +84,6 @@
   "backToGroup": "Volver al grupo",
   "counterCount_one": "{{count}} contador",
   "counterCount_other": "{{count}} contadores",
-
   "focus": {
     "openFocus": "Abrir pantalla completa",
     "exit": "Salir de la pantalla completa",
@@ -94,13 +93,11 @@
     "notFound": "Contador no encontrado en este grupo"
   },
   "createFirst": "Crea tu primer grupo de contadores",
-
   "settings": "Configuración",
   "settingsDescription": "Gestiona los detalles, el acceso y las opciones avanzadas del grupo de contadores.",
   "details": "Detalles",
   "access": "Acceso",
   "advanced": "Avanzado",
-  "accessDescription": "Controla quién puede ver y editar este grupo de contadores.",
   "dangerZone": "Zona de peligro",
   "dangerZoneDescription": "Acciones destructivas. Los grupos eliminados van a la papelera y se pueden restaurar antes de que finalice el período de retención.",
   "permissionRead": "Puede ver",
@@ -111,7 +108,6 @@
   "userPermissions": "Permisos de usuario",
   "userPermissionsDescription": "Otorga acceso a miembros individuales.",
   "filterByName": "Filtrar por nombre...",
-
   "filters": {
     "heading": "Filtros",
     "show": "Mostrar",

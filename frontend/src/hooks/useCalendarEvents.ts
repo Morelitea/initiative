@@ -11,6 +11,7 @@ import {
   listMyCalendarEventsApiV1MeCalendarEventsGet,
   readCalendarEventApiV1GGuildIdCalendarEventsEventIdGet,
   setAttendeesApiV1GGuildIdCalendarEventsEventIdAttendeesPut,
+  setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut,
   setDocumentsApiV1GGuildIdCalendarEventsEventIdDocumentsPut,
   setTagsApiV1GGuildIdCalendarEventsEventIdTagsPut,
   updateCalendarEventApiV1GGuildIdCalendarEventsEventIdPatch,
@@ -24,10 +25,12 @@ import type {
   CalendarEventUpdate,
   ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams,
   ListMyCalendarEventsApiV1MeCalendarEventsGetParams,
+  ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllCalendarEvents, invalidateCalendarEvent } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -313,6 +316,37 @@ export const useSetEventDocuments = (
     },
     onError: (...args) => {
       toast.error(t("error"));
+      onError?.(...args);
+    },
+    onSettled,
+  });
+};
+
+// ── Grants Mutation (unified resource sharing) ──────────────────────────────
+
+export const useSetCalendarEventGrants = (
+  eventId: number,
+  options?: MutationOpts<CalendarEventRead, ResourceGrantSchema[]>
+) => {
+  const guildId = useActiveGuildId();
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (grants: ResourceGrantSchema[]) => {
+      return setCalendarEventGrantsApiV1GGuildIdCalendarEventsEventIdGrantsPut(
+        guildId,
+        eventId,
+        grants
+      ) as unknown as Promise<CalendarEventRead>;
+    },
+    onSuccess: (...args) => {
+      void invalidateCalendarEvent(eventId);
+      void invalidateAllCalendarEvents();
+      onSuccess?.(...args);
+    },
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "events:error"));
       onError?.(...args);
     },
     onSettled,

@@ -84,7 +84,6 @@
   "backToGroup": "Retour au groupe",
   "counterCount_one": "{{count}} compteur",
   "counterCount_other": "{{count}} compteurs",
-
   "focus": {
     "openFocus": "Ouvrir en plein écran",
     "exit": "Quitter le plein écran",
@@ -94,13 +93,11 @@
     "notFound": "Compteur introuvable dans ce groupe"
   },
   "createFirst": "Créez votre premier groupe de compteurs",
-
   "settings": "Paramètres",
   "settingsDescription": "Gérez les détails, l’accès et les options avancées du groupe de compteurs.",
   "details": "Détails",
   "access": "Accès",
   "advanced": "Avancé",
-  "accessDescription": "Contrôlez qui peut voir et modifier ce groupe de compteurs.",
   "dangerZone": "Zone dangereuse",
   "dangerZoneDescription": "Actions destructives. Les groupes supprimés vont à la corbeille et peuvent être restaurés avant la fin de la période de rétention.",
   "permissionRead": "Peut voir",
@@ -111,7 +108,6 @@
   "userPermissions": "Autorisations des utilisateurs",
   "userPermissionsDescription": "Accordez l’accès à des membres individuels.",
   "filterByName": "Filtrer par nom...",
-
   "filters": {
     "heading": "Filtres",
     "show": "Afficher",

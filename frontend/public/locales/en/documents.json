@@ -177,8 +177,6 @@
     "canEdit": "Can edit",
     "adding": "Adding…",
     "add": "Add",
-    "individualAccessTitle": "Individual access",
-    "individualAccessDescription": "Control who can view and edit this document.",
     "selectedCount": "{{count}} selected",
     "changeAccess": "Change access…",
     "remove": "Remove",

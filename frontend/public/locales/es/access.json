@@ -30,5 +30,24 @@
   "filterByName": "Filtrar por nombre…",
   "selectedCount_one": "{{count}} seleccionado",
   "selectedCount_other": "{{count}} seleccionados",
-  "changeAccess": "Cambiar acceso…"
+  "changeAccess": "Cambiar acceso…",
+  "share": {
+    "title": "Compartir",
+    "allMembers": "Todos los miembros de la iniciativa",
+    "restricted": "Restringido",
+    "allMembersHint": "Todos los miembros de la iniciativa pueden acceder.",
+    "restrictedHint": "Solo las personas y los roles que añadas pueden acceder.",
+    "viewer": "Lector",
+    "editor": "Editor",
+    "owner": "Propietario",
+    "people": "Personas",
+    "roles": "Roles",
+    "addPeople": "Añadir personas",
+    "addRoles": "Añadir roles",
+    "searchPeople": "Buscar personas…",
+    "searchRoles": "Buscar roles…",
+    "noPeople": "No se encontraron personas.",
+    "noRoles": "No se encontraron roles.",
+    "remove": "Eliminar"
+  }
 }

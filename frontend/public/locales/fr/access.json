@@ -30,5 +30,24 @@
   "filterByName": "Filtrer par nom…",
   "selectedCount_one": "{{count}} sélectionné",
   "selectedCount_other": "{{count}} sélectionnés",
-  "changeAccess": "Modifier l'accès…"
+  "changeAccess": "Modifier l'accès…",
+  "share": {
+    "title": "Partage",
+    "allMembers": "Tous les membres de l'initiative",
+    "restricted": "Restreint",
+    "allMembersHint": "Tout le monde dans l'initiative peut y accéder.",
+    "restrictedHint": "Seuls les personnes et rôles que vous ajoutez peuvent y accéder.",
+    "viewer": "Lecteur",
+    "editor": "Éditeur",
+    "owner": "Propriétaire",
+    "people": "Personnes",
+    "roles": "Rôles",
+    "addPeople": "Ajouter des personnes",
+    "addRoles": "Ajouter des rôles",
+    "searchPeople": "Rechercher des personnes…",
+    "searchRoles": "Rechercher des rôles…",
+    "noPeople": "Aucune personne trouvée.",
+    "noRoles": "Aucun rôle trouvé.",
+    "remove": "Supprimer"
+  }
 }

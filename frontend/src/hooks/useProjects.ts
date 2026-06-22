@@ -6,15 +6,8 @@ import type {
   ProjectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGetParams,
   ProjectActivityResponse,
   ProjectListResponse,
-  ProjectPermissionBulkCreate,
-  ProjectPermissionBulkDelete,
-  ProjectPermissionCreate,
-  ProjectPermissionRead,
-  ProjectPermissionUpdate,
   ProjectRead,
-  ProjectRolePermissionCreate,
-  ProjectRolePermissionRead,
-  ProjectRolePermissionUpdate,
+  ResourceGrantSchema,
   TaskStatusCreate,
   TaskStatusDeleteRequest,
   TaskStatusRead,
@@ -22,9 +15,6 @@ import type {
   TaskStatusUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
-  addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost,
-  addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost,
-  addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost,
   archiveProjectApiV1GGuildIdProjectsProjectIdArchivePost,
   attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost,
   createProjectApiV1GGuildIdProjectsPost,
@@ -44,15 +34,11 @@ import {
   listWritableProjectsApiV1GGuildIdProjectsWritableGet,
   projectActivityFeedApiV1GGuildIdProjectsProjectIdActivityGet,
   readProjectApiV1GGuildIdProjectsProjectIdGet,
-  removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete,
-  removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost,
-  removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete,
   reorderProjectsApiV1GGuildIdProjectsReorderPost,
+  setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut,
   unarchiveProjectApiV1GGuildIdProjectsProjectIdUnarchivePost,
   unfavoriteProjectApiV1GGuildIdProjectsProjectIdFavoriteDelete,
   updateProjectApiV1GGuildIdProjectsProjectIdPatch,
-  updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch,
-  updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch,
 } from "@/api/generated/projects/projects";
 import {
   createTaskStatusApiV1GGuildIdProjectsProjectIdTaskStatusesPost,
@@ -529,233 +515,31 @@ export const useToggleProjectPin = (options?: MutationOpts<ProjectRead, TogglePi
   });
 };
 
-// ── Project Member Mutations ────────────────────────────────────────────────
+// ── Project Grants Mutation (unified resource sharing) ──────────────────────
 
-export const useAddProjectMember = (
+export const useSetProjectGrants = (
   projectId: number,
-  options?: MutationOpts<ProjectPermissionRead, ProjectPermissionCreate>
+  options?: MutationOpts<ProjectRead, ResourceGrantSchema[]>
 ) => {
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (data: ProjectPermissionCreate) => {
-      return addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost(
+    mutationFn: async (grants: ResourceGrantSchema[]) => {
+      return setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut(
         guildId,
         projectId,
-        data
-      ) as unknown as Promise<ProjectPermissionRead>;
+        grants
+      ) as unknown as Promise<ProjectRead>;
     },
     onSuccess: (...args) => {
       void invalidateProject(projectId);
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.access.grantError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useUpdateProjectMember = (
-  projectId: number,
-  options?: MutationOpts<ProjectPermissionRead, { userId: number; data: ProjectPermissionUpdate }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ userId, data }: { userId: number; data: ProjectPermissionUpdate }) => {
-      return updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch(
-        guildId,
-        projectId,
-        userId,
-        data
-      ) as unknown as Promise<ProjectPermissionRead>;
-    },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
+      void invalidateAllProjects();
       onSuccess?.(...args);
     },
     onError: (...args) => {
       toast.error(getErrorMessage(args[0], "projects:settings.access.updateError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useRemoveProjectMember = (projectId: number, options?: MutationOpts<void, number>) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (userId: number) => {
-      await removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete(
-        guildId,
-        projectId,
-        userId
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.access.removeError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useAddProjectMembersBulk = (
-  projectId: number,
-  options?: MutationOpts<ProjectPermissionRead[], ProjectPermissionBulkCreate>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: ProjectPermissionBulkCreate) => {
-      return addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost(
-        guildId,
-        projectId,
-        data
-      ) as unknown as Promise<ProjectPermissionRead[]>;
-    },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.access.grantError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useRemoveProjectMembersBulk = (
-  projectId: number,
-  options?: MutationOpts<void, ProjectPermissionBulkDelete>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: ProjectPermissionBulkDelete) => {
-      await removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost(
-        guildId,
-        projectId,
-        data
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.access.removeError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-// ── Project Role Permission Mutations ───────────────────────────────────────
-
-export const useAddProjectRolePermission = (
-  projectId: number,
-  options?: MutationOpts<ProjectRolePermissionRead, ProjectRolePermissionCreate>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: ProjectRolePermissionCreate) => {
-      return addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost(
-        guildId,
-        projectId,
-        data
-      ) as unknown as Promise<ProjectRolePermissionRead>;
-    },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.roleAccess.grantError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useUpdateProjectRolePermission = (
-  projectId: number,
-  options?: MutationOpts<
-    ProjectRolePermissionRead,
-    { roleId: number; data: ProjectRolePermissionUpdate }
-  >
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ roleId, data }: { roleId: number; data: ProjectRolePermissionUpdate }) => {
-      return updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch(
-        guildId,
-        projectId,
-        roleId,
-        data
-      ) as unknown as Promise<ProjectRolePermissionRead>;
-    },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.roleAccess.updateError"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useRemoveProjectRolePermission = (
-  projectId: number,
-  options?: MutationOpts<void, number>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (roleId: number) => {
-      await removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete(
-        guildId,
-        projectId,
-        roleId
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateProject(projectId);
-      void invalidateAllProjects();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "projects:settings.roleAccess.removeError"));
       onError?.(...args);
     },
     onSettled,

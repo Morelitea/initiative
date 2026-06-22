@@ -10,7 +10,6 @@
   "onlyPinnedMatch": "Nur angeheftete Projekte entsprechen deinen Filtern.",
   "accessRestricted": "Zugriff eingeschränkt",
   "accessRestrictedDescription": "Du hast keine Berechtigung, Projekte in dieser Initiative anzuzeigen. Wende dich an einen Administrator, wenn du glaubst, dass dies ein Fehler ist.",
-
   "myProjects": {
     "title": "Meine Projekte",
     "subtitle": "Projekte, auf die du in all deinen Gilden Zugriff hast.",
@@ -31,18 +30,15 @@
     "tasksDone": "{{completed}}/{{total}} erledigt",
     "noTasks": "Keine Aufgaben"
   },
-
   "tabs": {
     "active": "Aktive Projekte",
     "templates": "Vorlagen",
     "archive": "Archiv"
   },
-
   "view": {
     "grid": "Raster",
     "list": "Liste"
   },
-
   "filters": {
     "heading": "Filter",
     "show": "Filter anzeigen",
@@ -78,7 +74,6 @@
     "noStatusesAvailable": "Keine Status verfügbar",
     "showArchived": "Archivierte anzeigen"
   },
-
   "templates": {
     "loading": "Vorlagen werden geladen…",
     "loadError": "Vorlagen konnten nicht geladen werden.",
@@ -90,7 +85,6 @@
     "noTemplatesDescription": "Erstelle eine Vorlage aus jedem beliebigen Projekt in den Projekteinstellungen.",
     "description": "Standardisiere bewährte Praktiken und starte schnell neue Initiativen mithilfe wiederverwendbarer Vorlagen."
   },
-
   "archived": {
     "title": "Archivierte Projekte",
     "subtitle": "Öffne eine Initiative erneut, wenn die Arbeit wieder aufgenommen wird.",
@@ -105,7 +99,6 @@
     "noArchivedDescription": "Aktive Projekte bleiben im Tab „Aktiv“.",
     "noArchivedDescriptionAlt": "Aktive Projekte bleiben im Haupttab für Projekte."
   },
-
   "createDialog": {
     "title": "Projekt erstellen",
     "description": "Gib dem Projekt einen Namen, eine optionale Beschreibung und eine zugehörige Initiative.",
@@ -131,7 +124,6 @@
     "creating": "Wird erstellt…",
     "createProject": "Projekt erstellen"
   },
-
   "detail": {
     "invalidProjectId": "Ungültige Projekt-ID.",
     "backToProjects": "← Zurück zu den Projekten",
@@ -144,7 +136,6 @@
     "projectSettings": "Projekteinstellungen",
     "openProjectSettings": "Projekteinstellungen öffnen"
   },
-
   "overview": {
     "archived": "Archiviert",
     "active": "Aktiv",
@@ -152,7 +143,6 @@
     "templateInfo": "Dieses Projekt ist eine Vorlage. Verwende es, um über den Tab „Vorlagen“ neue Projekte zu erstellen.",
     "archivedInfo": "Dieses Projekt ist archiviert. Hebe die Archivierung in den Einstellungen auf, um Aufgaben hinzuzufügen oder zu aktualisieren."
   },
-
   "tabsBar": {
     "loadingRecent": "Aktuelle Elemente werden geladen…",
     "closeItem": "{{name}} schließen",
@@ -160,18 +150,15 @@
     "closeOthers": "Andere schließen",
     "closeAll": "Alle schließen"
   },
-
   "favorite": {
     "remove": "Aus Favoriten entfernen",
     "add": "Zu Favoriten hinzufügen"
   },
-
   "pin": {
     "pinned": "Angeheftetes Projekt",
     "unpin": "Projekt lösen",
     "pin": "Projekt anheften"
   },
-
   "taskComposer": {
     "title": "Aufgabe erstellen",
     "description": "Füge zu erledigende Arbeit hinzu.",
@@ -196,7 +183,6 @@
     "createTask": "Aufgabe erstellen",
     "createError": "Aufgabe konnte nicht erstellt werden."
   },
-
   "assignee": {
     "emptyMessage": "Lade Initiativmitglieder ein, um Aufgaben zuzuweisen.",
     "searchPlaceholder": "Mitglieder suchen",
@@ -205,7 +191,6 @@
     "clearAssignees": "Zuständige Personen entfernen",
     "you": "Du"
   },
-
   "statuses": {
     "title": "Aufgabenstatus",
     "description": "Ordne die Aufgabenspalten dieses Projekts neu an, benenne sie um oder ändere ihre Kategorie.",
@@ -251,7 +236,6 @@
     "bulkUpdateError": "Aktualisierung von „{{name}}“ fehlgeschlagen: {{error}}",
     "unknownError": "Unbekannter Fehler"
   },
-
   "settings": {
     "loading": "Projekteinstellungen werden geladen...",
     "loadError": "Projekt konnte nicht geladen werden.",
@@ -265,7 +249,6 @@
     "tabAccess": "Zugriff",
     "tabTaskStatuses": "Aufgabenstatus",
     "tabAdvanced": "Erweitert",
-
     "details": {
       "title": "Projektdetails",
       "description": "Aktualisiere das Symbol, den Namen und die Beschreibung, die im gesamten Arbeitsbereich angezeigt werden.",
@@ -290,7 +273,6 @@
       "tagsDescription": "Füge Tags hinzu, um Projekte zu organisieren und zu filtern.",
       "noWriteAccessTags": "Du benötigst Schreibzugriff, um Tags zu verwalten."
     },
-
     "roleAccess": {
       "title": "Rollenzugriff",
       "description": "Gewähre allen Mitgliedern mit einer bestimmten Initiativrolle Zugriff.",
@@ -315,10 +297,7 @@
       "removed": "Rollenzugriff entfernt",
       "removeError": "Rollenzugriff konnte nicht entfernt werden"
     },
-
     "access": {
-      "title": "Individueller Zugriff",
-      "description": "Lege fest, wer dieses Projekt anzeigen und bearbeiten kann.",
       "selected": "{{count}} ausgewählt",
       "changeAccess": "Zugriff ändern...",
       "permissionOwner": "Eigentümer",
@@ -353,7 +332,6 @@
       "bulkRemoved": "Zugriff für ausgewählte Mitglieder entfernt",
       "bulkRemoveError": "Zugriff für ausgewählte Mitglieder konnte nicht entfernt werden"
     },
-
     "templateStatus": {
       "title": "Vorlagenstatus",
       "description": "Wandle dieses Projekt in eine wiederverwendbare Vorlage um oder mache es wieder zu einem Standardprojekt.",
@@ -366,7 +344,6 @@
       "markedAsTemplate": "Projekt als Vorlage markiert",
       "removedFromTemplates": "Projekt aus Vorlagen entfernt"
     },
-
     "duplicate": {
       "title": "Projekt duplizieren",
       "description": "Klone dieses Projekt einschließlich seiner Initiative und Aufgaben, um neue Arbeit anzukurbeln.",
@@ -376,7 +353,6 @@
       "duplicateButton": "Projekt duplizieren",
       "noWriteAccess": "Du benötigst Schreibzugriff, um dieses Projekt zu duplizieren."
     },
-
     "archiveStatus": {
       "title": "Archivierungsstatus",
       "isArchived": "Dieses Projekt ist archiviert.",
@@ -385,7 +361,6 @@
       "archive": "Projekt archivieren",
       "noWriteAccess": "Du benötigst Schreibzugriff, um den Archivierungsstatus zu ändern."
     },
-
     "danger": {
       "title": "Gefahrenzone",
       "description": "Beim Löschen eines Projekts werden es und seine Aufgaben in den Papierkorb verschoben. Sie können vor Ablauf der Aufbewahrungsfrist wiederhergestellt werden.",
@@ -395,7 +370,6 @@
       "deleteConfirm": "Löschen"
     }
   },
-
   "documents": {
     "title": "Dokumente",
     "description": "Hänge Initiativdokumente an, um den Kontext nah an der Projektarbeit zu halten.",
@@ -428,7 +402,6 @@
     "updatedAgo": "Aktualisiert vor {{time}}",
     "attachedAgo": "Angehängt vor {{time}}"
   },
-
   "tasks": {
     "title": "Aufgaben",
     "projectTasks": "Projektaufgaben",
@@ -473,7 +446,6 @@
     "bulkDeleteConfirm": "{{count}} Aufgabe löschen?",
     "bulkDeleteConfirm_other": "{{count}} Aufgaben löschen?"
   },
-
   "table": {
     "reorder": "Neu anordnen",
     "dateWindow": "Datumsfenster",
@@ -495,7 +467,6 @@
     "noTasks": "Noch keine Aufgaben.",
     "manualSortDisabled": "Manuelle Sortierung deaktiviert, <1>setze Spaltensortierung und Zeilengruppierung zurück</1>, um neu anzuordnen."
   },
-
   "kanban": {
     "priority": "Priorität: {{priority}}",
     "starts": "Beginnt: {{date}}",
@@ -511,7 +482,6 @@
     "comments_one": "{{count}} Kommentar",
     "comments_other": "{{count}} Kommentare"
   },
-
   "recurrence": {
     "repeat": "Wiederholen",
     "doesNotRepeat": "Wird nicht wiederholt",
@@ -578,7 +548,6 @@
       "everyNYears": "Alle {{count}} Jahre am {{day}}. {{month}}"
     }
   },
-
   "calendarView": {
     "subtitle": "Sieh Start- und Fälligkeitsdaten von Aufgaben auf einen Blick.",
     "previousMonth": "Vorheriger Monat",
@@ -588,14 +557,11 @@
     "due": "Fällig",
     "more": "+{{count}} weitere"
   },
-
   "progressLabel": "Projektfortschritt",
-
   "preview": {
     "updated": "Aktualisiert {{date}}",
     "tasksDone": "{{completed}}/{{total}} erledigt"
   },
-
   "activitySidebar": {
     "title": "Projektaktivität",
     "activity": "Aktivität",
@@ -606,7 +572,6 @@
     "commentedOn": "kommentierte",
     "loadMore": "Mehr laden"
   },
-
   "ganttView": {
     "title": "Zeitachse",
     "subtitle": "Plane Start- und Fälligkeitsdaten für die nächsten Wochen.",
@@ -620,7 +585,6 @@
     "noTasks": "Keine Aufgaben zum Anzeigen.",
     "outsideRange": "Außerhalb des aktuellen Bereichs"
   },
-
   "export": {
     "title": "Projekt exportieren",
     "description": "Lade eine JSON-Datei herunter, die dieses Projekt, seine Aufgaben, Status, Tags und benutzerdefinierten Eigenschaftswerte enthält.",
@@ -631,7 +595,6 @@
     "success": "Projekt exportiert",
     "error": "Das Projekt konnte nicht exportiert werden. Bitte versuche es erneut."
   },
-
   "import": {
     "title": "Projekt importieren",
     "description": "Erstelle ein neues Projekt aus einer zuvor exportierten JSON-Datei.",

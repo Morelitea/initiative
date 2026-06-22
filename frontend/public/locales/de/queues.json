@@ -84,7 +84,6 @@
   "itemCount_one": "{{count}} Element",
   "itemCount_other": "{{count}} Elemente",
   "createFirst": "Erstelle deinen ersten Ablauf (Queue)",
-
   "linkedUser": "Verknüpftes Mitglied",
   "linkedUserHelp": "Verknüpfe dieses Element optional mit einem Mitglied",
   "selectUser": "Mitglied auswählen...",
@@ -97,13 +96,11 @@
   "selectTask": "Aufgabe verknüpfen...",
   "noTasks": "Keine Aufgaben verknüpft",
   "removeLink": "Entfernen",
-
   "settings": "Einstellungen",
   "settingsDescription": "Verwalte Details, Zugriff und erweiterte Optionen dieses Ablaufs (Queue).",
   "details": "Details",
   "access": "Zugriff",
   "advanced": "Erweitert",
-  "accessDescription": "Lege fest, wer diesen Ablauf (Queue) anzeigen und bearbeiten kann.",
   "dangerZone": "Gefahrenzone",
   "dangerZoneDescription": "Destruktive Aktionen. Gelöschte Abläufe (Queues) landen im Papierkorb und können wiederhergestellt werden, bevor der Aufbewahrungszeitraum endet.",
   "permissionRead": "Kann ansehen",
@@ -133,11 +130,9 @@
   "changeAccess": "Zugriff ändern...",
   "removing": "Wird entfernt...",
   "addAllCount": "Alle hinzufügen ({{count}})",
-
   "viewLabel": "Ansicht",
   "viewList": "Listenansicht",
   "viewOnDeck": "On Deck",
-
   "filters": {
     "heading": "Filter",
     "show": "Anzeigen",

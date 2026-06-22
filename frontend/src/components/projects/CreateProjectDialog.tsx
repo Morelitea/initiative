@@ -1,12 +1,8 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
-import {
-  CreateAccessControl,
-  type RoleGrant,
-  type UserGrant,
-} from "@/components/access/CreateAccessControl";
+import type { InitiativeRead, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import { ShareControl } from "@/components/access/ShareControl";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import {
   Accordion,
@@ -66,9 +62,9 @@ export const CreateProjectDialog = ({
   const [initiativeId, setInitiativeId] = useState<string | null>(defaultInitiativeId);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(NO_TEMPLATE_VALUE);
   const [isTemplateProject, setIsTemplateProject] = useState(false);
-  const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
-  const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
-  const [accessLoading, setAccessLoading] = useState(false);
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
+    { all_initiative_members: true, level: "read" },
+  ]);
 
   const templatesQuery = useTemplateProjects();
 
@@ -123,11 +119,8 @@ export const CreateProjectDialog = ({
       if (!isTemplateProject && selectedTemplateId !== NO_TEMPLATE_VALUE) {
         payload.template_id = Number(selectedTemplateId);
       }
-      if (roleGrants.length > 0) {
-        payload.role_permissions = roleGrants;
-      }
-      if (userGrants.length > 0) {
-        payload.user_permissions = userGrants;
+      if (grants.length > 0) {
+        payload.grants = grants;
       }
       createProjectMutation.mutate(
         payload as unknown as Parameters<typeof createProjectMutation.mutate>[0],
@@ -145,8 +138,7 @@ export const CreateProjectDialog = ({
             );
             setSelectedTemplateId(NO_TEMPLATE_VALUE);
             setIsTemplateProject(false);
-            setRoleGrants([]);
-            setUserGrants([]);
+            setGrants([{ all_initiative_members: true, level: "read" }]);
             onCreated();
           },
         }
@@ -287,14 +279,10 @@ export const CreateProjectDialog = ({
               <AccordionItem value="advanced" className="border-b-0">
                 <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
                 <AccordionContent>
-                  <CreateAccessControl
+                  <ShareControl
                     initiativeId={initiativeId ? Number(initiativeId) : null}
-                    roleGrants={roleGrants}
-                    onRoleGrantsChange={setRoleGrants}
-                    userGrants={userGrants}
-                    onUserGrantsChange={setUserGrants}
-                    addAllMembersDefault
-                    onLoadingChange={setAccessLoading}
+                    grants={grants}
+                    onChange={setGrants}
                   />
                 </AccordionContent>
               </AccordionItem>
@@ -312,7 +300,7 @@ export const CreateProjectDialog = ({
                 >
                   {t("common:cancel")}
                 </Button>
-                <Button type="submit" disabled={createProject.isPending || accessLoading}>
+                <Button type="submit" disabled={createProject.isPending}>
                   {createProject.isPending
                     ? t("createDialog.creating")
                     : t("createDialog.createProject")}

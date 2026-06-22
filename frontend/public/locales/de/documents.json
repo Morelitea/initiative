@@ -177,8 +177,6 @@
     "canEdit": "Kann bearbeiten",
     "adding": "Wird hinzugefügt…",
     "add": "Hinzufügen",
-    "individualAccessTitle": "Individueller Zugriff",
-    "individualAccessDescription": "Steuere, wer dieses Dokument ansehen und bearbeiten kann.",
     "selectedCount": "{{count}} ausgewählt",
     "changeAccess": "Zugriff ändern…",
     "remove": "Entfernen",
