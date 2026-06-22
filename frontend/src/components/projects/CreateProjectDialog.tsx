@@ -119,9 +119,7 @@ export const CreateProjectDialog = ({
       if (!isTemplateProject && selectedTemplateId !== NO_TEMPLATE_VALUE) {
         payload.template_id = Number(selectedTemplateId);
       }
-      if (grants.length > 0) {
-        payload.grants = grants;
-      }
+      payload.grants = grants;
       createProjectMutation.mutate(
         payload as unknown as Parameters<typeof createProjectMutation.mutate>[0],
         {
