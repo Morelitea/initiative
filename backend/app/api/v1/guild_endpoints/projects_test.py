@@ -14,6 +14,7 @@ Tests the project API endpoints at /api/v1/projects including:
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.guild import GuildRole
@@ -715,6 +716,97 @@ async def test_set_project_access_all_members(
     )
     assert r.status_code == 200
     assert r.json()["my_permission_level"] == "read"
+
+
+async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
+    """Read task_assignees straight from the guild schema (superuser session)."""
+    await session.commit()
+    await session.execute(text(f'SET search_path TO "guild_{guild_id}", public'))
+    return set(
+        (
+            await session.execute(
+                text("SELECT user_id FROM task_assignees WHERE task_id = :tid"),
+                {"tid": task_id},
+            )
+        ).scalars()
+    )
+
+
+@pytest.mark.integration
+async def test_set_project_grants_unassigns_demoted_user(
+    client: AsyncClient, session: AsyncSession
+):
+    """A user dropped below write by a grant change is unassigned from the
+    project's tasks (you can't be assigned to tasks you can't edit)."""
+    owner = await create_user(session, email="owner@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=owner, guild=guild)
+    await create_guild_membership(session, user=member, guild=guild)
+
+    initiative = await _create_initiative_with_member(session, guild, owner)
+    from app.testing.factories import create_initiative_member, create_task
+
+    await create_initiative_member(session, initiative, member, role_name="member")
+    project = await _create_project(session, initiative, owner)
+
+    owner_headers = await get_guild_headers(session, guild, owner)
+    # Grant the member write, then assign them to a task.
+    r = await client.put(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
+        headers=owner_headers,
+        json=[{"user_id": member.id, "level": "write"}],
+    )
+    assert r.status_code == 200
+    task = await create_task(session, project, assignees=[member])
+    assert member.id in await _task_assignee_ids(session, guild.id, task.id)
+
+    # Remove the member's grant entirely -> they lose write -> get unassigned.
+    r = await client.put(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
+        headers=owner_headers,
+        json=[],
+    )
+    assert r.status_code == 200
+    assert member.id not in await _task_assignee_ids(session, guild.id, task.id)
+
+
+@pytest.mark.integration
+async def test_set_project_grants_keeps_assignment_when_still_writable(
+    client: AsyncClient, session: AsyncSession
+):
+    """A user who keeps write via another grant (all-members write) stays assigned —
+    the cleanup is effective-access based, not a blunt per-user wipe."""
+    owner = await create_user(session, email="owner@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=owner, guild=guild)
+    await create_guild_membership(session, user=member, guild=guild)
+
+    initiative = await _create_initiative_with_member(session, guild, owner)
+    from app.testing.factories import create_initiative_member, create_task
+
+    await create_initiative_member(session, initiative, member, role_name="member")
+    project = await _create_project(session, initiative, owner)
+
+    owner_headers = await get_guild_headers(session, guild, owner)
+    r = await client.put(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
+        headers=owner_headers,
+        json=[{"user_id": member.id, "level": "write"}],
+    )
+    assert r.status_code == 200
+    task = await create_task(session, project, assignees=[member])
+
+    # Swap the per-user grant for an all-members WRITE grant: the member still has
+    # write, so the assignment must survive.
+    r = await client.put(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
+        headers=owner_headers,
+        json=[{"all_initiative_members": True, "level": "write"}],
+    )
+    assert r.status_code == 200
+    assert member.id in await _task_assignee_ids(session, guild.id, task.id)
 
 
 @pytest.mark.integration
