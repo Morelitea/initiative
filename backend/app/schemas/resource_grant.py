@@ -37,3 +37,16 @@ class ResourceGrantSchema(SanitizedBaseModel):
     user_id: Optional[int] = None
     role_id: Optional[int] = None
     all_initiative_members: bool = False
+
+    @model_validator(mode="after")
+    def exactly_one_grantee(self) -> "ResourceGrantSchema":
+        count = (
+            (self.user_id is not None)
+            + (self.role_id is not None)
+            + self.all_initiative_members
+        )
+        if count != 1:
+            raise ValueError(
+                "Exactly one of user_id, role_id, or all_initiative_members must be set"
+            )
+        return self
