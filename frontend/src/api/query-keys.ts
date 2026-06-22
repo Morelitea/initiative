@@ -46,7 +46,16 @@ export const invalidateTagEntities = (tagId: number) =>
 
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
-export const invalidateAllTasks = () => invalidatePrefix("/api/v1/tasks");
+export const invalidateAllTasks = () =>
+  Promise.all([
+    invalidatePrefix("/api/v1/tasks"),
+    // The cross-guild "my tasks" aggregates (/me/tasks assigned, /me/tasks/created)
+    // are a SEPARATE prefix, so a task change must invalidate them explicitly —
+    // otherwise the my-tasks list stays stale (e.g. a status change shows on the
+    // task detail but not in the list) until the page remounts. Covers both the
+    // actor's own mutation onSuccess and the realtime task event.
+    invalidatePrefix("/api/v1/me/tasks"),
+  ]);
 
 export const invalidateTask = (taskId: number) => invalidateExact([`/api/v1/tasks/${taskId}`]);
 
