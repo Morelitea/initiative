@@ -2264,6 +2264,9 @@ export const useSetProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut = <
  * Replace the project's entire sharing state in one call — the body is the
  * full list of grants (all-initiative-members / per-user / per-role). Every
  * non-owner grant is rebuilt from it; the owner is always preserved.
+ *
+ * Anyone the new grants drop below write access is unassigned from the project's
+ * tasks (you can't be assigned to tasks you can't edit).
  * @summary Set Project Grants
  */
 export const setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut = (
