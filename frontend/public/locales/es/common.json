@@ -6,7 +6,7 @@
   "create": "Crear",
   "close": "Cerrar",
   "confirm": "Confirmar",
-  "loading": "Cargando\u2026",
+  "loading": "Cargando…",
   "search": "Buscar",
   "back": "Volver",
   "next": "Siguiente",
@@ -40,7 +40,7 @@
   "untitled": "Sin título",
   "appName": "initiative",
   "send": "Enviar",
-  "submitting": "Enviando\u2026",
+  "submitting": "Enviando…",
   "clear": "Limpiar",
   "pickEmoji": "Elegir un emoji",
   "previous": "Anterior",
@@ -80,25 +80,7 @@
     "due": "Vence"
   },
   "createAccess": {
-    "advancedOptions": "Opciones avanzadas",
-    "roleAccess": "Acceso por rol",
-    "roleAccessHint": "Otorgar acceso a miembros por rol de iniciativa",
-    "userAccess": "Acceso por usuario",
-    "userAccessHint": "Otorgar acceso a miembros específicos",
-    "selectRoles": "Seleccionar roles...",
-    "selectMembers": "Seleccionar miembros...",
-    "searchRoles": "Buscar roles...",
-    "searchMembers": "Buscar miembros...",
-    "noRoles": "No se encontraron roles",
-    "noMembers": "No se encontraron miembros",
-    "level": "Nivel de acceso",
-    "canView": "Puede ver",
-    "canEdit": "Puede editar",
-    "add": "Agregar",
-    "addAllMembers": "Agregar todos los miembros de la iniciativa",
-    "addAllMembersHint": "Otorgar acceso de lectura a todos los miembros actuales",
-    "noInitiative": "Seleccione una iniciativa primero",
-    "remove": "Eliminar"
+    "advancedOptions": "Opciones avanzadas"
   },
   "deletedUserName": "Usuario eliminado #{{id}}"
 }
