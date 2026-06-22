@@ -20,6 +20,7 @@
     "searchRoles": "Search roles…",
     "noPeople": "No people found.",
     "noRoles": "No roles found.",
-    "remove": "Remove"
+    "remove": "Remove",
+    "settingsDescription": "Choose who can view and edit this."
   }
 }

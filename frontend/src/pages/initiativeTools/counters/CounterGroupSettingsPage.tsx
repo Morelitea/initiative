@@ -224,7 +224,7 @@ export function CounterGroupSettingsPage() {
             <Card>
               <CardHeader>
                 <CardTitle>{t("access")}</CardTitle>
-                <CardDescription>{t("access:share.restrictedHint")}</CardDescription>
+                <CardDescription>{t("access:share.settingsDescription")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <ShareControl

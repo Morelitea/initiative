@@ -121,6 +121,17 @@ export const ProjectDetailPage = () => {
       });
     }
 
+    // All-initiative-members grant with write: every initiative member is assignable
+    const allMembersWritable = project.grants?.some(
+      (grant) =>
+        grant.all_initiative_members && (grant.level === "owner" || grant.level === "write")
+    );
+    if (allMembersWritable) {
+      project.initiative?.members?.forEach((member) => {
+        allowed.add(member.user.id);
+      });
+    }
+
     return allUsers
       .filter((item) => allowed.has(item.id))
       .map((item) => ({
