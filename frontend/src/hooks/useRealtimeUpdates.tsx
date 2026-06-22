@@ -159,19 +159,23 @@ export const useRealtimeUpdates = () => {
 
       websocket.onmessage = (event) => {
         try {
+          // The realtime stream is a content-free invalidation bus: each message
+          // is an id envelope ({resource, action, ids}), never a serialized
+          // model. We read only the ids and refetch through the normal
+          // (RLS + DAC gated) REST path — that refetch is the authorization gate.
           const payload = JSON.parse(event.data) as {
             resource?: string;
-            data?: Record<string, unknown>;
+            ids?: Record<string, unknown>;
           };
           switch (payload.resource) {
             case "task":
-              handleTaskEvent(payload.data);
+              handleTaskEvent(payload.ids);
               break;
             case "project":
               handleProjectEvent();
               break;
             case "comment":
-              handleCommentEvent(payload.data);
+              handleCommentEvent(payload.ids);
               break;
             default:
               break;

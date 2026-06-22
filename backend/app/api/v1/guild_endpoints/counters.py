@@ -64,7 +64,7 @@ from app.services import permissions as permissions_service
 from app.services import recent_views as recent_views_service
 from app.api import resource_access
 from app.services import rls as rls_service
-from app.services.counter_realtime import counter_manager
+from app.services.stream_authz import authority as stream_authority
 from app.services.ws_auth import authenticate_ws_token
 from app.schemas.recent_view import RecentViewWrite
 
@@ -73,6 +73,35 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+
+
+async def _emit_counter(
+    session,
+    group_id: int,
+    event_type: str,
+    data: dict,
+    *,
+    guild_id: int | None = None,
+) -> None:
+    """Fan a counter event out through the streaming spine, guild-namespaced.
+
+    Pass ``guild_id`` when the caller already holds it — required for the delete
+    path, where the row is soft-deleted before this runs so a post-commit lookup
+    would hit the global ``deleted_at IS NULL`` filter and find nothing, silently
+    dropping the ``group_deleted`` event. Otherwise the group's guild is resolved
+    from the (guild-routed) session (``reapply_rls_context`` keeps it valid after
+    a commit). One streaming spine; rooms are guild-namespaced (group ids are
+    per-schema)."""
+    if guild_id is None:
+        await reapply_rls_context(session)
+        guild_id = (
+            await session.exec(
+                select(CounterGroup.guild_id).where(CounterGroup.id == group_id)
+            )
+        ).one_or_none()
+        if guild_id is None:
+            return
+    await stream_authority.emit(guild_id, "counter_group", group_id, event_type, data)
 
 
 # ---------------------------------------------------------------------------
@@ -424,8 +453,8 @@ async def update_counter_group(
         ),
     )
     if updated:
-        await counter_manager.broadcast(
-            group_id, "group_updated", result.model_dump(mode="json")
+        await _emit_counter(
+            session, group_id, "group_updated", result.model_dump(mode="json")
         )
     return result
 
@@ -457,7 +486,16 @@ async def delete_counter_group(
         retention_days=retention_days,
     )
     await session.commit()
-    await counter_manager.broadcast(group_id, "group_deleted", {"id": group_id})
+    # Pass guild_id explicitly: the group is soft-deleted, so _emit_counter's
+    # fallback lookup (deleted_at IS NULL filtered) would find nothing and drop
+    # the event.
+    await _emit_counter(
+        session,
+        group_id,
+        "group_deleted",
+        {"id": group_id},
+        guild_id=guild_context.guild_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -511,8 +549,8 @@ async def add_counter(
             status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
         )
     result = serialize_counter(hydrated)
-    await counter_manager.broadcast(
-        group_id, "counter_added", result.model_dump(mode="json")
+    await _emit_counter(
+        session, group_id, "counter_added", result.model_dump(mode="json")
     )
     return result
 
@@ -604,8 +642,8 @@ async def update_counter(
             status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
         )
     result = serialize_counter(hydrated)
-    await counter_manager.broadcast(
-        group_id, "counter_updated", result.model_dump(mode="json")
+    await _emit_counter(
+        session, group_id, "counter_updated", result.model_dump(mode="json")
     )
     return result
 
@@ -637,7 +675,7 @@ async def delete_counter(
         retention_days=retention_days,
     )
     await session.commit()
-    await counter_manager.broadcast(group_id, "counter_removed", {"id": counter_id})
+    await _emit_counter(session, group_id, "counter_removed", {"id": counter_id})
 
 
 # ---------------------------------------------------------------------------
@@ -660,8 +698,8 @@ async def _commit_and_broadcast_count(
             status_code=status.HTTP_404_NOT_FOUND, detail=CounterMessages.NOT_FOUND
         )
     result = serialize_counter(hydrated)
-    await counter_manager.broadcast(
-        group_id, "count_changed", result.model_dump(mode="json")
+    await _emit_counter(
+        session, group_id, "count_changed", result.model_dump(mode="json")
     )
     return result
 
@@ -752,8 +790,8 @@ async def reset_all_counters(
             hydrated, current_user, guild_context
         ),
     )
-    await counter_manager.broadcast(
-        group_id, "counters_reset", result.model_dump(mode="json")
+    await _emit_counter(
+        session, group_id, "counters_reset", result.model_dump(mode="json")
     )
     return result
 
@@ -782,8 +820,8 @@ async def sort_counters(
             hydrated, current_user, guild_context
         ),
     )
-    await counter_manager.broadcast(
-        group_id, "counters_reordered", result.model_dump(mode="json")
+    await _emit_counter(
+        session, group_id, "counters_reordered", result.model_dump(mode="json")
     )
     return result
 
@@ -843,7 +881,8 @@ async def set_counter_group_grants(
             hydrated, current_user, guild_context
         ),
     )
-    await counter_manager.broadcast(
+    await _emit_counter(
+        session,
         group_id,
         "permissions_changed",
         {"grants": [g.model_dump(mode="json") for g in result.grants]},
@@ -945,8 +984,32 @@ async def websocket_counter_group(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-    await counter_manager.connect(group_id, websocket)
     logger.info(f"Counter WS: user {user.id} joined group {group_id}")
+
+    # The streaming spine owns the socket lifecycle, fan-out, and continuous,
+    # every-level re-authorization: a grant / membership / role / PAM change
+    # disconnects this socket — immediately for guild/initiative-level removal
+    # (revoke_user), within the bounded interval for within-initiative DAC. The
+    # check re-runs the full join (establish_guild_access → load the group under
+    # RLS → DAC).
+    async def _authorize(check_session, check_user):
+        grp = await counters_service.get_counter_group(check_session, group_id)
+        if grp is None or grp.guild_id != guild_id:
+            return False
+        return (
+            counters_service.compute_counter_group_permission(grp, check_user.id)
+            is not None
+        )
+
+    await stream_authority.join(
+        websocket,
+        user,
+        guild_id=guild_id,
+        initiative_id=group.initiative_id,
+        resource_type="counter_group",
+        resource_id=group_id,
+        authorize=_authorize,
+    )
 
     try:
         while True:
@@ -954,7 +1017,7 @@ async def websocket_counter_group(
     except WebSocketDisconnect:
         pass
     finally:
-        await counter_manager.disconnect(group_id, websocket)
+        await stream_authority.leave(websocket)
         logger.info(f"Counter WS: user {user.id} left group {group_id}")
 
 

@@ -32,6 +32,7 @@ from app.core.messages import AdminMessages, SettingsMessages
 from app.services import user_tokens
 from app.services import csv_export
 from app.services import email as email_service
+from app.services.stream_authz import authority as stream_authority
 from app.services import initiatives as initiatives_service
 from app.services import users as users_service
 from app.services import guilds as guilds_service
@@ -711,6 +712,9 @@ async def admin_update_guild_member_role(
     target_membership.role = payload.role
     session.add(target_membership)
     await session.commit()
+    # Guild role change (e.g. admin → member) may reduce content access — re-check
+    # this user's live content streams immediately (matches the other paths).
+    await stream_authority.revoke_user(guild_id, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -843,3 +843,31 @@ async def test_duplicate_counter_group_read_user_becomes_owner(
     )
     assert response.status_code == 201, response.text
     assert response.json()["my_permission_level"] == "owner"
+
+
+@pytest.mark.integration
+async def test_delete_counter_group_still_emits_group_deleted(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Deleting a group must still emit ``group_deleted``. Regression: the group
+    is soft-deleted before _emit_counter runs, so its fallback guild lookup is
+    hidden by the global deleted_at IS NULL filter — the delete path must pass
+    guild_id explicitly or the event is silently dropped."""
+    admin, guild, initiative = await _setup_admin(session)
+    headers = await get_guild_headers(session, guild, admin)
+    group = await _create_group(client, headers, guild, initiative.id)
+
+    from app.services import stream_authz
+
+    emitted: list[tuple] = []
+
+    async def _record(guild_id, resource_type, resource_id, event_type, data):
+        emitted.append((guild_id, resource_type, resource_id, event_type))
+
+    monkeypatch.setattr(stream_authz.authority, "emit", _record)
+
+    resp = await client.delete(
+        f"/api/v1/g/{guild.id}/counter-groups/{group['id']}", headers=headers
+    )
+    assert resp.status_code == 204, resp.text
+    assert (guild.id, "counter_group", group["id"], "group_deleted") in emitted

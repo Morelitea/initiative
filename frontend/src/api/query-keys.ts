@@ -35,6 +35,19 @@ const invalidateExact = (queryKey: readonly unknown[]) =>
     },
   });
 
+/**
+ * Invalidate a resource across BOTH its guild-scoped queries and its cross-guild
+ * "my" aggregate. Guild-scoped keys (`/api/v1/g/{id}/<r>`) normalize to
+ * `/api/v1/<r>` via guildAgnostic, but the `/api/v1/me/<r>` aggregates are a
+ * SEPARATE prefix that a single resource prefix never matches — so a change must
+ * invalidate both or the "my <resource>" list goes stale until remount.
+ */
+const invalidateResourceAndMe = (resource: string) =>
+  Promise.all([
+    invalidatePrefix(`/api/v1/${resource}`),
+    invalidatePrefix(`/api/v1/me/${resource}`),
+  ]);
+
 // ── Tags ─────────────────────────────────────────────────────────────────────
 
 export const invalidateAllTags = () => invalidatePrefix("/api/v1/tags");
@@ -46,7 +59,7 @@ export const invalidateTagEntities = (tagId: number) =>
 
 // ── Tasks ────────────────────────────────────────────────────────────────────
 
-export const invalidateAllTasks = () => invalidatePrefix("/api/v1/tasks");
+export const invalidateAllTasks = () => invalidateResourceAndMe("tasks");
 
 export const invalidateTask = (taskId: number) => invalidateExact([`/api/v1/tasks/${taskId}`]);
 
@@ -55,7 +68,7 @@ export const invalidateTaskSubtasks = (taskId: number) =>
 
 // ── Projects ─────────────────────────────────────────────────────────────────
 
-export const invalidateAllProjects = () => invalidatePrefix("/api/v1/projects");
+export const invalidateAllProjects = () => invalidateResourceAndMe("projects");
 
 export const invalidateProject = (projectId: number) =>
   invalidateExact([`/api/v1/projects/${projectId}`]);
@@ -74,7 +87,7 @@ export const invalidateWritableProjects = () => invalidateExact([`/api/v1/projec
 
 // ── Documents ────────────────────────────────────────────────────────────────
 
-export const invalidateAllDocuments = () => invalidatePrefix("/api/v1/documents");
+export const invalidateAllDocuments = () => invalidateResourceAndMe("documents");
 
 export const invalidateDocument = (documentId: number) =>
   invalidateExact([`/api/v1/documents/${documentId}`]);
@@ -209,7 +222,7 @@ export const invalidateCounterGroup = (groupId: number) =>
 
 // ── Calendar Events ─────────────────────────────────────────────────────────
 
-export const invalidateAllCalendarEvents = () => invalidatePrefix("/api/v1/calendar-events");
+export const invalidateAllCalendarEvents = () => invalidateResourceAndMe("calendar-events");
 
 export const invalidateCalendarEvent = (eventId: number) =>
   invalidateExact([`/api/v1/calendar-events/${eventId}`]);

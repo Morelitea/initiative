@@ -51,6 +51,7 @@ from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
+from app.services.stream_authz import authority as stream_authority
 from app.services import users as users_service
 from app.services import api_keys as api_keys_service
 from app.services import csv_export
@@ -947,3 +948,6 @@ async def delete_user(
 
     await session.delete(membership)
     await session.commit()
+    # Kicked from the guild — drop the user's live content streams immediately
+    # (guild-level access change), consistent with the other removal paths.
+    await stream_authority.revoke_user(guild_context.guild_id, user_id)

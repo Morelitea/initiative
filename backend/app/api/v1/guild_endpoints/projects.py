@@ -175,27 +175,21 @@ async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -
         setattr(project, "_task_summary", summary)
 
 
-def _project_payload(
-    project: Project,
-    *,
-    my_permission_level: str | None = None,
-    user_id: int | None = None,
-) -> dict:
-    payload = ProjectRead.model_validate(project)
-    if project.initiative:
-        payload.initiative = serialize_initiative(project.initiative)
-    summary = getattr(project, "_task_summary", None)
-    if not isinstance(summary, ProjectTaskSummary):
-        summary = ProjectTaskSummary()
-    payload = payload.model_copy(
-        update={
-            "documents": _project_documents(project, user_id=user_id),
-            "task_summary": summary,
-            "grants": permissions_service.serialize_grants(project),
-            "my_permission_level": my_permission_level,
-        }
+async def _broadcast_project(project: Project, action: str) -> None:
+    """Emit a content-free project signal to the project's initiative room.
+
+    The realtime bus carries ids only — the client refetches through the
+    RLS-gated REST path, which is the authorization gate. ``guild_id`` +
+    ``initiative_id`` come straight off the row so the signal lands in the right
+    per-guild-schema initiative room (ids are per-schema, so both are required).
+    """
+    await broadcast_event(
+        project.guild_id,
+        project.initiative_id,
+        "project",
+        action,
+        {"project_id": project.id},
     )
-    return payload.model_dump(mode="json")
 
 
 async def _get_project_or_404(
@@ -1125,19 +1119,7 @@ async def create_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [project])
-    await broadcast_event(
-        guild_context.guild_id,
-        "project",
-        "created",
-        _project_payload(
-            project,
-            my_permission_level=_compute_my_permission_level(
-                project,
-                current_user.id,
-            ),
-            user_id=current_user.id,
-        ),
-    )
+    await _broadcast_project(project, "created")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1167,19 +1149,7 @@ async def archive_project(
         await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
-    await broadcast_event(
-        guild_context.guild_id,
-        "project",
-        "updated",
-        _project_payload(
-            updated,
-            my_permission_level=_compute_my_permission_level(
-                updated,
-                current_user.id,
-            ),
-            user_id=current_user.id,
-        ),
-    )
+    await _broadcast_project(updated, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1314,19 +1284,7 @@ async def duplicate_project(
                 guild_id=guild_context.guild_id,
             )
     await _attach_task_summaries(session, [new_project])
-    await broadcast_event(
-        guild_context.guild_id,
-        "project",
-        "created",
-        _project_payload(
-            new_project,
-            my_permission_level=_compute_my_permission_level(
-                new_project,
-                current_user.id,
-            ),
-            user_id=current_user.id,
-        ),
-    )
+    await _broadcast_project(new_project, "created")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1356,19 +1314,7 @@ async def unarchive_project(
         await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
-    await broadcast_event(
-        guild_context.guild_id,
-        "project",
-        "updated",
-        _project_payload(
-            updated,
-            my_permission_level=_compute_my_permission_level(
-                updated,
-                current_user.id,
-            ),
-            user_id=current_user.id,
-        ),
-    )
+    await _broadcast_project(updated, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1639,19 +1585,7 @@ async def update_project(
     await reapply_rls_context(session)
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [project])
-    await broadcast_event(
-        guild_context.guild_id,
-        "project",
-        "updated",
-        _project_payload(
-            project,
-            my_permission_level=_compute_my_permission_level(
-                project,
-                current_user.id,
-            ),
-            user_id=current_user.id,
-        ),
-    )
+    await _broadcast_project(project, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1700,19 +1634,7 @@ async def attach_project_document(
         project_id, session, guild_context.guild_id
     )
     await _attach_task_summaries(session, [updated_project])
-    await broadcast_event(
-        guild_context.guild_id,
-        "project",
-        "updated",
-        _project_payload(
-            updated_project,
-            my_permission_level=_compute_my_permission_level(
-                updated_project,
-                current_user.id,
-            ),
-            user_id=current_user.id,
-        ),
-    )
+    await _broadcast_project(updated_project, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1760,19 +1682,7 @@ async def detach_project_document(
         project_id, session, guild_context.guild_id
     )
     await _attach_task_summaries(session, [updated_project])
-    await broadcast_event(
-        guild_context.guild_id,
-        "project",
-        "updated",
-        _project_payload(
-            updated_project,
-            my_permission_level=_compute_my_permission_level(
-                updated_project,
-                current_user.id,
-            ),
-            user_id=current_user.id,
-        ),
-    )
+    await _broadcast_project(updated_project, "updated")
     return await _project_read_for_user(
         session,
         current_user,
@@ -1881,9 +1791,7 @@ async def delete_project(
         retention_days=retention_days,
     )
     await session.commit()
-    await broadcast_event(
-        guild_context.guild_id, "project", "deleted", {"id": project_id}
-    )
+    await _broadcast_project(project, "deleted")
 
 
 @router.put("/{project_id}/tags", response_model=ProjectRead)

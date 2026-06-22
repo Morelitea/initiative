@@ -25,6 +25,7 @@ from app.schemas.access_grant import (
     BreakGlassCreate,
 )
 from app.services import access_grants as service
+from app.services.stream_authz import authority as stream_authority
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 router = APIRouter()
@@ -252,6 +253,9 @@ async def revoke_access_grant(
         _raise(exc)
     read = await _one(session, grant)
     await session.commit()
+    # PAM access revoked — drop the grantee's live content streams in that guild
+    # immediately, don't wait for the bounded re-auth tick.
+    await stream_authority.revoke_user(grant.guild_id, grant.user_id)
     return read
 
 
