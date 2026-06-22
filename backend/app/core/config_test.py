@@ -49,11 +49,15 @@ def test_secret_key_accepts_strong_value():
 
 def test_secret_key_failure_points_at_safe_rotation_path():
     """The boot-crash message must steer operators to the rotation path, not the
-    destructive 'just generate a new one' fix — SECRET_KEY encrypts stored data."""
+    destructive 'just generate a new one' fix — SECRET_KEY encrypts stored data. It
+    must lead with the automatic restart flow (issue #730: the bare CLI instruction
+    left operators unsure where to run it), keeping the CLI only as an advanced note."""
     with pytest.raises(ValidationError) as exc:
         _settings(SECRET_KEY="tooshort")
     msg = str(exc.value)
     assert "PREVIOUS_SECRET_KEY" in msg
+    assert "restart" in msg
+    assert "automatically" in msg
     assert "app.db.secret_key_rotation" in msg
 
 

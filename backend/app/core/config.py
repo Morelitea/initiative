@@ -84,8 +84,11 @@ _SECRET_KEY_ROTATION_HINT = (
     " To CHANGE SECRET_KEY on an existing deployment, do NOT swap it directly — it "
     "encrypts stored data (emails, OIDC/SMTP/AI secrets) and roots email lookup, so a "
     "bare swap locks out every user and orphans those secrets. Instead set the old "
-    "value as PREVIOUS_SECRET_KEY, set SECRET_KEY to the new key, and run "
-    "`python -m app.db.secret_key_rotation`."
+    "value as PREVIOUS_SECRET_KEY, set SECRET_KEY to the new key, and restart — the "
+    "server re-encrypts the stored data automatically on startup. Once the logs report "
+    "the rotation is complete, UNSET PREVIOUS_SECRET_KEY. (Advanced: you can instead "
+    "run `python -m app.db.secret_key_rotation` from the backend/ directory to rotate "
+    "out-of-band, but a restart is all that's required.)"
 )
 
 
