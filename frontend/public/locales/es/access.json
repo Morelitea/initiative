@@ -21,6 +21,8 @@
     "noPeople": "No se encontraron personas.",
     "noRoles": "No se encontraron roles.",
     "remove": "Eliminar",
+    "fullAccess": "Acceso total",
+    "fullAccessHint": "Este rol puede ver y editar todo en esta iniciativa, por lo que siempre es editor aquí.",
     "settingsDescription": "Elige quién puede ver y editar esto."
   }
 }

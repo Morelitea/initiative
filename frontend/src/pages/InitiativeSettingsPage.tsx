@@ -285,6 +285,7 @@ export const InitiativeSettingsPage = () => {
         <InitiativeSettingsRolesTab
           initiativeId={initiativeId}
           canManageMembers={canManageMembers}
+          isGuildAdmin={isGuildAdmin}
           onOpenCreateRoleDialog={() => setShowNewRoleDialog(true)}
           onDeleteRole={setRoleToDelete}
           onRenameRole={(role) => {

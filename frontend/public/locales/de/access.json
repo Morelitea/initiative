@@ -21,6 +21,8 @@
     "noPeople": "Keine Personen gefunden.",
     "noRoles": "Keine Rollen gefunden.",
     "remove": "Entfernen",
+    "fullAccess": "Vollzugriff",
+    "fullAccessHint": "Diese Rolle kann alle Inhalte dieser Initiative ansehen und bearbeiten und ist daher hier immer Bearbeiter.",
     "settingsDescription": "Legen Sie fest, wer dies ansehen und bearbeiten kann."
   }
 }

@@ -104,6 +104,8 @@
     "addCustomRole": "Add custom role",
     "builtIn": "Built-in",
     "manager": "Manager",
+    "fullAccess": "Full access",
+    "fullAccessDescription": "Overrides item sharing: this role can open and edit every item in the initiative even when it isn't shared with them, and can manage who else has access.",
     "membersCount": "Members",
     "dangerTitle": "Danger zone",
     "dangerDescription": "Deleting an initiative removes all of its projects, tasks, and documents.",

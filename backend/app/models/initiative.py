@@ -125,6 +125,15 @@ class InitiativeRoleModel(SQLModel, table=True):
     display_name: str = Field(max_length=100)  # e.g., "Project Manager"
     is_builtin: bool = Field(default=False)  # true for PM/Member
     is_manager: bool = Field(default=False)  # counts toward manager constraint
+    # "Full access": members with this role view/edit ALL content in the
+    # initiative regardless of how each item is shared, and may manage sharing
+    # (the gate-4 / DAC override, scoped to this one initiative). Off by default;
+    # only a guild admin may turn it on, and only on the built-in project_manager
+    # role. See history/initiative-admin-override-design.md.
+    override_share_restrictions: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     position: int = Field(default=0)  # for ordering in UI
 
     initiative: Optional["Initiative"] = Relationship(back_populates="roles")

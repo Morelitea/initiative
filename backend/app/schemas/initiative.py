@@ -63,6 +63,9 @@ class InitiativeRoleRead(SanitizedBaseModel):
     display_name: str
     is_builtin: bool
     is_manager: bool
+    # "Full access": this role views/edits all initiative content regardless of
+    # sharing and may manage sharing. Guild-admin-settable, project_manager only.
+    override_share_restrictions: bool = False
     position: int
     permissions: Dict[PermissionKey, bool] = Field(default_factory=dict)
     member_count: int = 0
@@ -82,6 +85,9 @@ class InitiativeRoleUpdate(SanitizedBaseModel):
 
     display_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     is_manager: Optional[bool] = None
+    # "Full access" toggle. Only a guild admin may change it, and only on the
+    # built-in project_manager role (enforced in the endpoint).
+    override_share_restrictions: Optional[bool] = None
     permissions: Optional[Dict[PermissionKey, bool]] = None
 
 
@@ -115,6 +121,11 @@ class MyInitiativePermissions(SanitizedBaseModel):
     role_name: Optional[str] = None
     role_display_name: Optional[str] = None
     is_manager: bool = False
+    # True when the current user can view/edit every item in this initiative
+    # regardless of sharing, and manage sharing — a guild admin, or a member
+    # whose role has "Full access" (override_share_restrictions). Drives the
+    # client's manage-sharing affordances.
+    override_share_restrictions: bool = False
     permissions: Dict[PermissionKey, bool] = Field(default_factory=dict)
     # Flat initiative-level master switch for the optional embedded
     # advanced tool. Mirrored here so the proprietary embed backend can
@@ -200,6 +211,7 @@ def serialize_role(
         display_name=role.display_name,
         is_builtin=role.is_builtin,
         is_manager=role.is_manager,
+        override_share_restrictions=getattr(role, "override_share_restrictions", False),
         position=role.position,
         permissions=permissions,
         member_count=member_count,

@@ -29,9 +29,21 @@ const roles: InitiativeRoleRead[] = [
     display_name: "Player",
     is_builtin: false,
     is_manager: false,
+    override_share_restrictions: false,
     position: 0,
     permissions: {},
     member_count: 2,
+  },
+  {
+    id: 202,
+    name: "project_manager",
+    display_name: "Project Manager",
+    is_builtin: true,
+    is_manager: true,
+    override_share_restrictions: true,
+    position: 1,
+    permissions: {},
+    member_count: 1,
   },
 ];
 
@@ -97,6 +109,21 @@ describe("ShareControl", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     const next = onChange.mock.calls[0][0] as ResourceGrantSchema[];
     expect(next).toContainEqual({ user_id: 101, level: "read" });
+  });
+
+  it("renders a full-access role as a locked, non-removable Editor in restricted mode", () => {
+    // Restricted mode (no all-members grant) and no stored role grant for the PM
+    // role — its presence in the Roles list is purely from override_share_restrictions.
+    const onChange = vi.fn();
+
+    renderWithProviders(<ShareControl initiativeId={1} grants={[]} onChange={onChange} />);
+
+    const rolesSection = screen.getByText("Roles").closest("div")?.parentElement as HTMLElement;
+    expect(within(rolesSection).getByText("Project Manager")).toBeInTheDocument();
+    expect(within(rolesSection).getByText("Full access")).toBeInTheDocument();
+    expect(within(rolesSection).getByText("Editor")).toBeInTheDocument();
+    // No remove control — a full-access role can't be removed from sharing.
+    expect(within(rolesSection).queryByRole("button", { name: "Remove" })).not.toBeInTheDocument();
   });
 
   it("shows the owner as a fixed, non-editable row when ownerId is given", () => {

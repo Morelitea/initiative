@@ -21,6 +21,8 @@
     "noPeople": "No people found.",
     "noRoles": "No roles found.",
     "remove": "Remove",
+    "fullAccess": "Full access",
+    "fullAccessHint": "This role can view and edit everything in this initiative, so it's always an editor here.",
     "settingsDescription": "Choose who can view and edit this."
   }
 }

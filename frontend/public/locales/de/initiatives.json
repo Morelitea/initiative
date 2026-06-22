@@ -104,6 +104,8 @@
     "addCustomRole": "Benutzerdefinierte Rolle hinzufügen",
     "builtIn": "Integriert",
     "manager": "Manager",
+    "fullAccess": "Vollzugriff",
+    "fullAccessDescription": "Überschreibt die Freigabe einzelner Elemente: Diese Rolle kann jedes Element der Initiative öffnen und bearbeiten, auch wenn es nicht für sie freigegeben ist, und kann verwalten, wer sonst Zugriff hat.",
     "membersCount": "Mitglieder",
     "dangerTitle": "Gefahrenzone",
     "dangerDescription": "Beim Löschen einer Initiative werden alle ihre Projekte, Aufgaben und Dokumente entfernt.",

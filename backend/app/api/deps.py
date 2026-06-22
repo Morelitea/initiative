@@ -12,7 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.pam_context import set_active_grant
-from app.core.role_context import set_active_role
+from app.core.role_context import set_active_role, set_override_sharing_initiatives
 from app.core.messages import AuthMessages, GuildMessages
 from app.core.security import (
     AutoDelegationVerificationError,
@@ -465,6 +465,9 @@ async def _apply_guild_session_context(
         # Still grant-gated: this path is only reached because a live grant exists.
         set_active_grant(None, None)
         set_active_role(guild_context.guild_id, GuildRole.admin.value)
+        # Break-glass acts as a full guild admin, which already bypasses gate 4
+        # everywhere; the per-initiative "Full access" set is moot here.
+        set_override_sharing_initiatives(None)
         await set_rls_context(
             session,
             user_id=current_user.id,
@@ -490,6 +493,8 @@ async def _apply_guild_session_context(
         # paths (initiative-scope guild-admin bypass) don't treat the grantee
         # as a member.
         set_active_role(None, None)
+        # A PAM grantee holds no initiative role, so no "Full access" override.
+        set_override_sharing_initiatives(None)
         # Leave current_guild_id unset — the existing write policies treat a
         # matching current_guild_id as proof of membership. Scope the grant via
         # pam_guild_id instead.
@@ -519,6 +524,15 @@ async def _apply_guild_session_context(
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role.value,
     )
+    # Precompute the initiatives where this member holds "Full access" so the
+    # sync DAC checks can apply the gate-4 override without an async query. Runs
+    # in the routed guild schema (after SET ROLE), so it sees this guild's roles.
+    from app.services import rls as rls_service
+
+    override_ids = await rls_service.override_sharing_initiative_ids(
+        session, user_id=current_user.id
+    )
+    set_override_sharing_initiatives(frozenset(override_ids))
     return session
 
 
