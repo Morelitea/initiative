@@ -17,9 +17,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings as app_config
 from app.core.email_i18n import email_t
 from app.core.encryption import decrypt_field, SALT_SMTP_PASSWORD
-from app.models.app_setting import AppSetting
-from app.models.user import User
-from app.services import app_settings as app_settings_service
+from app.models.platform.app_setting import AppSetting
+from app.models.platform.user import User
+from app.services.platform import app_settings as app_settings_service
 
 try:  # premailer inlines our <style> rules so they survive Gmail/Outlook stripping <style>
     from premailer import transform as _premailer_transform

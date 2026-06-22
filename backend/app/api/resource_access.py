@@ -31,11 +31,11 @@ from app.core.messages import (
     QueueMessages,
 )
 from app.core.pam_context import has_active_grant
-from app.models.guild import GuildRole
-from app.models.user import User
-from app.services import counters as counters_service
+from app.models.platform.guild import GuildRole
+from app.models.platform.user import User
+from app.services.tenant import counters as counters_service
 from app.services import permissions as permissions_service
-from app.services import queues as queues_service
+from app.services.tenant import queues as queues_service
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 CurrentUserDep = Annotated[User, Depends(get_current_active_user)]

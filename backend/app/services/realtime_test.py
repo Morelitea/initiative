@@ -22,9 +22,9 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import establish_guild_access
-from app.api.v1.guild_endpoints.events import _accessible_initiative_ids
-from app.models.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
-from app.models.guild import GuildRole
+from app.api.v1.tenant_endpoints.events import _accessible_initiative_ids
+from app.models.platform.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
+from app.models.platform.guild import GuildRole
 from app.services import realtime
 from app.services.realtime import ConnectionManager, broadcast_event, manager
 from app.testing import (

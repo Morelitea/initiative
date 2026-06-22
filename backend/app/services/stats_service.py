@@ -9,11 +9,11 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.initiative import Initiative
-from app.models.project import Project
-from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
-from app.models.user import User
-from app.schemas.stats import (
+from app.models.tenant.initiative import Initiative
+from app.models.tenant.project import Project
+from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
+from app.models.platform.user import User
+from app.schemas.tenant.stats import (
     GuildTaskBreakdown,
     HeatmapDayData,
     UserStatsResponse,
@@ -455,7 +455,7 @@ async def get_guild_breakdown(
 
     Returns count of completed tasks per guild for the user.
     """
-    from app.models.guild import Guild
+    from app.models.platform.guild import Guild
 
     stmt = (
         select(Guild.id, Guild.name, func.count(Task.id).label("completed_count"))

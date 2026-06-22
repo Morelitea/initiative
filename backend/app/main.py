@@ -24,8 +24,8 @@ from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
 from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
-from app.models.user import User
-from app.services import app_settings as app_settings_service
+from app.models.platform.user import User
+from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
 
 logger = logging.getLogger(__name__)
@@ -184,8 +184,8 @@ async def serve_upload_file(
     # is never read.
     from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
-    from app.services import access_grants as access_grants_service
-    from app.services import guilds as guilds_service
+    from app.services.platform import access_grants as access_grants_service
+    from app.services.platform import guilds as guilds_service
 
     membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=current_user.id

@@ -28,14 +28,14 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, InitiativeMessages
-from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import (
+from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.tenant.initiative import (
     InitiativeMember,
     InitiativeRoleModel,
     PermissionKey,
     DEFAULT_PERMISSION_VALUES,
 )
-from app.models.user import User
+from app.models.platform.user import User
 
 # Re-export RLS context helpers so callers can import from a single place.
 from app.db.session import set_rls_context, reapply_rls_context  # noqa: F401

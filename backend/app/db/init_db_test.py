@@ -9,9 +9,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import app.db.init_db as init_db
 from app.core.config import settings
 from app.core.encryption import hash_email
-from app.models.guild import Guild
-from app.models.user import User
-from app.services import guilds as guilds_service
+from app.models.platform.guild import Guild
+from app.models.platform.user import User
+from app.services.platform import guilds as guilds_service
 
 pytestmark = pytest.mark.database
 

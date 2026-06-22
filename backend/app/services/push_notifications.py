@@ -8,8 +8,8 @@ from google.oauth2 import service_account
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.models.notification import NotificationType
-from app.services import push_tokens
+from app.models.platform.notification import NotificationType
+from app.services.platform import push_tokens
 
 logger = logging.getLogger(__name__)
 

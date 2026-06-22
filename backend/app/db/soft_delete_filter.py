@@ -23,15 +23,15 @@ from sqlalchemy.orm import Session, with_loader_criteria
 from sqlalchemy.orm.session import ORMExecuteState
 from sqlmodel import SQLModel, select as sqlmodel_select
 
-from app.models.calendar_event import CalendarEvent
-from app.models.comment import Comment
-from app.models.counter import Counter, CounterGroup
-from app.models.document import Document
-from app.models.initiative import Initiative
-from app.models.project import Project
-from app.models.queue import Queue, QueueItem
-from app.models.tag import Tag
-from app.models.task import Task
+from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.comment import Comment
+from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.document import Document
+from app.models.tenant.initiative import Initiative
+from app.models.tenant.project import Project
+from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.tag import Tag
+from app.models.tenant.task import Task
 
 
 SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (

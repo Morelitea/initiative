@@ -8,7 +8,7 @@ from app.core.capabilities import (
     capabilities_for,
     roles_with_capability,
 )
-from app.models.user import UserRole
+from app.models.platform.user import UserRole
 
 
 class _Actor:

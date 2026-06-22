@@ -12,29 +12,29 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import create_access_token, get_password_hash
-from app.models.calendar_event import CalendarEvent
-from app.models.document import Document
-from app.models.guild import Guild, GuildMembership, GuildRole
-from app.models.initiative import Initiative, InitiativeMember
-from app.models.project import Project
-from app.models.resource_grant import ResourceGrant, ResourceAccessLevel
-from app.models.property import (
+from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.document import Document
+from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.tenant.project import Project
+from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
+from app.models.tenant.property import (
     CalendarEventPropertyValue,
     DocumentPropertyValue,
     PropertyDefinition,
     PropertyType,
     TaskPropertyValue,
 )
-from app.models.queue import Queue, QueueItem
-from app.models.task import (
+from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.task import (
     Task,
     TaskAssignee,
     TaskPriority,
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.user import User, UserRole, UserStatus
-from app.services.initiatives import create_builtin_roles
+from app.models.platform.user import User, UserRole, UserStatus
+from app.services.tenant.initiatives import create_builtin_roles
 
 
 async def create_user(
@@ -548,7 +548,7 @@ async def create_initiative_member(
     Returns:
         Created InitiativeMember instance
     """
-    from app.models.initiative import InitiativeRoleModel
+    from app.models.tenant.initiative import InitiativeRoleModel
     from sqlmodel import select
 
     # Find the matching role for this initiative
@@ -754,7 +754,7 @@ async def create_calendar_event(
 
         # Per-event DAC grants, mirroring the create endpoint: creator owns it,
         # each initiative role gets write (managers) or read.
-        from app.models.initiative import InitiativeRoleModel
+        from app.models.tenant.initiative import InitiativeRoleModel
         from sqlmodel import select
 
         session.add(

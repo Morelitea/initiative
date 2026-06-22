@@ -12,9 +12,9 @@ from fastapi import HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, InitiativeMessages
-from app.models.guild import GuildRole
-from app.models.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
-from app.models.user import UserRole
+from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import DEFAULT_PERMISSION_VALUES, PermissionKey
+from app.models.platform.user import UserRole
 from app.services.rls import (
     check_initiative_permission,
     get_guild_membership,

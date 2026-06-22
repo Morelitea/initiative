@@ -14,11 +14,14 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.guild import GuildRole
-from app.models.initiative import InitiativeMember
-from app.models.oidc_claim_mapping import OIDCClaimMapping, OIDCMappingTargetType
-from app.models.project import Project
-from app.models.user import UserStatus
+from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import InitiativeMember
+from app.models.platform.oidc_claim_mapping import (
+    OIDCClaimMapping,
+    OIDCMappingTargetType,
+)
+from app.models.tenant.project import Project
+from app.models.platform.user import UserStatus
 from app.services.oidc_sync import (
     _auto_transfer_owned_projects,
     _pick_fallback_owner,
@@ -40,7 +43,7 @@ async def test_pick_fallback_prefers_initiative_manager(session: AsyncSession):
     """When an initiative has a manager (other than the leaver), the
     picker returns them rather than falling through to a guild admin
     who isn't on the initiative."""
-    from app.models.initiative import InitiativeMember
+    from app.models.tenant.initiative import InitiativeMember
 
     admin = await create_user(session, email="admin@example.com")
     manager = await create_user(session, email="manager@example.com")
@@ -98,7 +101,7 @@ async def test_pick_fallback_uses_guild_admin_when_no_manager(session: AsyncSess
     # The admin is auto-added as the initiative's project manager when
     # the initiative is created via the factory; remove that membership
     # so we exercise the "no manager" fallback path.
-    from app.models.initiative import InitiativeMember
+    from app.models.tenant.initiative import InitiativeMember
 
     admin_membership = (
         await session.exec(
@@ -184,7 +187,7 @@ async def test_auto_transfer_leaves_orphan_when_no_fallback(
     # the sole manager of the initiative, and the project owner. With
     # the leaver excluded, no other candidate is available — neither a
     # different initiative manager nor a guild admin.
-    from app.models.resource_grant import ResourceGrant
+    from app.models.tenant.resource_grant import ResourceGrant
 
     leaver = await create_user(session, email="leaver@example.com")
     guild = await create_guild(session, creator=leaver)
@@ -236,8 +239,8 @@ async def test_auto_transfer_handles_inactive_fallback_race(
     the surrounding ``stale_guilds`` loop in
     ``sync_oidc_assignments``, leaving later guild removals
     half-applied. Now caught and treated like the no-fallback path."""
-    from app.models.resource_grant import ResourceGrant
-    from app.models.user import User
+    from app.models.tenant.resource_grant import ResourceGrant
+    from app.models.platform.user import User
     from app.services import oidc_sync as oidc_sync_module
 
     admin = await create_user(session, email="admin@example.com")

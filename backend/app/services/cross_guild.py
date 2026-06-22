@@ -14,7 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.role_context import set_active_role, set_override_sharing_initiatives
 from app.db.session import set_rls_context
-from app.models.guild import GuildMembership
+from app.models.platform.guild import GuildMembership
 
 T = TypeVar("T")
 

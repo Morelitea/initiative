@@ -42,7 +42,7 @@ async def test_upload_accessible_with_auth_header(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """GET /uploads/<file> with Authorization Bearer header returns 200."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_auth_header.txt"
@@ -95,7 +95,7 @@ async def test_upload_accessible_with_scoped_upload_token(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """A short-lived, uploads-scoped token IS accepted via ?token=. SEC-12."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_query_upload_token.txt"
@@ -142,7 +142,7 @@ async def test_issue_upload_token_endpoint(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """POST /auth/upload-token mints a token that opens /uploads. SEC-12."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_minted_token.txt"
@@ -214,7 +214,7 @@ async def test_upload_guild_member_can_access_file(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Authenticated guild member can access a file uploaded by that guild."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_guild_access.png"
@@ -247,7 +247,7 @@ async def test_upload_non_member_cannot_access_file(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Authenticated user NOT in the owning guild gets 403."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_guild_forbidden.png"
@@ -394,7 +394,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
 
     from app.db.schema_provisioning import guild_schema_name
     from app.db.session import set_rls_context
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)

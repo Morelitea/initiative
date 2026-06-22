@@ -22,8 +22,8 @@ from typing import Collection, Iterable, Optional
 from sqlalchemy import ColumnElement, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import InitiativeMember
+from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.tenant.initiative import InitiativeMember
 
 
 # ---------------------------------------------------------------------------

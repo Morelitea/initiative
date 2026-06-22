@@ -1,0 +1,607 @@
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from collections.abc import Sequence
+from datetime import datetime, timezone
+from typing import Optional, Set, cast
+
+from sqlalchemy.orm import selectinload
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.messages import CommentMessages
+from app.core.pam_context import grant_satisfies
+from app.models.tenant.comment import Comment
+from app.models.tenant.document import Document
+from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.tenant.project import Project
+from app.models.tenant.task import Task
+from app.models.platform.user import User
+from app.services.tenant import documents as documents_service
+from app.services.tenant import initiatives as initiatives_service
+from app.services import notifications
+from app.services import permissions as permissions_service
+from app.services.mention_parser import (
+    extract_mentioned_user_ids,
+    extract_mentioned_task_ids,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class CommentError(Exception):
+    """Base error for comment operations."""
+
+
+class CommentNotFoundError(CommentError):
+    """Raised when a linked resource cannot be found."""
+
+
+class CommentPermissionError(CommentError):
+    """Raised when the user lacks permission to comment."""
+
+
+class CommentValidationError(CommentError):
+    """Raised when the payload is inconsistent."""
+
+
+@dataclass
+class _TaskContext:
+    task: Task
+    project: Project
+    initiative: Initiative
+
+
+async def _get_task_context(
+    session: AsyncSession,
+    *,
+    task_id: int,
+    guild_id: int,
+) -> Optional[_TaskContext]:
+    stmt = (
+        select(Task, Project, Initiative)
+        .join(Project, Project.id == Task.project_id)
+        .join(Initiative, Initiative.id == Project.initiative_id)
+        .where(
+            Task.id == task_id,
+            Initiative.guild_id == guild_id,
+        )
+    )
+    result = await session.exec(stmt)
+    row = result.one_or_none()
+    if not row:
+        return None
+    task, project, initiative = row
+    return _TaskContext(task=task, project=project, initiative=initiative)
+
+
+async def _is_initiative_member(
+    session: AsyncSession,
+    *,
+    initiative_id: int,
+    user_id: int,
+) -> bool:
+    stmt = select(InitiativeMember).where(
+        InitiativeMember.initiative_id == initiative_id,
+        InitiativeMember.user_id == user_id,
+    )
+    result = await session.exec(stmt)
+    membership = result.one_or_none()
+    return membership is not None
+
+
+async def _has_project_permission(
+    session: AsyncSession,
+    *,
+    project_id: int,
+    user_id: int,
+) -> bool:
+    # The project is accessible if it appears among the resource ids the user
+    # can reach via a grant (own user grant OR a grant to one of their roles).
+    accessible_ids = permissions_service.visible_resource_ids_subquery(
+        "project", user_id
+    ).subquery()
+    stmt = select(accessible_ids.c.resource_id).where(
+        accessible_ids.c.resource_id == project_id
+    )
+    result = await session.exec(stmt)
+    return result.first() is not None
+
+
+async def _ensure_task_access(
+    session: AsyncSession,
+    *,
+    project: Project,
+    user: User,
+    access: str = "read",
+    is_guild_admin: bool = False,
+) -> None:
+    """Ensure user can access task for commenting.
+
+    Tasks inherit access from their project's permission levels (DAC); any
+    level (owner, write, read) grants comment access. A guild admin has full
+    access to all of their guild's data regardless of DAC. A live PAM grant also
+    satisfies it — read for viewing comments, read_write for posting/editing.
+    """
+    if is_guild_admin:
+        return
+    if grant_satisfies(project.guild_id, access=access):
+        return
+    if await _has_project_permission(session, project_id=project.id, user_id=user.id):
+        return
+    raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
+
+
+async def _ensure_document_access(
+    session: AsyncSession,
+    *,
+    document: Document,
+    user: User,
+    access: str = "read",
+    is_guild_admin: bool = False,
+) -> None:
+    """Ensure user can access document for commenting.
+
+    Any permission level (owner, write, read) grants comment access, including
+    role-based permissions. A guild admin has full access to all of their
+    guild's data regardless of DAC. A live PAM grant also satisfies it — read
+    for viewing, read_write for posting/editing.
+    """
+    if is_guild_admin:
+        return
+    if grant_satisfies(document.guild_id, access=access):
+        return
+    # The document is accessible if it appears among the resource ids the user
+    # can reach via a grant (own user grant OR a grant to one of their roles).
+    accessible_ids = permissions_service.visible_resource_ids_subquery(
+        "document", user.id
+    ).subquery()
+    stmt = select(accessible_ids.c.resource_id).where(
+        accessible_ids.c.resource_id == document.id
+    )
+    result = await session.exec(stmt)
+    if result.first() is not None:
+        return
+    raise CommentPermissionError(CommentMessages.PERMISSION_DENIED)
+
+
+async def _get_comment(
+    session: AsyncSession,
+    *,
+    comment_id: int,
+) -> Optional[Comment]:
+    stmt = select(Comment).where(Comment.id == comment_id)
+    result = await session.exec(stmt)
+    return result.one_or_none()
+
+
+async def create_comment(
+    session: AsyncSession,
+    *,
+    author: User,
+    guild_id: int,
+    guild_role: GuildRole,
+    content: str,
+    task_id: Optional[int] = None,
+    document_id: Optional[int] = None,
+    parent_comment_id: Optional[int] = None,
+) -> Comment:
+    parent_comment = None
+    if parent_comment_id is not None:
+        parent_comment = await _get_comment(session, comment_id=parent_comment_id)
+        if not parent_comment:
+            raise CommentNotFoundError(CommentMessages.PARENT_NOT_FOUND)
+
+    if task_id is not None:
+        context = await _get_task_context(session, task_id=task_id, guild_id=guild_id)
+        if not context:
+            raise CommentNotFoundError(CommentMessages.TASK_NOT_FOUND)
+        await _ensure_task_access(
+            session,
+            project=context.project,
+            user=author,
+            access="write",
+            is_guild_admin=guild_role == GuildRole.admin,
+        )
+        if parent_comment and parent_comment.task_id != context.task.id:
+            raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
+        comment = Comment(
+            content=content,
+            author_id=cast(int, author.id),
+            task_id=context.task.id,
+            parent_comment_id=parent_comment_id,
+        )
+        object.__setattr__(comment, "project_id", context.project.id)
+    else:
+        if document_id is None:
+            raise CommentValidationError(CommentMessages.DOCUMENT_ID_REQUIRED)
+        document = await documents_service.get_document(
+            session,
+            document_id=document_id,
+            guild_id=guild_id,
+        )
+        if not document:
+            raise CommentNotFoundError(CommentMessages.DOCUMENT_NOT_FOUND)
+        await _ensure_document_access(
+            session,
+            document=document,
+            user=author,
+            access="write",
+            is_guild_admin=guild_role == GuildRole.admin,
+        )
+        if parent_comment and parent_comment.document_id != document.id:
+            raise CommentValidationError(CommentMessages.PARENT_MISMATCH)
+        comment = Comment(
+            content=content,
+            author_id=cast(int, author.id),
+            document_id=document.id,
+            parent_comment_id=parent_comment_id,
+        )
+
+    session.add(comment)
+    await session.flush()
+    await session.refresh(comment, attribute_names=["author"])
+
+    # Process notifications after creating comment
+    task_context_for_notify = None
+    document_for_notify = None
+    if task_id is not None and context:
+        task_context_for_notify = context
+    elif document_id is not None:
+        document_for_notify = document
+
+    await _process_comment_notifications(
+        session,
+        comment=comment,
+        author=author,
+        guild_id=guild_id,
+        task_context=task_context_for_notify,
+        document=document_for_notify,
+        parent_comment=parent_comment,
+    )
+
+    return comment
+
+
+async def _load_user(session: AsyncSession, user_id: int) -> User | None:
+    """Load a user by ID."""
+    result = await session.exec(select(User).where(User.id == user_id))
+    return result.one_or_none()
+
+
+async def _load_task_with_assignees(
+    session: AsyncSession, task_id: int, guild_id: int
+) -> tuple[Task, list[User], str] | None:
+    """Load a task with its assignees and project name."""
+    stmt = (
+        select(Task, Project, Initiative)
+        .join(Project, Project.id == Task.project_id)
+        .join(Initiative, Initiative.id == Project.initiative_id)
+        .where(Task.id == task_id, Initiative.guild_id == guild_id)
+        .options(selectinload(Task.assignees))
+    )
+    result = await session.exec(stmt)
+    row = result.one_or_none()
+    if not row:
+        return None
+    task, project, _ = row
+    return task, list(task.assignees), project.name
+
+
+async def _process_comment_notifications(
+    session: AsyncSession,
+    *,
+    comment: Comment,
+    author: User,
+    guild_id: int,
+    task_context: _TaskContext | None,
+    document: Document | None,
+    parent_comment: Comment | None,
+) -> None:
+    """Process all notifications for a new comment.
+
+    Notification priority (deduplicated):
+    1. Reply to comment → notify parent comment author
+    2. @user mentions
+    3. #task mentions → notify assignees
+    4. Task comment → notify assignees
+    5. Document comment → notify author
+    """
+    notified_user_ids: Set[int] = set()
+    content = comment.content
+
+    # Determine context title for notifications
+    context_title = ""
+    if task_context:
+        context_title = task_context.task.title
+    elif document:
+        context_title = document.title
+
+    # 1. Reply to comment → notify parent comment author
+    if parent_comment and parent_comment.author_id != author.id:
+        parent_author = await _load_user(session, parent_comment.author_id)
+        if parent_author:
+            await notifications.notify_comment_reply(
+                session,
+                parent_author=parent_author,
+                replier=author,
+                comment_id=cast(int, comment.id),
+                task_id=comment.task_id,
+                document_id=comment.document_id,
+                context_title=context_title,
+                guild_id=guild_id,
+            )
+            notified_user_ids.add(parent_comment.author_id)
+
+    # 2. Process @user mentions
+    mentioned_user_ids = extract_mentioned_user_ids(content)
+    for user_id in mentioned_user_ids:
+        if user_id == author.id:
+            continue
+        if user_id in notified_user_ids:
+            continue
+        mentioned_user = await _load_user(session, user_id)
+        if not mentioned_user:
+            continue
+        await notifications.notify_comment_mention(
+            session,
+            mentioned_user=mentioned_user,
+            mentioned_by=author,
+            comment_id=cast(int, comment.id),
+            task_id=comment.task_id,
+            document_id=comment.document_id,
+            context_title=context_title,
+            guild_id=guild_id,
+        )
+        notified_user_ids.add(user_id)
+
+    # 3. Process #task mentions → notify assignees
+    mentioned_task_ids = extract_mentioned_task_ids(content)
+    for mentioned_task_id in mentioned_task_ids:
+        task_data = await _load_task_with_assignees(
+            session, mentioned_task_id, guild_id
+        )
+        if not task_data:
+            continue
+        mentioned_task, assignees, _ = task_data
+        for assignee in assignees:
+            if assignee.id == author.id:
+                continue
+            if assignee.id in notified_user_ids:
+                continue
+            await notifications.notify_task_mentioned_in_comment(
+                session,
+                assignee=assignee,
+                mentioned_by=author,
+                comment_id=cast(int, comment.id),
+                mentioned_task_id=mentioned_task_id,
+                mentioned_task_title=mentioned_task.title,
+                context_task_id=comment.task_id,
+                context_document_id=comment.document_id,
+                context_title=context_title,
+                guild_id=guild_id,
+            )
+            notified_user_ids.add(assignee.id)
+
+    # 4. Task comment → notify assignees (who haven't been notified yet)
+    if task_context:
+        task_with_assignees = await _load_task_with_assignees(
+            session, task_context.task.id, guild_id
+        )
+        if task_with_assignees:
+            task, assignees, project_name = task_with_assignees
+            for assignee in assignees:
+                if assignee.id == author.id:
+                    continue
+                if assignee.id in notified_user_ids:
+                    continue
+                await notifications.notify_comment_on_task(
+                    session,
+                    assignee=assignee,
+                    commenter=author,
+                    comment_id=cast(int, comment.id),
+                    task_id=task.id,
+                    task_title=task.title,
+                    project_name=project_name,
+                    guild_id=guild_id,
+                )
+                notified_user_ids.add(assignee.id)
+
+    # 5. Document comment → notify author (if not already notified)
+    if document:
+        doc_author = await _load_user(session, document.created_by_id)
+        if (
+            doc_author
+            and doc_author.id != author.id
+            and doc_author.id not in notified_user_ids
+        ):
+            await notifications.notify_comment_on_document(
+                session,
+                author=doc_author,
+                commenter=author,
+                comment_id=cast(int, comment.id),
+                document_id=document.id,
+                document_title=document.title,
+                guild_id=guild_id,
+            )
+            notified_user_ids.add(doc_author.id)
+
+
+async def list_comments(
+    session: AsyncSession,
+    *,
+    user: User,
+    guild_id: int,
+    guild_role: GuildRole,
+    task_id: Optional[int] = None,
+    document_id: Optional[int] = None,
+) -> Sequence[Comment]:
+    has_task = task_id is not None
+    has_document = document_id is not None
+    if has_task == has_document:
+        raise CommentValidationError(CommentMessages.PROVIDE_ONE_ENTITY)
+
+    context: _TaskContext | None = None
+    if has_task:
+        context = await _get_task_context(session, task_id=task_id, guild_id=guild_id)
+        if not context:
+            raise CommentNotFoundError(CommentMessages.TASK_NOT_FOUND)
+        await _ensure_task_access(
+            session,
+            project=context.project,
+            user=user,
+            is_guild_admin=guild_role == GuildRole.admin,
+        )
+        stmt = (
+            select(Comment)
+            .where(Comment.task_id == context.task.id)
+            .order_by(Comment.created_at.asc(), Comment.id.asc())
+            .options(selectinload(Comment.author))
+        )
+    else:
+        document = await documents_service.get_document(
+            session,
+            document_id=document_id,
+            guild_id=guild_id,
+        )
+        if not document:
+            raise CommentNotFoundError(CommentMessages.DOCUMENT_NOT_FOUND)
+        await _ensure_document_access(
+            session,
+            document=document,
+            user=user,
+            is_guild_admin=guild_role == GuildRole.admin,
+        )
+        stmt = (
+            select(Comment)
+            .where(Comment.document_id == document.id)
+            .order_by(Comment.created_at.asc(), Comment.id.asc())
+            .options(selectinload(Comment.author))
+        )
+
+    result = await session.exec(stmt)
+    comments = result.all()
+    if has_task and context:
+        for comment in comments:
+            object.__setattr__(comment, "project_id", context.project.id)
+    return comments
+
+
+async def delete_comment(
+    session: AsyncSession,
+    *,
+    comment_id: int,
+    user: User,
+    guild_id: int,
+    guild_role: GuildRole,
+) -> Comment:
+    comment = await _get_comment(session, comment_id=comment_id)
+    if not comment:
+        raise CommentNotFoundError(CommentMessages.NOT_FOUND)
+
+    initiative_id: int | None = None
+
+    if comment.task_id is not None:
+        context = await _get_task_context(
+            session, task_id=comment.task_id, guild_id=guild_id
+        )
+        if not context:
+            raise CommentNotFoundError(CommentMessages.NOT_FOUND)
+        object.__setattr__(comment, "project_id", context.project.id)
+        initiative_id = context.initiative.id
+        await _ensure_task_access(
+            session,
+            project=context.project,
+            user=user,
+            is_guild_admin=guild_role == GuildRole.admin,
+        )
+    elif comment.document_id is not None:
+        document = await documents_service.get_document(
+            session,
+            document_id=comment.document_id,
+            guild_id=guild_id,
+        )
+        if not document:
+            raise CommentNotFoundError(CommentMessages.NOT_FOUND)
+        initiative_id = document.initiative_id
+        await _ensure_document_access(
+            session,
+            document=document,
+            user=user,
+            is_guild_admin=guild_role == GuildRole.admin,
+        )
+    else:
+        raise CommentValidationError(CommentMessages.NOT_LINKED)
+
+    is_author = comment.author_id == user.id
+    is_guild_admin = guild_role == GuildRole.admin
+    is_initiative_manager = False
+    if not is_author and not is_guild_admin and initiative_id is not None:
+        is_initiative_manager = await initiatives_service.is_initiative_manager(
+            session,
+            initiative_id=initiative_id,
+            user=user,
+        )
+
+    if not (is_author or is_guild_admin or is_initiative_manager):
+        raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_DELETE)
+
+    from app.services.platform import guilds as guilds_service
+    from app.services.tenant.soft_delete import soft_delete_entity
+
+    retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
+    await soft_delete_entity(
+        session,
+        comment,
+        deleted_by_user_id=user.id,
+        retention_days=retention_days,
+    )
+    return comment
+
+
+async def update_comment(
+    session: AsyncSession,
+    *,
+    comment_id: int,
+    user: User,
+    guild_id: int,
+    content: str,
+) -> Comment:
+    """Update a comment's content. Only the original author can edit."""
+    comment = await _get_comment(session, comment_id=comment_id)
+    if not comment:
+        raise CommentNotFoundError(CommentMessages.NOT_FOUND)
+
+    # Only the author can edit their own comment
+    if comment.author_id != user.id:
+        raise CommentPermissionError(CommentMessages.AUTHOR_ONLY_EDIT)
+
+    # Verify access to the linked entity (same checks as delete_comment)
+    if comment.task_id is not None:
+        context = await _get_task_context(
+            session, task_id=comment.task_id, guild_id=guild_id
+        )
+        if not context:
+            raise CommentNotFoundError(CommentMessages.NOT_FOUND)
+        await _ensure_task_access(session, project=context.project, user=user)
+        object.__setattr__(comment, "project_id", context.project.id)
+    elif comment.document_id is not None:
+        document = await documents_service.get_document(
+            session,
+            document_id=comment.document_id,
+            guild_id=guild_id,
+        )
+        if not document:
+            raise CommentNotFoundError(CommentMessages.NOT_FOUND)
+        await _ensure_document_access(session, document=document, user=user)
+    else:
+        raise CommentValidationError(CommentMessages.NOT_LINKED)
+
+    comment.content = content
+    comment.updated_at = datetime.now(timezone.utc)
+    session.add(comment)
+    await session.flush()
+    await session.refresh(comment, attribute_names=["author"])
+    return comment

@@ -11,10 +11,10 @@ from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
-from app.models.guild import Guild
-from app.models.user import User, UserRole
-from app.services import app_settings as app_settings_service
-from app.services import guilds as guilds_service
+from app.models.platform.guild import Guild
+from app.models.platform.user import User, UserRole
+from app.services.platform import app_settings as app_settings_service
+from app.services.platform import guilds as guilds_service
 
 BASELINE_REVISION = "20260216_0053"
 UPGRADE_SCRIPT_URL = (

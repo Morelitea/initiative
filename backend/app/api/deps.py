@@ -21,15 +21,15 @@ from app.core.security import (
     verify_upload_token,
 )
 from app.db.session import get_session, set_rls_context
-from app.models.access_grant import AccessGrant, AccessLevel
-from app.models.guild import Guild, GuildMembership, GuildRole
-from app.models.user import User, UserRole, UserStatus
-from app.schemas.token import TokenPayload
-from app.services import access_grants as access_grants_service
-from app.services import api_keys as api_keys_service
-from app.services import auto_delegation_blocklist
-from app.services import guilds as guilds_service
-from app.services import user_tokens
+from app.models.platform.access_grant import AccessGrant, AccessLevel
+from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.user import User, UserRole, UserStatus
+from app.schemas.platform.token import TokenPayload
+from app.services.platform import access_grants as access_grants_service
+from app.services.platform import api_keys as api_keys_service
+from app.services.platform import auto_delegation_blocklist
+from app.services.platform import guilds as guilds_service
+from app.services.platform import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 

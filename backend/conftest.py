@@ -629,8 +629,8 @@ async def acting_user(session):
                                                    guild_role=GuildRole.admin)  # + guild admin
         await client.get(f"/api/v1/g/{guild.id}/projects", headers=headers)
     """
-    from app.models.guild import GuildRole
-    from app.models.user import UserRole
+    from app.models.platform.guild import GuildRole
+    from app.models.platform.user import UserRole
     from app.testing import (
         create_guild,
         create_guild_membership,

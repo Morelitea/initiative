@@ -3,7 +3,7 @@ import io
 import re
 from typing import Iterable, Sequence
 
-from app.models.user import User
+from app.models.platform.user import User
 
 # UTF-8 BOM so Excel on Windows auto-detects encoding rather than falling back
 # to the system code page and garbling accented characters.

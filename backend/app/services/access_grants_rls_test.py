@@ -12,10 +12,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.pam_context import set_active_grant
 from app.db.session import set_rls_context
-from app.models.counter import CounterGroup
-from app.models.document import Document
-from app.models.user import UserRole
-from app.services import app_settings as app_settings_service
+from app.models.tenant.counter import CounterGroup
+from app.models.tenant.document import Document
+from app.models.platform.user import UserRole
+from app.services.platform import app_settings as app_settings_service
 from app.testing import (
     create_guild,
     create_initiative,

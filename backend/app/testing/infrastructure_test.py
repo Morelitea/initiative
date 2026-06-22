@@ -9,7 +9,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.user import UserStatus
+from app.models.platform.user import UserStatus
 from app.testing.factories import create_user, get_auth_headers
 
 

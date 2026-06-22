@@ -13,8 +13,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.guild import GuildRole
-from app.models.project import Project
+from app.models.platform.guild import GuildRole
+from app.models.tenant.project import Project
 from app.testing import (
     create_guild,
     create_guild_membership,

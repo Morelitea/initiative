@@ -4,8 +4,8 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import GuildRole
-from app.models.initiative import Initiative
+from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import Initiative
 from app.services import membership as membership_service
 from app.testing.factories import (
     create_guild,
@@ -108,7 +108,7 @@ async def test_initiative_member_clause_filters_rows(session: AsyncSession):
 @pytest.mark.integration
 async def test_initiative_scope_clause_legs(session: AsyncSession):
     """member / guild-admin / (no standing platform-bypass) legs of the clause."""
-    from app.models.user import UserRole
+    from app.models.platform.user import UserRole
 
     admin, member, outsider, _guild, initiative = await _setup(session)
     platform_admin = await create_user(

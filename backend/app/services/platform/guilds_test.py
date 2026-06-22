@@ -1,0 +1,623 @@
+"""
+Unit tests for guild service functions.
+
+Tests the business logic in app.services.guilds including:
+- Guild creation and management
+- Membership management
+- Invite generation and redemption
+- Guild resolution and permissions
+"""
+
+import pytest
+from datetime import datetime, timedelta, timezone
+from sqlalchemy import text
+from sqlmodel import select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.platform.guild import GuildInvite, GuildRole
+from app.services.platform import guilds as guild_service
+from app.testing.factories import create_guild, create_guild_membership, create_user
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_get_primary_guild_creates_if_missing(session: AsyncSession):
+    """Test that primary guild is created if none exists."""
+    # Clear any migration-seeded guilds so we test the creation path
+    await session.execute(text("TRUNCATE TABLE guilds RESTART IDENTITY CASCADE"))
+    guild = await guild_service.get_primary_guild(session)
+
+    assert guild.id is not None
+    assert guild.name == "Primary Guild"
+    assert guild.description == "Default guild"
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_get_primary_guild_returns_existing(session: AsyncSession):
+    """Test that existing guild is returned as primary."""
+    # Create a guild first
+    first_guild = await create_guild(session, name="First Guild")
+
+    # Get primary guild should return this one
+    primary = await guild_service.get_primary_guild(session)
+
+    assert primary.id == first_guild.id
+    assert primary.name == "First Guild"
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_get_guild_by_id(session: AsyncSession):
+    """Test retrieving a guild by ID."""
+    guild = await create_guild(session, name="Test Guild")
+
+    retrieved = await guild_service.get_guild(session, guild_id=guild.id)
+
+    assert retrieved.id == guild.id
+    assert retrieved.name == "Test Guild"
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_get_guild_not_found(session: AsyncSession):
+    """Test that getting nonexistent guild raises error."""
+    with pytest.raises(ValueError, match="GUILD_NOT_FOUND"):
+        await guild_service.get_guild(session, guild_id=99999)
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_create_guild(session: AsyncSession):
+    """Test creating a new guild."""
+    creator = await create_user(session, email="creator@example.com")
+
+    guild = await guild_service.create_guild(
+        session,
+        name="New Guild",
+        description="A test guild",
+        creator=creator,
+    )
+
+    assert guild.id is not None
+    assert guild.name == "New Guild"
+    assert guild.description == "A test guild"
+    assert guild.created_by_user_id == creator.id
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_create_guild_creates_admin_membership(session: AsyncSession):
+    """Test that creating a guild makes the creator an admin."""
+    creator = await create_user(session, email="creator@example.com")
+
+    guild = await guild_service.create_guild(
+        session,
+        name="New Guild",
+        creator=creator,
+    )
+
+    # Check membership was created
+    membership = await guild_service.get_membership(
+        session,
+        guild_id=guild.id,
+        user_id=creator.id,
+    )
+
+    assert membership is not None
+    assert membership.role == GuildRole.admin
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_ensure_membership_creates_new(session: AsyncSession):
+    """Test that ensure_membership creates a new membership if none exists."""
+    user = await create_user(session)
+    guild = await create_guild(session)
+
+    membership = await guild_service.ensure_membership(
+        session,
+        guild_id=guild.id,
+        user_id=user.id,
+        role=GuildRole.member,
+    )
+
+    assert membership.guild_id == guild.id
+    assert membership.user_id == user.id
+    assert membership.role == GuildRole.member
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_ensure_membership_returns_existing(session: AsyncSession):
+    """Test that ensure_membership returns existing membership."""
+    user = await create_user(session)
+    guild = await create_guild(session)
+
+    # Create membership first
+    first = await create_guild_membership(
+        session,
+        user=user,
+        guild=guild,
+        role=GuildRole.member,
+    )
+
+    # Ensure membership should return the same one
+    second = await guild_service.ensure_membership(
+        session,
+        guild_id=guild.id,
+        user_id=user.id,
+        role=GuildRole.admin,  # Different role, but should not change without force_role
+    )
+
+    assert second.guild_id == first.guild_id
+    assert second.user_id == first.user_id
+    assert second.role == GuildRole.member  # Should still be member
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_ensure_membership_force_role_updates(session: AsyncSession):
+    """Test that force_role updates an existing membership's role."""
+    user = await create_user(session)
+    guild = await create_guild(session)
+
+    # Create as member
+    await create_guild_membership(
+        session,
+        user=user,
+        guild=guild,
+        role=GuildRole.member,
+    )
+
+    # Force upgrade to admin
+    membership = await guild_service.ensure_membership(
+        session,
+        guild_id=guild.id,
+        user_id=user.id,
+        role=GuildRole.admin,
+        force_role=True,
+    )
+
+    assert membership.role == GuildRole.admin
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_list_memberships(session: AsyncSession):
+    """Test listing all memberships for a user."""
+    user = await create_user(session)
+    guild1 = await create_guild(session, name="Guild 1")
+    guild2 = await create_guild(session, name="Guild 2")
+
+    await create_guild_membership(session, user=user, guild=guild1)
+    await create_guild_membership(session, user=user, guild=guild2)
+
+    memberships = await guild_service.list_memberships(session, user_id=user.id)
+
+    assert len(memberships) == 2
+    guild_names = {guild.name for guild, _membership, _retention, _count in memberships}
+    assert "Guild 1" in guild_names
+    assert "Guild 2" in guild_names
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_reorder_memberships(session: AsyncSession):
+    """Test reordering user's guild memberships."""
+    user = await create_user(session)
+    guild1 = await create_guild(session, name="Guild 1")
+    guild2 = await create_guild(session, name="Guild 2")
+    guild3 = await create_guild(session, name="Guild 3")
+
+    await create_guild_membership(session, user=user, guild=guild1)
+    await create_guild_membership(session, user=user, guild=guild2)
+    await create_guild_membership(session, user=user, guild=guild3)
+
+    # Reorder: guild3, guild1, guild2
+    await guild_service.reorder_memberships(
+        session,
+        user_id=user.id,
+        ordered_guild_ids=[guild3.id, guild1.id, guild2.id],
+    )
+
+    # Verify order
+    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    ordered_ids = [guild.id for guild, _membership, _retention, _count in memberships]
+
+    assert ordered_ids == [guild3.id, guild1.id, guild2.id]
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_create_guild_invite(session: AsyncSession):
+    """Test creating a guild invite."""
+    creator = await create_user(session, email="creator@example.com")
+    guild = await create_guild(session, creator=creator)
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email="invitee@example.com",
+        max_uses=1,
+        expires_at=None,
+    )
+
+    assert invite.id is not None
+    assert invite.guild_id == guild.id
+    assert invite.created_by_user_id == creator.id
+    assert invite.invitee_email == "invitee@example.com"
+    assert invite.max_uses == 1
+    assert invite.uses == 0
+    assert len(invite.code) == 22  # 16 bytes as base64url
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_invite_code_is_unique(session: AsyncSession):
+    """Test that invite codes are unique."""
+    guild = await create_guild(session)
+    user = await create_user(session)
+
+    invite1 = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=user.id,
+    )
+    invite2 = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=user.id,
+    )
+
+    assert invite1.code != invite2.code
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_invite_is_active_valid(session: AsyncSession):
+    """Test that invite_is_active returns True for valid invite."""
+    guild = await create_guild(session)
+    user = await create_user(session)
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=user.id,
+        max_uses=5,
+        expires_at=datetime.now(timezone.utc) + timedelta(days=7),
+    )
+
+    assert guild_service.invite_is_active(invite) is True
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_invite_is_active_expired(session: AsyncSession):
+    """Test that invite_is_active returns False for expired invite."""
+    guild = await create_guild(session)
+    user = await create_user(session)
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=user.id,
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),  # Expired
+    )
+
+    assert guild_service.invite_is_active(invite) is False
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_invite_is_active_max_uses_exceeded(session: AsyncSession):
+    """Test that invite_is_active returns False when max uses exceeded."""
+    guild = await create_guild(session)
+    user = await create_user(session)
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=user.id,
+        max_uses=1,
+    )
+
+    # Manually set uses to exceed max
+    invite.uses = 1
+    session.add(invite)
+    await session.commit()
+
+    assert guild_service.invite_is_active(invite) is False
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_invite_for_user(session: AsyncSession):
+    """Test redeeming an invite code for a user."""
+    guild = await create_guild(session, name="Test Guild")
+    creator = await create_user(session, email="creator@example.com")
+    invitee = await create_user(session, email="invitee@example.com")
+
+    # Create invite
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        max_uses=5,
+    )
+
+    # Redeem invite
+    redeemed_guild = await guild_service.redeem_invite_for_user(
+        session,
+        code=invite.code,
+        user=invitee,
+    )
+
+    assert redeemed_guild.id == guild.id
+
+    # Check membership was created
+    membership = await guild_service.get_membership(
+        session,
+        guild_id=guild.id,
+        user_id=invitee.id,
+    )
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+    # Check invite use count increased
+    stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
+    result = await session.exec(stmt)
+    updated_invite = result.one()
+    assert updated_invite.uses == 1
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_invite_expired_raises_error(session: AsyncSession):
+    """Test that redeeming expired invite raises error."""
+    guild = await create_guild(session)
+    creator = await create_user(session)
+    invitee = await create_user(session, email="invitee@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        expires_at=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+
+    with pytest.raises(guild_service.GuildInviteError, match="INVITE_EXPIRED_OR_USED"):
+        await guild_service.redeem_invite_for_user(
+            session,
+            code=invite.code,
+            user=invitee,
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_email_bound_invite_wrong_user_rejected(session: AsyncSession):
+    """An email-bound invite must reject a user whose email differs (SEC-15)."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    wrong_user = await create_user(session, email="someone-else@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email="invitee@example.com",
+        max_uses=5,
+    )
+
+    with pytest.raises(guild_service.GuildInviteError, match="INVITE_EMAIL_MISMATCH"):
+        await guild_service.redeem_invite_for_user(
+            session,
+            code=invite.code,
+            user=wrong_user,
+        )
+
+    # Membership must NOT have been created and the use count must be untouched.
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=wrong_user.id
+    )
+    assert membership is None
+
+    stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
+    result = await session.exec(stmt)
+    assert result.one().uses == 0
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_email_bound_invite_matching_user_succeeds(
+    session: AsyncSession,
+):
+    """An email-bound invite admits the matching user, case-insensitively."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    # User's stored email is normalized (lowercased) by create_user; the invite
+    # carries a mixed-case form to prove normalization is applied on both sides.
+    invitee = await create_user(session, email="invitee@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email="Invitee@Example.com",
+        max_uses=5,
+    )
+
+    redeemed_guild = await guild_service.redeem_invite_for_user(
+        session,
+        code=invite.code,
+        user=invitee,
+    )
+
+    assert redeemed_guild.id == guild.id
+
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=invitee.id
+    )
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+    stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
+    result = await session.exec(stmt)
+    assert result.one().uses == 1
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_unbound_invite_any_user_succeeds(session: AsyncSession):
+    """An invite with no bound email stays a shareable link (unchanged behavior)."""
+    guild = await create_guild(session)
+    creator = await create_user(session, email="creator@example.com")
+    redeemer = await create_user(session, email="random@example.com")
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+        invitee_email=None,
+        max_uses=5,
+    )
+
+    redeemed_guild = await guild_service.redeem_invite_for_user(
+        session,
+        code=invite.code,
+        user=redeemer,
+    )
+
+    assert redeemed_guild.id == guild.id
+
+    membership = await guild_service.get_membership(
+        session, guild_id=guild.id, user_id=redeemer.id
+    )
+    assert membership is not None
+    assert membership.role == GuildRole.member
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_delete_guild_invite(session: AsyncSession):
+    """Test deleting a guild invite."""
+    guild = await create_guild(session)
+    creator = await create_user(session)
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=creator.id,
+    )
+
+    await guild_service.delete_guild_invite(
+        session,
+        guild_id=guild.id,
+        invite_id=invite.id,
+    )
+    await session.flush()
+
+    # Verify invite is deleted
+    stmt = select(GuildInvite).where(GuildInvite.id == invite.id)
+    result = await session.exec(stmt)
+    deleted_invite = result.one_or_none()
+    assert deleted_invite is None
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_get_guild_retention_days_distinguishes_never_from_missing(
+    session: AsyncSession,
+):
+    """retention_days = NULL is the user's explicit "never auto-purge"
+    choice. The helper must surface None in that case (not silently
+    fall back to the 90-day default), and only fall back to 90 when no
+    guild_settings row exists at all.
+
+    Regression: a previous version selected GuildSetting.retention_days
+    directly and conflated "row present with NULL" and "no row" — both
+    came back as None from one_or_none(), so the fallback re-enabled
+    auto-purge for guilds that opted out.
+    """
+    from app.models.tenant.guild_setting import GuildSetting
+
+    # 1. No guild_settings row at all -> default 90.
+    user = await create_user(session)
+    guild = await create_guild(session)  # bare factory, no settings row
+    await session.exec(
+        # double-check no setting row exists (factory shouldn't create one)
+        select(GuildSetting).where(GuildSetting.guild_id == guild.id)
+    )
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 90
+
+    # 2. Row exists with retention_days = 30 -> 30.
+    setting = GuildSetting(guild_id=guild.id, retention_days=30)
+    session.add(setting)
+    await session.commit()
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) == 30
+
+    # 3. Row exists with retention_days = NULL -> None ("never").
+    setting.retention_days = None
+    session.add(setting)
+    await session.commit()
+    assert (await guild_service.get_guild_retention_days(session, guild.id)) is None
+
+    # Suppress unused-name warning if linters complain about the user
+    # we created for symmetry with other tests in this module.
+    _ = user
+
+
+async def test_list_memberships_reads_retention_per_guild(session: AsyncSession):
+    """retention_days lives in each guild's own schema. The guild list must read
+    it per guild with the user's context — a single cross-guild join hits the
+    empty public guild_settings and reports NULL for everyone."""
+    from app.models.tenant.guild_setting import GuildSetting
+
+    user = await create_user(session)
+
+    guild_30 = await create_guild(session, creator=user)
+    await create_guild_membership(
+        session, user=user, guild=guild_30, role=GuildRole.admin
+    )
+    session.add(GuildSetting(guild_id=guild_30.id, retention_days=30))
+    await session.commit()
+
+    # A guild with no settings row should fall back to the 90-day default.
+    guild_default = await create_guild(session, creator=user)
+    await create_guild_membership(
+        session, user=user, guild=guild_default, role=GuildRole.admin
+    )
+    await session.commit()
+
+    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    by_guild = {
+        guild.id: retention for guild, _membership, retention, _count in memberships
+    }
+
+    assert by_guild[guild_30.id] == 30  # read from the guild's own schema
+    assert by_guild[guild_default.id] == 90  # default when no settings row
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_list_memberships_includes_member_count(session: AsyncSession):
+    """The guild list reports each guild's total member count, not just the
+    requesting user's membership (the guild_memberships_select RLS policy only
+    exposes sibling rows while that guild's context is active)."""
+    user = await create_user(session)
+    other = await create_user(session, email="other@example.com")
+
+    shared = await create_guild(session, name="Shared")
+    await create_guild_membership(session, user=user, guild=shared)
+    await create_guild_membership(session, user=other, guild=shared)
+
+    solo = await create_guild(session, name="Solo")
+    await create_guild_membership(session, user=user, guild=solo)
+
+    memberships = await guild_service.list_memberships(session, user_id=user.id)
+    counts = {guild.id: count for guild, _membership, _retention, count in memberships}
+
+    assert counts[shared.id] == 2
+    assert counts[solo.id] == 1

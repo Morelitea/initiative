@@ -15,9 +15,9 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.messages import DocumentMessages, ProjectMessages
-from app.models.document import DocumentPermissionLevel
-from app.models.project import ProjectPermissionLevel
-from app.models.user import UserRole
+from app.models.tenant.document import DocumentPermissionLevel
+from app.models.tenant.project import ProjectPermissionLevel
+from app.models.platform.user import UserRole
 from app.services.permissions import (
     PROJECT_LEVEL_ORDER,
     compute_document_permission,

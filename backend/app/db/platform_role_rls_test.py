@@ -21,7 +21,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
 from app.db.schema_provisioning import platform_role_name
-from app.models.user import UserRole
+from app.models.platform.user import UserRole
 from app.testing import create_guild, create_user
 
 
@@ -214,7 +214,7 @@ async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
     re-seed path rebuilds from a pre-captured snapshot). The env value is persisted
     later by an owner / startup, not by a non-owner read."""
     from app.core.config import settings as app_config
-    from app.services import app_settings as svc
+    from app.services.platform import app_settings as svc
 
     # Existing singleton with an empty oidc_issuer.
     await session.execute(

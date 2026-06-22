@@ -1,8 +1,8 @@
 """Cross-endpoint validators for user-supplied profile fields.
 
 These were originally module-private helpers in
-``app.api.v1.public_endpoints.users``. Moving them here lets the registration
-endpoint (``app.api.v1.public_endpoints.auth``) reuse the same rules without
+``app.api.v1.platform_endpoints.users``. Moving them here lets the registration
+endpoint (``app.api.v1.platform_endpoints.auth``) reuse the same rules without
 reaching across to a sibling endpoint's underscore-prefixed symbol.
 """
 

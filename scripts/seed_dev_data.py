@@ -37,55 +37,55 @@ from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
-from app.models.calendar_event import (  # noqa: E402
+from app.models.tenant.calendar_event import (  # noqa: E402
     CalendarEvent,
     CalendarEventAttendee,
     CalendarEventDocument,
     CalendarEventTag,
     RSVPStatus,
 )
-from app.models.comment import Comment  # noqa: E402
-from app.models.counter import (  # noqa: E402
+from app.models.tenant.comment import Comment  # noqa: E402
+from app.models.tenant.counter import (  # noqa: E402
     Counter,
     CounterGroup,
     CounterViewMode,
 )
-from app.models.document import (  # noqa: E402
+from app.models.tenant.document import (  # noqa: E402
     Document,
     DocumentLink,
     ProjectDocument,
 )
-from app.models.guild import Guild, GuildMembership, GuildRole  # noqa: E402
-from app.models.queue import (  # noqa: E402
+from app.models.platform.guild import Guild, GuildMembership, GuildRole  # noqa: E402
+from app.models.tenant.queue import (  # noqa: E402
     Queue,
     QueueItem,
     QueueItemTag,
 )
-from app.models.guild_setting import GuildSetting  # noqa: E402
-from app.models.initiative import (  # noqa: E402
+from app.models.tenant.guild_setting import GuildSetting  # noqa: E402
+from app.models.tenant.initiative import (  # noqa: E402
     Initiative,
     InitiativeMember,
     InitiativeRoleModel,
     InitiativeRolePermission,
 )
-from app.models.project import (  # noqa: E402
+from app.models.tenant.project import (  # noqa: E402
     Project,
 )
-from app.models.resource_grant import (  # noqa: E402
+from app.models.tenant.resource_grant import (  # noqa: E402
     ResourceAccessLevel,
     ResourceGrant,
 )
-from app.models.project_activity import ProjectFavorite  # noqa: E402
-from app.models.property import (  # noqa: E402
+from app.models.tenant.project_activity import ProjectFavorite  # noqa: E402
+from app.models.tenant.property import (  # noqa: E402
     CalendarEventPropertyValue,
     DocumentPropertyValue,
     PropertyDefinition,
     PropertyType,
     TaskPropertyValue,
 )
-from app.models.recent_view import RecentView  # noqa: E402
-from app.models.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
-from app.models.task import (  # noqa: E402
+from app.models.tenant.recent_view import RecentView  # noqa: E402
+from app.models.tenant.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
+from app.models.tenant.task import (  # noqa: E402
     Subtask,
     Task,
     TaskAssignee,
@@ -93,14 +93,14 @@ from app.models.task import (  # noqa: E402
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.user import User, UserRole  # noqa: E402
-from app.services.app_settings import get_or_create_guild_settings  # noqa: E402
-from app.services.guilds import get_primary_guild  # noqa: E402
-from app.services.initiatives import (  # noqa: E402
+from app.models.platform.user import User, UserRole  # noqa: E402
+from app.services.platform.app_settings import get_or_create_guild_settings  # noqa: E402
+from app.services.platform.guilds import get_primary_guild  # noqa: E402
+from app.services.tenant.initiatives import (  # noqa: E402
     create_builtin_roles,
     ensure_default_initiative,
 )
-from app.services.task_statuses import ensure_default_statuses  # noqa: E402
+from app.services.tenant.task_statuses import ensure_default_statuses  # noqa: E402
 
 STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids.json"
 

@@ -158,8 +158,8 @@ async def purge_document_uploads(session, documents: Iterable[Any]) -> None:
     from sqlmodel import select
 
     from app.db.soft_delete_filter import select_including_deleted
-    from app.models.document import Document, DocumentFileVersion, DocumentType
-    from app.models.upload import Upload
+    from app.models.tenant.document import Document, DocumentFileVersion, DocumentType
+    from app.models.tenant.upload import Upload
 
     docs_list = list(documents)
     if not docs_list:

@@ -1,0 +1,854 @@
+import logging
+from typing import Annotated, List, Sequence
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Response
+from sqlmodel import select
+
+from app.api.deps import UserSessionDep, require_capability
+from app.core.capabilities import Capability, capabilities_for, can_assign_role
+from app.db.session import get_admin_session, set_rls_context
+from app.db.schema_provisioning import deprovision_guild
+from sqlmodel.ext.asyncio.session import AsyncSession
+from app.models.platform.guild import Guild, GuildRole
+from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.tenant.project import Project
+from app.models.platform.user import User, UserStatus
+from app.models.platform.user_token import UserTokenPurpose
+from app.schemas.platform.user import UserRead, AccountDeletionResponse, UserPublic
+from app.schemas.platform.auth import VerificationSendResponse
+from app.schemas.platform.admin import (
+    PlatformRoleUpdate,
+    PlatformAdminCountResponse,
+    AdminUserDeleteRequest,
+    AdminDeletionEligibilityResponse,
+    AdminGuildRoleUpdate,
+    AdminInitiativeRoleUpdate,
+    GuildBlockerInfo,
+    InitiativeBlockerInfo,
+)
+from app.core.encryption import hash_email
+from app.core.messages import AdminMessages, SettingsMessages
+from app.services.platform import user_tokens
+from app.services import csv_export
+from app.services import email as email_service
+from app.services.stream_authz import authority as stream_authority
+from app.services.tenant import initiatives as initiatives_service
+from app.services.platform import users as users_service
+from app.services.platform import guilds as guilds_service
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# Per-capability guards. Each admin endpoint is gated on the specific
+# capability it needs rather than a blanket "admin" role, so the privilege
+# ladder (member → support → moderator → admin → owner) maps cleanly onto
+# what each operation actually requires.
+UsersReadDep = Annotated[User, Depends(require_capability(Capability.USERS_READ))]
+UsersManageDep = Annotated[User, Depends(require_capability(Capability.USERS_MANAGE))]
+UsersDeleteDep = Annotated[User, Depends(require_capability(Capability.USERS_DELETE))]
+GuildsManageDep = Annotated[User, Depends(require_capability(Capability.GUILDS_MANAGE))]
+RolesAssignDep = Annotated[User, Depends(require_capability(Capability.ROLES_ASSIGN))]
+# App-wide configuration (OIDC, SMTP, branding, role labels, platform AI).
+# Owner-only — imported by settings.py / ai_settings.py.
+ConfigManageDep = Annotated[User, Depends(require_capability(Capability.CONFIG_MANAGE))]
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
+
+
+@router.get("/users", response_model=List[UserRead])
+async def list_all_users(
+    session: UserSessionDep,
+    _current_user: UsersReadDep,
+) -> Sequence[User]:
+    """List all users in the platform (``users.read``).
+
+    Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
+    cross-user read is authorized by RLS (``users_platform_read``, support+) rather
+    than the BYPASSRLS admin engine. Initiative roles are guild-scoped and
+    deliberately NOT loaded here — a platform user view exposes platform data only.
+    """
+    from app.services.platform.users import SYSTEM_USER_EMAIL
+
+    stmt = (
+        select(User)
+        .where(User.email_hash != hash_email(SYSTEM_USER_EMAIL))
+        .order_by(User.created_at.asc())
+    )
+    result = await session.exec(stmt)
+    return result.all()
+
+
+_PLATFORM_CSV_HEADERS = [
+    "user_id",
+    "email",
+    "full_name",
+    "platform_role",
+    "status",
+    "email_verified",
+    "created_at",
+    "updated_at",
+    "timezone",
+    "locale",
+]
+
+
+@router.get("/users/export.csv")
+async def export_platform_users_csv(
+    session: UserSessionDep,
+    _current_user: UsersReadDep,
+    user_id: Annotated[list[int] | None, Query()] = None,
+) -> Response:
+    """Export platform users as a CSV file. Pass `user_id` one or more times to
+    restrict the export to a subset. Without `user_id`, every user (except the
+    system user) is included. Platform-admin only."""
+    from app.services.platform.users import SYSTEM_USER_EMAIL
+
+    stmt = (
+        select(User)
+        .where(User.email_hash != hash_email(SYSTEM_USER_EMAIL))
+        .order_by(User.created_at.asc())
+    )
+    if user_id:
+        stmt = stmt.where(User.id.in_(user_id))
+    result = await session.exec(stmt)
+    users = list(result.all())
+
+    if user_id and not users:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    rows = []
+    for user in users:
+        rows.append(
+            [
+                user.id,
+                user.email,
+                user.full_name or "",
+                user.role.value if hasattr(user.role, "value") else user.role,
+                user.status.value if hasattr(user.status, "value") else user.status,
+                user.email_verified,
+                user.created_at.isoformat() if user.created_at else "",
+                user.updated_at.isoformat() if user.updated_at else "",
+                user.timezone or "",
+                user.locale or "",
+            ]
+        )
+
+    csv_bytes = csv_export.build_csv(_PLATFORM_CSV_HEADERS, rows)
+
+    if len(users) == 1 and user_id:
+        single_user = users[0]
+        filename = f"user-{single_user.id}-{csv_export.safe_filename_component(single_user.email)}.csv"
+    else:
+        datestamp = datetime.now(timezone.utc).date().isoformat()
+        filename = f"platform-users-{datestamp}.csv"
+
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/users/{user_id}/reset-password", response_model=VerificationSendResponse)
+async def trigger_password_reset(
+    user_id: int,
+    session: AdminSessionDep,
+    _current_user: UsersManageDep,
+) -> VerificationSendResponse:
+    """Trigger a password reset email for a user (admin only)."""
+    stmt = select(User).where(User.id == user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    if user.status != UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_RESET_INACTIVE,
+        )
+
+    try:
+        token = await user_tokens.create_token(
+            session,
+            user_id=user.id,
+            purpose=UserTokenPurpose.password_reset,
+            expires_minutes=60,
+        )
+        await email_service.send_password_reset_email(session, user, token)
+    except email_service.EmailNotConfiguredError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=SettingsMessages.SMTP_INCOMPLETE,
+        ) from None
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)
+        ) from exc
+    return VerificationSendResponse(status="sent")
+
+
+@router.post("/users/{user_id}/reactivate", response_model=UserRead)
+async def reactivate_user(
+    user_id: int,
+    session: AdminSessionDep,
+    _current_user: UsersManageDep,
+) -> User:
+    """Reactivate a deactivated user account (admin only)."""
+    stmt = select(User).where(User.id == user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    if user.status == UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.USER_ALREADY_ACTIVE,
+        )
+
+    if user.status == UserStatus.anonymized:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_REACTIVATE_ANONYMIZED,
+        )
+
+    user.status = UserStatus.active
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    await initiatives_service.load_user_initiative_roles(session, [user])
+    return user
+
+
+@router.get("/platform-admin-count", response_model=PlatformAdminCountResponse)
+async def get_platform_admin_count(
+    session: UserSessionDep,
+    _current_user: UsersReadDep,
+) -> PlatformAdminCountResponse:
+    """Get the count of platform admins (``users.read``, role-scoped session)."""
+    count = await users_service.count_platform_admins(session)
+    return PlatformAdminCountResponse(count=count)
+
+
+@router.patch("/users/{user_id}/platform-role", response_model=UserRead)
+async def update_platform_role(
+    user_id: int,
+    payload: PlatformRoleUpdate,
+    session: AdminSessionDep,
+    current_user: RolesAssignDep,
+) -> User:
+    """Update a user's platform role (admin only).
+
+    Restrictions:
+    - Cannot change your own role
+    - Cannot demote the last platform admin
+    """
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_CHANGE_OWN_ROLE,
+        )
+
+    stmt = select(User).where(User.id == user_id).with_for_update()
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    # Refuse role changes on non-active accounts. A deactivated row's role
+    # change is meaningless until the user is reactivated, and an
+    # anonymized row should never gain or lose elevated privileges (the
+    # account is permanently gone). ``count_platform_admins`` already
+    # excludes non-active users from its count, so promoting a husk to
+    # admin would also confuse the last-admin invariant.
+    if user.status != UserStatus.active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_CHANGE_ROLE_INACTIVE,
+        )
+
+    # Bounded delegation: you may only assign a role whose capabilities are a
+    # subset of your own, and you may not modify a user who already outranks
+    # you (an admin can't touch an owner, in either direction).
+    if not can_assign_role(current_user, payload.role) or not can_assign_role(
+        current_user, user.role
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AdminMessages.CANNOT_ASSIGN_HIGHER_ROLE,
+        )
+
+    # Don't strip config-management from the last user who has it — that would
+    # lock the platform out of its own configuration. (FOR UPDATE acquired above.)
+    losing_config = Capability.CONFIG_MANAGE in capabilities_for(
+        user.role
+    ) and Capability.CONFIG_MANAGE not in capabilities_for(payload.role)
+    if losing_config:
+        if await users_service.is_last_capability_holder(
+            session, user_id, Capability.CONFIG_MANAGE, for_update=True
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AdminMessages.CANNOT_DEMOTE_LAST_OWNER,
+            )
+
+    user.role = payload.role
+    user.updated_at = datetime.now(timezone.utc)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    await initiatives_service.load_user_initiative_roles(session, [user])
+    return user
+
+
+@router.get(
+    "/users/{user_id}/deletion-eligibility",
+    response_model=AdminDeletionEligibilityResponse,
+)
+async def check_user_deletion_eligibility(
+    user_id: int,
+    session: AdminSessionDep,
+    current_user: UsersDeleteDep,
+) -> AdminDeletionEligibilityResponse:
+    """Check if a user can be deleted (admin only).
+
+    Returns blockers, warnings, owned projects, and detailed blocker info
+    with lists of members who could be promoted to resolve blockers.
+    """
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.USE_SELF_DELETION,
+        )
+
+    stmt = select(User).where(User.id == user_id)
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    (
+        can_delete,
+        blockers,
+        warnings,
+        owned_projects,
+    ) = await users_service.check_deletion_eligibility(
+        session, user_id, admin_context=True
+    )
+
+    # Check if target is the last platform owner (last config manager)
+    if Capability.CONFIG_MANAGE in capabilities_for(user.role):
+        if await users_service.is_last_capability_holder(
+            session, user_id, Capability.CONFIG_MANAGE
+        ):
+            blockers.append(
+                "User is the last platform owner. Promote another user first."
+            )
+            can_delete = False
+
+    # Get detailed blocker info for guild and initiative blockers
+    guild_blocker_details = await users_service.get_guild_blocker_details(
+        session, user_id
+    )
+    initiative_blocker_details = await users_service.get_initiative_blocker_details(
+        session, user_id
+    )
+
+    return AdminDeletionEligibilityResponse(
+        can_delete=can_delete,
+        blockers=blockers,
+        warnings=warnings,
+        owned_projects=owned_projects,
+        guild_blockers=[
+            GuildBlockerInfo(
+                guild_id=gb["guild_id"],
+                guild_name=gb["guild_name"],
+                other_members=[
+                    UserPublic(
+                        id=m.id,
+                        email=m.email,
+                        full_name=m.full_name,
+                        avatar_base64=m.avatar_base64,
+                        avatar_url=m.avatar_url,
+                    )
+                    for m in gb["other_members"]
+                ],
+            )
+            for gb in guild_blocker_details
+        ],
+        initiative_blockers=[
+            InitiativeBlockerInfo(
+                initiative_id=ib["initiative_id"],
+                initiative_name=ib["initiative_name"],
+                guild_id=ib["guild_id"],
+                other_members=[
+                    UserPublic(
+                        id=m.id,
+                        email=m.email,
+                        full_name=m.full_name,
+                        avatar_base64=m.avatar_base64,
+                        avatar_url=m.avatar_url,
+                    )
+                    for m in ib["other_members"]
+                ],
+            )
+            for ib in initiative_blocker_details
+        ],
+    )
+
+
+@router.delete("/users/{user_id}", response_model=AccountDeletionResponse)
+async def delete_user(
+    user_id: int,
+    payload: AdminUserDeleteRequest,
+    session: AdminSessionDep,
+    current_user: UsersDeleteDep,
+) -> AccountDeletionResponse:
+    """Delete, anonymize, or deactivate a user account (admin only).
+
+    `action` selects the path:
+      - `deactivate` — reversible; flips status to deactivated, drops memberships.
+      - `soft_delete` — anonymizes PII; keeps the row so historical FKs still resolve.
+      - `hard_delete` — permanently removes the row and cascades cleanup.
+
+    For both `soft_delete` and `hard_delete`, projects the user solely owns
+    must be transferred — only owners hold certain permissions, and an
+    anonymized owner row can't act on them.
+
+    Restrictions:
+    - Cannot delete yourself (use /users/me/delete-account)
+    - Cannot delete the last platform admin
+    """
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.CANNOT_DELETE_SELF,
+        )
+
+    stmt = select(User).where(User.id == user_id).with_for_update()
+    result = await session.exec(stmt)
+    user = result.one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.USER_NOT_FOUND
+        )
+
+    # Check if target is the last platform owner (last config manager)
+    if Capability.CONFIG_MANAGE in capabilities_for(user.role):
+        if await users_service.is_last_capability_holder(
+            session, user_id, Capability.CONFIG_MANAGE, for_update=True
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=AdminMessages.CANNOT_DELETE_LAST_OWNER,
+            )
+
+    # Check deletion eligibility
+    (
+        can_delete,
+        blockers,
+        _,
+        owned_projects,
+    ) = await users_service.check_deletion_eligibility(
+        session, user_id, admin_context=True
+    )
+
+    if not can_delete:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=blockers[0] if blockers else AdminMessages.USER_CANNOT_BE_DELETED,
+        )
+
+    # An already-anonymized row is a permanently empty husk; the only
+    # valid follow-up is hard delete. Refuse deactivate / soft_delete
+    # explicitly — without this guard, deactivate would flip
+    # ``anonymized`` → ``deactivated``, which then satisfies the
+    # ``reactivate`` endpoint's anonymized check and lets an admin
+    # accidentally resurrect the husk as an active loginable account.
+    if user.status == UserStatus.anonymized and payload.action != "hard_delete":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.ALREADY_ANONYMIZED,
+        )
+
+    # Project transfers are required for every action when the user owns
+    # projects. Even pure deactivation strands the projects until the user
+    # is reactivated — only owners can act on them — so we always force
+    # transfer up-front. ``hard_delete_user`` performs the transfers
+    # itself; the other two actions need an explicit pre-transfer.
+    if owned_projects:
+        if not payload.project_transfers:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AdminMessages.PROJECT_TRANSFERS_REQUIRED,
+            )
+
+        # Keys are "guild_id:project_id" — a bare project id repeats across
+        # per-guild schemas, so two distinct projects could otherwise share one
+        # mapping and both transfer to the same recipient.
+        owned_keys = {f"{p.guild_id}:{p.id}" for p in owned_projects}
+        transfer_keys = set(payload.project_transfers.keys())
+
+        missing = sorted(owned_keys - transfer_keys)
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Missing transfer recipients for projects: {missing}",
+            )
+
+        # Reject surplus entries — anything in the transfer map that
+        # isn't actually owned by the target user. Without this guard,
+        # an admin POSTing extra IDs (deliberately or by client bug)
+        # would silently transfer ownership of unrelated projects.
+        extra = sorted(transfer_keys - owned_keys)
+        if extra:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"project_transfers contains projects not owned by user: {extra}",
+            )
+
+        if payload.action in ("deactivate", "soft_delete"):
+            try:
+                # Routed per guild — projects live in per-guild schemas.
+                await users_service.transfer_owned_projects(
+                    session, user_id, payload.project_transfers
+                )
+            except users_service.InvalidTransferRecipient:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=AdminMessages.INVALID_TRANSFER_RECIPIENT,
+                )
+
+    if payload.action == "deactivate":
+        await users_service.deactivate_user(session, user_id)
+        return AccountDeletionResponse(
+            success=True,
+            action="deactivate",
+            message=f"User {user.email} has been deactivated",
+        )
+
+    if payload.action == "soft_delete":
+        await users_service.soft_delete_user(session, user_id)
+        return AccountDeletionResponse(
+            success=True,
+            action="soft_delete",
+            message=f"User {user.email} has been anonymized",
+        )
+
+    # hard_delete: the service performs project transfers internally,
+    # so the recipient-validity check happens there too.
+    try:
+        await users_service.hard_delete_user(
+            session, user_id, payload.project_transfers or {}
+        )
+    except users_service.InvalidTransferRecipient:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdminMessages.INVALID_TRANSFER_RECIPIENT,
+        )
+    return AccountDeletionResponse(
+        success=True,
+        action="hard_delete",
+        message=f"User {user.email} has been permanently deleted",
+    )
+
+
+@router.delete(
+    "/guilds/{guild_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def admin_delete_guild(
+    guild_id: int,
+    session: AdminSessionDep,
+    _current_user: GuildsManageDep,
+) -> Response:
+    """Delete a guild (platform admin only).
+
+    This allows platform admins to delete any guild, even if they're not a member.
+    All initiatives, projects, tasks, and memberships within the guild will be deleted.
+    """
+    stmt = select(Guild).where(Guild.id == guild_id)
+    result = await session.exec(stmt)
+    guild = result.one_or_none()
+    if not guild:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND
+        )
+
+    # Delete the shared guild row (cascades clear the roster), then drop the
+    # guild's schema — its content lives entirely in guild_<id> and is NOT
+    # removed by the row delete (no cross-schema FKs). Without the deprovision
+    # the schema is orphaned: every initiative/project/document/task for the
+    # guild stays on disk, reachable by id if the schema name is ever reused.
+    # Mirrors the member-facing DELETE /guilds/{id} endpoint.
+    await guilds_service.delete_guild(session, guild)
+    await session.commit()
+    try:
+        await deprovision_guild(guild_id)
+    except Exception:
+        logger.exception(
+            "admin guild deletion: schema deprovision failed for guild %s "
+            "(row already deleted; schema orphaned, reclaimed on retry)",
+            guild_id,
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/initiatives/{initiative_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def admin_delete_initiative(
+    initiative_id: int,
+    guild_id: Annotated[int, Query()],
+    session: AdminSessionDep,
+    _current_user: GuildsManageDep,
+) -> Response:
+    """Delete an initiative (platform admin only).
+
+    Used by the user-deletion blocker-resolution flow when a target user is
+    the sole project manager of an initiative with no other members the
+    admin could promote in their place. Cascades to projects, members,
+    roles, role permissions, and tags via ORM relationships; projects are
+    deleted explicitly first because ``Initiative.projects`` is not set
+    up as ``delete-orphan`` and ``projects.initiative_id`` is NOT NULL.
+
+    Default initiatives are deletable here — that restriction exists for
+    guild admins (so the guild always has a default for new project
+    creation), but a platform admin cleaning up a soon-to-be-deleted
+    user shouldn't be blocked by it.
+
+    ``guild_id`` is REQUIRED: initiatives live in per-guild schemas with
+    independent id sequences, so ``initiative_id`` alone is ambiguous across
+    guilds. The caller (the blocker-resolution UI) has it from the blocker
+    record. We route into that guild's schema as superadmin so the cascade
+    deletes the real rows, not the frozen ``public`` backup copies.
+    """
+    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+
+    initiative = await session.get(Initiative, initiative_id)
+    if not initiative:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+        )
+
+    project_result = await session.exec(
+        select(Project).where(Project.initiative_id == initiative_id)
+    )
+    for project in project_result.all():
+        await session.delete(project)
+    await session.flush()
+
+    await session.delete(initiative)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch(
+    "/guilds/{guild_id}/members/{user_id}/role",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def admin_update_guild_member_role(
+    guild_id: int,
+    user_id: int,
+    payload: AdminGuildRoleUpdate,
+    session: AdminSessionDep,
+    _current_user: GuildsManageDep,
+) -> Response:
+    """Update a guild member's role (platform admin only).
+
+    This allows platform admins to change guild member roles in any guild,
+    even if they're not a member. Useful for resolving "last admin" blockers.
+
+    Restrictions:
+    - Cannot demote the last guild admin
+    """
+    # Check guild exists
+    stmt = select(Guild).where(Guild.id == guild_id)
+    result = await session.exec(stmt)
+    guild = result.one_or_none()
+    if not guild:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=AdminMessages.GUILD_NOT_FOUND
+        )
+
+    # Get target membership with lock
+    target_membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=user_id, for_update=True
+    )
+    if target_membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.USER_NOT_IN_GUILD,
+        )
+
+    # Check if demoting the last guild admin
+    if target_membership.role == GuildRole.admin and payload.role != GuildRole.admin:
+        if await users_service.is_last_admin_of_guild(
+            session, guild_id, user_id, for_update=True
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AdminMessages.CANNOT_DEMOTE_LAST_GUILD_ADMIN,
+            )
+
+    target_membership.role = payload.role
+    session.add(target_membership)
+    await session.commit()
+    # Guild role change (e.g. admin → member) may reduce content access — re-check
+    # this user's live content streams immediately (matches the other paths).
+    await stream_authority.revoke_user(guild_id, user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/initiatives/{initiative_id}/members", response_model=List[UserPublic])
+async def admin_get_initiative_members(
+    initiative_id: int,
+    guild_id: Annotated[int, Query()],
+    session: AdminSessionDep,
+    _current_user: GuildsManageDep,
+) -> Sequence[User]:
+    """List members of any initiative (platform admin only).
+
+    ``guild_id`` is required: initiatives live in per-guild schemas with
+    independent id sequences. We route into that guild's schema as superadmin
+    so the member list comes from the live data, not the frozen ``public``
+    backup.
+    """
+    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+
+    stmt = select(Initiative).where(Initiative.id == initiative_id)
+    result = await session.exec(stmt)
+    if not result.one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+        )
+
+    # Active members only — anonymized rows are husks of departed users
+    # and deactivated rows are locked, so neither can be a valid project
+    # transfer target. The admin dialog (and the self-delete dialog
+    # via the parallel ``/users/me/initiative-members`` endpoint) rely
+    # on this filter to avoid offering an unselectable "Deleted user".
+    stmt = (
+        select(User)
+        .join(InitiativeMember, InitiativeMember.user_id == User.id)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            User.status == UserStatus.active,
+        )
+        .order_by(User.full_name, User.id)
+    )
+    result = await session.exec(stmt)
+    return result.all()
+
+
+@router.patch(
+    "/initiatives/{initiative_id}/members/{user_id}/role",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def admin_update_initiative_member_role(
+    initiative_id: int,
+    user_id: int,
+    payload: AdminInitiativeRoleUpdate,
+    guild_id: Annotated[int, Query()],
+    session: AdminSessionDep,
+    _current_user: GuildsManageDep,
+) -> Response:
+    """Update an initiative member's role (platform admin only).
+
+    This allows platform admins to change initiative member roles in any initiative,
+    even if they're not a member. Useful for resolving "sole PM" blockers.
+
+    ``guild_id`` is required (per-guild schemas; ``initiative_id`` is not unique
+    across guilds). We route into that guild's schema as superadmin.
+
+    Restrictions:
+    - Cannot demote the last project manager
+    """
+    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+
+    # Check initiative exists
+    stmt = select(Initiative).where(Initiative.id == initiative_id)
+    result = await session.exec(stmt)
+    initiative = result.one_or_none()
+    if not initiative:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.INITIATIVE_NOT_FOUND,
+        )
+
+    # Get target membership with lock
+    membership_stmt = (
+        select(InitiativeMember)
+        .where(
+            InitiativeMember.initiative_id == initiative_id,
+            InitiativeMember.user_id == user_id,
+        )
+        .with_for_update()
+    )
+    membership_result = await session.exec(membership_stmt)
+    target_membership = membership_result.one_or_none()
+    if target_membership is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.USER_NOT_IN_INITIATIVE,
+        )
+
+    # Resolve the target role by name
+    new_role = await initiatives_service.get_role_by_name(
+        session,
+        initiative_id=initiative_id,
+        role_name=payload.role.value,
+    )
+    if not new_role:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=AdminMessages.ROLE_NOT_FOUND,
+        )
+
+    # Check if demoting the last PM
+    current_role = (
+        await initiatives_service.get_role_by_id(
+            session,
+            role_id=target_membership.role_id,
+            initiative_id=initiative_id,
+        )
+        if target_membership.role_id
+        else None
+    )
+    if current_role and current_role.is_manager and not new_role.is_manager:
+        try:
+            await initiatives_service.ensure_managers_remain(
+                session,
+                initiative_id=initiative_id,
+                excluded_user_ids=[user_id],
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=AdminMessages.CANNOT_DEMOTE_LAST_PM,
+            )
+
+    target_membership.role_id = new_role.id
+    session.add(target_membership)
+    await session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

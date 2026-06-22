@@ -7,8 +7,8 @@ than reading the empty ``public`` backup (which returned all-zero dashboards).
 
 import pytest
 
-from app.models.guild import GuildRole
-from app.models.task import TaskStatusCategory
+from app.models.platform.guild import GuildRole
+from app.models.tenant.task import TaskStatusCategory
 from app.services import stats_service
 from app.testing import (
     create_guild,

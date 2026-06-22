@@ -14,8 +14,8 @@ from app.core.encryption import (
     SALT_OIDC_CLIENT_SECRET,
 )
 from app.db.session import AdminSessionLocal
-from app.models.user import User
-from app.services import app_settings as app_settings_service
+from app.models.platform.user import User
+from app.services.platform import app_settings as app_settings_service
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
 
 logger = logging.getLogger(__name__)

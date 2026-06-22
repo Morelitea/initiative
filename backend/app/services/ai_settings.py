@@ -18,7 +18,7 @@ from app.core.encryption import decrypt_field, encrypt_field, SALT_AI_API_KEY
 from app.core.messages import AIMessages
 from app.db.session import reapply_rls_context
 
-from app.models.user import User
+from app.models.platform.user import User
 from app.schemas.ai_settings import (
     AIProvider,
     AITestConnectionRequest,
@@ -32,7 +32,10 @@ from app.schemas.ai_settings import (
     UserAISettingsResponse,
     UserAISettingsUpdate,
 )
-from app.services.app_settings import get_app_settings, get_or_create_guild_settings
+from app.services.platform.app_settings import (
+    get_app_settings,
+    get_or_create_guild_settings,
+)
 from app.services.webhook_target_url import (
     WebhookTargetUrlError,
     WebhookTargetUrlPrivateError,

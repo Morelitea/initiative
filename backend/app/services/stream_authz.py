@@ -35,7 +35,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import GuildAccessError, establish_guild_access
 from app.db.session import AsyncSessionLocal
-from app.models.user import User
+from app.models.platform.user import User
 
 logger = logging.getLogger(__name__)
 

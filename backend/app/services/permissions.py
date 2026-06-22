@@ -26,17 +26,17 @@ from app.core.pam_context import active_grant_level, grant_satisfies, has_active
 from app.core.role_context import active_guild_role, request_overrides_sharing
 from app.services.membership import guild_member_clause
 
-from app.models.guild import GuildRole
-from app.models.project import (
+from app.models.platform.guild import GuildRole
+from app.models.tenant.project import (
     Project,
     ProjectPermissionLevel,
 )
-from app.models.document import (
+from app.models.tenant.document import (
     Document,
     DocumentPermissionLevel,
 )
-from app.models.initiative import InitiativeMember, InitiativeRoleModel
-from app.models.user import User
+from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
+from app.models.platform.user import User
 from app.core.messages import (
     ProjectMessages,
     DocumentMessages,
@@ -44,7 +44,7 @@ from app.core.messages import (
     CounterMessages,
     CalendarEventMessages,
 )
-from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 
 
 # ---------------------------------------------------------------------------
@@ -365,7 +365,7 @@ def serialize_grants(row: Any) -> list:
     """Serialize a resource's eager-loaded ``grants`` into the unified grant list
     — one ``ResourceGrantSchema`` per ``resource_grants`` row (user, role, or
     all-initiative-members), owner included."""
-    from app.schemas.resource_grant import ResourceGrantSchema
+    from app.schemas.tenant.resource_grant import ResourceGrantSchema
 
     return [
         ResourceGrantSchema(

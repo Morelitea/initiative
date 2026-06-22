@@ -7,10 +7,17 @@ from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
-from app.models.oidc_claim_mapping import OIDCClaimMapping, OIDCMappingTargetType
-from app.models.user import User, UserStatus
+from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.tenant.initiative import (
+    Initiative,
+    InitiativeMember,
+    InitiativeRoleModel,
+)
+from app.models.platform.oidc_claim_mapping import (
+    OIDCClaimMapping,
+    OIDCMappingTargetType,
+)
+from app.models.platform.user import User, UserStatus
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +185,9 @@ async def sync_oidc_assignments(
     )
 
     # --- Initiative resolution + membership (guild-scoped, routed per guild) ---
-    from app.services.initiatives import clear_user_task_assignments_for_initiative
+    from app.services.tenant.initiatives import (
+        clear_user_task_assignments_for_initiative,
+    )
 
     for gid in relevant_guilds:
         session.expunge_all()
@@ -263,7 +272,7 @@ async def sync_oidc_assignments(
     # For each oidc-managed guild the claims no longer grant: re-home owned
     # projects + drop initiative memberships (guild-scoped, routed), then delete
     # the shared GuildMembership row in public context.
-    from app.services.initiatives import remove_user_from_guild_initiatives
+    from app.services.tenant.initiatives import remove_user_from_guild_initiatives
 
     session.expunge_all()
     await set_rls_context(session, is_superadmin=True)
@@ -436,8 +445,8 @@ async def _auto_transfer_owned_projects(
     """
     from sqlmodel import delete as sql_delete
 
-    from app.models.resource_grant import ResourceGrant
-    from app.services.users import (
+    from app.models.tenant.resource_grant import ResourceGrant
+    from app.services.platform.users import (
         InvalidTransferRecipient,
         get_owned_projects_in_guild,
         transfer_project_ownership,
