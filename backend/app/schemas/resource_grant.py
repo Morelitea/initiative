@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, model_validator
 
 from app.schemas.base import SanitizedBaseModel
 
