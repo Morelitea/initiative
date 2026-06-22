@@ -227,7 +227,11 @@ async def list_my_calendar_events(
                 selectinload(CalendarEvent.attendees).selectinload(
                     CalendarEventAttendee.user,
                 ),
-                selectinload(CalendarEvent.initiative),
+                # memberships are needed by my_permission_level (effective_level
+                # reads the requester's roles + membership off the initiative).
+                selectinload(CalendarEvent.initiative).selectinload(
+                    Initiative.memberships
+                ),
                 selectinload(CalendarEvent.tag_links).selectinload(
                     CalendarEventTag.tag
                 ),

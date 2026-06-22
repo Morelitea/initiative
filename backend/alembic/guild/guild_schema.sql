@@ -376,7 +376,7 @@ CREATE TABLE IF NOT EXISTS resource_grants (
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	all_initiative_members BOOLEAN DEFAULT false NOT NULL, 
 	CONSTRAINT resource_grants_pkey PRIMARY KEY (id), 
-	CONSTRAINT resource_grants_unique_grantee UNIQUE NULLS DISTINCT (resource_type, resource_id, user_id, role_id)
+	CONSTRAINT resource_grants_unique_grantee UNIQUE NULLS NOT DISTINCT (resource_type, resource_id, user_id, role_id)
 );
 CREATE TABLE IF NOT EXISTS subtasks (
 	id SERIAL NOT NULL, 

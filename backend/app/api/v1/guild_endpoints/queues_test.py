@@ -935,6 +935,14 @@ async def test_member_without_permission_cannot_view(
     queue_data = await _create_queue_via_api(
         client, admin_headers, guild, initiative.id
     )
+    # New queues default to all-members Viewer; restrict to owner-only so a member
+    # without a grant is genuinely denied.
+    restrict = await client.put(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/grants",
+        headers=admin_headers,
+        json=[],
+    )
+    assert restrict.status_code == 200
 
     member_headers = await get_guild_headers(session, guild, member)
     response = await client.get(

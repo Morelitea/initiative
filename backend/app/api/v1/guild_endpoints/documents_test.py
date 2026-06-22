@@ -105,7 +105,7 @@ async def test_create_document_with_permissions(
         "title": "Doc With Permissions",
         "initiative_id": initiative.id,
         "grants": [
-            {"initiative_role_id": member_role.id, "level": "read"},
+            {"role_id": member_role.id, "level": "read"},
             {"user_id": member.id, "level": "write"},
         ],
     }
@@ -191,7 +191,7 @@ async def test_create_document_rejects_foreign_initiative_role(
         "title": "Doc Cross Initiative",
         "initiative_id": initiative_a.id,
         "grants": [
-            {"initiative_role_id": foreign_role.id, "level": "read"},
+            {"role_id": foreign_role.id, "level": "read"},
         ],
     }
 

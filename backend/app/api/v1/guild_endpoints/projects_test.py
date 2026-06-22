@@ -836,7 +836,7 @@ async def test_create_project_with_role_permissions(
         "name": "Project With Role Perms",
         "initiative_id": initiative.id,
         "grants": [
-            {"initiative_role_id": member_role.id, "level": "read"},
+            {"role_id": member_role.id, "level": "read"},
         ],
     }
 
@@ -959,7 +959,7 @@ async def test_create_project_rejects_foreign_initiative_role(
         "name": "Project Cross Initiative",
         "initiative_id": initiative_a.id,
         "grants": [
-            {"initiative_role_id": foreign_role.id, "level": "read"},
+            {"role_id": foreign_role.id, "level": "read"},
         ],
     }
 

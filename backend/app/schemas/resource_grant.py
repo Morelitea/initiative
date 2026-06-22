@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
+from pydantic import ConfigDict
+
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -25,6 +27,11 @@ class ResourceGrantSchema(SanitizedBaseModel):
     read-only or write-only. The server always preserves the resource's owner
     grant. Role display names are resolved client-side from the initiative's roles
     by ``role_id``."""
+
+    # from_attributes so a read model can validate straight off the ORM
+    # ResourceGrant row (e.g. ProjectRead.model_validate(project) reading
+    # project.grants).
+    model_config = ConfigDict(from_attributes=True)
 
     level: Literal["read", "write", "owner"]
     user_id: Optional[int] = None
