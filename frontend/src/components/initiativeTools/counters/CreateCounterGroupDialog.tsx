@@ -2,7 +2,14 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { CounterGroupRead } from "@/api/generated/initiativeAPI.schemas";
+import type { CounterGroupRead, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import { ShareControl } from "@/components/access/ShareControl";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,6 +53,9 @@ export const CreateCounterGroupDialog = ({
   const [selectedInitiativeId, setSelectedInitiativeId] = useState(
     defaultInitiativeId ? String(defaultInitiativeId) : ""
   );
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
+    { all_initiative_members: true, level: "read" },
+  ]);
 
   const initiativesQuery = useInitiatives();
   const initiatives = initiativesQuery.data ?? [];
@@ -66,6 +76,7 @@ export const CreateCounterGroupDialog = ({
       setName("");
       setDescription("");
       setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
+      setGrants([{ all_initiative_members: true, level: "read" }]);
     }
   }, [open, defaultInitiativeId]);
 
@@ -86,6 +97,7 @@ export const CreateCounterGroupDialog = ({
       name: trimmedName,
       description: description.trim() || undefined,
       initiative_id: effectiveInitiativeId,
+      grants,
     });
   };
 
@@ -147,6 +159,19 @@ export const CreateCounterGroupDialog = ({
               </Select>
             )}
           </div>
+
+          <Accordion type="single" collapsible defaultValue="advanced">
+            <AccordionItem value="advanced" className="border-b-0">
+              <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
+              <AccordionContent>
+                <ShareControl
+                  initiativeId={effectiveInitiativeId}
+                  grants={grants}
+                  onChange={setGrants}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
 
         <DialogFooter>

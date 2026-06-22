@@ -2,7 +2,7 @@
   "title": "Proyectos",
   "subtitle": "Haz seguimiento de iniciativas y colabora con tu gremio.",
   "addProject": "Agregar proyecto",
-  "loading": "Cargando proyectos\u2026",
+  "loading": "Cargando proyectos…",
   "loadError": "No se pudieron cargar los proyectos.",
   "pinned": "Fijados",
   "noProjects": "Aún no hay proyectos. Crea uno para comenzar.",
@@ -30,7 +30,6 @@
     "tasksDone": "{{completed}}/{{total}} terminadas",
     "noTasks": "Sin tareas"
   },
-
   "tabs": {
     "active": "Proyectos activos",
     "templates": "Plantillas",
@@ -76,7 +75,7 @@
     "showArchived": "Mostrar archivados"
   },
   "templates": {
-    "loading": "Cargando plantillas\u2026",
+    "loading": "Cargando plantillas…",
     "loadError": "No se pudieron cargar las plantillas.",
     "initiativeLabel": "Iniciativa: {{name}}",
     "lastUpdated": "Última actualización: {{date}}",
@@ -89,7 +88,7 @@
   "archived": {
     "title": "Proyectos archivados",
     "subtitle": "Reabre una iniciativa cuando el trabajo se retome.",
-    "loading": "Cargando proyectos archivados\u2026",
+    "loading": "Cargando proyectos archivados…",
     "loadError": "No se pudieron cargar los proyectos archivados.",
     "initiativeLabel": "Iniciativa: {{name}}",
     "archivedAt": "Archivado el: {{date}}",
@@ -109,26 +108,26 @@
     "descriptionLabel": "Descripción (Markdown soportado)",
     "descriptionPlaceholder": "Comparte contexto para ayudar a la iniciativa a priorizar.",
     "initiativeLabel": "Iniciativa",
-    "loadingInitiatives": "Cargando iniciativas\u2026",
+    "loadingInitiatives": "Cargando iniciativas…",
     "initiativeLoadError": "No se pudieron cargar las iniciativas.",
     "selectInitiative": "Seleccionar iniciativa",
     "noInitiatives": "No hay iniciativas disponibles.",
     "templateLabel": "Plantilla (opcional)",
-    "loadingTemplates": "Cargando plantillas\u2026",
+    "loadingTemplates": "Cargando plantillas…",
     "templateLoadError": "No se pudieron cargar las plantillas.",
     "noTemplate": "Sin plantilla",
-    "disableTemplateHint": "Desactiva \u201cGuardar como plantilla\u201d para elegir una plantilla.",
+    "disableTemplateHint": "Desactiva “Guardar como plantilla” para elegir una plantilla.",
     "saveAsTemplate": "Guardar como plantilla",
     "saveAsTemplateHint": "Los proyectos de plantilla se encuentran en la pestaña Plantillas y se pueden reutilizar para iniciar nuevo trabajo.",
     "createError": "No se pudo crear el proyecto.",
     "selectInitiativeError": "Selecciona una iniciativa antes de crear un proyecto",
-    "creating": "Creando\u2026",
+    "creating": "Creando…",
     "createProject": "Crear proyecto"
   },
   "detail": {
     "invalidProjectId": "ID de proyecto no válido.",
-    "backToProjects": "\u2190 Volver a proyectos",
-    "loading": "Cargando proyecto\u2026",
+    "backToProjects": "← Volver a proyectos",
+    "loading": "Cargando proyecto…",
     "loadError": "No se pudo cargar el proyecto.",
     "notFound": "Proyecto no encontrado",
     "notFoundDescription": "Este proyecto puede haber sido eliminado o el enlace está roto.",
@@ -145,10 +144,10 @@
     "archivedInfo": "Este proyecto está archivado. Desarchívalo desde la configuración para agregar o actualizar tareas."
   },
   "tabsBar": {
-    "loadingRecent": "Cargando elementos recientes\u2026",
+    "loadingRecent": "Cargando elementos recientes…",
     "closeItem": "Cerrar {{name}}",
     "close": "Cerrar",
-    "closeOthers": "Cerrar las dem\u00e1s",
+    "closeOthers": "Cerrar las demás",
     "closeAll": "Cerrar todas"
   },
   "favorite": {
@@ -180,7 +179,7 @@
     "startDateLabel": "Fecha de inicio",
     "dueDateLabel": "Fecha de vencimiento",
     "optional": "Opcional",
-    "saving": "Guardando\u2026",
+    "saving": "Guardando…",
     "createTask": "Crear tarea",
     "createError": "No se pudo crear la tarea."
   },
@@ -216,7 +215,7 @@
     "actionsColumn": "Acciones",
     "noStatuses": "Aún no hay estados configurados.",
     "deleteTitle": "Eliminar estado",
-    "deleteDescription": "Selecciona un estado de respaldo en la misma categoría para mover las tareas existentes antes de eliminar \u201c{{name}}\u201d.",
+    "deleteDescription": "Selecciona un estado de respaldo en la misma categoría para mover las tareas existentes antes de eliminar “{{name}}”.",
     "fallbackLabel": "Estado de respaldo",
     "chooseFallback": "Elegir respaldo",
     "noFallback": "No hay respaldo disponible",
@@ -234,7 +233,7 @@
     "noChanges": "No hay cambios para guardar",
     "bulkUpdated": "{{count}} estado actualizado",
     "bulkUpdated_other": "{{count}} estados actualizados",
-    "bulkUpdateError": "No se pudo actualizar \u201c{{name}}\u201d: {{error}}",
+    "bulkUpdateError": "No se pudo actualizar “{{name}}”: {{error}}",
     "unknownError": "Error desconocido"
   },
   "settings": {
@@ -274,66 +273,9 @@
       "tagsDescription": "Agrega etiquetas para organizar y filtrar proyectos.",
       "noWriteAccessTags": "Necesitas acceso de escritura para administrar etiquetas."
     },
-    "roleAccess": {
-      "title": "Acceso por rol",
-      "description": "Otorga acceso a todos los miembros con un rol específico de la iniciativa.",
-      "noRoles": "Aún no se ha otorgado acceso a ningún rol para este proyecto.",
-      "addRole": "Agregar rol",
-      "loadingRoles": "Cargando roles...",
-      "allRolesAssigned": "Todos los roles de la iniciativa ya tienen acceso a este proyecto.",
-      "selectRole": "Seleccionar rol",
-      "canView": "Puede ver",
-      "canEdit": "Puede editar",
-      "adding": "Agregando...",
-      "add": "Agregar",
-      "remove": "Eliminar",
-      "selectRoleError": "Selecciona un rol",
-      "roleNameColumn": "Nombre del rol",
-      "accessLevelColumn": "Nivel de acceso",
-      "actionsColumn": "Acciones",
-      "granted": "Acceso por rol otorgado",
-      "grantError": "No se pudo otorgar acceso por rol",
-      "updated": "Acceso por rol actualizado",
-      "updateError": "No se pudo actualizar el acceso por rol",
-      "removed": "Acceso por rol eliminado",
-      "removeError": "No se pudo eliminar el acceso por rol"
-    },
     "access": {
-      "title": "Acceso individual",
-      "description": "Controla quién puede ver y editar este proyecto.",
-      "selected": "{{count}} seleccionados",
-      "changeAccess": "Cambiar acceso...",
-      "permissionOwner": "Propietario",
-      "permissionWrite": "Puede editar",
-      "permissionRead": "Puede ver",
-      "removing": "Eliminando...",
-      "remove": "Eliminar",
-      "filterByName": "Filtrar por nombre",
-      "nameColumn": "Nombre",
-      "emailColumn": "Email",
-      "accessColumn": "Acceso",
-      "actionsColumn": "Acciones",
-      "grantAccess": "Otorgar acceso",
-      "allMembersHaveAccess": "Todos los miembros de la iniciativa ya tienen acceso a este proyecto.",
-      "selectMember": "Seleccionar miembro",
-      "noMembersFound": "No se encontraron miembros",
-      "adding": "Agregando...",
-      "add": "Agregar",
-      "addingAll": "Agregando todos...",
-      "addAll": "Agregar todos ({{count}})",
-      "selectMemberError": "Selecciona un miembro",
-      "granted": "Acceso otorgado",
-      "grantError": "No se pudo otorgar acceso",
       "updated": "Acceso actualizado",
-      "updateError": "No se pudo actualizar el acceso",
-      "removed": "Acceso eliminado",
-      "removeError": "No se pudo eliminar el acceso",
-      "grantedAll": "Acceso otorgado a todos los miembros",
-      "grantAllError": "No se pudo otorgar acceso a todos los miembros",
-      "bulkUpdated": "Acceso actualizado para los miembros seleccionados",
-      "bulkUpdateError": "No se pudo actualizar el acceso para los miembros seleccionados",
-      "bulkRemoved": "Acceso eliminado para los miembros seleccionados",
-      "bulkRemoveError": "No se pudo eliminar el acceso para los miembros seleccionados"
+      "updateError": "No se pudo actualizar el acceso"
     },
     "templateStatus": {
       "title": "Estado de plantilla",
@@ -388,12 +330,12 @@
     "attachDialogDescription": "Solo están disponibles los documentos creados bajo esta iniciativa.",
     "selectDocument": "Seleccionar documento",
     "noAvailableDocuments": "No hay documentos disponibles",
-    "loadingDocuments": "Cargando documentos\u2026",
+    "loadingDocuments": "Cargando documentos…",
     "chooseDocument": "Elegir documento",
     "allAttached": "Todos los documentos de la iniciativa ya están adjuntos.",
     "noMatchesFound": "No se encontraron coincidencias.",
     "attachHint": "¿Necesitas uno nuevo? Abre Mis iniciativas y usa la pestaña Documentos de la iniciativa para crearlo, luego regresa aquí para adjuntarlo.",
-    "attaching": "Adjuntando\u2026",
+    "attaching": "Adjuntando…",
     "attach": "Adjuntar",
     "attached": "Documento adjuntado.",
     "attachError": "No se pudo adjuntar el documento.",
@@ -432,7 +374,7 @@
     "archiveTitle_other": "¿Archivar {{count}} tareas?",
     "archiveDescription": "Las tareas archivadas se ocultarán de la vista predeterminada pero aún se podrán acceder mediante filtros.",
     "archiveConfirm": "Archivar",
-    "archiving": "Archivando\u2026",
+    "archiving": "Archivando…",
     "archivedSuccess": "{{count}} tarea archivada",
     "archivedSuccess_other": "{{count}} tareas archivadas",
     "archiveError": "No se pudieron archivar las tareas.",
@@ -476,7 +418,7 @@
     "due": "Vence: {{date}}",
     "dropHere": "Suelta tareas aquí",
     "noTasks": "Aún no hay tareas.",
-    "archiving": "Archivando\u2026",
+    "archiving": "Archivando…",
     "archiveDone": "Archivar tareas terminadas",
     "taskCount_one": "{{count}} tarea",
     "taskCount_other": "{{count}} tareas",
@@ -489,11 +431,11 @@
     "repeat": "Repetir",
     "doesNotRepeat": "No se repite",
     "daily": "Diariamente",
-    "everyWeekday": "Cada día hábil (lun\u2013vie)",
+    "everyWeekday": "Cada día hábil (lun–vie)",
     "weeklyOn": "Semanalmente el {{day}}",
     "monthlyOnDay": "Mensualmente el día {{day}}",
     "annuallyOn": "Anualmente el {{day}} de {{month}}",
-    "custom": "Personalizado\u2026",
+    "custom": "Personalizado…",
     "frequency": "Frecuencia",
     "frequencyDaily": "Diaria",
     "frequencyWeekly": "Semanal",
@@ -551,7 +493,6 @@
       "everyNYears": "Cada {{count}} años el {{day}} de {{month}}"
     }
   },
-
   "calendarView": {
     "subtitle": "Visualiza las fechas de inicio y vencimiento de las tareas.",
     "previousMonth": "Mes anterior",
@@ -561,25 +502,21 @@
     "due": "Vence",
     "more": "+{{count}} más"
   },
-
   "progressLabel": "Progreso del proyecto",
-
   "preview": {
     "updated": "Actualizado {{date}}",
     "tasksDone": "{{completed}}/{{total}} completadas"
   },
-
   "activitySidebar": {
     "title": "Actividad del proyecto",
     "activity": "Actividad",
     "expand": "Expandir barra de actividad",
     "collapse": "Contraer barra de actividad",
-    "loading": "Cargando actividad\u2026",
+    "loading": "Cargando actividad…",
     "noComments": "Aún no hay comentarios.",
     "commentedOn": "comentó en",
     "loadMore": "Cargar más"
   },
-
   "ganttView": {
     "title": "Línea de tiempo",
     "subtitle": "Planifica las fechas de inicio y vencimiento en las próximas semanas.",
@@ -593,7 +530,6 @@
     "noTasks": "No hay tareas para mostrar.",
     "outsideRange": "Fuera del rango actual"
   },
-
   "export": {
     "title": "Exportar proyecto",
     "description": "Descarga un archivo JSON con este proyecto, sus tareas, estados, etiquetas y valores de propiedades personalizadas.",
@@ -604,7 +540,6 @@
     "success": "Proyecto exportado",
     "error": "No se pudo exportar el proyecto. Inténtalo de nuevo."
   },
-
   "import": {
     "title": "Importar proyecto",
     "description": "Crea un nuevo proyecto a partir de un archivo JSON exportado previamente.",

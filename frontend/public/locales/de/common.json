@@ -81,24 +81,6 @@
     "due": "Fällig"
   },
   "createAccess": {
-    "advancedOptions": "Erweiterte Optionen",
-    "roleAccess": "Rollenzugriff",
-    "roleAccessHint": "Mitgliedern Zugriff nach Initiativen-Rolle gewähren",
-    "userAccess": "Benutzerzugriff",
-    "userAccessHint": "Bestimmten Mitgliedern Zugriff gewähren",
-    "selectRoles": "Rollen auswählen…",
-    "selectMembers": "Mitglieder auswählen…",
-    "searchRoles": "Rollen suchen…",
-    "searchMembers": "Mitglieder suchen…",
-    "noRoles": "Keine Rollen gefunden",
-    "noMembers": "Keine Mitglieder gefunden",
-    "level": "Zugriffsstufe",
-    "canView": "Kann ansehen",
-    "canEdit": "Kann bearbeiten",
-    "add": "Hinzufügen",
-    "addAllMembers": "Alle Initiativen-Mitglieder hinzufügen",
-    "addAllMembersHint": "Allen aktuellen Mitgliedern Lesezugriff gewähren",
-    "noInitiative": "Wähle zuerst eine Initiative aus",
-    "remove": "Entfernen"
+    "advancedOptions": "Erweiterte Optionen"
   }
 }

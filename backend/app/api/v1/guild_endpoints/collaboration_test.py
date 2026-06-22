@@ -25,6 +25,13 @@ from app.testing import (
     create_user,
     get_auth_token,
 )
+from app.api.v1.guild_endpoints.collaboration import (
+    _check_document_access,
+    _get_document_with_permissions,
+)
+from app.core.pam_context import set_active_grant
+from app.core.role_context import set_active_role
+from app.models.guild import GuildRole
 
 
 async def _create_native_document(
@@ -61,6 +68,48 @@ async def _create_native_document(
 
 def _sync_url(guild_id: int, document_id: int) -> str:
     return f"/api/v1/g/{guild_id}/collaboration/documents/{document_id}/sync-content"
+
+
+@pytest.mark.integration
+async def test_collaboration_guild_admin_gets_full_access(
+    session: AsyncSession,
+) -> None:
+    """A guild admin must get full collaboration access to a restricted document
+    they hold no grant on and aren't an initiative member of — mirroring the REST
+    guild-admin bypass. That bypass flows through the shared DAC engine, whose
+    ``is_request_guild_admin`` check reads the active guild-role context; the
+    WebSocket handler must record it (the REST path does in get_guild_session).
+    Without it, the admin is wrongly denied (the original "access denied" bug)."""
+    owner = await create_user(session, email="owner@example.com")
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session, creator=owner)
+    await create_guild_membership(session, user=owner, guild=guild)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    # admin is deliberately NOT a member of this initiative and holds no grant.
+    initiative = await create_initiative(session, guild, owner)
+    doc = await _create_native_document(session, initiative=initiative, owner=owner)
+    document = await _get_document_with_permissions(session, doc.id, guild.id)
+
+    set_active_grant(None, None)
+
+    # Pre-fix WebSocket state (no role context recorded) wrongly denies the admin.
+    set_active_role(None, None)
+    assert await _check_document_access(session, document, admin, guild.id) == (
+        False,
+        False,
+    )
+
+    # With the guild role recorded (as the handler now does) the bypass fires.
+    set_active_role(guild.id, GuildRole.admin.value)
+    try:
+        assert await _check_document_access(session, document, admin, guild.id) == (
+            True,
+            True,
+        )
+    finally:
+        set_active_role(None, None)
 
 
 @pytest.mark.integration

@@ -2,7 +2,7 @@
   "title": "Projects",
   "subtitle": "Track initiatives and collaborate with your guild.",
   "addProject": "Add Project",
-  "loading": "Loading projects\u2026",
+  "loading": "Loading projects…",
   "loadError": "Unable to load projects.",
   "pinned": "Pinned",
   "noProjects": "No projects yet. Create one to get started.",
@@ -10,7 +10,6 @@
   "onlyPinnedMatch": "Only pinned projects match your filters.",
   "accessRestricted": "Access Restricted",
   "accessRestrictedDescription": "You don't have permission to view projects in this initiative. Contact an administrator if you believe this is an error.",
-
   "myProjects": {
     "title": "My Projects",
     "subtitle": "Projects you have access to across all your guilds.",
@@ -31,18 +30,15 @@
     "tasksDone": "{{completed}}/{{total}} done",
     "noTasks": "No tasks"
   },
-
   "tabs": {
     "active": "Active Projects",
     "templates": "Templates",
     "archive": "Archive"
   },
-
   "view": {
     "grid": "Grid",
     "list": "List"
   },
-
   "filters": {
     "heading": "Filters",
     "show": "Show filters",
@@ -78,9 +74,8 @@
     "noStatusesAvailable": "No statuses available",
     "showArchived": "Show archived"
   },
-
   "templates": {
-    "loading": "Loading templates\u2026",
+    "loading": "Loading templates…",
     "loadError": "Unable to load templates.",
     "initiativeLabel": "Initiative: {{name}}",
     "lastUpdated": "Last updated: {{date}}",
@@ -90,11 +85,10 @@
     "noTemplatesDescription": "Create a template from any project in project settings.",
     "description": "Standardize best practices and quickly spin up new initiatives using reusable templates."
   },
-
   "archived": {
     "title": "Archived projects",
     "subtitle": "Reopen an initiative when the work picks back up.",
-    "loading": "Loading archived projects\u2026",
+    "loading": "Loading archived projects…",
     "loadError": "Unable to load archived projects.",
     "initiativeLabel": "Initiative: {{name}}",
     "archivedAt": "Archived at: {{date}}",
@@ -105,7 +99,6 @@
     "noArchivedDescription": "Active projects stay on the Active tab.",
     "noArchivedDescriptionAlt": "Active projects stay on the main projects tab."
   },
-
   "createDialog": {
     "title": "Create project",
     "description": "Give the project a name, optional description, and owning initiative.",
@@ -115,36 +108,34 @@
     "descriptionLabel": "Description (Markdown supported)",
     "descriptionPlaceholder": "Share context to help the initiative prioritize.",
     "initiativeLabel": "Initiative",
-    "loadingInitiatives": "Loading initiatives\u2026",
+    "loadingInitiatives": "Loading initiatives…",
     "initiativeLoadError": "Unable to load initiatives.",
     "selectInitiative": "Select initiative",
     "noInitiatives": "No initiatives available.",
     "templateLabel": "Template (optional)",
-    "loadingTemplates": "Loading templates\u2026",
+    "loadingTemplates": "Loading templates…",
     "templateLoadError": "Unable to load templates.",
     "noTemplate": "No template",
-    "disableTemplateHint": "Disable \u201cSave as template\u201d to pick a template.",
+    "disableTemplateHint": "Disable “Save as template” to pick a template.",
     "saveAsTemplate": "Save as template",
     "saveAsTemplateHint": "Template projects live under the Templates tab and can be reused to spin up new work.",
     "createError": "Unable to create project.",
     "selectInitiativeError": "Select an initiative before creating a project",
-    "creating": "Creating\u2026",
+    "creating": "Creating…",
     "createProject": "Create project"
   },
-
   "detail": {
     "invalidProjectId": "Invalid project id.",
-    "backToProjects": "\u2190 Back to projects",
-    "loading": "Loading project\u2026",
+    "backToProjects": "← Back to projects",
+    "loading": "Loading project…",
     "loadError": "Unable to load project.",
     "notFound": "Project not found",
     "notFoundDescription": "This project may have been deleted or you may have followed a broken link.",
     "noAccess": "Access denied",
-    "noAccessDescription": "You don\u2019t have permission to view this project. Ask a project manager to grant you access.",
+    "noAccessDescription": "You don’t have permission to view this project. Ask a project manager to grant you access.",
     "projectSettings": "Project Settings",
     "openProjectSettings": "Open project settings"
   },
-
   "overview": {
     "archived": "Archived",
     "active": "Active",
@@ -152,26 +143,22 @@
     "templateInfo": "This project is a template. Use it to create new projects from the Templates tab.",
     "archivedInfo": "This project is archived. Unarchive it from settings to add or update tasks."
   },
-
   "tabsBar": {
-    "loadingRecent": "Loading recent items\u2026",
+    "loadingRecent": "Loading recent items…",
     "closeItem": "Close {{name}}",
     "close": "Close",
     "closeOthers": "Close others",
     "closeAll": "Close all"
   },
-
   "favorite": {
     "remove": "Remove from favorites",
     "add": "Add to favorites"
   },
-
   "pin": {
     "pinned": "Pinned project",
     "unpin": "Unpin project",
     "pin": "Pin project"
   },
-
   "taskComposer": {
     "title": "Create task",
     "description": "Add work to be done.",
@@ -192,11 +179,10 @@
     "startDateLabel": "Start date",
     "dueDateLabel": "Due date",
     "optional": "Optional",
-    "saving": "Saving\u2026",
+    "saving": "Saving…",
     "createTask": "Create task",
     "createError": "Unable to create task."
   },
-
   "assignee": {
     "emptyMessage": "Invite initiative members to assign tasks.",
     "searchPlaceholder": "Search members",
@@ -205,7 +191,6 @@
     "clearAssignees": "Clear assignees",
     "you": "You"
   },
-
   "statuses": {
     "title": "Task statuses",
     "description": "Reorder, rename, or change category for the task columns used by this project.",
@@ -230,7 +215,7 @@
     "actionsColumn": "Actions",
     "noStatuses": "No statuses configured yet.",
     "deleteTitle": "Delete status",
-    "deleteDescription": "Select a fallback status in the same category to move any existing tasks before deleting \u201c{{name}}\u201d.",
+    "deleteDescription": "Select a fallback status in the same category to move any existing tasks before deleting “{{name}}”.",
     "fallbackLabel": "Fallback status",
     "chooseFallback": "Choose fallback",
     "noFallback": "No fallback available",
@@ -248,10 +233,9 @@
     "noChanges": "No changes to save",
     "bulkUpdated": "{{count}} status updated",
     "bulkUpdated_other": "{{count}} statuses updated",
-    "bulkUpdateError": "Failed to update \u201c{{name}}\u201d: {{error}}",
+    "bulkUpdateError": "Failed to update “{{name}}”: {{error}}",
     "unknownError": "Unknown error"
   },
-
   "settings": {
     "loading": "Loading project settings...",
     "loadError": "Unable to load project.",
@@ -265,7 +249,6 @@
     "tabAccess": "Access",
     "tabTaskStatuses": "Task statuses",
     "tabAdvanced": "Advanced",
-
     "details": {
       "title": "Project details",
       "description": "Update the icon, name, and description shown across the workspace.",
@@ -290,70 +273,10 @@
       "tagsDescription": "Add tags to organize and filter projects.",
       "noWriteAccessTags": "You need write access to manage tags."
     },
-
-    "roleAccess": {
-      "title": "Role access",
-      "description": "Grant access to all members with a specific initiative role.",
-      "noRoles": "No roles have been granted access to this project yet.",
-      "addRole": "Add role",
-      "loadingRoles": "Loading roles...",
-      "allRolesAssigned": "All initiative roles already have access to this project.",
-      "selectRole": "Select role",
-      "canView": "Can view",
-      "canEdit": "Can edit",
-      "adding": "Adding...",
-      "add": "Add",
-      "remove": "Remove",
-      "selectRoleError": "Select a role",
-      "roleNameColumn": "Role Name",
-      "accessLevelColumn": "Access Level",
-      "actionsColumn": "Actions",
-      "granted": "Role access granted",
-      "grantError": "Unable to grant role access",
-      "updated": "Role access updated",
-      "updateError": "Unable to update role access",
-      "removed": "Role access removed",
-      "removeError": "Unable to remove role access"
-    },
-
     "access": {
-      "title": "Individual access",
-      "description": "Control who can view and edit this project.",
-      "selected": "{{count}} selected",
-      "changeAccess": "Change access...",
-      "permissionOwner": "Owner",
-      "permissionWrite": "Can edit",
-      "permissionRead": "Can view",
-      "removing": "Removing...",
-      "remove": "Remove",
-      "filterByName": "Filter by name",
-      "nameColumn": "Name",
-      "emailColumn": "Email",
-      "accessColumn": "Access",
-      "actionsColumn": "Actions",
-      "grantAccess": "Grant access",
-      "allMembersHaveAccess": "All initiative members already have access to this project.",
-      "selectMember": "Select member",
-      "noMembersFound": "No members found",
-      "adding": "Adding...",
-      "add": "Add",
-      "addingAll": "Adding all...",
-      "addAll": "Add all ({{count}})",
-      "selectMemberError": "Select a member",
-      "granted": "Access granted",
-      "grantError": "Unable to grant access",
       "updated": "Access updated",
-      "updateError": "Unable to update access",
-      "removed": "Access removed",
-      "removeError": "Unable to remove access",
-      "grantedAll": "Access granted to all members",
-      "grantAllError": "Unable to grant access to all members",
-      "bulkUpdated": "Access updated for selected members",
-      "bulkUpdateError": "Unable to update access for selected members",
-      "bulkRemoved": "Access removed for selected members",
-      "bulkRemoveError": "Unable to remove access for selected members"
+      "updateError": "Unable to update access"
     },
-
     "templateStatus": {
       "title": "Template status",
       "description": "Convert this project into a reusable template or revert it back to a standard project.",
@@ -366,7 +289,6 @@
       "markedAsTemplate": "Project marked as template",
       "removedFromTemplates": "Project removed from templates"
     },
-
     "duplicate": {
       "title": "Duplicate project",
       "description": "Clone this project, including its initiative and tasks, to jumpstart new work.",
@@ -376,7 +298,6 @@
       "duplicateButton": "Duplicate project",
       "noWriteAccess": "You need write access to duplicate this project."
     },
-
     "archiveStatus": {
       "title": "Archive status",
       "isArchived": "This project is archived.",
@@ -385,7 +306,6 @@
       "archive": "Archive project",
       "noWriteAccess": "You need write access to change archive status."
     },
-
     "danger": {
       "title": "Danger zone",
       "description": "Deleting a project sends it and its tasks to the trash. They can be restored before the retention period ends.",
@@ -395,7 +315,6 @@
       "deleteConfirm": "Delete"
     }
   },
-
   "documents": {
     "title": "Documents",
     "description": "Attach initiative documents to keep context close to project work.",
@@ -411,12 +330,12 @@
     "attachDialogDescription": "Only documents created under this initiative are available.",
     "selectDocument": "Select document",
     "noAvailableDocuments": "No available documents",
-    "loadingDocuments": "Loading documents\u2026",
+    "loadingDocuments": "Loading documents…",
     "chooseDocument": "Choose document",
     "allAttached": "All initiative documents are already attached.",
     "noMatchesFound": "No matches found.",
     "attachHint": "Need a new one? Open My Initiatives and use the initiative's Documents tab to create it, then return here to attach it.",
-    "attaching": "Attaching\u2026",
+    "attaching": "Attaching…",
     "attach": "Attach",
     "attached": "Document attached.",
     "attachError": "Unable to attach document.",
@@ -428,13 +347,12 @@
     "updatedAgo": "Updated {{time}} ago",
     "attachedAgo": "Attached {{time}} ago"
   },
-
   "tasks": {
     "title": "Tasks",
     "projectTasks": "Project tasks",
     "addTask": "Add task",
     "selectView": "Select view",
-    "enterTooltip": "Hit \u2018enter\u2019 to create a new task",
+    "enterTooltip": "Hit ‘enter’ to create a new task",
     "viewTable": "Table",
     "viewKanban": "Kanban",
     "viewCalendar": "Calendar",
@@ -456,7 +374,7 @@
     "archiveTitle_other": "Archive {{count}} tasks?",
     "archiveDescription": "Archived tasks will be hidden from the default view but can still be accessed via filters.",
     "archiveConfirm": "Archive",
-    "archiving": "Archiving\u2026",
+    "archiving": "Archiving…",
     "archivedSuccess": "{{count}} task archived",
     "archivedSuccess_other": "{{count}} tasks archived",
     "archiveError": "Unable to archive tasks.",
@@ -473,7 +391,6 @@
     "bulkDeleteConfirm": "Delete {{count}} task?",
     "bulkDeleteConfirm_other": "Delete {{count}} tasks?"
   },
-
   "table": {
     "reorder": "Reorder",
     "dateWindow": "Date window",
@@ -495,14 +412,13 @@
     "noTasks": "No tasks yet.",
     "manualSortDisabled": "Manual sorting disabled, <1>reset column sorting and row grouping</1> to reorder."
   },
-
   "kanban": {
     "priority": "Priority: {{priority}}",
     "starts": "Starts: {{date}}",
     "due": "Due: {{date}}",
     "dropHere": "Drop tasks here",
     "noTasks": "No tasks yet.",
-    "archiving": "Archiving\u2026",
+    "archiving": "Archiving…",
     "archiveDone": "Archive done tasks",
     "taskCount_one": "{{count}} task",
     "taskCount_other": "{{count}} tasks",
@@ -511,16 +427,15 @@
     "comments_one": "{{count}} comment",
     "comments_other": "{{count}} comments"
   },
-
   "recurrence": {
     "repeat": "Repeat",
     "doesNotRepeat": "Does not repeat",
     "daily": "Daily",
-    "everyWeekday": "Every weekday (Mon\u2013Fri)",
+    "everyWeekday": "Every weekday (Mon–Fri)",
     "weeklyOn": "Weekly on {{day}}",
     "monthlyOnDay": "Monthly on day {{day}}",
     "annuallyOn": "Annually on {{month}} {{day}}",
-    "custom": "Custom\u2026",
+    "custom": "Custom…",
     "frequency": "Frequency",
     "frequencyDaily": "Daily",
     "frequencyWeekly": "Weekly",
@@ -578,7 +493,6 @@
       "everyNYears": "Every {{count}} years on {{month}} {{day}}"
     }
   },
-
   "calendarView": {
     "subtitle": "See task start and due dates at a glance.",
     "previousMonth": "Previous month",
@@ -588,25 +502,21 @@
     "due": "Due",
     "more": "+{{count}} more"
   },
-
   "progressLabel": "Project progress",
-
   "preview": {
     "updated": "Updated {{date}}",
     "tasksDone": "{{completed}}/{{total}} done"
   },
-
   "activitySidebar": {
     "title": "Project activity",
     "activity": "Activity",
     "expand": "Expand activity sidebar",
     "collapse": "Collapse activity sidebar",
-    "loading": "Loading activity\u2026",
+    "loading": "Loading activity…",
     "noComments": "No comments yet.",
     "commentedOn": "commented on",
     "loadMore": "Load more"
   },
-
   "ganttView": {
     "title": "Timeline",
     "subtitle": "Plan start and due dates over the next few weeks.",
@@ -620,7 +530,6 @@
     "noTasks": "No tasks to display.",
     "outsideRange": "Outside current range"
   },
-
   "export": {
     "title": "Export project",
     "description": "Download a JSON file containing this project, its tasks, statuses, tags, and custom property values.",
@@ -631,7 +540,6 @@
     "success": "Project exported",
     "error": "Could not export the project. Please try again."
   },
-
   "import": {
     "title": "Import project",
     "description": "Create a new project from a previously-exported JSON file.",

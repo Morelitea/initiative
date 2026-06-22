@@ -4,10 +4,18 @@ import { useTranslation } from "react-i18next";
 
 import type {
   CalendarEventRead,
+  ResourceGrantSchema,
   TaskListReadRecurrenceStrategy,
   TaskRecurrenceOutput,
 } from "@/api/generated/initiativeAPI.schemas";
+import { ShareControl } from "@/components/access/ShareControl";
 import { TaskRecurrenceSelector } from "@/components/projects/TaskRecurrenceSelector";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
@@ -75,6 +83,9 @@ export const CreateEventDialog = ({
   const [recurrence, setRecurrence] = useState<TaskRecurrenceOutput | null>(null);
   const [recurrenceStrategy, setRecurrenceStrategy] =
     useState<TaskListReadRecurrenceStrategy>("fixed");
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
+    { all_initiative_members: true, level: "read" },
+  ]);
 
   // Fetch initiative members for attendee picker
   const { data: members } = useInitiativeMembers(initiativeId);
@@ -120,6 +131,7 @@ export const CreateEventDialog = ({
       setAttendeeIds([]);
       setRecurrence(null);
       setRecurrenceStrategy("fixed");
+      setGrants([{ all_initiative_members: true, level: "read" }]);
     }
   }, [open, defaultStartDate, defaultStartTime, user]);
 
@@ -204,6 +216,7 @@ export const CreateEventDialog = ({
             end_date: recurrence.end_date ?? undefined,
           }
         : undefined,
+      grants,
     });
   };
 
@@ -390,6 +403,15 @@ export const CreateEventDialog = ({
             onStrategyChange={setRecurrenceStrategy}
             referenceDate={referenceDate}
           />
+
+          <Accordion type="single" collapsible defaultValue="advanced">
+            <AccordionItem value="advanced" className="border-b-0">
+              <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
+              <AccordionContent>
+                <ShareControl initiativeId={initiativeId} grants={grants} onChange={setGrants} />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
 
         <DialogFooter>

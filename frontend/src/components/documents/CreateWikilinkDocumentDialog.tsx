@@ -59,8 +59,7 @@ export function CreateWikilinkDocumentDialog({
       return [];
     return templateDocumentsQuery.data.filter((doc) => {
       if (!doc.is_template) return false;
-      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
-      return Boolean(permission);
+      return doc.my_permission_level != null;
     });
   }, [templateDocumentsQuery.data, user]);
 

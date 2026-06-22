@@ -395,10 +395,7 @@ export const DocumentsView = ({
     if (!user || selectedDocuments.length === 0) {
       return false;
     }
-    return selectedDocuments.every((doc) => {
-      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
-      return permission?.level === "owner";
-    });
+    return selectedDocuments.every((doc) => doc.my_permission_level === "owner");
   }, [selectedDocuments, user]);
 
   // Check if user has write access on all selected documents (required for duplicate and bulk edit)
@@ -406,10 +403,9 @@ export const DocumentsView = ({
     if (!user || selectedDocuments.length === 0) {
       return false;
     }
-    return selectedDocuments.every((doc) => {
-      const permission = (doc.permissions ?? []).find((p) => p.user_id === user.id);
-      return permission?.level === "owner" || permission?.level === "write";
-    });
+    return selectedDocuments.every(
+      (doc) => doc.my_permission_level === "owner" || doc.my_permission_level === "write"
+    );
   }, [selectedDocuments, user]);
 
   const canEditSelectedDocuments = canDuplicateSelectedDocuments;

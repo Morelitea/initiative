@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Adding an option to a select / multi-select custom property lost input focus after each keystroke, so only one character could be typed at a time. Option rows are no longer re-keyed by the value being edited.
+- Guild admins were wrongly shown "access denied" when opening (or saving edits to) a document they hadn't been explicitly shared on. The realtime collaboration connection didn't apply the guild-admin access bypass the rest of the app uses; guild admins now have full access to every document in their guild.
 
 ### Changed
 
+- Sharing for projects, documents, queues, counters, and calendar events is now a single Google-Docs-style **Share** control — pick **All initiative members** (Viewer or Editor) or **Restricted** (specific people and roles), available from each item's settings and its create dialog. Replaces the separate role- and user-permission panels.
 - Creating a custom-property option now asks only for a label; the stored option value is derived from the label automatically (and de-duplicated), removing the redundant Value field from the editor.
 - The date picker now accepts a typed date — a text field at the top of the popover parses common formats (e.g. `2026-06-16`, `06/16/2026`, `Jun 16, 2026`) on Enter or blur — and exposes month/year dropdowns in the calendar header for quickly jumping across years instead of clicking month-by-month.
 

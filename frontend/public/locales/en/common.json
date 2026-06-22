@@ -7,7 +7,7 @@
   "create": "Create",
   "close": "Close",
   "confirm": "Confirm",
-  "loading": "Loading\u2026",
+  "loading": "Loading…",
   "search": "Search",
   "back": "Back",
   "next": "Next",
@@ -41,7 +41,7 @@
   "untitled": "Untitled",
   "appName": "initiative",
   "send": "Send",
-  "submitting": "Sending\u2026",
+  "submitting": "Sending…",
   "clear": "Clear",
   "pickEmoji": "Pick an emoji",
   "previous": "Previous",
@@ -81,24 +81,6 @@
     "due": "Due"
   },
   "createAccess": {
-    "advancedOptions": "Advanced options",
-    "roleAccess": "Role access",
-    "roleAccessHint": "Grant access to members by initiative role",
-    "userAccess": "User access",
-    "userAccessHint": "Grant access to specific members",
-    "selectRoles": "Select roles...",
-    "selectMembers": "Select members...",
-    "searchRoles": "Search roles...",
-    "searchMembers": "Search members...",
-    "noRoles": "No roles found",
-    "noMembers": "No members found",
-    "level": "Access level",
-    "canView": "Can view",
-    "canEdit": "Can edit",
-    "add": "Add",
-    "addAllMembers": "Add all initiative members",
-    "addAllMembersHint": "Grant read access to all current members",
-    "noInitiative": "Select an initiative first",
-    "remove": "Remove"
+    "advancedOptions": "Advanced options"
   }
 }

@@ -13,12 +13,12 @@ import {
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { DocumentRead, InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
-import {
-  CreateAccessControl,
-  type RoleGrant,
-  type UserGrant,
-} from "@/components/access/CreateAccessControl";
+import type {
+  DocumentRead,
+  InitiativeRead,
+  ResourceGrantSchema,
+} from "@/api/generated/initiativeAPI.schemas";
+import { ShareControl } from "@/components/access/ShareControl";
 import {
   Accordion,
   AccordionContent,
@@ -89,9 +89,9 @@ export const CreateDocumentDialog = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [smartLinkUrl, setSmartLinkUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [roleGrants, setRoleGrants] = useState<RoleGrant[]>([]);
-  const [userGrants, setUserGrants] = useState<UserGrant[]>([]);
-  const [accessLoading, setAccessLoading] = useState(false);
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
+    { all_initiative_members: true, level: "read" },
+  ]);
 
   // Determine effective initiative ID
   const effectiveInitiativeId =
@@ -140,8 +140,7 @@ export const CreateDocumentDialog = ({
       setSelectedFile(null);
       setSmartLinkUrl("");
       setCreateDialogTab("new");
-      setRoleGrants([]);
-      setUserGrants([]);
+      setGrants([{ all_initiative_members: true, level: "read" }]);
     }
   }, [open, defaultInitiativeId]);
 
@@ -484,13 +483,10 @@ export const CreateDocumentDialog = ({
           <AccordionItem value="advanced" className="border-b-0">
             <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
             <AccordionContent>
-              <CreateAccessControl
+              <ShareControl
                 initiativeId={effectiveInitiativeId}
-                roleGrants={roleGrants}
-                onRoleGrantsChange={setRoleGrants}
-                userGrants={userGrants}
-                onUserGrantsChange={setUserGrants}
-                onLoadingChange={setAccessLoading}
+                grants={grants}
+                onChange={setGrants}
               />
             </AccordionContent>
           </AccordionItem>
@@ -510,11 +506,10 @@ export const CreateDocumentDialog = ({
                   template_id: selectedTemplateId ? Number(selectedTemplateId) : undefined,
                   project_id: projectId,
                   document_type: newDocumentType,
-                  role_grants: roleGrants,
-                  user_grants: userGrants,
+                  grants,
                 });
               }}
-              disabled={!canSubmitNew || accessLoading}
+              disabled={!canSubmitNew}
             >
               {createDocument.isPending ? (
                 <>
@@ -537,11 +532,10 @@ export const CreateDocumentDialog = ({
                   title: trimmedTitle,
                   initiative_id: effectiveInitiativeId,
                   project_id: projectId,
-                  role_grants: roleGrants,
-                  user_grants: userGrants,
+                  grants,
                 });
               }}
-              disabled={!canSubmitUpload || accessLoading}
+              disabled={!canSubmitUpload}
             >
               {uploadDocument.isPending ? (
                 <>
@@ -565,11 +559,10 @@ export const CreateDocumentDialog = ({
                   project_id: projectId,
                   document_type: "smart_link",
                   content: { url: trimmedSmartLinkUrl },
-                  role_grants: roleGrants,
-                  user_grants: userGrants,
+                  grants,
                 });
               }}
-              disabled={!canSubmitSmartLink || accessLoading}
+              disabled={!canSubmitSmartLink}
             >
               {createDocument.isPending ? (
                 <>

@@ -2,9 +2,6 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useTranslation } from "react-i18next";
 
 import {
-  addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost,
-  addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost,
-  addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost,
   copyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost,
   createDocumentApiV1GGuildIdDocumentsPost,
   deleteDocumentApiV1GGuildIdDocumentsDocumentIdDelete,
@@ -21,12 +18,8 @@ import {
   listDocumentsApiV1GGuildIdDocumentsGet,
   listDocumentVersionsApiV1GGuildIdDocumentsDocumentIdVersionsGet,
   readDocumentApiV1GGuildIdDocumentsDocumentIdGet,
-  removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete,
-  removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost,
-  removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete,
+  setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut,
   updateDocumentApiV1GGuildIdDocumentsDocumentIdPatch,
-  updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch,
-  updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch,
   uploadDocumentFileApiV1GGuildIdDocumentsUploadPost,
   uploadDocumentVersionApiV1GGuildIdDocumentsDocumentIdVersionsPost,
 } from "@/api/generated/documents/documents";
@@ -38,17 +31,13 @@ import type {
   DocumentCreate,
   DocumentFileVersionRead,
   DocumentListResponse,
-  DocumentPermissionBulkCreate,
-  DocumentPermissionBulkDelete,
-  DocumentPermissionCreate,
-  DocumentPermissionLevel,
   DocumentRead,
-  DocumentRolePermissionCreate,
   DocumentSummary,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
   ListDocumentsApiV1GGuildIdDocumentsGetParams,
+  ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import { attachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocumentIdPost } from "@/api/generated/projects/projects";
 import {
@@ -243,52 +232,21 @@ export const usePrefetchDocumentsList = () => {
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-// Helper: apply role + user permissions via follow-up API calls (for copy/upload paths
-// where the create payload can't carry them). Returns count of failed permission calls.
-const applyDocumentPermissions = async (
+// Helper: apply a document's full sharing state via a follow-up grants PUT (for
+// copy/upload paths where the create payload can't carry them). Returns 1 if the
+// call failed, else 0.
+const applyDocumentGrants = async (
   guildId: number,
   documentId: number,
-  roleGrants: DocumentRolePermissionCreate[],
-  userGrants: DocumentPermissionCreate[]
+  grants: ResourceGrantSchema[]
 ): Promise<number> => {
-  let failures = 0;
-  for (const rg of roleGrants) {
-    try {
-      await addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost(
-        guildId,
-        documentId,
-        {
-          initiative_role_id: rg.initiative_role_id,
-          level: rg.level,
-        }
-      );
-    } catch {
-      failures++;
-    }
+  if (grants.length === 0) return 0;
+  try {
+    await setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, documentId, grants);
+    return 0;
+  } catch {
+    return 1;
   }
-  // Batch user grants by level to use bulk endpoint
-  const byLevel = new Map<string, number[]>();
-  for (const ug of userGrants) {
-    const level = ug.level ?? "read";
-    const arr = byLevel.get(level) ?? [];
-    arr.push(ug.user_id);
-    byLevel.set(level, arr);
-  }
-  for (const [level, userIds] of byLevel) {
-    try {
-      await addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost(
-        guildId,
-        documentId,
-        {
-          user_ids: userIds,
-          level: level as DocumentPermissionLevel,
-        }
-      );
-    } catch {
-      failures++;
-    }
-  }
-  return failures;
 };
 
 export type CreateDocumentInput = {
@@ -301,8 +259,8 @@ export type CreateDocumentInput = {
   document_type?: "native" | "whiteboard" | "smart_link" | "spreadsheet";
   /** Required for smart_link ({ url: "..." }). Optional/unused for other types. */
   content?: Record<string, unknown>;
-  role_grants?: DocumentRolePermissionCreate[];
-  user_grants?: DocumentPermissionCreate[];
+  /** Full non-owner sharing state for the new document. */
+  grants?: ResourceGrantSchema[];
 };
 
 export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDocumentInput>) => {
@@ -321,8 +279,7 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
         project_id,
         document_type,
         content,
-        role_grants = [],
-        user_grants = [],
+        grants = [],
       } = data;
 
       let newDocument: DocumentRead;
@@ -337,26 +294,20 @@ export const useCreateDocument = (options?: MutationOpts<DocumentRead, CreateDoc
             title,
           }
         )) as unknown as DocumentRead;
-        // Template copy can't carry permissions in payload — apply separately
-        const failures = await applyDocumentPermissions(
-          guildId,
-          newDocument.id,
-          role_grants,
-          user_grants
-        );
+        // Template copy can't carry grants in payload — apply separately
+        const failures = await applyDocumentGrants(guildId, newDocument.id, grants);
         if (failures > 0) {
           toast.warning(t("create.somePermissionsFailed"));
         }
       } else {
-        // Direct create — pass permissions in the payload (backend handles them)
+        // Direct create — pass grants in the payload (backend handles them)
         const payload: DocumentCreate = {
           title,
           initiative_id,
           is_template: is_template ?? false,
           ...(document_type ? { document_type } : {}),
           ...(content ? { content } : {}),
-          ...(role_grants.length > 0 ? { role_permissions: role_grants } : {}),
-          ...(user_grants.length > 0 ? { user_permissions: user_grants } : {}),
+          ...(grants.length > 0 ? { grants } : {}),
         };
         newDocument = (await createDocumentApiV1GGuildIdDocumentsPost(
           guildId,
@@ -396,8 +347,8 @@ export type UploadDocumentInput = {
   title: string;
   initiative_id: number;
   project_id?: number;
-  role_grants?: DocumentRolePermissionCreate[];
-  user_grants?: DocumentPermissionCreate[];
+  /** Full non-owner sharing state for the uploaded document. */
+  grants?: ResourceGrantSchema[];
 };
 
 export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDocumentInput>) => {
@@ -408,7 +359,7 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
   return useMutation({
     ...rest,
     mutationFn: async (data: UploadDocumentInput) => {
-      const { file, title, initiative_id, project_id, role_grants = [], user_grants = [] } = data;
+      const { file, title, initiative_id, project_id, grants = [] } = data;
 
       const uploadBody: BodyUploadDocumentFileApiV1GGuildIdDocumentsUploadPost = {
         file,
@@ -420,13 +371,8 @@ export const useUploadDocument = (options?: MutationOpts<DocumentRead, UploadDoc
         uploadBody
       )) as unknown as DocumentRead;
 
-      // Upload can't carry permissions in payload — apply separately
-      const failures = await applyDocumentPermissions(
-        guildId,
-        newDocument.id,
-        role_grants,
-        user_grants
-      );
+      // Upload can't carry grants in payload — apply separately
+      const failures = await applyDocumentGrants(guildId, newDocument.id, grants);
       if (failures > 0) {
         toast.warning(t("create.somePermissionsFailed"));
       }
@@ -724,208 +670,31 @@ export const useGenerateDocumentSummary = (
   });
 };
 
-export const useAddDocumentMember = (
+export const useSetDocumentGrants = (
   documentId: number,
-  options?: MutationOpts<void, { userId: number; level: DocumentPermissionLevel }>
+  options?: MutationOpts<DocumentRead, ResourceGrantSchema[]>
 ) => {
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async ({ userId, level }: { userId: number; level: DocumentPermissionLevel }) => {
-      await addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost(guildId, documentId, {
-        user_id: userId,
-        level,
-      });
-    },
-    onSuccess: (...args) => {
-      void invalidateDocument(documentId);
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useUpdateDocumentMember = (
-  documentId: number,
-  options?: MutationOpts<void, { userId: number; level: DocumentPermissionLevel }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ userId, level }: { userId: number; level: DocumentPermissionLevel }) => {
-      await updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch(
+    mutationFn: async (grants: ResourceGrantSchema[]) => {
+      return setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(
         guildId,
         documentId,
-        userId,
-        {
-          level,
-        }
-      );
+        grants
+      ) as unknown as Promise<DocumentRead>;
     },
     onSuccess: (...args) => {
       void invalidateDocument(documentId);
+      void invalidateAllDocuments();
       onSuccess?.(...args);
     },
-    onError,
-    onSettled,
-  });
-};
-
-export const useRemoveDocumentMember = (
-  documentId: number,
-  options?: MutationOpts<void, number>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (userId: number) => {
-      await removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete(
-        guildId,
-        documentId,
-        userId
-      );
+    onError: (...args) => {
+      toast.error(getErrorMessage(args[0], "documents:settings.updateAccessError"));
+      onError?.(...args);
     },
-    onSuccess: (...args) => {
-      void invalidateDocument(documentId);
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useAddDocumentMembersBulk = (
-  documentId: number,
-  options?: MutationOpts<void, DocumentPermissionBulkCreate>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: DocumentPermissionBulkCreate) => {
-      await addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost(
-        guildId,
-        documentId,
-        data
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateDocument(documentId);
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useRemoveDocumentMembersBulk = (
-  documentId: number,
-  options?: MutationOpts<void, DocumentPermissionBulkDelete>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: DocumentPermissionBulkDelete) => {
-      await removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost(
-        guildId,
-        documentId,
-        data
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateDocument(documentId);
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useAddDocumentRolePermission = (
-  documentId: number,
-  options?: MutationOpts<void, { roleId: number; level: "read" | "write" }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost(
-        guildId,
-        documentId,
-        {
-          initiative_role_id: roleId,
-          level,
-        }
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateDocument(documentId);
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useUpdateDocumentRolePermission = (
-  documentId: number,
-  options?: MutationOpts<void, { roleId: number; level: "read" | "write" }>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async ({ roleId, level }: { roleId: number; level: "read" | "write" }) => {
-      await updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch(
-        guildId,
-        documentId,
-        roleId,
-        { level }
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateDocument(documentId);
-      onSuccess?.(...args);
-    },
-    onError,
-    onSettled,
-  });
-};
-
-export const useRemoveDocumentRolePermission = (
-  documentId: number,
-  options?: MutationOpts<void, number>
-) => {
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (roleId: number) => {
-      await removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete(
-        guildId,
-        documentId,
-        roleId
-      );
-    },
-    onSuccess: (...args) => {
-      void invalidateDocument(documentId);
-      onSuccess?.(...args);
-    },
-    onError,
     onSettled,
   });
 };
