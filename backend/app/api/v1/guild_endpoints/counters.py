@@ -75,21 +75,32 @@ logger = logging.getLogger(__name__)
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
-async def _emit_counter(session, group_id: int, event_type: str, data: dict) -> None:
+async def _emit_counter(
+    session,
+    group_id: int,
+    event_type: str,
+    data: dict,
+    *,
+    guild_id: int | None = None,
+) -> None:
     """Fan a counter event out through the streaming spine, guild-namespaced.
 
-    Resolves the group's guild from the (guild-routed) session so the room key
-    matches the one the socket joined with; ``reapply_rls_context`` keeps the
-    lookup valid after a commit. Replaces the deleted counter_realtime manager —
-    one streaming spine, guild-namespaced rooms (group ids are per-schema)."""
-    await reapply_rls_context(session)
-    guild_id = (
-        await session.exec(
-            select(CounterGroup.guild_id).where(CounterGroup.id == group_id)
-        )
-    ).one_or_none()
+    Pass ``guild_id`` when the caller already holds it — required for the delete
+    path, where the row is soft-deleted before this runs so a post-commit lookup
+    would hit the global ``deleted_at IS NULL`` filter and find nothing, silently
+    dropping the ``group_deleted`` event. Otherwise the group's guild is resolved
+    from the (guild-routed) session (``reapply_rls_context`` keeps it valid after
+    a commit). One streaming spine; rooms are guild-namespaced (group ids are
+    per-schema)."""
     if guild_id is None:
-        return
+        await reapply_rls_context(session)
+        guild_id = (
+            await session.exec(
+                select(CounterGroup.guild_id).where(CounterGroup.id == group_id)
+            )
+        ).one_or_none()
+        if guild_id is None:
+            return
     await stream_authority.emit(guild_id, "counter_group", group_id, event_type, data)
 
 
@@ -475,7 +486,16 @@ async def delete_counter_group(
         retention_days=retention_days,
     )
     await session.commit()
-    await _emit_counter(session, group_id, "group_deleted", {"id": group_id})
+    # Pass guild_id explicitly: the group is soft-deleted, so _emit_counter's
+    # fallback lookup (deleted_at IS NULL filtered) would find nothing and drop
+    # the event.
+    await _emit_counter(
+        session,
+        group_id,
+        "group_deleted",
+        {"id": group_id},
+        guild_id=guild_context.guild_id,
+    )
 
 
 # ---------------------------------------------------------------------------
