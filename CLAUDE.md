@@ -345,6 +345,24 @@ Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EM
 
 Tenancy is enforced in Postgres by **which role a request assumes** (`SET ROLE`), not by app-layer checks alone. There are two orthogonal dimensions — the per-guild schema/role, and the platform privilege ladder — both backed by real Postgres roles.
 
+### The six authorization gates (security standard)
+
+This is the canonical access-control model. Every path that reads or writes tooling data — REST, WebSocket, background job, realtime push — must honor all of it, and it must be enforced **at the database layer** (RLS preferred), not in app code alone. "Tools" = projects, queues, counters, calendar events, documents (and their content: tasks, comments).
+
+Four nested gates, outermost → innermost:
+
+1. **Guild** — no tooling data exists outside its `guild_<id>` schema. Enforced by schema-per-guild + `SET ROLE`.
+2. **Initiative** — a user must **not** reach content of an initiative they are not in. This is the **hard isolation boundary** (it keeps sensitive data away from non-cleared members of the *same guild*). Enforced by RLS via `public.initiative_access(initiative_id, user_id, need_write)`.
+3. **Initiative role** — within an initiative, a member's role dictates which tools they may engage and how.
+4. **Tool sharing (DAC)** — per-resource `resource_grants` are the **final** privilege gate (`compute_*_permission` / `require_*_access`).
+
+Two cross-cutting overrides sit above all four:
+
+- **PAM** — platform roles may be **temporarily** granted scoped access via the DB tooling (time-bound, audited `access_grants`; `pam_read`/`pam_write` RLS legs). Never a standing bypass.
+- **Guild admin** — **always** has read/write to **every** aspect of their guild, regardless of initiative membership or sharing (`is_request_guild_admin` / the `current_guild_role='admin'` RLS leg).
+
+Two rules follow from this being a **DB-layer** standard: authorization is a property of the *current moment*, not of a connection or a cached snapshot (re-derive it when grant/role/membership/PAM change); and a non-DB-enforced channel (e.g. an out-of-band realtime push) must carry **no content it hasn't continuously authorized** — prefer a content-free signal + an RLS-gated refetch so the gates above are the only decision point. See [`history/realtime-authorization-design.md`](history/realtime-authorization-design.md).
+
 ### Three engines (Postgres logins) — [`session.py`](backend/app/db/session.py)
 
 - **`app_user`** (`DATABASE_URL_APP`, `LOGIN NOINHERIT`, **RLS-enforced**) — the request path. Holds *no* standing access to any guild schema; every request `SET ROLE`s into a scoped role first.
