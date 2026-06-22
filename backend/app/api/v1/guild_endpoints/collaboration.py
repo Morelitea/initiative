@@ -29,16 +29,15 @@ from app.api.deps import (
     RLSSessionDep,
     SessionDep,
     UploadUserDep,
+    establish_guild_access,
     get_current_active_user,
     get_guild_membership,
+    GuildAccessError,
     GuildContext,
 )
 from app.core.config import settings
-from app.core.pam_context import grant_satisfies, set_active_grant
-from app.core.role_context import set_active_role
 from app.db.session import AsyncSessionLocal, set_rls_context
 from app.models.document import Document
-from app.models.guild import GuildMembership
 from app.models.resource_grant import ResourceGrant
 from app.models.initiative import Initiative, InitiativeMember
 from app.models.user import User
@@ -46,9 +45,7 @@ from app.services.collaboration import (
     CollaboratorInfo,
     collaboration_manager,
 )
-from app.services import access_grants as access_grants_service
 from app.services import documents as documents_service
-from app.services import guilds as guilds_service
 from app.services import permissions as permissions_service
 from app.services.ws_auth import authenticate_ws_token
 
@@ -101,42 +98,6 @@ async def _get_document_with_permissions(
         return None
 
     return document
-
-
-async def _check_document_access(
-    session,
-    document: Document,
-    user: User,
-    guild_id: int,
-) -> tuple[bool, bool]:
-    """Check document access level. Returns (can_read, can_write).
-
-    DAC via explicit resource grants (user or role), OR a live PAM grant
-    covering the guild (read, plus write for read_write grants). The grant
-    context is set by the WebSocket handler before this is called.
-    """
-    # A live PAM grant covers the whole guild — no membership row required.
-    if grant_satisfies(document.guild_id, access="read"):
-        return True, grant_satisfies(document.guild_id, access="write")
-
-    # Check guild membership
-    stmt = select(GuildMembership).where(
-        GuildMembership.guild_id == guild_id,
-        GuildMembership.user_id == user.id,
-    )
-    result = await session.exec(stmt)
-    guild_membership = result.one_or_none()
-
-    if not guild_membership:
-        return False, False
-
-    # Use centralized DAC permission computation
-    level = permissions_service.compute_document_permission(document, user.id)
-    if level is None:
-        return False, False
-
-    can_write = level in ("write", "owner")
-    return True, can_write
 
 
 @router.websocket("/documents/{document_id}/collaborate")
@@ -209,43 +170,20 @@ async def websocket_collaborate(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        # The document lives in the path-addressed guild (``/g/{guild_id}/``).
-        # Resolve access: real membership, or a live PAM grant. Set the RLS
-        # context accordingly so the document (and its checks) are visible.
-        # Query under a minimal user-only context first.
-        await set_rls_context(session, user_id=user.id)
-        membership = await guilds_service.get_membership(
-            session, guild_id=guild_id, user_id=user.id
-        )
-        if membership is not None:
-            await set_rls_context(session, user_id=user.id, guild_id=guild_id)
-            set_active_grant(None, None)
-            # Record the guild role so the shared DAC engine's guild-admin bypass
-            # (is_request_guild_admin, used by compute_document_permission below)
-            # fires here exactly as it does on the REST path — a guild admin has
-            # full access to every document regardless of explicit grants. The
-            # REST path sets this in get_guild_session; the WebSocket path manages
-            # its own context, so it must set it too.
-            set_active_role(guild_id, membership.role.value)
-        else:
-            grant = await access_grants_service.get_live_grant(
-                session, user_id=user.id, guild_id=guild_id
+        # Establish the guild access context through the single entry point —
+        # real membership, a live PAM grant, or break-glass — so the document
+        # checks below see the *same* context (guild-admin DAC bypass, PAM scope,
+        # break-glass elevation, delegation pin) the REST path would. Hand-rolling
+        # this here is exactly what let a guild admin be denied on the socket
+        # while allowed on the REST read.
+        try:
+            await establish_guild_access(session, user, guild_id)
+        except GuildAccessError:
+            logger.warning(
+                f"Collaboration: {user.email} has no access to guild {guild_id}"
             )
-            if grant is None:
-                logger.warning(
-                    f"Collaboration: {user.email} has no access to guild {guild_id}"
-                )
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                return
-            read_write = grant.access_level == "read_write"
-            await set_rls_context(
-                session,
-                user_id=user.id,
-                pam_guild_id=guild_id,
-                pam_read=True,
-                pam_write=read_write,
-            )
-            set_active_grant(guild_id, grant.access_level)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
 
         # Get document and check permissions
         document = await _get_document_with_permissions(session, document_id, guild_id)
@@ -256,15 +194,19 @@ async def websocket_collaborate(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        can_read, can_write = await _check_document_access(
-            session, document, user, guild_id
-        )
-        if not can_read:
+        # Per-document level via the shared DAC engine — guild-admin / break-glass
+        # bypass (→ owner), a live PAM grant lifted to its level, or the document's
+        # explicit user/role/all-members grants. The active role + grant context
+        # was established above, and establish_guild_access already proved guild
+        # reach, so the only open question is the document level.
+        level = permissions_service.compute_document_permission(document, user.id)
+        if level is None:
             logger.warning(
                 f"Collaboration: User {user.email} has no read access to document {document_id}"
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
+        can_write = level in ("write", "owner")
 
         # Get or create the document room (needs session for initial load)
         room = await collaboration_manager.get_or_create_room(document_id, session)
@@ -451,23 +393,18 @@ async def sync_document_content(
         logger.warning(f"Sync content: Failed to parse JSON body: {e}")
         return {"status": "error", "message": "Invalid JSON body"}
 
-    # The guild comes from the path; validate membership before scoping RLS to
-    # it (the path is only a selector, never a trust boundary).
-    await set_rls_context(session, user_id=user.id)
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=user.id
-    )
-    if membership is None:
+    # Establish the guild access context through the single entry point (same as
+    # the REST path and the collaboration socket). The path is only a selector;
+    # this validates real membership / a live PAM grant / break-glass and applies
+    # the full RLS + role + grant context. Previously this endpoint did a
+    # membership-only check, so a break-glass admin or PAM grantee couldn't sync.
+    try:
+        await establish_guild_access(session, user, guild_id)
+    except GuildAccessError:
         logger.warning(
-            f"Sync content: user {user.id} is not a member of guild {guild_id}"
+            f"Sync content: user {user.id} has no access to guild {guild_id}"
         )
         return {"status": "error", "message": "No guild access"}
-
-    # Set RLS context so queries against guild-scoped tables work
-    await set_rls_context(session, user_id=user.id, guild_id=guild_id)
-    # Record the guild role so the shared DAC engine's guild-admin bypass fires
-    # here too (this endpoint manages its own context, bypassing get_guild_session).
-    set_active_role(guild_id, membership.role.value)
 
     # Get document and check write permission
     document = await _get_document_with_permissions(session, document_id, guild_id)
@@ -475,10 +412,10 @@ async def sync_document_content(
         logger.warning(f"Sync content: Document {document_id} not found")
         return {"status": "error", "message": "Document not found"}
 
-    can_read, can_write = await _check_document_access(
-        session, document, user, guild_id
-    )
-    if not can_write:
+    # Write level via the shared DAC engine (guild-admin / break-glass / PAM /
+    # explicit grants), against the context establish_guild_access set above.
+    level = permissions_service.compute_document_permission(document, user.id)
+    if level not in ("write", "owner"):
         logger.warning(
             f"Sync content: User {user.email} has no write access to document {document_id}"
         )

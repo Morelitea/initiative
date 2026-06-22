@@ -25,18 +25,19 @@ from sqlmodel import select
 
 from app.api.deps import (
     RLSSessionDep,
+    establish_guild_access,
     get_current_active_user,
     get_guild_membership,
+    GuildAccessError,
     GuildContext,
 )
 from app.core.config import settings
-from app.db.session import AsyncSessionLocal, reapply_rls_context, set_rls_context
+from app.db.session import AsyncSessionLocal, reapply_rls_context
 from app.models.queue import (
     Queue,
     QueueItem,
 )
 from app.models.resource_grant import ResourceGrant, ResourceAccessLevel
-from app.models.guild import GuildMembership
 from app.models.initiative import (
     Initiative,
     PermissionKey,
@@ -1123,18 +1124,16 @@ async def websocket_queue(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        # The queue lives in the path-addressed guild (``/g/{guild_id}/``).
-        await set_rls_context(session, user_id=user.id, guild_id=guild_id)
-
-        # Verify guild membership
-        stmt = select(GuildMembership).where(
-            GuildMembership.guild_id == guild_id,
-            GuildMembership.user_id == user.id,
-        )
-        result = await session.exec(stmt)
-        membership = result.one_or_none()
-        if not membership:
-            logger.warning(f"Queue WS: user {user.id} not in guild {guild_id}")
+        # Establish guild access through the single entry point (membership /
+        # live PAM grant / break-glass) — same gate and applied context as REST
+        # and the other sockets. Previously a membership-only check, so a PAM
+        # grantee or break-glass admin couldn't subscribe.
+        try:
+            await establish_guild_access(session, user, guild_id)
+        except GuildAccessError:
+            logger.warning(
+                f"Queue WS: user {user.id} has no access to guild {guild_id}"
+            )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
@@ -1145,15 +1144,16 @@ async def websocket_queue(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-        is_admin = rls_service.is_guild_admin(membership.role)
-        if not is_admin:
-            level = queues_service.compute_queue_permission(queue, user.id)
-            if level is None:
-                logger.warning(
-                    f"Queue WS: user {user.id} has no access to queue {queue_id}"
-                )
-                await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                return
+        # DAC level via the shared engine; the guild-admin / break-glass bypass is
+        # applied inside compute_* through the active role context that
+        # establish_guild_access set, so no separate admin check is needed.
+        level = queues_service.compute_queue_permission(queue, user.id)
+        if level is None:
+            logger.warning(
+                f"Queue WS: user {user.id} has no access to queue {queue_id}"
+            )
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
 
     # Join the room
     await queue_manager.connect(queue_id, websocket)

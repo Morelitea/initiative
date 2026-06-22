@@ -302,30 +302,42 @@ class GuildContext:
         return self.grant is not None
 
 
+class GuildAccessError(Exception):
+    """Transport-agnostic "no access to this guild" signal.
+
+    The single entry point (``establish_guild_access`` / ``_load_guild_context``)
+    raises this instead of an ``HTTPException`` so the access decision stays
+    independent of how the caller speaks to the client: the REST dependency maps
+    it to ``HTTPException(403)``, a WebSocket handler maps it to a ``1008`` close,
+    the keepalive ``sync-content`` POST maps it to its soft-error body. It carries
+    the machine-readable ``detail`` code so the REST mapping is byte-identical to
+    the prior inline ``raise HTTPException``.
+    """
+
+    def __init__(self, detail: str = GuildMessages.GUILD_ACCESS_DENIED) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
 async def _load_guild_context(
-    request: Request,
     session: AsyncSession,
     current_user: User,
     guild_id: int,
 ) -> GuildContext:
-    """Resolve and validate the guild context for the path-addressed guild.
+    """Resolve and validate the guild context for one guild.
 
-    The guild comes from the request path (``/g/{guild_id}/...``); it is only
-    a selector, never a trust boundary. Access is validated fresh on every
-    request — real membership or a live PAM grant, else 403 — so a forged or
-    stale path can never read another guild's data. The ``int`` path converter
-    guarantees ``guild_id`` is an integer before it reaches the privileged
-    ``SET ROLE``/``search_path`` sink.
+    ``guild_id`` is the single guild the request operates in (on REST it comes
+    from the ``/g/{guild_id}/...`` path, which is only a selector, never a trust
+    boundary). Access is validated fresh on every call — real membership or a
+    live PAM grant, else ``GuildAccessError`` — so a forged or stale guild can
+    never read another guild's data. The caller has already coerced ``guild_id``
+    to ``int`` before it reaches the privileged ``SET ROLE``/``search_path`` sink.
+
+    Transport-agnostic: it takes only the resolved ``guild_id``. The REST-only
+    auto-delegation guard (token-guild must equal path-guild) lives in
+    ``get_guild_membership``, where both values exist — WS / keepalive callers
+    have no delegation token, so the shared resolver never deals with one.
     """
-    # Auto-delegation tokens are pinned to one guild at mint time; refuse if the
-    # path addresses a different guild than the token was minted for.
-    delegated = getattr(request.state, "delegated_guild_id", None)
-    if delegated is not None and delegated != guild_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
-
     # Set minimal RLS context before querying guild_memberships (RLS-protected).
     # Full guild context is set later by get_guild_session / RLSSessionDep.
     # No standing bypass: a user reads their own membership row via the own-row
@@ -352,10 +364,7 @@ async def _load_guild_context(
             session, user_id=current_user.id, guild_id=guild_id
         )
         if grant is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_ACCESS_DENIED,
-            )
+            raise GuildAccessError()
         # A read_write grant held by a ``data.bypass`` user is a *break-glass*
         # grant: the holder acts as a full guild admin for its window (see
         # GuildContext.break_glass). A read grant — or any grant held by a
@@ -404,7 +413,23 @@ async def get_guild_membership(
     guild-scoped route mounted *outside* the prefix fails at startup (missing
     path param) — a useful guard that every such route is path-addressed.
     """
-    return await _load_guild_context(request, session, current_user, guild_id)
+    # Auto-delegation tokens are pinned to one guild at mint time; refuse if the
+    # path addresses a different guild than the token was minted for. This is a
+    # REST/token-only guard (a delegation token can only arrive over HTTP), so it
+    # lives here — the one place that sees both the token's guild and the path's —
+    # not in the shared resolver that the WebSocket/keepalive callers also use.
+    delegated = getattr(request.state, "delegated_guild_id", None)
+    if delegated is not None and delegated != guild_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+    try:
+        return await _load_guild_context(session, current_user, guild_id)
+    except GuildAccessError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail
+        ) from exc
 
 
 def require_guild_roles(*roles: GuildRole) -> Callable:
@@ -514,6 +539,28 @@ async def get_guild_session(
     before any post-commit queries.
     """
     return await _apply_guild_session_context(session, current_user, guild_context)
+
+
+async def establish_guild_access(
+    session: AsyncSession,
+    current_user: User,
+    guild_id: int,
+) -> GuildContext:
+    """Resolve guild access AND apply the session context — the single entry
+    point for callers that can't use the REST dependency chain.
+
+    *Resolve* access (membership / live PAM / break-glass, else
+    ``GuildAccessError``) then *apply* the RLS + ``active_role`` + ``active_grant``
+    context, returning the ``GuildContext``. REST composes the same two primitives
+    via DI (``get_guild_membership`` → ``get_guild_session``); WebSocket and
+    keepalive handlers call this so they cannot resolve-without-applying — the
+    omission that denied a guild admin on the collaboration socket while the REST
+    read allowed them. The caller maps ``GuildAccessError`` to its transport
+    (REST → 403, WebSocket → 1008, keepalive → soft error body).
+    """
+    guild_context = await _load_guild_context(session, current_user, guild_id)
+    await _apply_guild_session_context(session, current_user, guild_context)
+    return guild_context
 
 
 # Dependency for routes that need RLS-aware database access

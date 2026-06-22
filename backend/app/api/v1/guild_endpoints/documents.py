@@ -27,8 +27,10 @@ from app.api.deps import (
     SessionDep,
     UploadUserDep,
     UserSessionDep,
+    establish_guild_access,
     get_current_active_user,
     get_guild_membership,
+    GuildAccessError,
     GuildContext,
 )
 from app.core.config import settings
@@ -38,7 +40,6 @@ from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
-from app.models.access_grant import AccessLevel
 from app.models.document import (
     Document,
     DocumentFileVersion,
@@ -1902,23 +1903,11 @@ async def _load_download_document(
     the addressed guild. All of those are an indistinguishable 404 to the
     caller, so existence is never confirmed across guilds.
     """
-    from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
-    from app.services import access_grants as access_grants_service
-    from app.services import guilds as guilds_service
 
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=current_user.id
-    )
-    guild_role = membership.role if membership is not None else None
-    grant = None
-    if membership is None:
-        grant = await access_grants_service.get_live_grant(
-            session, user_id=current_user.id, guild_id=guild_id
-        )
-        if grant is None:
-            return None, None
-
+    # Guard the SET ROLE sink: if the guild schema/role isn't provisioned,
+    # establish_guild_access would fault rather than 404. (The session is the
+    # BYPASSRLS admin engine, so this lookup runs regardless of context.)
     schema_exists = (
         await session.execute(
             text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
@@ -1927,25 +1916,17 @@ async def _load_download_document(
     ).first()
     if schema_exists is None:
         return None, None
-    # Route into the guild with the caller's REAL context (no is_superadmin
-    # bypass) so the content RLS (initiative_access) evaluates correctly: a
-    # member sees their initiatives' docs, a PAM grantee sees per its level.
-    # Fine-grained read permission is then enforced by require_document_access.
-    if membership is not None:
-        await set_rls_context(
-            session,
-            user_id=current_user.id,
-            guild_id=int(guild_id),
-            guild_role=membership.role.value,
-        )
-    else:
-        await set_rls_context(
-            session,
-            user_id=current_user.id,
-            pam_guild_id=int(guild_id),
-            pam_read=True,
-            pam_write=(grant.access_level == AccessLevel.read_write.value),
-        )
+
+    # Route into the guild through the single entry point — same resolution and
+    # applied context (membership / live PAM / break-glass, then SET ROLE +
+    # active_role/grant, no is_superadmin bypass) as REST and the realtime
+    # sockets. Fine-grained read permission is then enforced by
+    # require_document_access against the context this established.
+    try:
+        ctx = await establish_guild_access(session, current_user, int(guild_id))
+    except GuildAccessError:
+        return None, None
+
     doc = (
         await session.exec(
             select(Document)
@@ -1953,6 +1934,11 @@ async def _load_download_document(
             .options(*_download_document_options())
         )
     ).one_or_none()
+    # A real member threads their guild role into the access check's guild-admin
+    # leg; a PAM/break-glass grantee gets ``None`` here — their reach is the
+    # scoped grant / admin role already in the established context, not a guild
+    # role on the row.
+    guild_role = None if ctx.is_pam else ctx.role
     return doc, guild_role
 
 

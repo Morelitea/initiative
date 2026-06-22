@@ -7,11 +7,10 @@ from sqlalchemy import text
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.api.deps import establish_guild_access, GuildAccessError
 from app.core.config import settings
-from app.db.session import AsyncSessionLocal, set_rls_context
+from app.db.session import AsyncSessionLocal
 from app.models.user import User
-from app.services import access_grants as access_grants_service
-from app.services import guilds as guilds_service
 from app.services.realtime import manager
 from app.services.ws_auth import authenticate_ws_token
 
@@ -37,21 +36,17 @@ async def _user_can_access_guild(
 ) -> bool:
     """True if the user may subscribe to ``guild_id``'s event stream.
 
-    A standing guild membership qualifies; so does a currently-live PAM read
-    grant for that guild (mirrors how get_guild_membership in deps.py falls back
-    to a live grant). RLS context is set first so the membership lookup runs
-    against the right guild's policies.
+    Defers the access decision to the single guild-access entry point so the
+    subscribe gate stays in lockstep with REST and the other sockets — a standing
+    membership, a live PAM grant, or a break-glass grant all qualify, and only
+    those. This is a guild-level gate (no per-resource DAC); the applied context
+    is harmless here since the session is released right after.
     """
-    await set_rls_context(session, user_id=user.id, guild_id=guild_id)
-    membership = await guilds_service.get_membership(
-        session, guild_id=guild_id, user_id=user.id
-    )
-    if membership is not None:
+    try:
+        await establish_guild_access(session, user, guild_id)
         return True
-    grant = await access_grants_service.get_live_grant(
-        session, user_id=user.id, guild_id=guild_id
-    )
-    return grant is not None
+    except GuildAccessError:
+        return False
 
 
 @router.websocket("/updates")
