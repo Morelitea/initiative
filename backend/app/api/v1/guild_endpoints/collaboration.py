@@ -35,6 +35,7 @@ from app.api.deps import (
 )
 from app.core.config import settings
 from app.core.pam_context import grant_satisfies, set_active_grant
+from app.core.role_context import set_active_role
 from app.db.session import AsyncSessionLocal, set_rls_context
 from app.models.document import Document
 from app.models.guild import GuildMembership
@@ -219,6 +220,13 @@ async def websocket_collaborate(
         if membership is not None:
             await set_rls_context(session, user_id=user.id, guild_id=guild_id)
             set_active_grant(None, None)
+            # Record the guild role so the shared DAC engine's guild-admin bypass
+            # (is_request_guild_admin, used by compute_document_permission below)
+            # fires here exactly as it does on the REST path — a guild admin has
+            # full access to every document regardless of explicit grants. The
+            # REST path sets this in get_guild_session; the WebSocket path manages
+            # its own context, so it must set it too.
+            set_active_role(guild_id, membership.role.value)
         else:
             grant = await access_grants_service.get_live_grant(
                 session, user_id=user.id, guild_id=guild_id
@@ -457,6 +465,9 @@ async def sync_document_content(
 
     # Set RLS context so queries against guild-scoped tables work
     await set_rls_context(session, user_id=user.id, guild_id=guild_id)
+    # Record the guild role so the shared DAC engine's guild-admin bypass fires
+    # here too (this endpoint manages its own context, bypassing get_guild_session).
+    set_active_role(guild_id, membership.role.value)
 
     # Get document and check write permission
     document = await _get_document_with_permissions(session, document_id, guild_id)
