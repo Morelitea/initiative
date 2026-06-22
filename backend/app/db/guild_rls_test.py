@@ -22,6 +22,7 @@ from app.db.schema_provisioning import (
     guild_schema_name,
     provision_guild_schema,
 )
+from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.db.tenancy import GUILD_LEVEL_TABLES, INITIATIVE_SCOPED_TABLES
 from scripts.gen_guild_rls import generate
 
@@ -33,6 +34,13 @@ _EXPECTED_POLICIES = {
 }
 
 _GID_POLICIES = 990_201
+_GID_PURGE = 990_202
+
+# Soft-delete tables that can actually carry the RESTRICTIVE purge guard — only
+# the RLS-enabled (initiative-scoped) ones. The RLS-free guild-level soft-delete
+# tables (initiatives, tags) are gated in app, not here.
+_PURGE_GUARD_TABLES = frozenset(SOFT_DELETE_TABLES) & INITIATIVE_SCOPED_TABLES
+_PURGE_GUARD_FREE = frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES
 
 
 def test_guild_rls_sql_is_current():
@@ -121,3 +129,45 @@ async def test_every_initiative_scoped_table_has_policies(engine):
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_POLICIES)
+
+
+@pytest.mark.database
+async def test_soft_delete_tables_have_admin_only_purge_policy(engine):
+    """Hard delete is admin-only at the DB layer: every initiative-scoped
+    soft-delete table carries a RESTRICTIVE FOR DELETE ``soft_delete_admin_purge``
+    policy in a freshly provisioned schema, so a non-admin DELETE is refused by
+    Postgres even if app code were bypassed. The RLS-free guild-level soft-delete
+    tables can't carry it (no RLS) and are gated in app instead."""
+    schema = guild_schema_name(_GID_PURGE)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, _GID_PURGE)
+        async with engine.connect() as conn:
+            rows = await conn.execute(
+                text(
+                    "SELECT tablename, permissive, cmd FROM pg_policies "
+                    "WHERE schemaname = :s AND policyname = 'soft_delete_admin_purge'"
+                ),
+                {"s": schema},
+            )
+            guard = {tbl: (perm, cmd) for tbl, perm, cmd in rows}
+
+        for tbl in sorted(_PURGE_GUARD_TABLES):
+            assert tbl in guard, (
+                f"{tbl} is a soft-delete table but has no soft_delete_admin_purge "
+                "policy — regenerate guild_rls.sql (scripts/gen_guild_rls.py)."
+            )
+            permissive, cmd = guard[tbl]
+            assert permissive == "RESTRICTIVE" and cmd == "DELETE", (
+                f"{tbl}.soft_delete_admin_purge must be RESTRICTIVE FOR DELETE, "
+                f"got {permissive} FOR {cmd}."
+            )
+        # The RLS-free guild-level soft-delete tables must NOT (can't) carry it.
+        for tbl in sorted(_PURGE_GUARD_FREE):
+            assert tbl not in guard, (
+                f"{tbl} is an RLS-free guild-level table; it can't carry a "
+                "RESTRICTIVE policy and is gated in app instead."
+            )
+    finally:
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, _GID_PURGE)

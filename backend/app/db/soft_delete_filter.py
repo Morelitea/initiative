@@ -48,6 +48,14 @@ SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (
     Counter,
 )
 
+# The table names behind SOFT_DELETE_MODELS — the single source of truth for
+# "which guild tables carry the trash-can lifecycle" that downstream consumers
+# (e.g. the guild-RLS generator's admin-only DELETE guard) read instead of
+# re-listing tables. ``soft_delete_filter_test`` asserts SOFT_DELETE_MODELS
+# equals ``SoftDeleteMixin.__subclasses__()``, so this stays authoritative and
+# can't silently drift from the mixin.
+SOFT_DELETE_TABLES: tuple[str, ...] = tuple(m.__tablename__ for m in SOFT_DELETE_MODELS)
+
 
 _INSTALLED = False
 

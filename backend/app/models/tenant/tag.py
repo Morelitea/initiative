@@ -5,7 +5,7 @@ from sqlalchemy import Column, DateTime, String
 from sqlmodel import Field, Relationship, SQLModel
 from pydantic import ConfigDict
 
-from app.models._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.platform.guild import Guild
