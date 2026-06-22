@@ -294,9 +294,15 @@ export function BulkEditAccessDialog({
           const existing = (doc.grants ?? []).filter((g) => g.level !== "owner");
           let next: ResourceGrantSchema[];
           if (userMode === "grant") {
-            // Drop any existing per-user grant for the targeted users, then add
-            // them back at the chosen level.
-            next = existing.filter((g) => g.user_id == null || !userIds.has(g.user_id));
+            // Granting specific users switches the doc to "restricted" mode, so
+            // drop any "all initiative members" grant — ShareControl can't
+            // represent a mixed all-members + per-grantee list and would
+            // silently discard it on the next save. Also drop any existing
+            // per-user grant for the targeted users, then add them back at the
+            // chosen level.
+            next = existing.filter(
+              (g) => !g.all_initiative_members && (g.user_id == null || !userIds.has(g.user_id))
+            );
             for (const userId of userIds) {
               next.push({ user_id: userId, level });
             }
@@ -359,7 +365,11 @@ export function BulkEditAccessDialog({
           if (docRoleIds.length === 0) continue;
           affectedDocIds.add(doc.id);
           const next: ResourceGrantSchema[] = [
-            ...existing,
+            // Granting specific roles switches the doc to "restricted" mode;
+            // drop any "all initiative members" grant so ShareControl doesn't
+            // receive a mixed list it can't display (and would silently discard
+            // on the next save).
+            ...existing.filter((g) => !g.all_initiative_members),
             ...docRoleIds.map((id) => ({ role_id: id, level: roleLevel })),
           ];
           updates.push(
