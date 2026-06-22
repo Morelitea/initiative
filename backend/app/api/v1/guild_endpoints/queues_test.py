@@ -1025,3 +1025,31 @@ async def test_create_queue_with_grants(client: AsyncClient, session: AsyncSessi
         g for g in data["grants"] if g["user_id"] == member.id and g["level"] == "write"
     ]
     assert len(user_grants) == 1
+
+
+@pytest.mark.integration
+async def test_delete_queue_still_emits_queue_deleted(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Deleting a queue must still emit ``queue_deleted``. Regression: the queue
+    is soft-deleted before _emit_queue runs, so its fallback guild lookup is
+    hidden by the global deleted_at IS NULL filter — the delete path must pass
+    guild_id explicitly or the event is silently dropped."""
+    admin, guild, initiative = await _setup_guild_and_initiative(session)
+    headers = await get_guild_headers(session, guild, admin)
+    queue = await _create_queue_via_api(client, headers, guild, initiative.id)
+
+    from app.services import stream_authz
+
+    emitted: list[tuple] = []
+
+    async def _record(guild_id, resource_type, resource_id, event_type, data):
+        emitted.append((guild_id, resource_type, resource_id, event_type))
+
+    monkeypatch.setattr(stream_authz.authority, "emit", _record)
+
+    resp = await client.delete(
+        f"/api/v1/g/{guild.id}/queues/{queue['id']}", headers=headers
+    )
+    assert resp.status_code == 204, resp.text
+    assert (guild.id, "queue", queue["id"], "queue_deleted") in emitted
