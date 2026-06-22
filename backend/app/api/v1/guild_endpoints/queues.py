@@ -65,7 +65,7 @@ from app.services import queues as queues_service
 from app.services import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.recent_view import RecentViewWrite
-from app.services.queue_realtime import queue_manager
+from app.services.stream_authz import authority as stream_authority
 from app.services.ws_auth import authenticate_ws_token
 
 
@@ -73,6 +73,22 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
+
+
+async def _emit_queue(session, queue_id: int, event_type: str, data: dict) -> None:
+    """Fan a queue event out through the streaming spine, guild-namespaced.
+
+    Resolves the queue's guild from the (guild-routed) session so the room key
+    matches the one the socket joined with; ``reapply_rls_context`` keeps the
+    lookup valid after a commit. Replaces the deleted queue_realtime manager —
+    one streaming spine, guild-namespaced rooms (queue ids are per-schema)."""
+    await reapply_rls_context(session)
+    guild_id = (
+        await session.exec(select(Queue.guild_id).where(Queue.id == queue_id))
+    ).one_or_none()
+    if guild_id is None:
+        return
+    await stream_authority.emit(guild_id, "queue", queue_id, event_type, data)
 
 
 # ---------------------------------------------------------------------------
@@ -391,8 +407,8 @@ async def update_queue(
         ),
     )
     if updated:
-        await queue_manager.broadcast(
-            queue_id, "queue_updated", result.model_dump(mode="json")
+        await _emit_queue(
+            session, queue_id, "queue_updated", result.model_dump(mode="json")
         )
     return result
 
@@ -424,7 +440,7 @@ async def delete_queue(
         retention_days=retention_days,
     )
     await session.commit()
-    await queue_manager.broadcast(queue_id, "queue_deleted", {"id": queue_id})
+    await _emit_queue(session, queue_id, "queue_deleted", {"id": queue_id})
 
 
 # ---------------------------------------------------------------------------
@@ -503,9 +519,7 @@ async def add_queue_item(
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(
-        queue_id, "item_added", result.model_dump(mode="json")
-    )
+    await _emit_queue(session, queue_id, "item_added", result.model_dump(mode="json"))
     return result
 
 
@@ -546,9 +560,7 @@ async def update_queue_item(
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(
-        queue_id, "item_updated", result.model_dump(mode="json")
-    )
+    await _emit_queue(session, queue_id, "item_updated", result.model_dump(mode="json"))
     return result
 
 
@@ -583,7 +595,7 @@ async def delete_queue_item(
         retention_days=retention_days,
     )
     await session.commit()
-    await queue_manager.broadcast(queue_id, "item_removed", {"id": item_id})
+    await _emit_queue(session, queue_id, "item_removed", {"id": item_id})
 
 
 @router.put("/{queue_id}/items/reorder", response_model=QueueRead)
@@ -620,8 +632,8 @@ async def reorder_queue_items(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
-        queue_id, "items_reordered", result.model_dump(mode="json")
+    await _emit_queue(
+        session, queue_id, "items_reordered", result.model_dump(mode="json")
     )
     return result
 
@@ -653,8 +665,8 @@ async def start_queue(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
-        queue_id, "queue_started", result.model_dump(mode="json")
+    await _emit_queue(
+        session, queue_id, "queue_started", result.model_dump(mode="json")
     )
     return result
 
@@ -681,8 +693,8 @@ async def stop_queue(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
-        queue_id, "queue_stopped", result.model_dump(mode="json")
+    await _emit_queue(
+        session, queue_id, "queue_stopped", result.model_dump(mode="json")
     )
     return result
 
@@ -709,9 +721,7 @@ async def advance_turn(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
-        queue_id, "turn_advance", result.model_dump(mode="json")
-    )
+    await _emit_queue(session, queue_id, "turn_advance", result.model_dump(mode="json"))
     return result
 
 
@@ -737,8 +747,8 @@ async def previous_turn(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
-        queue_id, "turn_previous", result.model_dump(mode="json")
+    await _emit_queue(
+        session, queue_id, "turn_previous", result.model_dump(mode="json")
     )
     return result
 
@@ -766,8 +776,8 @@ async def set_active_item(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
-        queue_id, "turn_set_active", result.model_dump(mode="json")
+    await _emit_queue(
+        session, queue_id, "turn_set_active", result.model_dump(mode="json")
     )
     return result
 
@@ -794,9 +804,7 @@ async def reset_queue(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
-        queue_id, "queue_reset", result.model_dump(mode="json")
-    )
+    await _emit_queue(session, queue_id, "queue_reset", result.model_dump(mode="json"))
     return result
 
 
@@ -827,7 +835,7 @@ async def hold_current_turn(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(queue_id, "turn_held", result.model_dump(mode="json"))
+    await _emit_queue(session, queue_id, "turn_held", result.model_dump(mode="json"))
     return result
 
 
@@ -869,8 +877,8 @@ async def release_held_item(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
-        queue_id, "turn_released", result.model_dump(mode="json")
+    await _emit_queue(
+        session, queue_id, "turn_released", result.model_dump(mode="json")
     )
     return result
 
@@ -908,9 +916,7 @@ async def set_queue_item_tags(
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(
-        queue_id, "tags_changed", result.model_dump(mode="json")
-    )
+    await _emit_queue(session, queue_id, "tags_changed", result.model_dump(mode="json"))
     return result
 
 
@@ -953,8 +959,8 @@ async def set_queue_item_documents(
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(
-        queue_id, "documents_changed", result.model_dump(mode="json")
+    await _emit_queue(
+        session, queue_id, "documents_changed", result.model_dump(mode="json")
     )
     return result
 
@@ -993,8 +999,8 @@ async def set_queue_item_tasks(
             detail=QueueMessages.ITEM_NOT_FOUND,
         )
     result = serialize_queue_item(hydrated_item)
-    await queue_manager.broadcast(
-        queue_id, "tasks_changed", result.model_dump(mode="json")
+    await _emit_queue(
+        session, queue_id, "tasks_changed", result.model_dump(mode="json")
     )
     return result
 
@@ -1053,7 +1059,8 @@ async def set_queue_grants(
             hydrated, current_user, guild_context
         ),
     )
-    await queue_manager.broadcast(
+    await _emit_queue(
+        session,
         queue_id,
         "permissions_changed",
         {"grants": [g.model_dump(mode="json") for g in result.grants]},
@@ -1155,9 +1162,29 @@ async def websocket_queue(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
 
-    # Join the room
-    await queue_manager.connect(queue_id, websocket)
     logger.info(f"Queue WS: user {user.id} joined queue {queue_id}")
+
+    # The streaming spine owns the socket lifecycle, fan-out, and continuous,
+    # every-level re-authorization: a grant / membership / role / PAM change
+    # disconnects this socket — immediately for guild/initiative-level removal
+    # (revoke_user), within the bounded interval for within-initiative DAC. The
+    # check re-runs the full join (establish_guild_access → load the queue under
+    # RLS → DAC).
+    async def _authorize(check_session, check_user):
+        q = await queues_service.get_queue(check_session, queue_id)
+        if q is None or q.guild_id != guild_id:
+            return False
+        return queues_service.compute_queue_permission(q, check_user.id) is not None
+
+    await stream_authority.join(
+        websocket,
+        user,
+        guild_id=guild_id,
+        initiative_id=queue.initiative_id,
+        resource_type="queue",
+        resource_id=queue_id,
+        authorize=_authorize,
+    )
 
     try:
         # Keep the connection alive — listen for pings/disconnects
@@ -1166,7 +1193,7 @@ async def websocket_queue(
     except WebSocketDisconnect:
         pass
     finally:
-        await queue_manager.disconnect(queue_id, websocket)
+        await stream_authority.leave(websocket)
         logger.info(f"Queue WS: user {user.id} left queue {queue_id}")
 
 

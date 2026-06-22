@@ -47,6 +47,7 @@ from app.services.collaboration import (
 )
 from app.services import documents as documents_service
 from app.services import permissions as permissions_service
+from app.services.stream_authz import authority as stream_authority
 from app.services.ws_auth import authenticate_ws_token
 
 router = APIRouter()
@@ -226,6 +227,35 @@ async def websocket_collaborate(
     # Add to room
     await room.add_collaborator(collaborator)
 
+    # Govern this socket with continuous, every-level re-authorization. A
+    # grant / membership / role / PAM change disconnects it — immediately for
+    # guild- and initiative-level removal (via revoke_user), within the bounded
+    # interval for within-initiative DAC changes. The check re-runs the FULL join
+    # (establish_guild_access → load the document under RLS → DAC), so every gate
+    # is re-enforced in one place. ``needs_write`` makes a writer who loses write
+    # disconnect too (hard-disconnect, no mid-session downgrade), so the stale
+    # ``can_write`` below can't outlive the user's actual write access.
+    needs_write = can_write
+
+    async def _authorize(check_session, check_user):
+        doc = await _get_document_with_permissions(check_session, document_id, guild_id)
+        if doc is None:
+            return False  # initiative removed (RLS hides it) or document gone
+        current = permissions_service.compute_document_permission(doc, check_user.id)
+        if current is None:
+            return False  # read access revoked
+        return not needs_write or current in ("write", "owner")
+
+    await stream_authority.join(
+        websocket,
+        user,
+        guild_id=guild_id,
+        initiative_id=document.initiative_id,
+        resource_type="document",
+        resource_id=document_id,
+        authorize=_authorize,
+    )
+
     try:
         # Send initial sync state
         state = room.get_state()
@@ -335,6 +365,9 @@ async def websocket_collaborate(
             f"Collaboration error for {user.email} on document {document_id}: {e}"
         )
     finally:
+        # Stop governing this socket (idempotent if the spine already closed it).
+        await stream_authority.leave(websocket)
+
         # Remove from room
         await room.remove_collaborator(user.id)
 

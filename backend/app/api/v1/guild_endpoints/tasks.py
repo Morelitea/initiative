@@ -636,11 +636,47 @@ async def _broadcast_task_refresh(
     task = await _fetch_task(session, task_id, guild_id)
     if task is None:
         return
-    await broadcast_event(guild_id, "task", "updated", _task_payload(task))
+    await _broadcast_task(
+        session, guild_id, task.project_id, "updated", task_id=task.id
+    )
 
 
 def _task_payload(task: Task) -> dict:
     return TaskRead.model_validate(task).model_dump(mode="json")
+
+
+async def _broadcast_task(
+    session: SessionDep,
+    guild_id: int,
+    project_id: int,
+    action: str,
+    *,
+    task_id: int | None = None,
+    extra: dict | None = None,
+) -> None:
+    """Emit a content-free task signal to the task's initiative room.
+
+    The room is ``(guild_id, initiative_id)``; initiative_id is resolved from the
+    project within the guild-routed session (initiative ids are per-guild-schema
+    sequences, so both are required and the lookup is guild-safe).
+    ``reapply_rls_context`` keeps the lookup under the guild context even when the
+    broadcast fires after a commit. The client refetches through the RLS + DAC
+    gated REST path — the actual content gate; the bus carries ids only.
+    """
+    await reapply_rls_context(session)
+    initiative_id = (
+        await session.exec(
+            select(Project.initiative_id).where(Project.id == project_id)
+        )
+    ).one_or_none()
+    if initiative_id is None:
+        return
+    ids: dict = {"project_id": project_id}
+    if task_id is not None:
+        ids["task_id"] = task_id
+    if extra:
+        ids.update(extra)
+    await broadcast_event(guild_id, initiative_id, "task", action, ids)
 
 
 async def _fetch_task(
@@ -841,7 +877,9 @@ async def _advance_recurrence_if_needed(
         await session.flush()
     await session.refresh(new_task, attribute_names=["assignees", "tag_links"])
     _annotate_task_tags([new_task])
-    await broadcast_event(new_task.guild_id, "task", "created", _task_payload(new_task))
+    await _broadcast_task(
+        session, new_task.guild_id, new_task.project_id, "created", task_id=new_task.id
+    )
 
     task.recurrence = None
     task.recurrence_strategy = "fixed"
@@ -1527,8 +1565,8 @@ async def create_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_CREATE,
         )
-    await broadcast_event(
-        guild_context.guild_id, "task", "created", _task_payload(task)
+    await _broadcast_task(
+        session, guild_context.guild_id, task.project_id, "created", task_id=task.id
     )
     # Outbound webhook dispatch — fire-and-log; failures don't block the
     # user's write. Only one event source for now (PR2.2 scope); other
@@ -1665,8 +1703,8 @@ async def update_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await broadcast_event(
-        guild_context.guild_id, "task", "updated", _task_payload(task)
+    await _broadcast_task(
+        session, guild_context.guild_id, task.project_id, "updated", task_id=task.id
     )
     return task
 
@@ -1746,8 +1784,12 @@ async def move_task(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_MOVE,
         )
-    await broadcast_event(
-        guild_context.guild_id, "task", "updated", _task_payload(updated_task)
+    await _broadcast_task(
+        session,
+        guild_context.guild_id,
+        updated_task.project_id,
+        "updated",
+        task_id=updated_task.id,
     )
     return updated_task
 
@@ -1930,11 +1972,8 @@ async def delete_task(
     )
     await _touch_project(session, project_id)
     await session.commit()
-    await broadcast_event(
-        guild_context.guild_id,
-        "task",
-        "deleted",
-        {"id": task_id, "project_id": project_id},
+    await _broadcast_task(
+        session, guild_context.guild_id, project_id, "deleted", task_id=task_id
     )
 
 
@@ -2046,11 +2085,8 @@ async def reorder_tasks(
     tasks = refreshed_result.all()
     await _annotate_tasks(session, tasks)
     _annotate_task_guild(tasks)
-    await broadcast_event(
-        guild_context.guild_id,
-        "task",
-        "reordered",
-        {"project_id": reorder_in.project_id},
+    await _broadcast_task(
+        session, guild_context.guild_id, reorder_in.project_id, "reordered"
     )
     return tasks
 
@@ -2106,11 +2142,12 @@ async def archive_done_tasks(
 
     await _touch_project(session, project_id, timestamp=now)
     await session.commit()
-    await broadcast_event(
+    await _broadcast_task(
+        session,
         guild_context.guild_id,
-        "task",
+        project_id,
         "archived",
-        {"project_id": project_id, "count": len(tasks)},
+        extra={"count": len(tasks)},
     )
     return ArchiveDoneResponse(archived_count=len(tasks))
 
@@ -2536,8 +2573,8 @@ async def set_task_tags(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await broadcast_event(
-        guild_context.guild_id, "task", "updated", _task_payload(task)
+    await _broadcast_task(
+        session, guild_context.guild_id, task.project_id, "updated", task_id=task.id
     )
     return task
 
@@ -2615,7 +2652,11 @@ async def set_task_properties(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=TaskMessages.MISSING_AFTER_UPDATE,
         )
-    await broadcast_event(
-        guild_context.guild_id, "task", "updated", _task_payload(refreshed)
+    await _broadcast_task(
+        session,
+        guild_context.guild_id,
+        refreshed.project_id,
+        "updated",
+        task_id=refreshed.id,
     )
     return refreshed

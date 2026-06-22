@@ -35,6 +35,7 @@ from app.schemas.initiative import AdvancedToolHandoffResponse
 from app.services import guilds as guilds_service
 from app.services import initiatives as initiatives_service
 from app.services import rls as rls_service
+from app.services.stream_authz import authority as stream_authority
 from app.services import users as users_service
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -543,6 +544,10 @@ async def update_guild_membership(
     target_membership.role = payload.role
     session.add(target_membership)
     await session.commit()
+    # Guild-level access change (e.g. admin → member loses the guild-admin
+    # bypass): re-check this user's live content streams now so the change takes
+    # effect immediately, not on the next bounded re-auth tick.
+    await stream_authority.revoke_user(guild_id, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -766,4 +771,6 @@ async def leave_guild(
     )
 
     await session.commit()
+    # Left the guild — drop this user's live content streams immediately.
+    await stream_authority.revoke_user(guild_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

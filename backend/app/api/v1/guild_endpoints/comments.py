@@ -39,6 +39,44 @@ router = APIRouter()
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
 
+async def _broadcast_comment(session, guild_id: int, comment, action: str) -> None:
+    """Emit a content-free comment signal to the comment's initiative room.
+
+    A comment hangs off a task (→ project → initiative) or a document
+    (→ initiative); the parent is resolved within the guild-routed session, so
+    the ``(guild_id, initiative_id)`` room is guild-safe (initiative ids are
+    per-guild-schema). ``reapply_rls_context`` keeps the lookup under the guild
+    context after the commit. The client refetches through the RLS + DAC gated
+    REST path — the bus carries ids only.
+    """
+    await reapply_rls_context(session)
+    ids: dict = {
+        "comment_id": comment.id,
+        "task_id": comment.task_id,
+        "document_id": comment.document_id,
+    }
+    initiative_id = None
+    if comment.task_id is not None:
+        row = (
+            await session.exec(
+                select(Project.id, Project.initiative_id)
+                .join(Task, Task.project_id == Project.id)
+                .where(Task.id == comment.task_id)
+            )
+        ).one_or_none()
+        if row is not None:
+            ids["project_id"], initiative_id = row
+    elif comment.document_id is not None:
+        initiative_id = (
+            await session.exec(
+                select(Document.initiative_id).where(Document.id == comment.document_id)
+            )
+        ).one_or_none()
+    if initiative_id is None:
+        return
+    await broadcast_event(guild_id, initiative_id, "comment", action, ids)
+
+
 @router.post("/", response_model=CommentRead, status_code=status.HTTP_201_CREATED)
 async def create_comment(
     comment_in: CommentCreate,
@@ -74,9 +112,7 @@ async def create_comment(
     await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
-    await broadcast_event(
-        guild_context.guild_id, "comment", "created", response.model_dump(mode="json")
-    )
+    await _broadcast_comment(session, guild_context.guild_id, comment, "created")
     return response
 
 
@@ -250,9 +286,7 @@ async def update_comment(
     await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
-    await broadcast_event(
-        guild_context.guild_id, "comment", "updated", response.model_dump(mode="json")
-    )
+    await _broadcast_comment(session, guild_context.guild_id, comment, "updated")
     return response
 
 
@@ -285,16 +319,8 @@ async def delete_comment(
         ) from exc
 
     await session.commit()
-    await broadcast_event(
-        guild_context.guild_id,
-        "comment",
-        "deleted",
-        {
-            "id": deleted_comment.id,
-            "task_id": deleted_comment.task_id,
-            "document_id": deleted_comment.document_id,
-            "project_id": getattr(deleted_comment, "project_id", None),
-        },
+    await _broadcast_comment(
+        session, guild_context.guild_id, deleted_comment, "deleted"
     )
 
 

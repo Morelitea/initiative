@@ -4,13 +4,16 @@ from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, status
 from sqlalchemy import text
+from sqlmodel import select
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import establish_guild_access, GuildAccessError
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
+from app.models.initiative import Initiative
 from app.models.user import User
+from app.services.membership import initiative_scope_clause
 from app.services.realtime import manager
 from app.services.ws_auth import authenticate_ws_token
 
@@ -31,22 +34,22 @@ async def _user_from_token(token: str, session: AsyncSession) -> Optional[User]:
     return await authenticate_ws_token(token, session)
 
 
-async def _user_can_access_guild(
-    session: AsyncSession, *, user: User, guild_id: int
-) -> bool:
-    """True if the user may subscribe to ``guild_id``'s event stream.
+async def _accessible_initiative_ids(
+    session: AsyncSession, *, user_id: int
+) -> list[int]:
+    """The initiative rooms this user may join in the already-established guild.
 
-    Defers the access decision to the single guild-access entry point so the
-    subscribe gate stays in lockstep with REST and the other sockets — a standing
-    membership, a live PAM grant, or a break-glass grant all qualify, and only
-    those. This is a guild-level gate (no per-resource DAC); the applied context
-    is harmless here since the session is released right after.
+    Reuses the single source of truth — ``initiative_scope_clause`` →
+    ``public.initiative_access`` — so the rooms a socket joins are exactly the
+    initiatives whose content it could read over REST: member initiatives, plus
+    every initiative for a guild admin / PAM / break-glass session (those legs
+    come free from the GUCs ``establish_guild_access`` set). A guild member who
+    is in no initiative joins no rooms and is never poked.
     """
-    try:
-        await establish_guild_access(session, user, guild_id)
-        return True
-    except GuildAccessError:
-        return False
+    rows = await session.exec(
+        select(Initiative.id).where(initiative_scope_clause(user_id, Initiative.id))
+    )
+    return list(rows.all())
 
 
 @router.websocket("/updates")
@@ -105,33 +108,39 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
             )
         )
         user = await _user_from_token(token, session)
-        # Scope the socket to the path-addressed guild — only a member (or live
-        # PAM grantee) may subscribe, so events for a guild never reach
-        # outsiders. Checked inside this session block: after the ``async with``
-        # exits the session would silently re-acquire a pooled connection
-        # WITHOUT the GUC reset above.
-        authorized = user is not None and await _user_can_access_guild(
-            session, user=user, guild_id=guild_id
-        )
-    if not user:
-        logger.warning("Events WebSocket: Auth failed")
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
-    if not authorized:
-        logger.warning(
-            f"Events WebSocket: user {user.id} not authorized for guild {guild_id}"
-        )
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
+        if user is None:
+            logger.warning("Events WebSocket: Auth failed")
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        # Establish guild access (membership / live PAM / break-glass) through the
+        # single entry point, then resolve which initiative rooms this user may
+        # join. Both run inside this session block: after the ``async with`` exits
+        # the session would silently re-acquire a pooled connection WITHOUT the
+        # GUC reset above.
+        try:
+            await establish_guild_access(session, user, guild_id)
+        except GuildAccessError:
+            logger.warning(
+                f"Events WebSocket: user {user.id} not authorized for guild {guild_id}"
+            )
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+        initiative_ids = await _accessible_initiative_ids(session, user_id=user.id)
 
-    await manager.connect(guild_id, websocket)
-    logger.info(f"Events WS: user {user.id} subscribed to guild {guild_id}")
+    # Initiative-scoped subscription: the socket joins exactly the rooms whose
+    # content the user can read, so a signal for an initiative never reaches a
+    # non-member. (A member of no initiative joins nothing — correct: they have
+    # no content to be notified about.)
+    await manager.connect(guild_id, initiative_ids, websocket)
+    logger.info(
+        f"Events WS: user {user.id} joined {len(initiative_ids)} initiative room(s) in guild {guild_id}"
+    )
     try:
         while True:
             # Keep the connection alive by awaiting incoming messages
             await websocket.receive_text()
     except WebSocketDisconnect:
-        await manager.disconnect(guild_id, websocket)
+        await manager.disconnect(websocket)
     except Exception:
-        await manager.disconnect(guild_id, websocket)
+        await manager.disconnect(websocket)
         await websocket.close(code=status.WS_1011_INTERNAL_ERROR)

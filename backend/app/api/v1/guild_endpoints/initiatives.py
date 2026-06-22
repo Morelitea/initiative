@@ -48,6 +48,7 @@ from app.schemas.user import UserPublic
 from app.services import notifications as notifications_service
 from app.services import initiatives as initiatives_service
 from app.services import guilds as guilds_service
+from app.services.stream_authz import authority as stream_authority
 from app.services import documents as documents_service
 from app.services import rls as rls_service
 from app.services.membership import initiative_scope_clause
@@ -1114,6 +1115,9 @@ async def remove_initiative_member(
 
         await session.commit()
         await reapply_rls_context(session)
+        # Removed from the initiative — drop this user's live content streams in
+        # the guild immediately (initiative-level access change).
+        await stream_authority.revoke_user(guild_context.guild_id, user_id)
 
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(
@@ -1191,6 +1195,9 @@ async def update_initiative_member(
         session.add(membership)
         await session.commit()
         await reapply_rls_context(session)
+        # Role change may reduce content access — re-check this user's live
+        # content streams immediately (initiative-level access change).
+        await stream_authority.revoke_user(guild_context.guild_id, user_id)
 
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(
