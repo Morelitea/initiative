@@ -60,6 +60,8 @@
   "INITIATIVE_CANNOT_DELETE_BUILTIN": "Cannot delete built-in roles",
   "INITIATIVE_ROLE_HAS_MEMBERS": "Cannot delete role: members are still assigned to it",
   "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED": "Guild admins already have full access and can only be assigned the project manager role",
+  "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN": "Only guild admins can change Full access for a role",
+  "INITIATIVE_OVERRIDE_PM_ONLY": "Full access can only be granted to the Project Manager role",
   "OIDC_NOT_ENABLED": "OIDC is not enabled",
   "OIDC_METADATA_INCOMPLETE": "OIDC metadata incomplete",
   "OIDC_EMAIL_UNVERIFIED": "Your identity provider did not confirm your email is verified, so we can't sign you in to an existing account. Verify your email with your provider and try again.",

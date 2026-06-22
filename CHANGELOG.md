@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Full access for the Project Manager role.** Guild admins can now grant the Project Manager role **Full access** from an initiative's Roles settings. Members with that role can view and edit every item in the initiative — projects, documents, queues, counters, calendar events — even when an item isn't shared with them, and can manage who else has access. It applies only within that one initiative, and shows on each item's Share control as a locked editor that can't be removed. Only guild admins can turn it on, and only on the Project Manager role (so a manager can't grant it to themselves).
+
 ### Fixed
 
 - Adding an option to a select / multi-select custom property lost input focus after each keystroke, so only one character could be typed at a time. Option rows are no longer re-keyed by the value being edited.

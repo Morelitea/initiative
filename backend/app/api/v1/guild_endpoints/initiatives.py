@@ -485,6 +485,31 @@ async def update_initiative_role(
             detail=InitiativeMessages.CANNOT_MODIFY_PM_PERMISSIONS,
         )
 
+    # "Full access" (override_share_restrictions): the endpoint is manager-
+    # accessible (a PM can edit roles), so this single field needs its own,
+    # stricter guard — otherwise a PM could flip it on their own role and
+    # self-escalate. Field-level, not endpoint-level:
+    #   * only a guild admin may change it (no in-initiative escalation), and
+    #   * only on the built-in project_manager role (its tool permissions are
+    #     already locked on, so "view/edit everything regardless of sharing" is
+    #     coherent there; on a lesser role it would contradict gate-3).
+    if (
+        role_in.override_share_restrictions is not None
+        and role_in.override_share_restrictions != role.override_share_restrictions
+    ):
+        if not rls_service.is_guild_admin(guild_context.role):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=InitiativeMessages.OVERRIDE_REQUIRES_GUILD_ADMIN,
+            )
+        if not (role.is_builtin and role.name == "project_manager"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=InitiativeMessages.OVERRIDE_PM_ONLY,
+            )
+        role.override_share_restrictions = role_in.override_share_restrictions
+        session.add(role)
+
     # Update display name if provided
     if role_in.display_name is not None:
         role.display_name = role_in.display_name
@@ -592,6 +617,8 @@ async def get_my_initiative_permissions(
     if rls_service.is_guild_admin(guild_context.role):
         return MyInitiativePermissions(
             is_manager=True,
+            # Guild admins view/edit everything regardless of sharing.
+            override_share_restrictions=True,
             permissions={
                 "docs_enabled": True,
                 "projects_enabled": True,
@@ -684,6 +711,7 @@ async def get_my_initiative_permissions(
         role_name=role.name,
         role_display_name=role.display_name,
         is_manager=role.is_manager,
+        override_share_restrictions=role.override_share_restrictions,
         permissions=permissions,
         advanced_tool_enabled=advanced_tool_enabled,
     )

@@ -1473,6 +1473,7 @@ export interface InitiativeRoleRead {
   display_name: string;
   is_builtin: boolean;
   is_manager: boolean;
+  override_share_restrictions: boolean;
   position: number;
   permissions: Partial<Record<PermissionKey, boolean>>;
   member_count: number;
@@ -1484,6 +1485,7 @@ export interface InitiativeRoleRead {
 export interface InitiativeRoleUpdate {
   display_name?: string | null;
   is_manager?: boolean | null;
+  override_share_restrictions?: boolean | null;
   permissions?: Partial<Record<PermissionKey, boolean>> | null;
 }
 
@@ -1571,6 +1573,7 @@ export interface MyInitiativePermissions {
   role_name: string | null;
   role_display_name: string | null;
   is_manager: boolean;
+  override_share_restrictions: boolean;
   permissions: Partial<Record<PermissionKey, boolean>>;
   advanced_tool_enabled: boolean;
 }

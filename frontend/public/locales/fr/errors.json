@@ -62,6 +62,8 @@
   "INITIATIVE_CANNOT_DELETE_BUILTIN": "Impossible de supprimer les rôles intégrés",
   "INITIATIVE_ROLE_HAS_MEMBERS": "Impossible de supprimer le rôle : des membres lui sont encore attribués",
   "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED": "Les administrateurs du groupe ont déjà un accès complet et ne peuvent se voir attribuer que le rôle de chef de projet",
+  "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN": "Seuls les administrateurs du groupe peuvent modifier l'accès complet d'un rôle",
+  "INITIATIVE_OVERRIDE_PM_ONLY": "L'accès complet ne peut être attribué qu'au rôle de chef de projet",
   "OIDC_NOT_ENABLED": "L'OIDC n'est pas activé",
   "OIDC_METADATA_INCOMPLETE": "Métadonnées OIDC incomplètes",
   "SMTP_NOT_CONFIGURED": "Les paramètres SMTP sont incomplets.",

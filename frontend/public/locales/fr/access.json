@@ -21,6 +21,8 @@
     "noPeople": "Aucune personne trouvée.",
     "noRoles": "Aucun rôle trouvé.",
     "remove": "Supprimer",
+    "fullAccess": "Accès complet",
+    "fullAccessHint": "Ce rôle peut consulter et modifier tout le contenu de cette initiative ; il est donc toujours éditeur ici.",
     "settingsDescription": "Choisissez qui peut consulter et modifier ceci."
   }
 }

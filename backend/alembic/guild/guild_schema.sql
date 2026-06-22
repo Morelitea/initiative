@@ -220,6 +220,7 @@ CREATE TABLE IF NOT EXISTS initiative_roles (
 	is_builtin BOOLEAN DEFAULT false NOT NULL, 
 	is_manager BOOLEAN DEFAULT false NOT NULL, 
 	position INTEGER DEFAULT 0 NOT NULL, 
+	override_share_restrictions BOOLEAN DEFAULT false NOT NULL, 
 	CONSTRAINT initiative_roles_pkey PRIMARY KEY (id), 
 	CONSTRAINT uq_initiative_role_name UNIQUE NULLS DISTINCT (initiative_id, name)
 );

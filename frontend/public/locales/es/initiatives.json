@@ -104,6 +104,8 @@
     "addCustomRole": "Agregar rol personalizado",
     "builtIn": "Integrado",
     "manager": "Gerente",
+    "fullAccess": "Acceso total",
+    "fullAccessDescription": "Anula el uso compartido de los elementos: este rol puede abrir y editar cualquier elemento de la iniciativa aunque no se comparta con él, y puede gestionar quién más tiene acceso.",
     "membersCount": "Miembros",
     "dangerTitle": "Zona de peligro",
     "dangerDescription": "Eliminar una iniciativa la envía a la papelera junto con sus proyectos, tareas y documentos. Pueden restaurarse antes de que finalice el período de retención.",

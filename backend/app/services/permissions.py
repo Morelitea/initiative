@@ -23,7 +23,7 @@ from sqlalchemy import and_, or_
 from sqlmodel import select
 
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
-from app.core.role_context import active_guild_role
+from app.core.role_context import active_guild_role, request_overrides_sharing
 from app.services.membership import guild_member_clause
 
 from app.models.guild import GuildRole
@@ -244,18 +244,32 @@ def is_request_guild_admin(
 def request_bypasses_dac(
     guild_id: int | None,
     *,
+    initiative_id: int | None = None,
     access: str = "read",
     require_owner: bool = False,
     guild_role: GuildRole | str | None = None,
 ) -> bool:
     """The single "sees/edits regardless of DAC rows?" check — satisfying PAM
-    grant OR guild admin. Defined once so a call site can't apply one leg and
-    drop the other (the regression that hid a guild admin's tasks)."""
+    grant OR guild admin OR initiative "Full access". Defined once so a call site
+    can't apply one leg and drop the other (the regression that hid a guild
+    admin's tasks).
+
+    The initiative "Full access" leg (``request_overrides_sharing``) is the
+    initiative-scoped sibling of the guild-admin leg: like guild admin, it
+    ignores ``require_owner`` (a full-access PM may manage an item's sharing —
+    an owner-only operation — within their initiative).
+
+    A guild-scoped resource always carries a ``guild_id`` (the override set is
+    itself computed within a guild context), so no ``guild_id`` means no guild
+    context to reason about — fail closed before any leg, including the override
+    one."""
     if guild_id is None:
         return False
     if grant_satisfies(guild_id, access=access, require_owner=require_owner):
         return True
-    return is_request_guild_admin(guild_id, guild_role=guild_role)
+    if is_request_guild_admin(guild_id, guild_role=guild_role):
+        return True
+    return request_overrides_sharing(initiative_id)
 
 
 def initiative_scope_ok(
@@ -492,11 +506,17 @@ def require_access(
     require_owner: bool = False,
     guild_role: GuildRole | str | None = None,
 ) -> None:
-    """Raise 403 unless ``user`` may act on ``row``: bypass (admin/PAM) →
-    (scope_gate) initiative scope → effective DAC level vs requested access."""
+    """Raise 403 unless ``user`` may act on ``row``: bypass (admin/PAM/Full
+    access) → (scope_gate) initiative scope → effective DAC level vs requested
+    access."""
     guild_id = getattr(row, "guild_id", None)
+    initiative_id = getattr(row, "initiative_id", None)
     if request_bypasses_dac(
-        guild_id, access=access, require_owner=require_owner, guild_role=guild_role
+        guild_id,
+        initiative_id=initiative_id,
+        access=access,
+        require_owner=require_owner,
+        guild_role=guild_role,
     ):
         return
     if resource.scope_gate and not initiative_scope_ok(
@@ -526,10 +546,11 @@ def require_access(
 
 
 def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | None:
-    """``my_permission_level`` for the client: guild admin → owner, else effective
-    DAC level lifted to any active PAM grant."""
+    """``my_permission_level`` for the client: guild admin / initiative "Full
+    access" → owner, else effective DAC level lifted to any active PAM grant."""
     guild_id = getattr(row, "guild_id", None)
-    if is_request_guild_admin(guild_id):
+    initiative_id = getattr(row, "initiative_id", None)
+    if is_request_guild_admin(guild_id) or request_overrides_sharing(initiative_id):
         return "owner"
     return lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
 

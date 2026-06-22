@@ -30,6 +30,10 @@ import {
 interface InitiativeSettingsRolesTabProps {
   initiativeId: number;
   canManageMembers: boolean;
+  // "Full access" (override_share_restrictions) is guild-admin-settable only —
+  // a stricter gate than canManageMembers (which also includes PM managers), so
+  // a PM can't grant its own role the share override (self-escalation).
+  isGuildAdmin: boolean;
   onOpenCreateRoleDialog: () => void;
   onDeleteRole: (role: InitiativeRoleRead) => void;
   onRenameRole: (role: InitiativeRoleRead) => void;
@@ -72,6 +76,7 @@ const PermissionGroupSection = ({
 export const InitiativeSettingsRolesTab = ({
   initiativeId,
   canManageMembers,
+  isGuildAdmin,
   onOpenCreateRoleDialog,
   onDeleteRole,
   onRenameRole,
@@ -95,6 +100,16 @@ export const InitiativeSettingsRolesTab = ({
       if (role.name === "project_manager") return;
       const newPermissions = { ...role.permissions, [key]: enabled };
       updateRoleMutation.mutate({ roleId: role.id, data: { permissions: newPermissions } });
+    },
+    [updateRoleMutation]
+  );
+
+  const handleToggleFullAccess = useCallback(
+    (role: InitiativeRoleRead, enabled: boolean) => {
+      updateRoleMutation.mutate({
+        roleId: role.id,
+        data: { override_share_restrictions: enabled },
+      });
     },
     [updateRoleMutation]
   );
@@ -131,6 +146,9 @@ export const InitiativeSettingsRolesTab = ({
                           {t("settings.manager")}
                         </Badge>
                       )}
+                      {role.override_share_restrictions && (
+                        <Badge className="text-xs">{t("settings.fullAccess")}</Badge>
+                      )}
                       <Badge variant="outline" className="text-xs">
                         {t("settings.memberCountBadge", { count: role.member_count })}
                       </Badge>
@@ -159,6 +177,22 @@ export const InitiativeSettingsRolesTab = ({
                     )}
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {isPM && isGuildAdmin && (
+                      <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+                        <div className="space-y-1">
+                          <Label className="font-medium">{t("settings.fullAccess")}</Label>
+                          <p className="text-muted-foreground text-xs">
+                            {t("settings.fullAccessDescription")}
+                          </p>
+                        </div>
+                        <Switch
+                          checked={role.override_share_restrictions}
+                          disabled={updateRoleMutation.isPending}
+                          onCheckedChange={(checked) => handleToggleFullAccess(role, checked)}
+                        />
+                      </div>
+                    )}
+
                     {CORE_PERMISSION_GROUPS.map((group) => (
                       <PermissionGroupSection
                         key={group.labelKey}

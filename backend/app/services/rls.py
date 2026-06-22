@@ -252,6 +252,35 @@ async def accessible_initiative_ids(
     return {m.initiative_id for m in rows if _role_grants(m.role_ref, permission_key)}
 
 
+async def override_sharing_initiative_ids(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> set[int]:
+    """Initiative ids (in the routed guild schema) where the user holds a role
+    with ``override_share_restrictions`` ("Full access") — the set the request's
+    DAC override consults (``role_context.request_overrides_sharing``).
+
+    One indexed query over the user's memberships, joined to their role. Called
+    once per guild request at session establishment; usually returns the empty
+    set (most users are full-access PMs nowhere).
+    """
+    from sqlmodel import select
+
+    stmt = (
+        select(InitiativeMember.initiative_id)
+        .join(
+            InitiativeRoleModel,
+            InitiativeRoleModel.id == InitiativeMember.role_id,
+        )
+        .where(
+            InitiativeMember.user_id == user_id,
+            InitiativeRoleModel.override_share_restrictions.is_(True),
+        )
+    )
+    return set((await session.exec(stmt)).all())
+
+
 async def has_feature_access(
     session: AsyncSession,
     *,

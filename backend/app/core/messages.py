@@ -85,6 +85,11 @@ class InitiativeMessages:
     # hold the manager role (for manager-style features), never a standard
     # member or custom role.
     GUILD_ADMIN_ROLE_RESTRICTED = "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED"
+    # "Full access" (override_share_restrictions) may be changed only by a guild
+    # admin (so an initiative role can't escalate itself), and only on the
+    # built-in project_manager role.
+    OVERRIDE_REQUIRES_GUILD_ADMIN = "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN"
+    OVERRIDE_PM_ONLY = "INITIATIVE_OVERRIDE_PM_ONLY"
 
 
 class ProjectMessages:

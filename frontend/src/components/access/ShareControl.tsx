@@ -69,6 +69,25 @@ export const ShareControl = ({
   );
   const roleGrants = useMemo(() => grants.filter((g) => g.role_id != null), [grants]);
 
+  // Roles with "Full access" (override_share_restrictions) always view/edit
+  // everything in the initiative, so they show as a locked Editor that can't be
+  // removed or downgraded — even in Restricted mode. It's implied by the role
+  // (not a stored grant), so it's injected here and never emitted in onChange.
+  const fullAccessRoles = useMemo(
+    () => roles.filter((r) => r.override_share_restrictions),
+    [roles]
+  );
+  const fullAccessRoleIds = useMemo(
+    () => new Set(fullAccessRoles.map((r) => r.id)),
+    [fullAccessRoles]
+  );
+  // Real role grants minus any full-access role (rendered as locked instead, so
+  // a stray stored grant to it doesn't double-render or look editable).
+  const editableRoleGrants = useMemo(
+    () => roleGrants.filter((g) => !fullAccessRoleIds.has(g.role_id as number)),
+    [roleGrants, fullAccessRoleIds]
+  );
+
   const allLevel: ShareLevel = allMembersGrant?.level === "write" ? "write" : "read";
 
   // ── Lookup helpers ───────────────────────────────────────────────────────
@@ -114,8 +133,9 @@ export const ShareControl = ({
     [members, ownerId, grantedUserIds]
   );
   const availableRoles = useMemo(
-    () => roles.filter((r) => !grantedRoleIds.has(r.id)),
-    [roles, grantedRoleIds]
+    // Full-access roles already have access (shown locked), so they're not pickable.
+    () => roles.filter((r) => !grantedRoleIds.has(r.id) && !fullAccessRoleIds.has(r.id)),
+    [roles, grantedRoleIds, fullAccessRoleIds]
   );
 
   // ── Mutators ─────────────────────────────────────────────────────────────
@@ -418,7 +438,28 @@ export const ShareControl = ({
             </div>
 
             <div className="space-y-1">
-              {roleGrants.map((grant) => {
+              {/* Full-access roles: locked Editor, non-removable, non-downgradable */}
+              {fullAccessRoles.map((role) => (
+                <div
+                  key={`full-access-${role.id}`}
+                  className="flex items-center gap-2 rounded-md border px-3 py-2"
+                  title={t("share.fullAccessHint")}
+                >
+                  <span className="min-w-0 flex-1 truncate text-sm">{role.display_name}</span>
+                  <Badge variant="secondary" className="gap-1">
+                    <Lock className="h-3 w-3" />
+                    {t("share.fullAccess")}
+                  </Badge>
+                  <span className="w-[110px] shrink-0 px-3 text-muted-foreground text-sm">
+                    {t("share.editor")}
+                  </span>
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-muted-foreground">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                </div>
+              ))}
+
+              {editableRoleGrants.map((grant) => {
                 const roleId = grant.role_id as number;
                 return (
                   <div key={roleId} className="flex items-center gap-2 rounded-md border px-3 py-2">
