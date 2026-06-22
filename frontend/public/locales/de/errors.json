@@ -64,6 +64,8 @@
   "INITIATIVE_CANNOT_DELETE_BUILTIN": "Integrierte Rollen können nicht gelöscht werden",
   "INITIATIVE_ROLE_HAS_MEMBERS": "Rolle kann nicht gelöscht werden: Es sind noch Mitglieder zugewiesen",
   "INITIATIVE_GUILD_ADMIN_ROLE_RESTRICTED": "Gildenadministratoren haben bereits vollen Zugriff und können nur als Projektmanager zugewiesen werden",
+  "INITIATIVE_OVERRIDE_REQUIRES_GUILD_ADMIN": "Nur Gildenadministratoren können den Vollzugriff einer Rolle ändern",
+  "INITIATIVE_OVERRIDE_PM_ONLY": "Vollzugriff kann nur der Projektmanager-Rolle gewährt werden",
   "OIDC_NOT_ENABLED": "OIDC ist nicht aktiviert",
   "OIDC_METADATA_INCOMPLETE": "OIDC-Metadaten unvollständig",
   "SMTP_NOT_CONFIGURED": "SMTP-Einstellungen sind unvollständig.",

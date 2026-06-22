@@ -257,10 +257,17 @@ def request_bypasses_dac(
     The initiative "Full access" leg (``request_overrides_sharing``) is the
     initiative-scoped sibling of the guild-admin leg: like guild admin, it
     ignores ``require_owner`` (a full-access PM may manage an item's sharing —
-    an owner-only operation — within their initiative)."""
+    an owner-only operation — within their initiative).
+
+    A guild-scoped resource always carries a ``guild_id`` (the override set is
+    itself computed within a guild context), so no ``guild_id`` means no guild
+    context to reason about — fail closed before any leg, including the override
+    one."""
+    if guild_id is None:
+        return False
     if grant_satisfies(guild_id, access=access, require_owner=require_owner):
         return True
-    if guild_id is not None and is_request_guild_admin(guild_id, guild_role=guild_role):
+    if is_request_guild_admin(guild_id, guild_role=guild_role):
         return True
     return request_overrides_sharing(initiative_id)
 
