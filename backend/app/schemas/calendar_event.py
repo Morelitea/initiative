@@ -9,6 +9,7 @@ from app.schemas.base import RawTextStr, SanitizedBaseModel
 
 from app.models.calendar_event import RSVPStatus
 from app.schemas.property import PropertySummary
+from app.schemas.resource_grant import ResourceGrantSchema
 from app.schemas.tag import TagSummary
 from app.schemas.user import UserPublic
 
@@ -103,6 +104,13 @@ class CalendarEventCreate(CalendarEventBase):
     attendee_ids: Optional[List[int]] = None
     tag_ids: Optional[List[int]] = None
     document_ids: Optional[List[int]] = None
+    # Initial sharing — the same grant list the PUT /grants endpoint takes.
+    # Defaults to Viewer for all initiative members.
+    grants: List[ResourceGrantSchema] = Field(
+        default_factory=lambda: [
+            ResourceGrantSchema(all_initiative_members=True, level="read")
+        ]
+    )
 
 
 class CalendarEventUpdate(SanitizedBaseModel):
@@ -149,6 +157,10 @@ class CalendarEventSummary(CalendarEventBase):
     attendee_previews: List[CalendarEventAttendeePreview] = Field(default_factory=list)
     property_values: List[PropertySummary] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
+    # The full sharing state — every resource_grants row for this event.
+    grants: List[ResourceGrantSchema] = Field(default_factory=list)
+    # The current user's effective level on this event (what *I* can do).
+    my_permission_level: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -241,7 +253,20 @@ def _parse_recurrence(event: "CalendarEvent") -> Optional[EventRecurrence]:
         return None
 
 
-def serialize_calendar_event_summary(event: "CalendarEvent") -> CalendarEventSummary:
+def serialize_calendar_event_summary(
+    event: "CalendarEvent", *, user_id: Optional[int] = None
+) -> CalendarEventSummary:
+    # Local import avoids a schema -> service import cycle.
+    from app.services.permissions import (
+        compute_calendar_event_permission,
+        serialize_grants,
+    )
+
+    my_permission_level = (
+        compute_calendar_event_permission(event, user_id)
+        if user_id is not None
+        else None
+    )
     attendees_list = getattr(event, "attendees", None) or []
     names: List[str] = []
     previews: List[CalendarEventAttendeePreview] = []
@@ -276,13 +301,17 @@ def serialize_calendar_event_summary(event: "CalendarEvent") -> CalendarEventSum
         attendee_previews=previews,
         property_values=_serialize_event_properties(event),
         tags=_serialize_tags(event),
+        grants=serialize_grants(event),
+        my_permission_level=my_permission_level,
         created_at=event.created_at,
         updated_at=event.updated_at,
     )
 
 
-def serialize_calendar_event(event: "CalendarEvent") -> CalendarEventRead:
-    summary = serialize_calendar_event_summary(event)
+def serialize_calendar_event(
+    event: "CalendarEvent", *, user_id: Optional[int] = None
+) -> CalendarEventRead:
+    summary = serialize_calendar_event_summary(event, user_id=user_id)
     return CalendarEventRead(
         **summary.model_dump(),
         attendees=_serialize_attendees(event),

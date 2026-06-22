@@ -22,7 +22,6 @@ import type {
 
 import type {
   HTTPValidationError,
-  ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet200,
   ListQueuesApiV1GGuildIdQueuesGetParams,
   QueueCreate,
   QueueItemCreate,
@@ -30,14 +29,11 @@ import type {
   QueueItemReorderRequest,
   QueueItemUpdate,
   QueueListResponse,
-  QueuePermissionCreate,
-  QueuePermissionRead,
   QueueRead,
   QueueReleaseRequest,
-  QueueRolePermissionCreate,
-  QueueRolePermissionRead,
   QueueUpdate,
   RecentViewWrite,
+  ResourceGrantSchema,
 } from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
@@ -2087,227 +2083,48 @@ export const useSetQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut =
   );
 };
 /**
- * List user and role permissions on a queue. Requires read access.
- * @summary List Queue Permissions
+ * Replace the queue's entire sharing state in one call — the body is the
+ * full list of grants (all-initiative-members / per-user / per-role). Every
+ * non-owner grant is rebuilt from it; the owner is always preserved.
+ * @summary Set Queue Grants
  */
-export const listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet = (
+export const setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut = (
   guildId: number,
   queueId: number,
+  resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet200>(
-    { url: `/api/v1/g/${guildId}/queues/${queueId}/permissions`, method: "GET", signal },
-    options
-  );
-};
-
-export const getListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryKey = (
-  guildId: number,
-  queueId: number
-) => {
-  return [`/api/v1/g/${guildId}/queues/${queueId}/permissions`] as const;
-};
-
-export const getListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryOptions = <
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  queueId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }
-) => {
-  const { query: queryOptions, request: requestOptions } = options ?? {};
-
-  const queryKey =
-    queryOptions?.queryKey ??
-    getListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryKey(guildId, queueId);
-
-  const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>
-  > = ({ signal }) =>
-    listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet(
-      guildId,
-      queueId,
-      requestOptions,
-      signal
-    );
-
-  return {
-    queryKey,
-    queryFn,
-    enabled: guildId !== null && guildId !== undefined && queueId !== null && queueId !== undefined,
-    ...queryOptions,
-  } as UseQueryOptions<
-    Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-    TError,
-    TData
-  > & { queryKey: DataTag<QueryKey, TData, TError> };
-};
-
-export type ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryResult = NonNullable<
-  Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>
->;
-export type ListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryError =
-  ErrorType<HTTPValidationError>;
-
-export function useListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet<
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  queueId: number,
-  options: {
-    query: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet<
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  queueId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-        TError,
-        TData
-      >
-    > &
-      Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-          TError,
-          Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>
-        >,
-        "initialData"
-      >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-export function useListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet<
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  queueId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-/**
- * @summary List Queue Permissions
- */
-
-export function useListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet<
-  TData = Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-  TError = ErrorType<HTTPValidationError>,
->(
-  guildId: number,
-  queueId: number,
-  options?: {
-    query?: Partial<
-      UseQueryOptions<
-        Awaited<ReturnType<typeof listQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGet>>,
-        TError,
-        TData
-      >
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getListQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsGetQueryOptions(
-    guildId,
-    queueId,
-    options
-  );
-
-  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
-    queryKey: DataTag<QueryKey, TData, TError>;
-  };
-
-  return { ...query, queryKey: queryOptions.queryKey };
-}
-
-/**
- * Set user permissions on a queue. Requires owner or guild admin.
- *
- * Replaces all non-owner permissions. The owner's permission cannot be changed.
- * @summary Set Queue Permissions
- */
-export const setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut = (
-  guildId: number,
-  queueId: number,
-  queuePermissionCreate: BodyType<QueuePermissionCreate[]>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<QueuePermissionRead[]>(
+  return apiMutator<QueueRead>(
     {
-      url: `/api/v1/g/${guildId}/queues/${queueId}/permissions`,
+      url: `/api/v1/g/${guildId}/queues/${queueId}/grants`,
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: queuePermissionCreate,
+      data: resourceGrantSchema,
       signal,
     },
     options
   );
 };
 
-export const getSetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationOptions = <
+export const getSetQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPutMutationOptions = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
+    Awaited<ReturnType<typeof setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut>>,
     TError,
-    { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> },
+    { guildId: number; queueId: number; data: BodyType<ResourceGrantSchema[]> },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
+  Awaited<ReturnType<typeof setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut>>,
   TError,
-  { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> },
+  { guildId: number; queueId: number; data: BodyType<ResourceGrantSchema[]> },
   TContext
 > => {
-  const mutationKey = ["setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut"];
+  const mutationKey = ["setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
       ? options
@@ -2315,12 +2132,12 @@ export const getSetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutat
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
-    { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> }
+    Awaited<ReturnType<typeof setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut>>,
+    { guildId: number; queueId: number; data: BodyType<ResourceGrantSchema[]> }
   > = (props) => {
     const { guildId, queueId, data } = props ?? {};
 
-    return setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut(
+    return setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut(
       guildId,
       queueId,
       data,
@@ -2331,147 +2148,40 @@ export const getSetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutat
   return { mutationFn, ...mutationOptions };
 };
 
-export type SetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>
+export type SetQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut>>
 >;
-export type SetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationBody = BodyType<
-  QueuePermissionCreate[]
+export type SetQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPutMutationBody = BodyType<
+  ResourceGrantSchema[]
 >;
-export type SetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationError =
+export type SetQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPutMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
- * @summary Set Queue Permissions
+ * @summary Set Queue Grants
  */
-export const useSetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut = <
+export const useSetQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
+      Awaited<ReturnType<typeof setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut>>,
       TError,
-      { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> },
+      { guildId: number; queueId: number; data: BodyType<ResourceGrantSchema[]> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<ReturnType<typeof setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut>>,
+  Awaited<ReturnType<typeof setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut>>,
   TError,
-  { guildId: number; queueId: number; data: BodyType<QueuePermissionCreate[]> },
+  { guildId: number; queueId: number; data: BodyType<ResourceGrantSchema[]> },
   TContext
 > => {
   return useMutation(
-    getSetQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPutMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Set role permissions on a queue. Requires owner or guild admin.
- *
- * Replaces all existing role permissions.
- * @summary Set Queue Role Permissions
- */
-export const setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut = (
-  guildId: number,
-  queueId: number,
-  queueRolePermissionCreate: BodyType<QueueRolePermissionCreate[]>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<QueueRolePermissionRead[]>(
-    {
-      url: `/api/v1/g/${guildId}/queues/${queueId}/role-permissions`,
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      data: queueRolePermissionCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getSetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>
-      >,
-      TError,
-      { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>>,
-    TError,
-    { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
-    TContext
-  > => {
-    const mutationKey = ["setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut"];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>
-      >,
-      { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> }
-    > = (props) => {
-      const { guildId, queueId, data } = props ?? {};
-
-      return setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut(
-        guildId,
-        queueId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type SetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>>
-  >;
-export type SetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationBody =
-  BodyType<QueueRolePermissionCreate[]>;
-export type SetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Set Queue Role Permissions
- */
-export const useSetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>
-      >,
-      TError,
-      { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut>>,
-  TError,
-  { guildId: number; queueId: number; data: BodyType<QueueRolePermissionCreate[]> },
-  TContext
-> => {
-  return useMutation(
-    getSetQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPutMutationOptions(options),
+    getSetQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPutMutationOptions(options),
     queryClient
   );
 };

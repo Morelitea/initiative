@@ -838,28 +838,29 @@ async def test_hold_requires_write_access(client: AsyncClient, session: AsyncSes
 
 
 @pytest.mark.integration
-async def test_set_queue_permissions(client: AsyncClient, session: AsyncSession):
-    """Owner can set user permissions on a queue."""
+async def test_set_queue_grants(client: AsyncClient, session: AsyncSession):
+    """Owner can set user grants on a queue via the unified grants endpoint."""
     admin, member, guild, initiative = await _setup_with_member(session)
     headers = await get_guild_headers(session, guild, admin)
     queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/permissions",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/grants",
         headers=headers,
         json=[{"user_id": member.id, "level": "write"}],
     )
 
     assert response.status_code == 200
     data = response.json()
-    member_perms = [p for p in data if p["user_id"] == member.id]
-    assert len(member_perms) == 1
-    assert member_perms[0]["level"] == "write"
+    member_grants = [
+        g for g in data["grants"] if g["user_id"] == member.id and g["level"] == "write"
+    ]
+    assert len(member_grants) == 1
 
 
 @pytest.mark.integration
-async def test_set_queue_role_permissions(client: AsyncClient, session: AsyncSession):
-    """Owner can set role permissions on a queue."""
+async def test_set_queue_role_grants(client: AsyncClient, session: AsyncSession):
+    """Owner can set role grants on a queue via the unified grants endpoint."""
     admin, guild, initiative = await _setup_guild_and_initiative(session)
     headers = await get_guild_headers(session, guild, admin)
     queue_data = await _create_queue_via_api(client, headers, guild, initiative.id)
@@ -874,16 +875,19 @@ async def test_set_queue_role_permissions(client: AsyncClient, session: AsyncSes
     member_role = result.one()
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/role-permissions",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/grants",
         headers=headers,
-        json=[{"initiative_role_id": member_role.id, "level": "read"}],
+        json=[{"role_id": member_role.id, "level": "read"}],
     )
 
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 1
-    assert data[0]["initiative_role_id"] == member_role.id
-    assert data[0]["level"] == "read"
+    role_grants = [
+        g
+        for g in data["grants"]
+        if g["role_id"] == member_role.id and g["level"] == "read"
+    ]
+    assert len(role_grants) == 1
 
 
 @pytest.mark.integration
@@ -899,7 +903,7 @@ async def test_member_with_read_can_view_queue(
 
     # Grant read to member
     await client.put(
-        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/permissions",
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/grants",
         headers=admin_headers,
         json=[{"user_id": member.id, "level": "read"}],
     )
@@ -931,6 +935,14 @@ async def test_member_without_permission_cannot_view(
     queue_data = await _create_queue_via_api(
         client, admin_headers, guild, initiative.id
     )
+    # New queues default to all-members Viewer; restrict to owner-only so a member
+    # without a grant is genuinely denied.
+    restrict = await client.put(
+        f"/api/v1/g/{guild.id}/queues/{queue_data['id']}/grants",
+        headers=admin_headers,
+        json=[],
+    )
+    assert restrict.status_code == 200
 
     member_headers = await get_guild_headers(session, guild, member)
     response = await client.get(
@@ -975,10 +987,8 @@ async def test_set_queue_item_tags(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_create_queue_with_permissions(
-    client: AsyncClient, session: AsyncSession
-):
-    """Create a queue with inline role and user permissions."""
+async def test_create_queue_with_grants(client: AsyncClient, session: AsyncSession):
+    """Create a queue with inline role and user grants."""
     admin, member, guild, initiative = await _setup_with_member(session)
     headers = await get_guild_headers(session, guild, admin)
 
@@ -996,16 +1006,22 @@ async def test_create_queue_with_permissions(
         json={
             "name": "With Perms",
             "initiative_id": initiative.id,
-            "role_permissions": [
-                {"initiative_role_id": member_role.id, "level": "read"}
+            "grants": [
+                {"role_id": member_role.id, "level": "read"},
+                {"user_id": member.id, "level": "write"},
             ],
-            "user_permissions": [{"user_id": member.id, "level": "write"}],
         },
     )
 
     assert response.status_code == 201
     data = response.json()
-    assert len(data["role_permissions"]) == 1
-    user_perms = [p for p in data["permissions"] if p["user_id"] == member.id]
-    assert len(user_perms) == 1
-    assert user_perms[0]["level"] == "write"
+    role_grants = [
+        g
+        for g in data["grants"]
+        if g["role_id"] == member_role.id and g["user_id"] is None
+    ]
+    assert len(role_grants) == 1
+    user_grants = [
+        g for g in data["grants"] if g["user_id"] == member.id and g["level"] == "write"
+    ]
+    assert len(user_grants) == 1

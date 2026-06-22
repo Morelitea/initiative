@@ -196,14 +196,14 @@ async def test_break_glass_read_write_is_full_guild_admin(
     )
     assert resp.status_code == 201, resp.text
 
-    # Management: add a member to an existing project (a regular grant is blocked
-    # with PROJECT_GRANT_CANNOT_MANAGE_MEMBERS — break-glass has no limits).
-    resp = await client.post(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/members",
-        json={"user_id": target.id, "level": "write"},
+    # Management: change project access (a regular grant is blocked with
+    # PROJECT_GRANT_CANNOT_MANAGE_MEMBERS — break-glass has no limits).
+    resp = await client.put(
+        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
+        json=[{"user_id": target.id, "level": "write"}],
         headers=headers,
     )
-    assert resp.status_code in (200, 201, 204), resp.text
+    assert resp.status_code == 200, resp.text
 
 
 @pytest.mark.integration

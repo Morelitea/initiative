@@ -33,18 +33,11 @@ import type {
   ProjectImportRequest,
   ProjectImportResult,
   ProjectListResponse,
-  ProjectPermissionBulkCreate,
-  ProjectPermissionBulkDelete,
-  ProjectPermissionCreate,
-  ProjectPermissionRead,
-  ProjectPermissionUpdate,
   ProjectRead,
   ProjectReorderRequest,
-  ProjectRolePermissionCreate,
-  ProjectRolePermissionRead,
-  ProjectRolePermissionUpdate,
   ProjectUpdate,
   RecentViewWrite,
+  ResourceGrantSchema,
   TagSetRequest,
 } from "../initiativeAPI.schemas";
 
@@ -2075,556 +2068,6 @@ export const useDetachProjectDocumentApiV1GGuildIdProjectsProjectIdDocumentsDocu
   );
 };
 /**
- * @summary Add Project Member
- */
-export const addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost = (
-  guildId: number,
-  projectId: number,
-  projectPermissionCreate: BodyType<ProjectPermissionCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ProjectPermissionRead>(
-    {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/members`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: projectPermissionCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getAddProjectMemberApiV1GGuildIdProjectsProjectIdMembersPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost>>,
-    TError,
-    { guildId: number; projectId: number; data: BodyType<ProjectPermissionCreate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost>>,
-  TError,
-  { guildId: number; projectId: number; data: BodyType<ProjectPermissionCreate> },
-  TContext
-> => {
-  const mutationKey = ["addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost>>,
-    { guildId: number; projectId: number; data: BodyType<ProjectPermissionCreate> }
-  > = (props) => {
-    const { guildId, projectId, data } = props ?? {};
-
-    return addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost(
-      guildId,
-      projectId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AddProjectMemberApiV1GGuildIdProjectsProjectIdMembersPostMutationResult = NonNullable<
-  Awaited<ReturnType<typeof addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost>>
->;
-export type AddProjectMemberApiV1GGuildIdProjectsProjectIdMembersPostMutationBody =
-  BodyType<ProjectPermissionCreate>;
-export type AddProjectMemberApiV1GGuildIdProjectsProjectIdMembersPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Add Project Member
- */
-export const useAddProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost>>,
-      TError,
-      { guildId: number; projectId: number; data: BodyType<ProjectPermissionCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof addProjectMemberApiV1GGuildIdProjectsProjectIdMembersPost>>,
-  TError,
-  { guildId: number; projectId: number; data: BodyType<ProjectPermissionCreate> },
-  TContext
-> => {
-  return useMutation(
-    getAddProjectMemberApiV1GGuildIdProjectsProjectIdMembersPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Add multiple members to a project with the same permission level.
- * @summary Add Project Members Bulk
- */
-export const addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost = (
-  guildId: number,
-  projectId: number,
-  projectPermissionBulkCreate: BodyType<ProjectPermissionBulkCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ProjectPermissionRead[]>(
-    {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/members/bulk`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: projectPermissionBulkCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getAddProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost>
-      >,
-      TError,
-      { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost>>,
-    TError,
-    { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkCreate> },
-    TContext
-  > => {
-    const mutationKey = ["addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost"];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost>
-      >,
-      { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkCreate> }
-    > = (props) => {
-      const { guildId, projectId, data } = props ?? {};
-
-      return addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost(
-        guildId,
-        projectId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type AddProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost>>
-  >;
-export type AddProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPostMutationBody =
-  BodyType<ProjectPermissionBulkCreate>;
-export type AddProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Add Project Members Bulk
- */
-export const useAddProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost>
-      >,
-      TError,
-      { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof addProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPost>>,
-  TError,
-  { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkCreate> },
-  TContext
-> => {
-  return useMutation(
-    getAddProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Remove multiple members from a project.
- * @summary Remove Project Members Bulk
- */
-export const removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost = (
-  guildId: number,
-  projectId: number,
-  projectPermissionBulkDelete: BodyType<ProjectPermissionBulkDelete>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/members/bulk-delete`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: projectPermissionBulkDelete,
-      signal,
-    },
-    options
-  );
-};
-
-export const getRemoveProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost
-        >
-      >,
-      TError,
-      { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkDelete> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost>
-    >,
-    TError,
-    { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkDelete> },
-    TContext
-  > => {
-    const mutationKey = [
-      "removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost",
-    ];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost
-        >
-      >,
-      { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkDelete> }
-    > = (props) => {
-      const { guildId, projectId, data } = props ?? {};
-
-      return removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost(
-        guildId,
-        projectId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type RemoveProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost>
-    >
-  >;
-export type RemoveProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePostMutationBody =
-  BodyType<ProjectPermissionBulkDelete>;
-export type RemoveProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Remove Project Members Bulk
- */
-export const useRemoveProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost
-        >
-      >,
-      TError,
-      { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkDelete> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<
-    ReturnType<typeof removeProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePost>
-  >,
-  TError,
-  { guildId: number; projectId: number; data: BodyType<ProjectPermissionBulkDelete> },
-  TContext
-> => {
-  return useMutation(
-    getRemoveProjectMembersBulkApiV1GGuildIdProjectsProjectIdMembersBulkDeletePostMutationOptions(
-      options
-    ),
-    queryClient
-  );
-};
-/**
- * Update a project member's permission level.
- * @summary Update Project Member
- */
-export const updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch = (
-  guildId: number,
-  projectId: number,
-  userId: number,
-  projectPermissionUpdate: BodyType<ProjectPermissionUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ProjectPermissionRead>(
-    {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/members/${userId}`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: projectPermissionUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatchMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch>
-      >,
-      TError,
-      {
-        guildId: number;
-        projectId: number;
-        userId: number;
-        data: BodyType<ProjectPermissionUpdate>;
-      },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<ReturnType<typeof updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch>>,
-    TError,
-    { guildId: number; projectId: number; userId: number; data: BodyType<ProjectPermissionUpdate> },
-    TContext
-  > => {
-    const mutationKey = ["updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch"];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch>
-      >,
-      {
-        guildId: number;
-        projectId: number;
-        userId: number;
-        data: BodyType<ProjectPermissionUpdate>;
-      }
-    > = (props) => {
-      const { guildId, projectId, userId, data } = props ?? {};
-
-      return updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch(
-        guildId,
-        projectId,
-        userId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type UpdateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatchMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch>>
-  >;
-export type UpdateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatchMutationBody =
-  BodyType<ProjectPermissionUpdate>;
-export type UpdateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Update Project Member
- */
-export const useUpdateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch>
-      >,
-      TError,
-      {
-        guildId: number;
-        projectId: number;
-        userId: number;
-        data: BodyType<ProjectPermissionUpdate>;
-      },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof updateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatch>>,
-  TError,
-  { guildId: number; projectId: number; userId: number; data: BodyType<ProjectPermissionUpdate> },
-  TContext
-> => {
-  return useMutation(
-    getUpdateProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdPatchMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * @summary Remove Project Member
- */
-export const removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete = (
-  guildId: number,
-  projectId: number,
-  userId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/members/${userId}`,
-      method: "DELETE",
-      signal,
-    },
-    options
-  );
-};
-
-export const getRemoveProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete>
-      >,
-      TError,
-      { guildId: number; projectId: number; userId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete>
-    >,
-    TError,
-    { guildId: number; projectId: number; userId: number },
-    TContext
-  > => {
-    const mutationKey = ["removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete"];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete>
-      >,
-      { guildId: number; projectId: number; userId: number }
-    > = (props) => {
-      const { guildId, projectId, userId } = props ?? {};
-
-      return removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete(
-        guildId,
-        projectId,
-        userId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type RemoveProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDeleteMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete>>
-  >;
-
-export type RemoveProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Remove Project Member
- */
-export const useRemoveProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete>
-      >,
-      TError,
-      { guildId: number; projectId: number; userId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof removeProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDelete>>,
-  TError,
-  { guildId: number; projectId: number; userId: number },
-  TContext
-> => {
-  return useMutation(
-    getRemoveProjectMemberApiV1GGuildIdProjectsProjectIdMembersUserIdDeleteMutationOptions(options),
-    queryClient
-  );
-};
-/**
  * @summary Reorder Projects
  */
 export const reorderProjectsApiV1GGuildIdProjectsReorderPost = (
@@ -2818,395 +2261,108 @@ export const useSetProjectTagsApiV1GGuildIdProjectsProjectIdTagsPut = <
   );
 };
 /**
- * Add a role-based permission to a project.
- * @summary Add Project Role Permission
+ * Replace the project's entire sharing state in one call — the body is the
+ * full list of grants (all-initiative-members / per-user / per-role). Every
+ * non-owner grant is rebuilt from it; the owner is always preserved.
+ * @summary Set Project Grants
  */
-export const addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost = (
+export const setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut = (
   guildId: number,
   projectId: number,
-  projectRolePermissionCreate: BodyType<ProjectRolePermissionCreate>,
+  resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<ProjectRolePermissionRead>(
+  return apiMutator<ProjectRead>(
     {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/role-permissions`,
-      method: "POST",
+      url: `/api/v1/g/${guildId}/projects/${projectId}/grants`,
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: projectRolePermissionCreate,
+      data: resourceGrantSchema,
       signal,
     },
     options
   );
 };
 
-export const getAddProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost>
-      >,
-      TError,
-      { guildId: number; projectId: number; data: BodyType<ProjectRolePermissionCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost>
-    >,
+export const getSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
     TError,
-    { guildId: number; projectId: number; data: BodyType<ProjectRolePermissionCreate> },
+    { guildId: number; projectId: number; data: BodyType<ResourceGrantSchema[]> },
     TContext
-  > => {
-    const mutationKey = [
-      "addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost",
-    ];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
+  TError,
+  { guildId: number; projectId: number; data: BodyType<ResourceGrantSchema[]> },
+  TContext
+> => {
+  const mutationKey = ["setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost>
-      >,
-      { guildId: number; projectId: number; data: BodyType<ProjectRolePermissionCreate> }
-    > = (props) => {
-      const { guildId, projectId, data } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
+    { guildId: number; projectId: number; data: BodyType<ResourceGrantSchema[]> }
+  > = (props) => {
+    const { guildId, projectId, data } = props ?? {};
 
-      return addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost(
-        guildId,
-        projectId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut(
+      guildId,
+      projectId,
+      data,
+      requestOptions
+    );
   };
 
-export type AddProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost>
-    >
-  >;
-export type AddProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPostMutationBody =
-  BodyType<ProjectRolePermissionCreate>;
-export type AddProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPostMutationError =
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>
+>;
+export type SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationBody = BodyType<
+  ResourceGrantSchema[]
+>;
+export type SetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
- * @summary Add Project Role Permission
+ * @summary Set Project Grants
  */
-export const useAddProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost = <
+export const useSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost>
-      >,
+      Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
       TError,
-      { guildId: number; projectId: number; data: BodyType<ProjectRolePermissionCreate> },
+      { guildId: number; projectId: number; data: BodyType<ResourceGrantSchema[]> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof addProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPost>
-  >,
+  Awaited<ReturnType<typeof setProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPut>>,
   TError,
-  { guildId: number; projectId: number; data: BodyType<ProjectRolePermissionCreate> },
+  { guildId: number; projectId: number; data: BodyType<ResourceGrantSchema[]> },
   TContext
 > => {
   return useMutation(
-    getAddProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsPostMutationOptions(
-      options
-    ),
+    getSetProjectGrantsApiV1GGuildIdProjectsProjectIdGrantsPutMutationOptions(options),
     queryClient
   );
 };
-/**
- * Update a role-based permission level on a project.
- * @summary Update Project Role Permission
- */
-export const updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch = (
-  guildId: number,
-  projectId: number,
-  roleId: number,
-  projectRolePermissionUpdate: BodyType<ProjectRolePermissionUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<ProjectRolePermissionRead>(
-    {
-      url: `/api/v1/g/${guildId}/projects/${projectId}/role-permissions/${roleId}`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: projectRolePermissionUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatchMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch
-        >
-      >,
-      TError,
-      {
-        guildId: number;
-        projectId: number;
-        roleId: number;
-        data: BodyType<ProjectRolePermissionUpdate>;
-      },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch
-      >
-    >,
-    TError,
-    {
-      guildId: number;
-      projectId: number;
-      roleId: number;
-      data: BodyType<ProjectRolePermissionUpdate>;
-    },
-    TContext
-  > => {
-    const mutationKey = [
-      "updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch",
-    ];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch
-        >
-      >,
-      {
-        guildId: number;
-        projectId: number;
-        roleId: number;
-        data: BodyType<ProjectRolePermissionUpdate>;
-      }
-    > = (props) => {
-      const { guildId, projectId, roleId, data } = props ?? {};
-
-      return updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch(
-        guildId,
-        projectId,
-        roleId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type UpdateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatchMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch
-      >
-    >
-  >;
-export type UpdateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatchMutationBody =
-  BodyType<ProjectRolePermissionUpdate>;
-export type UpdateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Update Project Role Permission
- */
-export const useUpdateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch
-          >
-        >,
-        TError,
-        {
-          guildId: number;
-          projectId: number;
-          roleId: number;
-          data: BodyType<ProjectRolePermissionUpdate>;
-        },
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof updateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatch
-      >
-    >,
-    TError,
-    {
-      guildId: number;
-      projectId: number;
-      roleId: number;
-      data: BodyType<ProjectRolePermissionUpdate>;
-    },
-    TContext
-  > => {
-    return useMutation(
-      getUpdateProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdPatchMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
-/**
- * Remove a role-based permission from a project.
- * @summary Remove Project Role Permission
- */
-export const removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete =
-  (
-    guildId: number,
-    projectId: number,
-    roleId: number,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<void>(
-      {
-        url: `/api/v1/g/${guildId}/projects/${projectId}/role-permissions/${roleId}`,
-        method: "DELETE",
-        signal,
-      },
-      options
-    );
-  };
-
-export const getRemoveProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete
-        >
-      >,
-      TError,
-      { guildId: number; projectId: number; roleId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete
-      >
-    >,
-    TError,
-    { guildId: number; projectId: number; roleId: number },
-    TContext
-  > => {
-    const mutationKey = [
-      "removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete",
-    ];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete
-        >
-      >,
-      { guildId: number; projectId: number; roleId: number }
-    > = (props) => {
-      const { guildId, projectId, roleId } = props ?? {};
-
-      return removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete(
-        guildId,
-        projectId,
-        roleId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type RemoveProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDeleteMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete
-      >
-    >
-  >;
-
-export type RemoveProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Remove Project Role Permission
- */
-export const useRemoveProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete
-          >
-        >,
-        TError,
-        { guildId: number; projectId: number; roleId: number },
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof removeProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDelete
-      >
-    >,
-    TError,
-    { guildId: number; projectId: number; roleId: number },
-    TContext
-  > => {
-    return useMutation(
-      getRemoveProjectRolePermissionApiV1GGuildIdProjectsProjectIdRolePermissionsRoleIdDeleteMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
 /**
  * Serialize a project to a self-contained JSON envelope.
  *

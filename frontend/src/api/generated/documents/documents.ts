@@ -33,15 +33,7 @@ import type {
   DocumentDuplicateRequest,
   DocumentFileVersionRead,
   DocumentListResponse,
-  DocumentPermissionBulkCreate,
-  DocumentPermissionBulkDelete,
-  DocumentPermissionCreate,
-  DocumentPermissionRead,
-  DocumentPermissionUpdate,
   DocumentRead,
-  DocumentRolePermissionCreate,
-  DocumentRolePermissionRead,
-  DocumentRolePermissionUpdate,
   DocumentUpdate,
   GenerateDocumentSummaryResponse,
   GetDocumentCountsApiV1GGuildIdDocumentsCountsGetParams,
@@ -50,6 +42,7 @@ import type {
   ListMyDocumentsApiV1MeDocumentsGetParams,
   PropertyValuesSetRequest,
   RecentViewWrite,
+  ResourceGrantSchema,
   TagSetRequest,
 } from "../initiativeAPI.schemas";
 
@@ -1990,590 +1983,6 @@ export const useCopyDocumentApiV1GGuildIdDocumentsDocumentIdCopyPost = <
   );
 };
 /**
- * Add a member to a document with specified permission level.
- * @summary Add Document Member
- */
-export const addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost = (
-  guildId: number,
-  documentId: number,
-  documentPermissionCreate: BodyType<DocumentPermissionCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DocumentPermissionRead>(
-    {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/members`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: documentPermissionCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getAddDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPostMutationOptions = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost>>,
-    TError,
-    { guildId: number; documentId: number; data: BodyType<DocumentPermissionCreate> },
-    TContext
-  >;
-  request?: SecondParameter<typeof apiMutator>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost>>,
-  TError,
-  { guildId: number; documentId: number; data: BodyType<DocumentPermissionCreate> },
-  TContext
-> => {
-  const mutationKey = ["addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost>>,
-    { guildId: number; documentId: number; data: BodyType<DocumentPermissionCreate> }
-  > = (props) => {
-    const { guildId, documentId, data } = props ?? {};
-
-    return addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost(
-      guildId,
-      documentId,
-      data,
-      requestOptions
-    );
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type AddDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPostMutationResult =
-  NonNullable<
-    Awaited<ReturnType<typeof addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost>>
-  >;
-export type AddDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPostMutationBody =
-  BodyType<DocumentPermissionCreate>;
-export type AddDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Add Document Member
- */
-export const useAddDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<ReturnType<typeof addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost>>,
-      TError,
-      { guildId: number; documentId: number; data: BodyType<DocumentPermissionCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof addDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPost>>,
-  TError,
-  { guildId: number; documentId: number; data: BodyType<DocumentPermissionCreate> },
-  TContext
-> => {
-  return useMutation(
-    getAddDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersPostMutationOptions(options),
-    queryClient
-  );
-};
-/**
- * Add multiple members to a document with the same permission level.
- * @summary Add Document Members Bulk
- */
-export const addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost = (
-  guildId: number,
-  documentId: number,
-  documentPermissionBulkCreate: BodyType<DocumentPermissionBulkCreate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DocumentPermissionRead[]>(
-    {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/members/bulk`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: documentPermissionBulkCreate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getAddDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost>
-      >,
-      TError,
-      { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost>
-    >,
-    TError,
-    { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkCreate> },
-    TContext
-  > => {
-    const mutationKey = ["addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost"];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost>
-      >,
-      { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkCreate> }
-    > = (props) => {
-      const { guildId, documentId, data } = props ?? {};
-
-      return addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost(
-        guildId,
-        documentId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type AddDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost>
-    >
-  >;
-export type AddDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPostMutationBody =
-  BodyType<DocumentPermissionBulkCreate>;
-export type AddDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Add Document Members Bulk
- */
-export const useAddDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost>
-      >,
-      TError,
-      { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<ReturnType<typeof addDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPost>>,
-  TError,
-  { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkCreate> },
-  TContext
-> => {
-  return useMutation(
-    getAddDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkPostMutationOptions(
-      options
-    ),
-    queryClient
-  );
-};
-/**
- * Remove multiple members from a document.
- * @summary Remove Document Members Bulk
- */
-export const removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost = (
-  guildId: number,
-  documentId: number,
-  documentPermissionBulkDelete: BodyType<DocumentPermissionBulkDelete>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/members/bulk-delete`,
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      data: documentPermissionBulkDelete,
-      signal,
-    },
-    options
-  );
-};
-
-export const getRemoveDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost
-        >
-      >,
-      TError,
-      { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkDelete> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost
-      >
-    >,
-    TError,
-    { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkDelete> },
-    TContext
-  > => {
-    const mutationKey = [
-      "removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost",
-    ];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost
-        >
-      >,
-      { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkDelete> }
-    > = (props) => {
-      const { guildId, documentId, data } = props ?? {};
-
-      return removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost(
-        guildId,
-        documentId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type RemoveDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost
-      >
-    >
-  >;
-export type RemoveDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePostMutationBody =
-  BodyType<DocumentPermissionBulkDelete>;
-export type RemoveDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePostMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Remove Document Members Bulk
- */
-export const useRemoveDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost
-        >
-      >,
-      TError,
-      { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkDelete> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<
-    ReturnType<
-      typeof removeDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePost
-    >
-  >,
-  TError,
-  { guildId: number; documentId: number; data: BodyType<DocumentPermissionBulkDelete> },
-  TContext
-> => {
-  return useMutation(
-    getRemoveDocumentMembersBulkApiV1GGuildIdDocumentsDocumentIdMembersBulkDeletePostMutationOptions(
-      options
-    ),
-    queryClient
-  );
-};
-/**
- * Update a document member's permission level.
- * @summary Update Document Member
- */
-export const updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch = (
-  guildId: number,
-  documentId: number,
-  userId: number,
-  documentPermissionUpdate: BodyType<DocumentPermissionUpdate>,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<DocumentPermissionRead>(
-    {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/members/${userId}`,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      data: documentPermissionUpdate,
-      signal,
-    },
-    options
-  );
-};
-
-export const getUpdateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatchMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch>
-      >,
-      TError,
-      {
-        guildId: number;
-        documentId: number;
-        userId: number;
-        data: BodyType<DocumentPermissionUpdate>;
-      },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch>
-    >,
-    TError,
-    {
-      guildId: number;
-      documentId: number;
-      userId: number;
-      data: BodyType<DocumentPermissionUpdate>;
-    },
-    TContext
-  > => {
-    const mutationKey = ["updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch"];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch>
-      >,
-      {
-        guildId: number;
-        documentId: number;
-        userId: number;
-        data: BodyType<DocumentPermissionUpdate>;
-      }
-    > = (props) => {
-      const { guildId, documentId, userId, data } = props ?? {};
-
-      return updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch(
-        guildId,
-        documentId,
-        userId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type UpdateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatchMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch>
-    >
-  >;
-export type UpdateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatchMutationBody =
-  BodyType<DocumentPermissionUpdate>;
-export type UpdateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Update Document Member
- */
-export const useUpdateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch>
-      >,
-      TError,
-      {
-        guildId: number;
-        documentId: number;
-        userId: number;
-        data: BodyType<DocumentPermissionUpdate>;
-      },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<
-    ReturnType<typeof updateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatch>
-  >,
-  TError,
-  { guildId: number; documentId: number; userId: number; data: BodyType<DocumentPermissionUpdate> },
-  TContext
-> => {
-  return useMutation(
-    getUpdateDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdPatchMutationOptions(
-      options
-    ),
-    queryClient
-  );
-};
-/**
- * Remove a member's permission from a document.
- * @summary Remove Document Member
- */
-export const removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete = (
-  guildId: number,
-  documentId: number,
-  userId: number,
-  options?: SecondParameter<typeof apiMutator>,
-  signal?: AbortSignal
-) => {
-  return apiMutator<void>(
-    {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/members/${userId}`,
-      method: "DELETE",
-      signal,
-    },
-    options
-  );
-};
-
-export const getRemoveDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete>
-      >,
-      TError,
-      { guildId: number; documentId: number; userId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<typeof removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete>
-    >,
-    TError,
-    { guildId: number; documentId: number; userId: number },
-    TContext
-  > => {
-    const mutationKey = ["removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete"];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<typeof removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete>
-      >,
-      { guildId: number; documentId: number; userId: number }
-    > = (props) => {
-      const { guildId, documentId, userId } = props ?? {};
-
-      return removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete(
-        guildId,
-        documentId,
-        userId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type RemoveDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDeleteMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<typeof removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete>
-    >
-  >;
-
-export type RemoveDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Remove Document Member
- */
-export const useRemoveDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete = <
-  TError = ErrorType<HTTPValidationError>,
-  TContext = unknown,
->(
-  options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<typeof removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete>
-      >,
-      TError,
-      { guildId: number; documentId: number; userId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  },
-  queryClient?: QueryClient
-): UseMutationResult<
-  Awaited<
-    ReturnType<typeof removeDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDelete>
-  >,
-  TError,
-  { guildId: number; documentId: number; userId: number },
-  TContext
-> => {
-  return useMutation(
-    getRemoveDocumentMemberApiV1GGuildIdDocumentsDocumentIdMembersUserIdDeleteMutationOptions(
-      options
-    ),
-    queryClient
-  );
-};
-/**
  * Notify users that they were mentioned in a document.
  * @summary Notify Mentions
  */
@@ -2998,406 +2407,108 @@ export const useSetDocumentPropertiesApiV1GGuildIdDocumentsDocumentIdPropertiesP
   );
 };
 /**
- * Add a role-based permission to a document.
- * @summary Add Document Role Permission
+ * Replace the document's entire sharing state in one call — the body is the
+ * full list of grants (all-initiative-members / per-user / per-role). Every
+ * non-owner grant is rebuilt from it; the owner is always preserved.
+ * @summary Set Document Grants
  */
-export const addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost = (
+export const setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut = (
   guildId: number,
   documentId: number,
-  documentRolePermissionCreate: BodyType<DocumentRolePermissionCreate>,
+  resourceGrantSchema: BodyType<ResourceGrantSchema[]>,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
-  return apiMutator<DocumentRolePermissionRead>(
+  return apiMutator<DocumentRead>(
     {
-      url: `/api/v1/g/${guildId}/documents/${documentId}/role-permissions`,
-      method: "POST",
+      url: `/api/v1/g/${guildId}/documents/${documentId}/grants`,
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      data: documentRolePermissionCreate,
+      data: resourceGrantSchema,
       signal,
     },
     options
   );
 };
 
-export const getAddDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPostMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost
-        >
-      >,
-      TError,
-      { guildId: number; documentId: number; data: BodyType<DocumentRolePermissionCreate> },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost
-      >
-    >,
+export const getSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
     TError,
-    { guildId: number; documentId: number; data: BodyType<DocumentRolePermissionCreate> },
+    { guildId: number; documentId: number; data: BodyType<ResourceGrantSchema[]> },
     TContext
-  > => {
-    const mutationKey = [
-      "addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost",
-    ];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
+  TError,
+  { guildId: number; documentId: number; data: BodyType<ResourceGrantSchema[]> },
+  TContext
+> => {
+  const mutationKey = ["setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
 
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost
-        >
-      >,
-      { guildId: number; documentId: number; data: BodyType<DocumentRolePermissionCreate> }
-    > = (props) => {
-      const { guildId, documentId, data } = props ?? {};
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
+    { guildId: number; documentId: number; data: BodyType<ResourceGrantSchema[]> }
+  > = (props) => {
+    const { guildId, documentId, data } = props ?? {};
 
-      return addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost(
-        guildId,
-        documentId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
+    return setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(
+      guildId,
+      documentId,
+      data,
+      requestOptions
+    );
   };
 
-export type AddDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPostMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost
-      >
-    >
-  >;
-export type AddDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPostMutationBody =
-  BodyType<DocumentRolePermissionCreate>;
-export type AddDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPostMutationError =
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>
+>;
+export type SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationBody = BodyType<
+  ResourceGrantSchema[]
+>;
+export type SetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationError =
   ErrorType<HTTPValidationError>;
 
 /**
- * @summary Add Document Role Permission
+ * @summary Set Document Grants
  */
-export const useAddDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost = <
+export const useSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut = <
   TError = ErrorType<HTTPValidationError>,
   TContext = unknown,
 >(
   options?: {
     mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost
-        >
-      >,
+      Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
       TError,
-      { guildId: number; documentId: number; data: BodyType<DocumentRolePermissionCreate> },
+      { guildId: number; documentId: number; data: BodyType<ResourceGrantSchema[]> },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
   },
   queryClient?: QueryClient
 ): UseMutationResult<
-  Awaited<
-    ReturnType<typeof addDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPost>
-  >,
+  Awaited<ReturnType<typeof setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut>>,
   TError,
-  { guildId: number; documentId: number; data: BodyType<DocumentRolePermissionCreate> },
+  { guildId: number; documentId: number; data: BodyType<ResourceGrantSchema[]> },
   TContext
 > => {
   return useMutation(
-    getAddDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsPostMutationOptions(
-      options
-    ),
+    getSetDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPutMutationOptions(options),
     queryClient
   );
 };
-/**
- * Update a role-based permission level on a document.
- * @summary Update Document Role Permission
- */
-export const updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch =
-  (
-    guildId: number,
-    documentId: number,
-    roleId: number,
-    documentRolePermissionUpdate: BodyType<DocumentRolePermissionUpdate>,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<DocumentRolePermissionRead>(
-      {
-        url: `/api/v1/g/${guildId}/documents/${documentId}/role-permissions/${roleId}`,
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        data: documentRolePermissionUpdate,
-        signal,
-      },
-      options
-    );
-  };
-
-export const getUpdateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatchMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch
-        >
-      >,
-      TError,
-      {
-        guildId: number;
-        documentId: number;
-        roleId: number;
-        data: BodyType<DocumentRolePermissionUpdate>;
-      },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch
-      >
-    >,
-    TError,
-    {
-      guildId: number;
-      documentId: number;
-      roleId: number;
-      data: BodyType<DocumentRolePermissionUpdate>;
-    },
-    TContext
-  > => {
-    const mutationKey = [
-      "updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch",
-    ];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch
-        >
-      >,
-      {
-        guildId: number;
-        documentId: number;
-        roleId: number;
-        data: BodyType<DocumentRolePermissionUpdate>;
-      }
-    > = (props) => {
-      const { guildId, documentId, roleId, data } = props ?? {};
-
-      return updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch(
-        guildId,
-        documentId,
-        roleId,
-        data,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type UpdateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatchMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch
-      >
-    >
-  >;
-export type UpdateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatchMutationBody =
-  BodyType<DocumentRolePermissionUpdate>;
-export type UpdateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatchMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Update Document Role Permission
- */
-export const useUpdateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch
-          >
-        >,
-        TError,
-        {
-          guildId: number;
-          documentId: number;
-          roleId: number;
-          data: BodyType<DocumentRolePermissionUpdate>;
-        },
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof updateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatch
-      >
-    >,
-    TError,
-    {
-      guildId: number;
-      documentId: number;
-      roleId: number;
-      data: BodyType<DocumentRolePermissionUpdate>;
-    },
-    TContext
-  > => {
-    return useMutation(
-      getUpdateDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdPatchMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
-/**
- * Remove a role-based permission from a document.
- * @summary Remove Document Role Permission
- */
-export const removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete =
-  (
-    guildId: number,
-    documentId: number,
-    roleId: number,
-    options?: SecondParameter<typeof apiMutator>,
-    signal?: AbortSignal
-  ) => {
-    return apiMutator<void>(
-      {
-        url: `/api/v1/g/${guildId}/documents/${documentId}/role-permissions/${roleId}`,
-        method: "DELETE",
-        signal,
-      },
-      options
-    );
-  };
-
-export const getRemoveDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDeleteMutationOptions =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(options?: {
-    mutation?: UseMutationOptions<
-      Awaited<
-        ReturnType<
-          typeof removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete
-        >
-      >,
-      TError,
-      { guildId: number; documentId: number; roleId: number },
-      TContext
-    >;
-    request?: SecondParameter<typeof apiMutator>;
-  }): UseMutationOptions<
-    Awaited<
-      ReturnType<
-        typeof removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete
-      >
-    >,
-    TError,
-    { guildId: number; documentId: number; roleId: number },
-    TContext
-  > => {
-    const mutationKey = [
-      "removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete",
-    ];
-    const { mutation: mutationOptions, request: requestOptions } = options
-      ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
-        ? options
-        : { ...options, mutation: { ...options.mutation, mutationKey } }
-      : { mutation: { mutationKey }, request: undefined };
-
-    const mutationFn: MutationFunction<
-      Awaited<
-        ReturnType<
-          typeof removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete
-        >
-      >,
-      { guildId: number; documentId: number; roleId: number }
-    > = (props) => {
-      const { guildId, documentId, roleId } = props ?? {};
-
-      return removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete(
-        guildId,
-        documentId,
-        roleId,
-        requestOptions
-      );
-    };
-
-    return { mutationFn, ...mutationOptions };
-  };
-
-export type RemoveDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDeleteMutationResult =
-  NonNullable<
-    Awaited<
-      ReturnType<
-        typeof removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete
-      >
-    >
-  >;
-
-export type RemoveDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDeleteMutationError =
-  ErrorType<HTTPValidationError>;
-
-/**
- * @summary Remove Document Role Permission
- */
-export const useRemoveDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete =
-  <TError = ErrorType<HTTPValidationError>, TContext = unknown>(
-    options?: {
-      mutation?: UseMutationOptions<
-        Awaited<
-          ReturnType<
-            typeof removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete
-          >
-        >,
-        TError,
-        { guildId: number; documentId: number; roleId: number },
-        TContext
-      >;
-      request?: SecondParameter<typeof apiMutator>;
-    },
-    queryClient?: QueryClient
-  ): UseMutationResult<
-    Awaited<
-      ReturnType<
-        typeof removeDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDelete
-      >
-    >,
-    TError,
-    { guildId: number; documentId: number; roleId: number },
-    TContext
-  > => {
-    return useMutation(
-      getRemoveDocumentRolePermissionApiV1GGuildIdDocumentsDocumentIdRolePermissionsRoleIdDeleteMutationOptions(
-        options
-      ),
-      queryClient
-    );
-  };
 /**
  * Record a recent-view for the layout tabs bar.
  * @summary Record Document View

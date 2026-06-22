@@ -7,49 +7,12 @@ from pydantic import ConfigDict, Field
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
-from app.models.queue import QueuePermissionLevel
+from app.schemas.resource_grant import ResourceGrantSchema
 from app.schemas.tag import TagSummary
 from app.schemas.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.queue import Queue, QueueItem
-
-
-# ---------------------------------------------------------------------------
-# Permission schemas (declared first so Queue schemas can reference them)
-# ---------------------------------------------------------------------------
-
-
-class QueuePermissionCreate(SanitizedBaseModel):
-    user_id: int
-    level: QueuePermissionLevel = QueuePermissionLevel.write
-
-
-class QueuePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    user_id: int
-    level: QueuePermissionLevel
-    created_at: datetime
-
-
-class QueueRolePermissionCreate(SanitizedBaseModel):
-    initiative_role_id: int
-    level: QueuePermissionLevel = QueuePermissionLevel.read
-
-
-class QueueRolePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    initiative_role_id: int
-    role_name: str = ""
-    role_display_name: str = ""
-    level: QueuePermissionLevel
-    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -152,8 +115,13 @@ class QueueBase(SanitizedBaseModel):
 
 class QueueCreate(QueueBase):
     initiative_id: int
-    role_permissions: Optional[List[QueueRolePermissionCreate]] = None
-    user_permissions: Optional[List[QueuePermissionCreate]] = None
+    # Initial sharing — the same grant list the PUT /grants endpoint takes.
+    # Defaults to Viewer for all initiative members.
+    grants: List[ResourceGrantSchema] = Field(
+        default_factory=lambda: [
+            ResourceGrantSchema(all_initiative_members=True, level="read")
+        ]
+    )
 
 
 class QueueUpdate(SanitizedBaseModel):
@@ -191,8 +159,8 @@ class QueueListResponse(SanitizedBaseModel):
 class QueueRead(QueueSummary):
     items: List[QueueItemRead] = Field(default_factory=list)
     current_item: Optional[QueueItemRead] = None
-    permissions: List[QueuePermissionRead] = Field(default_factory=list)
-    role_permissions: List[QueueRolePermissionRead] = Field(default_factory=list)
+    # The full sharing state — every resource_grants row for this queue.
+    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -260,34 +228,6 @@ def serialize_queue_item(item: "QueueItem") -> QueueItemRead:
     )
 
 
-def _serialize_permissions(queue: "Queue") -> List[QueuePermissionRead]:
-    grants = getattr(queue, "grants", None) or []
-    return [
-        QueuePermissionRead(user_id=g.user_id, level=g.level, created_at=g.created_at)
-        for g in grants
-        if g.user_id is not None
-    ]
-
-
-def _serialize_role_permissions(queue: "Queue") -> List[QueueRolePermissionRead]:
-    grants = getattr(queue, "grants", None) or []
-    result: List[QueueRolePermissionRead] = []
-    for g in grants:
-        if g.role_id is None:
-            continue
-        role = getattr(g, "role", None)
-        result.append(
-            QueueRolePermissionRead(
-                initiative_role_id=g.role_id,
-                role_name=getattr(role, "name", "") if role else "",
-                role_display_name=getattr(role, "display_name", "") if role else "",
-                level=g.level,
-                created_at=g.created_at,
-            )
-        )
-    return result
-
-
 def serialize_queue_summary(
     queue: "Queue",
     *,
@@ -324,10 +264,12 @@ def serialize_queue(
                 current_item = item
                 break
     summary = serialize_queue_summary(queue, my_permission_level=my_permission_level)
+    # Local import avoids a schema -> service import cycle.
+    from app.services.permissions import serialize_grants
+
     return QueueRead(
         **summary.model_dump(),
         items=serialized_items,
         current_item=current_item,
-        permissions=_serialize_permissions(queue),
-        role_permissions=_serialize_role_permissions(queue),
+        grants=serialize_grants(queue),
     )

@@ -8,6 +8,7 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import SanitizedBaseModel
 
 from app.models.document import DocumentPermissionLevel, DocumentType
+from app.schemas.resource_grant import ResourceGrantSchema
 from app.schemas.initiative import InitiativeRead, serialize_initiative
 from app.schemas.property import PropertySummary
 from app.schemas.tag import TagSummary
@@ -36,8 +37,13 @@ class DocumentBase(SanitizedBaseModel):
 class DocumentCreate(DocumentBase):
     content: Optional[LexicalState] = Field(default_factory=dict)
     document_type: DocumentTypeStr = "native"
-    role_permissions: Optional[List[DocumentRolePermissionCreate]] = None
-    user_permissions: Optional[List[DocumentPermissionCreate]] = None
+    # Initial sharing — the same grant list the PUT /grants endpoint takes.
+    # Defaults to Viewer for all initiative members.
+    grants: List[ResourceGrantSchema] = Field(
+        default_factory=lambda: [
+            ResourceGrantSchema(all_initiative_members=True, level="read")
+        ]
+    )
 
 
 class DocumentUpdate(SanitizedBaseModel):
@@ -142,8 +148,8 @@ class DocumentSummary(DocumentBase):
     initiative: Optional[InitiativeRead] = None
     projects: List[DocumentProjectLink] = Field(default_factory=list)
     comment_count: int = 0
-    permissions: List[DocumentPermissionRead] = Field(default_factory=list)
-    role_permissions: List[DocumentRolePermissionRead] = Field(default_factory=list)
+    # The full sharing state — every resource_grants row for this document.
+    grants: List[ResourceGrantSchema] = Field(default_factory=list)
     tags: List[TagSummary] = Field(default_factory=list)
     properties: List[PropertySummary] = Field(default_factory=list)
     # File document fields
@@ -227,42 +233,6 @@ def _serialize_project_links(document: "Document") -> List[DocumentProjectLink]:
     return links
 
 
-def _serialize_permissions(document: "Document") -> List[DocumentPermissionRead]:
-    """Serialize all document user permissions from resource_grants."""
-    grants = getattr(document, "grants", None) or []
-    return [
-        DocumentPermissionRead(
-            user_id=g.user_id,
-            level=g.level,
-            created_at=g.created_at,
-        )
-        for g in grants
-        if g.user_id is not None
-    ]
-
-
-def _serialize_role_permissions(
-    document: "Document",
-) -> List[DocumentRolePermissionRead]:
-    """Serialize all document role permissions from resource_grants."""
-    grants = getattr(document, "grants", None) or []
-    result: List[DocumentRolePermissionRead] = []
-    for g in grants:
-        if g.role_id is None:
-            continue
-        role = getattr(g, "role", None)
-        result.append(
-            DocumentRolePermissionRead(
-                initiative_role_id=g.role_id,
-                role_name=getattr(role, "name", "") if role else "",
-                role_display_name=getattr(role, "display_name", "") if role else "",
-                level=g.level,
-                created_at=g.created_at,
-            )
-        )
-    return result
-
-
 def _serialize_document_tags(document: "Document") -> List[TagSummary]:
     """Serialize document tags to TagSummary list."""
     tag_links = getattr(document, "tag_links", None) or []
@@ -302,6 +272,8 @@ def serialize_document_summary(
         url = content.get("url") if isinstance(content, dict) else None
         if isinstance(url, str) and url:
             smart_link_url = url
+    from app.services.permissions import serialize_grants
+
     return DocumentSummary(
         id=document.id,
         guild_id=document.guild_id,
@@ -316,8 +288,7 @@ def serialize_document_summary(
         initiative=initiative,
         projects=_serialize_project_links(document),
         comment_count=getattr(document, "comment_count", 0),
-        permissions=_serialize_permissions(document),
-        role_permissions=_serialize_role_permissions(document),
+        grants=serialize_grants(document),
         tags=_serialize_document_tags(document),
         properties=_serialize_document_properties(document),
         document_type=document.document_type.value

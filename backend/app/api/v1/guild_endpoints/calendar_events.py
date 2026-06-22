@@ -1,7 +1,8 @@
 """Calendar event endpoints — CRUD, attendees, tags, and documents.
 
-Initiative-scoped calendar events. Access is controlled at the initiative
-level via events_enabled + create_events permission keys. No per-event DAC.
+Initiative-scoped calendar events. Creation is gated at the initiative level
+(events_enabled + create_events); per-event access is the unified resource-grant
+DAC (``resource_grants`` + ``PUT /{id}/grants``), like the other resources.
 """
 
 import logging
@@ -49,6 +50,7 @@ from app.schemas.ical import (
     ICalParseResult,
 )
 from app.schemas.property import PropertyValuesSetRequest
+from app.schemas.resource_grant import ResourceGrantSchema
 from app.api import resource_access
 from app.models.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.services import permissions as permissions_service
@@ -225,10 +227,15 @@ async def list_my_calendar_events(
                 selectinload(CalendarEvent.attendees).selectinload(
                     CalendarEventAttendee.user,
                 ),
-                selectinload(CalendarEvent.initiative),
+                # memberships are needed by my_permission_level (effective_level
+                # reads the requester's roles + membership off the initiative).
+                selectinload(CalendarEvent.initiative).selectinload(
+                    Initiative.memberships
+                ),
                 selectinload(CalendarEvent.tag_links).selectinload(
                     CalendarEventTag.tag
                 ),
+                selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
                 selectinload(CalendarEvent.property_values).selectinload(
                     CalendarEventPropertyValue.property_definition
                 ),
@@ -250,7 +257,10 @@ async def list_my_calendar_events(
     start = (page - 1) * page_size
     page_events = events[start : start + page_size]
 
-    items = [serialize_calendar_event_summary(e) for e in page_events]
+    items = [
+        serialize_calendar_event_summary(e, user_id=current_user.id)
+        for e in page_events
+    ]
     has_next = page * page_size < total_count
     return CalendarEventListResponse(
         items=items,
@@ -523,6 +533,7 @@ async def list_calendar_events(
             ),
             selectinload(CalendarEvent.initiative).selectinload(Initiative.memberships),
             selectinload(CalendarEvent.tag_links).selectinload(CalendarEventTag.tag),
+            selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
             selectinload(CalendarEvent.property_values).selectinload(
                 CalendarEventPropertyValue.property_definition
             ),
@@ -537,7 +548,9 @@ async def list_calendar_events(
     result = await session.exec(stmt)
     events = result.unique().all()
 
-    items = [serialize_calendar_event_summary(e) for e in events]
+    items = [
+        serialize_calendar_event_summary(e, user_id=current_user.id) for e in events
+    ]
     has_next = page * page_size < total_count
     return CalendarEventListResponse(
         items=items,
@@ -556,7 +569,7 @@ async def read_calendar_event(
     guild_context: GuildContextDep,
 ) -> CalendarEventRead:
     event = await _get_event_or_404(session, event_id, current_user, guild_context)
-    return serialize_calendar_event(event)
+    return serialize_calendar_event(event, user_id=current_user.id)
 
 
 @router.post("/", response_model=CalendarEventRead, status_code=status.HTTP_201_CREATED)
@@ -601,9 +614,8 @@ async def create_calendar_event(
     session.add(event)
     await session.flush()
 
-    # Per-event DAC: creator owns it; each initiative role gets write (managers)
-    # or read so events stay member-visible by default. Restrict later via the
-    # grant endpoints.
+    # Per-event DAC: the creator always owns it. The rest of the sharing flows
+    # through the unified grant list — exactly the way edits do.
     session.add(
         ResourceGrant(
             resource_type="calendar_event",
@@ -614,20 +626,19 @@ async def create_calendar_event(
             initiative_id=initiative.id,
         )
     )
-    for role in initiative.roles:
-        session.add(
-            ResourceGrant(
-                resource_type="calendar_event",
-                resource_id=event.id,
-                role_id=role.id,
-                level=ResourceAccessLevel.write
-                if role.is_manager
-                else ResourceAccessLevel.read,
-                guild_id=guild_context.guild_id,
-                initiative_id=initiative.id,
-            )
-        )
     await session.flush()
+
+    # Apply the initial sharing exactly the way edits do — one grant list, one
+    # code path (defaults to Viewer for all members, set on CalendarEventCreate).
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type="calendar_event",
+        resource_id=event.id,
+        guild_id=guild_context.guild_id,
+        initiative_id=initiative.id,
+        owner_id=current_user.id,
+        grants=event_in.grants,
+    )
 
     if event_in.attendee_ids:
         await events_service.set_event_attendees(
@@ -667,7 +678,7 @@ async def create_calendar_event(
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)
 
 
 @router.patch("/{event_id}", response_model=CalendarEventRead)
@@ -763,7 +774,7 @@ async def update_calendar_event(
         await reapply_rls_context(session)
 
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -852,7 +863,7 @@ async def set_attendees(
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)
 
 
 @router.patch("/{event_id}/rsvp", response_model=CalendarEventRead)
@@ -898,7 +909,7 @@ async def update_rsvp(
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -926,7 +937,7 @@ async def set_tags(
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)
 
 
 @router.put("/{event_id}/documents", response_model=CalendarEventRead)
@@ -955,7 +966,7 @@ async def set_documents(
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -991,4 +1002,58 @@ async def set_event_properties(
     await session.commit()
     await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
-    return serialize_calendar_event(hydrated)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)
+
+
+# ---------------------------------------------------------------------------
+# Sharing (resource grants)
+# ---------------------------------------------------------------------------
+
+
+@router.put("/{event_id}/grants", response_model=CalendarEventRead)
+async def set_calendar_event_grants(
+    event_id: int,
+    grants: List[ResourceGrantSchema],
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> CalendarEventRead:
+    """Replace the event's entire sharing state in one call — the body is the
+    full list of grants (all-initiative-members / per-user / per-role). Every
+    non-owner grant is rebuilt from it; the owner is always preserved.
+    """
+    event = await _get_event_or_404(
+        session, event_id, current_user, guild_context, access="write"
+    )
+    # Managing sharing additionally rejects PAM grantees — a grant never manages
+    # access (mirrors the projects/documents/counters grant endpoints).
+    resource_access.authorize(
+        "calendar_event",
+        event,
+        current_user,
+        access="write",
+        manage_access=True,
+        guild_role=guild_context.role,
+    )
+
+    # The owner is the user holding the owner-level grant, else the creator.
+    owner_id = event.created_by_id
+    for g in event.grants or []:
+        if g.user_id is not None and g.level == ResourceAccessLevel.owner:
+            owner_id = g.user_id
+            break
+
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type="calendar_event",
+        resource_id=event.id,
+        guild_id=event.guild_id,
+        initiative_id=event.initiative_id,
+        owner_id=owner_id,
+        grants=grants,
+    )
+
+    await session.commit()
+    await reapply_rls_context(session)
+    hydrated = await _refetch_event(session, event.id)
+    return serialize_calendar_event(hydrated, user_id=current_user.id)

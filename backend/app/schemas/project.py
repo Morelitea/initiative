@@ -8,6 +8,7 @@ from pydantic import ConfigDict, Field
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
 from app.models.project import ProjectPermissionLevel
+from app.schemas.resource_grant import ResourceGrantSchema
 from app.schemas.initiative import InitiativeRead
 from app.schemas.document import ProjectDocumentSummary
 from app.schemas.tag import TagSummary
@@ -26,8 +27,13 @@ class ProjectCreate(ProjectBase):
     initiative_id: Optional[int] = None
     is_template: bool = False
     template_id: Optional[int] = None
-    role_permissions: Optional[List[ProjectRolePermissionCreate]] = None
-    user_permissions: Optional[List[ProjectPermissionCreate]] = None
+    # Initial sharing — the same grant list the PUT /grants endpoint takes.
+    # Defaults to Viewer for all initiative members.
+    grants: List[ResourceGrantSchema] = Field(
+        default_factory=lambda: [
+            ResourceGrantSchema(all_initiative_members=True, level="read")
+        ]
+    )
 
 
 class ProjectUpdate(SanitizedBaseModel):
@@ -116,15 +122,16 @@ class ProjectRead(ProjectBase):
     pinned_at: Optional[datetime] = None
     owner: Optional[UserPublic] = None
     initiative: Optional[InitiativeRead] = None
-    permissions: List[ProjectPermissionRead] = Field(default_factory=list)
-    role_permissions: List[ProjectRolePermissionRead] = Field(default_factory=list)
     sort_order: Optional[float] = None
     is_favorited: bool = False
     last_viewed_at: Optional[datetime] = None
     documents: List[ProjectDocumentSummary] = Field(default_factory=list)
     task_summary: ProjectTaskSummary = Field(default_factory=ProjectTaskSummary)
     tags: List[TagSummary] = Field(default_factory=list)
+    # The current user's effective level on this resource (what *I* can do).
     my_permission_level: Optional[str] = None
+    # The full sharing state — every resource_grants row for this resource.
+    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
 class ProjectListResponse(SanitizedBaseModel):

@@ -16,7 +16,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from sqlalchemy import delete as sa_delete, func
+from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -32,28 +32,22 @@ from app.db.session import AsyncSessionLocal, reapply_rls_context, set_rls_conte
 from app.models.counter import (
     Counter,
     CounterGroup,
-    CounterPermissionLevel,
     CounterViewMode,
 )
 from app.models.guild import GuildMembership
 from app.models.initiative import (
     Initiative,
-    InitiativeMember,
-    InitiativeRoleModel,
     PermissionKey,
 )
 from app.models.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.user import User
+from app.schemas.resource_grant import ResourceGrantSchema
 from app.schemas.counter import (
     CounterCreate,
     CounterGroupCreate,
     CounterGroupDuplicateRequest,
     CounterGroupListResponse,
-    CounterGroupPermissionCreate,
-    CounterGroupPermissionRead,
     CounterGroupRead,
-    CounterGroupRolePermissionCreate,
-    CounterGroupRolePermissionRead,
     CounterGroupUpdate,
     CounterRead,
     CounterSetCountRequest,
@@ -65,6 +59,7 @@ from app.schemas.counter import (
     _validate_counter_constraints,
 )
 from app.services import counters as counters_service
+from app.services import permissions as permissions_service
 from app.services import recent_views as recent_views_service
 from app.api import resource_access
 from app.services import rls as rls_service
@@ -329,67 +324,17 @@ async def create_counter_group(
     )
     session.add(owner_perm)
 
-    if group_in.role_permissions:
-        role_ids = {
-            rp.initiative_role_id
-            for rp in group_in.role_permissions
-            if rp.level != CounterPermissionLevel.owner
-        }
-        valid_role_ids: set[int] = set()
-        if role_ids:
-            result = await session.exec(
-                select(InitiativeRoleModel.id).where(
-                    InitiativeRoleModel.id.in_(role_ids),
-                    InitiativeRoleModel.initiative_id == initiative.id,
-                )
-            )
-            valid_role_ids = set(result.all())
-        for rp in group_in.role_permissions:
-            if (
-                rp.initiative_role_id not in valid_role_ids
-                or rp.level == CounterPermissionLevel.owner
-            ):
-                continue
-            session.add(
-                ResourceGrant(
-                    resource_type="counter_group",
-                    resource_id=group.id,
-                    user_id=None,
-                    role_id=rp.initiative_role_id,
-                    level=rp.level,
-                    guild_id=guild_context.guild_id,
-                    initiative_id=group.initiative_id,
-                )
-            )
-
-    if group_in.user_permissions:
-        requested = {
-            up.user_id
-            for up in group_in.user_permissions
-            if up.user_id != current_user.id
-        }
-        valid_ids: set[int] = set()
-        if requested:
-            result = await session.exec(
-                select(InitiativeMember.user_id).where(
-                    InitiativeMember.initiative_id == initiative.id,
-                    InitiativeMember.user_id.in_(requested),
-                )
-            )
-            valid_ids = set(result.all())
-        for up in group_in.user_permissions:
-            if up.user_id in valid_ids and up.level != CounterPermissionLevel.owner:
-                session.add(
-                    ResourceGrant(
-                        resource_type="counter_group",
-                        resource_id=group.id,
-                        user_id=up.user_id,
-                        role_id=None,
-                        level=up.level,
-                        guild_id=guild_context.guild_id,
-                        initiative_id=group.initiative_id,
-                    )
-                )
+    # Apply the initial sharing exactly the way edits do — one grant list, one
+    # code path (empty default = owner-only until shared).
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type="counter_group",
+        resource_id=group.id,
+        guild_id=guild_context.guild_id,
+        initiative_id=group.initiative_id,
+        owner_id=current_user.id,
+        grants=group_in.grants,
+    )
 
     await session.commit()
     await reapply_rls_context(session)
@@ -843,62 +788,24 @@ async def sort_counters(
 
 
 # ---------------------------------------------------------------------------
-# Permissions (DAC)
+# Sharing (resource grants)
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{group_id}/permissions")
-async def list_counter_group_permissions(
+@router.put("/{group_id}/grants", response_model=CounterGroupRead)
+async def set_counter_group_grants(
     group_id: int,
+    grants: List[ResourceGrantSchema],
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-) -> dict:
-    group = await _get_counter_group_with_access(
-        session, group_id, current_user, guild_context, access="read"
-    )
-
-    permissions = [
-        CounterGroupPermissionRead(
-            user_id=g.user_id,
-            level=g.level,
-            created_at=g.created_at,
-        )
-        for g in (group.grants or [])
-        if g.user_id is not None
-    ]
-
-    role_permissions = []
-    for g in group.grants or []:
-        if g.role_id is None:
-            continue
-        role = getattr(g, "role", None)
-        role_permissions.append(
-            CounterGroupRolePermissionRead(
-                initiative_role_id=g.role_id,
-                role_name=getattr(role, "name", "") if role else "",
-                role_display_name=getattr(role, "display_name", "") if role else "",
-                level=g.level,
-                created_at=g.created_at,
-            )
-        )
-
-    return {
-        "permissions": permissions,
-        "role_permissions": role_permissions,
-    }
-
-
-@router.put("/{group_id}/permissions", response_model=List[CounterGroupPermissionRead])
-async def set_counter_group_permissions(
-    group_id: int,
-    permissions_in: List[CounterGroupPermissionCreate],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[CounterGroupPermissionRead]:
-    # Write access is sufficient to manage permissions; only deleting the group
-    # is reserved for owners. The owner row itself is preserved below regardless.
+) -> CounterGroupRead:
+    """Replace the counter group's entire sharing state in one call — the body
+    is the full list of grants (all-initiative-members / per-user / per-role).
+    Every non-owner grant is rebuilt from it; the owner is always preserved.
+    """
+    # Write access is sufficient to manage sharing; only deleting the group is
+    # reserved for owners. The owner row itself is preserved regardless.
     group = await _get_counter_group_with_access(
         session,
         group_id,
@@ -908,135 +815,39 @@ async def set_counter_group_permissions(
         manage_access=True,
     )
 
-    owner_user_id: int | None = None
+    # The owner is the user holding the owner-level grant, else the creator.
+    owner_id = group.created_by_id
     for g in group.grants or []:
         if g.user_id is not None and g.level == ResourceAccessLevel.owner:
-            owner_user_id = g.user_id
+            owner_id = g.user_id
             break
 
-    # Delete all non-owner user grants (role grants are managed separately)
-    base_conditions = [
-        ResourceGrant.resource_type == "counter_group",
-        ResourceGrant.resource_id == group.id,
-        ResourceGrant.user_id.is_not(None),
-    ]
-    if owner_user_id is not None:
-        delete_stmt = sa_delete(ResourceGrant).where(
-            *base_conditions,
-            ResourceGrant.user_id != owner_user_id,
-        )
-    else:
-        delete_stmt = sa_delete(ResourceGrant).where(
-            *base_conditions,
-            ResourceGrant.level != ResourceAccessLevel.owner,
-        )
-    await session.exec(delete_stmt)
-
-    for perm_in in permissions_in:
-        if perm_in.user_id == owner_user_id:
-            continue
-        if perm_in.level == CounterPermissionLevel.owner:
-            continue
-        session.add(
-            ResourceGrant(
-                resource_type="counter_group",
-                resource_id=group.id,
-                user_id=perm_in.user_id,
-                role_id=None,
-                level=perm_in.level,
-                guild_id=group.guild_id,
-                initiative_id=group.initiative_id,
-            )
-        )
-
-    await session.commit()
-    await reapply_rls_context(session)
-
-    hydrated = await _refetch_group(session, group.id)
-    perms_result = [
-        CounterGroupPermissionRead(
-            user_id=g.user_id,
-            level=g.level,
-            created_at=g.created_at,
-        )
-        for g in (hydrated.grants or [])
-        if g.user_id is not None
-    ]
-    await counter_manager.broadcast(
-        group_id,
-        "permissions_changed",
-        {"permissions": [p.model_dump(mode="json") for p in perms_result]},
-    )
-    return perms_result
-
-
-@router.put(
-    "/{group_id}/role-permissions", response_model=List[CounterGroupRolePermissionRead]
-)
-async def set_counter_group_role_permissions(
-    group_id: int,
-    role_permissions_in: List[CounterGroupRolePermissionCreate],
-    session: RLSSessionDep,
-    current_user: Annotated[User, Depends(get_current_active_user)],
-    guild_context: GuildContextDep,
-) -> List[CounterGroupRolePermissionRead]:
-    # Write access is sufficient to manage role permissions (delete is owner-only).
-    group = await _get_counter_group_with_access(
+    await permissions_service.replace_resource_grants(
         session,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
-        manage_access=True,
+        resource_type="counter_group",
+        resource_id=group.id,
+        guild_id=group.guild_id,
+        initiative_id=group.initiative_id,
+        owner_id=owner_id,
+        grants=grants,
     )
-
-    # Delete all existing role grants (user grants are managed separately)
-    delete_stmt = sa_delete(ResourceGrant).where(
-        ResourceGrant.resource_type == "counter_group",
-        ResourceGrant.resource_id == group.id,
-        ResourceGrant.role_id.is_not(None),
-    )
-    await session.exec(delete_stmt)
-
-    for rp_in in role_permissions_in:
-        if rp_in.level == CounterPermissionLevel.owner:
-            continue
-        session.add(
-            ResourceGrant(
-                resource_type="counter_group",
-                resource_id=group.id,
-                user_id=None,
-                role_id=rp_in.initiative_role_id,
-                level=rp_in.level,
-                guild_id=group.guild_id,
-                initiative_id=group.initiative_id,
-            )
-        )
 
     await session.commit()
     await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
-    role_perms_result: List[CounterGroupRolePermissionRead] = []
-    for g in hydrated.grants or []:
-        if g.role_id is None:
-            continue
-        role = getattr(g, "role", None)
-        role_perms_result.append(
-            CounterGroupRolePermissionRead(
-                initiative_role_id=g.role_id,
-                role_name=getattr(role, "name", "") if role else "",
-                role_display_name=getattr(role, "display_name", "") if role else "",
-                level=g.level,
-                created_at=g.created_at,
-            )
-        )
+    result = serialize_counter_group(
+        hydrated,
+        my_permission_level=_compute_my_permission(
+            hydrated, current_user, guild_context
+        ),
+    )
     await counter_manager.broadcast(
         group_id,
         "permissions_changed",
-        {"role_permissions": [rp.model_dump(mode="json") for rp in role_perms_result]},
+        {"grants": [g.model_dump(mode="json") for g in result.grants]},
     )
-    return role_perms_result
+    return result
 
 
 # ---------------------------------------------------------------------------
