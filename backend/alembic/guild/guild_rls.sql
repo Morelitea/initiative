@@ -18,6 +18,15 @@
 --
 -- To add a new initiative-scoped table: add a path to INITIATIVE_PATHS in
 -- app/db/initiative_rls.py, then regenerate.
+--
+-- Soft-delete tables additionally carry a RESTRICTIVE FOR DELETE policy
+-- (soft_delete_admin_purge): hard delete = purge, and only a routed guild admin
+-- may. It is RESTRICTIVE, so it AND-combines with the PERMISSIVE delete policy
+-- above — a write-member clears the latter but not this one. app_admin (the
+-- auto-purge worker) bypasses RLS entirely. Source of truth for the table set is
+-- app.db.soft_delete_filter.SOFT_DELETE_TABLES (the SoftDeleteMixin subclasses).
+-- The guild-level soft-delete tables (initiatives, tags) are RLS-free, so they get
+-- the guard via the dedicated section at the bottom of this file.
 
 
 ALTER TABLE calendar_event_attendees ENABLE ROW LEVEL SECURITY;
@@ -94,6 +103,9 @@ CREATE POLICY initiative_member_update ON calendar_events AS PERMISSIVE FOR UPDA
 DROP POLICY IF EXISTS initiative_member_delete ON calendar_events;
 CREATE POLICY initiative_member_delete ON calendar_events AS PERMISSIVE FOR DELETE
   USING (public.initiative_access(calendar_events.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON calendar_events;
+CREATE POLICY soft_delete_admin_purge ON calendar_events AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
 
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments FORCE ROW LEVEL SECURITY;
@@ -109,6 +121,9 @@ CREATE POLICY initiative_member_update ON comments AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON comments;
 CREATE POLICY initiative_member_delete ON comments AS PERMISSIVE FOR DELETE
   USING (((comments.task_id IS NOT NULL AND EXISTS (SELECT 1 FROM tasks tk JOIN projects pr ON pr.id = tk.project_id WHERE tk.id = comments.task_id AND public.initiative_access(pr.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true))) OR (comments.document_id IS NOT NULL AND EXISTS (SELECT 1 FROM documents d WHERE d.id = comments.document_id AND public.initiative_access(d.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)))));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON comments;
+CREATE POLICY soft_delete_admin_purge ON comments AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
 
 ALTER TABLE counter_groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE counter_groups FORCE ROW LEVEL SECURITY;
@@ -124,6 +139,9 @@ CREATE POLICY initiative_member_update ON counter_groups AS PERMISSIVE FOR UPDAT
 DROP POLICY IF EXISTS initiative_member_delete ON counter_groups;
 CREATE POLICY initiative_member_delete ON counter_groups AS PERMISSIVE FOR DELETE
   USING (public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON counter_groups;
+CREATE POLICY soft_delete_admin_purge ON counter_groups AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
 
 ALTER TABLE counters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE counters FORCE ROW LEVEL SECURITY;
@@ -139,6 +157,9 @@ CREATE POLICY initiative_member_update ON counters AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON counters;
 CREATE POLICY initiative_member_delete ON counters AS PERMISSIVE FOR DELETE
   USING (EXISTS (SELECT 1 FROM counter_groups WHERE counter_groups.id = counters.counter_group_id AND public.initiative_access(counter_groups.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON counters;
+CREATE POLICY soft_delete_admin_purge ON counters AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
 
 ALTER TABLE document_file_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE document_file_versions FORCE ROW LEVEL SECURITY;
@@ -214,6 +235,9 @@ CREATE POLICY initiative_member_update ON documents AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON documents;
 CREATE POLICY initiative_member_delete ON documents AS PERMISSIVE FOR DELETE
   USING (public.initiative_access(documents.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON documents;
+CREATE POLICY soft_delete_admin_purge ON documents AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
 
 ALTER TABLE event_reminder_dispatches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_reminder_dispatches FORCE ROW LEVEL SECURITY;
@@ -304,6 +328,9 @@ CREATE POLICY initiative_member_update ON projects AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON projects;
 CREATE POLICY initiative_member_delete ON projects AS PERMISSIVE FOR DELETE
   USING (public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON projects;
+CREATE POLICY soft_delete_admin_purge ON projects AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
 
 ALTER TABLE property_definitions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE property_definitions FORCE ROW LEVEL SECURITY;
@@ -379,6 +406,9 @@ CREATE POLICY initiative_member_update ON queue_items AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON queue_items;
 CREATE POLICY initiative_member_delete ON queue_items AS PERMISSIVE FOR DELETE
   USING (EXISTS (SELECT 1 FROM queues WHERE queues.id = queue_items.queue_id AND public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON queue_items;
+CREATE POLICY soft_delete_admin_purge ON queue_items AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
 
 ALTER TABLE queues ENABLE ROW LEVEL SECURITY;
 ALTER TABLE queues FORCE ROW LEVEL SECURITY;
@@ -394,6 +424,9 @@ CREATE POLICY initiative_member_update ON queues AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON queues;
 CREATE POLICY initiative_member_delete ON queues AS PERMISSIVE FOR DELETE
   USING (public.initiative_access(queues.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON queues;
+CREATE POLICY soft_delete_admin_purge ON queues AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
 
 ALTER TABLE recent_views ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recent_views FORCE ROW LEVEL SECURITY;
@@ -529,3 +562,35 @@ CREATE POLICY initiative_member_update ON tasks AS PERMISSIVE FOR UPDATE
 DROP POLICY IF EXISTS initiative_member_delete ON tasks;
 CREATE POLICY initiative_member_delete ON tasks AS PERMISSIVE FOR DELETE
   USING (EXISTS (SELECT 1 FROM projects WHERE projects.id = tasks.project_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
+DROP POLICY IF EXISTS soft_delete_admin_purge ON tasks;
+CREATE POLICY soft_delete_admin_purge ON tasks AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
+
+-- ===========================================================================
+-- Guild-level soft-delete tables: admin-only purge guard ONLY.
+--
+-- These tables are NOT initiative-membership-gated: initiative is the gate (its
+-- content tables point AT it via initiative_access), and the initiative anchor
+-- tables can't gate themselves; guilds gate at the SCHEMA level (SET ROLE), which
+-- already isolates these rows. RLS is enabled here SOLELY to host the RESTRICTIVE
+-- admin-only-purge guard, so the access policy (guild_level_open) is a deliberate
+-- allow-all — it adds no row gate, it just lets the RESTRICTIVE delete policy bind.
+-- ===========================================================================
+
+ALTER TABLE initiatives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE initiatives FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS guild_level_open ON initiatives;
+CREATE POLICY guild_level_open ON initiatives AS PERMISSIVE FOR ALL
+  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS soft_delete_admin_purge ON initiatives;
+CREATE POLICY soft_delete_admin_purge ON initiatives AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
+
+ALTER TABLE tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tags FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS guild_level_open ON tags;
+CREATE POLICY guild_level_open ON tags AS PERMISSIVE FOR ALL
+  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS soft_delete_admin_purge ON tags;
+CREATE POLICY soft_delete_admin_purge ON tags AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);

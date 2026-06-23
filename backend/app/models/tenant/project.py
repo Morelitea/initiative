@@ -5,7 +5,7 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field, Relationship
 
-from app.models._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import SoftDeleteMixin
 
 
 if TYPE_CHECKING:  # pragma: no cover - imported lazily for type checking only

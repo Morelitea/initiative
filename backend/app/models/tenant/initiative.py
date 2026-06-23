@@ -14,7 +14,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.models._mixins import SoftDeleteMixin
+from app.models.tenant._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.project import Project

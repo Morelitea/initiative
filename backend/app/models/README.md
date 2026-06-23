@@ -12,9 +12,8 @@ folder that matches where its table lives** — never at the root.
 
 | Folder | Schema | Holds | Source of truth |
 |---|---|---|---|
-| `tenant/` | per-guild `guild_<id>` | projects, tasks, documents, queues, counters, calendar, tags, comments, initiatives, uploads, webhooks, resource grants, … | tables in `GUILD_SCOPED_TABLES` |
+| `tenant/` | per-guild `guild_<id>` | projects, tasks, documents, queues, counters, calendar, tags, comments, initiatives, uploads, webhooks, resource grants, … plus tenant-only mixins (`_mixins.py`) | tables in `GUILD_SCOPED_TABLES` |
 | `platform/` | `public` | users, guilds, memberships, invites, app settings, access grants, notifications, OIDC, API keys, push/user tokens, view preferences | tables in `SHARED_TABLES` |
-| *root* (here) | — | `_mixins.py` and other table-less helpers shared by both | n/a |
 
 > **"Guild" is overloaded.** The `Guild` entity itself (the tenant roster) is a
 > **`public`/`platform`** table — it lives in `platform/guild.py`, *not* `tenant/`.

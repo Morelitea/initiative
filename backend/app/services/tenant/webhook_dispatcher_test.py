@@ -123,7 +123,7 @@ async def test_dispatch_skips_when_no_subscribers(session):
 
     guild = await create_guild(session)
     with patch(
-        "app.services.webhook_dispatcher._deliver", new=AsyncMock()
+        "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
     ) as mock_deliver:
         await dispatch_event(
             session,
@@ -164,7 +164,7 @@ async def test_dispatch_matches_only_active_subscriptions(session):
     async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
         delivered_to.append(target_url)
 
-    with patch("app.services.webhook_dispatcher._deliver", new=fake_deliver):
+    with patch("app.services.tenant.webhook_dispatcher._deliver", new=fake_deliver):
         await dispatch_event(
             session,
             event_type="task.created",
@@ -191,7 +191,7 @@ async def test_dispatch_filters_by_event_type(session):
     )
 
     with patch(
-        "app.services.webhook_dispatcher._deliver", new=AsyncMock()
+        "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
     ) as mock_deliver:
         await dispatch_event(
             session,
@@ -245,7 +245,7 @@ async def test_dispatch_initiative_scope_matches_correctly(session):
     async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
         delivered_to.append(target_url)
 
-    with patch("app.services.webhook_dispatcher._deliver", new=fake_deliver):
+    with patch("app.services.tenant.webhook_dispatcher._deliver", new=fake_deliver):
         await dispatch_event(
             session,
             event_type="task.created",
@@ -291,7 +291,7 @@ async def test_each_subscription_gets_unique_event_id(session):
     async def fake_deliver(*, target_url: str, secret: str, envelope: dict) -> None:
         seen_event_ids.append(envelope["event_id"])
 
-    with patch("app.services.webhook_dispatcher._deliver", new=fake_deliver):
+    with patch("app.services.tenant.webhook_dispatcher._deliver", new=fake_deliver):
         await dispatch_event(
             session,
             event_type="task.created",
@@ -321,7 +321,7 @@ async def test_dispatch_does_not_cross_guilds(session):
     )
 
     with patch(
-        "app.services.webhook_dispatcher._deliver", new=AsyncMock()
+        "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
     ) as mock_deliver:
         await dispatch_event(
             session,
