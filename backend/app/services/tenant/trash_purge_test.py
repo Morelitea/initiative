@@ -97,10 +97,17 @@ async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     assert project_count == 0
 
 
-async def test_auto_purge_sweeps_every_guild_schema(session: AsyncSession):
+async def test_auto_purge_sweeps_every_guild_schema(
+    session: AsyncSession, role_session
+):
     """Expired trash lives in each guild's own schema, so the purge worker must
     visit every guild — the old single public-scoped pass would purge nothing.
-    Stage expired trash in two guilds and assert _purge_all_guilds clears both."""
+    Stage expired trash in two guilds and assert _purge_all_guilds clears both.
+
+    Driven on a real ``app_admin`` connection like production
+    (``process_trash_purges`` opens ``AdminSessionLocal``), so the purge runs
+    under the same privilege boundary that has to clear the admin-only purge
+    guard."""
     from app.db.session import set_rls_context
     from app.services.tenant.trash_purge import _purge_all_guilds
 
@@ -128,14 +135,58 @@ async def test_auto_purge_sweeps_every_guild_schema(session: AsyncSession):
         await session.commit()
         targets.append((guild.id, initiative.id))
 
-    await _purge_all_guilds(session, now=datetime.now(timezone.utc))
+    # Production runs the worker on AdminSessionLocal (app_admin, BYPASSRLS).
+    admin = await role_session("app_admin")
+    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
 
     for guild_id, initiative_id in targets:
-        await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+        await set_rls_context(admin, guild_id=guild_id, is_superadmin=True)
         count = (
-            await session.execute(
+            await admin.execute(
                 text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
                 {"id": initiative_id},
             )
         ).scalar_one()
         assert count == 0, f"guild {guild_id} initiative {initiative_id} not purged"
+
+
+async def test_auto_purge_clears_content_table_guard(
+    session: AsyncSession, role_session
+):
+    """A trashed CONTENT row (project) is purged via the routed worker pass too.
+
+    Content tables carry both the initiative-member delete policy AND the
+    soft_delete_admin_purge RESTRICTIVE guard; the worker clears both by routing
+    as a guild admin. Regression: routing in as the bare ``is_superadmin`` GUC
+    cleared neither, so the DELETE silently matched 0 rows."""
+    from app.services.tenant.trash_purge import _purge_all_guilds
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    project = await create_project(session, initiative, user)
+
+    # Trash only the project (initiative stays active), then make it due.
+    await soft_delete_entity(
+        session, project, deleted_by_user_id=user.id, retention_days=1
+    )
+    await session.commit()
+    refreshed = (
+        await session.exec(
+            select_including_deleted(Project).where(Project.id == project.id)
+        )
+    ).one()
+    refreshed.purge_at = datetime.now(timezone.utc) - timedelta(days=2)
+    session.add(refreshed)
+    await session.commit()
+    project_id = project.id
+
+    admin = await role_session("app_admin")
+    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+
+    count = (
+        await admin.execute(
+            text("SELECT COUNT(*) FROM projects WHERE id = :id"), {"id": project_id}
+        )
+    ).scalar_one()
+    assert count == 0, "trashed project was not hard-purged by the worker"
