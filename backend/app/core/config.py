@@ -493,6 +493,12 @@ class Settings(BaseSettings):
     # generation never needs a live ``/openapi.json`` in CI or prod.
     ENABLE_API_DOCS: bool = True
 
+    # Mount the in-app MCP server at ``/api/v1/mcp/`` (route-backed). Off by
+    # default; enable per-environment via env / .env. Tools ride the real auth +
+    # RLS rails, so a caller only ever sees their own data, and a read-only API
+    # key can't write.
+    ENABLE_MCP: bool = False
+
     # Reject passwords that appear in the HaveIBeenPwned breach corpus
     # when a user sets one (registration, reset, change). Uses the
     # k-anonymity API — only the first 5 hex chars of the SHA-1 hash

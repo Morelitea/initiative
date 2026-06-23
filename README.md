@@ -178,6 +178,7 @@ Images support `linux/amd64` and `linux/arm64` architectures.
 | `APP_URL` | Public base URL (required for OIDC callbacks) | - |
 | `DISABLE_GUILD_CREATION` | Restrict guild creation to super admin | `false` |
 | `ENABLE_PUBLIC_REGISTRATION` | Allow registration without invite link | `true` |
+| `ENABLE_MCP` | Mount the in-app MCP server at `/api/v1/mcp/` for AI assistants (see [MCP Server](#mcp-server)) | `false` |
 | `CAPTCHA_PROVIDER` | Captcha vendor for registration: `hcaptcha`, `turnstile`, or `recaptcha` (v2 only). Unset / unrecognised disables the gate | - |
 | `CAPTCHA_SITE_KEY` | Public key sent to the SPA to render the widget | - |
 | `CAPTCHA_SECRET_KEY` | Server-side key for the provider's siteverify endpoint | - |
@@ -208,6 +209,63 @@ In other words, the superuser URL bootstraps the roles, while the `APP`/`ADMIN` 
 The container **starts as root** so its entrypoint can create the runtime user, fix ownership on the uploads volume, and then drop privileges with `gosu`. The main uvicorn process runs unprivileged — by default UID/GID `1000:1000` with no Linux capabilities.
 
 To run as a different UID/GID (for example, to match the NAS user that owns the `uploads` volume), set the **`PUID`/`PGID`** environment variables. **Do not** add a Docker `user:` (Compose) or `--user` (run) override — that starts the entrypoint as non-root, so it can't create the user and fails with `fatal: Only root may add a user or group to the system`. `PUID`/`PGID` is the supported knob; `0` (root) is rejected.
+
+---
+
+## MCP Server
+
+Initiative ships an optional, in-app [MCP](https://modelcontextprotocol.io/) server so MCP-compatible AI assistants (such as [Claude Code](https://claude.com/claude-code)) can work with your data on your behalf. It is **route-backed**: every tool call runs through the real API with your authentication and the same Row-Level-Security access rules as the app, so a tool can only ever reach data *you* can reach — scoped per guild and initiative. It is **off by default**.
+
+### Enable it
+
+Set `ENABLE_MCP=true` (in `.env` or your container environment) and restart — the endpoint is mounted at startup:
+
+```
+ENABLE_MCP=true
+```
+
+The server is then served at **`/api/v1/mcp/`** (note the trailing slash) on your deployment's public host — i.e. **`<APP_URL>/api/v1/mcp/`**, using the same `APP_URL` you set in `.env`. (For local testing that's `http://localhost:8173/api/v1/mcp/`; `localhost` is for testing only, not your launched URL.) Because it is in-app, it ships in the Docker image — flipping the env var is all a deployer needs. Leave it off where you don't want the surface; it is gated at the infra level, not by a UI toggle.
+
+### Connect a client (Claude Code example)
+
+1. **Mint a personal API key** in **Settings → Security**. Tick **Read-only** for read access only (recommended for most uses); pin it to a **single guild** to limit its blast radius. A full-access key is required only if you want the write tools.
+2. **Register the server:**
+
+   ```bash
+   claude mcp add --transport http initiative \
+     https://your-host/api/v1/mcp/ \
+     --header "Authorization: Bearer ppk_your_key_here"
+   ```
+
+3. **Use it** — ask your assistant things like *"list my projects in Initiative"* or *"add a task to the Auth project."* Write actions are confirmed by the client before they run.
+
+### What it can access
+
+The surface is curated and **default-deny** — only the following are exposed. Everything else (documents, queues, counters, calendar, tags, members, admin, auth, settings, deletes, bulk operations, and AI generation) is **not**.
+
+**Reads** (any API key):
+
+| Tool | Endpoint |
+|---|---|
+| List / read projects (+ activity, favorites, export) | `GET /g/{guild}/projects…` |
+| List / read tasks and subtasks | `GET /g/{guild}/tasks…` |
+| List / read initiatives (+ members, roles, your permissions) | `GET /g/{guild}/initiatives…` |
+| Your projects / tasks across all guilds | `GET /me/projects`, `GET /me/tasks` |
+
+**Writes** (full-access key only — a read-only key is rejected with `403`; each is confirmed in the client):
+
+| Tool | Endpoint |
+|---|---|
+| Create a task | `POST /g/{guild}/tasks/` |
+| Edit a task | `PATCH /g/{guild}/tasks/{id}` |
+| Move a task | `POST /g/{guild}/tasks/{id}/move` |
+| Add a comment | `POST /g/{guild}/comments/` |
+
+### Security notes
+
+- **Least privilege:** prefer a **read-only**, **single-guild** API key. A read-only key cannot invoke the write tools.
+- **No ambient access:** the tools carry no standing privilege — each call authenticates as the key's user and is scoped by RLS, exactly like a normal request.
+- **Revocable:** delete the key in **Settings → Security** at any time; a password reset also revokes it.
 
 ---
 

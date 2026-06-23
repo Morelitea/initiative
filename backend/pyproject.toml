@@ -30,6 +30,7 @@ dependencies = [
     "pycrdt>=0.13.0,<0.15",
     "pycrdt-websocket>=0.16.1,<0.17",
     "premailer>=3.10.0",
+    "fastmcp>=3.4.2",
 ]
 
 [dependency-groups]
