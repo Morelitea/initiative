@@ -14,14 +14,20 @@ inert ``public`` table copies and was never carried onto the per-guild schemas
 during the schema-per-guild cutover; this restores that intent on the request
 path, generated from a single source.)
 
+The guard covers **every** soft-delete table. The initiative-scoped ones already
+have RLS (for the membership gate), so the RESTRICTIVE policy is just appended.
+The two guild-level soft-delete tables (``initiatives``, ``tags``) are RLS-free,
+so they get RLS ENABLED solely to host the guard, with a permissive allow-all
+(``guild_level_open``) — isolation stays the schema boundary and initiative
+stays the gate; this is not a membership scope. (See
+``history/soft-delete-purge-guard-design.md``.)
+
 The policy set is generated into ``alembic/guild/guild_rls.sql`` by
-``scripts/gen_guild_rls.py`` (from ``SOFT_DELETE_TABLES`` ∩ ``INITIATIVE_SCOPED_TABLES``
-— ``initiatives`` and ``tags`` are RLS-free guild-level tables and keep their
-app-layer admin gate). New guilds get it via ``provision_guild_schema``
-(``apply_guild_rls``); ``backfill_guild_schemas`` re-asserts it on boot. This
-migration applies the regenerated file to ``guild_template`` (if present) and
-every existing ``guild_<id>`` so the guard lands at deploy, not only on the next
-boot — mirroring 20260616_0110.
+``scripts/gen_guild_rls.py`` (from ``SOFT_DELETE_TABLES``). New guilds get it via
+``provision_guild_schema`` (``apply_guild_rls``); ``backfill_guild_schemas``
+re-asserts it on boot. This migration applies the regenerated file to
+``guild_template`` (if present) and every existing ``guild_<id>`` so the guard
+lands at deploy, not only on the next boot — mirroring 20260616_0110.
 
 Revision ID: 20260622_0120
 Revises: 20260622_0119
@@ -42,9 +48,11 @@ _GUILD_RLS_SQL_PATH = (
     Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_rls.sql"
 )
 
-# The soft-delete tables that carry the RESTRICTIVE guard — kept here only for the
-# downgrade (the upgrade re-applies the whole regenerated file). Equals
-# SOFT_DELETE_TABLES ∩ INITIATIVE_SCOPED_TABLES at the time of writing.
+# Kept here only for the downgrade (the upgrade re-applies the whole regenerated
+# file). Snapshot of SOFT_DELETE_TABLES at the time of writing.
+#
+# Initiative-scoped soft-delete tables: only the appended RESTRICTIVE guard is
+# dropped; their initiative_member RLS predates this migration and stays.
 _GUARD_TABLES = (
     "projects",
     "tasks",
@@ -55,6 +63,12 @@ _GUARD_TABLES = (
     "calendar_events",
     "counters",
     "counter_groups",
+)
+# Guild-level soft-delete tables: this migration turned RLS ON to host the guard,
+# so the downgrade fully reverts them (drop both policies + DISABLE RLS).
+_GUILD_LEVEL_GUARD_TABLES = (
+    "initiatives",
+    "tags",
 )
 
 
@@ -92,8 +106,17 @@ def downgrade() -> None:
     conn = op.get_bind()
     for schema in _guild_schemas(conn):
         conn.execute(text(f'SET search_path TO "{schema}", public'))
+        # Initiative-scoped tables: drop only the appended guard.
         for table in _GUARD_TABLES:
             conn.execute(
                 text(f"DROP POLICY IF EXISTS soft_delete_admin_purge ON {table}")
             )
+        # Guild-level tables: drop both policies and turn RLS back off (this
+        # migration enabled it), restoring schema-boundary-only protection.
+        for table in _GUILD_LEVEL_GUARD_TABLES:
+            conn.execute(
+                text(f"DROP POLICY IF EXISTS soft_delete_admin_purge ON {table}")
+            )
+            conn.execute(text(f"DROP POLICY IF EXISTS guild_level_open ON {table}"))
+            conn.execute(text(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY"))
     conn.execute(text("SET search_path TO public"))

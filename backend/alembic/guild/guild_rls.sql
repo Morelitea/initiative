@@ -24,8 +24,9 @@
 -- may. It is RESTRICTIVE, so it AND-combines with the PERMISSIVE delete policy
 -- above — a write-member clears the latter but not this one. app_admin (the
 -- auto-purge worker) bypasses RLS entirely. Source of truth for the table set is
--- app.db.soft_delete_filter.SOFT_DELETE_TABLES (the SoftDeleteMixin subclasses);
--- the RLS-free guild-level soft-delete tables (initiatives, tags) are gated in app.
+-- app.db.soft_delete_filter.SOFT_DELETE_TABLES (the SoftDeleteMixin subclasses).
+-- The guild-level soft-delete tables (initiatives, tags) are RLS-free, so they get
+-- the guard via the dedicated section at the bottom of this file.
 
 
 ALTER TABLE calendar_event_attendees ENABLE ROW LEVEL SECURITY;
@@ -563,4 +564,33 @@ CREATE POLICY initiative_member_delete ON tasks AS PERMISSIVE FOR DELETE
   USING (EXISTS (SELECT 1 FROM projects WHERE projects.id = tasks.project_id AND public.initiative_access(projects.initiative_id, (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer, true)));
 DROP POLICY IF EXISTS soft_delete_admin_purge ON tasks;
 CREATE POLICY soft_delete_admin_purge ON tasks AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
+
+-- ===========================================================================
+-- Guild-level soft-delete tables: admin-only purge guard ONLY.
+--
+-- These tables are NOT initiative-membership-gated: initiative is the gate (its
+-- content tables point AT it via initiative_access), and the initiative anchor
+-- tables can't gate themselves; guilds gate at the SCHEMA level (SET ROLE), which
+-- already isolates these rows. RLS is enabled here SOLELY to host the RESTRICTIVE
+-- admin-only-purge guard, so the access policy (guild_level_open) is a deliberate
+-- allow-all — it adds no row gate, it just lets the RESTRICTIVE delete policy bind.
+-- ===========================================================================
+
+ALTER TABLE initiatives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE initiatives FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS guild_level_open ON initiatives;
+CREATE POLICY guild_level_open ON initiatives AS PERMISSIVE FOR ALL
+  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS soft_delete_admin_purge ON initiatives;
+CREATE POLICY soft_delete_admin_purge ON initiatives AS RESTRICTIVE FOR DELETE
+  USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);
+
+ALTER TABLE tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tags FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS guild_level_open ON tags;
+CREATE POLICY guild_level_open ON tags AS PERMISSIVE FOR ALL
+  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS soft_delete_admin_purge ON tags;
+CREATE POLICY soft_delete_admin_purge ON tags AS RESTRICTIVE FOR DELETE
   USING (current_setting('app.current_guild_role'::text, true) = 'admin'::text);

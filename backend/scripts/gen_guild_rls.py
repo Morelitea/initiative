@@ -34,13 +34,21 @@ _OUT = Path(__file__).resolve().parents[1] / "alembic" / "guild" / "guild_rls.sq
 # 403s otherwise; the background auto-purge worker runs as app_admin/BYPASSRLS, so
 # RLS — including this RESTRICTIVE policy — does not apply to it). We back that with
 # a DB-layer RESTRICTIVE FOR DELETE guard so a stray non-admin DELETE is refused by
-# Postgres, not just by app code. It can only bind to a soft-delete table that is
-# ALREADY RLS-enabled here, i.e. an initiative-scoped one; ``initiatives`` and
-# ``tags`` are RLS-free guild-level tables (GUILD_LEVEL_TABLES) and keep their
-# app-layer admin gate. The source of truth for "which tables are soft-deletable"
-# is SOFT_DELETE_TABLES (derived from the SoftDeleteMixin subclasses).
+# Postgres, not just by app code. The source of truth for "which tables are
+# soft-deletable" is SOFT_DELETE_TABLES (derived from the SoftDeleteMixin
+# subclasses). The guard goes on EVERY soft-delete table, split by how RLS is
+# already set up on the table:
+#   - initiative-scoped soft-delete tables already ENABLE RLS (for the membership
+#     gate), so the RESTRICTIVE policy is appended to their existing block.
+#   - the guild-level soft-delete tables (initiatives, tags) are RLS-free; they get
+#     a dedicated guard block that ENABLEs RLS solely to host the purge guard (see
+#     _guild_level_guard_block — the access policy there is a deliberate allow-all,
+#     NOT a membership gate; initiative is the gate, guilds gate at the schema).
 _PURGE_GUARD_TABLES: frozenset[str] = (
     frozenset(SOFT_DELETE_TABLES) & INITIATIVE_SCOPED_TABLES
+)
+_GUILD_LEVEL_PURGE_TABLES: frozenset[str] = (
+    frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES
 )
 
 # Admit only a routed guild admin (the GUC ``set_rls_context`` writes from the
@@ -78,9 +86,23 @@ _HEADER = """\
 -- may. It is RESTRICTIVE, so it AND-combines with the PERMISSIVE delete policy
 -- above — a write-member clears the latter but not this one. app_admin (the
 -- auto-purge worker) bypasses RLS entirely. Source of truth for the table set is
--- app.db.soft_delete_filter.SOFT_DELETE_TABLES (the SoftDeleteMixin subclasses);
--- the RLS-free guild-level soft-delete tables (initiatives, tags) are gated in app.
+-- app.db.soft_delete_filter.SOFT_DELETE_TABLES (the SoftDeleteMixin subclasses).
+-- The guild-level soft-delete tables (initiatives, tags) are RLS-free, so they get
+-- the guard via the dedicated section at the bottom of this file.
 """
+
+# Header for the guild-level guard section (initiatives, tags).
+_GUILD_LEVEL_SECTION = """\
+-- ===========================================================================
+-- Guild-level soft-delete tables: admin-only purge guard ONLY.
+--
+-- These tables are NOT initiative-membership-gated: initiative is the gate (its
+-- content tables point AT it via initiative_access), and the initiative anchor
+-- tables can't gate themselves; guilds gate at the SCHEMA level (SET ROLE), which
+-- already isolates these rows. RLS is enabled here SOLELY to host the RESTRICTIVE
+-- admin-only-purge guard, so the access policy (guild_level_open) is a deliberate
+-- allow-all — it adds no row gate, it just lets the RESTRICTIVE delete policy bind.
+-- ==========================================================================="""
 
 _COMMANDS = (
     ("select", "SELECT", "USING", False),
@@ -118,11 +140,37 @@ def _table_block(table: str, build: PathBuilder) -> str:
     return "\n".join(lines)
 
 
+def _guild_level_guard_block(table: str) -> str:
+    """RLS for a guild-level soft-delete table (initiatives, tags): a permissive
+    allow-all (isolation is the schema boundary, not RLS) plus the RESTRICTIVE
+    admin-only-purge guard. NOT an access gate — see _GUILD_LEVEL_SECTION."""
+    return "\n".join(
+        [
+            f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;",
+            f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY;",
+            f"DROP POLICY IF EXISTS guild_level_open ON {table};",
+            f"CREATE POLICY guild_level_open ON {table} AS PERMISSIVE FOR ALL",
+            "  USING (true) WITH CHECK (true);",
+            f"DROP POLICY IF EXISTS soft_delete_admin_purge ON {table};",
+            f"CREATE POLICY soft_delete_admin_purge ON {table} AS RESTRICTIVE FOR DELETE",
+            f"  USING ({_PURGE_GUARD_PREDICATE});",
+        ]
+    )
+
+
 def generate() -> str:
     blocks = [_table_block(t, INITIATIVE_PATHS[t]) for t in sorted(INITIATIVE_PATHS)]
-    return _HEADER + "\n\n" + "\n\n".join(blocks) + "\n"
+    out = _HEADER + "\n\n" + "\n\n".join(blocks)
+    guards = [_guild_level_guard_block(t) for t in sorted(_GUILD_LEVEL_PURGE_TABLES)]
+    if guards:
+        out += "\n\n" + _GUILD_LEVEL_SECTION + "\n\n" + "\n\n".join(guards)
+    return out + "\n"
 
 
 if __name__ == "__main__":
     _OUT.write_text(generate())
-    print(f"Wrote {len(INITIATIVE_PATHS)} table policy blocks -> {_OUT}")
+    n = len(INITIATIVE_PATHS) + len(_GUILD_LEVEL_PURGE_TABLES)
+    print(
+        f"Wrote {n} table policy blocks "
+        f"({len(_GUILD_LEVEL_PURGE_TABLES)} guild-level purge guards) -> {_OUT}"
+    )

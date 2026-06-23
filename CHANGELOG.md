@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- **Permanent deletion (purge) is now admin-only at the database, not just in app code.** Emptying an item from the trash for good was gated only by an app-layer check; a `RESTRICTIVE` row-level-security policy now backs it on every initiative-scoped content table.
+- **Permanent deletion (purge) is now admin-only at the database, not just in app code.** Emptying an item from the trash for good was gated only by an app-layer check; a `RESTRICTIVE` row-level-security policy now backs it on every soft-deletable item.
 
 ### Added
 
