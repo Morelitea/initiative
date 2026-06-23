@@ -15,6 +15,8 @@ class ApiKeyMetadata(SanitizedBaseModel):
     name: str
     token_prefix: str
     is_active: bool
+    read_only: bool = False
+    guild_id: Optional[int] = None
     created_at: datetime
     last_used_at: Optional[datetime] = None
     expires_at: Optional[datetime] = None
@@ -29,6 +31,10 @@ class ApiKeyListResponse(SanitizedBaseModel):
 class ApiKeyCreateRequest(SanitizedBaseModel):
     name: str = Field(min_length=1, max_length=100)
     expires_at: Optional[datetime] = None
+    # Least-privilege scoping. ``read_only`` blocks all writes; ``guild_id`` pins
+    # the key to a single guild. Recommended for machine credentials (MCP, CI).
+    read_only: bool = False
+    guild_id: Optional[int] = None
 
 
 class ApiKeyCreateResponse(SanitizedBaseModel):

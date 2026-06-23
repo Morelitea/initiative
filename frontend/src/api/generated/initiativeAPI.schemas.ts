@@ -301,6 +301,8 @@ export interface ApiKeyCreateRequest {
    */
   name: string;
   expires_at?: string | null;
+  read_only?: boolean;
+  guild_id?: number | null;
 }
 
 export interface ApiKeyMetadata {
@@ -308,6 +310,8 @@ export interface ApiKeyMetadata {
   name: string;
   token_prefix: string;
   is_active: boolean;
+  read_only: boolean;
+  guild_id: number | null;
   created_at: string;
   last_used_at: string | null;
   expires_at: string | null;
@@ -3123,6 +3127,7 @@ export interface UserRead {
 export interface UserSelfUpdate {
   full_name?: string | null;
   password?: string | null;
+  current_password?: string | null;
   avatar_base64?: string | null;
   avatar_url?: string | null;
   week_starts_on?: number | null;

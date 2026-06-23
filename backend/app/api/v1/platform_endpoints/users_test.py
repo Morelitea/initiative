@@ -242,7 +242,10 @@ async def test_self_service_password_change_revokes_sessions_and_device_tokens(
 
     response = await client.patch(
         "/api/v1/users/me",
-        json={"password": "brand-new-secret-123"},
+        json={
+            "password": "brand-new-secret-123",
+            "current_password": "testpassword123",
+        },
         headers={"Authorization": f"Bearer {old_jwt}"},
     )
     assert response.status_code == 200
@@ -541,17 +544,36 @@ async def test_user_cannot_update_email_via_patch(
 
 @pytest.mark.integration
 async def test_user_can_change_password(client: AsyncClient, session: AsyncSession):
-    """Test that users can change their password."""
+    """Changing your own password requires the current password, so a leaked
+    bearer token / API key can't silently take over the account."""
     user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)
 
-    update_data = {"password": "newpassword123"}
+    # Missing current password is refused.
+    missing = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"password": "newpassword123"},
+    )
+    assert missing.status_code == 400
+    assert missing.json()["detail"] == "USER_CURRENT_PASSWORD_REQUIRED"
 
-    response = await client.patch("/api/v1/users/me", headers=headers, json=update_data)
+    # Wrong current password is refused.
+    wrong = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"password": "newpassword123", "current_password": "not-it"},
+    )
+    assert wrong.status_code == 400
+    assert wrong.json()["detail"] == "USER_CURRENT_PASSWORD_INCORRECT"
 
-    assert response.status_code == 200
-
-    # TODO: Verify password actually changed by trying to login with new password
+    # Correct current password succeeds.
+    ok = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={"password": "newpassword123", "current_password": "testpassword123"},
+    )
+    assert ok.status_code == 200
 
 
 @pytest.mark.integration

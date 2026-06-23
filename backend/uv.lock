@@ -953,7 +953,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0,<0.32" },
     { name = "bcrypt", specifier = "==5.0.0" },
     { name = "email-validator", specifier = ">=2.3.0,<3" },
-    { name = "fastapi", specifier = ">=0.136.1,<0.138" },
+    { name = "fastapi", specifier = ">=0.136.1,<0.139" },
     { name = "google-auth", specifier = ">=2.53.0" },
     { name = "greenlet", specifier = ">=3.0" },
     { name = "httpx", specifier = ">=0.28.1,<0.29" },

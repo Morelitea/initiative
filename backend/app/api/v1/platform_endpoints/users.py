@@ -13,9 +13,10 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
+from app.core.config import settings
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.password_policy import enforce_password_policy
-from app.core.security import get_password_hash, verify_password
+from app.core.security import create_access_token, get_password_hash, verify_password
 from app.core.user_input_validators import (
     normalize_notification_time,
     normalize_reminder_minutes,
@@ -281,6 +282,7 @@ async def create_user(
 async def update_users_me(
     user_in: UserSelfUpdate,
     session: UserSessionDep,
+    response: Response,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
     update_data = user_in.dict(exclude_unset=True)
@@ -293,11 +295,44 @@ async def update_users_me(
 
     password = update_data.get("password")
     if password:
+        # Re-authenticate with the current password before changing it, so a
+        # leaked bearer token / API key can't silently take over the account.
+        # OIDC-only accounts have no local password to confirm and are exempt
+        # (mirrors the delete-account flow's oidc_sub gate).
+        if current_user.oidc_sub is None:
+            current_password = update_data.get("current_password")
+            if not current_password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=UserMessages.CURRENT_PASSWORD_REQUIRED,
+                )
+            if not verify_password(current_password, current_user.hashed_password):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=UserMessages.CURRENT_PASSWORD_INCORRECT,
+                )
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
-        # Bump token_version and revoke active device tokens so a stale
-        # JWT/device token can't survive the password change.
+        # Bump token_version and revoke active device tokens + API keys so a
+        # stale JWT/device token/API key can't survive the password change.
         await user_tokens_service.revoke_user_sessions(session, user=current_user)
+        # ...but keep THIS session alive. The version bump above invalidates the
+        # caller's own token too, so re-issue the session cookie with the new
+        # version: every *other* session/device still dies, while the user who
+        # just changed their password stays logged in (web cookie auth).
+        refreshed_token = create_access_token(
+            subject=str(current_user.id),
+            token_version=current_user.token_version,
+        )
+        response.set_cookie(
+            key=settings.COOKIE_NAME,
+            value=refreshed_token,
+            httponly=True,
+            samesite="lax",
+            secure=settings.cookie_secure,
+            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            path="/",
+        )
 
     if "avatar_base64" in update_data:
         avatar_value = update_data["avatar_base64"]
@@ -741,11 +776,27 @@ async def create_my_api_key(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> ApiKeyCreateResponse:
     """Create a new API key for the current user."""
+    if payload.guild_id is not None:
+        # A guild-bound key must target a guild the caller belongs to. Membership
+        # is in the public guild_memberships table; set the user-id RLS context so
+        # the own-row policy admits it. Validating here also turns an unknown
+        # guild into a 403 instead of a 500 (FK violation).
+        await set_rls_context(session, user_id=current_user.id)
+        membership = await guilds_service.get_membership(
+            session, guild_id=payload.guild_id, user_id=current_user.id
+        )
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=UserMessages.API_KEY_GUILD_FORBIDDEN,
+            )
     secret, api_key = await api_keys_service.create_api_key(
         session,
         user=current_user,
         name=payload.name,
         expires_at=payload.expires_at,
+        read_only=payload.read_only,
+        guild_id=payload.guild_id,
     )
     return ApiKeyCreateResponse(api_key=api_key, secret=secret)
 

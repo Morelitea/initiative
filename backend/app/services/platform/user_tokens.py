@@ -9,6 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.db.session import reapply_rls_context
 from app.models.platform.user import User
 from app.models.platform.user_token import UserToken, UserTokenPurpose
+from app.services.platform import api_keys as api_keys_service
 
 
 DEFAULT_TOKEN_TTL_MINUTES = 60
@@ -244,11 +245,13 @@ async def revoke_user_sessions(
     change.
 
     Bumps ``token_version`` (which the JWT/WS authenticators compare against,
-    invalidating any still-unexpired access token) and bulk-revokes the
-    user's active ``device_auth`` tokens. Shared by the self-service password
+    invalidating any still-unexpired access token), bulk-revokes the user's
+    active ``device_auth`` tokens, and deactivates their API keys (a leaked PAT
+    must not survive a compromise response). Shared by the self-service password
     change, the forgot-password reset, and the admin password reset so the
     three paths can't drift. Does not commit — the caller owns the transaction
     and is responsible for ``session.add(user)``/``commit``.
     """
     user.token_version += 1
     await revoke_active_device_tokens(session, user_id=user.id)
+    await api_keys_service.deactivate_user_api_keys(session, user_id=user.id)

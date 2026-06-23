@@ -40,6 +40,8 @@ async def create_api_key(
     user: User,
     name: str,
     expires_at: Optional[datetime] = None,
+    read_only: bool = False,
+    guild_id: Optional[int] = None,
 ) -> Tuple[str, UserApiKey]:
     if not user.id:
         raise ValueError("User must be persisted before creating API keys")
@@ -51,6 +53,8 @@ async def create_api_key(
         token_prefix=secret[:API_KEY_DISPLAY_PREFIX_LENGTH],
         token_hash=_hash_token(secret),
         expires_at=expires_at,
+        read_only=read_only,
+        guild_id=guild_id,
     )
     session.add(api_key)
     await session.commit()
@@ -73,7 +77,15 @@ async def delete_api_key(session: AsyncSession, *, user: User, api_key_id: int) 
     return True
 
 
-async def authenticate_api_key(session: AsyncSession, token: str) -> Optional[User]:
+async def authenticate_api_key(
+    session: AsyncSession, token: str
+) -> Optional[Tuple[User, UserApiKey]]:
+    """Resolve a ``ppk_`` token to its ``(user, key)`` pair, or ``None``.
+
+    Returns the key alongside the user so callers can enforce its scope
+    (``read_only`` / ``guild_id``) — the user object alone carries no record of
+    which credential authenticated the request.
+    """
     token_hash = _hash_token(token)
     statement = select(UserApiKey).where(
         UserApiKey.token_hash == token_hash, UserApiKey.is_active.is_(True)
@@ -94,4 +106,22 @@ async def authenticate_api_key(session: AsyncSession, token: str) -> Optional[Us
 
     api_key.last_used_at = now
     await session.commit()
-    return user
+    return user, api_key
+
+
+async def deactivate_user_api_keys(session: AsyncSession, *, user_id: int) -> int:
+    """Deactivate every active API key for ``user_id`` and return the count.
+
+    Invoked from the credential-reset path so a password change / reset also
+    locks out outstanding keys (a leaked key must not survive a compromise
+    response). Does not commit — the caller owns the transaction.
+    """
+    statement = select(UserApiKey).where(
+        UserApiKey.user_id == user_id, UserApiKey.is_active.is_(True)
+    )
+    result = await session.exec(statement)
+    keys = result.all()
+    for key in keys:
+        key.is_active = False
+        session.add(key)
+    return len(keys)
