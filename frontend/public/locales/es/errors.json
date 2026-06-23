@@ -203,6 +203,8 @@
   "USER_PROJECT_TRANSFERS_REQUIRED": "Debes especificar destinatarios de transferencia para todos los proyectos de tu propiedad",
   "USER_MISSING_PROJECT_TRANSFERS": "Faltan destinatarios de transferencia para algunos proyectos",
   "USER_API_KEY_NOT_FOUND": "Clave API no encontrada",
+  "USER_API_KEY_READ_ONLY": "Esta clave API es de solo lectura y no puede realizar cambios.",
+  "USER_API_KEY_GUILD_FORBIDDEN": "Solo puedes limitar una clave a un gremio al que perteneces.",
   "USER_INVALID_TIMEZONE": "Zona horaria no válida",
   "USER_INVALID_TIME_FORMAT": "Formato de hora no válido",
   "USER_INVALID_WEEK_START": "El inicio de semana debe estar entre 0 (domingo) y 6 (sábado)",

@@ -776,6 +776,20 @@ async def create_my_api_key(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> ApiKeyCreateResponse:
     """Create a new API key for the current user."""
+    if payload.guild_id is not None:
+        # A guild-bound key must target a guild the caller belongs to. Membership
+        # is in the public guild_memberships table; set the user-id RLS context so
+        # the own-row policy admits it. Validating here also turns an unknown
+        # guild into a 403 instead of a 500 (FK violation).
+        await set_rls_context(session, user_id=current_user.id)
+        membership = await guilds_service.get_membership(
+            session, guild_id=payload.guild_id, user_id=current_user.id
+        )
+        if membership is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=UserMessages.API_KEY_GUILD_FORBIDDEN,
+            )
     secret, api_key = await api_keys_service.create_api_key(
         session,
         user=current_user,

@@ -411,6 +411,45 @@ async def test_guild_bound_key_is_pinned_to_its_guild(
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_create_guild_bound_key_rejects_non_member(
+    client: AsyncClient, session: AsyncSession
+):
+    """Scoping a key to a guild the caller doesn't belong to is refused, rather
+    than minting a key that could never reach its claimed scope."""
+    user = await create_user(session, email="outsider@example.com")
+    # A guild the user is NOT a member of (the factory adds no membership).
+    guild = await create_guild(session)
+    headers = get_auth_headers(user)
+
+    response = await client.post(
+        "/api/v1/users/me/api-keys",
+        headers=headers,
+        json={"name": "Sneaky", "guild_id": guild.id},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_create_guild_bound_key_rejects_unknown_guild(
+    client: AsyncClient, session: AsyncSession
+):
+    """An unknown guild id returns 403, not a 500 from the FK constraint."""
+    user = await create_user(session, email="ghost@example.com")
+    headers = get_auth_headers(user)
+
+    response = await client.post(
+        "/api/v1/users/me/api-keys",
+        headers=headers,
+        json={"name": "Ghost", "guild_id": 999999},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "USER_API_KEY_GUILD_FORBIDDEN"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_password_change_deactivates_api_keys(
     client: AsyncClient, session: AsyncSession
 ):

@@ -203,6 +203,8 @@
   "USER_PROJECT_TRANSFERS_REQUIRED": "Vous devez spécifier des destinataires de transfert pour tous les projets dont vous êtes propriétaire",
   "USER_MISSING_PROJECT_TRANSFERS": "Destinataires de transfert manquants pour certains projets",
   "USER_API_KEY_NOT_FOUND": "Clé API introuvable",
+  "USER_API_KEY_READ_ONLY": "Cette clé API est en lecture seule et ne peut effectuer aucune modification.",
+  "USER_API_KEY_GUILD_FORBIDDEN": "Vous ne pouvez limiter une clé qu'à un groupe dont vous êtes membre.",
   "USER_INVALID_TIMEZONE": "Fuseau horaire invalide",
   "USER_INVALID_TIME_FORMAT": "Format d'heure invalide",
   "USER_INVALID_WEEK_START": "Le début de semaine doit être entre 0 (dimanche) et 6 (samedi)",

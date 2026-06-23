@@ -205,6 +205,8 @@
   "USER_PROJECT_TRANSFERS_REQUIRED": "Du musst für alle eigenen Projekte Empfänger für die Übertragung angeben",
   "USER_MISSING_PROJECT_TRANSFERS": "Für einige Projekte fehlen Empfänger für die Übertragung",
   "USER_API_KEY_NOT_FOUND": "API-Schlüssel nicht gefunden",
+  "USER_API_KEY_READ_ONLY": "Dieser API-Schlüssel ist schreibgeschützt und kann keine Änderungen vornehmen.",
+  "USER_API_KEY_GUILD_FORBIDDEN": "Du kannst einen Schlüssel nur auf eine Gilde beschränken, der du angehörst.",
   "USER_INVALID_TIMEZONE": "Ungültige Zeitzone",
   "USER_INVALID_TIME_FORMAT": "Ungültiges Zeitformat",
   "USER_INVALID_WEEK_START": "Der Wochenstart muss zwischen 0 (Sonntag) und 6 (Samstag) liegen",
