@@ -396,7 +396,7 @@ async def delete_guild(
     # reads of public.guilds/users. A failed cleanup must NEVER undo the committed
     # deletion: an orphaned, empty schema is harmless and reclaimed on a retry or
     # the next provision of that id.
-    await session.execute(text("SELECT set_config('role', 'none', false)"))
+    await session.exec(text("SELECT set_config('role', 'none', false)"))
     await session.commit()
     try:
         await deprovision_guild(guild_id)

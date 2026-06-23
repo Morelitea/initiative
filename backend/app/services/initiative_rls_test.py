@@ -49,7 +49,7 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     await set_rls_context(
         session, user_id=member.id, guild_id=guild.id, guild_role="member"
     )
-    member_view = set((await session.execute(select(Project.name))).scalars().all())
+    member_view = set((await session.exec(select(Project.name))).all())
     assert "A-Proj" in member_view, "member must see their own initiative's project"
     assert "B-Proj" not in member_view, (
         "RLS must hide a project in an initiative the member doesn't belong to"
@@ -59,7 +59,7 @@ async def test_non_admin_member_sees_only_their_initiatives_content(
     await set_rls_context(
         session, user_id=member.id, guild_id=guild.id, guild_role="admin"
     )
-    admin_view = set((await session.execute(select(Project.name))).scalars().all())
+    admin_view = set((await session.exec(select(Project.name))).all())
     assert {"A-Proj", "B-Proj"} <= admin_view
 
-    await session.execute(text("RESET ROLE"))
+    await session.exec(text("RESET ROLE"))

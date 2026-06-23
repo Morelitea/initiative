@@ -978,8 +978,8 @@ async def _allowed_project_ids(
         if not include_templates:
             full_conditions.append(Project.is_template == False)  # noqa: E712
         full_stmt = select(Project.id).join(Project.initiative).where(*full_conditions)
-        full_result = await session.execute(full_stmt)
-        return {row[0] for row in full_result.all() if row[0] is not None}
+        full_result = await session.exec(full_stmt)
+        return {pid for pid in full_result.all() if pid is not None}
 
     # Projects the user has a grant on (own or via an initiative role), scoped to
     # the guild and (optionally) excluding archived/template projects.
@@ -993,8 +993,8 @@ async def _allowed_project_ids(
     if not include_templates:
         conditions.append(Project.is_template == False)  # noqa: E712
     stmt = select(Project.id).join(Project.initiative).where(*conditions)
-    result = await session.execute(stmt)
-    return {row[0] for row in result.all() if row[0] is not None}
+    result = await session.exec(stmt)
+    return {pid for pid in result.all() if pid is not None}
 
 
 def _property_value_filter_clauses(
@@ -1769,7 +1769,7 @@ async def move_task(
         source_initiative_id is not None
         and source_initiative_id != target_project.initiative_id
     ):
-        await session.execute(
+        await session.exec(
             delete(TaskPropertyValue).where(TaskPropertyValue.task_id == task.id)
         )
 

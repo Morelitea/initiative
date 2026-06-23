@@ -22,8 +22,7 @@ from alembic import command
 from alembic.config import Config
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -213,9 +212,7 @@ def _disable_hibp_check(monkeypatch):
 @pytest.fixture(scope="function")
 async def engine():
     """Create a test database engine."""
-    test_engine = create_async_engine(
-        TEST_DATABASE_URL, echo=False, future=True, pool_pre_ping=True
-    )
+    test_engine = create_async_engine(TEST_DATABASE_URL, echo=False, pool_pre_ping=True)
     yield test_engine
     await test_engine.dispose()
 
@@ -261,9 +258,11 @@ async def role_session():
 
     async def _make(role: str = "app_admin") -> AsyncSession:
         eng = create_async_engine(
-            _test_url_for_role(role), echo=False, future=True, pool_pre_ping=True
+            _test_url_for_role(role), echo=False, pool_pre_ping=True
         )
-        maker = sessionmaker(bind=eng, class_=AsyncSession, expire_on_commit=False)
+        maker = async_sessionmaker(
+            bind=eng, class_=AsyncSession, expire_on_commit=False
+        )
         sess = maker()
         created.append((eng, sess))
         return sess
@@ -334,11 +333,10 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
     transaction, which is why a flush-then-refresh would otherwise lose the route.
     """
     async with engine.connect() as bound_conn:
-        async_session = sessionmaker(
+        async_session = async_sessionmaker(
             bind=bound_conn,
             class_=AsyncSession,
             expire_on_commit=False,
-            autocommit=False,
             autoflush=False,
         )
 
@@ -485,10 +483,10 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     ``SET ROLE`` / ``search_path`` GUCs persist across the request's statements.
     """
     app_engine = create_async_engine(
-        _test_url_for_role("app_user"), echo=False, future=True, pool_pre_ping=True
+        _test_url_for_role("app_user"), echo=False, pool_pre_ping=True
     )
     admin_engine = create_async_engine(
-        _test_url_for_role("app_admin"), echo=False, future=True, pool_pre_ping=True
+        _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
     )
     req_conn = await app_engine.connect()
     admin_conn = await admin_engine.connect()
@@ -498,10 +496,10 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     # The net is the DATABASE-level statement_timeout armed in _run_test_migrations
     # (covers EVERY connection, incl. the privileged setup/provisioning conn that a
     # per-connection SET here would miss — which is what hung admin_test).
-    req_session = sessionmaker(
+    req_session = async_sessionmaker(
         bind=req_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )()
-    admin_session = sessionmaker(
+    admin_session = async_sessionmaker(
         bind=admin_conn, class_=AsyncSession, expire_on_commit=False, autoflush=False
     )()
 
@@ -531,7 +529,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     # write on the SAME row, which then blocks until statement_timeout.
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
-        await req_session.execute(text(_REQUEST_RESET_SQL))
+        await req_session.exec(text(_REQUEST_RESET_SQL))
         try:
             yield req_session
         finally:
@@ -539,7 +537,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
-        await admin_session.execute(text(_REQUEST_RESET_SQL))
+        await admin_session.exec(text(_REQUEST_RESET_SQL))
         try:
             yield admin_session
         finally:

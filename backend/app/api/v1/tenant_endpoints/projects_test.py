@@ -721,12 +721,12 @@ async def test_set_project_access_all_members(
 async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
     """Read task_assignees straight from the guild schema (superuser session)."""
     await session.commit()
-    await session.execute(text(f'SET search_path TO "guild_{guild_id}", public'))
+    await session.exec(text(f'SET search_path TO "guild_{guild_id}", public'))
     return set(
         (
-            await session.execute(
+            await session.exec(
                 text("SELECT user_id FROM task_assignees WHERE task_id = :tid"),
-                {"tid": task_id},
+                params={"tid": task_id},
             )
         ).scalars()
     )

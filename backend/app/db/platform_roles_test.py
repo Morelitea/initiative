@@ -18,7 +18,7 @@ from app.db.session import reapply_rls_context, set_rls_context
 
 
 async def _reset_role(session) -> None:
-    await session.execute(text("SELECT set_config('role', 'none', false)"))
+    await session.exec(text("SELECT set_config('role', 'none', false)"))
 
 
 async def test_platform_roles_exist_and_are_least_privilege(session):
@@ -28,12 +28,12 @@ async def test_platform_roles_exist_and_are_least_privilege(session):
         platform_role_name(tier) for tier in PLATFORM_TIERS
     }
     rows = (
-        await session.execute(
+        await session.exec(
             text(
                 "SELECT rolname, rolcanlogin, rolbypassrls FROM pg_roles "
                 "WHERE rolname ~ :pat"
             ),
-            {"pat": f"^{settings.PLATFORM_ROLE_PREFIX}platform_"},
+            params={"pat": f"^{settings.PLATFORM_ROLE_PREFIX}platform_"},
         )
     ).all()
     found = {name: (canlogin, bypassrls) for name, canlogin, bypassrls in rows}
@@ -51,14 +51,14 @@ async def test_each_tier_inherits_the_base_floor(session):
     base = f"{settings.PLATFORM_ROLE_PREFIX}platform_base"
     members = (
         (
-            await session.execute(
+            await session.exec(
                 text(
                     "SELECT m.rolname FROM pg_auth_members am "
                     "JOIN pg_roles base ON base.oid = am.roleid "
                     "JOIN pg_roles m ON m.oid = am.member "
                     "WHERE base.rolname = :base"
                 ),
-                {"base": base},
+                params={"base": base},
             )
         )
         .scalars()
@@ -73,7 +73,7 @@ async def test_public_path_assumes_platform_role(session, tier):
     """A no-guild request with a platform tier assumes platform_<tier>, not the
     bare login role."""
     await set_rls_context(session, user_id=1, platform_role=tier)
-    current = (await session.execute(text("SELECT current_user"))).scalar_one()
+    current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert current == platform_role_name(tier)
     await _reset_role(session)
 
@@ -84,7 +84,7 @@ async def test_no_tier_stays_on_login_role(session):
     await set_rls_context(session, user_id=1)
     # current_user is the connection's login role (superuser in tests); the point
     # is that no platform_* role was assumed.
-    current = (await session.execute(text("SELECT current_user"))).scalar_one()
+    current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert not current.startswith(f"{settings.PLATFORM_ROLE_PREFIX}platform_")
     await _reset_role(session)
 
@@ -94,7 +94,7 @@ async def test_reapply_preserves_platform_role(session):
     platform role, so post-commit queries stay role-scoped."""
     await set_rls_context(session, user_id=1, platform_role="support")
     await reapply_rls_context(session)
-    current = (await session.execute(text("SELECT current_user"))).scalar_one()
+    current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert current == platform_role_name("support")
     await _reset_role(session)
 

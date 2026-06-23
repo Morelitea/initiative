@@ -132,7 +132,7 @@ def _patch_recheck(monkeypatch, *, establish_ok: bool, authorized: bool):
         async def __aexit__(self, *_a):
             return False
 
-        async def execute(self, *_a, **_k):
+        async def exec(self, *_a, **_k):
             return None
 
     async def fake_establish(_session, _user, _guild_id):

@@ -39,7 +39,7 @@ async def test_init_superuser_cleans_up_when_guild_seed_fails(engine, monkeypatc
     async def _boom(seed_session, *args, **kwargs):
         # Abort the transaction like a real failing query would, so the cleanup
         # path must rollback before it can delete the stranded rows.
-        await seed_session.execute(text("SELECT * FROM does_not_exist_xyz"))
+        await seed_session.exec(text("SELECT * FROM does_not_exist_xyz"))
 
     monkeypatch.setattr(guilds_service, "seed_guild_content", _boom)
 

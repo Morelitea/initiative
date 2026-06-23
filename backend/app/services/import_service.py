@@ -259,7 +259,7 @@ async def import_todoist_tasks(
         return result
 
     # Get the next position for the project
-    max_order_result = await session.execute(
+    max_order_result = await session.exec(
         select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )
@@ -454,7 +454,7 @@ async def import_vikunja_tasks(
         return result
 
     # Get the next position for the project
-    max_order_result = await session.execute(
+    max_order_result = await session.exec(
         select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )
@@ -690,7 +690,7 @@ async def import_ticktick_tasks(
         return result
 
     # Get the next position for the project
-    max_order_result = await session.execute(
+    max_order_result = await session.exec(
         select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )

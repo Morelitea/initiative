@@ -341,20 +341,20 @@ async def test_upload_row_in_guild_schema_is_served(
         schema = guild_schema_name(guild.id)
         # Insert the row into the guild schema ONLY (mimicking the production
         # request path, where set_rls_context routes search_path there).
-        await session.execute(
+        await session.exec(
             text(
                 f'INSERT INTO "{schema}".uploads'
                 " (filename, guild_id, uploader_user_id, size_bytes, created_at)"
                 " VALUES (:fn, :gid, :uid, 5, now())"
             ),
-            {"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
+            params={"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
         )
         await session.commit()
         # Prove the row is invisible from public.uploads.
         public_hit = (
-            await session.execute(
+            await session.exec(
                 text("SELECT 1 FROM public.uploads WHERE filename = :fn"),
-                {"fn": "test_guild_schema_row.txt"},
+                params={"fn": "test_guild_schema_row.txt"},
             )
         ).first()
         assert public_hit is None
@@ -413,7 +413,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
 
     # Raw cross-schema read as app_admin → permission denied (the old bug).
     with pytest.raises(Exception) as exc:  # asyncpg InsufficientPrivilegeError
-        await admin.execute(
+        await admin.exec(
             text(f'SELECT 1 FROM "{schema}".uploads LIMIT 1')  # noqa: S608
         )
     assert "permission denied" in str(exc.value).lower()
@@ -422,7 +422,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
     # The production pattern (SET ROLE via set_rls_context) succeeds.
     await set_rls_context(admin, guild_id=guild.id, is_superadmin=True)
     row = (
-        await admin.execute(
+        await admin.exec(
             text("SELECT filename FROM uploads WHERE filename = 'grant_probe.jpg'")
         )
     ).first()

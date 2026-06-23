@@ -154,11 +154,11 @@ async def reorder_memberships(
     # guild_id = current_guild_id), so a direct ORM UPDATE would silently touch 0
     # rows. The function updates ONLY `position`, scoped to this user's own rows —
     # the same safe path for every platform tier.
-    await session.execute(
+    await session.exec(
         text("SELECT reorder_guild_memberships(:uid, :gids)").bindparams(
             bindparam("gids", type_=ARRAY(Integer))
         ),
-        {"uid": user_id, "gids": final_order},
+        params={"uid": user_id, "gids": final_order},
     )
 
 

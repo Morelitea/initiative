@@ -28,17 +28,17 @@ from app.testing import create_guild, create_user
 async def _assume(session, tier: str, user_id: int) -> None:
     """Assume ``platform_<tier>`` with ``current_user_id`` set, on the session's
     connection — mirrors what ``set_rls_context`` does for a public-path request."""
-    await session.execute(
+    await session.exec(
         text(
             "SELECT set_config('app.current_user_id', :uid, false), "
             "set_config('role', :role, false)"
         ),
-        {"uid": str(user_id), "role": platform_role_name(tier)},
+        params={"uid": str(user_id), "role": platform_role_name(tier)},
     )
 
 
 async def _reset(session) -> None:
-    await session.execute(
+    await session.exec(
         text(
             "SELECT set_config('role', 'none', false), "
             "set_config('app.current_user_id', '', false)"
@@ -55,9 +55,7 @@ async def test_member_sees_only_own_user_row(session):
     u1 = await create_user(session)
     u2 = await create_user(session)
     await _assume(session, "member", u1.id)
-    ids = {
-        r[0] for r in (await session.execute(text("SELECT id FROM users"))).fetchall()
-    }
+    ids = {r[0] for r in (await session.exec(text("SELECT id FROM users"))).fetchall()}
     await _reset(session)
     assert u1.id in ids
     assert u2.id not in ids
@@ -68,9 +66,7 @@ async def test_support_reads_all_users(session):
     u1 = await create_user(session)
     u2 = await create_user(session)
     await _assume(session, "support", u1.id)
-    ids = {
-        r[0] for r in (await session.execute(text("SELECT id FROM users"))).fetchall()
-    }
+    ids = {r[0] for r in (await session.exec(text("SELECT id FROM users"))).fetchall()}
     await _reset(session)
     assert {u1.id, u2.id} <= ids
 
@@ -83,15 +79,17 @@ async def test_support_cannot_update_others_but_moderator_can(session):
     target = await create_user(session)
 
     await _assume(session, "support", actor.id)
-    res = await session.execute(
-        text("UPDATE users SET full_name = 'sx' WHERE id = :id"), {"id": target.id}
+    res = await session.exec(
+        text("UPDATE users SET full_name = 'sx' WHERE id = :id"),
+        params={"id": target.id},
     )
     await _reset(session)
     assert res.rowcount == 0
 
     await _assume(session, "moderator", actor.id)
-    res = await session.execute(
-        text("UPDATE users SET full_name = 'mx' WHERE id = :id"), {"id": target.id}
+    res = await session.exec(
+        text("UPDATE users SET full_name = 'mx' WHERE id = :id"),
+        params={"id": target.id},
     )
     await _reset(session)
     assert res.rowcount == 1
@@ -103,8 +101,8 @@ async def test_no_tier_can_delete_users(session):
     actor = await create_user(session)
     target = await create_user(session)
     await _assume(session, "owner", actor.id)
-    res = await session.execute(
-        text("DELETE FROM users WHERE id = :id"), {"id": target.id}
+    res = await session.exec(
+        text("DELETE FROM users WHERE id = :id"), params={"id": target.id}
     )
     await _reset(session)
     assert res.rowcount == 0
@@ -114,13 +112,13 @@ async def test_no_tier_can_delete_users(session):
 
 
 async def _insert_grant(session, user_id: int, guild_id: int) -> None:
-    await session.execute(
+    await session.exec(
         text(
             "INSERT INTO access_grants "
             "(user_id, guild_id, reason, requested_duration_minutes, requested_by_id) "
             "VALUES (:u, :g, 'r', 60, :u)"
         ),
-        {"u": user_id, "g": guild_id},
+        params={"u": user_id, "g": guild_id},
     )
 
 
@@ -137,7 +135,7 @@ async def test_access_grants_self_vs_admin(session):
     own = {
         r[0]
         for r in (
-            await session.execute(text("SELECT user_id FROM access_grants"))
+            await session.exec(text("SELECT user_id FROM access_grants"))
         ).fetchall()
     }
     await _reset(session)
@@ -147,7 +145,7 @@ async def test_access_grants_self_vs_admin(session):
     allrows = {
         r[0]
         for r in (
-            await session.execute(text("SELECT user_id FROM access_grants"))
+            await session.exec(text("SELECT user_id FROM access_grants"))
         ).fetchall()
     }
     await _reset(session)
@@ -162,7 +160,7 @@ async def test_app_settings_write_is_owner_only(session):
     insufficient-privilege (42501), the owner's lands."""
     owner = await create_user(session, role=UserRole.owner)
     member = await create_user(session, role=UserRole.member)
-    await session.execute(
+    await session.exec(
         text(
             "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
             "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
@@ -172,7 +170,7 @@ async def test_app_settings_write_is_owner_only(session):
     await _assume(session, "member", member.id)
     with pytest.raises(DBAPIError):
         async with session.begin_nested():
-            await session.execute(
+            await session.exec(
                 text(
                     "UPDATE app_settings SET light_accent_color = '#000000' WHERE id = 1"
                 )
@@ -180,7 +178,7 @@ async def test_app_settings_write_is_owner_only(session):
     await _reset(session)
 
     await _assume(session, "owner", owner.id)
-    res = await session.execute(
+    res = await session.exec(
         text("UPDATE app_settings SET light_accent_color = '#abcdef' WHERE id = 1")
     )
     await _reset(session)
@@ -190,7 +188,7 @@ async def test_app_settings_write_is_owner_only(session):
 async def test_app_settings_readable_by_every_tier(session):
     """Everyone may SELECT config (``app_settings_read`` TO PUBLIC) — public reads
     like interface colors must work for any tier."""
-    await session.execute(
+    await session.exec(
         text(
             "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
             "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
@@ -199,7 +197,7 @@ async def test_app_settings_readable_by_every_tier(session):
     member = await create_user(session, role=UserRole.member)
     await _assume(session, "member", member.id)
     rows = (
-        await session.execute(text("SELECT id FROM app_settings WHERE id = 1"))
+        await session.exec(text("SELECT id FROM app_settings WHERE id = 1"))
     ).fetchall()
     await _reset(session)
     assert len(rows) == 1
@@ -217,7 +215,7 @@ async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
     from app.services.platform import app_settings as svc
 
     # Existing singleton with an empty oidc_issuer.
-    await session.execute(
+    await session.exec(
         text(
             "INSERT INTO app_settings (id, oidc_enabled, oidc_scopes) "
             "VALUES (1, false, '[]'::json) ON CONFLICT (id) DO NOTHING"
@@ -234,7 +232,7 @@ async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
 
     # The non-owner read did NOT persist the env value into the row.
     db_issuer = (
-        await session.execute(text("SELECT oidc_issuer FROM app_settings WHERE id = 1"))
+        await session.exec(text("SELECT oidc_issuer FROM app_settings WHERE id = 1"))
     ).scalar_one()
     assert db_issuer is None
 

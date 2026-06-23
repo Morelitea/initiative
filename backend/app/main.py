@@ -204,18 +204,18 @@ async def serve_upload_file(
     fname = FilePath(filename).name
     schema = guild_schema_name(int(guild_id))
     exists = (
-        await session.execute(
+        await session.exec(
             text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
-            {"ns": schema},
+            params={"ns": schema},
         )
     ).first()
     if exists is None:
         raise HTTPException(status_code=404)
     await set_rls_context(session, guild_id=int(guild_id), is_superadmin=True)
     hit = (
-        await session.execute(
+        await session.exec(
             text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),
-            {"fn": fname},
+            params={"fn": fname},
         )
     ).first()
     if hit is None:

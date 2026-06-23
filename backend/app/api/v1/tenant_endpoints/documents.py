@@ -1909,9 +1909,9 @@ async def _load_download_document(
     # establish_guild_access would fault rather than 404. (The session is the
     # BYPASSRLS admin engine, so this lookup runs regardless of context.)
     schema_exists = (
-        await session.execute(
+        await session.exec(
             text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
-            {"ns": guild_schema_name(int(guild_id))},
+            params={"ns": guild_schema_name(int(guild_id))},
         )
     ).first()
     if schema_exists is None:
