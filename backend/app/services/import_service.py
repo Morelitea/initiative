@@ -259,12 +259,12 @@ async def import_todoist_tasks(
         return result
 
     # Get the next position for the project
-    max_order_result = await session.execute(
+    max_order_result = await session.exec(
         select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )
     )
-    next_position = float(max_order_result.scalar() or 0) + 1
+    next_position = float(max_order_result.first() or 0) + 1
 
     # Track parent tasks for subtask creation
     last_parent_task: Optional[Task] = None
@@ -454,12 +454,12 @@ async def import_vikunja_tasks(
         return result
 
     # Get the next position for the project
-    max_order_result = await session.execute(
+    max_order_result = await session.exec(
         select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )
     )
-    next_position = float(max_order_result.scalar() or 0) + 1
+    next_position = float(max_order_result.first() or 0) + 1
 
     for task_data in tasks:
         try:
@@ -690,12 +690,12 @@ async def import_ticktick_tasks(
         return result
 
     # Get the next position for the project
-    max_order_result = await session.execute(
+    max_order_result = await session.exec(
         select(func.coalesce(func.max(Task.position), 0)).where(
             Task.project_id == project_id
         )
     )
-    next_position = float(max_order_result.scalar() or 0) + 1
+    next_position = float(max_order_result.first() or 0) + 1
 
     # Track created tasks for subtask linking
     created_tasks: Dict[str, Task] = {}

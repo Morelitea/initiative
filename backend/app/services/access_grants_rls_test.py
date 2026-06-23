@@ -26,11 +26,11 @@ from app.testing import (
 
 
 async def _set_app_user(session: AsyncSession) -> None:
-    await session.execute(text("SET ROLE app_user"))
+    await session.exec(text("SET ROLE app_user"))
 
 
 async def _reset_role(session: AsyncSession) -> None:
-    await session.execute(text("RESET ROLE"))
+    await session.exec(text("RESET ROLE"))
 
 
 @pytest.mark.integration
@@ -75,8 +75,8 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
         # it to build the request context, so without this every guild-scoped
         # endpoint 500s for a grantee.
         visible_guild = (
-            await session.execute(
-                text("SELECT id FROM guilds WHERE id = :g"), {"g": guild_a.id}
+            await session.exec(
+                text("SELECT id FROM guilds WHERE id = :g"), params={"g": guild_a.id}
             )
         ).all()
         assert len(visible_guild) == 1, (
@@ -86,8 +86,9 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
         # Initiatives of the granted guild are visible (the sidebar list) — this
         # is the exact RLS path the empty-guild bug would break.
         visible_inits = (
-            await session.execute(
-                text("SELECT id FROM initiatives WHERE id = :i"), {"i": init_a.id}
+            await session.exec(
+                text("SELECT id FROM initiatives WHERE id = :i"),
+                params={"i": init_a.id},
             )
         ).all()
         assert len(visible_inits) == 1, (
@@ -95,8 +96,8 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
         )
 
         visible_a = (
-            await session.execute(
-                text("SELECT id FROM projects WHERE id = :p"), {"p": proj_a.id}
+            await session.exec(
+                text("SELECT id FROM projects WHERE id = :p"), params={"p": proj_a.id}
             )
         ).all()
         assert len(visible_a) == 1, "read grant should see the granted guild's project"
@@ -104,8 +105,8 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
         # Documents must be visible too — the collaboration WebSocket loads the
         # document under this exact pam_read context before authorizing.
         visible_doc = (
-            await session.execute(
-                text("SELECT id FROM documents WHERE id = :d"), {"d": doc_a.id}
+            await session.exec(
+                text("SELECT id FROM documents WHERE id = :d"), params={"d": doc_a.id}
             )
         ).all()
         assert len(visible_doc) == 1, (
@@ -115,14 +116,14 @@ async def test_pam_read_grant_sees_only_granted_guild(session: AsyncSession):
         # Cross-guild isolation: guild B's project lives in another schema, so it
         # is invisible here. (Query by name — its per-schema id collides with A's.)
         visible_b = (
-            await session.execute(text("SELECT id FROM projects WHERE name = 'Bravo'"))
+            await session.exec(text("SELECT id FROM projects WHERE name = 'Bravo'"))
         ).all()
         assert len(visible_b) == 0, "read grant must NOT see other guilds"
 
         # Read grant is read-only: the read-only role has no write on the schema,
         # so a write is denied at the role level (raises permission denied).
         with pytest.raises(Exception):
-            await session.execute(
+            await session.exec(
                 text("UPDATE projects SET name = 'hacked' WHERE name = 'Alpha'")
             )
         await session.rollback()
@@ -167,9 +168,9 @@ async def test_grantee_guild_settings_lazy_create_does_not_fault(session: AsyncS
 
     # Nothing was written.
     persisted = (
-        await session.execute(
+        await session.exec(
             text("SELECT count(*) FROM guild_settings WHERE guild_id = :g"),
-            {"g": guild.id},
+            params={"g": guild.id},
         )
     ).scalar_one()
     assert persisted == 0, "grantee read must not create a guild_settings row"
@@ -214,14 +215,14 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
         )
         # Each of these would raise InvalidTextRepresentationError pre-0095.
         visible_q = (
-            await session.execute(
-                text("SELECT id FROM queues WHERE id = :q"), {"q": queue.id}
+            await session.exec(
+                text("SELECT id FROM queues WHERE id = :q"), params={"q": queue.id}
             )
         ).all()
         assert len(visible_q) == 1, "read grant should see the granted guild's queues"
         visible_cg = (
-            await session.execute(
-                text("SELECT id FROM counter_groups WHERE id = :c"), {"c": cg.id}
+            await session.exec(
+                text("SELECT id FROM counter_groups WHERE id = :c"), params={"c": cg.id}
             )
         ).all()
         assert len(visible_cg) == 1, (
@@ -252,8 +253,8 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
             pam_write=False,
         )
         rows = (
-            await session.execute(
-                text("SELECT id FROM projects WHERE id = :p"), {"p": proj.id}
+            await session.exec(
+                text("SELECT id FROM projects WHERE id = :p"), params={"p": proj.id}
             )
         ).all()
         assert len(rows) == 0
@@ -281,8 +282,9 @@ async def test_pam_write_grant_can_update(session: AsyncSession):
             pam_read=True,
             pam_write=True,
         )
-        result = await session.execute(
-            text("UPDATE projects SET name = 'edited' WHERE id = :p"), {"p": proj.id}
+        result = await session.exec(
+            text("UPDATE projects SET name = 'edited' WHERE id = :p"),
+            params={"p": proj.id},
         )
         assert result.rowcount == 1, "read_write grant should be able to update content"
     finally:

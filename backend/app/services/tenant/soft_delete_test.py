@@ -253,7 +253,7 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
         "queue_items",
         "calendar_events",
     }
-    result = await session.execute(
+    result = await session.exec(
         text(
             "SELECT tablename, policyname, cmd, permissive "
             "FROM pg_policies "

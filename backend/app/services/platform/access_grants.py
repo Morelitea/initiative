@@ -297,9 +297,9 @@ async def break_glass(
     # makes a second concurrent request wait, then see the first's grant and hit
     # ALREADY_LIVE. The two-int key space is distinct from any single-bigint
     # advisory lock used elsewhere; the lock auto-releases on commit/rollback.
-    await session.execute(
+    await session.exec(
         text("SELECT pg_advisory_xact_lock(:uid, :gid)"),
-        {"uid": int(actor.id), "gid": int(payload.guild_id)},
+        params={"uid": int(actor.id), "gid": int(payload.guild_id)},
     )
 
     # Don't stack grants: a still-live grant already confers the access, and a

@@ -43,7 +43,7 @@ async def register_push_token(
         )
         .returning(PushToken)
     )
-    result = await session.execute(stmt)
+    result = await session.exec(stmt)
     await session.commit()
     await reapply_rls_context(session)
     return result.scalars().one()

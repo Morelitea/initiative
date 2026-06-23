@@ -342,7 +342,7 @@ async def _set_property_values(
     fk_column = binding.fk_column
 
     # Always wipe existing rows for the entity — replace-all semantics.
-    await session.execute(delete(value_model).where(fk_column == entity_id))
+    await session.exec(delete(value_model).where(fk_column == entity_id))
 
     if not values:
         return

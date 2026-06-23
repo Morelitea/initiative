@@ -80,7 +80,7 @@ async def record_view(
             set_={"last_viewed_at": now},
         )
     )
-    await session.execute(stmt)
+    await session.exec(stmt)
     await session.commit()
     await reapply_rls_context(session)
 

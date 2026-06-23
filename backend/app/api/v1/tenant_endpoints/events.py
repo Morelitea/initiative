@@ -102,7 +102,7 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
         # Reset any stale GUCs the pooled connection may carry (e.g. a SET ROLE to
         # a since-dropped guild role would make every query error) before the auth
         # query — AsyncSessionLocal doesn't run get_session's per-request reset.
-        await session.execute(
+        await session.exec(
             text(
                 "SELECT set_config('role', 'none', false), set_config('search_path', 'public', false)"
             )

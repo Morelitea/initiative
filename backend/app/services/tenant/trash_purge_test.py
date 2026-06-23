@@ -82,15 +82,15 @@ async def test_auto_purge_does_not_double_purge_cascaded_descendants(
     # own AdminSessionLocal, so the test session's identity map is stale
     # for these rows.
     initiative_count = (
-        await session.execute(
+        await session.exec(
             text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
-            {"id": initiative_id},
+            params={"id": initiative_id},
         )
     ).scalar_one()
     project_count = (
-        await session.execute(
+        await session.exec(
             text("SELECT COUNT(*) FROM projects WHERE id = :id"),
-            {"id": project_id},
+            params={"id": project_id},
         )
     ).scalar_one()
     assert initiative_count == 0
@@ -142,9 +142,9 @@ async def test_auto_purge_sweeps_every_guild_schema(
     for guild_id, initiative_id in targets:
         await set_rls_context(admin, guild_id=guild_id, is_superadmin=True)
         count = (
-            await admin.execute(
+            await admin.exec(
                 text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
-                {"id": initiative_id},
+                params={"id": initiative_id},
             )
         ).scalar_one()
         assert count == 0, f"guild {guild_id} initiative {initiative_id} not purged"
@@ -185,8 +185,9 @@ async def test_auto_purge_clears_content_table_guard(
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
 
     count = (
-        await admin.execute(
-            text("SELECT COUNT(*) FROM projects WHERE id = :id"), {"id": project_id}
+        await admin.exec(
+            text("SELECT COUNT(*) FROM projects WHERE id = :id"),
+            params={"id": project_id},
         )
     ).scalar_one()
     assert count == 0, "trashed project was not hard-purged by the worker"

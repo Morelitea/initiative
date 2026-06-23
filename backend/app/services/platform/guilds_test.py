@@ -24,7 +24,7 @@ from app.testing.factories import create_guild, create_guild_membership, create_
 async def test_get_primary_guild_creates_if_missing(session: AsyncSession):
     """Test that primary guild is created if none exists."""
     # Clear any migration-seeded guilds so we test the creation path
-    await session.execute(text("TRUNCATE TABLE guilds RESTART IDENTITY CASCADE"))
+    await session.exec(text("TRUNCATE TABLE guilds RESTART IDENTITY CASCADE"))
     guild = await guild_service.get_primary_guild(session)
 
     assert guild.id is not None

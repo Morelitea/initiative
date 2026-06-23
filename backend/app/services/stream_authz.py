@@ -177,7 +177,7 @@ class StreamAuthority:
             async with AsyncSessionLocal() as session:
                 # AsyncSessionLocal skips get_session's per-request reset; clear
                 # any stale pooled-connection GUCs before establishing context.
-                await session.execute(
+                await session.exec(
                     text(
                         "SELECT set_config('role', 'none', false), "
                         "set_config('search_path', 'public', false)"

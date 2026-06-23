@@ -168,8 +168,8 @@ async def _fetch_users(session: RLSSessionDep, user_ids: list[int]) -> list[User
 
 async def _exec_events(session, stmt) -> list[CalendarEvent]:
     """Run a CalendarEvent select and return de-duplicated rows as a list."""
-    result = await session.execute(stmt)
-    return list(result.unique().scalars().all())
+    result = await session.exec(stmt)
+    return list(result.unique().all())
 
 
 def _cross_guild_event_dac_clause(guild_id: int, user_id: int):

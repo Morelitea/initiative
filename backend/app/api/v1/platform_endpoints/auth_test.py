@@ -1209,7 +1209,7 @@ async def test_register_rolls_back_when_guild_seed_fails(
     async def _boom(seed_session, *args, **kwargs):
         # Simulate a real DB failure: abort the transaction like a failing query
         # would, so the cleanup path MUST rollback before it can delete anything.
-        await seed_session.execute(text("SELECT * FROM does_not_exist_xyz"))
+        await seed_session.exec(text("SELECT * FROM does_not_exist_xyz"))
 
     monkeypatch.setattr(guilds_service, "seed_guild_content", _boom)
 
