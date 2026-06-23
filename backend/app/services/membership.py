@@ -115,7 +115,7 @@ async def initiative_member_user_ids(
         if not user_ids:
             return set()
         stmt = stmt.where(InitiativeMember.user_id.in_(tuple(set(user_ids))))
-    return set((await session.exec(stmt)).all())
+    return set((await session.exec(stmt)).scalars().all())
 
 
 async def user_member_initiative_ids(
@@ -134,7 +134,7 @@ async def user_member_initiative_ids(
         stmt = stmt.where(
             InitiativeMember.initiative_id.in_(tuple(set(initiative_ids)))
         )
-    return set((await session.exec(stmt)).all())
+    return set((await session.exec(stmt)).scalars().all())
 
 
 async def is_initiative_member(
@@ -156,7 +156,7 @@ async def guild_member_user_ids(
         if not user_ids:
             return set()
         stmt = stmt.where(GuildMembership.user_id.in_(tuple(set(user_ids))))
-    return set((await session.exec(stmt)).all())
+    return set((await session.exec(stmt)).scalars().all())
 
 
 async def guild_role_map(
