@@ -198,6 +198,8 @@
   "ADMIN_ROLE_NOT_FOUND": "Initiative role not found",
   "USER_CANNOT_DELETE_LAST_ADMIN": "Cannot delete the last platform admin account",
   "USER_INVALID_PASSWORD": "Invalid password",
+  "USER_CURRENT_PASSWORD_REQUIRED": "Enter your current password to change it.",
+  "USER_CURRENT_PASSWORD_INCORRECT": "Your current password is incorrect.",
   "USER_CONFIRMATION_MISMATCH": "Confirmation text must be 'DELETE MY ACCOUNT'",
   "USER_CANNOT_DELETE": "Cannot delete account",
   "USER_PROJECT_TRANSFERS_REQUIRED": "You must specify transfer recipients for all owned projects",

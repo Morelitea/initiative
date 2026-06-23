@@ -16,9 +16,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useGuilds } from "@/hooks/useGuilds";
 import {
   useCreateApiKey,
   useDeleteApiKey,
@@ -59,6 +68,11 @@ export const UserSettingsSecurityPage = () => {
   const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<DeviceTokenInfo | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
+  const [guildId, setGuildId] = useState<string>("all");
+
+  const { guilds } = useGuilds();
+  const guildName = (id: number) => guilds.find((guild) => guild.id === id)?.name ?? String(id);
 
   // API Keys queries and mutations
   const apiKeysQuery = useMyApiKeys();
@@ -69,6 +83,8 @@ export const UserSettingsSecurityPage = () => {
       setGeneratedSecret(data.secret);
       setName("");
       setExpiresAtInput("");
+      setReadOnly(false);
+      setGuildId("all");
     },
     onError: () => {
       toast.error(t("security.createError"));
@@ -112,12 +128,20 @@ export const UserSettingsSecurityPage = () => {
       toast.error(t("security.nameRequired"));
       return;
     }
-    const payload: { name: string; expires_at?: string | null } = { name: trimmedName };
+    const payload: {
+      name: string;
+      expires_at?: string | null;
+      read_only?: boolean;
+      guild_id?: number | null;
+    } = { name: trimmedName, read_only: readOnly };
     if (expiresAtInput) {
       const parsed = new Date(expiresAtInput);
       if (!Number.isNaN(parsed.getTime())) {
         payload.expires_at = parsed.toISOString();
       }
+    }
+    if (guildId !== "all") {
+      payload.guild_id = Number(guildId);
     }
     createKey.mutate(payload);
   };
@@ -247,6 +271,35 @@ export const UserSettingsSecurityPage = () => {
               />
               <p className="text-muted-foreground text-xs">{t("security.expirationHelp")}</p>
             </div>
+            <div className="flex items-start gap-2">
+              <Checkbox
+                id="api-key-read-only"
+                checked={readOnly}
+                onCheckedChange={(checked) => setReadOnly(checked === true)}
+                className="mt-0.5"
+              />
+              <div className="space-y-1">
+                <Label htmlFor="api-key-read-only">{t("security.readOnlyLabel")}</Label>
+                <p className="text-muted-foreground text-xs">{t("security.readOnlyHelp")}</p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="api-key-guild">{t("security.guildLabel")}</Label>
+              <Select value={guildId} onValueChange={setGuildId}>
+                <SelectTrigger id="api-key-guild">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("security.guildAllGuilds")}</SelectItem>
+                  {guilds.map((guild) => (
+                    <SelectItem key={guild.id} value={String(guild.id)}>
+                      {guild.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-xs">{t("security.guildHelp")}</p>
+            </div>
             <Button type="submit" disabled={createKey.isPending}>
               {createKey.isPending ? t("security.generating") : t("security.generateButton")}
             </Button>
@@ -274,6 +327,7 @@ export const UserSettingsSecurityPage = () => {
                     <th className="py-2 pr-4 font-medium">{t("security.columnName")}</th>
                     <th className="py-2 pr-4 font-medium">{t("security.columnPrefix")}</th>
                     <th className="py-2 pr-4 font-medium">{t("security.columnStatus")}</th>
+                    <th className="py-2 pr-4 font-medium">{t("security.columnScope")}</th>
                     <th className="py-2 pr-4 font-medium">{t("security.columnLastUsed")}</th>
                     <th className="py-2 pr-4 font-medium">{t("security.columnExpires")}</th>
                     <th className="py-2 text-right font-medium">{t("security.columnActions")}</th>
@@ -293,6 +347,25 @@ export const UserSettingsSecurityPage = () => {
                         <td className="py-3 pr-4 font-mono">{key.token_prefix}...</td>
                         <td className="py-3 pr-4">
                           <Badge variant={status.variant}>{t(status.labelKey)}</Badge>
+                        </td>
+                        <td className="py-3 pr-4">
+                          <div className="flex flex-wrap gap-1">
+                            {key.read_only ? (
+                              <Badge variant="secondary">{t("security.scopeReadOnly")}</Badge>
+                            ) : null}
+                            {key.guild_id != null ? (
+                              <Badge variant="outline">
+                                {t("security.scopeGuild", {
+                                  guild: guildName(key.guild_id),
+                                })}
+                              </Badge>
+                            ) : null}
+                            {!key.read_only && key.guild_id == null ? (
+                              <span className="text-muted-foreground text-xs">
+                                {t("security.scopeFull")}
+                              </span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="py-3 pr-4">
                           {key.last_used_at

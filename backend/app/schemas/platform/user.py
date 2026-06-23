@@ -207,6 +207,10 @@ class UserInitiativeRole(SanitizedBaseModel):
 class UserSelfUpdate(SanitizedBaseModel):
     full_name: Optional[str] = None
     password: Optional[RawTextStr] = Field(default=None, max_length=256)
+    # Required to set a new ``password`` (verified server-side) so a leaked
+    # bearer token / API key can't silently take over the account. Exempt for
+    # OIDC-only accounts, which have no local password to confirm.
+    current_password: Optional[RawTextStr] = Field(default=None, max_length=256)
     avatar_base64: Optional[RawTextStr] = Field(
         default=None, max_length=MAX_AVATAR_BASE64_LENGTH
     )

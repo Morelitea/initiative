@@ -198,6 +198,8 @@
   "ADMIN_ROLE_NOT_FOUND": "Initiativenrolle nicht gefunden",
   "USER_CANNOT_DELETE_LAST_ADMIN": "Das letzte Plattformadministrator-Konto kann nicht gelöscht werden",
   "USER_INVALID_PASSWORD": "Ungültiges Passwort",
+  "USER_CURRENT_PASSWORD_REQUIRED": "Gib dein aktuelles Passwort ein, um es zu ändern.",
+  "USER_CURRENT_PASSWORD_INCORRECT": "Dein aktuelles Passwort ist falsch.",
   "USER_CONFIRMATION_MISMATCH": "Der Bestätigungstext muss 'DELETE MY ACCOUNT' lauten",
   "USER_CANNOT_DELETE": "Konto kann nicht gelöscht werden",
   "USER_PROJECT_TRANSFERS_REQUIRED": "Du musst für alle eigenen Projekte Empfänger für die Übertragung angeben",

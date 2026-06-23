@@ -43,7 +43,12 @@ export const useDeviceTokens = () => {
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-type CreateApiKeyVars = { name: string; expires_at?: string | null };
+type CreateApiKeyVars = {
+  name: string;
+  expires_at?: string | null;
+  read_only?: boolean;
+  guild_id?: number | null;
+};
 
 export const useCreateApiKey = (options?: MutationOpts<ApiKeyCreateResponse, CreateApiKeyVars>) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};

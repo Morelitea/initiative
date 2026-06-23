@@ -13,7 +13,7 @@ from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.pam_context import set_active_grant
 from app.core.role_context import set_active_role, set_override_sharing_initiatives
-from app.core.messages import AuthMessages, GuildMessages
+from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.security import (
     AutoDelegationVerificationError,
     UploadTokenError,
@@ -22,6 +22,7 @@ from app.core.security import (
 )
 from app.db.session import get_session, set_rls_context
 from app.models.platform.access_grant import AccessGrant, AccessLevel
+from app.models.platform.api_key import UserApiKey
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.token import TokenPayload
@@ -135,6 +136,27 @@ def _delegation_exp_from_jwt(token: str) -> datetime:
     return datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
 
 
+_SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
+    """Apply a scoped PAT's restrictions at authentication time.
+
+    ``read_only`` keys may only issue safe (non-mutating) HTTP methods. A
+    ``guild_id``-bound key stashes its guild on ``request.state`` for
+    ``get_guild_membership`` to pin against the ``/g/{guild_id}`` path — the one
+    place that sees both the token's guild and the path's, mirroring how
+    delegation tokens are pinned.
+    """
+    if api_key.read_only and request.method not in _SAFE_HTTP_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=UserMessages.API_KEY_READ_ONLY,
+        )
+    if api_key.guild_id is not None:
+        request.state.api_key_guild_id = api_key.guild_id
+
+
 async def get_current_user(
     request: Request,
     session: SessionDep,
@@ -166,8 +188,10 @@ async def get_current_user(
         )
 
     # Try API key authentication first
-    user = await api_keys_service.authenticate_api_key(session, token)
-    if user:
+    api_auth = await api_keys_service.authenticate_api_key(session, token)
+    if api_auth:
+        user, api_key = api_auth
+        _enforce_api_key_scope(request, api_key)
         return user
 
     # Try delegation JWT from initiative-auto (RS256, distinct audience).
@@ -420,6 +444,14 @@ async def get_guild_membership(
     # not in the shared resolver that the WebSocket/keepalive callers also use.
     delegated = getattr(request.state, "delegated_guild_id", None)
     if delegated is not None and delegated != guild_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+    # A guild-bound API key (PAT) is pinned to one guild the same way: refuse if
+    # the path addresses a different guild than the key was scoped to.
+    key_guild = getattr(request.state, "api_key_guild_id", None)
+    if key_guild is not None and key_guild != guild_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=GuildMessages.GUILD_ACCESS_DENIED,
@@ -730,13 +762,15 @@ async def get_upload_user(
     token = header_token
 
     # Try API key authentication first
-    user = await api_keys_service.authenticate_api_key(session, token)
-    if user:
+    api_auth = await api_keys_service.authenticate_api_key(session, token)
+    if api_auth:
+        user, api_key = api_auth
         if user.status != UserStatus.active:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.INACTIVE_USER,
             )
+        _enforce_api_key_scope(request, api_key)
         return user
 
     # Try delegation JWT from initiative-auto. Same chain placement as

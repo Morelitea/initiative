@@ -196,6 +196,8 @@
   "ADMIN_ROLE_NOT_FOUND": "Rôle d'initiative introuvable",
   "USER_CANNOT_DELETE_LAST_ADMIN": "Impossible de supprimer le dernier compte administrateur de plateforme",
   "USER_INVALID_PASSWORD": "Mot de passe invalide",
+  "USER_CURRENT_PASSWORD_REQUIRED": "Saisissez votre mot de passe actuel pour le modifier.",
+  "USER_CURRENT_PASSWORD_INCORRECT": "Votre mot de passe actuel est incorrect.",
   "USER_CONFIRMATION_MISMATCH": "Le texte de confirmation doit être 'DELETE MY ACCOUNT'",
   "USER_CANNOT_DELETE": "Impossible de supprimer le compte",
   "USER_PROJECT_TRANSFERS_REQUIRED": "Vous devez spécifier des destinataires de transfert pour tous les projets dont vous êtes propriétaire",

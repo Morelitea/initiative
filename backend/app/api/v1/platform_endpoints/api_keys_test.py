@@ -8,11 +8,19 @@ Tests the API key endpoints at /api/v1/users/me/api-keys including:
 - Authentication with API keys
 """
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.testing.factories import create_user, get_auth_headers
+from app.models.platform.guild import GuildRole
+from app.testing.factories import (
+    create_guild,
+    create_guild_membership,
+    create_user,
+    get_auth_headers,
+)
 
 
 @pytest.mark.integration
@@ -60,13 +68,14 @@ async def test_create_api_key(client: AsyncClient, session: AsyncSession):
 async def test_create_api_key_with_expiration(
     client: AsyncClient, session: AsyncSession
 ):
-    """Test creating an API key with expiration date."""
+    """A future expiry within the max-TTL window is honored verbatim."""
     user = await create_user(session, email="test@example.com")
     headers = get_auth_headers(user)
 
+    expires = datetime.now(timezone.utc) + timedelta(days=30)
     payload = {
         "name": "Expiring Key",
-        "expires_at": "2025-12-31T23:59:59Z",
+        "expires_at": expires.isoformat(),
     }
 
     response = await client.post(
@@ -75,8 +84,9 @@ async def test_create_api_key_with_expiration(
 
     assert response.status_code == 201
     data = response.json()
-    assert data["api_key"]["expires_at"] is not None
-    assert "2025-12-31" in data["api_key"]["expires_at"]
+    returned = datetime.fromisoformat(data["api_key"]["expires_at"])
+    # Within the 90-day ceiling, so preserved (allow ~1s of round-trip drift).
+    assert abs((returned - expires).total_seconds()) < 5
 
 
 @pytest.mark.integration
@@ -292,3 +302,143 @@ async def test_api_key_prefix_is_masked_in_list(
     assert len(keys) == 1
     assert keys[0]["token_prefix"] == expected_prefix
     assert "secret" not in keys[0]  # Full secret should not be exposed
+
+
+# --- Least-privilege scoping (read_only / guild_id) -------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_create_api_key_without_expiry_never_expires(
+    client: AsyncClient, session: AsyncSession
+):
+    """A key created without an expiry never expires, and a far-future expiry
+    is kept verbatim (no enforced ceiling) — revocation is the kill switch."""
+    user = await create_user(session, email="ttl@example.com")
+    headers = get_auth_headers(user)
+
+    forever = await client.post(
+        "/api/v1/users/me/api-keys", headers=headers, json={"name": "Forever"}
+    )
+    assert forever.status_code == 201
+    assert forever.json()["api_key"]["expires_at"] is None
+
+    far = (datetime.now(timezone.utc) + timedelta(days=3650)).isoformat()
+    long_lived = await client.post(
+        "/api/v1/users/me/api-keys",
+        headers=headers,
+        json={"name": "Far", "expires_at": far},
+    )
+    returned = datetime.fromisoformat(long_lived.json()["api_key"]["expires_at"])
+    expected = datetime.fromisoformat(far)
+    assert abs((returned - expected).total_seconds()) < 5
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_read_only_key_blocks_writes_allows_reads(
+    client: AsyncClient, session: AsyncSession
+):
+    """A read_only key may issue safe reads but is refused on any write."""
+    user = await create_user(session, email="ro@example.com")
+    headers = get_auth_headers(user)
+
+    create = await client.post(
+        "/api/v1/users/me/api-keys",
+        headers=headers,
+        json={"name": "RO", "read_only": True},
+    )
+    assert create.status_code == 201
+    assert create.json()["api_key"]["read_only"] is True
+    ro_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
+
+    # Safe read works.
+    read = await client.get("/api/v1/users/me", headers=ro_headers)
+    assert read.status_code == 200
+
+    # A write (creating another key) is refused at the auth layer.
+    write = await client.post(
+        "/api/v1/users/me/api-keys", headers=ro_headers, json={"name": "nope"}
+    )
+    assert write.status_code == 403
+    assert write.json()["detail"] == "USER_API_KEY_READ_ONLY"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_guild_bound_key_is_pinned_to_its_guild(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild-bound key reaches only its own guild; a different guild the user
+    is otherwise a member of is refused (proving the block is the key pin)."""
+    user = await create_user(session, email="pinned@example.com")
+    guild_a = await create_guild(session, creator=user)
+    guild_b = await create_guild(session, creator=user)
+    await create_guild_membership(
+        session, user=user, guild=guild_a, role=GuildRole.member
+    )
+    await create_guild_membership(
+        session, user=user, guild=guild_b, role=GuildRole.member
+    )
+    headers = get_auth_headers(user)
+
+    create = await client.post(
+        "/api/v1/users/me/api-keys",
+        headers=headers,
+        json={"name": "GuildA", "guild_id": guild_a.id},
+    )
+    assert create.json()["api_key"]["guild_id"] == guild_a.id
+    key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
+
+    # Reaches its own guild.
+    own = await client.get(f"/api/v1/g/{guild_a.id}/initiatives/", headers=key_headers)
+    assert own.status_code == 200
+
+    # Refused on a different guild the user *is* a member of.
+    other = await client.get(
+        f"/api/v1/g/{guild_b.id}/initiatives/", headers=key_headers
+    )
+    assert other.status_code == 403
+    assert other.json()["detail"] == "GUILD_ACCESS_DENIED"
+
+    # The same user's session JWT reaches guild B — so the block was the key
+    # pin, not a membership problem.
+    jwt_other = await client.get(
+        f"/api/v1/g/{guild_b.id}/initiatives/", headers=headers
+    )
+    assert jwt_other.status_code == 200
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_password_change_deactivates_api_keys(
+    client: AsyncClient, session: AsyncSession
+):
+    """Changing the password (a credential-reset) deactivates outstanding API
+    keys, so a leaked key can't survive a compromise response."""
+    user = await create_user(session, email="rotate@example.com")
+    headers = get_auth_headers(user)
+
+    create = await client.post(
+        "/api/v1/users/me/api-keys", headers=headers, json={"name": "Doomed"}
+    )
+    key_headers = {"Authorization": f"Bearer {create.json()['secret']}"}
+
+    # The key works before the reset.
+    before = await client.get("/api/v1/users/me", headers=key_headers)
+    assert before.status_code == 200
+
+    # Reset the password with the required current password.
+    changed = await client.patch(
+        "/api/v1/users/me",
+        headers=headers,
+        json={
+            "password": "brand-new-secret-123",
+            "current_password": "testpassword123",
+        },
+    )
+    assert changed.status_code == 200
+
+    # The key no longer authenticates.
+    after = await client.get("/api/v1/users/me", headers=key_headers)
+    assert after.status_code == 401

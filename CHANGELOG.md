@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - **Permanent deletion (purge) is now admin-only at the database, not just in app code.** Emptying an item from the trash for good was gated only by an app-layer check; a `RESTRICTIVE` row-level-security policy now backs it on every soft-deletable item.
+- **Changing your password now requires your current password.** This stops a leaked session token or API key from silently taking over an account by setting a new password. (Accounts that sign in only through your identity provider have no local password and are unaffected.)
+- **A password change or reset now also revokes your API keys.** Previously, resetting a compromised account's password left any outstanding API keys working; a credential reset now deactivates them too, so a leaked key can't survive the response.
 
 ### Added
 
 - **Full access for the Project Manager role.** Guild admins can now grant the Project Manager role **Full access** from an initiative's Roles settings. Members with that role can view and edit every item in the initiative — projects, documents, queues, counters, calendar events — even when an item isn't shared with them, and can manage who else has access. It applies only within that one initiative, and shows on each item's Share control as a locked editor that can't be removed. Only guild admins can turn it on, and only on the Project Manager role (so a manager can't grant it to themselves).
+- **Scoped API keys (read-only and single-guild).** When creating an API key you can now mark it **read-only** (it can read but never write) and/or pin it to a **single guild** (it can only reach that guild's data). Recommended for machine credentials such as CI or an automation/MCP tool, so a leaked key has a limited blast radius. Existing keys keep full access.
 
 ### Fixed
 

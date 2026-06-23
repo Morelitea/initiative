@@ -196,6 +196,8 @@
   "ADMIN_ROLE_NOT_FOUND": "Rol de iniciativa no encontrado",
   "USER_CANNOT_DELETE_LAST_ADMIN": "No se puede eliminar la última cuenta de administrador de la plataforma",
   "USER_INVALID_PASSWORD": "Contraseña no válida",
+  "USER_CURRENT_PASSWORD_REQUIRED": "Introduce tu contraseña actual para cambiarla.",
+  "USER_CURRENT_PASSWORD_INCORRECT": "Tu contraseña actual es incorrecta.",
   "USER_CONFIRMATION_MISMATCH": "El texto de confirmación debe ser 'DELETE MY ACCOUNT'",
   "USER_CANNOT_DELETE": "No se puede eliminar la cuenta",
   "USER_PROJECT_TRANSFERS_REQUIRED": "Debes especificar destinatarios de transferencia para todos los proyectos de tu propiedad",
