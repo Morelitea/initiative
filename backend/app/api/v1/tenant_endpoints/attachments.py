@@ -13,11 +13,16 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import AttachmentMessages
-from app.core.config import settings
 from app.models.tenant.upload import Upload
 from app.models.platform.user import User
 from app.schemas.tenant.attachment import AttachmentUploadResponse
-from app.services.attachments import FileTooLargeError, read_upload_bounded
+from app.services.attachments import (
+    FileTooLargeError,
+    StorageQuotaExceededError,
+    enforce_storage_quota,
+    read_upload_bounded,
+)
+from app.services.storage import get_storage
 
 router = APIRouter()
 
@@ -25,12 +30,6 @@ MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 ImageUploadUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-
-
-def _ensure_upload_dir() -> Path:
-    upload_path = Path(settings.UPLOADS_DIR)
-    upload_path.mkdir(parents=True, exist_ok=True)
-    return upload_path
 
 
 @router.post(
@@ -92,9 +91,17 @@ async def upload_attachment(
     safe_extension = extension if extension.startswith(".") else f".{extension}"
     filename = f"{uuid4().hex}{safe_extension}"
 
-    upload_dir = _ensure_upload_dir()
-    destination = upload_dir / filename
-    destination.write_bytes(contents)
+    try:
+        await enforce_storage_quota(
+            session, guild_id=guild_context.guild_id, incoming_bytes=len(contents)
+        )
+    except StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
+
+    get_storage().write(filename, contents)
 
     upload = Upload(
         filename=filename,

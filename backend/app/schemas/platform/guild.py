@@ -32,6 +32,7 @@ class GuildRead(GuildBase):
     created_at: datetime
     updated_at: datetime
     retention_days: Optional[int] = None
+    max_storage_bytes: Optional[int] = None
     member_count: int = 0
 
 
@@ -82,6 +83,10 @@ class GuildUpdate(SanitizedBaseModel):
     # Sentinel "unset" semantics: explicitly omit the field to leave the
     # current setting untouched; set null to switch to never-purge.
     retention_days: Optional[int] = Field(default=None, ge=1, le=3650)
+    # Max total stored bytes for this guild's blobs. None means "unlimited".
+    # Same sentinel "unset" semantics as retention_days: omit to leave the
+    # current value untouched; set null to switch to unlimited.
+    max_storage_bytes: Optional[int] = Field(default=None, ge=0)
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

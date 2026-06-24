@@ -62,6 +62,7 @@ def _serialize_guild(
         position=membership.position,
         retention_days=retention_days,
         member_count=member_count,
+        max_storage_bytes=guild.max_storage_bytes,
     )
 
 
@@ -266,6 +267,7 @@ async def update_guild(
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     icon_provided = "icon_base64" in updates.model_fields_set
     retention_days_provided = "retention_days" in updates.model_fields_set
+    max_storage_bytes_provided = "max_storage_bytes" in updates.model_fields_set
     guild = await guilds_service.update_guild(
         session,
         guild_id=guild_id,
@@ -275,13 +277,18 @@ async def update_guild(
         icon_provided=icon_provided,
         retention_days=updates.retention_days,
         retention_days_provided=retention_days_provided,
+        max_storage_bytes=updates.max_storage_bytes,
+        max_storage_bytes_provided=max_storage_bytes_provided,
     )
     await session.commit()
     await reapply_rls_context(session)
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
     return _serialize_guild(
-        guild, membership, retention_days=retention_days, member_count=member_count
+        guild,
+        membership,
+        retention_days=retention_days,
+        member_count=member_count,
     )
 
 

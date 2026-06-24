@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Annotated, List, Optional
 
 from fastapi import (
@@ -33,9 +32,13 @@ from app.api.deps import (
     GuildAccessError,
     GuildContext,
 )
-from app.core.config import settings
 from app.db.query import unbounded_page_limit
-from app.core.messages import DocumentMessages, InitiativeMessages, QueryMessages
+from app.core.messages import (
+    AttachmentMessages,
+    DocumentMessages,
+    InitiativeMessages,
+    QueryMessages,
+)
 from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
@@ -80,6 +83,7 @@ from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
 from app.services import attachments as attachments_service
+from app.services.storage import get_storage
 from app.api import resource_access
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
@@ -287,14 +291,9 @@ def _file_download_response(
     the path-traversal guard and SVG/HTML stored-XSS hardening can't drift
     between the two endpoints.
     """
-    uploads_path = Path(settings.UPLOADS_DIR)
     filename = file_url.split("/")[-1]
-    try:
-        file_path = (uploads_path / filename).resolve()
-        file_path.relative_to(uploads_path.resolve())
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    if not file_path.is_file():
+    file_path = get_storage().resolve_readable(filename)
+    if file_path is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     headers: dict[str, str] = {"X-Content-Type-Options": "nosniff"}
@@ -979,6 +978,16 @@ async def upload_document_file(
             detail=DocumentMessages.INVALID_FILE,
         )
 
+    try:
+        await attachments_service.enforce_storage_quota(
+            session, guild_id=guild_context.guild_id, incoming_bytes=len(contents)
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
+
     # Save file to uploads directory
     file_url = attachments_service.save_document_file(
         contents, extension, guild_context.guild_id
@@ -1130,6 +1139,16 @@ async def upload_document_version(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.VERSION_TYPE_MISMATCH,
+        )
+
+    try:
+        await attachments_service.enforce_storage_quota(
+            session, guild_id=guild_context.guild_id, incoming_bytes=len(contents)
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
 
     file_url = attachments_service.save_document_file(

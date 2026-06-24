@@ -1,5 +1,6 @@
 {
   "ATTACHMENT_TOO_LARGE": "L'image est trop volumineuse (max. 10 Mo)",
+  "ATTACHMENT_STORAGE_QUOTA_EXCEEDED": "Cette guilde a atteint sa limite de stockage",
   "DOCUMENT_FILE_TOO_LARGE": "Le fichier est trop volumineux (max. 50 Mo)",
   "EMAIL_ALREADY_REGISTERED": "Adresse e-mail déjà enregistrée",
   "INVITE_EMAIL_MISMATCH": "Cette invitation a été émise pour une autre adresse e-mail",
