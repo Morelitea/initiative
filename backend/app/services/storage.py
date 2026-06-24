@@ -26,6 +26,7 @@ is configured.
 from __future__ import annotations
 
 import logging
+import mimetypes
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,8 +68,9 @@ class ReadableBlob:
     """A served blob, backend-agnostic.
 
     Local sets ``path`` (so the serve adapter keeps ``FileResponse`` sendfile +
-    range support). S3 sets ``stream`` plus whatever metadata ``GetObject``
-    returned (``content_type`` / ``content_length``).
+    range support); S3 sets ``stream``. Both populate ``content_type`` and
+    ``content_length`` — S3 from the object metadata, local from the file's
+    extension/size — so the blob is consistent regardless of backend.
     """
 
     path: Path | None = None
@@ -215,7 +217,16 @@ class LocalFilesystemStorage:
 
     def open_readable(self, key: str) -> ReadableBlob | None:
         target = self.resolve_readable(key)
-        return ReadableBlob(path=target) if target is not None else None
+        if target is None:
+            return None
+        # The filesystem stores no object metadata (unlike S3), so derive the
+        # content-type from the extension — keeping ReadableBlob consistent across
+        # backends, and giving a cross-store copy a type to carry over.
+        return ReadableBlob(
+            path=target,
+            content_type=mimetypes.guess_type(target.name)[0],
+            content_length=target.stat().st_size,
+        )
 
     def presign_get(
         self, key: str, *, ttl: int, filename: str | None = None
@@ -373,6 +384,62 @@ class S3Storage:
         )
 
 
+class DualReadStorage:
+    """Local→S3 cutover safety net (enabled by ``S3_LOCAL_FALLBACK``).
+
+    Writes and deletes go to the primary (S3); reads fall back to the local
+    fallback on a miss, so blobs the backfill hasn't copied yet still serve while
+    a deployment is being moved onto S3. ``delete_prefix`` purges **both** stores
+    (guild teardown). Flip the flag off once the backfill is verified complete.
+    """
+
+    def __init__(self, *, primary: StorageBackend, fallback: StorageBackend) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    def write(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
+        self._primary.write(key, data, content_type=content_type)
+
+    def delete(self, key: str) -> bool:
+        # Remove from both stores so a deleted blob can't reappear via fallback.
+        primary_deleted = self._primary.delete(key)
+        fallback_deleted = self._fallback.delete(key)
+        return primary_deleted or fallback_deleted
+
+    def copy(self, src_key: str, dst_key: str) -> bool:
+        if self._primary.copy(src_key, dst_key):
+            return True
+        # Source not yet backfilled into S3: read it from local, write to S3.
+        blob = self._fallback.open_readable(src_key)
+        if blob is None or blob.path is None:
+            return False
+        # Carry the source's content-type onto the S3 object so it isn't served as
+        # octet-stream once the fallback window closes (open_readable populates it
+        # for both backends).
+        self._primary.write(
+            dst_key, blob.path.read_bytes(), content_type=blob.content_type
+        )
+        return True
+
+    def delete_prefix(self) -> int:
+        return self._primary.delete_prefix() + self._fallback.delete_prefix()
+
+    def exists(self, key: str) -> bool:
+        return self._primary.exists(key) or self._fallback.exists(key)
+
+    def open_readable(self, key: str) -> ReadableBlob | None:
+        return self._primary.open_readable(key) or self._fallback.open_readable(key)
+
+    def presign_get(
+        self, key: str, *, ttl: int, filename: str | None = None
+    ) -> str | None:
+        # Only S3 can sign; if the object is still local-only, return None so the
+        # caller proxy-serves it instead.
+        if self._primary.exists(key):
+            return self._primary.presign_get(key, ttl=ttl, filename=filename)
+        return None
+
+
 def build_upload_response(
     blob: ReadableBlob,
     *,
@@ -461,12 +528,16 @@ def _make(prefix: str) -> StorageBackend:
     if name == "local":
         return _local(prefix)
     if name == "s3":
-        return S3Storage(
+        s3 = S3Storage(
             bucket=_require_bucket(),
             client=_get_s3_client(),
             prefix=prefix,
             kms_key_id=settings.S3_KMS_KEY_ID,
         )
+        # Cutover window: serve blobs the backfill hasn't copied yet from local.
+        if settings.S3_LOCAL_FALLBACK:
+            return DualReadStorage(primary=s3, fallback=_local(prefix))
+        return s3
     raise ValueError(f"Unsupported STORAGE_BACKEND={name!r} (expected 'local' or 's3')")
 
 
@@ -498,6 +569,21 @@ def get_guild_storage(guild_id: int) -> StorageBackend:
     siloed IRSA, dev).
     """
     return _make(f"guild_{int(guild_id)}/")
+
+
+def s3_guild_storage(guild_id: int) -> S3Storage:
+    """Build an S3 backend scoped to a guild prefix, regardless of
+    ``STORAGE_BACKEND``.
+
+    For the local→S3 backfill, which writes to S3 while the app may still be
+    running on the local backend. Raises if S3 isn't configured (``S3_BUCKET``).
+    """
+    return S3Storage(
+        bucket=_require_bucket(),
+        client=_get_s3_client(),
+        prefix=f"guild_{int(guild_id)}/",
+        kms_key_id=settings.S3_KMS_KEY_ID,
+    )
 
 
 def purge_guild_blobs(guild_id: int) -> int:

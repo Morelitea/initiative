@@ -372,6 +372,11 @@ class Settings(BaseSettings):
     S3_SECRET_ACCESS_KEY: str | None = None
     S3_USE_PATH_STYLE: bool = False
     S3_KMS_KEY_ID: str | None = None
+    # Migration safety net: while cutting a deployment over from "local" to "s3",
+    # set true so a read that misses in S3 falls back to the local filesystem
+    # (serves blobs not yet copied by the backfill). Turn off once the backfill is
+    # verified complete. Only consulted when STORAGE_BACKEND="s3".
+    S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
     FIRST_SUPERUSER_EMAIL: EmailStr | None = None

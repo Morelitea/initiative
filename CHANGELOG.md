@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Archive an initiative to hide it from the sidebar.** Archiving keeps everything intact (projects, documents, tasks, queues) but removes the initiative from the main sidebar for everyone; unarchive any time to bring it back. Available from the new Initiatives tab and from an initiative's **Danger zone** settings. Archiving is guild-admin only.
 - **Per-guild storage limit.** A guild can now have a maximum total upload storage; uploads that would push the guild over its limit are rejected. Defaults to unlimited, so existing guilds are unaffected until a limit is set.
 - **Optional S3-compatible object storage for uploads.** Uploads can now be stored in an S3-compatible object store you point it at (a self-hosted Garage instance, AWS S3, R2, etc.) instead of the local filesystem, via `STORAGE_BACKEND=s3` and the new `S3_*` settings. The filesystem remains the default, so existing deployments are unaffected. See `docs/OBJECT_STORAGE.md`.
+- **Zero-downtime migration from local to S3 storage.** A `python -m app.db.backfill_uploads_to_s3` job copies existing local uploads into the bucket (idempotent, content-type preserved, integrity-verified), and a new `S3_LOCAL_FALLBACK` setting serves any not-yet-copied blob from local disk during the cutover — so flipping a deployment with existing uploads onto S3 never drops a file. See `docs/OBJECT_STORAGE.md`.
 
 ### Fixed
 
