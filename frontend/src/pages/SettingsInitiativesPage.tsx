@@ -1,5 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
-import { Archive, ArchiveRestore, Loader2, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, CircleAlert, Loader2, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -32,8 +32,26 @@ const PmFullAccessCell = ({ initiativeId }: { initiativeId: number }) => {
     [rolesQuery.data]
   );
 
-  if (rolesQuery.isLoading || !pmRole) {
+  if (rolesQuery.isLoading) {
     return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+  }
+
+  // A failed roles fetch (or a missing PM role) must NOT fall through to the
+  // loading spinner — that would spin forever. Show a clear, hoverable error
+  // marker instead so the admin knows this one row's access state is unknown.
+  if (rolesQuery.isError || !pmRole) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex text-destructive">
+              <CircleAlert className="h-4 w-4" />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">{t("manage.fullAccessUnavailable")}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   }
 
   return (

@@ -25,6 +25,7 @@
     "nameColumn": "Initiative",
     "membersColumn": "Membres",
     "fullAccessColumn": "Accès complet PM",
+    "fullAccessUnavailable": "Impossible de charger l'accès du chef de projet — actualisez la page.",
     "statusColumn": "Statut",
     "actionsColumn": "Actions",
     "memberCount_one": "{{count}} membre",

@@ -25,6 +25,7 @@
     "nameColumn": "Iniciativa",
     "membersColumn": "Miembros",
     "fullAccessColumn": "Acceso total del PM",
+    "fullAccessUnavailable": "No se pudo cargar el acceso del gestor de proyecto — actualiza la página.",
     "statusColumn": "Estado",
     "actionsColumn": "Acciones",
     "memberCount_one": "{{count}} miembro",

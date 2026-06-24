@@ -25,6 +25,7 @@
     "nameColumn": "Initiative",
     "membersColumn": "Members",
     "fullAccessColumn": "PM full access",
+    "fullAccessUnavailable": "Couldn't load the project manager's access — try refreshing.",
     "statusColumn": "Status",
     "actionsColumn": "Actions",
     "memberCount_one": "{{count}} member",

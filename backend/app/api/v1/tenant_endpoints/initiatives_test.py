@@ -406,6 +406,7 @@ async def test_archive_initiative_as_manager_forbidden(
         json={"is_archived": True},
     )
     assert forbidden.status_code == 403
+    assert forbidden.json()["detail"] == "GUILD_ADMIN_REQUIRED"
 
 
 @pytest.mark.integration

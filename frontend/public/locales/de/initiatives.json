@@ -25,6 +25,7 @@
     "nameColumn": "Initiative",
     "membersColumn": "Mitglieder",
     "fullAccessColumn": "PM-Vollzugriff",
+    "fullAccessUnavailable": "Zugriff des Projektmanagers konnte nicht geladen werden — bitte aktualisieren.",
     "statusColumn": "Status",
     "actionsColumn": "Aktionen",
     "memberCount_one": "{{count}} Mitglied",
