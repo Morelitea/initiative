@@ -467,6 +467,12 @@ async def get_guild_storage_usage(session) -> int:
     ).one()
 
 
+# Advisory-lock namespace for per-guild storage-quota admission. A large fixed
+# tag (ASCII "STOR") so the two-int key (namespace, guild_id) can't collide with
+# the (user_id, guild_id) advisory locks used elsewhere (user ids are small).
+_QUOTA_LOCK_NAMESPACE = 0x53544F52  # 1397114706
+
+
 async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) -> None:
     """Reject an upload that would exceed the guild's ``max_storage_bytes``.
 
@@ -474,7 +480,16 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     quota is set on the guild. The limit lives on the shared ``guilds`` row; the
     usage (``SUM(uploads.size_bytes)``) is read from the active guild's schema, so
     this must run under the guild-routed RLS session.
+
+    Must be called within the SAME transaction that then inserts the ``uploads``
+    row and commits. When a limit is set, it takes a transaction-scoped advisory
+    lock keyed on the guild before reading usage, so the check and the insert that
+    follows cannot interleave with a concurrent upload — without it, two uploads
+    to a near-full guild could each read the pre-upload usage and collectively
+    exceed the limit (a TOCTOU race). The lock releases on commit/rollback;
+    uploads to other guilds are unaffected.
     """
+    from sqlalchemy import text
     from sqlmodel import select
 
     from app.models.platform.guild import Guild
@@ -484,6 +499,13 @@ async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) 
     ).one_or_none()
     if limit is None:
         return
+    # Serialize concurrent uploads for this guild for the remainder of the
+    # transaction so the usage check + the row insert that follows are atomic
+    # w.r.t. other uploads to the same guild.
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
+        params={"ns": _QUOTA_LOCK_NAMESPACE, "gid": int(guild_id)},
+    )
     usage = await get_guild_storage_usage(session)
     if usage + incoming_bytes > limit:
         raise StorageQuotaExceededError(
