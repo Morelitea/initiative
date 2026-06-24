@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Manage all of a guild's initiatives from one place.** Guild settings has a new **Initiatives** tab (admin only) listing every initiative with its member count, where you can archive, delete, or grant the Project Manager **Full access** for each one without opening each initiative individually.
+- **Archive an initiative to hide it from the sidebar.** Archiving keeps everything intact (projects, documents, tasks, queues) but removes the initiative from the main sidebar for everyone; unarchive any time to bring it back. Available from the new Initiatives tab and from an initiative's **Danger zone** settings. Archiving is guild-admin only.
+
 ## [0.53.1] - 2026-06-24
 
 ### Fixed
