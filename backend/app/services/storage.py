@@ -188,9 +188,19 @@ class LocalFilesystemStorage:
         target_dir = self._root() / self._prefix
         if not target_dir.is_dir():
             return 0
-        count = sum(1 for p in target_dir.rglob("*") if p.is_file())
+        total = sum(1 for p in target_dir.rglob("*") if p.is_file())
         shutil.rmtree(target_dir, ignore_errors=True)
-        return count
+        # Count only what actually went away and surface the rest: a file rmtree
+        # couldn't remove (e.g. permissions) would otherwise be silently reported
+        # as deleted — the very orphan it's meant to prevent.
+        remaining = (
+            [p for p in target_dir.rglob("*") if p.is_file()]
+            if target_dir.exists()
+            else []
+        )
+        for leftover in remaining:
+            logger.error("delete_prefix could not remove %s", leftover)
+        return total - len(remaining)
 
     def exists(self, key: str) -> bool:
         target = self._safe_path(key)
