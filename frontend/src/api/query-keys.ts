@@ -197,9 +197,12 @@ export const invalidateInitiativeMembers = (initiativeId: number) =>
 
 // ── Settings (personal / platform) ───────────────────────────────────────────────
 
-// "All settings" spans platform settings (personal) and guild AI settings
-// (`/api/v1/g/{id}/settings/ai/*`); compose both families so the full set is
-// reached without one matcher crossing the boundary.
+// "All settings" is a blunt flush spanning two DELIBERATELY separate backend
+// scopes: app/platform config (`/api/v1/settings/*`, owner-only) and a guild's
+// AI settings (`/api/v1/g/{id}/settings/ai/*`, RLS-scoped). They live on
+// different paths by design — app config isn't guild-specific, and guild AI
+// settings must carry guild context — so compose both families here rather than
+// let one matcher cross the boundary. (This is not a backend inconsistency.)
 export const invalidateAllSettings = () =>
   Promise.all([
     invalidatePersonalPrefix("/api/v1/settings"),
