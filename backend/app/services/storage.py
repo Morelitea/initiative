@@ -26,6 +26,7 @@ is configured.
 from __future__ import annotations
 
 import logging
+import mimetypes
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -67,8 +68,9 @@ class ReadableBlob:
     """A served blob, backend-agnostic.
 
     Local sets ``path`` (so the serve adapter keeps ``FileResponse`` sendfile +
-    range support). S3 sets ``stream`` plus whatever metadata ``GetObject``
-    returned (``content_type`` / ``content_length``).
+    range support); S3 sets ``stream``. Both populate ``content_type`` and
+    ``content_length`` — S3 from the object metadata, local from the file's
+    extension/size — so the blob is consistent regardless of backend.
     """
 
     path: Path | None = None
@@ -215,7 +217,16 @@ class LocalFilesystemStorage:
 
     def open_readable(self, key: str) -> ReadableBlob | None:
         target = self.resolve_readable(key)
-        return ReadableBlob(path=target) if target is not None else None
+        if target is None:
+            return None
+        # The filesystem stores no object metadata (unlike S3), so derive the
+        # content-type from the extension — keeping ReadableBlob consistent across
+        # backends, and giving a cross-store copy a type to carry over.
+        return ReadableBlob(
+            path=target,
+            content_type=mimetypes.guess_type(target.name)[0],
+            content_length=target.stat().st_size,
+        )
 
     def presign_get(
         self, key: str, *, ttl: int, filename: str | None = None
@@ -402,7 +413,12 @@ class DualReadStorage:
         blob = self._fallback.open_readable(src_key)
         if blob is None or blob.path is None:
             return False
-        self._primary.write(dst_key, blob.path.read_bytes())
+        # Carry the source's content-type onto the S3 object so it isn't served as
+        # octet-stream once the fallback window closes (open_readable populates it
+        # for both backends).
+        self._primary.write(
+            dst_key, blob.path.read_bytes(), content_type=blob.content_type
+        )
         return True
 
     def delete_prefix(self) -> int:

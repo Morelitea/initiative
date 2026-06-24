@@ -354,8 +354,11 @@ def test_local_prefix_writes_under_guild_dir(tmp_path):
     storage = LocalFilesystemStorage(base_dir=str(tmp_path), prefix="guild_3/")
     storage.write("img.png", b"data")
     assert (tmp_path / "guild_3" / "img.png").read_bytes() == b"data"
-    # Round-trips through the prefixed namespace.
-    assert storage.open_readable("img.png").path == tmp_path / "guild_3" / "img.png"
+    # Round-trips through the prefixed namespace, with metadata consistent with S3.
+    blob = storage.open_readable("img.png")
+    assert blob.path == tmp_path / "guild_3" / "img.png"
+    assert blob.content_type == "image/png"  # derived from extension
+    assert blob.content_length == 4
 
 
 def test_local_delete_prefix_removes_dir_and_counts(tmp_path):
@@ -446,6 +449,8 @@ def test_dualread_delete_prefix_sums_both(tmp_path):
 def test_dualread_copy_cross_store(tmp_path):
     client, _, local, dual = _dual(tmp_path)
     # Source only on local (not yet backfilled): copy reads local, writes to S3.
-    local.write("src.bin", b"payload")
-    assert dual.copy("src.bin", "dst.bin") is True
-    assert ("bucket", "guild_7/dst.bin") in client.objects
+    local.write("src.png", b"payload")
+    assert dual.copy("src.png", "dst.png") is True
+    obj = client.objects[("bucket", "guild_7/dst.png")]
+    # Content-type recovered from the extension so it isn't served as octet-stream.
+    assert obj["extra"]["ContentType"] == "image/png"
