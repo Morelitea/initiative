@@ -74,11 +74,39 @@ See Garage's
 [quick-start](https://garagehq.deuxfleurs.fr/documentation/quick-start/) for
 standing up a node and creating the bucket + access key.
 
-## Migrating existing files
+## Migrating an existing deployment from local to S3
 
-Switching `STORAGE_BACKEND` to `s3` only affects *new* uploads. Files already on
-local disk are not moved automatically; a backfill job that copies
-`UPLOADS_DIR/*` into the bucket under each file's `guild_<id>/` prefix is the
-next phase of the storage rollout. Until that runs, keep both the local volume
-and the object store available if you flip the switch on a deployment that
-already has local uploads.
+Switching `STORAGE_BACKEND` to `s3` only changes where *new* uploads go — files
+already on local disk must be copied into the bucket first. The migration is
+designed to be zero-downtime:
+
+**1. Configure S3 and run the backfill (while still on `local`).** With the
+`S3_*` settings pointed at your store but `STORAGE_BACKEND` still `local`, copy
+existing blobs into the bucket:
+
+```bash
+# preview first
+python -m app.db.backfill_uploads_to_s3 --dry-run
+# then copy for real
+python -m app.db.backfill_uploads_to_s3
+```
+
+It walks `UPLOADS_DIR/guild_<id>/`, uploads each blob to the matching S3 key with
+its recorded content-type, and verifies against the stored `content_hash`. It's
+**idempotent** (an object already in the bucket is skipped), so it's safe to
+re-run until it reports `failed=0`.
+
+**2. Cut over with a fallback window.** Set:
+
+```bash
+STORAGE_BACKEND=s3
+S3_LOCAL_FALLBACK=true
+```
+
+`S3_LOCAL_FALLBACK` makes a read that misses in S3 fall back to the local
+filesystem, so anything the backfill hasn't copied still serves — no 404s during
+the transition. New uploads now go to S3.
+
+**3. Finish.** Once you've confirmed everything serves from S3 (and a final
+backfill run reports `failed=0`), set `S3_LOCAL_FALLBACK=false` and retire the
+local uploads volume.

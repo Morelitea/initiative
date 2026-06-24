@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 
 from app.services import storage as storage_module
 from app.services.storage import (
+    DualReadStorage,
     LocalFilesystemStorage,
     ReadableBlob,
     S3Storage,
@@ -384,3 +385,67 @@ def test_purge_guild_blobs_local(tmp_path, monkeypatch):
     assert removed == 1
     assert not (tmp_path / "guild_5").exists()
     storage_module._local_backends.clear()
+
+
+# --- DualReadStorage (local->S3 cutover fallback) ----------------------------
+
+
+def _dual(tmp_path):
+    client = FakeS3Client()
+    s3 = S3Storage(bucket="bucket", client=client, prefix="guild_7/")
+    local = LocalFilesystemStorage(base_dir=str(tmp_path), prefix="guild_7/")
+    return client, s3, local, DualReadStorage(primary=s3, fallback=local)
+
+
+def test_dualread_write_goes_to_primary_only(tmp_path):
+    client, _, local, dual = _dual(tmp_path)
+    dual.write("x.png", b"data", content_type="image/png")
+    assert ("bucket", "guild_7/x.png") in client.objects
+    assert not (tmp_path / "guild_7" / "x.png").exists()
+
+
+def test_dualread_read_falls_back_to_local_then_prefers_s3(tmp_path):
+    _, s3, local, dual = _dual(tmp_path)
+    # Un-backfilled blob: only on local -> served from local (path).
+    local.write("old.png", b"local-bytes")
+    blob = dual.open_readable("old.png")
+    assert blob is not None and blob.path is not None
+    assert blob.path.read_bytes() == b"local-bytes"
+    # Backfilled blob: present in S3 -> served from S3 (stream) even if absent local.
+    s3.write("new.png", b"s3-bytes", content_type="image/png")
+    blob2 = dual.open_readable("new.png")
+    assert blob2 is not None and blob2.stream is not None
+    assert b"".join(blob2.stream) == b"s3-bytes"
+
+
+def test_dualread_exists_checks_both(tmp_path):
+    _, s3, local, dual = _dual(tmp_path)
+    local.write("a", b"1")
+    s3.write("b", b"2")
+    assert dual.exists("a") is True
+    assert dual.exists("b") is True
+    assert dual.exists("missing") is False
+
+
+def test_dualread_delete_removes_from_both(tmp_path):
+    _, s3, local, dual = _dual(tmp_path)
+    s3.write("d", b"1")
+    local.write("d", b"1")
+    assert dual.delete("d") is True
+    assert dual.exists("d") is False
+
+
+def test_dualread_delete_prefix_sums_both(tmp_path):
+    _, s3, local, dual = _dual(tmp_path)
+    s3.write("a", b"1")
+    s3.write("b", b"2")
+    local.write("c", b"3")
+    assert dual.delete_prefix() == 3
+
+
+def test_dualread_copy_cross_store(tmp_path):
+    client, _, local, dual = _dual(tmp_path)
+    # Source only on local (not yet backfilled): copy reads local, writes to S3.
+    local.write("src.bin", b"payload")
+    assert dual.copy("src.bin", "dst.bin") is True
+    assert ("bucket", "guild_7/dst.bin") in client.objects
