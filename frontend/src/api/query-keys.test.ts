@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  invalidateAllAISettings,
   invalidateAllInitiatives,
   invalidateAllTasks,
   invalidateGuildMembers,
@@ -98,6 +99,21 @@ describe("query-keys guild scoping", () => {
 
       expect(activeRoster()).toBe(true);
       expect(otherRoster()).toBe(false);
+    });
+
+    // Spanning helper: reaches platform AI (personal) AND the active guild's AI
+    // settings, but still never another guild's.
+    it("all-AI-settings spans both families without crossing guilds", async () => {
+      const platform = seed(["/api/v1/settings/ai/platform"]);
+      const guildAI = seed(["/api/v1/g/5/settings/ai/resolved"]);
+      const otherGuildAI = seed(["/api/v1/g/7/settings/ai/resolved"]);
+
+      setInvalidationGuild(5);
+      await invalidateAllAISettings();
+
+      expect(platform()).toBe(true);
+      expect(guildAI()).toBe(true);
+      expect(otherGuildAI()).toBe(false);
     });
   });
 });

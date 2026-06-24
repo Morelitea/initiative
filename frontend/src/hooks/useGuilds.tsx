@@ -116,15 +116,19 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const hasFetchedRef = useRef(false);
   const activeGuildIdRef = useRef(activeGuildId);
   activeGuildIdRef.current = activeGuildId;
+  // Mirror the active guild to the invalidation layer synchronously on every
+  // render (same pattern as the ref above) so guild-scoped invalidation is
+  // scoped from the very FIRST render — `activeGuildId` is seeded from storage
+  // by useState, so deferring this to an effect would leave a one-render window
+  // where a mutation's onSuccess falls through to matching all guilds. Per-tab:
+  // a module var is per-JS-context (see query-keys.ts).
+  setInvalidationGuild(activeGuildId);
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
-  // Persist this tab's guild as the fresh-tab default (read once at mount) and
-  // mirror it to the invalidation layer so cache invalidation stays scoped to
-  // this guild (per-tab; see query-keys.ts).
+  // Persist this tab's guild as the fresh-tab default (read once at mount).
   useEffect(() => {
     persistGuildId(activeGuildId);
-    setInvalidationGuild(activeGuildId);
   }, [activeGuildId]);
 
   const applyGuildState = useCallback((guildList: GuildEntry[]) => {

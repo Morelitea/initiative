@@ -197,7 +197,14 @@ export const invalidateInitiativeMembers = (initiativeId: number) =>
 
 // ── Settings (personal / platform) ───────────────────────────────────────────────
 
-export const invalidateAllSettings = () => invalidatePersonalPrefix("/api/v1/settings");
+// "All settings" spans platform settings (personal) and guild AI settings
+// (`/api/v1/g/{id}/settings/ai/*`); compose both families so the full set is
+// reached without one matcher crossing the boundary.
+export const invalidateAllSettings = () =>
+  Promise.all([
+    invalidatePersonalPrefix("/api/v1/settings"),
+    invalidateGuildPrefix("/api/v1/settings"),
+  ]);
 
 export const invalidateInterfaceSettings = () =>
   invalidatePersonalExact([`/api/v1/settings/interface`]);
@@ -213,7 +220,7 @@ export const invalidateOidcMappings = () =>
 
 export const invalidateAllAISettings = () =>
   Promise.all([
-    invalidatePersonalExact([`/api/v1/settings/ai/platform`]),
+    invalidatePersonalPrefix("/api/v1/settings/ai"),
     invalidateGuildPrefix("/api/v1/settings/ai"),
   ]);
 
