@@ -304,64 +304,6 @@ async def serve_upload_file(
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-if settings.ENABLE_MCP:
-    # Build the route-backed MCP server from the fully-routed app and mount it at
-    # /api/v1/mcp (before the SPA catch-all below, so it wins that path). Build
-    # order matters: the routers above must already be included so the read-only
-    # RouteMap can see them. ``combine_lifespans`` runs the MCP session-manager
-    # lifespan alongside the app's own startup/shutdown (see ``lifespan``).
-    from fastmcp.utilities.lifespan import combine_lifespans
-
-    from app.mcp_server import build_mcp_server
-
-    _mcp_app = build_mcp_server(app).http_app(path="/")
-    app.mount(f"{settings.API_V1_STR}/mcp", _mcp_app)
-    app.router.lifespan_context = combine_lifespans(lifespan, _mcp_app.lifespan)
-
-
-def _is_reserved_path(path: str) -> bool:
-    normalized = path.strip("/")
-    for prefix in reserved_prefixes:
-        if not prefix:
-            continue
-        if normalized == prefix or normalized.startswith(f"{prefix}/"):
-            return True
-    return False
-
-
-def _resolve_static_file(path: str) -> Path | None:
-    try:
-        candidate = (static_path / path).resolve()
-        candidate.relative_to(static_root)
-    except ValueError:
-        return None
-    if candidate.is_file():
-        return candidate
-    return None
-
-
-@app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa(full_path: str) -> FileResponse:
-    if _is_reserved_path(full_path):
-        raise HTTPException(status_code=404)
-    static_file = _resolve_static_file(full_path) if full_path else None
-    if static_file:
-        if full_path.startswith("assets/"):
-            return FileResponse(
-                static_file,
-                headers={"Cache-Control": "public, max-age=31536000, immutable"},
-            )
-        return FileResponse(
-            static_file,
-            headers={"Cache-Control": "public, max-age=3600"},
-        )
-    if static_index_path.is_file():
-        return FileResponse(
-            static_index_path,
-            headers={"Cache-Control": "no-cache"},
-        )
-    raise HTTPException(status_code=404, detail="SPA bundle not found")
-
 
 def _inject_query_schemas(openapi_schema: dict) -> None:
     """Inject shared query filter/sort schemas into OpenAPI components.
@@ -466,4 +408,68 @@ def custom_openapi() -> dict:
     return app.openapi_schema
 
 
+# Attach the custom OpenAPI generator now — BEFORE the MCP server is built below.
+# ``build_mcp_server(app)`` calls ``app.openapi()`` to derive its tools; if the
+# override isn't in place yet, FastAPI's default generator runs and caches a spec
+# without the ``_inject_query_schemas`` upgrades, which then leaks into the frontend
+# type generation (conditions/sorting collapse back to ``string``). The SPA catch-all
+# registered later is ``include_in_schema=False``, so the spec is already complete here.
 app.openapi = custom_openapi
+
+if settings.ENABLE_MCP:
+    # Build the route-backed MCP server from the fully-routed app and mount it at
+    # /api/v1/mcp (before the SPA catch-all below, so it wins that path). Build
+    # order matters: the routers above must already be included so the read-only
+    # RouteMap can see them. ``combine_lifespans`` runs the MCP session-manager
+    # lifespan alongside the app's own startup/shutdown (see ``lifespan``).
+    from fastmcp.utilities.lifespan import combine_lifespans
+
+    from app.mcp_server import build_mcp_server
+
+    _mcp_app = build_mcp_server(app).http_app(path="/")
+    app.mount(f"{settings.API_V1_STR}/mcp", _mcp_app)
+    app.router.lifespan_context = combine_lifespans(lifespan, _mcp_app.lifespan)
+
+
+def _is_reserved_path(path: str) -> bool:
+    normalized = path.strip("/")
+    for prefix in reserved_prefixes:
+        if not prefix:
+            continue
+        if normalized == prefix or normalized.startswith(f"{prefix}/"):
+            return True
+    return False
+
+
+def _resolve_static_file(path: str) -> Path | None:
+    try:
+        candidate = (static_path / path).resolve()
+        candidate.relative_to(static_root)
+    except ValueError:
+        return None
+    if candidate.is_file():
+        return candidate
+    return None
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str) -> FileResponse:
+    if _is_reserved_path(full_path):
+        raise HTTPException(status_code=404)
+    static_file = _resolve_static_file(full_path) if full_path else None
+    if static_file:
+        if full_path.startswith("assets/"):
+            return FileResponse(
+                static_file,
+                headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
+        return FileResponse(
+            static_file,
+            headers={"Cache-Control": "public, max-age=3600"},
+        )
+    if static_index_path.is_file():
+        return FileResponse(
+            static_index_path,
+            headers={"Cache-Control": "no-cache"},
+        )
+    raise HTTPException(status_code=404, detail="SPA bundle not found")
