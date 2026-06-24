@@ -90,6 +90,12 @@ async def lifespan(app: FastAPI):
             backfill.provisioned,
             backfill.total,
         )
+    # Relocate any legacy flat local uploads into per-guild dirs (guild_<id>/),
+    # matching the object-store layout. Local-only, idempotent, self-disabling —
+    # a no-op once converted, so packaged deploys convert themselves on boot.
+    from app.db.local_upload_migration import migrate_local_uploads_to_guild_prefix
+
+    await migrate_local_uploads_to_guild_prefix()
     # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
     # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
     # before traffic is served, so a packaged deploy rotates itself on boot.

@@ -14,7 +14,8 @@ per-request IAM prefix scopes to; design §6). Callers still pass the flat
 filename and own the ``/uploads/{guild_id}/{filename}`` URL scheme.
 
 Phases delivered here:
-- ``LocalFilesystemStorage`` — today's behavior verbatim (flat ``UPLOADS_DIR``).
+- ``LocalFilesystemStorage`` — files under ``UPLOADS_DIR/guild_<id>/`` (same
+  per-guild layout as S3; legacy flat files are relocated on boot).
 - ``S3Storage`` — boto3 against any S3-compatible endpoint; serves via streaming
   proxy (:func:`build_upload_response`) and can presign for opt-in offload.
 
@@ -89,6 +90,8 @@ class StorageBackend(Protocol):
 
     def copy(self, src_key: str, dst_key: str) -> bool: ...
 
+    def delete_prefix(self) -> int: ...
+
     def exists(self, key: str) -> bool: ...
 
     def open_readable(self, key: str) -> ReadableBlob | None: ...
@@ -99,23 +102,31 @@ class StorageBackend(Protocol):
 
 
 class LocalFilesystemStorage:
-    """Stores objects as flat files under ``UPLOADS_DIR``.
+    """Stores objects as files under ``UPLOADS_DIR[/<prefix>]``.
 
-    ``key`` is the stored filename. Keys are reduced to a basename before they
-    touch the filesystem, so a key can never escape the base directory — this
-    centralizes the path-traversal guard the two serve endpoints previously
-    duplicated. The base dir is created on demand.
+    ``key`` is the stored filename; ``prefix`` is the resolver-supplied guild
+    namespace (``guild_<id>/``), so a guild's blobs live under
+    ``UPLOADS_DIR/guild_<id>/`` — the same per-guild layout as the S3 backend.
+    Keys are reduced to a basename before they touch the filesystem, so a key
+    can never escape the (prefixed) base directory; this centralizes the
+    path-traversal guard the two serve endpoints previously duplicated. The
+    directory is created on demand.
 
-    The guild prefix the resolver carries for S3 is intentionally ignored here:
-    the local layout stays flat (the guild rides in the URL), so existing
-    self-host installs keep working byte-for-byte across the upgrade.
+    (Legacy flat files written before this layout are relocated into their
+    ``guild_<id>/`` subdir by the one-time startup migration in
+    ``app.db.local_upload_migration``.)
     """
 
-    def __init__(self, base_dir: str | None = None) -> None:
+    def __init__(self, base_dir: str | None = None, prefix: str = "") -> None:
         self._base_dir = base_dir
+        self._prefix = prefix
+
+    def _root(self) -> Path:
+        return Path(self._base_dir or settings.UPLOADS_DIR)
 
     def _dir(self) -> Path:
-        path = Path(self._base_dir or settings.UPLOADS_DIR)
+        # ``Path / ""`` is a no-op, so an empty prefix yields the flat root.
+        path = self._root() / self._prefix
         path.mkdir(parents=True, exist_ok=True)
         return path
 
@@ -162,6 +173,34 @@ class LocalFilesystemStorage:
         except OSError as exc:
             logger.error("Failed to copy blob %s -> %s: %s", src, dst, exc)
             return False
+
+    def delete_prefix(self) -> int:
+        """Remove this backend's whole namespace dir (``UPLOADS_DIR/<prefix>``).
+
+        Used to tear down a guild's content on deprovision. Refuses an empty
+        prefix so it can never wipe the entire uploads root. Returns the number
+        of files removed.
+        """
+        if not self._prefix:
+            raise ValueError(
+                "delete_prefix refused: empty prefix would target all uploads"
+            )
+        target_dir = self._root() / self._prefix
+        if not target_dir.is_dir():
+            return 0
+        total = sum(1 for p in target_dir.rglob("*") if p.is_file())
+        shutil.rmtree(target_dir, ignore_errors=True)
+        # Count only what actually went away and surface the rest: a file rmtree
+        # couldn't remove (e.g. permissions) would otherwise be silently reported
+        # as deleted — the very orphan it's meant to prevent.
+        remaining = (
+            [p for p in target_dir.rglob("*") if p.is_file()]
+            if target_dir.exists()
+            else []
+        )
+        for leftover in remaining:
+            logger.error("delete_prefix could not remove %s", leftover)
+        return total - len(remaining)
 
     def exists(self, key: str) -> bool:
         target = self._safe_path(key)
@@ -260,6 +299,47 @@ class S3Storage:
         )
         return True
 
+    def delete_prefix(self) -> int:
+        """Delete every object under this backend's namespace (``self._prefix``).
+
+        Used to tear down a guild's content on deprovision. Refuses an empty
+        prefix so it can never target the whole bucket. Returns the number of
+        objects deleted.
+        """
+        if not self._prefix:
+            raise ValueError(
+                "delete_prefix refused: empty prefix would target the whole bucket"
+            )
+        deleted = 0
+        token: str | None = None
+        while True:
+            kwargs: dict = {"Bucket": self._bucket, "Prefix": self._prefix}
+            if token:
+                kwargs["ContinuationToken"] = token
+            resp = self._client.list_objects_v2(**kwargs)
+            objects = [{"Key": o["Key"]} for o in resp.get("Contents", [])]
+            if objects:
+                result = self._client.delete_objects(
+                    Bucket=self._bucket, Delete={"Objects": objects, "Quiet": True}
+                )
+                # Quiet=True returns only per-object failures; surface them and
+                # count only the ones that actually deleted (an unlogged failure
+                # would silently re-orphan the very blobs this is meant to purge).
+                errors = result.get("Errors") or []
+                for err in errors:
+                    logger.error(
+                        "delete_prefix could not delete %s: %s %s",
+                        err.get("Key"),
+                        err.get("Code"),
+                        err.get("Message"),
+                    )
+                deleted += len(objects) - len(errors)
+            if resp.get("IsTruncated"):
+                token = resp.get("NextContinuationToken")
+            else:
+                break
+        return deleted
+
     def exists(self, key: str) -> bool:
         return self._head(self._object_key(key))
 
@@ -327,7 +407,7 @@ def build_upload_response(
     return StreamingResponse(blob.stream or iter(()), media_type=media, headers=headers)
 
 
-_local_backend: LocalFilesystemStorage | None = None
+_local_backends: dict[str, LocalFilesystemStorage] = {}
 _s3_client: "BaseClient | None" = None
 
 
@@ -335,11 +415,12 @@ def _backend_name() -> str:
     return (settings.STORAGE_BACKEND or "local").lower()
 
 
-def _local() -> LocalFilesystemStorage:
-    global _local_backend
-    if _local_backend is None:
-        _local_backend = LocalFilesystemStorage()
-    return _local_backend
+def _local(prefix: str = "") -> LocalFilesystemStorage:
+    backend = _local_backends.get(prefix)
+    if backend is None:
+        backend = LocalFilesystemStorage(prefix=prefix)
+        _local_backends[prefix] = backend
+    return backend
 
 
 def _get_s3_client() -> "BaseClient":
@@ -378,7 +459,7 @@ def _require_bucket() -> str:
 def _make(prefix: str) -> StorageBackend:
     name = _backend_name()
     if name == "local":
-        return _local()
+        return _local(prefix)
     if name == "s3":
         return S3Storage(
             bucket=_require_bucket(),
@@ -409,10 +490,21 @@ def get_storage() -> StorageBackend:
 def get_guild_storage(guild_id: int) -> StorageBackend:
     """Return a content-plane backend scoped to ``guild_id`` (the resolver).
 
-    Local: flat ``UPLOADS_DIR`` (the guild rides in the URL; no behavior change).
-    S3: keys are namespaced under ``guild_<id>/`` — the object-store twin of the
-    schema-per-guild boundary, and exactly what the per-request IAM prefix scopes
-    to (design §6). Pooled-cloud per-request STS downscope plugs in here; today
-    the resolver uses the ambient credential (works for Garage, siloed IRSA, dev).
+    Both backends namespace the guild's blobs under ``guild_<id>/`` — the
+    object-store twin of the schema-per-guild boundary, and exactly what the
+    per-request IAM prefix scopes to on S3 (design §6). Local writes them under
+    ``UPLOADS_DIR/guild_<id>/``. Pooled-cloud per-request STS downscope plugs in
+    here; today the resolver uses the ambient credential (works for Garage,
+    siloed IRSA, dev).
     """
     return _make(f"guild_{int(guild_id)}/")
+
+
+def purge_guild_blobs(guild_id: int) -> int:
+    """Remove all of a guild's stored blobs — called on guild deprovision.
+
+    Both backends sweep the guild's ``guild_<id>/`` namespace in one pass (S3:
+    batch object delete; local: remove the directory tree), so this is uniform
+    and needs no per-file bookkeeping. Returns the number of objects removed.
+    """
+    return get_guild_storage(guild_id).delete_prefix()
