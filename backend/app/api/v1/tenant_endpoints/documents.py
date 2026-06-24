@@ -999,6 +999,8 @@ async def upload_document_file(
         guild_id=guild_context.guild_id,
         uploader_user_id=current_user.id,
         size_bytes=len(contents),
+        content_type=mime_type,
+        content_hash=attachments_service.compute_content_hash(contents),
     )
     session.add(upload_record)
 
@@ -1161,6 +1163,8 @@ async def upload_document_version(
         guild_id=guild_context.guild_id,
         uploader_user_id=current_user.id,
         size_bytes=len(contents),
+        content_type=mime_type,
+        content_hash=attachments_service.compute_content_hash(contents),
     )
     session.add(upload_record)
 

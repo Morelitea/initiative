@@ -19,6 +19,7 @@ from app.schemas.tenant.attachment import AttachmentUploadResponse
 from app.services.attachments import (
     FileTooLargeError,
     StorageQuotaExceededError,
+    compute_content_hash,
     enforce_storage_quota,
     read_upload_bounded,
 )
@@ -108,6 +109,8 @@ async def upload_attachment(
         guild_id=guild_context.guild_id,
         uploader_user_id=current_user.id,
         size_bytes=len(contents),
+        content_type=file.content_type or f"image/{detected_format}",
+        content_hash=compute_content_hash(contents),
     )
     session.add(upload)
     await session.commit()
