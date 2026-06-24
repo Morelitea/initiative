@@ -43,7 +43,7 @@ from app.schemas.platform.guild import (
     PlatformGuildStorageUpdate,
 )
 from app.schemas.platform.push import FCMConfigResponse
-from app.core.messages import SettingsMessages
+from app.core.messages import GuildMessages, SettingsMessages
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 from app.services import email as email_service
@@ -293,20 +293,24 @@ async def update_platform_guild_storage(
     ``enforce_storage_quota``; lowering it below current usage simply blocks
     further uploads, it does not delete existing blobs.
     """
-    exists = (
-        await session.exec(select(Guild.id).where(Guild.id == guild_id))
-    ).one_or_none()
-    if exists is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=SettingsMessages.GUILD_NOT_FOUND,
+    try:
+        guild = await guilds_service.update_guild(
+            session,
+            guild_id=guild_id,
+            max_storage_bytes=payload.max_storage_bytes,
+            max_storage_bytes_provided=True,
         )
-    guild = await guilds_service.update_guild(
-        session,
-        guild_id=guild_id,
-        max_storage_bytes=payload.max_storage_bytes,
-        max_storage_bytes_provided=True,
-    )
+    except ValueError as exc:
+        # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
+        # is gone. Letting it own the existence check (rather than a separate
+        # pre-SELECT) closes the TOCTOU window where a concurrent delete between
+        # the two queries would otherwise surface as an unhandled 500.
+        if str(exc) == GuildMessages.GUILD_NOT_FOUND:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=SettingsMessages.GUILD_NOT_FOUND,
+            ) from exc
+        raise
     await session.commit()
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
     return PlatformGuildStorageRead(
