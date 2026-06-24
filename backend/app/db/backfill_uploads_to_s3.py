@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
 from app.db import session as db_session
@@ -99,7 +100,7 @@ def backfill_guild_dir(
 
 
 async def _guild_upload_meta(
-    conn, schema: str
+    conn: AsyncConnection, schema: str
 ) -> dict[str, tuple[str | None, str | None]]:
     """filename -> (content_type, content_hash) for a guild's uploads, or {} if
     the schema/table is absent."""
