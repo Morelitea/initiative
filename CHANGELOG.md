@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Full access for the Project Manager role.** Guild admins can now grant the Project Manager role **Full access** from an initiative's Roles settings. Members with that role can view and edit every item in the initiative — projects, documents, queues, counters, calendar events — even when an item isn't shared with them, and can manage who else has access. It applies only within that one initiative, and shows on each item's Share control as a locked editor that can't be removed. Only guild admins can turn it on, and only on the Project Manager role (so a manager can't grant it to themselves).
 - **Scoped API keys (read-only and single-guild).** When creating an API key you can now mark it **read-only** (it can read but never write) and/or pin it to a **single guild** (it can only reach that guild's data). Recommended for machine credentials such as CI or an automation/MCP tool, so a leaked key has a limited blast radius. Existing keys keep full access.
+- **Optional MCP server for AI assistants.** A new opt-in endpoint lets MCP-compatible AI tools (such as Claude Code) work with Initiative on your behalf — read your projects, tasks, and initiatives, and make a few safe edits (create a task, move a task, add a comment) — authenticated with your personal API key. It's **off by default** and enabled per deployment (`ENABLE_MCP`); every action runs as you, under the same permissions and access rules as the app, and a read-only API key can't make changes.
 
 ### Fixed
 
