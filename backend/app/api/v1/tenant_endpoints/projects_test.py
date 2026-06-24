@@ -1063,3 +1063,83 @@ async def test_create_project_rejects_foreign_initiative_role(
     data = response.json()
     # Foreign role must have been silently dropped
     assert len([g for g in data["grants"] if g["role_id"] is not None]) == 0
+
+
+@pytest.mark.integration
+async def test_set_project_access_change_all_members_level(
+    client: AsyncClient, session: AsyncSession
+):
+    """Changing an EXISTING all-initiative-members grant's level (read -> write)
+    must not trip ``resource_grants_unique_grantee``.
+
+    replace_resource_grants deletes the old grant and inserts the new one; without
+    flushing the delete first, SQLAlchemy's unit of work emits the INSERT before
+    the DELETE and the new (user_id NULL, role_id NULL) row collides with the old
+    one under the UNIQUE NULLS NOT DISTINCT constraint. This is the production 500
+    a member hit switching a project's "all initiative members" share from Viewer
+    to Editor.
+    """
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=owner, guild=guild)
+    initiative = await _create_initiative_with_member(session, guild, owner)
+    project = await _create_project(session, initiative, owner)
+    headers = await get_guild_headers(session, guild, owner)
+    url = f"/api/v1/g/{guild.id}/projects/{project.id}/grants"
+
+    # 1) create the all-members grant at read (Viewer)
+    r = await client.put(
+        url, headers=headers, json=[{"all_initiative_members": True, "level": "read"}]
+    )
+    assert r.status_code == 200, r.text
+
+    # 2) change it to write (Editor) — the delete-then-reinsert collision path
+    r = await client.put(
+        url, headers=headers, json=[{"all_initiative_members": True, "level": "write"}]
+    )
+    assert r.status_code == 200, r.text
+    members = [g for g in r.json()["grants"] if g["all_initiative_members"]]
+    assert len(members) == 1  # exactly one all-members grant...
+    assert members[0]["level"] == "write"  # ...now at write
+
+
+@pytest.mark.integration
+async def test_set_project_access_remove_grant_keeps_all_members(
+    client: AsyncClient, session: AsyncSession
+):
+    """Removing a per-user grant while keeping the all-members grant must not trip
+    the unique constraint either — replace_resource_grants deletes ALL non-owner
+    grants and re-inserts the kept set, so the all-members grant is deleted and
+    re-inserted in the same flush. ("I also cannot remove access" — same cause.)
+    """
+    owner = await create_user(session, email="owner@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=owner, guild=guild)
+    await create_guild_membership(session, user=member, guild=guild)
+    initiative = await _create_initiative_with_member(session, guild, owner)
+    from app.testing.factories import create_initiative_member
+
+    await create_initiative_member(session, initiative, member, role_name="member")
+    project = await _create_project(session, initiative, owner)
+    headers = await get_guild_headers(session, guild, owner)
+    url = f"/api/v1/g/{guild.id}/projects/{project.id}/grants"
+
+    # all-members read + a per-user write grant
+    r = await client.put(
+        url,
+        headers=headers,
+        json=[
+            {"all_initiative_members": True, "level": "read"},
+            {"user_id": member.id, "level": "write"},
+        ],
+    )
+    assert r.status_code == 200, r.text
+
+    # remove the per-user grant, keep all-members
+    r = await client.put(
+        url, headers=headers, json=[{"all_initiative_members": True, "level": "read"}]
+    )
+    assert r.status_code == 200, r.text
+    assert [g for g in r.json()["grants"] if g["user_id"] == member.id] == []
+    assert any(g["all_initiative_members"] for g in r.json()["grants"])

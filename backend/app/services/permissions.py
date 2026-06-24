@@ -473,6 +473,8 @@ async def replace_resource_grants(
         if _grant_level(g.level) != "owner":
             await session.delete(g)
 
+    await session.flush()
+
     def _grant(level: str, **kw: Any) -> ResourceGrant:
         return ResourceGrant(
             resource_type=resource_type,
