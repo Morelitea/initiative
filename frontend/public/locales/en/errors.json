@@ -124,6 +124,7 @@
   "ATTACHMENT_FILE_EMPTY": "Uploaded file is empty",
   "ATTACHMENT_INVALID_IMAGE": "Unable to validate image contents",
   "ATTACHMENT_TOO_LARGE": "Image is too large (max 10 MB)",
+  "ATTACHMENT_STORAGE_QUOTA_EXCEEDED": "This guild has reached its storage limit",
   "DOCUMENT_NOT_FOUND": "Document not found",
   "DOCUMENT_INITIATIVE_NOT_FOUND": "Initiative not found",
   "DOCUMENT_INITIATIVE_MEMBERSHIP_REQUIRED": "Initiative membership required",

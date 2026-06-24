@@ -356,6 +356,9 @@ class Settings(BaseSettings):
     )
 
     UPLOADS_DIR: str = "uploads"
+    # Blob storage backend. "local" = filesystem under UPLOADS_DIR (FOSS/self-host/
+    # dev). An "s3" backend lands in a later phase of the storage rebuild.
+    STORAGE_BACKEND: str = "local"
     STATIC_DIR: str = "static"
 
     FIRST_SUPERUSER_EMAIL: EmailStr | None = None

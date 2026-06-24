@@ -1260,6 +1260,7 @@ export interface GuildRead {
   created_at: string;
   updated_at: string;
   retention_days: number | null;
+  max_storage_bytes: number | null;
   member_count: number;
 }
 
@@ -1338,6 +1339,7 @@ export interface GuildUpdate {
   description?: string | null;
   icon_base64?: string | null;
   retention_days?: number | null;
+  max_storage_bytes?: number | null;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };

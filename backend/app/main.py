@@ -238,12 +238,10 @@ async def serve_upload_file(
 
     from sqlalchemy import text
 
-    try:
-        file_path = (uploads_path / filename).resolve()
-        file_path.relative_to(uploads_path.resolve())
-    except ValueError:
-        raise HTTPException(status_code=404)
-    if not file_path.is_file():
+    from app.services.storage import get_storage
+
+    file_path = get_storage().resolve_readable(filename)
+    if file_path is None:
         raise HTTPException(status_code=404)
 
     # Guild authorization via the ``/uploads/{guild_id}/…`` path: media is

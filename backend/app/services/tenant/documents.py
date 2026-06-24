@@ -239,6 +239,23 @@ async def duplicate_document(
         document_type=source.document_type,
     )
     content_uploads = attachments_service.extract_upload_urls(content_copy)
+    # Enforce the guild's storage quota BEFORE copying any bytes — a rejected
+    # clone must not leave orphaned blobs on storage. Size it from the source
+    # blobs it will duplicate (a copy is the same size as its source).
+    effective_guild_id = guild_id or source.guild_id
+    if effective_guild_id is not None:
+        clone_source_urls = list(content_uploads)
+        if source.featured_image_url:
+            clone_source_urls.append(source.featured_image_url)
+        incoming = await attachments_service.get_upload_bytes_for_urls(
+            session, clone_source_urls
+        )
+        if incoming:
+            await attachments_service.enforce_storage_quota(
+                session,
+                guild_id=effective_guild_id,
+                incoming_bytes=incoming,
+            )
     replacements = attachments_service.duplicate_uploads(content_uploads)
     if replacements:
         content_copy = attachments_service.replace_upload_urls(
@@ -248,7 +265,6 @@ async def duplicate_document(
     featured_image_url = attachments_service.duplicate_upload(source.featured_image_url)
 
     # Track any newly created files in the uploads table for guild-scoped access control
-    effective_guild_id = guild_id or source.guild_id
     if effective_guild_id is not None:
         upload_dir = Path(settings.UPLOADS_DIR)
         new_upload_records: list[Upload] = []

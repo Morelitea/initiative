@@ -96,6 +96,7 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   role: "member",
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
+  max_storage_bytes: null,
   member_count: 0,
   created_at: grant.requested_at,
   updated_at: grant.requested_at,

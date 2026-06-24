@@ -340,6 +340,8 @@ async def update_guild(
     icon_provided: bool = False,
     retention_days: int | None = None,
     retention_days_provided: bool = False,
+    max_storage_bytes: int | None = None,
+    max_storage_bytes_provided: bool = False,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -353,6 +355,9 @@ async def update_guild(
             updated = True
     if icon_provided and icon_base64 != guild.icon_base64:
         guild.icon_base64 = icon_base64
+        updated = True
+    if max_storage_bytes_provided and guild.max_storage_bytes != max_storage_bytes:
+        guild.max_storage_bytes = max_storage_bytes
         updated = True
     if updated:
         guild.updated_at = datetime.now(timezone.utc)
