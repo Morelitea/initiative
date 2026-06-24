@@ -81,13 +81,19 @@ def test_backfill_hash_mismatch_is_not_copied(tmp_path):
     assert "c.bin" not in dest.written  # corruption not propagated
 
 
-def test_backfill_dry_run_writes_nothing(tmp_path):
+def test_backfill_dry_run_checks_dest_and_writes_nothing(tmp_path):
     gd = tmp_path / "guild_5"
     gd.mkdir()
     (gd / "a.png").write_bytes(b"img")
     (gd / "b.png").write_bytes(b"img2")
+    dest = _FakeDest()
+    dest.written["a.png"] = (b"x", "image/png")  # already in S3
     summary = BackfillSummary()
 
-    backfill_guild_dir(gd, {}, None, summary, guild_id=5, dry_run=True)
+    backfill_guild_dir(gd, {}, dest, summary, guild_id=5, dry_run=True)
 
-    assert summary.copied == 2  # counted, but no dest to write to
+    # The exists() skip check runs in dry-run too, so already-copied files aren't
+    # re-counted — the report reflects the real remaining work.
+    assert summary.skipped == 1
+    assert summary.copied == 1
+    assert "b.png" not in dest.written  # dry-run writes nothing

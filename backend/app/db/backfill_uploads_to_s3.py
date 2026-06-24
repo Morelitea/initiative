@@ -50,7 +50,7 @@ class BackfillSummary:
 def backfill_guild_dir(
     guild_dir: Path,
     meta: dict[str, tuple[str | None, str | None]],
-    dest: StorageBackend | None,
+    dest: StorageBackend,
     summary: BackfillSummary,
     *,
     guild_id: int,
@@ -59,9 +59,11 @@ def backfill_guild_dir(
     """Copy one guild's local blobs into ``dest`` (S3). Pure of the DB.
 
     ``meta`` maps filename -> (content_type, content_hash) from the ``uploads``
-    rows. ``dest`` is None on a dry run. Updates ``summary`` in place. Idempotent:
-    an object already in ``dest`` is skipped; a content_hash mismatch is treated
-    as a failure (the blob is NOT copied) so corruption isn't propagated.
+    rows. Updates ``summary`` in place. Idempotent: an object already in ``dest``
+    is skipped; a content_hash mismatch is treated as a failure (the blob is NOT
+    copied) so corruption isn't propagated. ``dry_run`` skips only the write — the
+    ``exists`` check still runs against ``dest``, so a dry run reports the real
+    remaining work rather than re-counting already-copied files.
     """
     for path in sorted(guild_dir.iterdir()):
         if not path.is_file():
@@ -72,7 +74,7 @@ def backfill_guild_dir(
             content_type = mimetypes.guess_type(key)[0]
         label = f"guild_{guild_id}/{key}"
         try:
-            if dest is not None and dest.exists(key):
+            if dest.exists(key):
                 summary.skipped += 1
                 continue
             data = path.read_bytes()
@@ -133,7 +135,9 @@ async def backfill_uploads_to_s3(*, dry_run: bool = False) -> BackfillSummary:
             if not guild_dir.is_dir():
                 continue
             meta = await _guild_upload_meta(conn, guild_schema_name(gid))
-            dest = None if dry_run else s3_guild_storage(gid)
+            # Always a real S3 backend, even on a dry run, so the exists() skip
+            # check reflects what's already in the bucket.
+            dest = s3_guild_storage(gid)
             backfill_guild_dir(
                 guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run
             )
@@ -148,13 +152,14 @@ def main() -> None:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="report what would be copied without writing to S3",
+        help="report what would be copied (checking the bucket for already-present "
+        "objects) without writing",
     )
     args = parser.parse_args()
-    if not args.dry_run and not settings.S3_BUCKET:
+    if not settings.S3_BUCKET:
         raise SystemExit(
             "S3_BUCKET (and the other S3_* settings) must point at your object "
-            "store to run the backfill."
+            "store to run the backfill (a dry run queries the bucket too)."
         )
     summary = asyncio.run(backfill_uploads_to_s3(dry_run=args.dry_run))
     logger.info(
