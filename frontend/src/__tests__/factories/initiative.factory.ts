@@ -38,6 +38,7 @@ export function buildInitiative(overrides: Partial<InitiativeRead> = {}): Initia
     description: `Description for initiative ${counter}`,
     color: "#3b82f6",
     is_default: false,
+    is_archived: false,
     created_at: "2026-01-15T00:00:00.000Z",
     updated_at: "2026-01-15T00:00:00.000Z",
     members: [],

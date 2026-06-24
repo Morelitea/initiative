@@ -240,6 +240,7 @@ CREATE TABLE IF NOT EXISTS initiatives (
 	purge_at TIMESTAMP WITH TIME ZONE, 
 	advanced_tool_enabled BOOLEAN DEFAULT false NOT NULL, 
 	counters_enabled BOOLEAN DEFAULT false NOT NULL, 
+	is_archived BOOLEAN DEFAULT false NOT NULL, 
 	CONSTRAINT teams_pkey PRIMARY KEY (id)
 );
 CREATE TABLE IF NOT EXISTS project_documents (

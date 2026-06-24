@@ -310,6 +310,105 @@ async def test_update_initiative_duplicate_name_fails(
     assert response.status_code == 409
 
 
+# ── Archive ──────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.integration
+async def test_initiative_is_archived_defaults_false(
+    client: AsyncClient, session: AsyncSession
+):
+    """A freshly created initiative is not archived."""
+    from app.testing.factories import create_initiative
+
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    initiative = await create_initiative(session, guild, admin, name="Fresh")
+
+    headers = await get_guild_headers(session, guild, admin)
+    response = await client.get(
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_archived"] is False
+
+
+@pytest.mark.integration
+async def test_archive_initiative_via_patch(client: AsyncClient, session: AsyncSession):
+    """A guild admin can archive (and unarchive) an initiative through PATCH; it
+    stays in the list either way (the settings table manages it there)."""
+    from app.testing.factories import create_initiative
+
+    admin = await create_user(session, email="admin@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    initiative = await create_initiative(session, guild, admin, name="Archivable")
+    headers = await get_guild_headers(session, guild, admin)
+
+    archive = await client.patch(
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
+        headers=headers,
+        json={"is_archived": True},
+    )
+    assert archive.status_code == 200
+    assert archive.json()["is_archived"] is True
+
+    # Archived initiatives are NOT removed from the list — only the sidebar
+    # filters them client-side; the settings table must still see them.
+    listing = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    assert listing.status_code == 200
+    archived = next(i for i in listing.json() if i["id"] == initiative.id)
+    assert archived["is_archived"] is True
+
+    unarchive = await client.patch(
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
+        headers=headers,
+        json={"is_archived": False},
+    )
+    assert unarchive.status_code == 200
+    assert unarchive.json()["is_archived"] is False
+
+
+@pytest.mark.integration
+async def test_archive_initiative_as_manager_forbidden(
+    client: AsyncClient, session: AsyncSession
+):
+    """Archiving is guild-admin only. A plain initiative manager (who may edit
+    other settings here) is rejected when toggling is_archived."""
+    from app.testing.factories import create_initiative
+
+    manager = await create_user(session, email="manager@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(
+        session, user=manager, guild=guild, role=GuildRole.member
+    )
+    # Creator becomes the initiative's PM (manager) but is not a guild admin.
+    initiative = await create_initiative(session, guild, manager, name="Managed")
+    headers = await get_guild_headers(session, guild, manager)
+
+    # A non-archive edit still works for a manager...
+    ok = await client.patch(
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
+        headers=headers,
+        json={"description": "Edited by manager"},
+    )
+    assert ok.status_code == 200
+
+    # ...but flipping is_archived is admin-only.
+    forbidden = await client.patch(
+        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
+        headers=headers,
+        json={"is_archived": True},
+    )
+    assert forbidden.status_code == 403
+    assert forbidden.json()["detail"] == "GUILD_ADMIN_REQUIRED"
+
+
 @pytest.mark.integration
 async def test_delete_initiative_as_admin(client: AsyncClient, session: AsyncSession):
     """Test that guild admin can delete initiatives."""

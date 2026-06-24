@@ -218,6 +218,10 @@ class Initiative(SoftDeleteMixin, table=True):
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
+    is_archived: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
     queues_enabled: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
