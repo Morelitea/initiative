@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Per-guild storage limit.** A guild can now have a maximum total upload storage; uploads that would push the guild over its limit are rejected. Defaults to unlimited, so existing guilds are unaffected until a limit is set.
 - **Optional S3-compatible object storage for uploads.** Uploads can now be stored in an S3-compatible object store you point it at (a self-hosted Garage instance, AWS S3, R2, etc.) instead of the local filesystem, via `STORAGE_BACKEND=s3` and the new `S3_*` settings. The filesystem remains the default, so existing deployments are unaffected. See `docs/OBJECT_STORAGE.md`.
 
+### Fixed
+
+- **Deleting a guild now also removes its uploaded files.** Previously a deleted guild's stored blobs were left orphaned on disk (or in the object store); guild deletion now sweeps the guild's storage namespace. Local uploads are also organized into per-guild folders (`uploads/guild_<id>/`), with any existing files relocated automatically on startup — no action needed.
+
 ## [0.53.1] - 2026-06-24
 
 ### Fixed

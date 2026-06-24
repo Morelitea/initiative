@@ -244,9 +244,21 @@ async def provision_guild(guild_id: int) -> str:
 
 
 async def deprovision_guild(guild_id: int) -> None:
-    """Drop a guild's schema + role on the superuser engine."""
+    """Drop a guild's schema + role on the superuser engine, and remove its blobs."""
     async with db_session.provisioning_engine.begin() as conn:
         await drop_guild_schema(conn, guild_id)
+    # Remove the guild's stored blobs (the ``guild_<id>/`` storage namespace).
+    # Best-effort and after the schema drop succeeds: a storage hiccup must not
+    # strand a half-deleted guild, and delete_prefix needs no DB so order is moot.
+    try:
+        from app.services.storage import purge_guild_blobs
+
+        removed = purge_guild_blobs(guild_id)
+        logger.info(
+            "deprovision guild %s: removed %d stored blob(s)", guild_id, removed
+        )
+    except Exception:  # noqa: BLE001 — blob cleanup must not block teardown
+        logger.exception("failed to purge stored blobs for guild %s", guild_id)
 
 
 @dataclass

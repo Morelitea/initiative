@@ -145,6 +145,15 @@ class FakeS3Client:
         disp = Params.get("ResponseContentDisposition", "")
         return f"https://s3.test/{Params['Key']}?exp={ExpiresIn}&disp={disp}"
 
+    def list_objects_v2(self, *, Bucket, Prefix, ContinuationToken=None):
+        keys = [k for (b, k) in self.objects if b == Bucket and k.startswith(Prefix)]
+        return {"Contents": [{"Key": k} for k in keys], "IsTruncated": False}
+
+    def delete_objects(self, *, Bucket, Delete):
+        for obj in Delete["Objects"]:
+            self.objects.pop((Bucket, obj["Key"]), None)
+        return {}
+
 
 def _s3(prefix="guild_7/", kms_key_id=None):
     client = FakeS3Client()
@@ -286,7 +295,72 @@ def test_resolver_requires_bucket_for_s3(monkeypatch):
         get_guild_storage(1)
 
 
-def test_resolver_local_ignores_guild_prefix():
-    # Default backend is local; the guild prefix is a no-op there (flat layout).
+def test_resolver_local_honors_guild_prefix():
+    # Default backend is local; it now namespaces by guild like S3.
     backend = get_guild_storage(99)
     assert isinstance(backend, LocalFilesystemStorage)
+    assert backend._prefix == "guild_99/"
+
+
+# --- S3Storage.delete_prefix -------------------------------------------------
+
+
+def test_s3_delete_prefix_sweeps_namespace():
+    client, storage = _s3()
+    storage.write("a.bin", b"1")
+    storage.write("b.bin", b"2")
+    # An object in a *different* guild's namespace must survive.
+    other = S3Storage(bucket="bucket", client=client, prefix="guild_8/")
+    other.write("c.bin", b"3")
+
+    removed = storage.delete_prefix()
+    assert removed == 2
+    assert ("bucket", "guild_7/a.bin") not in client.objects
+    assert ("bucket", "guild_7/b.bin") not in client.objects
+    assert ("bucket", "guild_8/c.bin") in client.objects  # untouched
+
+
+def test_s3_delete_prefix_refuses_empty_prefix():
+    _, storage = _s3(prefix="")
+    with pytest.raises(ValueError, match="empty prefix"):
+        storage.delete_prefix()
+
+
+# --- LocalFilesystemStorage prefix + delete_prefix ---------------------------
+
+
+def test_local_prefix_writes_under_guild_dir(tmp_path):
+    storage = LocalFilesystemStorage(base_dir=str(tmp_path), prefix="guild_3/")
+    storage.write("img.png", b"data")
+    assert (tmp_path / "guild_3" / "img.png").read_bytes() == b"data"
+    # Round-trips through the prefixed namespace.
+    assert storage.open_readable("img.png").path == tmp_path / "guild_3" / "img.png"
+
+
+def test_local_delete_prefix_removes_dir_and_counts(tmp_path):
+    storage = LocalFilesystemStorage(base_dir=str(tmp_path), prefix="guild_3/")
+    storage.write("a.png", b"1")
+    storage.write("b.png", b"2")
+    removed = storage.delete_prefix()
+    assert removed == 2
+    assert not (tmp_path / "guild_3").exists()
+    # Missing dir -> 0, no error.
+    assert storage.delete_prefix() == 0
+
+
+def test_local_delete_prefix_refuses_empty_prefix(tmp_path):
+    storage = LocalFilesystemStorage(base_dir=str(tmp_path))  # prefix=""
+    with pytest.raises(ValueError, match="empty prefix"):
+        storage.delete_prefix()
+
+
+def test_purge_guild_blobs_local(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage_module.settings, "STORAGE_BACKEND", "local")
+    monkeypatch.setattr(storage_module.settings, "UPLOADS_DIR", str(tmp_path))
+    storage_module._local_backends.clear()
+    get_guild_storage(5).write("x.png", b"data")
+    assert (tmp_path / "guild_5" / "x.png").exists()
+    removed = storage_module.purge_guild_blobs(5)
+    assert removed == 1
+    assert not (tmp_path / "guild_5").exists()
+    storage_module._local_backends.clear()

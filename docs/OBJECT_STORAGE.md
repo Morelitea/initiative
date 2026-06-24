@@ -19,11 +19,16 @@ own — you bring your own.
 
 ## How keys are laid out
 
-- **Local:** files are stored flat under `UPLOADS_DIR` (e.g. `uploads/<uuid>.png`),
-  exactly as before.
-- **Object storage:** objects are namespaced per guild under a `guild_<id>/` key
-  prefix (e.g. `guild_7/<uuid>.png`). This mirrors the database's
-  schema-per-guild tenant boundary.
+Both backends namespace a guild's blobs per guild, mirroring the database's
+schema-per-guild tenant boundary:
+
+- **Local:** `UPLOADS_DIR/guild_<id>/<uuid>.png`.
+- **Object storage:** objects under the `guild_<id>/` key prefix (e.g.
+  `guild_7/<uuid>.png`) — exactly what the per-request S3 IAM policy scopes to.
+
+(Installs from before this layout stored local files flat under `UPLOADS_DIR`; a
+one-time, self-disabling startup migration relocates them into `guild_<id>/`
+dirs. Only file locations change.)
 
 In both cases the public URL stays `/uploads/{guild_id}/{filename}`, and every
 download still passes the same authorization checks (guild membership / access
