@@ -24,6 +24,7 @@ _WRITE_PREFIXES = (
     "batch_",
     "generate_",
     "put_",
+    "patch_",
     "post_",
     "remove_",
 )
@@ -32,9 +33,16 @@ _WRITE_PREFIXES = (
 _SAFE_WRITES = {"create_task", "update_task", "move_task", "create_comment"}
 
 
-def _base(name: str) -> str:
-    """``create_task_api_v1_g…`` -> ``create_task`` (verb + resource)."""
-    return "_".join(name.split("_")[:2])
+def _operation(name: str) -> str:
+    """Return the FastAPI handler name from a route-backed operationId.
+
+    operationIds are ``{function}_api_v1_{path}``; splitting on the route
+    boundary yields the *exact* function name (e.g. ``create_task``) without
+    collapsing multi-word resources — so a hypothetical ``create_task_template``
+    leak can't masquerade as the allowed ``create_task``. Returns the whole name
+    unchanged if the boundary is absent (then it simply won't match the safe set).
+    """
+    return name.split("_api_v1_", 1)[0]
 
 
 @pytest.mark.unit
@@ -55,10 +63,11 @@ async def test_mcp_tools_are_curated():
 
 @pytest.mark.unit
 async def test_mcp_write_tools_are_the_curated_safe_set():
-    tools = await build_mcp_server(app).list_tools()
-    names = [t.name for t in tools]
+    # Lowercase consistently so a differently-cased operationId can't dodge the
+    # write-prefix check.
+    names = [t.name.lower() for t in await build_mcp_server(app).list_tools()]
 
-    writes = {_base(n) for n in names if n.startswith(_WRITE_PREFIXES)}
+    writes = {_operation(n) for n in names if n.startswith(_WRITE_PREFIXES)}
     # Exactly the safe set — no delete/archive-all/reorder/duplicate/AI/property
     # mutation may appear.
     assert writes == _SAFE_WRITES, f"write surface changed: {sorted(writes)}"
