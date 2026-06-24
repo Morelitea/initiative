@@ -357,14 +357,14 @@ class Settings(BaseSettings):
 
     UPLOADS_DIR: str = "uploads"
     # Blob storage backend. "local" = filesystem under UPLOADS_DIR (FOSS/self-host/
-    # dev default). "s3" = any S3-compatible object store (AWS S3, or MinIO/R2/etc.
-    # for self-hosters) — see the S3_* settings below.
+    # dev default). "s3" = any S3-compatible object store (a self-hosted Garage
+    # instance, AWS S3, R2, etc.) — see the S3_* settings below.
     STORAGE_BACKEND: str = "local"
     # --- S3 / S3-compatible object storage (only used when STORAGE_BACKEND="s3") ---
-    # AWS S3: set S3_BUCKET (+ optionally S3_KMS_KEY_ID); leave S3_ENDPOINT_URL unset
-    # and let credentials come from the ambient chain (IRSA / instance role / env).
-    # MinIO or other S3-compatible store: set S3_ENDPOINT_URL (e.g. http://minio:9000),
-    # S3_USE_PATH_STYLE=true, and the access/secret keys.
+    # Point at your own object store (e.g. a self-hosted Garage instance): set
+    # S3_BUCKET + S3_ENDPOINT_URL + S3_REGION, S3_USE_PATH_STYLE=true (Garage and
+    # most non-AWS stores), and the access/secret keys (or leave them unset to use
+    # the ambient credential chain). See docs/OBJECT_STORAGE.md.
     S3_BUCKET: str | None = None
     S3_REGION: str = "us-east-1"
     S3_ENDPOINT_URL: str | None = None

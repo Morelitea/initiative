@@ -1,4 +1,4 @@
-# Object Storage (MinIO / S3-compatible)
+# Object Storage (S3-compatible)
 
 Initiative stores uploaded files (image attachments, document files and their
 versions) through a pluggable storage backend selected by the `STORAGE_BACKEND`
@@ -7,11 +7,12 @@ environment variable:
 | `STORAGE_BACKEND` | Where uploads live |
 |---|---|
 | `local` (default) | Filesystem under `UPLOADS_DIR` |
-| `s3` | Any S3-compatible object store (e.g. self-hosted MinIO) |
+| `s3` | Any S3-compatible object store you point it at |
 
-Switching backends is a config change; **no code change is required.** The local
-filesystem remains the default — turning on `s3` only changes where *new*
-uploads are written.
+The default is `local` — nothing object-store-related runs unless you opt in by
+setting `STORAGE_BACKEND=s3`. Switching is purely configuration; **no code
+change is required**, and the app does not run or bundle an object store of its
+own — you bring your own.
 
 > Migrating files that already exist on local disk into object storage is a
 > separate backfill step (see [Migrating existing files](#migrating-existing-files)).
@@ -29,57 +30,44 @@ download still passes the same authorization checks (guild membership / access
 grant + an `uploads` row in that guild's schema). Objects are streamed back
 through the app, so authorization is enforced on every request.
 
-## Run it locally with MinIO
+## Connect to your Garage (or other S3-compatible) instance
 
-[MinIO](https://min.io/) is a self-hostable, S3-compatible object server. A
-compose overlay runs MinIO alongside the app, creates the bucket, and points the
-app at it:
+Self-hosters bring their own object store — typically a
+[Garage](https://garagehq.deuxfleurs.fr/) node, though any S3-compatible store
+works. Initiative only needs to be *pointed at* it; it never runs, bundles, or
+provisions the store itself.
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.minio.yml up --build
-```
-
-This starts:
-
-- **MinIO** on `:9000` (S3 API) with a web console on <http://localhost:9001>
-  (default login `minioadmin` / `minioadmin`).
-- A one-shot `minio-init` container that creates the bucket (`initiative` by
-  default) and enables versioning.
-- The app with `STORAGE_BACKEND=s3` pointed at `http://minio:9000`.
-
-Override the defaults with environment variables (e.g. in a `.env` file next to
-the compose files):
-
-```bash
-MINIO_ROOT_USER=...        # MinIO root access key
-MINIO_ROOT_PASSWORD=...    # MinIO root secret key (use a strong value)
-S3_BUCKET=initiative       # bucket name to create/use
-S3_REGION=us-east-1
-```
-
-Upload an image or a document in the app, then open the MinIO console — you'll
-see the object under `guild_<id>/…` in the bucket.
-
-## Configure it manually
-
-If you run MinIO (or another S3-compatible store) separately, set these on the
-backend (see `backend/.env.example`):
+From your Garage instance you'll need its **S3 API endpoint**, the **region** it
+was configured with (`s3_region`), an existing **bucket**, and an **access key**
+(id + secret) granted read/write on that bucket. Then set these on the backend
+(see `backend/.env.example`):
 
 ```bash
 STORAGE_BACKEND=s3
-S3_BUCKET=initiative
-S3_ENDPOINT_URL=http://minio:9000   # your MinIO endpoint
-S3_REGION=us-east-1
-S3_ACCESS_KEY_ID=...
+S3_BUCKET=initiative                  # an existing bucket on your store
+S3_ENDPOINT_URL=http://garage:3900    # your Garage S3 API endpoint
+S3_REGION=garage                      # must match the node's s3_region
+S3_ACCESS_KEY_ID=GK...
 S3_SECRET_ACCESS_KEY=...
-S3_USE_PATH_STYLE=true              # required for MinIO
-S3_KMS_KEY_ID=                      # optional SSE-KMS key; leave blank for MinIO
+S3_USE_PATH_STYLE=true                 # Garage and most non-AWS stores need this
+S3_KMS_KEY_ID=                         # optional SSE-KMS key id/ARN; blank otherwise
 ```
 
-`S3_USE_PATH_STYLE=true` matters for MinIO: it uses path-style addressing
-(`http://host/bucket/key`) rather than virtual-host style. Create the bucket
-ahead of time (the app does not create it for you when configured manually) — for
-example with the MinIO console or `mc mb local/initiative`.
+Notes:
+
+- **`S3_USE_PATH_STYLE`** — `true` for Garage and most self-hosted/non-AWS stores
+  (path-style addressing, `https://host/bucket/key`). Set `false` only for a store
+  that uses virtual-host-style addressing.
+- **`S3_REGION`** — must match the region your store enforces in the SigV4
+  signature (for Garage, its configured `s3_region`).
+- **Credentials** — set the access key id/secret, or leave them unset to use the
+  ambient credential chain where your store supports it.
+- The bucket must already exist; the app reads and writes objects but does not
+  create the bucket.
+
+See Garage's
+[quick-start](https://garagehq.deuxfleurs.fr/documentation/quick-start/) for
+standing up a node and creating the bucket + access key.
 
 ## Migrating existing files
 

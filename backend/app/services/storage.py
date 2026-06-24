@@ -2,7 +2,7 @@
 
 Storage rebuild (see ``history/blob-storage-tenancy-design.md``): a single seam
 over blob I/O so the local filesystem (FOSS / self-host / dev) and an
-S3-compatible object store (cloud, or self-hosted MinIO) become interchangeable
+S3-compatible object store (cloud, or a self-hosted Garage) become interchangeable
 behind one config flag — ``STORAGE_BACKEND=local|s3``.
 
 The backend is *dumb about tenancy*: it operates on opaque object keys (today,
@@ -186,7 +186,7 @@ class LocalFilesystemStorage:
 
 
 class S3Storage:
-    """S3-compatible object store (AWS S3, MinIO, R2, …) via boto3.
+    """S3-compatible object store (AWS S3, Garage, R2, …) via boto3.
 
     Dumb about tenancy: it reads/writes keys within the ``(bucket, client,
     prefix)`` the resolver handed it. ``prefix`` is the guild namespace
@@ -350,7 +350,7 @@ def _get_s3_client() -> "BaseClient":
 
         config_kwargs: dict = {"signature_version": "s3v4"}
         if settings.S3_USE_PATH_STYLE:
-            # MinIO and most non-AWS stores require path-style addressing.
+            # Garage and most non-AWS stores require path-style addressing.
             config_kwargs["s3"] = {"addressing_style": "path"}
 
         client_kwargs: dict = {
@@ -359,8 +359,8 @@ def _get_s3_client() -> "BaseClient":
         }
         if settings.S3_ENDPOINT_URL:
             client_kwargs["endpoint_url"] = settings.S3_ENDPOINT_URL
-        # Explicit keys for MinIO/dev; on AWS leave unset so the ambient chain
-        # (IRSA / instance role / env) supplies credentials.
+        # Explicit keys for a self-hosted store; leave unset on AWS so the ambient
+        # chain (IRSA / instance role / env) supplies credentials.
         if settings.S3_ACCESS_KEY_ID and settings.S3_SECRET_ACCESS_KEY:
             client_kwargs["aws_access_key_id"] = settings.S3_ACCESS_KEY_ID
             client_kwargs["aws_secret_access_key"] = settings.S3_SECRET_ACCESS_KEY
@@ -413,6 +413,6 @@ def get_guild_storage(guild_id: int) -> StorageBackend:
     S3: keys are namespaced under ``guild_<id>/`` — the object-store twin of the
     schema-per-guild boundary, and exactly what the per-request IAM prefix scopes
     to (design §6). Pooled-cloud per-request STS downscope plugs in here; today
-    the resolver uses the ambient credential (works for MinIO, siloed IRSA, dev).
+    the resolver uses the ambient credential (works for Garage, siloed IRSA, dev).
     """
     return _make(f"guild_{int(guild_id)}/")

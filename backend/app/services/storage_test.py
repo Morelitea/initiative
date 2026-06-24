@@ -2,9 +2,9 @@
 
 The local-backend tests are pure filesystem (no DB). The S3 tests drive
 ``S3Storage`` against an in-memory fake boto3 client — deterministic, no network
-or MinIO needed — verifying the guild-prefix keying, the basename guard, SSE
-params, and the serve adapter. Integration against a real S3/MinIO endpoint is
-left to manual/CI runs (see docker-compose.minio.yml).
+or object store needed — verifying the guild-prefix keying, the basename guard,
+SSE params, and the serve adapter. Integration against a real S3-compatible
+endpoint (e.g. a Garage instance) is left to manual/CI runs.
 """
 
 import pytest
