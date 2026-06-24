@@ -29,6 +29,20 @@ router = APIRouter()
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
+# Magic-byte detection yields a short format token; map it to a real MIME type
+# for the rare case the client omits Content-Type. The image-only guard normally
+# rejects a missing Content-Type first, so this is defense-in-depth -- but it must
+# still emit valid MIME types (e.g. image/svg+xml, not image/svg).
+_FORMAT_TO_MIME = {
+    "png": "image/png",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "tiff": "image/tiff",
+    "svg": "image/svg+xml",
+    "ico": "image/x-icon",
+}
+
 ImageUploadUser = Annotated[User, Depends(get_current_active_user)]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -109,7 +123,7 @@ async def upload_attachment(
         guild_id=guild_context.guild_id,
         uploader_user_id=current_user.id,
         size_bytes=len(contents),
-        content_type=file.content_type or f"image/{detected_format}",
+        content_type=file.content_type or _FORMAT_TO_MIME[detected_format],
         content_hash=compute_content_hash(contents),
     )
     session.add(upload)
@@ -119,6 +133,6 @@ async def upload_attachment(
         filename=file.filename or filename,
         # Guild in the path so the served media self-describes its guild.
         url=f"/uploads/{guild_context.guild_id}/{filename}",
-        content_type=file.content_type or f"image/{detected_format}",
+        content_type=file.content_type or _FORMAT_TO_MIME[detected_format],
         size=len(contents),
     )
