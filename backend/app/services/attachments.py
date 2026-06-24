@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Set, Tuple
@@ -60,6 +61,12 @@ async def read_upload_bounded(file: UploadFile, max_size: int) -> bytes:
     if len(contents) > max_size:
         raise FileTooLargeError(max_size)
     return contents
+
+
+def compute_content_hash(data: bytes) -> str:
+    """SHA-256 hex of blob bytes — recorded on the ``uploads`` row for integrity
+    verification (object-store migration) and future content dedup."""
+    return hashlib.sha256(data).hexdigest()
 
 
 # Supported MIME types for document file uploads (based on react-doc-viewer support)
@@ -495,6 +502,35 @@ async def get_upload_bytes_for_urls(session, urls: Iterable[str]) -> int:
             )
         )
     ).one()
+
+
+async def get_upload_metadata_for_urls(
+    session, urls: Iterable[str]
+) -> Dict[str, Tuple[str | None, str | None]]:
+    """Map ``{filename: (content_type, content_hash)}`` for the uploads referenced
+    by ``urls`` (matched by filename).
+
+    Used to carry metadata onto byte-identical copies (clones) without re-reading
+    the blobs — a copy shares its source's content type and hash. Runs under the
+    guild-routed RLS session.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+
+    filenames = {
+        Path(normalized).name
+        for url in urls
+        if (normalized := normalize_upload_url(url))
+    }
+    if not filenames:
+        return {}
+    rows = await session.exec(
+        select(Upload.filename, Upload.content_type, Upload.content_hash).where(
+            Upload.filename.in_(filenames)
+        )
+    )
+    return {fn: (ct, ch) for fn, ct, ch in rows.all()}
 
 
 # Advisory-lock namespace for per-guild storage-quota admission. A large fixed
