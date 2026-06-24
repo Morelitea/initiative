@@ -467,6 +467,36 @@ async def get_guild_storage_usage(session) -> int:
     ).one()
 
 
+async def get_upload_bytes_for_urls(session, urls: Iterable[str]) -> int:
+    """Total stored size of the uploads referenced by ``urls`` (matched by
+    filename) — ``SUM(uploads.size_bytes)`` over those rows.
+
+    Used to size a clone's incoming bytes before any blob is copied: a copy is the
+    same size as its source, so this is the storage a duplicate will add. Runs
+    under the guild-routed RLS session. Legacy blobs without an ``uploads`` row
+    contribute 0.
+    """
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+
+    filenames = {
+        Path(normalized).name
+        for url in urls
+        if (normalized := normalize_upload_url(url))
+    }
+    if not filenames:
+        return 0
+    return (
+        await session.exec(
+            select(func.coalesce(func.sum(Upload.size_bytes), 0)).where(
+                Upload.filename.in_(filenames)
+            )
+        )
+    ).one()
+
+
 # Advisory-lock namespace for per-guild storage-quota admission. A large fixed
 # tag (ASCII "STOR") so the two-int key (namespace, guild_id) can't collide with
 # the (user_id, guild_id) advisory locks used elsewhere (user ids are small).

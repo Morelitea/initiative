@@ -1519,14 +1519,20 @@ async def duplicate_document(
             detail=DocumentMessages.TITLE_REQUIRED,
         )
 
-    duplicated = await documents_service.duplicate_document(
-        session,
-        source=document,
-        target_initiative_id=document.initiative_id,
-        title=title,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
+    try:
+        duplicated = await documents_service.duplicate_document(
+            session,
+            source=document,
+            target_initiative_id=document.initiative_id,
+            title=title,
+            user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
     hydrated = await _get_document_or_404(
         session, document_id=duplicated.id, guild_id=guild_context.guild_id
     )
@@ -1578,14 +1584,20 @@ async def copy_document(
             detail=DocumentMessages.TITLE_REQUIRED,
         )
 
-    duplicated = await documents_service.duplicate_document(
-        session,
-        source=document,
-        target_initiative_id=target_initiative.id,
-        title=title,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
+    try:
+        duplicated = await documents_service.duplicate_document(
+            session,
+            source=document,
+            target_initiative_id=target_initiative.id,
+            title=title,
+            user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
     hydrated = await _get_document_or_404(
         session, document_id=duplicated.id, guild_id=guild_context.guild_id
     )
