@@ -12,7 +12,7 @@ import {
 
 import { apiClient } from "@/api/client";
 import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
-import { resetGuildScopedQueries } from "@/api/query-keys";
+import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getItem, removeItem, setItem } from "@/lib/storage";
@@ -119,9 +119,12 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
 
-  // Persist this tab's guild as the fresh-tab default (read once at mount).
+  // Persist this tab's guild as the fresh-tab default (read once at mount) and
+  // mirror it to the invalidation layer so cache invalidation stays scoped to
+  // this guild (per-tab; see query-keys.ts).
   useEffect(() => {
     persistGuildId(activeGuildId);
+    setInvalidationGuild(activeGuildId);
   }, [activeGuildId]);
 
   const applyGuildState = useCallback((guildList: GuildEntry[]) => {

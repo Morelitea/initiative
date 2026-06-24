@@ -1,114 +1,158 @@
 /**
  * Centralized query-key invalidation helpers.
  *
- * Orval generates URL-based query keys (e.g. ["/api/v1/tags/"]).
- * This module provides domain-specific helpers that use `predicate`-based
- * matching so a single invalidation call can reach both list and detail keys.
+ * Orval generates URL-based query keys (e.g. ["/api/v1/tags/"]). This module
+ * provides domain-specific helpers that use `predicate`-based matching so a
+ * single invalidation call can reach both list and detail keys.
  *
- * Guild-scoped endpoints live under /api/v1/g/{guildId}/..., so their Orval
- * query keys embed the guild id. The matchers below normalize that segment away
- * (guildAgnostic) so the resource-relative prefixes/exact keys keep matching.
+ * There are TWO disjoint families of keys, and invalidation MUST NOT cross
+ * between them:
+ *
+ *  - GUILD-scoped keys live under `/api/v1/g/{guildId}/...`. The `invalidateGuild*`
+ *    helpers match these and ONLY for the ACTIVE guild — never another guild, and
+ *    never a non-guild key. This is the tenancy boundary: a mutation in one guild
+ *    can't touch another guild's (or a personal) cached data.
+ *  - PERSONAL / platform keys are everything else (`/api/v1/me/*`, `/settings`,
+ *    `/users`, `/guilds`, `/admin`, `/notifications`, `/version`, `/recents`).
+ *    The `invalidatePersonal*` helpers match these and ONLY these — never a
+ *    `/api/v1/g/...` key.
+ *
+ * A few resources genuinely span both (a guild list plus its cross-guild `/me`
+ * aggregate; platform + guild AI settings). Those compose the two families with
+ * an explicit `Promise.all` — two boundary-respecting calls, never one matcher
+ * that blurs the line.
  */
 import { queryClient } from "@/lib/queryClient";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// The active guild is per-tab React state in `GuildProvider`, mirrored here (a
+// module var is per-JS-context, so it stays per-tab — unlike shared storage) so
+// the guild matchers can scope without every call site threading a guild id.
+let scopedGuildId: number | null = null;
 
-/** Strip the `/api/v1/g/{guildId}` prefix so a key can be matched without
- * knowing the active guild. */
-const guildAgnostic = (key: string) => key.replace(/^\/api\/v1\/g\/\d+/, "/api/v1");
+/** Mirror this tab's active guild so guild invalidation stays scoped to it. */
+export const setInvalidationGuild = (guildId: number | null) => {
+  scopedGuildId = guildId && guildId > 0 ? guildId : null;
+};
 
-/** Invalidate all queries whose (guild-agnostic) first key segment starts with the prefix. */
-const invalidatePrefix = (prefix: string) =>
+// ── Guild-scoped matching ─────────────────────────────────────────────────────
+
+/**
+ * The active guild's relative path for a guild-scoped key, else null:
+ * `/api/v1/g/{active}/<r>` → `/api/v1/<r>`; another guild's key or a non-guild
+ * key → null (never matches). With no active guild, any guild's key matches.
+ */
+const guildKey = (key: unknown): string | null => {
+  if (typeof key !== "string") return null;
+  const match = key.match(/^\/api\/v1\/g\/(\d+)(\/.*)?$/);
+  if (!match) return null;
+  if (scopedGuildId !== null && Number(match[1]) !== scopedGuildId) return null;
+  return `/api/v1${match[2] ?? ""}`;
+};
+
+const invalidateGuildPrefix = (prefix: string) =>
   queryClient.invalidateQueries({
-    predicate: (query) => {
-      const first = query.queryKey[0];
-      return typeof first === "string" && guildAgnostic(first).startsWith(prefix);
-    },
+    predicate: (q) => guildKey(q.queryKey[0])?.startsWith(prefix) ?? false,
   });
 
-/** Invalidate queries whose (guild-agnostic) URL key segment equals the given key. */
-const invalidateExact = (queryKey: readonly unknown[]) =>
+const invalidateGuildExact = (queryKey: readonly unknown[]) =>
   queryClient.invalidateQueries({
-    predicate: (query) => {
-      const first = query.queryKey[0];
-      return typeof first === "string" && guildAgnostic(first) === queryKey[0];
-    },
+    predicate: (q) => guildKey(q.queryKey[0]) === queryKey[0],
+  });
+
+// ── Personal / platform matching ──────────────────────────────────────────────
+
+/** A non-guild key as-is, or null for any `/api/v1/g/...` (guild-scoped) key. */
+const personalKey = (key: unknown): string | null => {
+  if (typeof key !== "string") return null;
+  if (/^\/api\/v1\/g\/\d+/.test(key)) return null;
+  return key;
+};
+
+const invalidatePersonalPrefix = (prefix: string) =>
+  queryClient.invalidateQueries({
+    predicate: (q) => personalKey(q.queryKey[0])?.startsWith(prefix) ?? false,
+  });
+
+const invalidatePersonalExact = (queryKey: readonly unknown[]) =>
+  queryClient.invalidateQueries({
+    predicate: (q) => personalKey(q.queryKey[0]) === queryKey[0],
   });
 
 /**
- * Invalidate a resource across BOTH its guild-scoped queries and its cross-guild
- * "my" aggregate. Guild-scoped keys (`/api/v1/g/{id}/<r>`) normalize to
- * `/api/v1/<r>` via guildAgnostic, but the `/api/v1/me/<r>` aggregates are a
- * SEPARATE prefix that a single resource prefix never matches — so a change must
- * invalidate both or the "my <resource>" list goes stale until remount.
+ * Invalidate a resource across BOTH its guild-scoped list and its cross-guild
+ * "my" aggregate — two distinct, boundary-respecting calls. The guild leg stays
+ * scoped to the active guild; the `/api/v1/me/<r>` leg is personal, so a single
+ * resource prefix never reaches it and it must be invalidated explicitly or the
+ * "my <resource>" list goes stale until remount.
  */
 const invalidateResourceAndMe = (resource: string) =>
   Promise.all([
-    invalidatePrefix(`/api/v1/${resource}`),
-    invalidatePrefix(`/api/v1/me/${resource}`),
+    invalidateGuildPrefix(`/api/v1/${resource}`),
+    invalidatePersonalPrefix(`/api/v1/me/${resource}`),
   ]);
 
-// ── Tags ─────────────────────────────────────────────────────────────────────
+// ── Tags (guild) ──────────────────────────────────────────────────────────────
 
-export const invalidateAllTags = () => invalidatePrefix("/api/v1/tags");
+export const invalidateAllTags = () => invalidateGuildPrefix("/api/v1/tags");
 
-export const invalidateTag = (tagId: number) => invalidateExact([`/api/v1/tags/${tagId}`]);
+export const invalidateTag = (tagId: number) => invalidateGuildExact([`/api/v1/tags/${tagId}`]);
 
 export const invalidateTagEntities = (tagId: number) =>
-  invalidateExact([`/api/v1/tags/${tagId}/entities`]);
+  invalidateGuildExact([`/api/v1/tags/${tagId}/entities`]);
 
-// ── Tasks ────────────────────────────────────────────────────────────────────
+// ── Tasks (guild + me) ──────────────────────────────────────────────────────────
 
 export const invalidateAllTasks = () => invalidateResourceAndMe("tasks");
 
-export const invalidateTask = (taskId: number) => invalidateExact([`/api/v1/tasks/${taskId}`]);
+export const invalidateTask = (taskId: number) => invalidateGuildExact([`/api/v1/tasks/${taskId}`]);
 
 export const invalidateTaskSubtasks = (taskId: number) =>
-  invalidateExact([`/api/v1/tasks/${taskId}/subtasks`]);
+  invalidateGuildExact([`/api/v1/tasks/${taskId}/subtasks`]);
 
-// ── Projects ─────────────────────────────────────────────────────────────────
+// ── Projects (guild + me) ────────────────────────────────────────────────────────
 
 export const invalidateAllProjects = () => invalidateResourceAndMe("projects");
 
 export const invalidateProject = (projectId: number) =>
-  invalidateExact([`/api/v1/projects/${projectId}`]);
+  invalidateGuildExact([`/api/v1/projects/${projectId}`]);
 
 export const invalidateProjectTaskStatuses = (projectId: number) =>
-  invalidateExact([`/api/v1/projects/${projectId}/task-statuses/`]);
+  invalidateGuildExact([`/api/v1/projects/${projectId}/task-statuses/`]);
 
 export const invalidateProjectActivity = (projectId: number) =>
-  invalidateExact([`/api/v1/projects/${projectId}/activity`]);
+  invalidateGuildExact([`/api/v1/projects/${projectId}/activity`]);
 
-export const invalidateRecents = () => invalidateExact([`/api/v1/recents/`]);
+// Recents list is a cross-guild personal endpoint (`/api/v1/recents/`, no /g/).
+export const invalidateRecents = () => invalidatePersonalExact([`/api/v1/recents/`]);
 
-export const invalidateFavoriteProjects = () => invalidateExact([`/api/v1/projects/favorites`]);
+export const invalidateFavoriteProjects = () =>
+  invalidateGuildExact([`/api/v1/projects/favorites`]);
 
-export const invalidateWritableProjects = () => invalidateExact([`/api/v1/projects/writable`]);
+export const invalidateWritableProjects = () => invalidateGuildExact([`/api/v1/projects/writable`]);
 
-// ── Documents ────────────────────────────────────────────────────────────────
+// ── Documents (guild + me) ───────────────────────────────────────────────────────
 
 export const invalidateAllDocuments = () => invalidateResourceAndMe("documents");
 
 export const invalidateDocument = (documentId: number) =>
-  invalidateExact([`/api/v1/documents/${documentId}`]);
+  invalidateGuildExact([`/api/v1/documents/${documentId}`]);
 
 export const invalidateDocumentBacklinks = (documentId: number) =>
-  invalidateExact([`/api/v1/documents/${documentId}/backlinks`]);
+  invalidateGuildExact([`/api/v1/documents/${documentId}/backlinks`]);
 
 export const invalidateDocumentVersions = (documentId: number) =>
-  invalidateExact([`/api/v1/documents/${documentId}/versions`]);
+  invalidateGuildExact([`/api/v1/documents/${documentId}/versions`]);
 
-// ── Comments ─────────────────────────────────────────────────────────────────
+// ── Comments (guild) ────────────────────────────────────────────────────────────
 
-export const invalidateAllComments = () => invalidatePrefix("/api/v1/comments");
+export const invalidateAllComments = () => invalidateGuildPrefix("/api/v1/comments");
 
 export const invalidateTaskComments = (taskId: number) =>
   queryClient.invalidateQueries({
     predicate: (query) => {
       const [url, params] = query.queryKey;
       return (
-        typeof url === "string" &&
-        guildAgnostic(url) === "/api/v1/comments/" &&
+        guildKey(url) === "/api/v1/comments/" &&
         typeof params === "object" &&
         params !== null &&
         (params as Record<string, unknown>).task_id === taskId
@@ -121,8 +165,7 @@ export const invalidateDocumentComments = (documentId: number) =>
     predicate: (query) => {
       const [url, params] = query.queryKey;
       return (
-        typeof url === "string" &&
-        guildAgnostic(url) === "/api/v1/comments/" &&
+        guildKey(url) === "/api/v1/comments/" &&
         typeof params === "object" &&
         params !== null &&
         (params as Record<string, unknown>).document_id === documentId
@@ -130,70 +173,78 @@ export const invalidateDocumentComments = (documentId: number) =>
     },
   });
 
-export const invalidateRecentComments = () => invalidatePrefix("/api/v1/comments/recent");
+export const invalidateRecentComments = () => invalidateGuildPrefix("/api/v1/comments/recent");
 
-// ── Notifications ────────────────────────────────────────────────────────────
+// ── Notifications (personal) ─────────────────────────────────────────────────────
 
-export const invalidateNotifications = () => invalidatePrefix("/api/v1/notifications");
+export const invalidateNotifications = () => invalidatePersonalPrefix("/api/v1/notifications");
 
-// ── Initiatives ──────────────────────────────────────────────────────────────
+// ── Initiatives (guild) ──────────────────────────────────────────────────────────
 
-export const invalidateAllInitiatives = () => invalidatePrefix("/api/v1/initiatives");
+export const invalidateAllInitiatives = () => invalidateGuildPrefix("/api/v1/initiatives");
 
 export const invalidateInitiative = (initiativeId: number) =>
-  invalidateExact([`/api/v1/initiatives/${initiativeId}`]);
+  invalidateGuildExact([`/api/v1/initiatives/${initiativeId}`]);
 
 export const invalidateInitiativeRoles = (initiativeId: number) =>
-  invalidateExact([`/api/v1/initiatives/${initiativeId}/roles`]);
+  invalidateGuildExact([`/api/v1/initiatives/${initiativeId}/roles`]);
 
 export const invalidateMyPermissions = (initiativeId: number) =>
-  invalidateExact([`/api/v1/initiatives/${initiativeId}/my-permissions`]);
+  invalidateGuildExact([`/api/v1/initiatives/${initiativeId}/my-permissions`]);
 
 export const invalidateInitiativeMembers = (initiativeId: number) =>
-  invalidateExact([`/api/v1/initiatives/${initiativeId}/members`]);
+  invalidateGuildExact([`/api/v1/initiatives/${initiativeId}/members`]);
 
-// ── Settings ─────────────────────────────────────────────────────────────────
+// ── Settings (personal / platform) ───────────────────────────────────────────────
 
-export const invalidateAllSettings = () => invalidatePrefix("/api/v1/settings");
+export const invalidateAllSettings = () => invalidatePersonalPrefix("/api/v1/settings");
 
-export const invalidateInterfaceSettings = () => invalidateExact([`/api/v1/settings/interface`]);
+export const invalidateInterfaceSettings = () =>
+  invalidatePersonalExact([`/api/v1/settings/interface`]);
 
-export const invalidateEmailSettings = () => invalidateExact([`/api/v1/settings/email`]);
+export const invalidateEmailSettings = () => invalidatePersonalExact([`/api/v1/settings/email`]);
 
-export const invalidateAuthSettings = () => invalidateExact([`/api/v1/settings/auth`]);
+export const invalidateAuthSettings = () => invalidatePersonalExact([`/api/v1/settings/auth`]);
 
-export const invalidateOidcMappings = () => invalidatePrefix("/api/v1/settings/oidc-mappings");
+export const invalidateOidcMappings = () =>
+  invalidatePersonalPrefix("/api/v1/settings/oidc-mappings");
 
-// ── AI Settings ──────────────────────────────────────────────────────────────
+// ── AI Settings (platform is personal; guild/user/resolved are guild-scoped) ──────
 
-export const invalidateAllAISettings = () => invalidatePrefix("/api/v1/settings/ai");
+export const invalidateAllAISettings = () =>
+  Promise.all([
+    invalidatePersonalExact([`/api/v1/settings/ai/platform`]),
+    invalidateGuildPrefix("/api/v1/settings/ai"),
+  ]);
 
-export const invalidatePlatformAISettings = () => invalidateExact([`/api/v1/settings/ai/platform`]);
+export const invalidatePlatformAISettings = () =>
+  invalidatePersonalExact([`/api/v1/settings/ai/platform`]);
 
-export const invalidateGuildAISettings = () => invalidateExact([`/api/v1/settings/ai/guild`]);
+export const invalidateGuildAISettings = () => invalidateGuildExact([`/api/v1/settings/ai/guild`]);
 
-export const invalidateUserAISettings = () => invalidateExact([`/api/v1/settings/ai/user`]);
+export const invalidateUserAISettings = () => invalidateGuildExact([`/api/v1/settings/ai/user`]);
 
-export const invalidateResolvedAISettings = () => invalidateExact([`/api/v1/settings/ai/resolved`]);
+export const invalidateResolvedAISettings = () =>
+  invalidateGuildExact([`/api/v1/settings/ai/resolved`]);
 
-// ── Users / Admin ────────────────────────────────────────────────────────────
+// ── Users / Admin (personal / platform) ──────────────────────────────────────────
 
-export const invalidateCurrentUser = () => invalidateExact([`/api/v1/users/me`]);
+export const invalidateCurrentUser = () => invalidatePersonalExact([`/api/v1/users/me`]);
 
-export const invalidateUserStats = () => invalidatePrefix("/api/v1/me/stats");
+export const invalidateUserStats = () => invalidatePersonalPrefix("/api/v1/me/stats");
 
-export const invalidateUsersList = () => invalidateExact([`/api/v1/users/`]);
+export const invalidateUsersList = () => invalidatePersonalExact([`/api/v1/users/`]);
 
-export const invalidateAdminUsers = () => invalidatePrefix("/api/v1/admin");
+export const invalidateAdminUsers = () => invalidatePersonalPrefix("/api/v1/admin");
 
-// ── Guilds ───────────────────────────────────────────────────────────────────
+// ── Guilds (personal / platform) ─────────────────────────────────────────────────
 
-export const invalidateAllGuilds = () => invalidatePrefix("/api/v1/guilds");
+export const invalidateAllGuilds = () => invalidatePersonalPrefix("/api/v1/guilds");
 
 export const invalidateGuildInvites = (guildId: number) =>
-  invalidateExact([`/api/v1/guilds/${guildId}/invites`]);
+  invalidatePersonalExact([`/api/v1/guilds/${guildId}/invites`]);
 
-// ── Guild Switch ────────────────────────────────────────────────────────────
+// ── Guild Switch ──────────────────────────────────────────────────────────────
 // Keys that are NOT guild-scoped and should survive a guild switch
 const GLOBAL_KEY_PREFIXES = ["/api/v1/guilds", "/api/v1/users/me", "/api/v1/version"];
 
@@ -207,41 +258,42 @@ export const resetGuildScopedQueries = () =>
     },
   });
 
-// ── Queues ──────────────────────────────────────────────────────────────────
+// ── Queues (guild) ──────────────────────────────────────────────────────────────
 
-export const invalidateAllQueues = () => invalidatePrefix("/api/v1/queues");
+export const invalidateAllQueues = () => invalidateGuildPrefix("/api/v1/queues");
 
-export const invalidateQueue = (queueId: number) => invalidateExact([`/api/v1/queues/${queueId}`]);
+export const invalidateQueue = (queueId: number) =>
+  invalidateGuildExact([`/api/v1/queues/${queueId}`]);
 
-// ── Counter Groups ──────────────────────────────────────────────────────────
+// ── Counter Groups (guild) ────────────────────────────────────────────────────────
 
-export const invalidateAllCounterGroups = () => invalidatePrefix("/api/v1/counter-groups");
+export const invalidateAllCounterGroups = () => invalidateGuildPrefix("/api/v1/counter-groups");
 
 export const invalidateCounterGroup = (groupId: number) =>
-  invalidateExact([`/api/v1/counter-groups/${groupId}`]);
+  invalidateGuildExact([`/api/v1/counter-groups/${groupId}`]);
 
-// ── Calendar Events ─────────────────────────────────────────────────────────
+// ── Calendar Events (guild + me) ──────────────────────────────────────────────────
 
 export const invalidateAllCalendarEvents = () => invalidateResourceAndMe("calendar-events");
 
 export const invalidateCalendarEvent = (eventId: number) =>
-  invalidateExact([`/api/v1/calendar-events/${eventId}`]);
+  invalidateGuildExact([`/api/v1/calendar-events/${eventId}`]);
 
-// ── Subtasks ─────────────────────────────────────────────────────────────────
+// ── Subtasks (guild) ──────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>
-  invalidateExact([`/api/v1/subtasks/${subtaskId}`]);
+  invalidateGuildExact([`/api/v1/subtasks/${subtaskId}`]);
 
-// ── Version ──────────────────────────────────────────────────────────────────
+// ── Version (personal) ────────────────────────────────────────────────────────────
 
-export const invalidateVersion = () => invalidateExact([`/api/v1/version`]);
+export const invalidateVersion = () => invalidatePersonalExact([`/api/v1/version`]);
 
-export const invalidateLatestVersion = () => invalidateExact([`/api/v1/version/latest`]);
+export const invalidateLatestVersion = () => invalidatePersonalExact([`/api/v1/version/latest`]);
 
-// ── Task Statuses ────────────────────────────────────────────────────────────
+// ── Task Statuses (guild) ─────────────────────────────────────────────────────────
 
-export const invalidateAllTaskStatuses = () => invalidatePrefix("/api/v1/projects");
+export const invalidateAllTaskStatuses = () => invalidateGuildPrefix("/api/v1/projects");
 
-// ── Properties ──────────────────────────────────────────────────────────────
+// ── Properties (guild) ────────────────────────────────────────────────────────────
 
-export const invalidateAllProperties = () => invalidatePrefix("/api/v1/property-definitions");
+export const invalidateAllProperties = () => invalidateGuildPrefix("/api/v1/property-definitions");
