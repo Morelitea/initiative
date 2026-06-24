@@ -29,6 +29,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator, Protocol, runtime_checkable
+from urllib.parse import quote
 
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
@@ -44,6 +45,20 @@ _STREAM_CHUNK = 64 * 1024
 
 # S3 error codes that mean "object/bucket not here" rather than a real failure.
 _S3_MISSING_CODES = {"404", "NoSuchKey", "NoSuchBucket", "NotFound"}
+
+
+def _content_disposition_attachment(filename: str) -> str:
+    """Build a safe ``attachment`` Content-Disposition value.
+
+    Mirrors Starlette's ``FileResponse`` so a user-supplied filename containing a
+    double-quote or non-ASCII char can't break out of the header: RFC 5987
+    ``filename*=utf-8''…`` when the name needs escaping, plain ``filename="…"``
+    otherwise.
+    """
+    quoted = quote(filename)
+    if quoted != filename:
+        return f"attachment; filename*=utf-8''{quoted}"
+    return f'attachment; filename="{filename}"'
 
 
 @dataclass
@@ -270,7 +285,9 @@ class S3Storage:
     ) -> str | None:
         params: dict[str, str] = {"Bucket": self._bucket, "Key": self._object_key(key)}
         if filename:
-            params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
+            params["ResponseContentDisposition"] = _content_disposition_attachment(
+                filename
+            )
         return self._client.generate_presigned_url(
             "get_object", Params=params, ExpiresIn=ttl
         )
@@ -306,7 +323,7 @@ def build_upload_response(
     if blob.content_length is not None and "Content-Length" not in headers:
         headers["Content-Length"] = str(blob.content_length)
     if filename is not None and "Content-Disposition" not in headers:
-        headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        headers["Content-Disposition"] = _content_disposition_attachment(filename)
     return StreamingResponse(blob.stream or iter(()), media_type=media, headers=headers)
 
 
@@ -373,11 +390,19 @@ def _make(prefix: str) -> StorageBackend:
 
 
 def get_storage() -> StorageBackend:
-    """Return the base (unscoped) backend, selected by ``STORAGE_BACKEND``.
+    """Return the process-wide local backend.
 
-    Use :func:`get_guild_storage` for guild content; this stays for the
-    identity/public plane and back-compat.
+    There is no *unscoped* S3 backend: all object-store content is guild-scoped,
+    so S3 writes MUST go through :func:`get_guild_storage` (which namespaces keys
+    under ``guild_<id>/``). Returning a root-prefixed S3 backend here would let a
+    caller write objects at the bucket root, outside any guild namespace — so the
+    S3 path raises instead. Identity media (avatars, icons) stays in Postgres, so
+    there is no public-plane S3 caller that would need this.
     """
+    if _backend_name() == "s3":
+        raise NotImplementedError(
+            "get_storage() has no unscoped S3 backend; use get_guild_storage(guild_id)"
+        )
     return _make("")
 
 

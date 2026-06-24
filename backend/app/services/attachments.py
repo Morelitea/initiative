@@ -319,6 +319,13 @@ def duplicate_upload(url: str | None) -> str | None:
 
     guild_id = guild_id_from_upload_url(normalized)
     if guild_id is None:
+        # Can't route to a storage namespace without the guild segment. Fall back
+        # to the source URL (the "couldn't duplicate" signal duplicate_uploads
+        # already handles by not remapping); warn so it's diagnosable rather than
+        # a silent alias.
+        logger.warning(
+            "Cannot resolve guild for upload %s; not duplicating", normalized
+        )
         return normalized
 
     # A duplicate stays in the same guild, so source and dest share one namespace.

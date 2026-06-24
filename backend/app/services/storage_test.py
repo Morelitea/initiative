@@ -253,6 +253,16 @@ def test_build_upload_response_stream_attachment_disposition():
     assert 'attachment; filename="r.pdf"' in resp.headers["Content-Disposition"]
 
 
+def test_build_upload_response_escapes_quote_in_filename():
+    # A filename with a double-quote must not break out of the header value;
+    # it falls back to RFC 5987 filename*= encoding.
+    blob = ReadableBlob(stream=iter([b"z"]), content_type="application/pdf")
+    resp = build_upload_response(blob, filename='report"final".pdf')
+    disposition = resp.headers["Content-Disposition"]
+    assert "filename*=utf-8''" in disposition
+    assert '"final"' not in disposition  # the raw quote did not survive verbatim
+
+
 def test_resolver_namespaces_by_guild_for_s3(monkeypatch):
     monkeypatch.setattr(storage_module.settings, "STORAGE_BACKEND", "s3")
     monkeypatch.setattr(storage_module.settings, "S3_BUCKET", "bucket")
@@ -263,8 +273,10 @@ def test_resolver_namespaces_by_guild_for_s3(monkeypatch):
     assert isinstance(scoped, S3Storage)
     assert scoped._prefix == "guild_42/"
     assert scoped._bucket == "bucket"
-    # The unscoped base backend carries no guild prefix.
-    assert get_storage()._prefix == ""
+    # There is no unscoped S3 backend (it would write at the bucket root, outside
+    # any guild namespace), so get_storage() refuses under s3.
+    with pytest.raises(NotImplementedError):
+        get_storage()
 
 
 def test_resolver_requires_bucket_for_s3(monkeypatch):
