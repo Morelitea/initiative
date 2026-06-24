@@ -9,7 +9,7 @@ Tests the recurrence calculation logic including:
 
 from datetime import datetime, timezone
 
-from app.schemas.task import TaskRecurrence
+from app.schemas.tenant.task import TaskRecurrence
 from app.services.recurrence import get_next_due_date
 
 

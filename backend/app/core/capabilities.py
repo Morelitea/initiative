@@ -18,10 +18,10 @@ from __future__ import annotations
 from enum import Enum
 from typing import TYPE_CHECKING, FrozenSet
 
-from app.models.user import UserRole
+from app.models.platform.user import UserRole
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.user import User
+    from app.models.platform.user import User
 
 
 class Capability(str, Enum):

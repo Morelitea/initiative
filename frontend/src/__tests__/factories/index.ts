@@ -17,7 +17,6 @@ export {
 export {
   buildDefaultTaskStatuses,
   buildProject,
-  buildProjectPermission,
   buildProjectTaskStatus,
   resetCounter as resetProjectCounter,
 } from "./project.factory";
@@ -31,8 +30,6 @@ export {
   buildQueue,
   buildQueueItem,
   buildQueueListResponse,
-  buildQueuePermission,
-  buildQueueRolePermission,
   buildQueueSummary,
   resetCounter as resetQueueCounter,
 } from "./queue.factory";

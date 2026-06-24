@@ -1,0 +1,128 @@
+"""Auto-purge background worker for trashed entities past their retention.
+
+Polled by ``background_tasks._loop_worker`` once an hour. Connects via
+``AdminSessionLocal`` (the ``app_admin`` login) and routes into each guild's
+schema as a guild admin (``current_guild_role='admin'``) — that admin leg clears
+the ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE guard (and the
+initiative-member policies), since SET ROLE into ``guild_<id>`` drops the
+``app_admin`` BYPASSRLS. See ``_purge_all_guilds``.
+
+Documents need per-row treatment because their hard-purge has to clean up
+``Upload`` rows + filesystem blobs (both for ``file``-type docs whose Upload
+is a 1:1 sibling, and for ``native`` docs whose embedded URLs may have
+become orphans). Every other entity table can be bulk-deleted; FK CASCADE
+on its descendants takes them too.
+
+Initiative is also handled per-row because cascade-purging an Initiative
+takes its Documents with it via FK; the upload cleanup needs to run before
+those Documents are deleted.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import datetime, timezone
+
+from sqlalchemy import inspect as sa_inspect
+from sqlmodel import select
+
+from app.db.session import AdminSessionLocal, set_rls_context
+from app.db.soft_delete_filter import select_including_deleted
+from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.comment import Comment
+from app.models.tenant.document import Document
+from app.models.platform.guild import Guild
+from app.models.tenant.initiative import Initiative
+from app.models.tenant.project import Project
+from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.tag import Tag
+from app.models.tenant.task import Task
+from app.services.tenant.soft_delete import hard_purge_entity
+
+
+logger = logging.getLogger(__name__)
+
+
+PURGE_POLL_SECONDS = 3600
+
+
+# Top-of-cascade models, in dependency order. We iterate top-down so an
+# Initiative whose retention has elapsed takes its Project / Document /
+# Queue / CalendarEvent descendants with it via hard_purge_entity, leaving
+# the per-entity passes empty for those rows.
+_PURGE_TOP_DOWN = (
+    Initiative,
+    Project,
+    Document,
+    Task,
+    Queue,
+    QueueItem,
+    Comment,
+    Tag,
+    CalendarEvent,
+)
+
+
+async def _run_purge_pass(session, *, now: datetime) -> None:
+    """Inner loop: walks _PURGE_TOP_DOWN once on the supplied session.
+    Caller commits. Factored out so tests can drive it with their own
+    session against the test DB."""
+    for model in _PURGE_TOP_DOWN:
+        stmt = (
+            select_including_deleted(model)
+            .where(model.purge_at.is_not(None))
+            .where(model.purge_at < now)
+        )
+        result = await session.exec(stmt)
+        rows = list(result.all())
+        for row in rows:
+            # Skip if a parent purge in an earlier iteration of this
+            # loop has already queued this row for deletion. Membership
+            # in `session` would still be True here — the identity map
+            # holds deleted-but-unflushed objects until commit. The
+            # "deleted" persistence state via sa_inspect is the right
+            # check.
+            if sa_inspect(row).deleted:
+                continue
+            await hard_purge_entity(session, row)
+
+
+async def _purge_all_guilds(session, *, now: datetime) -> None:
+    """Run the purge pass once in every guild's schema.
+
+    Each guild's trashed rows live in its own schema, so the worker has to visit
+    them all. Trash purge is system maintenance with full authority over the
+    guild, so it routes into each guild's schema AS A GUILD ADMIN
+    (``current_guild_role='admin'``). That admin leg is what clears both the
+    initiative-member policies and the ``soft_delete_admin_purge`` RESTRICTIVE
+    guard on the soft-delete tables — routing into ``guild_<id>`` drops the
+    ``app_admin`` BYPASSRLS, so an admin context (not the retired ``is_superadmin``
+    GUC) is what lets the hard deletes through. Guilds are enumerated on the admin
+    context first; each schema gets its own committed pass. Split out so tests can
+    drive it with the test session.
+    """
+    await set_rls_context(session, is_superadmin=True)
+    guild_ids = list(await session.exec(select(Guild.id).order_by(Guild.id.asc())))
+    for guild_id in guild_ids:
+        # ids collide across schemas, so clear the identity map between guilds.
+        session.expunge_all()
+        await set_rls_context(session, guild_id=guild_id, guild_role="admin")
+        await _run_purge_pass(session, now=now)
+        await session.commit()
+
+
+async def process_trash_purges() -> None:
+    """One pass of the auto-purge loop across every guild schema. Idempotent and
+    safe to run on a schedule even when nothing is due.
+
+    Uses ``hard_purge_entity`` per row so that:
+    1. ``Document`` upload cleanup (blobs + Upload rows) runs before each
+       Document is deleted.
+    2. ORM-level cascades fire correctly — most FKs in this codebase are
+       not declared with DB-level ``ON DELETE CASCADE``, so a bulk
+       ``DELETE FROM <table> WHERE purge_at < now()`` would fail on FK
+       constraints. ``hard_purge_entity`` walks descendants explicitly.
+    """
+    now = datetime.now(timezone.utc)
+    async with AdminSessionLocal() as session:
+        await _purge_all_guilds(session, now=now)

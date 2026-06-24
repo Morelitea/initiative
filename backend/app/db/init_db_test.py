@@ -9,9 +9,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 import app.db.init_db as init_db
 from app.core.config import settings
 from app.core.encryption import hash_email
-from app.models.guild import Guild
-from app.models.user import User
-from app.services import guilds as guilds_service
+from app.models.platform.guild import Guild
+from app.models.platform.user import User
+from app.services.platform import guilds as guilds_service
 
 pytestmark = pytest.mark.database
 
@@ -39,7 +39,7 @@ async def test_init_superuser_cleans_up_when_guild_seed_fails(engine, monkeypatc
     async def _boom(seed_session, *args, **kwargs):
         # Abort the transaction like a real failing query would, so the cleanup
         # path must rollback before it can delete the stranded rows.
-        await seed_session.execute(text("SELECT * FROM does_not_exist_xyz"))
+        await seed_session.exec(text("SELECT * FROM does_not_exist_xyz"))
 
     monkeypatch.setattr(guilds_service, "seed_guild_content", _boom)
 

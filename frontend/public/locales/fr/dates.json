@@ -1,4 +1,10 @@
 {
+  "picker": {
+    "pickDate": "Choisir une date",
+    "pickDateTime": "Choisir une date et une heure",
+    "typeDate": "Saisir ou choisir une date",
+    "time": "Heure"
+  },
   "status": {
     "overdue": "En retard",
     "today": "Aujourd'hui",

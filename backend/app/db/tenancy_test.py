@@ -97,7 +97,7 @@ def test_recent_views_path_covers_entity_types():
     """recent_views' polymorphic RLS path must join every entity type the app can
     record — otherwise rows of an uncovered type would be silently invisible."""
     from app.db.initiative_rls import RECENT_ENTITY_TABLES
-    from app.models.recent_view import RECENT_ENTITY_TYPES
+    from app.models.tenant.recent_view import RECENT_ENTITY_TYPES
 
     uncovered = set(RECENT_ENTITY_TYPES) - set(RECENT_ENTITY_TABLES)
     assert not uncovered, (

@@ -15,12 +15,9 @@ import type {
   QueueItemReorderRequest,
   QueueItemUpdate,
   QueueListResponse,
-  QueuePermissionCreate,
-  QueuePermissionRead,
   QueueRead,
-  QueueRolePermissionCreate,
-  QueueRolePermissionRead,
   QueueUpdate,
+  ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   addQueueItemApiV1GGuildIdQueuesQueueIdItemsPost,
@@ -38,11 +35,10 @@ import {
   reorderQueueItemsApiV1GGuildIdQueuesQueueIdItemsReorderPut,
   resetQueueApiV1GGuildIdQueuesQueueIdResetPost,
   setActiveItemApiV1GGuildIdQueuesQueueIdSetActiveItemIdPost,
+  setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut,
   setQueueItemDocumentsApiV1GGuildIdQueuesQueueIdItemsItemIdDocumentsPut,
   setQueueItemTagsApiV1GGuildIdQueuesQueueIdItemsItemIdTagsPut,
   setQueueItemTasksApiV1GGuildIdQueuesQueueIdItemsItemIdTasksPut,
-  setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut,
-  setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut,
   startQueueApiV1GGuildIdQueuesQueueIdStartPost,
   stopQueueApiV1GGuildIdQueuesQueueIdStopPost,
   updateQueueApiV1GGuildIdQueuesQueueIdPatch,
@@ -51,6 +47,7 @@ import {
 import { invalidateAllQueues, invalidateQueue } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
+import { getErrorMessage } from "@/lib/errorMessage";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -877,24 +874,23 @@ export const useSetQueueItemTasks = (
   });
 };
 
-// ── Permission Mutations ────────────────────────────────────────────────────
+// ── Grants Mutation (unified resource sharing) ──────────────────────────────
 
-export const useSetQueuePermissions = (
+export const useSetQueueGrants = (
   queueId: number,
-  options?: MutationOpts<QueuePermissionRead[], QueuePermissionCreate[]>
+  options?: MutationOpts<QueueRead, ResourceGrantSchema[]>
 ) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (data: QueuePermissionCreate[]) => {
-      return setQueuePermissionsApiV1GGuildIdQueuesQueueIdPermissionsPut(
+    mutationFn: async (grants: ResourceGrantSchema[]) => {
+      return setQueueGrantsApiV1GGuildIdQueuesQueueIdGrantsPut(
         guildId,
         queueId,
-        data
-      ) as unknown as Promise<QueuePermissionRead[]>;
+        grants
+      ) as unknown as Promise<QueueRead>;
     },
     onSuccess: (...args) => {
       void invalidateQueue(queueId);
@@ -902,37 +898,7 @@ export const useSetQueuePermissions = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
-      onError?.(...args);
-    },
-    onSettled,
-  });
-};
-
-export const useSetQueueRolePermissions = (
-  queueId: number,
-  options?: MutationOpts<QueueRolePermissionRead[], QueueRolePermissionCreate[]>
-) => {
-  const { t } = useTranslation("queues");
-  const guildId = useActiveGuildId();
-  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
-
-  return useMutation({
-    ...rest,
-    mutationFn: async (data: QueueRolePermissionCreate[]) => {
-      return setQueueRolePermissionsApiV1GGuildIdQueuesQueueIdRolePermissionsPut(
-        guildId,
-        queueId,
-        data
-      ) as unknown as Promise<QueueRolePermissionRead[]>;
-    },
-    onSuccess: (...args) => {
-      void invalidateQueue(queueId);
-      void invalidateAllQueues();
-      onSuccess?.(...args);
-    },
-    onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,

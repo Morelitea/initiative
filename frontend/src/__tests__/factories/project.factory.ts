@@ -1,5 +1,4 @@
 import type {
-  ProjectPermissionRead,
   ProjectRead,
   TaskStatusCategory,
   TaskStatusRead,
@@ -63,19 +62,6 @@ export function buildDefaultTaskStatuses(projectId: number = 1): TaskStatusRead[
   });
 }
 
-export function buildProjectPermission(
-  overrides: Partial<ProjectPermissionRead> = {}
-): ProjectPermissionRead {
-  counter++;
-  return {
-    user_id: counter,
-    level: "read",
-    created_at: "2026-01-15T00:00:00.000Z",
-    project_id: 1,
-    ...overrides,
-  };
-}
-
 export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead {
   counter++;
   return {
@@ -93,8 +79,7 @@ export function buildProject(overrides: Partial<ProjectRead> = {}): ProjectRead 
     pinned_at: null,
     owner: null,
     initiative: null,
-    permissions: [],
-    role_permissions: [],
+    grants: [],
     my_permission_level: "owner",
     sort_order: counter,
     is_favorited: false,

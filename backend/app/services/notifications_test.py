@@ -12,18 +12,22 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, RSVPStatus
-from app.models.event_reminder_dispatch import EventReminderDispatch
-from app.models.notification import Notification, NotificationType
-from app.models.task import (
+from app.models.tenant.calendar_event import (
+    CalendarEvent,
+    CalendarEventAttendee,
+    RSVPStatus,
+)
+from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
+from app.models.platform.notification import Notification, NotificationType
+from app.models.tenant.task import (
     Task,
     TaskAssignee,
     TaskPriority,
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.task_assignment_digest import TaskAssignmentDigestItem
-from app.models.user import User
+from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.platform.user import User
 from app.services import email as email_service
 from app.services.notifications import (
     _format_event_when,
@@ -32,7 +36,7 @@ from app.services.notifications import (
     _run_overdue_pass,
     notify_initiative_membership,
 )
-from app.models.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, GuildRole
 from app.testing import (
     create_calendar_event,
     create_guild,

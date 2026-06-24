@@ -4,8 +4,8 @@ import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import GuildRole
-from app.models.initiative import Initiative
+from app.models.platform.guild import GuildRole
+from app.models.tenant.initiative import Initiative
 from app.services import membership as membership_service
 from app.testing.factories import (
     create_guild,
@@ -102,13 +102,13 @@ async def test_initiative_member_clause_filters_rows(session: AsyncSession):
         stmt = select(Initiative.id).where(
             membership_service.initiative_member_clause(user.id, Initiative.id)
         )
-        assert list((await session.execute(stmt)).scalars().all()) == expected
+        assert list((await session.exec(stmt)).all()) == expected
 
 
 @pytest.mark.integration
 async def test_initiative_scope_clause_legs(session: AsyncSession):
     """member / guild-admin / (no standing platform-bypass) legs of the clause."""
-    from app.models.user import UserRole
+    from app.models.platform.user import UserRole
 
     admin, member, outsider, _guild, initiative = await _setup(session)
     platform_admin = await create_user(
@@ -121,7 +121,7 @@ async def test_initiative_scope_clause_legs(session: AsyncSession):
                 user.id, Initiative.id, Initiative.guild_id
             )
         )
-        return list((await session.execute(stmt)).scalars().all())
+        return list((await session.exec(stmt)).all())
 
     assert await scoped_ids(member) == [initiative.id]  # member leg
     assert await scoped_ids(admin) == [initiative.id]  # guild-admin leg
@@ -153,10 +153,10 @@ async def test_initiative_scope_clause_pam_leg(session: AsyncSession):
     await set_rls_context(
         session, user_id=outsider.id, pam_guild_id=guild.id, pam_read=True
     )
-    assert list((await session.execute(stmt())).scalars().all()) == [initiative.id]
+    assert list((await session.exec(stmt())).all()) == [initiative.id]
 
     # Same outsider routed as a (non-)member with no grant: matches nothing.
     await set_rls_context(
         session, user_id=outsider.id, guild_id=guild.id, guild_role="member"
     )
-    assert list((await session.execute(stmt())).scalars().all()) == []
+    assert list((await session.exec(stmt())).all()) == []

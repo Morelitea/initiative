@@ -37,60 +37,55 @@ from app.core.security import get_password_hash  # noqa: E402
 from app.db.schema_provisioning import provision_guild  # noqa: E402
 from app.db.session import AdminSessionLocal, set_rls_context  # noqa: E402
 from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
-from app.models.calendar_event import (  # noqa: E402
+from app.models.tenant.calendar_event import (  # noqa: E402
     CalendarEvent,
     CalendarEventAttendee,
     CalendarEventDocument,
     CalendarEventTag,
     RSVPStatus,
 )
-from app.models.comment import Comment  # noqa: E402
-from app.models.counter import (  # noqa: E402
+from app.models.tenant.comment import Comment  # noqa: E402
+from app.models.tenant.counter import (  # noqa: E402
     Counter,
     CounterGroup,
-    CounterGroupPermission,
-    CounterGroupRolePermission,
-    CounterPermissionLevel,
     CounterViewMode,
 )
-from app.models.document import (  # noqa: E402
+from app.models.tenant.document import (  # noqa: E402
     Document,
     DocumentLink,
-    DocumentPermission,
-    DocumentPermissionLevel,
     ProjectDocument,
 )
-from app.models.guild import Guild, GuildMembership, GuildRole  # noqa: E402
-from app.models.queue import (  # noqa: E402
+from app.models.platform.guild import Guild, GuildMembership, GuildRole  # noqa: E402
+from app.models.tenant.queue import (  # noqa: E402
     Queue,
     QueueItem,
     QueueItemTag,
-    QueuePermission,
-    QueuePermissionLevel,
 )
-from app.models.guild_setting import GuildSetting  # noqa: E402
-from app.models.initiative import (  # noqa: E402
+from app.models.tenant.guild_setting import GuildSetting  # noqa: E402
+from app.models.tenant.initiative import (  # noqa: E402
     Initiative,
     InitiativeMember,
     InitiativeRoleModel,
     InitiativeRolePermission,
 )
-from app.models.project import (  # noqa: E402
+from app.models.tenant.project import (  # noqa: E402
     Project,
-    ProjectPermission,
-    ProjectPermissionLevel,
 )
-from app.models.project_activity import ProjectFavorite  # noqa: E402
-from app.models.property import (  # noqa: E402
+from app.models.tenant.resource_grant import (  # noqa: E402
+    ResourceAccessLevel,
+    ResourceGrant,
+)
+from app.models.tenant.project_activity import ProjectFavorite  # noqa: E402
+from app.models.tenant.property import (  # noqa: E402
     CalendarEventPropertyValue,
     DocumentPropertyValue,
     PropertyDefinition,
     PropertyType,
     TaskPropertyValue,
 )
-from app.models.recent_view import RecentView  # noqa: E402
-from app.models.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
-from app.models.task import (  # noqa: E402
+from app.models.tenant.recent_view import RecentView  # noqa: E402
+from app.models.tenant.tag import DocumentTag, ProjectTag, Tag, TaskTag  # noqa: E402
+from app.models.tenant.task import (  # noqa: E402
     Subtask,
     Task,
     TaskAssignee,
@@ -98,14 +93,14 @@ from app.models.task import (  # noqa: E402
     TaskStatus,
     TaskStatusCategory,
 )
-from app.models.user import User, UserRole  # noqa: E402
-from app.services.app_settings import get_or_create_guild_settings  # noqa: E402
-from app.services.guilds import get_primary_guild  # noqa: E402
-from app.services.initiatives import (  # noqa: E402
+from app.models.platform.user import User, UserRole  # noqa: E402
+from app.services.platform.app_settings import get_or_create_guild_settings  # noqa: E402
+from app.services.platform.guilds import get_primary_guild  # noqa: E402
+from app.services.tenant.initiatives import (  # noqa: E402
     create_builtin_roles,
     ensure_default_initiative,
 )
-from app.services.task_statuses import ensure_default_statuses  # noqa: E402
+from app.services.tenant.task_statuses import ensure_default_statuses  # noqa: E402
 
 STATE_FILE = Path(__file__).resolve().parent.parent / ".vscode" / ".dev_seed_ids.json"
 
@@ -126,6 +121,8 @@ def _doc(paragraphs: list[str]) -> dict:
             "type": "paragraph",
         })
     return {"root": {"children": children, "type": "root"}}
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -499,31 +496,37 @@ async def _create_project(
     ids.add("projects", project.id)
 
     # Owner permission
-    perm = ProjectPermission(
-        project_id=project.id,
+    perm = ResourceGrant(
+        resource_type="project",
+        resource_id=project.id,
         user_id=owner.id,
         guild_id=guild.id,
-        level=ProjectPermissionLevel.owner,
+        initiative_id=project.initiative_id,
+        level=ResourceAccessLevel.owner,
     )
     session.add(perm)
     ids.add("project_permissions", {"project_id": project.id, "user_id": owner.id})
 
     for user in (write_users or []):
-        p = ProjectPermission(
-            project_id=project.id,
+        p = ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
             user_id=user.id,
             guild_id=guild.id,
-            level=ProjectPermissionLevel.write,
+            initiative_id=project.initiative_id,
+            level=ResourceAccessLevel.write,
         )
         session.add(p)
         ids.add("project_permissions", {"project_id": project.id, "user_id": user.id})
 
     for user in (read_users or []):
-        p = ProjectPermission(
-            project_id=project.id,
+        p = ResourceGrant(
+            resource_type="project",
+            resource_id=project.id,
             user_id=user.id,
             guild_id=guild.id,
-            level=ProjectPermissionLevel.read,
+            initiative_id=project.initiative_id,
+            level=ResourceAccessLevel.read,
         )
         session.add(p)
         ids.add("project_permissions", {"project_id": project.id, "user_id": user.id})
@@ -668,11 +671,13 @@ async def _create_documents(
         docs[dd["title"]] = doc
 
         # Owner permission for creator
-        dperm = DocumentPermission(
-            document_id=doc.id,
+        dperm = ResourceGrant(
+            resource_type="document",
+            resource_id=doc.id,
             user_id=creator.id,
             guild_id=guild.id,
-            level=DocumentPermissionLevel.owner,
+            initiative_id=doc.initiative_id,
+            level=ResourceAccessLevel.owner,
         )
         session.add(dperm)
         ids.add("document_permissions", {"document_id": doc.id, "user_id": creator.id})
@@ -681,11 +686,13 @@ async def _create_documents(
         for writer_name in dd.get("writers", []):
             w = all_users.get(writer_name)
             if w:
-                dp = DocumentPermission(
-                    document_id=doc.id,
+                dp = ResourceGrant(
+                    resource_type="document",
+                    resource_id=doc.id,
                     user_id=w.id,
                     guild_id=guild.id,
-                    level=DocumentPermissionLevel.write,
+                    initiative_id=doc.initiative_id,
+                    level=ResourceAccessLevel.write,
                 )
                 session.add(dp)
                 ids.add("document_permissions", {"document_id": doc.id, "user_id": w.id})
@@ -693,11 +700,13 @@ async def _create_documents(
         for reader_name in dd.get("readers", []):
             r = all_users.get(reader_name)
             if r:
-                dp = DocumentPermission(
-                    document_id=doc.id,
+                dp = ResourceGrant(
+                    resource_type="document",
+                    resource_id=doc.id,
                     user_id=r.id,
                     guild_id=guild.id,
-                    level=DocumentPermissionLevel.read,
+                    initiative_id=doc.initiative_id,
+                    level=ResourceAccessLevel.read,
                 )
                 session.add(dp)
                 ids.add("document_permissions", {"document_id": doc.id, "user_id": r.id})
@@ -936,11 +945,13 @@ async def _create_queues(
         ids.add("queues", queue.id)
 
         # Owner permission for creator
-        owner_perm = QueuePermission(
-            queue_id=queue.id,
+        owner_perm = ResourceGrant(
+            resource_type="queue",
+            resource_id=queue.id,
             user_id=creator.id,
             guild_id=guild.id,
-            level=QueuePermissionLevel.owner,
+            initiative_id=queue.initiative_id,
+            level=ResourceAccessLevel.owner,
         )
         session.add(owner_perm)
         ids.add("queue_permissions", {
@@ -951,11 +962,13 @@ async def _create_queues(
         for uname in qd.get("write_users", []):
             user = all_users.get(uname)
             if user and user.id != creator.id:
-                wp = QueuePermission(
-                    queue_id=queue.id,
+                wp = ResourceGrant(
+                    resource_type="queue",
+                    resource_id=queue.id,
                     user_id=user.id,
                     guild_id=guild.id,
-                    level=QueuePermissionLevel.write,
+                    initiative_id=queue.initiative_id,
+                    level=ResourceAccessLevel.write,
                 )
                 session.add(wp)
                 ids.add("queue_permissions", {
@@ -1073,11 +1086,13 @@ async def _create_counter_groups(
         ids.add("counter_groups", group.id)
 
         # Owner permission for creator
-        owner_perm = CounterGroupPermission(
-            counter_group_id=group.id,
+        owner_perm = ResourceGrant(
+            resource_type="counter_group",
+            resource_id=group.id,
             user_id=creator.id,
             guild_id=guild.id,
-            level=CounterPermissionLevel.owner,
+            initiative_id=group.initiative_id,
+            level=ResourceAccessLevel.owner,
         )
         session.add(owner_perm)
         ids.add("counter_group_permissions", {
@@ -1088,11 +1103,13 @@ async def _create_counter_groups(
         for grant in gd.get("user_grants", []):
             user = all_users.get(grant["user"])
             if user and user.id != creator.id:
-                up = CounterGroupPermission(
-                    counter_group_id=group.id,
+                up = ResourceGrant(
+                    resource_type="counter_group",
+                    resource_id=group.id,
                     user_id=user.id,
                     guild_id=guild.id,
-                    level=grant.get("level", CounterPermissionLevel.write),
+                    initiative_id=group.initiative_id,
+                    level=grant.get("level", ResourceAccessLevel.write),
                 )
                 session.add(up)
                 ids.add("counter_group_permissions", {
@@ -1101,11 +1118,13 @@ async def _create_counter_groups(
 
         # Role grants
         for grant in gd.get("role_grants", []):
-            rp = CounterGroupRolePermission(
-                counter_group_id=group.id,
-                initiative_role_id=grant["role_id"],
+            rp = ResourceGrant(
+                resource_type="counter_group",
+                resource_id=group.id,
+                role_id=grant["role_id"],
                 guild_id=guild.id,
-                level=grant.get("level", CounterPermissionLevel.read),
+                initiative_id=group.initiative_id,
+                level=grant.get("level", ResourceAccessLevel.read),
             )
             session.add(rp)
             ids.add("counter_group_role_permissions", {
@@ -2024,7 +2043,7 @@ async def seed() -> None:
                 "name": "Party Vitals (Strahd)",
                 "description": "Combat-relevant counters for the Curse of Strahd party.",
                 "created_by": "Dungeon Master",
-                "role_grants": [{"role_id": g1_strahd_mem.id, "level": CounterPermissionLevel.write}],
+                "role_grants": [{"role_id": g1_strahd_mem.id, "level": ResourceAccessLevel.write}],
                 "counters": [
                     {"name": "Thorn HP", "color": "#DC2626", "count": 38, "min": 0, "max": 42,
                      "step": 1, "initial_count": 42, "view_mode": CounterViewMode.progress_bar, "position": 1},
@@ -2688,7 +2707,7 @@ async def seed() -> None:
                 "name": "Fleet Status",
                 "description": "Ship integrity and resource levels for The Exodus Protocol.",
                 "created_by": "Admin User",
-                "role_grants": [{"role_id": g2_main_mem.id, "level": CounterPermissionLevel.write}],
+                "role_grants": [{"role_id": g2_main_mem.id, "level": ResourceAccessLevel.write}],
                 "counters": [
                     {"name": "Hull Integrity", "color": "#3B82F6", "count": 78, "min": 0, "max": 100,
                      "step": 5, "initial_count": 100, "view_mode": CounterViewMode.progress_bar, "position": 1},
@@ -3391,7 +3410,7 @@ async def seed() -> None:
                 "name": "The Crimson Maiden",
                 "description": "Ship state for the pirate vessel.",
                 "created_by": "Finley Goldtongue",
-                "role_grants": [{"role_id": g3_main_mem.id, "level": CounterPermissionLevel.write}],
+                "role_grants": [{"role_id": g3_main_mem.id, "level": ResourceAccessLevel.write}],
                 "counters": [
                     {"name": "Hull HP", "color": "#92400E", "count": 87, "min": 0, "max": 120,
                      "step": 1, "initial_count": 120, "view_mode": CounterViewMode.progress_bar, "position": 1},

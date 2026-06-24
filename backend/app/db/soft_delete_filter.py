@@ -23,15 +23,15 @@ from sqlalchemy.orm import Session, with_loader_criteria
 from sqlalchemy.orm.session import ORMExecuteState
 from sqlmodel import SQLModel, select as sqlmodel_select
 
-from app.models.calendar_event import CalendarEvent
-from app.models.comment import Comment
-from app.models.counter import Counter, CounterGroup
-from app.models.document import Document
-from app.models.initiative import Initiative
-from app.models.project import Project
-from app.models.queue import Queue, QueueItem
-from app.models.tag import Tag
-from app.models.task import Task
+from app.models.tenant.calendar_event import CalendarEvent
+from app.models.tenant.comment import Comment
+from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.document import Document
+from app.models.tenant.initiative import Initiative
+from app.models.tenant.project import Project
+from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.tag import Tag
+from app.models.tenant.task import Task
 
 
 SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (
@@ -47,6 +47,14 @@ SOFT_DELETE_MODELS: Sequence[type[SQLModel]] = (
     CounterGroup,
     Counter,
 )
+
+# The table names behind SOFT_DELETE_MODELS — the single source of truth for
+# "which guild tables carry the trash-can lifecycle" that downstream consumers
+# (e.g. the guild-RLS generator's admin-only DELETE guard) read instead of
+# re-listing tables. ``soft_delete_filter_test`` asserts SOFT_DELETE_MODELS
+# equals ``SoftDeleteMixin.__subclasses__()``, so this stays authoritative and
+# can't silently drift from the mixin.
+SOFT_DELETE_TABLES: tuple[str, ...] = tuple(m.__tablename__ for m in SOFT_DELETE_MODELS)
 
 
 _INSTALLED = False

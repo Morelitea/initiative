@@ -42,7 +42,7 @@ async def test_upload_accessible_with_auth_header(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """GET /uploads/<file> with Authorization Bearer header returns 200."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_auth_header.txt"
@@ -95,7 +95,7 @@ async def test_upload_accessible_with_scoped_upload_token(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """A short-lived, uploads-scoped token IS accepted via ?token=. SEC-12."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_query_upload_token.txt"
@@ -142,7 +142,7 @@ async def test_issue_upload_token_endpoint(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """POST /auth/upload-token mints a token that opens /uploads. SEC-12."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_minted_token.txt"
@@ -214,7 +214,7 @@ async def test_upload_guild_member_can_access_file(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Authenticated guild member can access a file uploaded by that guild."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_guild_access.png"
@@ -247,7 +247,7 @@ async def test_upload_non_member_cannot_access_file(
     client: AsyncClient, session: AsyncSession
 ) -> None:
     """Authenticated user NOT in the owning guild gets 403."""
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     uploads_dir = _uploads_dir()
     test_file = uploads_dir / "test_guild_forbidden.png"
@@ -341,20 +341,20 @@ async def test_upload_row_in_guild_schema_is_served(
         schema = guild_schema_name(guild.id)
         # Insert the row into the guild schema ONLY (mimicking the production
         # request path, where set_rls_context routes search_path there).
-        await session.execute(
+        await session.exec(
             text(
                 f'INSERT INTO "{schema}".uploads'
                 " (filename, guild_id, uploader_user_id, size_bytes, created_at)"
                 " VALUES (:fn, :gid, :uid, 5, now())"
             ),
-            {"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
+            params={"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
         )
         await session.commit()
         # Prove the row is invisible from public.uploads.
         public_hit = (
-            await session.execute(
+            await session.exec(
                 text("SELECT 1 FROM public.uploads WHERE filename = :fn"),
-                {"fn": "test_guild_schema_row.txt"},
+                params={"fn": "test_guild_schema_row.txt"},
             )
         ).first()
         assert public_hit is None
@@ -394,7 +394,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
 
     from app.db.schema_provisioning import guild_schema_name
     from app.db.session import set_rls_context
-    from app.models.upload import Upload
+    from app.models.tenant.upload import Upload
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -413,7 +413,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
 
     # Raw cross-schema read as app_admin → permission denied (the old bug).
     with pytest.raises(Exception) as exc:  # asyncpg InsufficientPrivilegeError
-        await admin.execute(
+        await admin.exec(
             text(f'SELECT 1 FROM "{schema}".uploads LIMIT 1')  # noqa: S608
         )
     assert "permission denied" in str(exc.value).lower()
@@ -422,7 +422,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
     # The production pattern (SET ROLE via set_rls_context) succeeds.
     await set_rls_context(admin, guild_id=guild.id, is_superadmin=True)
     row = (
-        await admin.execute(
+        await admin.exec(
             text("SELECT filename FROM uploads WHERE filename = 'grant_probe.jpg'")
         )
     ).first()

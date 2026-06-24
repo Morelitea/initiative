@@ -33,7 +33,7 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_oidc_refresh_sync,
         OIDC_SYNC_POLL_SECONDS,
     )
-    from app.services.trash_purge import process_trash_purges, PURGE_POLL_SECONDS
+    from app.services.tenant.trash_purge import process_trash_purges, PURGE_POLL_SECONDS
 
     return [
         asyncio.create_task(

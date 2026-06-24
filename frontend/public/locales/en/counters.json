@@ -84,7 +84,6 @@
   "backToGroup": "Back to group",
   "counterCount_one": "{{count}} counter",
   "counterCount_other": "{{count}} counters",
-
   "focus": {
     "openFocus": "Open full screen",
     "exit": "Exit full screen",
@@ -94,24 +93,13 @@
     "notFound": "Counter not found in this group"
   },
   "createFirst": "Create Your First Counter Group",
-
   "settings": "Settings",
   "settingsDescription": "Manage counter group details, access, and advanced options.",
   "details": "Details",
   "access": "Access",
   "advanced": "Advanced",
-  "accessDescription": "Control who can view and edit this counter group.",
   "dangerZone": "Danger Zone",
   "dangerZoneDescription": "Destructive actions. Deleted groups go to the trash and can be restored before the retention period ends.",
-  "permissionRead": "Can View",
-  "permissionWrite": "Can Edit",
-  "permissionOwner": "Owner",
-  "rolePermissions": "Role Permissions",
-  "rolePermissionsDescription": "Grant access to this counter group based on initiative roles.",
-  "userPermissions": "User Permissions",
-  "userPermissionsDescription": "Grant access to individual members.",
-  "filterByName": "Filter by name...",
-
   "filters": {
     "heading": "Filters",
     "show": "Show",

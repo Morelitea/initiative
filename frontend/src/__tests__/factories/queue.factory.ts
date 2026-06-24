@@ -1,9 +1,7 @@
 import type {
   QueueItemRead,
   QueueListResponse,
-  QueuePermissionRead,
   QueueRead,
-  QueueRolePermissionRead,
   QueueSummary,
 } from "@/api/generated/initiativeAPI.schemas";
 
@@ -70,8 +68,7 @@ export function buildQueue(overrides: Partial<QueueRead> = {}): QueueRead {
     my_permission_level: "owner",
     items: [],
     current_item: null,
-    permissions: [],
-    role_permissions: [],
+    grants: [],
     ...overrides,
   };
 }
@@ -95,29 +92,5 @@ export function buildQueueListResponse(
     page_size: 20,
     has_next: false,
     ...itemsOrOverrides,
-  };
-}
-
-export function buildQueuePermission(
-  overrides: Partial<QueuePermissionRead> = {}
-): QueuePermissionRead {
-  return {
-    user_id: 1,
-    level: "owner",
-    created_at: "2026-01-15T00:00:00.000Z",
-    ...overrides,
-  };
-}
-
-export function buildQueueRolePermission(
-  overrides: Partial<QueueRolePermissionRead> = {}
-): QueueRolePermissionRead {
-  return {
-    initiative_role_id: 1,
-    role_name: "member",
-    role_display_name: "Member",
-    level: "read",
-    created_at: "2026-01-15T00:00:00.000Z",
-    ...overrides,
   };
 }

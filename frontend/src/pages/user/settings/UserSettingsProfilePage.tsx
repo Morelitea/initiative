@@ -1,6 +1,8 @@
+import { Capacitor } from "@capacitor/core";
 import { type ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { setAuthToken } from "@/api/client";
 import type { UserRead, UserSelfUpdate } from "@/api/generated/initiativeAPI.schemas";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -38,6 +40,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   const { t } = useTranslation(["settings", "auth", "errors"]);
   const [fullName, setFullName] = useState(user.full_name ?? "");
   const [password, setPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [avatarMode, setAvatarMode] = useState<"upload" | "url">(
     user.avatar_url ? "url" : "upload"
@@ -67,8 +70,17 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
   }, [avatarMode, avatarUrl, avatarBase64, user.avatar_url, user.avatar_base64]);
 
   const updateProfile = useUpdateCurrentUser({
-    onSuccess: async () => {
+    onSuccess: async (_data, variables) => {
+      // A password change rotates token_version server-side and re-sets the
+      // session cookie. On web the stale in-memory bearer would otherwise still
+      // be sent and 401 us out, so drop it and let the fresh cookie carry the
+      // session. (Native uses bearer/device-token auth with no cookie fallback,
+      // so it re-authenticates instead — left as-is.)
+      if (variables.password && !Capacitor.isNativePlatform()) {
+        setAuthToken(null);
+      }
       setPassword("");
+      setCurrentPassword("");
       setConfirmPassword("");
       setError(null);
       await refreshUser();
@@ -126,6 +138,10 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 setError(t("profile.passwordsMismatch"));
                 return;
               }
+              if (password && user.oidc_sub === null && !currentPassword) {
+                setError(t("profile.currentPasswordRequired"));
+                return;
+              }
               if (password) {
                 const policyError = validatePasswordLocal(password);
                 if (policyError) {
@@ -139,6 +155,11 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
               }
               if (password) {
                 payload.password = password;
+                // Re-auth: the backend requires the current password to set a
+                // new one (skipped for OIDC-only accounts with no local password).
+                if (user.oidc_sub === null) {
+                  payload.current_password = currentPassword;
+                }
               }
               if (avatarMode === "upload") {
                 payload.avatar_base64 = avatarBase64 || null;
@@ -168,6 +189,20 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 placeholder={t("profile.fullNamePlaceholder")}
               />
             </div>
+
+            {user.oidc_sub === null ? (
+              <div className="space-y-2">
+                <Label htmlFor="current-password">{t("profile.currentPasswordLabel")}</Label>
+                <Input
+                  id="current-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  placeholder={t("profile.currentPasswordPlaceholder")}
+                />
+              </div>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -271,6 +306,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
                 onClick={() => {
                   setFullName(user.full_name ?? "");
                   setPassword("");
+                  setCurrentPassword("");
                   setConfirmPassword("");
                   setAvatarUrl(user.avatar_url ?? "");
                   setAvatarBase64(user.avatar_base64 ?? "");

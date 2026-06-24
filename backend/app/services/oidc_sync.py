@@ -7,10 +7,17 @@ from sqlmodel import delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
-from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import Initiative, InitiativeMember, InitiativeRoleModel
-from app.models.oidc_claim_mapping import OIDCClaimMapping, OIDCMappingTargetType
-from app.models.user import User, UserStatus
+from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.tenant.initiative import (
+    Initiative,
+    InitiativeMember,
+    InitiativeRoleModel,
+)
+from app.models.platform.oidc_claim_mapping import (
+    OIDCClaimMapping,
+    OIDCMappingTargetType,
+)
+from app.models.platform.user import User, UserStatus
 
 logger = logging.getLogger(__name__)
 
@@ -178,7 +185,9 @@ async def sync_oidc_assignments(
     )
 
     # --- Initiative resolution + membership (guild-scoped, routed per guild) ---
-    from app.services.initiatives import clear_user_task_assignments_for_initiative
+    from app.services.tenant.initiatives import (
+        clear_user_task_assignments_for_initiative,
+    )
 
     for gid in relevant_guilds:
         session.expunge_all()
@@ -263,7 +272,7 @@ async def sync_oidc_assignments(
     # For each oidc-managed guild the claims no longer grant: re-home owned
     # projects + drop initiative memberships (guild-scoped, routed), then delete
     # the shared GuildMembership row in public context.
-    from app.services.initiatives import remove_user_from_guild_initiatives
+    from app.services.tenant.initiatives import remove_user_from_guild_initiatives
 
     session.expunge_all()
     await set_rls_context(session, is_superadmin=True)
@@ -436,24 +445,25 @@ async def _auto_transfer_owned_projects(
     """
     from sqlmodel import delete as sql_delete
 
-    from app.models.project import ProjectPermission
-    from app.services.users import (
+    from app.models.tenant.resource_grant import ResourceGrant
+    from app.services.platform.users import (
         InvalidTransferRecipient,
         get_owned_projects_in_guild,
         transfer_project_ownership,
     )
 
     async def _drop_departing_permission(project_id: int) -> None:
-        # Mirror the ``ProjectPermission`` cleanup that
+        # Mirror the project-grant cleanup that
         # ``transfer_project_ownership`` does on its success path. The
         # row is already unreachable (the user's ``InitiativeMember``
         # is about to be deleted), but a re-sync that adds the user
         # back would otherwise resurrect a stale ``level=owner`` entry
         # — the same regression Bug 5 fixed for the transfer path.
         await session.exec(
-            sql_delete(ProjectPermission).where(
-                ProjectPermission.project_id == project_id,
-                ProjectPermission.user_id == user_id,
+            sql_delete(ResourceGrant).where(
+                ResourceGrant.resource_type == "project",
+                ResourceGrant.resource_id == project_id,
+                ResourceGrant.user_id == user_id,
             )
         )
 

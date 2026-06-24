@@ -304,8 +304,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   // Helper function for per-project DAC checks
   const hasProjectWritePermission = (project: ProjectRead): boolean => {
     if (!user) return false;
-    const permission = project.permissions?.find((p) => p.user_id === user.id);
-    return permission?.level === "owner" || permission?.level === "write";
+    return project.my_permission_level === "owner" || project.my_permission_level === "write";
   };
 
   const templatesQuery = useTemplateProjects();

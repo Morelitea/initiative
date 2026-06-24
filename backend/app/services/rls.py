@@ -28,14 +28,14 @@ from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, InitiativeMessages
-from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import (
+from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.tenant.initiative import (
     InitiativeMember,
     InitiativeRoleModel,
     PermissionKey,
     DEFAULT_PERMISSION_VALUES,
 )
-from app.models.user import User
+from app.models.platform.user import User
 
 # Re-export RLS context helpers so callers can import from a single place.
 from app.db.session import set_rls_context, reapply_rls_context  # noqa: F401
@@ -250,6 +250,35 @@ async def accessible_initiative_ids(
     )
     rows = (await session.exec(stmt)).all()
     return {m.initiative_id for m in rows if _role_grants(m.role_ref, permission_key)}
+
+
+async def override_sharing_initiative_ids(
+    session: AsyncSession,
+    *,
+    user_id: int,
+) -> set[int]:
+    """Initiative ids (in the routed guild schema) where the user holds a role
+    with ``override_share_restrictions`` ("Full access") — the set the request's
+    DAC override consults (``role_context.request_overrides_sharing``).
+
+    One indexed query over the user's memberships, joined to their role. Called
+    once per guild request at session establishment; usually returns the empty
+    set (most users are full-access PMs nowhere).
+    """
+    from sqlmodel import select
+
+    stmt = (
+        select(InitiativeMember.initiative_id)
+        .join(
+            InitiativeRoleModel,
+            InitiativeRoleModel.id == InitiativeMember.role_id,
+        )
+        .where(
+            InitiativeMember.user_id == user_id,
+            InitiativeRoleModel.override_share_restrictions.is_(True),
+        )
+    )
+    return set((await session.exec(stmt)).all())
 
 
 async def has_feature_access(

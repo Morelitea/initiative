@@ -2,7 +2,14 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { QueueRead } from "@/api/generated/initiativeAPI.schemas";
+import type { QueueRead, ResourceGrantSchema } from "@/api/generated/initiativeAPI.schemas";
+import { ShareControl } from "@/components/access/ShareControl";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,6 +56,9 @@ export const CreateQueueDialog = ({
   const [selectedInitiativeId, setSelectedInitiativeId] = useState(
     defaultInitiativeId ? String(defaultInitiativeId) : ""
   );
+  const [grants, setGrants] = useState<ResourceGrantSchema[]>([
+    { all_initiative_members: true, level: "read" },
+  ]);
 
   const initiativesQuery = useInitiatives();
   const initiatives = initiativesQuery.data ?? [];
@@ -70,6 +80,7 @@ export const CreateQueueDialog = ({
       setName("");
       setDescription("");
       setSelectedInitiativeId(defaultInitiativeId ? String(defaultInitiativeId) : "");
+      setGrants([{ all_initiative_members: true, level: "read" }]);
     }
   }, [open, defaultInitiativeId]);
 
@@ -90,6 +101,7 @@ export const CreateQueueDialog = ({
       name: trimmedName,
       description: description.trim() || undefined,
       initiative_id: effectiveInitiativeId,
+      grants,
     });
   };
 
@@ -151,6 +163,19 @@ export const CreateQueueDialog = ({
               </Select>
             )}
           </div>
+
+          <Accordion type="single" collapsible defaultValue="advanced">
+            <AccordionItem value="advanced" className="border-b-0">
+              <AccordionTrigger>{t("common:createAccess.advancedOptions")}</AccordionTrigger>
+              <AccordionContent>
+                <ShareControl
+                  initiativeId={effectiveInitiativeId}
+                  grants={grants}
+                  onChange={setGrants}
+                />
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </div>
 
         <DialogFooter>

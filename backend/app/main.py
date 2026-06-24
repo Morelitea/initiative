@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from contextlib import suppress
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from typing import Annotated, Any
@@ -24,8 +24,8 @@ from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
 from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
-from app.models.user import User
-from app.services import app_settings as app_settings_service
+from app.models.platform.user import User
+from app.services.platform import app_settings as app_settings_service
 from app.services import background_tasks as background_tasks_service
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,77 @@ reserved_prefixes = [
     if prefix and prefix.strip("/")
 ]
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application startup/shutdown.
+
+    Modern replacement for the deprecated ``@app.on_event`` handlers. When the
+    MCP server is mounted (``ENABLE_MCP``), its Streamable-HTTP session-manager
+    lifespan is combined with this one via ``combine_lifespans`` in the mount
+    block after ``include_router`` — so the MCP server boots alongside the API.
+    """
+    from app.db.init_db import check_pre_baseline_db
+    from app.db.soft_delete_filter import install_soft_delete_filter
+
+    # Surface the effective CORS allowlist so a misconfigured split-origin
+    # deployment (SPA served from a host other than APP_URL) is self-diagnosing.
+    logger.info("CORS allowed origins: %s", settings.cors_origins)
+
+    install_soft_delete_filter()
+    await check_pre_baseline_db()
+    await run_migrations()
+    # Move any pre-cutover guild data from public into per-guild schemas. Idempotent
+    # — a no-op once converted — so packaged deploys convert themselves on boot.
+    from app.db.guild_conversion import convert_public_to_guild_schemas
+
+    await convert_public_to_guild_schemas()
+    # Re-run the idempotent per-guild provisioning for every guild so any
+    # table/column/index/grant added to guild_schema.sql since a guild was
+    # provisioned is back-filled, and any guild left without a schema (e.g. a
+    # crash mid-provision) is healed. One broken guild is logged and skipped.
+    from app.db.schema_provisioning import backfill_guild_schemas
+
+    backfill = await backfill_guild_schemas()
+    if backfill.failed:
+        # WARNING so partial failure survives INFO-filtered logs (per-guild
+        # tracebacks were already logged inside the back-fill).
+        logger.warning(
+            "guild schema back-fill: %d provisioned, %d FAILED (of %d) — guilds %s",
+            backfill.provisioned,
+            backfill.failed,
+            backfill.total,
+            backfill.failed_guild_ids,
+        )
+    else:
+        logger.info(
+            "guild schema back-fill: %d provisioned (of %d)",
+            backfill.provisioned,
+            backfill.total,
+        )
+    # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
+    # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
+    # before traffic is served, so a packaged deploy rotates itself on boot.
+    # Idempotent — a no-op once rotated (then unset PREVIOUS_SECRET_KEY).
+    from app.db.secret_key_rotation import maybe_rotate_at_startup
+
+    await maybe_rotate_at_startup()
+    async with AdminSessionLocal() as session:
+        await app_settings_service.ensure_defaults(session)
+    app.state.notification_tasks = background_tasks_service.start_background_tasks()
+
+    try:
+        yield
+    finally:
+        # Shutdown: cancel the background notification tasks.
+        tasks = getattr(app.state, "notification_tasks", [])
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            with suppress(asyncio.CancelledError):
+                await task
+
+
 # Gate the interactive docs + raw OpenAPI schema behind a setting (pentest
 # SEC-16). When disabled, FastAPI serves no /docs and no /openapi.json, so the
 # full route/parameter/error map isn't handed out. Defaults to on for dev
@@ -52,6 +123,7 @@ reserved_prefixes = [
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=__version__,
+    lifespan=lifespan,
     docs_url=None,
     openapi_url=(
         f"{settings.API_V1_STR}/openapi.json" if settings.ENABLE_API_DOCS else None
@@ -184,8 +256,8 @@ async def serve_upload_file(
     # is never read.
     from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
-    from app.services import access_grants as access_grants_service
-    from app.services import guilds as guilds_service
+    from app.services.platform import access_grants as access_grants_service
+    from app.services.platform import guilds as guilds_service
 
     membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=current_user.id
@@ -204,18 +276,18 @@ async def serve_upload_file(
     fname = FilePath(filename).name
     schema = guild_schema_name(int(guild_id))
     exists = (
-        await session.execute(
+        await session.exec(
             text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
-            {"ns": schema},
+            params={"ns": schema},
         )
     ).first()
     if exists is None:
         raise HTTPException(status_code=404)
     await set_rls_context(session, guild_id=int(guild_id), is_superadmin=True)
     hit = (
-        await session.execute(
+        await session.exec(
             text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),
-            {"fn": fname},
+            params={"fn": fname},
         )
     ).first()
     if hit is None:
@@ -231,50 +303,6 @@ async def serve_upload_file(
 
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
-
-
-def _is_reserved_path(path: str) -> bool:
-    normalized = path.strip("/")
-    for prefix in reserved_prefixes:
-        if not prefix:
-            continue
-        if normalized == prefix or normalized.startswith(f"{prefix}/"):
-            return True
-    return False
-
-
-def _resolve_static_file(path: str) -> Path | None:
-    try:
-        candidate = (static_path / path).resolve()
-        candidate.relative_to(static_root)
-    except ValueError:
-        return None
-    if candidate.is_file():
-        return candidate
-    return None
-
-
-@app.get("/{full_path:path}", include_in_schema=False)
-async def serve_spa(full_path: str) -> FileResponse:
-    if _is_reserved_path(full_path):
-        raise HTTPException(status_code=404)
-    static_file = _resolve_static_file(full_path) if full_path else None
-    if static_file:
-        if full_path.startswith("assets/"):
-            return FileResponse(
-                static_file,
-                headers={"Cache-Control": "public, max-age=31536000, immutable"},
-            )
-        return FileResponse(
-            static_file,
-            headers={"Cache-Control": "public, max-age=3600"},
-        )
-    if static_index_path.is_file():
-        return FileResponse(
-            static_index_path,
-            headers={"Cache-Control": "no-cache"},
-        )
-    raise HTTPException(status_code=404, detail="SPA bundle not found")
 
 
 def _inject_query_schemas(openapi_schema: dict) -> None:
@@ -380,66 +408,68 @@ def custom_openapi() -> dict:
     return app.openapi_schema
 
 
+# Attach the custom OpenAPI generator now — BEFORE the MCP server is built below.
+# ``build_mcp_server(app)`` calls ``app.openapi()`` to derive its tools; if the
+# override isn't in place yet, FastAPI's default generator runs and caches a spec
+# without the ``_inject_query_schemas`` upgrades, which then leaks into the frontend
+# type generation (conditions/sorting collapse back to ``string``). The SPA catch-all
+# registered later is ``include_in_schema=False``, so the spec is already complete here.
 app.openapi = custom_openapi
 
+if settings.ENABLE_MCP:
+    # Build the route-backed MCP server from the fully-routed app and mount it at
+    # /api/v1/mcp (before the SPA catch-all below, so it wins that path). Build
+    # order matters: the routers above must already be included so the read-only
+    # RouteMap can see them. ``combine_lifespans`` runs the MCP session-manager
+    # lifespan alongside the app's own startup/shutdown (see ``lifespan``).
+    from fastmcp.utilities.lifespan import combine_lifespans
 
-@app.on_event("startup")
-async def on_startup() -> None:
-    from app.db.init_db import check_pre_baseline_db
-    from app.db.soft_delete_filter import install_soft_delete_filter
+    from app.mcp_server import build_mcp_server
 
-    # Surface the effective CORS allowlist so a misconfigured split-origin
-    # deployment (SPA served from a host other than APP_URL) is self-diagnosing.
-    logger.info("CORS allowed origins: %s", settings.cors_origins)
+    _mcp_app = build_mcp_server(app).http_app(path="/")
+    app.mount(f"{settings.API_V1_STR}/mcp", _mcp_app)
+    app.router.lifespan_context = combine_lifespans(lifespan, _mcp_app.lifespan)
 
-    install_soft_delete_filter()
-    await check_pre_baseline_db()
-    await run_migrations()
-    # Move any pre-cutover guild data from public into per-guild schemas. Idempotent
-    # — a no-op once converted — so packaged deploys convert themselves on boot.
-    from app.db.guild_conversion import convert_public_to_guild_schemas
 
-    await convert_public_to_guild_schemas()
-    # Re-run the idempotent per-guild provisioning for every guild so any
-    # table/column/index/grant added to guild_schema.sql since a guild was
-    # provisioned is back-filled, and any guild left without a schema (e.g. a
-    # crash mid-provision) is healed. One broken guild is logged and skipped.
-    from app.db.schema_provisioning import backfill_guild_schemas
+def _is_reserved_path(path: str) -> bool:
+    normalized = path.strip("/")
+    for prefix in reserved_prefixes:
+        if not prefix:
+            continue
+        if normalized == prefix or normalized.startswith(f"{prefix}/"):
+            return True
+    return False
 
-    backfill = await backfill_guild_schemas()
-    if backfill.failed:
-        # WARNING so partial failure survives INFO-filtered logs (per-guild
-        # tracebacks were already logged inside the back-fill).
-        logger.warning(
-            "guild schema back-fill: %d provisioned, %d FAILED (of %d) — guilds %s",
-            backfill.provisioned,
-            backfill.failed,
-            backfill.total,
-            backfill.failed_guild_ids,
+
+def _resolve_static_file(path: str) -> Path | None:
+    try:
+        candidate = (static_path / path).resolve()
+        candidate.relative_to(static_root)
+    except ValueError:
+        return None
+    if candidate.is_file():
+        return candidate
+    return None
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_spa(full_path: str) -> FileResponse:
+    if _is_reserved_path(full_path):
+        raise HTTPException(status_code=404)
+    static_file = _resolve_static_file(full_path) if full_path else None
+    if static_file:
+        if full_path.startswith("assets/"):
+            return FileResponse(
+                static_file,
+                headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
+        return FileResponse(
+            static_file,
+            headers={"Cache-Control": "public, max-age=3600"},
         )
-    else:
-        logger.info(
-            "guild schema back-fill: %d provisioned (of %d)",
-            backfill.provisioned,
-            backfill.total,
+    if static_index_path.is_file():
+        return FileResponse(
+            static_index_path,
+            headers={"Cache-Control": "no-cache"},
         )
-    # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
-    # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
-    # before traffic is served, so a packaged deploy rotates itself on boot.
-    # Idempotent — a no-op once rotated (then unset PREVIOUS_SECRET_KEY).
-    from app.db.secret_key_rotation import maybe_rotate_at_startup
-
-    await maybe_rotate_at_startup()
-    async with AdminSessionLocal() as session:
-        await app_settings_service.ensure_defaults(session)
-    app.state.notification_tasks = background_tasks_service.start_background_tasks()
-
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    tasks = getattr(app.state, "notification_tasks", [])
-    for task in tasks:
-        task.cancel()
-    for task in tasks:
-        with suppress(asyncio.CancelledError):
-            await task
+    raise HTTPException(status_code=404, detail="SPA bundle not found")

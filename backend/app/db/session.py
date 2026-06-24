@@ -6,36 +6,31 @@ from typing import AsyncGenerator, Optional
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
-engine = create_async_engine(settings.DATABASE_URL_APP, echo=False, future=True)
+engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
 
 # Admin engine: for background jobs and startup seeding (BYPASSRLS).
-admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False, future=True)
+admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False)
 
 # Provisioning engine: superuser credentials (same as migrations) for privileged
 # DDL — CREATE SCHEMA / CREATE ROLE — which app_user and app_admin can't do.
-provisioning_engine = create_async_engine(
-    settings.DATABASE_URL, echo=False, future=True
-)
+provisioning_engine = create_async_engine(settings.DATABASE_URL, echo=False)
 
-AsyncSessionLocal = sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     bind=engine,
-    autocommit=False,
     autoflush=False,
     expire_on_commit=False,
     class_=AsyncSession,
 )
 
-AdminSessionLocal = sessionmaker(
+AdminSessionLocal = async_sessionmaker(
     bind=admin_engine,
-    autocommit=False,
     autoflush=False,
     expire_on_commit=False,
     class_=AsyncSession,
@@ -46,7 +41,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         # Reset RLS variables from any previous request on this pooled connection.
         # Uses set_config() in a single round-trip for efficiency.
-        await session.execute(
+        await session.exec(
             text(
                 "SELECT set_config('app.current_user_id', '', false), "
                 "set_config('app.current_guild_id', '', false), "
@@ -74,7 +69,7 @@ async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
         # (or `public`) nondeterministically. Start every admin session from a
         # clean public, login-role baseline; callers that need a guild schema
         # call set_rls_context() explicitly.
-        await session.execute(
+        await session.exec(
             text(
                 "SELECT set_config('app.current_user_id', '', false), "
                 "set_config('app.current_guild_id', '', false), "
@@ -210,8 +205,8 @@ async def set_rls_context(
     # Reset to the login role first: a session already SET ROLE'd into guild A
     # cannot SET ROLE into guild B (it isn't a member). 'none' returns to the
     # authenticated login role, which IS a member of every provisioned guild role.
-    await session.execute(text("SELECT set_config('role', 'none', false)"))
-    await session.execute(
+    await session.exec(text("SELECT set_config('role', 'none', false)"))
+    await session.exec(
         text(
             "SELECT set_config('app.current_user_id', :uid, false), "
             "set_config('app.current_guild_id', :gid, false), "
@@ -223,7 +218,7 @@ async def set_rls_context(
             "set_config('search_path', :sp, false), "
             "set_config('role', :role, false)"
         ),
-        {
+        params={
             "uid": uid,
             "gid": gid,
             "grole": grole,

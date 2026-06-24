@@ -12,8 +12,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.pam_context import set_active_grant
-from app.core.role_context import set_active_role
-from app.core.messages import AuthMessages, GuildMessages
+from app.core.role_context import set_active_role, set_override_sharing_initiatives
+from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.security import (
     AutoDelegationVerificationError,
     UploadTokenError,
@@ -21,15 +21,16 @@ from app.core.security import (
     verify_upload_token,
 )
 from app.db.session import get_session, set_rls_context
-from app.models.access_grant import AccessGrant, AccessLevel
-from app.models.guild import Guild, GuildMembership, GuildRole
-from app.models.user import User, UserRole, UserStatus
-from app.schemas.token import TokenPayload
-from app.services import access_grants as access_grants_service
-from app.services import api_keys as api_keys_service
-from app.services import auto_delegation_blocklist
-from app.services import guilds as guilds_service
-from app.services import user_tokens
+from app.models.platform.access_grant import AccessGrant, AccessLevel
+from app.models.platform.api_key import UserApiKey
+from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.user import User, UserRole, UserStatus
+from app.schemas.platform.token import TokenPayload
+from app.services.platform import access_grants as access_grants_service
+from app.services.platform import api_keys as api_keys_service
+from app.services.platform import auto_delegation_blocklist
+from app.services.platform import guilds as guilds_service
+from app.services.platform import user_tokens
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -135,6 +136,27 @@ def _delegation_exp_from_jwt(token: str) -> datetime:
     return datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc)
 
 
+_SAFE_HTTP_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def _enforce_api_key_scope(request: Request, api_key: UserApiKey) -> None:
+    """Apply a scoped PAT's restrictions at authentication time.
+
+    ``read_only`` keys may only issue safe (non-mutating) HTTP methods. A
+    ``guild_id``-bound key stashes its guild on ``request.state`` for
+    ``get_guild_membership`` to pin against the ``/g/{guild_id}`` path — the one
+    place that sees both the token's guild and the path's, mirroring how
+    delegation tokens are pinned.
+    """
+    if api_key.read_only and request.method not in _SAFE_HTTP_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=UserMessages.API_KEY_READ_ONLY,
+        )
+    if api_key.guild_id is not None:
+        request.state.api_key_guild_id = api_key.guild_id
+
+
 async def get_current_user(
     request: Request,
     session: SessionDep,
@@ -166,8 +188,10 @@ async def get_current_user(
         )
 
     # Try API key authentication first
-    user = await api_keys_service.authenticate_api_key(session, token)
-    if user:
+    api_auth = await api_keys_service.authenticate_api_key(session, token)
+    if api_auth:
+        user, api_key = api_auth
+        _enforce_api_key_scope(request, api_key)
         return user
 
     # Try delegation JWT from initiative-auto (RS256, distinct audience).
@@ -302,30 +326,42 @@ class GuildContext:
         return self.grant is not None
 
 
+class GuildAccessError(Exception):
+    """Transport-agnostic "no access to this guild" signal.
+
+    The single entry point (``establish_guild_access`` / ``_load_guild_context``)
+    raises this instead of an ``HTTPException`` so the access decision stays
+    independent of how the caller speaks to the client: the REST dependency maps
+    it to ``HTTPException(403)``, a WebSocket handler maps it to a ``1008`` close,
+    the keepalive ``sync-content`` POST maps it to its soft-error body. It carries
+    the machine-readable ``detail`` code so the REST mapping is byte-identical to
+    the prior inline ``raise HTTPException``.
+    """
+
+    def __init__(self, detail: str = GuildMessages.GUILD_ACCESS_DENIED) -> None:
+        self.detail = detail
+        super().__init__(detail)
+
+
 async def _load_guild_context(
-    request: Request,
     session: AsyncSession,
     current_user: User,
     guild_id: int,
 ) -> GuildContext:
-    """Resolve and validate the guild context for the path-addressed guild.
+    """Resolve and validate the guild context for one guild.
 
-    The guild comes from the request path (``/g/{guild_id}/...``); it is only
-    a selector, never a trust boundary. Access is validated fresh on every
-    request — real membership or a live PAM grant, else 403 — so a forged or
-    stale path can never read another guild's data. The ``int`` path converter
-    guarantees ``guild_id`` is an integer before it reaches the privileged
-    ``SET ROLE``/``search_path`` sink.
+    ``guild_id`` is the single guild the request operates in (on REST it comes
+    from the ``/g/{guild_id}/...`` path, which is only a selector, never a trust
+    boundary). Access is validated fresh on every call — real membership or a
+    live PAM grant, else ``GuildAccessError`` — so a forged or stale guild can
+    never read another guild's data. The caller has already coerced ``guild_id``
+    to ``int`` before it reaches the privileged ``SET ROLE``/``search_path`` sink.
+
+    Transport-agnostic: it takes only the resolved ``guild_id``. The REST-only
+    auto-delegation guard (token-guild must equal path-guild) lives in
+    ``get_guild_membership``, where both values exist — WS / keepalive callers
+    have no delegation token, so the shared resolver never deals with one.
     """
-    # Auto-delegation tokens are pinned to one guild at mint time; refuse if the
-    # path addresses a different guild than the token was minted for.
-    delegated = getattr(request.state, "delegated_guild_id", None)
-    if delegated is not None and delegated != guild_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=GuildMessages.GUILD_ACCESS_DENIED,
-        )
-
     # Set minimal RLS context before querying guild_memberships (RLS-protected).
     # Full guild context is set later by get_guild_session / RLSSessionDep.
     # No standing bypass: a user reads their own membership row via the own-row
@@ -352,10 +388,7 @@ async def _load_guild_context(
             session, user_id=current_user.id, guild_id=guild_id
         )
         if grant is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=GuildMessages.GUILD_ACCESS_DENIED,
-            )
+            raise GuildAccessError()
         # A read_write grant held by a ``data.bypass`` user is a *break-glass*
         # grant: the holder acts as a full guild admin for its window (see
         # GuildContext.break_glass). A read grant — or any grant held by a
@@ -404,7 +437,31 @@ async def get_guild_membership(
     guild-scoped route mounted *outside* the prefix fails at startup (missing
     path param) — a useful guard that every such route is path-addressed.
     """
-    return await _load_guild_context(request, session, current_user, guild_id)
+    # Auto-delegation tokens are pinned to one guild at mint time; refuse if the
+    # path addresses a different guild than the token was minted for. This is a
+    # REST/token-only guard (a delegation token can only arrive over HTTP), so it
+    # lives here — the one place that sees both the token's guild and the path's —
+    # not in the shared resolver that the WebSocket/keepalive callers also use.
+    delegated = getattr(request.state, "delegated_guild_id", None)
+    if delegated is not None and delegated != guild_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+    # A guild-bound API key (PAT) is pinned to one guild the same way: refuse if
+    # the path addresses a different guild than the key was scoped to.
+    key_guild = getattr(request.state, "api_key_guild_id", None)
+    if key_guild is not None and key_guild != guild_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=GuildMessages.GUILD_ACCESS_DENIED,
+        )
+    try:
+        return await _load_guild_context(session, current_user, guild_id)
+    except GuildAccessError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=exc.detail
+        ) from exc
 
 
 def require_guild_roles(*roles: GuildRole) -> Callable:
@@ -440,6 +497,9 @@ async def _apply_guild_session_context(
         # Still grant-gated: this path is only reached because a live grant exists.
         set_active_grant(None, None)
         set_active_role(guild_context.guild_id, GuildRole.admin.value)
+        # Break-glass acts as a full guild admin, which already bypasses gate 4
+        # everywhere; the per-initiative "Full access" set is moot here.
+        set_override_sharing_initiatives(None)
         await set_rls_context(
             session,
             user_id=current_user.id,
@@ -465,6 +525,8 @@ async def _apply_guild_session_context(
         # paths (initiative-scope guild-admin bypass) don't treat the grantee
         # as a member.
         set_active_role(None, None)
+        # A PAM grantee holds no initiative role, so no "Full access" override.
+        set_override_sharing_initiatives(None)
         # Leave current_guild_id unset — the existing write policies treat a
         # matching current_guild_id as proof of membership. Scope the grant via
         # pam_guild_id instead.
@@ -494,6 +556,15 @@ async def _apply_guild_session_context(
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role.value,
     )
+    # Precompute the initiatives where this member holds "Full access" so the
+    # sync DAC checks can apply the gate-4 override without an async query. Runs
+    # in the routed guild schema (after SET ROLE), so it sees this guild's roles.
+    from app.services import rls as rls_service
+
+    override_ids = await rls_service.override_sharing_initiative_ids(
+        session, user_id=current_user.id
+    )
+    set_override_sharing_initiatives(frozenset(override_ids))
     return session
 
 
@@ -514,6 +585,28 @@ async def get_guild_session(
     before any post-commit queries.
     """
     return await _apply_guild_session_context(session, current_user, guild_context)
+
+
+async def establish_guild_access(
+    session: AsyncSession,
+    current_user: User,
+    guild_id: int,
+) -> GuildContext:
+    """Resolve guild access AND apply the session context — the single entry
+    point for callers that can't use the REST dependency chain.
+
+    *Resolve* access (membership / live PAM / break-glass, else
+    ``GuildAccessError``) then *apply* the RLS + ``active_role`` + ``active_grant``
+    context, returning the ``GuildContext``. REST composes the same two primitives
+    via DI (``get_guild_membership`` → ``get_guild_session``); WebSocket and
+    keepalive handlers call this so they cannot resolve-without-applying — the
+    omission that denied a guild admin on the collaboration socket while the REST
+    read allowed them. The caller maps ``GuildAccessError`` to its transport
+    (REST → 403, WebSocket → 1008, keepalive → soft error body).
+    """
+    guild_context = await _load_guild_context(session, current_user, guild_id)
+    await _apply_guild_session_context(session, current_user, guild_context)
+    return guild_context
 
 
 # Dependency for routes that need RLS-aware database access
@@ -669,13 +762,15 @@ async def get_upload_user(
     token = header_token
 
     # Try API key authentication first
-    user = await api_keys_service.authenticate_api_key(session, token)
-    if user:
+    api_auth = await api_keys_service.authenticate_api_key(session, token)
+    if api_auth:
+        user, api_key = api_auth
         if user.status != UserStatus.active:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=AuthMessages.INACTIVE_USER,
             )
+        _enforce_api_key_scope(request, api_key)
         return user
 
     # Try delegation JWT from initiative-auto. Same chain placement as

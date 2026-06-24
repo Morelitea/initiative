@@ -24,7 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 import { useCreateProperty, useProperties } from "@/hooks/useProperties";
 
-import { slugify, typeRequiresOptions } from "./propertyHelpers";
+import { normalizeOptionList, typeRequiresOptions } from "./propertyHelpers";
 import { iconForPropertyType } from "./propertyTypeIcons";
 
 export interface AddPropertyButtonProps {
@@ -129,13 +129,7 @@ export const AddPropertyButton = ({
 
     let options: PropertyOption[] | undefined;
     if (typeRequiresOptions(newType)) {
-      options = newOptions
-        .map((option) => ({
-          value: option.value.trim() || slugify(option.label),
-          label: option.label.trim() || option.value.trim(),
-          color: option.color ?? null,
-        }))
-        .filter((option) => option.value !== "" && option.label !== "");
+      options = normalizeOptionList(newOptions);
 
       if (options.length === 0) {
         return;
@@ -161,7 +155,7 @@ export const AddPropertyButton = ({
   const canSubmit = useMemo(() => {
     if (!newName.trim()) return false;
     if (typeRequiresOptions(newType)) {
-      return newOptions.some((option) => option.value.trim() || option.label.trim());
+      return normalizeOptionList(newOptions).length > 0;
     }
     return true;
   }, [newName, newType, newOptions]);
@@ -245,13 +239,12 @@ export const AddPropertyButton = ({
                 </Label>
                 <ul className="space-y-2">
                   {newOptions.map((option, index) => (
-                    <li key={option.value} className="flex items-center gap-2">
-                      <Input
-                        value={option.value}
-                        onChange={(e) => handleOptionChange(index, { value: e.target.value })}
-                        placeholder={t("properties:picker.optionValuePlaceholder")}
-                        className="h-8 flex-1"
-                      />
+                    // Key by index, not by the edited field: keying on
+                    // ``option.value``/``label`` remounts the input on every
+                    // keystroke and steals focus. Inputs are controlled and
+                    // rows only change via add/remove, so the index is correct.
+                    // biome-ignore lint/suspicious/noArrayIndexKey: controlled rows with no stable id; keying on the edited field steals focus
+                    <li key={index} className="flex items-center gap-2">
                       <Input
                         value={option.label}
                         onChange={(e) => handleOptionChange(index, { label: e.target.value })}

@@ -1,72 +1,67 @@
 """Import all models for Alembic or metadata creation."""
 
-from app.models.app_setting import AppSetting
-from app.models.guild import Guild, GuildMembership, GuildInvite
-from app.models.guild_setting import GuildSetting
-from app.models.project import Project, ProjectPermission, ProjectRolePermission
-from app.models.task import Task, TaskAssignee, TaskStatus, Subtask
-from app.models.initiative import Initiative, InitiativeMember
-from app.models.user import User
-from app.models.api_key import AdminApiKey
-from app.models.project_activity import ProjectFavorite
-from app.models.recent_view import RecentView
-from app.models.comment import Comment
-from app.models.document import (
+from app.models.platform.app_setting import AppSetting
+from app.models.platform.guild import Guild, GuildMembership, GuildInvite
+from app.models.tenant.guild_setting import GuildSetting
+from app.models.tenant.project import Project
+from app.models.tenant.task import Task, TaskAssignee, TaskStatus, Subtask
+from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.platform.user import User
+from app.models.platform.api_key import AdminApiKey
+from app.models.tenant.project_activity import ProjectFavorite
+from app.models.tenant.recent_view import RecentView
+from app.models.tenant.comment import Comment
+from app.models.tenant.document import (
     Document,
     DocumentFileVersion,
-    DocumentPermission,
-    DocumentRolePermission,
     ProjectDocument,
     DocumentLink,
 )
-from app.models.notification import Notification
-from app.models.oidc_claim_mapping import OIDCClaimMapping
-from app.models.tag import Tag, TaskTag, ProjectTag, DocumentTag
-from app.models.property import (
+from app.models.platform.notification import Notification
+from app.models.platform.oidc_claim_mapping import OIDCClaimMapping
+from app.models.tenant.tag import Tag, TaskTag, ProjectTag, DocumentTag
+from app.models.tenant.property import (
     DocumentPropertyValue,
     PropertyDefinition,
     TaskPropertyValue,
 )
-from app.models.queue import (
+from app.models.tenant.queue import (
     Queue,
     QueueItem,
     QueueItemTag,
-    QueuePermission,
-    QueueRolePermission,
     QueueItemDocument,
     QueueItemTask,
 )
-from app.models.calendar_event import (
+from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
     CalendarEventTag,
     CalendarEventDocument,
 )
-from app.models.event_reminder_dispatch import EventReminderDispatch
-from app.models.counter import (
+from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
+from app.models.tenant.counter import (
     Counter,
     CounterGroup,
-    CounterGroupPermission,
-    CounterGroupRolePermission,
 )
-from app.models.upload import Upload
-from app.models.user_view_preference import UserViewPreference
-from app.models.access_grant import AccessGrant
-from app.models.user_token import UserToken
-from app.models.push_token import PushToken
-from app.models.auto_delegation_jti import AutoDelegationJti
-from app.models.task_assignment_digest import TaskAssignmentDigestItem
-from app.models.webhook_subscription import WebhookSubscription
+from app.models.tenant.upload import Upload
+from app.models.platform.user_view_preference import UserViewPreference
+from app.models.platform.access_grant import AccessGrant
+from app.models.platform.user_token import UserToken
+from app.models.platform.push_token import PushToken
+from app.models.platform.auto_delegation_jti import AutoDelegationJti
+from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.tenant.webhook_subscription import WebhookSubscription
+from app.models.tenant.resource_grant import ResourceGrant
 
 __all__ = [
     "User",
     "AccessGrant",
+    "ResourceGrant",
     "Project",
     "Task",
     "TaskAssignee",
     "TaskStatus",
     "Subtask",
-    "ProjectPermission",
     "AppSetting",
     "Guild",
     "GuildMembership",
@@ -80,11 +75,8 @@ __all__ = [
     "Comment",
     "Document",
     "DocumentFileVersion",
-    "DocumentPermission",
-    "DocumentRolePermission",
     "ProjectDocument",
     "DocumentLink",
-    "ProjectRolePermission",
     "Notification",
     "OIDCClaimMapping",
     "Tag",
@@ -97,8 +89,6 @@ __all__ = [
     "Queue",
     "QueueItem",
     "QueueItemTag",
-    "QueuePermission",
-    "QueueRolePermission",
     "QueueItemDocument",
     "QueueItemTask",
     "CalendarEvent",
@@ -108,8 +98,6 @@ __all__ = [
     "EventReminderDispatch",
     "Counter",
     "CounterGroup",
-    "CounterGroupPermission",
-    "CounterGroupRolePermission",
     "Upload",
     "UserViewPreference",
     "UserToken",

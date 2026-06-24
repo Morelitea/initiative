@@ -12,8 +12,8 @@ import httpx
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import AIMessages
-from app.models.task import Task
-from app.models.user import User
+from app.models.tenant.task import Task
+from app.models.platform.user import User
 from app.schemas.ai_settings import AIProvider
 from app.services.ai_settings import resolve_ai_settings
 from app.services.webhook_target_url import (

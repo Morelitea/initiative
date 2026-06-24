@@ -12,17 +12,21 @@ from app.core.email_i18n import email_t, translate
 from app.db.session import AdminSessionLocal, reapply_rls_context, set_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
-from app.models.initiative import Initiative
-from app.models.project import Project
-from app.models.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
-from app.models.task_assignment_digest import TaskAssignmentDigestItem
-from app.models.calendar_event import CalendarEvent, CalendarEventAttendee, RSVPStatus
-from app.models.event_reminder_dispatch import EventReminderDispatch
+from app.models.tenant.initiative import Initiative
+from app.models.tenant.project import Project
+from app.models.tenant.task import Task, TaskAssignee, TaskStatus, TaskStatusCategory
+from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+from app.models.tenant.calendar_event import (
+    CalendarEvent,
+    CalendarEventAttendee,
+    RSVPStatus,
+)
+from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
 from app.core.capabilities import Capability, roles_with_capability
-from app.models.user import User, UserStatus
-from app.models.notification import NotificationType
+from app.models.platform.user import User, UserStatus
+from app.models.platform.notification import NotificationType
 from app.services import email as email_service
-from app.services import user_notifications
+from app.services.platform import user_notifications
 from app.services import push_notifications
 
 logger = logging.getLogger(__name__)

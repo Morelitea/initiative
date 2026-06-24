@@ -84,8 +84,11 @@ _SECRET_KEY_ROTATION_HINT = (
     " To CHANGE SECRET_KEY on an existing deployment, do NOT swap it directly — it "
     "encrypts stored data (emails, OIDC/SMTP/AI secrets) and roots email lookup, so a "
     "bare swap locks out every user and orphans those secrets. Instead set the old "
-    "value as PREVIOUS_SECRET_KEY, set SECRET_KEY to the new key, and run "
-    "`python -m app.db.secret_key_rotation`."
+    "value as PREVIOUS_SECRET_KEY, set SECRET_KEY to the new key, and restart — the "
+    "server re-encrypts the stored data automatically on startup. Once the logs report "
+    "the rotation is complete, UNSET PREVIOUS_SECRET_KEY. (Advanced: you can instead "
+    "run `python -m app.db.secret_key_rotation` from the backend/ directory to rotate "
+    "out-of-band, but a restart is all that's required.)"
 )
 
 
@@ -489,6 +492,12 @@ class Settings(BaseSettings):
     # ``frontend/openapi.json`` + ``scripts/export_openapi.py`` path means type
     # generation never needs a live ``/openapi.json`` in CI or prod.
     ENABLE_API_DOCS: bool = True
+
+    # Mount the in-app MCP server at ``/api/v1/mcp/`` (route-backed). Off by
+    # default; enable per-environment via env / .env. Tools ride the real auth +
+    # RLS rails, so a caller only ever sees their own data, and a read-only API
+    # key can't write.
+    ENABLE_MCP: bool = False
 
     # Reject passwords that appear in the HaveIBeenPwned breach corpus
     # when a user sets one (registration, reset, change). Uses the

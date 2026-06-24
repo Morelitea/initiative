@@ -1,11 +1,14 @@
 from fastapi import APIRouter
 
-# Endpoints are organized by the kind of data they touch (they must never mix):
-#   public_endpoints/  — platform / public-schema tables (auth, users, guilds,
-#                        settings, …); not tied to a single guild.
-#   guild_endpoints/   — per-guild-schema tables (projects, tasks, documents, …),
-#                        including the cross-guild "my" aggregates that read them.
-from app.api.v1.guild_endpoints import (
+# Endpoints are organized by the kind of data they touch (they must never mix —
+# this mirrors the tenant/ vs platform/ split in models/, schemas/, services/):
+#   platform_endpoints/  — public-schema tables (auth, users, guilds, settings,
+#                          …); not tied to a single guild.
+#   tenant_endpoints/    — per-guild-schema tables (projects, tasks, documents,
+#                          …), including the cross-guild "my" aggregates that read
+#                          them — the one place tenant data is read without a
+#                          single guild context (see /me routes below).
+from app.api.v1.tenant_endpoints import (
     ai_settings,
     attachments,
     auto_subscriptions,
@@ -27,7 +30,7 @@ from app.api.v1.guild_endpoints import (
     tasks,
     trash,
 )
-from app.api.v1.public_endpoints import (
+from app.api.v1.platform_endpoints import (
     access_grants,
     admin,
     auth,

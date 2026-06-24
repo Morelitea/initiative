@@ -104,6 +104,8 @@
     "addCustomRole": "Ajouter un rôle personnalisé",
     "builtIn": "Intégré",
     "manager": "Gestionnaire",
+    "fullAccess": "Accès complet",
+    "fullAccessDescription": "Remplace le partage des éléments : ce rôle peut ouvrir et modifier chaque élément de l'initiative même s'il ne lui est pas partagé, et peut gérer qui d'autre y a accès.",
     "membersCount": "Membres",
     "dangerTitle": "Zone de danger",
     "dangerDescription": "Supprimer une initiative l'envoie à la corbeille avec ses projets, tâches et documents. Ils peuvent être restaurés avant la fin de la période de rétention.",

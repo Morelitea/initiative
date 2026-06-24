@@ -80,10 +80,14 @@ SHARED_TABLES: frozenset[str] = frozenset(
 # ``INITIATIVE_SCOPED_TABLES`` (declared in ``app.db.initiative_rls``).
 GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
     {
+        # NB: "guild-level" = not initiative-membership-gated. Two members here
+        # (initiatives, tags) are soft-deletable and so DO carry RLS — but only to
+        # host the admin-only purge guard (guild_level_open allow-all +
+        # soft_delete_admin_purge), never a membership scope. See guild_rls.sql.
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
         "webhook_subscriptions",  # guild integration config; initiative_id nullable
-        "tags",  # tags are guild-level, shared across initiatives
+        "tags",  # tags are guild-level, shared across initiatives (purge-guarded)
         "uploads",  # guild blob store: no FK to any initiative entity (documents
         # reference blobs by file_url string, and a blob can be pinned by
         # documents across initiatives), so it can't use initiative_access;
@@ -92,7 +96,7 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # initiative-member-scoped (the membership table can't be gated by the
         # membership check it backs without recursing; own-row scoping would
         # break co-member rosters). See guild_rls.sql header.
-        "initiatives",
+        "initiatives",  # purge-guarded (admin-only DELETE), not membership-gated
         "initiative_members",
         "initiative_roles",
         "initiative_role_permissions",

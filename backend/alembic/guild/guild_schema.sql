@@ -74,22 +74,6 @@ CREATE TABLE IF NOT EXISTS comments (
 	purge_at TIMESTAMP WITH TIME ZONE, 
 	CONSTRAINT comments_pkey PRIMARY KEY (id)
 );
-CREATE TABLE IF NOT EXISTS counter_group_permissions (
-	counter_group_id INTEGER NOT NULL, 
-	user_id INTEGER NOT NULL, 
-	guild_id INTEGER NOT NULL, 
-	level counter_permission_level NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	CONSTRAINT counter_group_permissions_pkey PRIMARY KEY (counter_group_id, user_id)
-);
-CREATE TABLE IF NOT EXISTS counter_group_role_permissions (
-	counter_group_id INTEGER NOT NULL, 
-	initiative_role_id INTEGER NOT NULL, 
-	guild_id INTEGER NOT NULL, 
-	level counter_permission_level NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	CONSTRAINT counter_group_role_permissions_pkey PRIMARY KEY (counter_group_id, initiative_role_id)
-);
 CREATE TABLE IF NOT EXISTS counter_groups (
 	id SERIAL NOT NULL, 
 	guild_id INTEGER NOT NULL, 
@@ -136,7 +120,7 @@ CREATE TABLE IF NOT EXISTS document_file_versions (
 	uploaded_by_id INTEGER NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	CONSTRAINT document_file_versions_pkey PRIMARY KEY (id), 
-	CONSTRAINT uq_dfv_document_version UNIQUE (document_id, version_number)
+	CONSTRAINT uq_dfv_document_version UNIQUE NULLS DISTINCT (document_id, version_number)
 );
 CREATE TABLE IF NOT EXISTS document_links (
 	source_document_id INTEGER NOT NULL, 
@@ -144,14 +128,6 @@ CREATE TABLE IF NOT EXISTS document_links (
 	guild_id INTEGER, 
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	CONSTRAINT document_links_pkey PRIMARY KEY (source_document_id, target_document_id)
-);
-CREATE TABLE IF NOT EXISTS document_permissions (
-	document_id INTEGER NOT NULL, 
-	user_id INTEGER NOT NULL, 
-	level document_permission_level NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL, 
-	guild_id INTEGER NOT NULL, 
-	CONSTRAINT document_permissions_pkey PRIMARY KEY (document_id, user_id)
 );
 CREATE TABLE IF NOT EXISTS document_property_values (
 	document_id INTEGER NOT NULL, 
@@ -166,14 +142,6 @@ CREATE TABLE IF NOT EXISTS document_property_values (
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	updated_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	CONSTRAINT document_property_values_pkey PRIMARY KEY (document_id, property_id)
-);
-CREATE TABLE IF NOT EXISTS document_role_permissions (
-	document_id INTEGER NOT NULL, 
-	initiative_role_id INTEGER NOT NULL, 
-	guild_id INTEGER NOT NULL, 
-	level document_permission_level DEFAULT 'read'::document_permission_level NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
-	CONSTRAINT document_role_permissions_pkey PRIMARY KEY (document_id, initiative_role_id)
 );
 CREATE TABLE IF NOT EXISTS document_tags (
 	document_id INTEGER NOT NULL, 
@@ -212,7 +180,7 @@ CREATE TABLE IF NOT EXISTS event_reminder_dispatches (
 	event_start_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	sent_at TIMESTAMP WITH TIME ZONE NOT NULL, 
 	CONSTRAINT event_reminder_dispatches_pkey PRIMARY KEY (id), 
-	CONSTRAINT uq_event_reminder_dispatch UNIQUE (event_id, user_id, event_start_at)
+	CONSTRAINT uq_event_reminder_dispatch UNIQUE NULLS DISTINCT (event_id, user_id, event_start_at)
 );
 CREATE TABLE IF NOT EXISTS guild_settings (
 	id SERIAL NOT NULL, 
@@ -227,7 +195,7 @@ CREATE TABLE IF NOT EXISTS guild_settings (
 	ai_api_key_encrypted VARCHAR(2000), 
 	retention_days INTEGER DEFAULT 90, 
 	CONSTRAINT guild_settings_pkey PRIMARY KEY (id), 
-	CONSTRAINT guild_settings_guild_id_key UNIQUE (guild_id)
+	CONSTRAINT guild_settings_guild_id_key UNIQUE NULLS DISTINCT (guild_id)
 );
 CREATE TABLE IF NOT EXISTS initiative_members (
 	initiative_id INTEGER NOT NULL, 
@@ -252,8 +220,9 @@ CREATE TABLE IF NOT EXISTS initiative_roles (
 	is_builtin BOOLEAN DEFAULT false NOT NULL, 
 	is_manager BOOLEAN DEFAULT false NOT NULL, 
 	position INTEGER DEFAULT 0 NOT NULL, 
+	override_share_restrictions BOOLEAN DEFAULT false NOT NULL, 
 	CONSTRAINT initiative_roles_pkey PRIMARY KEY (id), 
-	CONSTRAINT uq_initiative_role_name UNIQUE (initiative_id, name)
+	CONSTRAINT uq_initiative_role_name UNIQUE NULLS DISTINCT (initiative_id, name)
 );
 CREATE TABLE IF NOT EXISTS initiatives (
 	id SERIAL NOT NULL, 
@@ -294,22 +263,6 @@ CREATE TABLE IF NOT EXISTS project_orders (
 	sort_order DOUBLE PRECISION DEFAULT '0'::double precision NOT NULL, 
 	guild_id INTEGER NOT NULL, 
 	CONSTRAINT project_orders_pkey PRIMARY KEY (user_id, project_id)
-);
-CREATE TABLE IF NOT EXISTS project_permissions (
-	project_id INTEGER NOT NULL, 
-	user_id INTEGER NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	level project_permission_level NOT NULL, 
-	guild_id INTEGER NOT NULL, 
-	CONSTRAINT project_members_pkey PRIMARY KEY (project_id, user_id)
-);
-CREATE TABLE IF NOT EXISTS project_role_permissions (
-	project_id INTEGER NOT NULL, 
-	initiative_role_id INTEGER NOT NULL, 
-	guild_id INTEGER NOT NULL, 
-	level project_permission_level DEFAULT 'read'::project_permission_level NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
-	CONSTRAINT project_role_permissions_pkey PRIMARY KEY (project_id, initiative_role_id)
 );
 CREATE TABLE IF NOT EXISTS project_tags (
 	project_id INTEGER NOT NULL, 
@@ -387,22 +340,6 @@ CREATE TABLE IF NOT EXISTS queue_items (
 	held_at_round INTEGER, 
 	CONSTRAINT queue_items_pkey PRIMARY KEY (id)
 );
-CREATE TABLE IF NOT EXISTS queue_permissions (
-	queue_id INTEGER NOT NULL, 
-	user_id INTEGER NOT NULL, 
-	guild_id INTEGER NOT NULL, 
-	level queue_permission_level NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	CONSTRAINT queue_permissions_pkey PRIMARY KEY (queue_id, user_id)
-);
-CREATE TABLE IF NOT EXISTS queue_role_permissions (
-	queue_id INTEGER NOT NULL, 
-	initiative_role_id INTEGER NOT NULL, 
-	guild_id INTEGER NOT NULL, 
-	level queue_permission_level NOT NULL, 
-	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
-	CONSTRAINT queue_role_permissions_pkey PRIMARY KEY (queue_id, initiative_role_id)
-);
 CREATE TABLE IF NOT EXISTS queues (
 	id SERIAL NOT NULL, 
 	guild_id INTEGER NOT NULL, 
@@ -427,6 +364,20 @@ CREATE TABLE IF NOT EXISTS recent_views (
 	guild_id INTEGER, 
 	last_viewed_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
 	CONSTRAINT recent_views_pkey PRIMARY KEY (user_id, entity_type, entity_id)
+);
+CREATE TABLE IF NOT EXISTS resource_grants (
+	id SERIAL NOT NULL, 
+	guild_id INTEGER NOT NULL, 
+	initiative_id INTEGER NOT NULL, 
+	resource_type VARCHAR(32) NOT NULL, 
+	resource_id INTEGER NOT NULL, 
+	user_id INTEGER, 
+	role_id INTEGER, 
+	level VARCHAR(16) NOT NULL, 
+	created_at TIMESTAMP WITH TIME ZONE NOT NULL, 
+	all_initiative_members BOOLEAN DEFAULT false NOT NULL, 
+	CONSTRAINT resource_grants_pkey PRIMARY KEY (id), 
+	CONSTRAINT resource_grants_unique_grantee UNIQUE NULLS NOT DISTINCT (resource_type, resource_id, user_id, role_id)
 );
 CREATE TABLE IF NOT EXISTS subtasks (
 	id SERIAL NOT NULL, 
@@ -571,7 +522,6 @@ CREATE INDEX IF NOT EXISTS ix_comments_document_id ON comments USING btree (docu
 CREATE INDEX IF NOT EXISTS ix_comments_parent_comment_id ON comments USING btree (parent_comment_id);
 CREATE INDEX IF NOT EXISTS ix_comments_purge ON comments USING btree (purge_at) WHERE (purge_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_comments_task_id ON comments USING btree (task_id);
-CREATE INDEX IF NOT EXISTS ix_counter_group_permissions_user_id ON counter_group_permissions USING btree (user_id);
 CREATE INDEX IF NOT EXISTS ix_counter_groups_guild_id ON counter_groups USING btree (guild_id);
 CREATE INDEX IF NOT EXISTS ix_counter_groups_initiative_id ON counter_groups USING btree (initiative_id);
 CREATE INDEX IF NOT EXISTS ix_counters_counter_group_id ON counters USING btree (counter_group_id);
@@ -579,8 +529,6 @@ CREATE INDEX IF NOT EXISTS ix_counters_group_position ON counters USING btree (c
 CREATE INDEX IF NOT EXISTS ix_counters_guild_id ON counters USING btree (guild_id);
 CREATE INDEX IF NOT EXISTS ix_document_file_versions_document_id ON document_file_versions USING btree (document_id);
 CREATE INDEX IF NOT EXISTS ix_document_links_target_document_id ON document_links USING btree (target_document_id);
-CREATE INDEX IF NOT EXISTS ix_document_permissions_guild_id ON document_permissions USING btree (guild_id);
-CREATE INDEX IF NOT EXISTS ix_document_permissions_user_id ON document_permissions USING btree (user_id);
 CREATE INDEX IF NOT EXISTS ix_document_property_values_property_id ON document_property_values USING btree (property_id);
 CREATE INDEX IF NOT EXISTS ix_document_property_values_property_json_gin ON document_property_values USING gin (value_json jsonb_path_ops) WHERE (value_json IS NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_document_property_values_property_value_date ON document_property_values USING btree (property_id, value_date) WHERE (value_date IS NOT NULL);
@@ -611,8 +559,6 @@ CREATE INDEX IF NOT EXISTS ix_project_documents_guild_id ON project_documents US
 CREATE INDEX IF NOT EXISTS ix_project_favorites_guild_id ON project_favorites USING btree (guild_id);
 CREATE INDEX IF NOT EXISTS ix_project_favorites_project_id ON project_favorites USING btree (project_id);
 CREATE INDEX IF NOT EXISTS ix_project_orders_guild_id ON project_orders USING btree (guild_id);
-CREATE INDEX IF NOT EXISTS ix_project_permissions_guild_id ON project_permissions USING btree (guild_id);
-CREATE INDEX IF NOT EXISTS ix_project_permissions_user_id ON project_permissions USING btree (user_id);
 CREATE INDEX IF NOT EXISTS ix_project_tags_tag_id ON project_tags USING btree (tag_id);
 CREATE INDEX IF NOT EXISTS ix_projects_active ON projects USING btree (deleted_at) WHERE (deleted_at IS NULL);
 CREATE INDEX IF NOT EXISTS ix_projects_guild_id ON projects USING btree (guild_id);
@@ -626,7 +572,6 @@ CREATE INDEX IF NOT EXISTS ix_queue_items_active ON queue_items USING btree (del
 CREATE INDEX IF NOT EXISTS ix_queue_items_guild_id ON queue_items USING btree (guild_id);
 CREATE INDEX IF NOT EXISTS ix_queue_items_purge ON queue_items USING btree (purge_at) WHERE (purge_at IS NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_queue_items_queue_id ON queue_items USING btree (queue_id);
-CREATE INDEX IF NOT EXISTS ix_queue_permissions_user_id ON queue_permissions USING btree (user_id);
 CREATE INDEX IF NOT EXISTS ix_queues_active ON queues USING btree (deleted_at) WHERE (deleted_at IS NULL);
 CREATE INDEX IF NOT EXISTS ix_queues_guild_id ON queues USING btree (guild_id);
 CREATE INDEX IF NOT EXISTS ix_queues_initiative_id ON queues USING btree (initiative_id);
@@ -634,6 +579,11 @@ CREATE INDEX IF NOT EXISTS ix_queues_purge ON queues USING btree (purge_at) WHER
 CREATE INDEX IF NOT EXISTS ix_recent_views_entity ON recent_views USING btree (entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS ix_recent_views_guild_id ON recent_views USING btree (guild_id);
 CREATE INDEX IF NOT EXISTS ix_recent_views_user_last_viewed_at ON recent_views USING btree (user_id, last_viewed_at DESC);
+CREATE INDEX IF NOT EXISTS ix_resource_grants_guild_id ON resource_grants USING btree (guild_id);
+CREATE INDEX IF NOT EXISTS ix_resource_grants_initiative_id ON resource_grants USING btree (initiative_id);
+CREATE INDEX IF NOT EXISTS ix_resource_grants_resource ON resource_grants USING btree (resource_type, resource_id);
+CREATE INDEX IF NOT EXISTS ix_resource_grants_role ON resource_grants USING btree (role_id, resource_type) WHERE (role_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_resource_grants_user ON resource_grants USING btree (user_id, resource_type) WHERE (user_id IS NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_subtasks_guild_id ON subtasks USING btree (guild_id);
 CREATE INDEX IF NOT EXISTS ix_subtasks_task_id ON subtasks USING btree (task_id);
 CREATE INDEX IF NOT EXISTS ix_tags_active ON tags USING btree (deleted_at) WHERE (deleted_at IS NULL);
@@ -670,6 +620,7 @@ CREATE INDEX IF NOT EXISTS ix_webhook_subscriptions_guild_id ON webhook_subscrip
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_comments_task_or_document' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "comments" ADD CONSTRAINT "ck_comments_task_or_document" CHECK (((task_id IS NULL) <> (document_id IS NULL))); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_initiative_role_permissions_permission_key' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "initiative_role_permissions" ADD CONSTRAINT "ck_initiative_role_permissions_permission_key" CHECK (((permission_key)::text = ANY ((ARRAY['docs_enabled'::character varying, 'projects_enabled'::character varying, 'create_docs'::character varying, 'create_projects'::character varying, 'queues_enabled'::character varying, 'create_queues'::character varying, 'events_enabled'::character varying, 'create_events'::character varying, 'advanced_tool_enabled'::character varying, 'create_advanced_tool'::character varying, 'counters_enabled'::character varying, 'create_counters'::character varying])::text[]))); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_recent_views_entity_type' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "recent_views" ADD CONSTRAINT "ck_recent_views_entity_type" CHECK ((entity_type = ANY (ARRAY['project'::text, 'document'::text, 'queue'::text, 'counter_group'::text]))); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'resource_grants_one_grantee' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "resource_grants" ADD CONSTRAINT "resource_grants_one_grantee" CHECK ((((((user_id IS NOT NULL))::integer + ((role_id IS NOT NULL))::integer) + (all_initiative_members)::integer) = 1)); END IF; END $$;
 
 -- intra-schema FOREIGN KEYs
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'calendar_event_attendees_calendar_event_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "calendar_event_attendees" ADD CONSTRAINT "calendar_event_attendees_calendar_event_id_fkey" FOREIGN KEY (calendar_event_id) REFERENCES calendar_events(id) ON DELETE CASCADE; END IF; END $$;
@@ -683,19 +634,13 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'calendar
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'comments_document_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "comments" ADD CONSTRAINT "comments_document_id_fkey" FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'comments_parent_comment_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "comments" ADD CONSTRAINT "comments_parent_comment_id_fkey" FOREIGN KEY (parent_comment_id) REFERENCES comments(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'comments_task_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "comments" ADD CONSTRAINT "comments_task_id_fkey" FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'counter_group_permissions_counter_group_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "counter_group_permissions" ADD CONSTRAINT "counter_group_permissions_counter_group_id_fkey" FOREIGN KEY (counter_group_id) REFERENCES counter_groups(id); END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'counter_group_role_permissions_counter_group_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "counter_group_role_permissions" ADD CONSTRAINT "counter_group_role_permissions_counter_group_id_fkey" FOREIGN KEY (counter_group_id) REFERENCES counter_groups(id); END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'counter_group_role_permissions_initiative_role_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "counter_group_role_permissions" ADD CONSTRAINT "counter_group_role_permissions_initiative_role_id_fkey" FOREIGN KEY (initiative_role_id) REFERENCES initiative_roles(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'counter_groups_initiative_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "counter_groups" ADD CONSTRAINT "counter_groups_initiative_id_fkey" FOREIGN KEY (initiative_id) REFERENCES initiatives(id); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'counters_counter_group_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "counters" ADD CONSTRAINT "counters_counter_group_id_fkey" FOREIGN KEY (counter_group_id) REFERENCES counter_groups(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_file_versions_document_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_file_versions" ADD CONSTRAINT "document_file_versions_document_id_fkey" FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_links_source_document_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_links" ADD CONSTRAINT "document_links_source_document_id_fkey" FOREIGN KEY (source_document_id) REFERENCES documents(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_links_target_document_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_links" ADD CONSTRAINT "document_links_target_document_id_fkey" FOREIGN KEY (target_document_id) REFERENCES documents(id) ON DELETE CASCADE; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_permissions_document_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_permissions" ADD CONSTRAINT "document_permissions_document_id_fkey" FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_property_values_document_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_property_values" ADD CONSTRAINT "document_property_values_document_id_fkey" FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_property_values_property_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_property_values" ADD CONSTRAINT "document_property_values_property_id_fkey" FOREIGN KEY (property_id) REFERENCES property_definitions(id) ON DELETE CASCADE; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_role_permissions_document_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_role_permissions" ADD CONSTRAINT "document_role_permissions_document_id_fkey" FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_role_permissions_initiative_role_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_role_permissions" ADD CONSTRAINT "document_role_permissions_initiative_role_id_fkey" FOREIGN KEY (initiative_role_id) REFERENCES initiative_roles(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_tags_document_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_tags" ADD CONSTRAINT "document_tags_document_id_fkey" FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'document_tags_tag_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "document_tags" ADD CONSTRAINT "document_tags_tag_id_fkey" FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'documents_initiative_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "documents" ADD CONSTRAINT "documents_initiative_id_fkey" FOREIGN KEY (initiative_id) REFERENCES initiatives(id) ON DELETE CASCADE; END IF; END $$;
@@ -708,9 +653,6 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_documents_project_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "project_documents" ADD CONSTRAINT "project_documents_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_favorites_project_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "project_favorites" ADD CONSTRAINT "project_favorites_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_orders_project_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "project_orders" ADD CONSTRAINT "project_orders_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_members_project_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "project_permissions" ADD CONSTRAINT "project_members_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id); END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_role_permissions_initiative_role_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "project_role_permissions" ADD CONSTRAINT "project_role_permissions_initiative_role_id_fkey" FOREIGN KEY (initiative_role_id) REFERENCES initiative_roles(id) ON DELETE CASCADE; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_role_permissions_project_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "project_role_permissions" ADD CONSTRAINT "project_role_permissions_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_tags_project_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "project_tags" ADD CONSTRAINT "project_tags_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'project_tags_tag_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "project_tags" ADD CONSTRAINT "project_tags_tag_id_fkey" FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'projects_team_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "projects" ADD CONSTRAINT "projects_team_id_fkey" FOREIGN KEY (initiative_id) REFERENCES initiatives(id); END IF; END $$;
@@ -722,11 +664,10 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'queue_it
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'queue_item_tasks_queue_item_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "queue_item_tasks" ADD CONSTRAINT "queue_item_tasks_queue_item_id_fkey" FOREIGN KEY (queue_item_id) REFERENCES queue_items(id); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'queue_item_tasks_task_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "queue_item_tasks" ADD CONSTRAINT "queue_item_tasks_task_id_fkey" FOREIGN KEY (task_id) REFERENCES tasks(id); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'queue_items_queue_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "queue_items" ADD CONSTRAINT "queue_items_queue_id_fkey" FOREIGN KEY (queue_id) REFERENCES queues(id) ON DELETE CASCADE; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'queue_permissions_queue_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "queue_permissions" ADD CONSTRAINT "queue_permissions_queue_id_fkey" FOREIGN KEY (queue_id) REFERENCES queues(id); END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'queue_role_permissions_initiative_role_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "queue_role_permissions" ADD CONSTRAINT "queue_role_permissions_initiative_role_id_fkey" FOREIGN KEY (initiative_role_id) REFERENCES initiative_roles(id) ON DELETE CASCADE; END IF; END $$;
-DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'queue_role_permissions_queue_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "queue_role_permissions" ADD CONSTRAINT "queue_role_permissions_queue_id_fkey" FOREIGN KEY (queue_id) REFERENCES queues(id); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_queues_current_item_id' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "queues" ADD CONSTRAINT "fk_queues_current_item_id" FOREIGN KEY (current_item_id) REFERENCES queue_items(id) ON DELETE SET NULL; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'queues_initiative_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "queues" ADD CONSTRAINT "queues_initiative_id_fkey" FOREIGN KEY (initiative_id) REFERENCES initiatives(id); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'resource_grants_initiative_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "resource_grants" ADD CONSTRAINT "resource_grants_initiative_id_fkey" FOREIGN KEY (initiative_id) REFERENCES initiatives(id) ON DELETE CASCADE; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'resource_grants_role_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "resource_grants" ADD CONSTRAINT "resource_grants_role_id_fkey" FOREIGN KEY (role_id) REFERENCES initiative_roles(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_subtasks_task_id' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "subtasks" ADD CONSTRAINT "fk_subtasks_task_id" FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'task_assignees_task_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "task_assignees" ADD CONSTRAINT "task_assignees_task_id_fkey" FOREIGN KEY (task_id) REFERENCES tasks(id); END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'task_assignment_digest_items_project_id_fkey' AND connamespace = current_schema()::regnamespace) THEN ALTER TABLE "task_assignment_digest_items" ADD CONSTRAINT "task_assignment_digest_items_project_id_fkey" FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE; END IF; END $$;
@@ -742,13 +683,11 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'webhook_
 
 -- guild_id denormalization triggers (functions are shared in public)
 CREATE OR REPLACE TRIGGER tr_comments_set_guild_id BEFORE INSERT OR UPDATE OF task_id, document_id ON comments FOR EACH ROW EXECUTE FUNCTION fn_comments_set_guild_id();
-CREATE OR REPLACE TRIGGER tr_document_permissions_set_guild_id BEFORE INSERT OR UPDATE OF document_id ON document_permissions FOR EACH ROW EXECUTE FUNCTION fn_document_permissions_set_guild_id();
 CREATE OR REPLACE TRIGGER tr_documents_set_guild_id BEFORE INSERT OR UPDATE OF initiative_id ON documents FOR EACH ROW EXECUTE FUNCTION fn_documents_set_guild_id();
 CREATE OR REPLACE TRIGGER tr_initiative_members_set_guild_id BEFORE INSERT OR UPDATE OF initiative_id ON initiative_members FOR EACH ROW EXECUTE FUNCTION fn_initiative_members_set_guild_id();
 CREATE OR REPLACE TRIGGER tr_project_documents_set_guild_id BEFORE INSERT OR UPDATE OF project_id ON project_documents FOR EACH ROW EXECUTE FUNCTION fn_project_documents_set_guild_id();
 CREATE OR REPLACE TRIGGER tr_project_favorites_set_guild_id BEFORE INSERT OR UPDATE OF project_id ON project_favorites FOR EACH ROW EXECUTE FUNCTION fn_project_favorites_set_guild_id();
 CREATE OR REPLACE TRIGGER tr_project_orders_set_guild_id BEFORE INSERT OR UPDATE OF project_id ON project_orders FOR EACH ROW EXECUTE FUNCTION fn_project_orders_set_guild_id();
-CREATE OR REPLACE TRIGGER tr_project_permissions_set_guild_id BEFORE INSERT OR UPDATE OF project_id ON project_permissions FOR EACH ROW EXECUTE FUNCTION fn_project_permissions_set_guild_id();
 CREATE OR REPLACE TRIGGER tr_projects_set_guild_id BEFORE INSERT OR UPDATE OF initiative_id ON projects FOR EACH ROW EXECUTE FUNCTION fn_projects_set_guild_id();
 CREATE OR REPLACE TRIGGER tr_recent_views_set_guild_id BEFORE INSERT OR UPDATE OF entity_type, entity_id ON recent_views FOR EACH ROW EXECUTE FUNCTION fn_recent_views_set_guild_id();
 CREATE OR REPLACE TRIGGER tr_subtasks_set_guild_id BEFORE INSERT OR UPDATE OF task_id ON subtasks FOR EACH ROW EXECUTE FUNCTION fn_subtasks_set_guild_id();

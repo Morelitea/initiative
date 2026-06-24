@@ -3,7 +3,7 @@ from __future__ import annotations
 from calendar import monthrange
 from datetime import datetime, timedelta, timezone
 
-from app.schemas.task import TaskRecurrence
+from app.schemas.tenant.task import TaskRecurrence
 
 WEEKDAY_NAMES = [
     "monday",

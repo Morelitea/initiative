@@ -18,7 +18,7 @@ from pycrdt import Doc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.models.document import Document
+from app.models.tenant.document import Document
 
 logger = logging.getLogger(__name__)
 

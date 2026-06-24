@@ -1,16 +1,9 @@
 import { Link, useParams, useRouter } from "@tanstack/react-router";
 import { Copy, Loader2, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  CounterGroupPermissionCreate,
-  CounterGroupRolePermissionCreate,
-} from "@/api/generated/initiativeAPI.schemas";
-import type { AccessLevel, RolePermissionRow } from "@/components/access/RolePermissionsCard";
-import { RolePermissionsCard } from "@/components/access/RolePermissionsCard";
-import type { UserPermissionRow } from "@/components/access/UserPermissionsCard";
-import { UserPermissionsCard } from "@/components/access/UserPermissionsCard";
+import { ShareControl } from "@/components/access/ShareControl";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -38,17 +31,14 @@ import {
   useCounterGroup,
   useDeleteCounterGroup,
   useDuplicateCounterGroup,
-  useSetCounterGroupPermissions,
-  useSetCounterGroupRolePermissions,
+  useSetCounterGroupGrants,
   useUpdateCounterGroup,
 } from "@/hooks/useCounters";
-import { useInitiativeRoles } from "@/hooks/useInitiativeRoles";
-import { useInitiativeMembers } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 
 export function CounterGroupSettingsPage() {
-  const { t } = useTranslation(["counters", "common"]);
+  const { t } = useTranslation(["counters", "common", "access"]);
   const { groupId } = useParams({ strict: false }) as { groupId?: string };
   const parsedId = groupId ? Number(groupId) : Number.NaN;
   const router = useRouter();
@@ -89,114 +79,12 @@ export function CounterGroupSettingsPage() {
     });
   };
 
-  // ── Access tab (local state + bulk PUT) ────────────────────────────────
+  // ── Access tab (unified grants) ────────────────────────────────────────
 
-  const rolesQuery = useInitiativeRoles(group?.initiative_id ?? null);
-  const membersQuery = useInitiativeMembers(group?.initiative_id ?? null);
-
-  const [localRolePerms, setLocalRolePerms] = useState<CounterGroupRolePermissionCreate[]>([]);
-  const [localUserPerms, setLocalUserPerms] = useState<CounterGroupPermissionCreate[]>([]);
-
-  useEffect(() => {
-    if (!group) return;
-    setLocalRolePerms(
-      group.role_permissions.map((rp) => ({
-        initiative_role_id: rp.initiative_role_id,
-        level: rp.level ?? "read",
-      }))
-    );
-    setLocalUserPerms(
-      group.permissions.map((p) => ({
-        user_id: p.user_id,
-        level: p.level ?? "read",
-      }))
-    );
-  }, [group]);
-
-  const setRolePermissions = useSetCounterGroupRolePermissions(parsedId, {
+  const setGrants = useSetCounterGroupGrants(parsedId, {
     onSuccess: () =>
       toast.success(t("permissionsUpdated", { defaultValue: "Permissions updated" })),
   });
-  const setUserPermissions = useSetCounterGroupPermissions(parsedId, {
-    onSuccess: () =>
-      toast.success(t("permissionsUpdated", { defaultValue: "Permissions updated" })),
-  });
-
-  const availableRoles = useMemo(() => {
-    const roles = rolesQuery.data ?? [];
-    const assigned = new Set(localRolePerms.map((rp) => rp.initiative_role_id));
-    return roles.filter((role) => !assigned.has(role.id));
-  }, [rolesQuery.data, localRolePerms]);
-
-  const availableMembers = useMemo(() => {
-    const members = membersQuery.data ?? [];
-    const assigned = new Set(localUserPerms.map((p) => p.user_id));
-    return members.filter((m) => !assigned.has(m.id));
-  }, [membersQuery.data, localUserPerms]);
-
-  const rolePermissionRows: RolePermissionRow[] = useMemo(() => {
-    const serverRows = group?.role_permissions ?? [];
-    return localRolePerms.map((lrp) => {
-      const serverRow = serverRows.find((sr) => sr.initiative_role_id === lrp.initiative_role_id);
-      const role = (rolesQuery.data ?? []).find((r) => r.id === lrp.initiative_role_id);
-      return {
-        initiative_role_id: lrp.initiative_role_id,
-        role_display_name:
-          serverRow?.role_display_name ?? role?.display_name ?? `Role #${lrp.initiative_role_id}`,
-        level: (lrp.level ?? "read") as AccessLevel,
-      };
-    });
-  }, [localRolePerms, group?.role_permissions, rolesQuery.data]);
-
-  const userPermissionRows: UserPermissionRow[] = useMemo(() => {
-    const members = membersQuery.data ?? [];
-    return localUserPerms.map((p) => {
-      const member = members.find((m) => m.id === p.user_id);
-      return {
-        user_id: p.user_id,
-        displayName: member?.full_name?.trim() || member?.email || `User #${p.user_id}`,
-        email: member?.email || "",
-        level: (p.level ?? "read") as AccessLevel,
-        isOwner: p.level === "owner",
-      };
-    });
-  }, [localUserPerms, membersQuery.data]);
-
-  // Role permission mutators (bulk PUT the full list each change).
-  const commitRoles = (next: CounterGroupRolePermissionCreate[]) => {
-    setLocalRolePerms(next);
-    setRolePermissions.mutate(next);
-  };
-  const handleAddRole = (roleId: number, level: "read" | "write") =>
-    commitRoles([...localRolePerms, { initiative_role_id: roleId, level }]);
-  const handleUpdateRoleLevel = (roleId: number, level: "read" | "write") =>
-    commitRoles(
-      localRolePerms.map((rp) => (rp.initiative_role_id === roleId ? { ...rp, level } : rp))
-    );
-  const handleRemoveRole = (roleId: number) =>
-    commitRoles(localRolePerms.filter((rp) => rp.initiative_role_id !== roleId));
-
-  // User permission mutators.
-  const commitUsers = (next: CounterGroupPermissionCreate[]) => {
-    setLocalUserPerms(next);
-    setUserPermissions.mutate(next);
-  };
-  const handleAddUser = (userId: number, level: "read" | "write") =>
-    commitUsers([...localUserPerms, { user_id: userId, level }]);
-  const handleUpdateUserLevel = (userId: number, level: "read" | "write") =>
-    commitUsers(localUserPerms.map((p) => (p.user_id === userId ? { ...p, level } : p)));
-  const handleRemoveUser = (userId: number) =>
-    commitUsers(localUserPerms.filter((p) => p.user_id !== userId));
-  const handleBulkUpdate = (userIds: number[], level: "read" | "write") => {
-    const ids = new Set(userIds);
-    commitUsers(localUserPerms.map((p) => (ids.has(p.user_id) ? { ...p, level } : p)));
-  };
-  const handleBulkRemove = (userIds: number[]) => {
-    const ids = new Set(userIds);
-    commitUsers(localUserPerms.filter((p) => !ids.has(p.user_id)));
-  };
-  const handleAddAll = (level: "read" | "write") =>
-    commitUsers([...localUserPerms, ...availableMembers.map((m) => ({ user_id: m.id, level }))]);
 
   // ── Duplicate ──────────────────────────────────────────────────────────
 
@@ -233,8 +121,6 @@ export function CounterGroupSettingsPage() {
     },
   });
 
-  const accessBusy = setRolePermissions.isPending || setUserPermissions.isPending;
-
   // ── Early returns ──────────────────────────────────────────────────────
 
   if (!Number.isFinite(parsedId)) {
@@ -253,6 +139,8 @@ export function CounterGroupSettingsPage() {
   if (groupQuery.isError || !group) {
     return <p className="text-destructive">{t("notFound")}</p>;
   }
+
+  const ownerId = group.grants.find((g) => g.level === "owner")?.user_id ?? null;
 
   return (
     <div className="space-y-6">
@@ -333,26 +221,21 @@ export function CounterGroupSettingsPage() {
             owner-only (handled in the Advanced tab). */}
         {canManage && (
           <TabsContent value="access" className="space-y-6">
-            <RolePermissionsCard
-              rolePermissions={rolePermissionRows}
-              availableRoles={availableRoles}
-              busy={accessBusy}
-              loadingRoles={rolesQuery.isLoading}
-              onAdd={handleAddRole}
-              onUpdateLevel={handleUpdateRoleLevel}
-              onRemove={handleRemoveRole}
-            />
-            <UserPermissionsCard
-              userPermissions={userPermissionRows}
-              availableMembers={availableMembers}
-              busy={accessBusy}
-              onAdd={handleAddUser}
-              onUpdateLevel={handleUpdateUserLevel}
-              onRemove={handleRemoveUser}
-              onAddAll={handleAddAll}
-              onBulkUpdate={handleBulkUpdate}
-              onBulkRemove={handleBulkRemove}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("access")}</CardTitle>
+                <CardDescription>{t("access:share.settingsDescription")}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ShareControl
+                  initiativeId={group.initiative_id}
+                  grants={group.grants}
+                  ownerId={ownerId}
+                  onChange={(grants) => setGrants.mutate(grants)}
+                  disabled={!isOwner || setGrants.isPending}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
         )}
 

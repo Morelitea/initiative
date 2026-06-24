@@ -22,8 +22,8 @@ from typing import Collection, Iterable, Optional
 from sqlalchemy import ColumnElement, exists, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.guild import GuildMembership, GuildRole
-from app.models.initiative import InitiativeMember
+from app.models.platform.guild import GuildMembership, GuildRole
+from app.models.tenant.initiative import InitiativeMember
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +115,7 @@ async def initiative_member_user_ids(
         if not user_ids:
             return set()
         stmt = stmt.where(InitiativeMember.user_id.in_(tuple(set(user_ids))))
-    return set((await session.execute(stmt)).scalars().all())
+    return set((await session.exec(stmt)).scalars().all())
 
 
 async def user_member_initiative_ids(
@@ -134,7 +134,7 @@ async def user_member_initiative_ids(
         stmt = stmt.where(
             InitiativeMember.initiative_id.in_(tuple(set(initiative_ids)))
         )
-    return set((await session.execute(stmt)).scalars().all())
+    return set((await session.exec(stmt)).scalars().all())
 
 
 async def is_initiative_member(
@@ -156,7 +156,7 @@ async def guild_member_user_ids(
         if not user_ids:
             return set()
         stmt = stmt.where(GuildMembership.user_id.in_(tuple(set(user_ids))))
-    return set((await session.execute(stmt)).scalars().all())
+    return set((await session.exec(stmt)).scalars().all())
 
 
 async def guild_role_map(
@@ -169,7 +169,7 @@ async def guild_role_map(
     ids = tuple(set(user_ids))
     if not ids:
         return {}
-    rows = await session.execute(
+    rows = await session.exec(
         select(GuildMembership.user_id, GuildMembership.role).where(
             GuildMembership.guild_id == guild_id,
             GuildMembership.user_id.in_(ids),

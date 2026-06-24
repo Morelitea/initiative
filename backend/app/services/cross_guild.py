@@ -12,9 +12,9 @@ from typing import Awaitable, Callable, Optional, Sequence, TypeVar
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.role_context import set_active_role
+from app.core.role_context import set_active_role, set_override_sharing_initiatives
 from app.db.session import set_rls_context
-from app.models.guild import GuildMembership
+from app.models.platform.guild import GuildMembership
 
 T = TypeVar("T")
 
@@ -85,8 +85,18 @@ async def gather_across_guilds(
             # guild-admin short-circuit in permissions.py (so my_permission_level /
             # require_*_access see the admin as owner when fetch() serializes here).
             set_active_role(guild_id, role_value)
+            # And the per-initiative "Full access" override for this guild, so a
+            # full-access PM's restricted content surfaces in cross-guild views too.
+            from app.services import rls as rls_service
+
+            override_ids = await rls_service.override_sharing_initiative_ids(
+                session, user_id=user_id
+            )
+            set_override_sharing_initiatives(frozenset(override_ids))
             results.extend(await fetch(session, guild_id))
     finally:
-        # Don't let the last guild's role linger in the request contextvar.
+        # Don't let the last guild's role/override set linger in the request
+        # contextvars.
         set_active_role(None, None)
+        set_override_sharing_initiatives(None)
     return results

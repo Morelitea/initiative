@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.53.0] - 2026-06-23
+
+### Security
+
+- **Permanent deletion (purge) is now admin-only at the database, not just in app code.** Emptying an item from the trash for good was gated only by an app-layer check; a `RESTRICTIVE` row-level-security policy now backs it on every soft-deletable item.
+- **Changing your password now requires your current password.** This stops a leaked session token or API key from silently taking over an account by setting a new password. (Accounts that sign in only through your identity provider have no local password and are unaffected.)
+- **A password change or reset now also revokes your API keys.** Previously, resetting a compromised account's password left any outstanding API keys working; a credential reset now deactivates them too, so a leaked key can't survive the response.
+
+### Added
+
+- **Full access for the Project Manager role.** Guild admins can now grant the Project Manager role **Full access** from an initiative's Roles settings. Members with that role can view and edit every item in the initiative — projects, documents, queues, counters, calendar events — even when an item isn't shared with them, and can manage who else has access. It applies only within that one initiative, and shows on each item's Share control as a locked editor that can't be removed. Only guild admins can turn it on, and only on the Project Manager role (so a manager can't grant it to themselves).
+- **Scoped API keys (read-only and single-guild).** When creating an API key you can now mark it **read-only** (it can read but never write) and/or pin it to a **single guild** (it can only reach that guild's data). Recommended for machine credentials such as CI or an automation/MCP tool, so a leaked key has a limited blast radius. Existing keys keep full access.
+- **Optional MCP server for AI assistants.** A new opt-in endpoint lets MCP-compatible AI tools (such as Claude Code) work with Initiative on your behalf — read your projects, tasks, and initiatives, and make a few safe edits (create a task, move a task, add a comment) — authenticated with your personal API key. It's **off by default** and enabled per deployment (`ENABLE_MCP`); every action runs as you, under the same permissions and access rules as the app, and a read-only API key can't make changes.
+
+### Fixed
+
+- Adding an option to a select / multi-select custom property lost input focus after each keystroke, so only one character could be typed at a time. Option rows are no longer re-keyed by the value being edited.
+- Guild admins were wrongly shown "access denied" when opening (or saving edits to) a document they hadn't been explicitly shared on. The realtime collaboration connection didn't apply the guild-admin access bypass the rest of the app uses; guild admins now have full access to every document in their guild.
+
+### Changed
+
+- Sharing for projects, documents, queues, counters, and calendar events is now a single Google-Docs-style **Share** control — pick **All initiative members** (Viewer or Editor) or **Restricted** (specific people and roles), available from each item's settings and its create dialog. Replaces the separate role- and user-permission panels.
+- Creating a custom-property option now asks only for a label; the stored option value is derived from the label automatically (and de-duplicated), removing the redundant Value field from the editor.
+- The date picker now accepts a typed date — a text field at the top of the popover parses common formats (e.g. `2026-06-16`, `06/16/2026`, `Jun 16, 2026`) on Enter or blur — and exposes month/year dropdowns in the calendar header for quickly jumping across years instead of clicking month-by-month.
+
 ## [0.52.0] - 2026-06-16
 
 ### Security
@@ -22,10 +47,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Per-resource access grants are now a single table.** Direct access grants for projects, documents, queues, and counter groups were stored in eight separate per-resource permission tables; they are now one polymorphic `resource_grants` table resolved through a single centralized authorization path, which also brings calendar events under the same model. Existing grants migrate automatically on upgrade; pre-existing calendar events are seeded with default grants (the creator owns it, managers can edit, everyone else can view) so they stay visible to members. This database change cannot be rolled back.
 - The platform users CSV export (`/admin/users/export.csv`) no longer includes the `initiative_roles` column. Initiative roles are guild-scoped; a platform-level user export now contains platform data only.
 
 ### Fixed
 
+- **Guild admins and break-glass grant-holders now have default read/write access to all initiative content.** An admin (or an active PAM/break-glass grant) who wasn't explicitly listed on a project, document, queue, counter, or calendar event could see "no results" for that content even though their role grants full access. Access is now resolved the same way for every content type, so the admin/break-glass override applies uniformly instead of per-endpoint.
 - OIDC claim mappings with the "initiative" target type showed an empty initiative dropdown after picking a guild, and saving such a mapping failed. The admin settings endpoint looked for initiatives and roles in the shared schema, where they don't live, instead of inside each guild's own schema; it now routes into every guild to list them, and the role dropdown is correctly scoped to the selected guild.
 - Container failing to start on Synology NAS (and other runtimes that re-apply a stale `PATH` on image upgrade) with `start.sh: exec: uvicorn: not found`. The startup scripts now put the bundled virtualenv on `PATH` explicitly instead of relying on the image's `ENV PATH`.
 - `adduser`/`addgroup` warning and failure for the default `PUID`/`PGID` of `1000` (`uid 1000 is greater than SYS_UID_MAX 999`); the container user is no longer created in the system-account range.

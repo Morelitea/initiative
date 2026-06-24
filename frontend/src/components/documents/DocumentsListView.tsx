@@ -185,18 +185,16 @@ export const DocumentsListView = ({
         id: "owner",
         header: t("documents:columns.owner"),
         cell: ({ row }) => {
-          const ownerPermission = (row.original.permissions ?? []).find((p) => p.level === "owner");
-          if (!ownerPermission) {
+          const ownerGrant = (row.original.grants ?? []).find((g) => g.level === "owner");
+          if (!ownerGrant || ownerGrant.user_id == null) {
             return <span className="text-muted-foreground">—</span>;
           }
           const ownerMember = row.original.initiative?.members?.find(
-            (m) => m.user.id === ownerPermission.user_id
+            (m) => m.user.id === ownerGrant.user_id
           );
           const ownerName = ownerMember?.user?.full_name || ownerMember?.user?.email;
           return (
-            <span>
-              {ownerName || t("documents:bulk.userFallback", { id: ownerPermission.user_id })}
-            </span>
+            <span>{ownerName || t("documents:bulk.userFallback", { id: ownerGrant.user_id })}</span>
           );
         },
       },

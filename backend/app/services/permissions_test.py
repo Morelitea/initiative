@@ -15,9 +15,9 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.messages import DocumentMessages, ProjectMessages
-from app.models.document import DocumentPermissionLevel
-from app.models.project import ProjectPermissionLevel
-from app.models.user import UserRole
+from app.models.tenant.document import DocumentPermissionLevel
+from app.models.tenant.project import ProjectPermissionLevel
+from app.models.platform.user import UserRole
 from app.services.permissions import (
     PROJECT_LEVEL_ORDER,
     compute_document_permission,
@@ -53,16 +53,23 @@ def _make_project(
     (the normal production state); pass ``member=False`` to model a stale
     permission row left behind after removal from the initiative.
     """
-    permissions = []
+    grants = []
     all_memberships = list(memberships or [])
     if user_id is not None and user_level is not None:
-        permissions.append(SimpleNamespace(user_id=user_id, level=user_level))
+        grants.append(SimpleNamespace(user_id=user_id, role_id=None, level=user_level))
         if member:
             all_memberships.append(SimpleNamespace(user_id=user_id, role_id=None))
+    for rp in role_permissions or []:
+        grants.append(
+            SimpleNamespace(
+                user_id=None,
+                role_id=getattr(rp, "initiative_role_id", getattr(rp, "role_id", None)),
+                level=rp.level,
+            )
+        )
     return SimpleNamespace(
         guild_id=guild_id,
-        permissions=permissions,
-        role_permissions=role_permissions or [],
+        grants=grants,
         initiative=SimpleNamespace(memberships=all_memberships),
     )
 
@@ -82,16 +89,23 @@ def _make_document(
     (the normal production state); pass ``member=False`` to model a stale
     permission row left behind after removal from the initiative.
     """
-    permissions = []
+    grants = []
     all_memberships = list(memberships or [])
     if user_id is not None and user_level is not None:
-        permissions.append(SimpleNamespace(user_id=user_id, level=user_level))
+        grants.append(SimpleNamespace(user_id=user_id, role_id=None, level=user_level))
         if member:
             all_memberships.append(SimpleNamespace(user_id=user_id, role_id=None))
+    for rp in role_permissions or []:
+        grants.append(
+            SimpleNamespace(
+                user_id=None,
+                role_id=getattr(rp, "initiative_role_id", getattr(rp, "role_id", None)),
+                level=rp.level,
+            )
+        )
     return SimpleNamespace(
         guild_id=guild_id,
-        permissions=permissions,
-        role_permissions=role_permissions or [],
+        grants=grants,
         initiative=SimpleNamespace(memberships=all_memberships),
     )
 
@@ -356,14 +370,17 @@ def test_compute_document_permission_no_access():
 # ---------------------------------------------------------------------------
 
 
-_PATCH_TARGET = "app.services.permissions._get_loaded_document_permissions"
+# require_document_access now reads grants directly; the old document-permission
+# loader was removed. These contexts patch a still-present, uninvolved helper so
+# the (now no-op) `with patch(...)` blocks keep working without restructuring.
+_PATCH_TARGET = "app.services.permissions._get_user_role_ids"
 
 
 @pytest.mark.unit
 def test_require_document_access_read_allowed():
     doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.read)
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=doc.permissions):
+    with patch(_PATCH_TARGET, return_value=[]):
         require_document_access(doc, user, access="read")  # should not raise
 
 
@@ -371,7 +388,7 @@ def test_require_document_access_read_allowed():
 def test_require_document_access_write_denied():
     doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.read)
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=doc.permissions):
+    with patch(_PATCH_TARGET, return_value=[]):
         with pytest.raises(HTTPException) as exc_info:
             require_document_access(doc, user, access="write")
         assert exc_info.value.status_code == 403
@@ -382,7 +399,7 @@ def test_require_document_access_write_denied():
 def test_require_document_access_no_access():
     doc = _make_document()  # no permissions for user
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=doc.permissions):
+    with patch(_PATCH_TARGET, return_value=[]):
         with pytest.raises(HTTPException) as exc_info:
             require_document_access(doc, user, access="read")
         assert exc_info.value.status_code == 403
@@ -393,7 +410,7 @@ def test_require_document_access_no_access():
 def test_require_document_access_owner_required():
     doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.write)
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=doc.permissions):
+    with patch(_PATCH_TARGET, return_value=[]):
         with pytest.raises(HTTPException) as exc_info:
             require_document_access(doc, user, require_owner=True)
         assert exc_info.value.status_code == 403
@@ -404,7 +421,7 @@ def test_require_document_access_owner_required():
 def test_require_document_access_owner_passes():
     doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.owner)
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=doc.permissions):
+    with patch(_PATCH_TARGET, return_value=[]):
         require_document_access(doc, user, require_owner=True)  # should not raise
 
 
@@ -505,7 +522,7 @@ def test_guild_admin_bypasses_initiative_scope_via_param():
         user_id=1, user_level=DocumentPermissionLevel.read, member=False
     )
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=doc.permissions):
+    with patch(_PATCH_TARGET, return_value=[]):
         require_document_access(
             doc, user, access="read", guild_role="admin"
         )  # should not raise
@@ -521,7 +538,7 @@ def test_guild_admin_bypasses_initiative_scope_via_role_context():
     user = _make_user(user_id=1)
     try:
         set_active_role(7, "admin")
-        with patch(_PATCH_TARGET, return_value=doc.permissions):
+        with patch(_PATCH_TARGET, return_value=[]):
             require_document_access(doc, user, access="read")  # should not raise
     finally:
         set_active_role(None, None)
@@ -570,7 +587,7 @@ def test_data_bypass_no_longer_bypasses_initiative_scope():
     ``test_pam_grant_bypasses_initiative_scope``)."""
     doc = _make_document(user_id=1, member=False)
     user = _make_user(user_id=1, role=UserRole.owner)
-    with patch(_PATCH_TARGET, return_value=doc.permissions):
+    with patch(_PATCH_TARGET, return_value=[]):
         with pytest.raises(HTTPException) as exc_info:
             require_document_access(doc, user, access="read")
     assert exc_info.value.status_code == 403
@@ -595,7 +612,7 @@ def test_membership_without_permission_row_still_denied():
     """The gate is an AND-layer: membership alone grants nothing."""
     doc = _make_document(memberships=[SimpleNamespace(user_id=1, role_id=None)])
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=doc.permissions):
+    with patch(_PATCH_TARGET, return_value=[]):
         with pytest.raises(HTTPException) as exc_info:
             require_document_access(doc, user, access="read")
     assert exc_info.value.status_code == 403
