@@ -101,6 +101,8 @@ class FakeS3Client:
     def __init__(self) -> None:
         self.objects: dict[tuple[str, str], dict] = {}
         self.presigned: list[tuple] = []
+        # Keys delete_objects should report as failed (not actually removed).
+        self.delete_errors: set[str] = set()
 
     @staticmethod
     def _missing(op: str) -> ClientError:
@@ -150,9 +152,14 @@ class FakeS3Client:
         return {"Contents": [{"Key": k} for k in keys], "IsTruncated": False}
 
     def delete_objects(self, *, Bucket, Delete):
+        errors = []
         for obj in Delete["Objects"]:
-            self.objects.pop((Bucket, obj["Key"]), None)
-        return {}
+            key = obj["Key"]
+            if key in self.delete_errors:
+                errors.append({"Key": key, "Code": "AccessDenied", "Message": "denied"})
+                continue
+            self.objects.pop((Bucket, key), None)
+        return {"Errors": errors} if errors else {}
 
 
 def _s3(prefix="guild_7/", kms_key_id=None):
@@ -324,6 +331,19 @@ def test_s3_delete_prefix_refuses_empty_prefix():
     _, storage = _s3(prefix="")
     with pytest.raises(ValueError, match="empty prefix"):
         storage.delete_prefix()
+
+
+def test_s3_delete_prefix_counts_only_successful_deletes():
+    client, storage = _s3()
+    storage.write("a.bin", b"1")
+    storage.write("b.bin", b"2")
+    # Simulate S3 reporting one key as failed (object lock, perms, …).
+    client.delete_errors.add("guild_7/b.bin")
+    removed = storage.delete_prefix()
+    # Only the successful delete is counted; the failed object remains.
+    assert removed == 1
+    assert ("bucket", "guild_7/b.bin") in client.objects
+    assert ("bucket", "guild_7/a.bin") not in client.objects
 
 
 # --- LocalFilesystemStorage prefix + delete_prefix ---------------------------

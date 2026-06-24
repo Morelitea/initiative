@@ -309,10 +309,21 @@ class S3Storage:
             resp = self._client.list_objects_v2(**kwargs)
             objects = [{"Key": o["Key"]} for o in resp.get("Contents", [])]
             if objects:
-                self._client.delete_objects(
+                result = self._client.delete_objects(
                     Bucket=self._bucket, Delete={"Objects": objects, "Quiet": True}
                 )
-                deleted += len(objects)
+                # Quiet=True returns only per-object failures; surface them and
+                # count only the ones that actually deleted (an unlogged failure
+                # would silently re-orphan the very blobs this is meant to purge).
+                errors = result.get("Errors") or []
+                for err in errors:
+                    logger.error(
+                        "delete_prefix could not delete %s: %s %s",
+                        err.get("Key"),
+                        err.get("Code"),
+                        err.get("Message"),
+                    )
+                deleted += len(objects) - len(errors)
             if resp.get("IsTruncated"):
                 token = resp.get("NextContinuationToken")
             else:

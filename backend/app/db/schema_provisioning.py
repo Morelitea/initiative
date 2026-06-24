@@ -23,6 +23,7 @@ plain sequential loop heals both with no extra bookkeeping.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -253,7 +254,9 @@ async def deprovision_guild(guild_id: int) -> None:
     try:
         from app.services.storage import purge_guild_blobs
 
-        removed = purge_guild_blobs(guild_id)
+        # Offload to a thread: the S3 path makes paginated blocking calls, and this
+        # runs on the event loop. A one-shot teardown shouldn't stall the loop.
+        removed = await asyncio.to_thread(purge_guild_blobs, guild_id)
         logger.info(
             "deprovision guild %s: removed %d stored blob(s)", guild_id, removed
         )
