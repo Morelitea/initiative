@@ -7,7 +7,7 @@ import {
   checkGuildRemovalEligibilityApiV1GGuildIdUsersUserIdGuildRemovalEligibilityGet,
   deleteUserApiV1GGuildIdUsersUserIdDelete,
 } from "@/api/generated/users/users";
-import { invalidateUsersList } from "@/api/query-keys";
+import { invalidateGuildMembers } from "@/api/query-keys";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -148,7 +148,7 @@ export const RemoveGuildMemberDialog = ({
         project_transfers: transfers,
         project_deletions: deletions,
       });
-      void invalidateUsersList();
+      void invalidateGuildMembers();
       toast.success(t("removeMember.removed", { email }));
       onSuccess?.();
       onOpenChange(false);

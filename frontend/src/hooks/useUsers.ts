@@ -17,7 +17,7 @@ import {
   listUsersApiV1GGuildIdUsersGet,
   updateUsersMeApiV1UsersMePatch,
 } from "@/api/generated/users/users";
-import { invalidateCurrentUser, invalidateUsersList } from "@/api/query-keys";
+import { invalidateCurrentUser, invalidateGuildMembers } from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { downloadBlob } from "@/lib/csv";
 import type { MutationOpts } from "@/types/mutation";
@@ -98,7 +98,7 @@ export const useApproveUser = (options?: MutationOpts<UserRead, number>) => {
       ) as unknown as Promise<UserRead>;
     },
     onSuccess: (...args) => {
-      void invalidateUsersList();
+      void invalidateGuildMembers();
       onSuccess?.(...args);
     },
     onError: (...args) => {
@@ -123,7 +123,7 @@ export const useUpdateGuildMembership = (
       } as Parameters<typeof updateGuildMembershipApiV1GuildsGuildIdMembersUserIdPatch>[2]);
     },
     onSuccess: (...args) => {
-      void invalidateUsersList();
+      void invalidateGuildMembers();
       onSuccess?.(...args);
     },
     onError: (...args) => {

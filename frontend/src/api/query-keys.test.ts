@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   invalidateAllInitiatives,
   invalidateAllTasks,
+  invalidateGuildMembers,
   invalidateNotifications,
   setInvalidationGuild,
 } from "@/api/query-keys";
@@ -83,6 +84,20 @@ describe("query-keys guild scoping", () => {
 
       expect(notifications()).toBe(true);
       expect(guildTasks()).toBe(false);
+    });
+
+    // The guild member roster is guild-scoped (`/api/v1/g/{id}/users/`) even though
+    // its mutations go through the platform `/api/v1/guilds/...` path — a role change
+    // must refresh the active guild's roster without a manual reload.
+    it("guild member invalidation hits the active guild roster only", async () => {
+      const activeRoster = seed(["/api/v1/g/5/users/"]);
+      const otherRoster = seed(["/api/v1/g/7/users/"]);
+
+      setInvalidationGuild(5);
+      await invalidateGuildMembers();
+
+      expect(activeRoster()).toBe(true);
+      expect(otherRoster()).toBe(false);
     });
   });
 });

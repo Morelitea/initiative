@@ -233,9 +233,14 @@ export const invalidateCurrentUser = () => invalidatePersonalExact([`/api/v1/use
 
 export const invalidateUserStats = () => invalidatePersonalPrefix("/api/v1/me/stats");
 
-export const invalidateUsersList = () => invalidatePersonalExact([`/api/v1/users/`]);
-
 export const invalidateAdminUsers = () => invalidatePersonalPrefix("/api/v1/admin");
+
+// ── Guild Members (guild) ─────────────────────────────────────────────────────────
+// The member roster is guild-scoped (`/api/v1/g/{id}/users/`), even though the
+// membership *mutations* go through the platform `/api/v1/guilds/{id}/members/...`
+// path. Invalidating it must stay in the guild bucket.
+
+export const invalidateGuildMembers = () => invalidateGuildExact([`/api/v1/users/`]);
 
 // ── Guilds (personal / platform) ─────────────────────────────────────────────────
 
