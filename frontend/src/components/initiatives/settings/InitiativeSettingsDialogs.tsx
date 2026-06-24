@@ -6,6 +6,7 @@ import type {
   InitiativeMemberRead,
   InitiativeRoleRead,
 } from "@/api/generated/initiativeAPI.schemas";
+import { DeleteInitiativeDialog } from "@/components/initiatives/DeleteInitiativeDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -76,17 +77,6 @@ export const InitiativeSettingsDialogs = ({
 }: InitiativeSettingsDialogsProps) => {
   const { t } = useTranslation(["initiatives", "common"]);
 
-  // Delete initiative confirmation text
-  const [deleteConfirmText, setDeleteConfirmText] = useState("");
-  const canConfirmDelete = deleteConfirmText === initiativeName;
-
-  // Reset delete confirm text when dialog opens
-  useEffect(() => {
-    if (showDeleteConfirm) {
-      setDeleteConfirmText("");
-    }
-  }, [showDeleteConfirm]);
-
   // New role dialog state
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDisplayName, setNewRoleDisplayName] = useState("");
@@ -156,57 +146,15 @@ export const InitiativeSettingsDialogs = ({
 
   return (
     <>
-      {/* Delete Initiative Dialog */}
-      <AlertDialog
+      {/* Delete Initiative Dialog — shared with the guild settings Initiatives
+          table so there's a single delete workflow. */}
+      <DeleteInitiativeDialog
         open={showDeleteConfirm}
-        onOpenChange={(open) => {
-          setShowDeleteConfirm(open);
-          if (!open) setDeleteConfirmText("");
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("settings.deleteConfirmTitle")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              <Trans
-                i18nKey="settings.deleteConfirmDescription"
-                ns="initiatives"
-                values={{ name: initiativeName }}
-                components={{ bold: <strong /> }}
-              />
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-2 py-2">
-            <Label htmlFor="delete-confirm-input">
-              <Trans
-                i18nKey="settings.deleteConfirmLabel"
-                ns="initiatives"
-                values={{ name: initiativeName }}
-                components={{ bold: <strong /> }}
-              />
-            </Label>
-            <Input
-              id="delete-confirm-input"
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder={initiativeName}
-              autoComplete="off"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeletingInitiative}>
-              {t("common:cancel")}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={onConfirmDeleteInitiative}
-              disabled={!canConfirmDelete || isDeletingInitiative}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              {isDeletingInitiative ? t("settings.deletingInitiative") : t("common:delete")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onOpenChange={setShowDeleteConfirm}
+        initiativeName={initiativeName}
+        isDeleting={isDeletingInitiative}
+        onConfirm={onConfirmDeleteInitiative}
+      />
 
       {/* New Role Dialog */}
       <Dialog

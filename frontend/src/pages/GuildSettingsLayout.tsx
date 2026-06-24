@@ -41,6 +41,11 @@ export const GuildSettingsLayout = () => {
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
       {
+        value: "initiatives",
+        label: t("guildLayout.tabs.initiatives"),
+        path: urlGuildId ? guildPath(urlGuildId, "/settings/initiatives") : "/settings/initiatives",
+      },
+      {
         value: "trash",
         label: t("guildLayout.tabs.trash"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/trash") : "/settings/trash",
@@ -91,6 +96,7 @@ export const GuildSettingsLayout = () => {
     { value: "guild", subPath: "/settings" },
     { value: "ai", subPath: "/settings/ai" },
     { value: "users", subPath: "/settings/users" },
+    { value: "initiatives", subPath: "/settings/initiatives" },
     { value: "trash", subPath: "/settings/trash" },
     { value: "advanced-tool", subPath: "/settings/advanced-tool" },
     { value: "danger-zone", subPath: "/settings/danger-zone" },

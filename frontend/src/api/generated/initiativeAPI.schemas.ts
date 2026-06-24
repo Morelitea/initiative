@@ -983,6 +983,7 @@ export interface InitiativeRead {
   id: number;
   guild_id: number;
   is_default: boolean;
+  is_archived: boolean;
   created_at: string;
   updated_at: string;
   members: InitiativeMemberRead[];
@@ -1501,6 +1502,7 @@ export interface InitiativeUpdate {
   events_enabled?: boolean | null;
   advanced_tool_enabled?: boolean | null;
   counters_enabled?: boolean | null;
+  is_archived?: boolean | null;
 }
 
 export interface InterfaceSettingsResponse {

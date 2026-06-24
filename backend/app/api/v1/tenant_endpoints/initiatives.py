@@ -311,6 +311,16 @@ async def update_initiative(
     )
 
     update_data = initiative_in.dict(exclude_unset=True)
+    # Archiving hides the initiative from every member's sidebar — a guild-wide
+    # visibility change. The UI only exposes the toggle to guild admins; this is
+    # the matching server-side backstop. It's a plain 403 (no dedicated error
+    # code) since a non-admin only reaches it by bypassing the UI.
+    if (
+        update_data.get("is_archived") is not None
+        and update_data["is_archived"] != initiative.is_archived
+        and not rls_service.is_guild_admin(guild_context.role)
+    ):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN)
     if "name" in update_data and update_data["name"] is not None:
         if await _initiative_name_exists(
             session,
