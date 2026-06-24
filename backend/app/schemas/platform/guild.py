@@ -89,6 +89,36 @@ class GuildUpdate(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
 
 
+class PlatformGuildStorageRead(SanitizedBaseModel):
+    """Operator view of a guild's storage cap (platform settings → Guilds tab).
+
+    Unlike :class:`GuildRead`, this carries no per-user membership fields
+    (``role``/``position``): the platform operator lists every guild regardless
+    of whether they belong to it, so only platform-wide attributes apply.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    name: str
+    member_count: int = 0
+    # Max total stored blob bytes for this guild. None means "unlimited".
+    max_storage_bytes: Optional[int] = None
+
+
+class PlatformGuildStorageUpdate(SanitizedBaseModel):
+    """Set a guild's storage cap from the platform Guilds tab.
+
+    Single-field body, so (unlike :class:`GuildUpdate`'s omit-to-skip sentinel)
+    the value always represents the new state: send a byte count to cap the
+    guild, or ``null`` to switch it back to unlimited.
+    """
+
+    max_storage_bytes: Optional[int] = Field(default=None, ge=0)
+
+
 class GuildDeletionRequest(SanitizedBaseModel):
     """Body for ``DELETE /guilds/{id}``.
 

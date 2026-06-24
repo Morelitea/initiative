@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import func
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -17,7 +18,7 @@ from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.guild import Guild, GuildRole
+from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.models.platform.oidc_claim_mapping import (
     OIDCClaimMapping,
@@ -37,9 +38,14 @@ from app.schemas.platform.settings import (
     OIDCSettingsResponse,
     OIDCSettingsUpdate,
 )
+from app.schemas.platform.guild import (
+    PlatformGuildStorageRead,
+    PlatformGuildStorageUpdate,
+)
 from app.schemas.platform.push import FCMConfigResponse
 from app.core.messages import SettingsMessages
 from app.services.platform import app_settings as app_settings_service
+from app.services.platform import guilds as guilds_service
 from app.services import email as email_service
 
 logger = logging.getLogger(__name__)
@@ -234,6 +240,80 @@ async def get_fcm_config(request: Request) -> FCMConfigResponse:
         else None,
         api_key=app_config.FCM_API_KEY if app_config.FCM_ENABLED else None,
         sender_id=app_config.FCM_SENDER_ID if app_config.FCM_ENABLED else None,
+    )
+
+
+# --- Guild storage limits (platform settings → Guilds tab) ---
+
+
+@router.get("/guilds", response_model=list[PlatformGuildStorageRead])
+async def list_platform_guild_storage(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> list[PlatformGuildStorageRead]:
+    """List every guild with its storage cap, for the platform Guilds tab.
+
+    Owner-only (``config.manage``). Reads only shared ``public`` tables
+    (``guilds``, ``guild_memberships``) — no guild-scoped content — so it runs on
+    the BYPASSRLS admin engine without routing into any guild schema. Member
+    counts come from a single grouped query rather than per-guild (no N+1).
+    """
+    guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
+    counts = dict(
+        (
+            await session.exec(
+                select(GuildMembership.guild_id, func.count()).group_by(
+                    GuildMembership.guild_id
+                )
+            )
+        ).all()
+    )
+    return [
+        PlatformGuildStorageRead(
+            id=g.id,
+            name=g.name,
+            member_count=counts.get(g.id, 0),
+            max_storage_bytes=g.max_storage_bytes,
+        )
+        for g in guilds
+    ]
+
+
+@router.patch("/guilds/{guild_id}", response_model=PlatformGuildStorageRead)
+async def update_platform_guild_storage(
+    guild_id: int,
+    payload: PlatformGuildStorageUpdate,
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> PlatformGuildStorageRead:
+    """Set a guild's storage cap (bytes; ``null`` = unlimited). Owner-only.
+
+    Writes only ``public.guilds.max_storage_bytes`` — a shared column — so no
+    guild-schema routing is needed. The cap is enforced on every upload by
+    ``enforce_storage_quota``; lowering it below current usage simply blocks
+    further uploads, it does not delete existing blobs.
+    """
+    exists = (
+        await session.exec(select(Guild.id).where(Guild.id == guild_id))
+    ).one_or_none()
+    if exists is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=SettingsMessages.GUILD_NOT_FOUND,
+        )
+    guild = await guilds_service.update_guild(
+        session,
+        guild_id=guild_id,
+        max_storage_bytes=payload.max_storage_bytes,
+        max_storage_bytes_provided=True,
+    )
+    await session.commit()
+    member_count = await guilds_service.count_members(session, guild_id=guild_id)
+    return PlatformGuildStorageRead(
+        id=guild.id,
+        name=guild.name,
+        member_count=member_count,
+        max_storage_bytes=guild.max_storage_bytes,
     )
 
 

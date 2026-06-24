@@ -1732,6 +1732,31 @@ export interface PlatformAdminCountResponse {
 }
 
 /**
+ * Operator view of a guild's storage cap (platform settings → Guilds tab).
+ *
+ * Unlike :class:`GuildRead`, this carries no per-user membership fields
+ * (``role``/``position``): the platform operator lists every guild regardless
+ * of whether they belong to it, so only platform-wide attributes apply.
+ */
+export interface PlatformGuildStorageRead {
+  id: number;
+  name: string;
+  member_count: number;
+  max_storage_bytes: number | null;
+}
+
+/**
+ * Set a guild's storage cap from the platform Guilds tab.
+ *
+ * Single-field body, so (unlike :class:`GuildUpdate`'s omit-to-skip sentinel)
+ * the value always represents the new state: send a byte count to cap the
+ * guild, or ``null`` to switch it back to unlimited.
+ */
+export interface PlatformGuildStorageUpdate {
+  max_storage_bytes?: number | null;
+}
+
+/**
  * Platform-level (app-wide) user role.
  *
  * Ordered from least to most privileged. Authorization checks should

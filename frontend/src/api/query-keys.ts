@@ -219,6 +219,10 @@ export const invalidateAuthSettings = () => invalidatePersonalExact([`/api/v1/se
 export const invalidateOidcMappings = () =>
   invalidatePersonalPrefix("/api/v1/settings/oidc-mappings");
 
+// The platform Guilds tab reads/writes only shared public tables (owner-only),
+// so its list lives in the personal/platform family, not under any /g/ key.
+export const invalidatePlatformGuilds = () => invalidatePersonalExact([`/api/v1/settings/guilds`]);
+
 // ── AI Settings (platform is personal; guild/user/resolved are guild-scoped) ──────
 
 export const invalidateAllAISettings = () =>
