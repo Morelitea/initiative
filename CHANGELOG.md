@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Manage all of a guild's initiatives from one place.** Guild settings has a new **Initiatives** tab (admin only) listing every initiative with its member count, where you can archive, delete, or grant the Project Manager **Full access** for each one without opening each initiative individually.
 - **Archive an initiative to hide it from the sidebar.** Archiving keeps everything intact (projects, documents, tasks, queues) but removes the initiative from the main sidebar for everyone; unarchive any time to bring it back. Available from the new Initiatives tab and from an initiative's **Danger zone** settings. Archiving is guild-admin only.
 - **Per-guild storage limit.** A guild can now have a maximum total upload storage; uploads that would push the guild over its limit are rejected. Defaults to unlimited, so existing guilds are unaffected until a limit is set.
+- **Optional S3-compatible object storage for uploads.** Uploads can now be stored in an S3-compatible object store you point it at (a self-hosted Garage instance, AWS S3, R2, etc.) instead of the local filesystem, via `STORAGE_BACKEND=s3` and the new `S3_*` settings. The filesystem remains the default, so existing deployments are unaffected. See `docs/OBJECT_STORAGE.md`.
 
 ## [0.53.1] - 2026-06-24
 

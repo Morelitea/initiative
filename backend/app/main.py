@@ -231,18 +231,14 @@ async def serve_upload_file(
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
     session: Annotated[AsyncSession, Depends(get_admin_session)],
-) -> FileResponse:
+) -> Response:
     """Serve an uploaded file — requires authentication and an Upload row in
     the path-addressed guild."""
     from pathlib import Path as FilePath
 
     from sqlalchemy import text
 
-    from app.services.storage import get_storage
-
-    file_path = get_storage().resolve_readable(filename)
-    if file_path is None:
-        raise HTTPException(status_code=404)
+    from app.services.storage import build_upload_response, get_guild_storage
 
     # Guild authorization via the ``/uploads/{guild_id}/…`` path: media is
     # referenced by pages inside a guild, and ``<img>``/iframe can't send headers,
@@ -291,13 +287,19 @@ async def serve_upload_file(
     if hit is None:
         raise HTTPException(status_code=404)
 
+    # Storage is touched only after authorization passes. open_readable returns
+    # None for a missing/traversal key -> 404 (same fail-closed shape as before).
+    blob = get_guild_storage(guild_id).open_readable(filename)
+    if blob is None:
+        raise HTTPException(status_code=404)
+
     headers: dict[str, str] = {}
     if filename.lower().endswith((".svg", ".html", ".htm")):
         headers["Content-Disposition"] = "attachment"
         headers["Content-Security-Policy"] = "script-src 'none'"
         headers["X-Content-Type-Options"] = "nosniff"
     logger.info("upload_served filename=%s user=%d", filename, current_user.id)
-    return FileResponse(file_path, headers=headers)
+    return build_upload_response(blob, headers=headers)
 
 
 app.include_router(api_router, prefix=settings.API_V1_STR)

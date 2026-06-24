@@ -10,7 +10,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.core.config import settings
-from app.services.storage import get_storage
+from app.services.storage import get_guild_storage
 
 logger = logging.getLogger(__name__)
 
@@ -138,11 +138,33 @@ def normalize_upload_url(url: str | None) -> str | None:
     return path
 
 
+def guild_id_from_upload_url(url: str | None) -> int | None:
+    """Extract the guild id from a ``/uploads/{guild_id}/{filename}`` URL.
+
+    The guild rides in the URL path (it's part of the canonical upload URL), so
+    storage ops can route to the right guild namespace via the resolver.
+    """
+    normalized = normalize_upload_url(url)
+    if not normalized:
+        return None
+    # normalized is ``/uploads/{guild_id}/{filename}`` -> ['', 'uploads', gid, ...]
+    parts = normalized.split("/")
+    if len(parts) < 4:
+        return None
+    try:
+        return int(parts[2])
+    except ValueError:
+        return None
+
+
 def delete_upload_by_url(url: str | None) -> None:
     normalized = normalize_upload_url(url)
     if not normalized:
         return
-    get_storage().delete(Path(normalized).name)
+    guild_id = guild_id_from_upload_url(normalized)
+    if guild_id is None:
+        return
+    get_guild_storage(guild_id).delete(Path(normalized).name)
 
 
 def delete_uploads_by_urls(urls: Iterable[str]) -> None:
@@ -295,7 +317,19 @@ def duplicate_upload(url: str | None) -> str | None:
     if not normalized:
         return None
 
-    storage = get_storage()
+    guild_id = guild_id_from_upload_url(normalized)
+    if guild_id is None:
+        # Can't route to a storage namespace without the guild segment. Fall back
+        # to the source URL (the "couldn't duplicate" signal duplicate_uploads
+        # already handles by not remapping); warn so it's diagnosable rather than
+        # a silent alias.
+        logger.warning(
+            "Cannot resolve guild for upload %s; not duplicating", normalized
+        )
+        return normalized
+
+    # A duplicate stays in the same guild, so source and dest share one namespace.
+    storage = get_guild_storage(guild_id)
     source_name = Path(normalized).name
     if not storage.exists(source_name):
         logger.warning("Attempted to duplicate missing upload %s", source_name)
@@ -438,14 +472,22 @@ def validate_document_file(
     return detected_mime, extension
 
 
-def save_document_file(content: bytes, extension: str, guild_id: int) -> str:
-    """Save document file content to the uploads directory.
+def save_document_file(
+    content: bytes,
+    extension: str,
+    guild_id: int,
+    content_type: str | None = None,
+) -> str:
+    """Save document file content to storage for ``guild_id``.
 
     Args:
         content: File content bytes
         extension: File extension (including dot)
         guild_id: Guild the file belongs to — encoded into the URL path so the
-            served media self-describes its guild (e.g. /uploads/7/abc123.pdf).
+            served media self-describes its guild (e.g. /uploads/7/abc123.pdf),
+            and used to route the write to the guild's storage namespace.
+        content_type: MIME type recorded on the object (so S3 GetObject can serve
+            it without re-sniffing); ignored by the local filesystem backend.
 
     Returns:
         URL path to the uploaded file (e.g., /uploads/7/abc123.pdf)
@@ -453,7 +495,7 @@ def save_document_file(content: bytes, extension: str, guild_id: int) -> str:
     safe_extension = extension if extension.startswith(".") else f".{extension}"
     filename = f"{uuid4().hex}{safe_extension}"
 
-    get_storage().write(filename, content)
+    get_guild_storage(guild_id).write(filename, content, content_type=content_type)
 
     return f"{UPLOADS_URL_PREFIX}{guild_id}/{filename}"
 
