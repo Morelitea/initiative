@@ -23,7 +23,7 @@ from app.services.attachments import (
     enforce_storage_quota,
     read_upload_bounded,
 )
-from app.services.storage import get_storage
+from app.services.storage import get_guild_storage
 
 router = APIRouter()
 
@@ -116,14 +116,17 @@ async def upload_attachment(
             detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
         )
 
-    get_storage().write(filename, contents)
+    resolved_content_type = file.content_type or _FORMAT_TO_MIME[detected_format]
+    get_guild_storage(guild_context.guild_id).write(
+        filename, contents, content_type=resolved_content_type
+    )
 
     upload = Upload(
         filename=filename,
         guild_id=guild_context.guild_id,
         uploader_user_id=current_user.id,
         size_bytes=len(contents),
-        content_type=file.content_type or _FORMAT_TO_MIME[detected_format],
+        content_type=resolved_content_type,
         content_hash=compute_content_hash(contents),
     )
     session.add(upload)
@@ -133,6 +136,6 @@ async def upload_attachment(
         filename=file.filename or filename,
         # Guild in the path so the served media self-describes its guild.
         url=f"/uploads/{guild_context.guild_id}/{filename}",
-        content_type=file.content_type or _FORMAT_TO_MIME[detected_format],
+        content_type=resolved_content_type,
         size=len(contents),
     )
