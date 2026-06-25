@@ -745,7 +745,8 @@
       "auth": "Auth",
       "branding": "Image de marque",
       "email": "E-mail",
-      "ai": "IA"
+      "ai": "IA",
+      "guilds": "Groupes"
     }
   },
   "adminDashboard": {
@@ -754,6 +755,25 @@
     "tabs": {
       "users": "Utilisateurs",
       "access": "Accès"
+    }
+  },
+  "guilds": {
+    "title": "Limites de stockage par groupe",
+    "description": "Définissez le stockage total maximal que chaque groupe peut utiliser pour les fichiers téléversés. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements, mais ne supprime jamais les fichiers existants.",
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites de stockage des groupes.",
+    "loading": "Chargement des groupes…",
+    "loadError": "Impossible de charger les groupes. Veuillez réessayer.",
+    "filterByName": "Filtrer les groupes par nom",
+    "unlimitedPlaceholder": "Illimité",
+    "helpText": "Les limites sont en Go et sont enregistrées automatiquement. Laissez un champ vide pour un stockage illimité.",
+    "limitInputLabel": "Limite de stockage pour {{name}} en Go",
+    "saved": "Limite de stockage mise à jour pour {{name}}.",
+    "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
+    "columns": {
+      "id": "ID",
+      "guild": "Groupe",
+      "members": "Membres",
+      "storageLimit": "Limite de stockage"
     }
   }
 }

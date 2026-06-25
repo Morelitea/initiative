@@ -36,6 +36,8 @@ import type {
   OIDCMappingsResponse,
   OIDCSettingsResponse,
   OIDCSettingsUpdate,
+  PlatformGuildStorageRead,
+  PlatformGuildStorageUpdate,
   SendTestEmailApiV1SettingsEmailTestPost200,
   UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut200,
 } from "../initiativeAPI.schemas";
@@ -983,6 +985,256 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
   return { ...query, queryKey: queryOptions.queryKey };
 }
 
+/**
+ * List every guild with its storage cap, for the platform Guilds tab.
+ *
+ * Owner-only (``config.manage``). Reads only shared ``public`` tables
+ * (``guilds``, ``guild_memberships``) — no guild-scoped content — so it runs on
+ * the BYPASSRLS admin engine without routing into any guild schema. Member
+ * counts come from a single grouped query rather than per-guild (no N+1).
+ * @summary List Platform Guild Storage
+ */
+export const listPlatformGuildStorageApiV1SettingsGuildsGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformGuildStorageRead[]>(
+    { url: `/api/v1/settings/guilds`, method: "GET", signal },
+    options
+  );
+};
+
+export const getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey = () => {
+  return [`/api/v1/settings/guilds`] as const;
+};
+
+export const getListPlatformGuildStorageApiV1SettingsGuildsGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>
+  > = ({ signal }) => listPlatformGuildStorageApiV1SettingsGuildsGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type ListPlatformGuildStorageApiV1SettingsGuildsGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>
+>;
+export type ListPlatformGuildStorageApiV1SettingsGuildsGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+          TError,
+          Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List Platform Guild Storage
+ */
+
+export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
+  TData = Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof listPlatformGuildStorageApiV1SettingsGuildsGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getListPlatformGuildStorageApiV1SettingsGuildsGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Set a guild's storage cap (bytes; ``null`` = unlimited). Owner-only.
+ *
+ * Writes only ``public.guilds.max_storage_bytes`` — a shared column — so no
+ * guild-schema routing is needed. The cap is enforced on every upload by
+ * ``enforce_storage_quota``; lowering it below current usage simply blocks
+ * further uploads, it does not delete existing blobs.
+ * @summary Update Platform Guild Storage
+ */
+export const updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = (
+  guildId: number,
+  platformGuildStorageUpdate: BodyType<PlatformGuildStorageUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<PlatformGuildStorageRead>(
+    {
+      url: `/api/v1/settings/guilds/${guildId}`,
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      data: platformGuildStorageUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+    TError,
+    { guildId: number; data: BodyType<PlatformGuildStorageUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+  TError,
+  { guildId: number; data: BodyType<PlatformGuildStorageUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+    { guildId: number; data: BodyType<PlatformGuildStorageUpdate> }
+  > = (props) => {
+    const { guildId, data } = props ?? {};
+
+    return updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch(guildId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>
+>;
+export type UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationBody =
+  BodyType<PlatformGuildStorageUpdate>;
+export type UpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Platform Guild Storage
+ */
+export const useUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+      TError,
+      { guildId: number; data: BodyType<PlatformGuildStorageUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>>,
+  TError,
+  { guildId: number; data: BodyType<PlatformGuildStorageUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatchMutationOptions(options),
+    queryClient
+  );
+};
 /**
  * @summary Get Oidc Mappings
  */

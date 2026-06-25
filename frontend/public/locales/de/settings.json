@@ -745,7 +745,8 @@
       "auth": "Auth",
       "branding": "Branding",
       "email": "E-Mail",
-      "ai": "KI"
+      "ai": "KI",
+      "guilds": "Gilden"
     }
   },
   "adminDashboard": {
@@ -754,6 +755,25 @@
     "tabs": {
       "users": "Benutzer",
       "access": "Zugriff"
+    }
+  },
+  "guilds": {
+    "title": "Gilden-Speicherlimits",
+    "description": "Lege fest, wie viel Gesamtspeicher jede Gilde für hochgeladene Dateien nutzen darf. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads, löscht aber keine vorhandenen Dateien.",
+    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um Gilden-Speicherlimits zu verwalten.",
+    "loading": "Gilden werden geladen…",
+    "loadError": "Gilden konnten nicht geladen werden. Bitte versuche es erneut.",
+    "filterByName": "Gilden nach Namen filtern",
+    "unlimitedPlaceholder": "Unbegrenzt",
+    "helpText": "Limits sind in GB und werden automatisch gespeichert. Lass ein Feld leer für unbegrenzten Speicher.",
+    "limitInputLabel": "Speicherlimit für {{name}} in GB",
+    "saved": "Speicherlimit für {{name}} aktualisiert.",
+    "saveError": "Das Speicherlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "columns": {
+      "id": "ID",
+      "guild": "Gilde",
+      "members": "Mitglieder",
+      "storageLimit": "Speicherlimit"
     }
   }
 }

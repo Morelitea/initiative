@@ -14,6 +14,8 @@ import type {
   OIDCMappingsResponse,
   OIDCSettingsResponse,
   OIDCSettingsUpdate,
+  PlatformGuildStorageRead,
+  PlatformGuildStorageUpdate,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   createOidcMappingApiV1SettingsOidcMappingsPost,
@@ -27,15 +29,18 @@ import {
   getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
   getInterfaceSettingsApiV1SettingsInterfaceGet,
+  getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey,
   getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
   getOidcMappingsApiV1SettingsOidcMappingsGet,
   getOidcSettingsApiV1SettingsAuthGet,
+  listPlatformGuildStorageApiV1SettingsGuildsGet,
   sendTestEmailApiV1SettingsEmailTestPost,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   updateOidcSettingsApiV1SettingsAuthPut,
+  updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
 } from "@/api/generated/settings/settings";
 import {
   getChangelogApiV1ChangelogGet,
@@ -46,6 +51,7 @@ import {
   invalidateEmailSettings,
   invalidateInterfaceSettings,
   invalidateOidcMappings,
+  invalidatePlatformGuilds,
 } from "@/api/query-keys";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -130,6 +136,22 @@ export const useFcmConfig = () => {
     queryKey: getGetFcmConfigApiV1SettingsFcmConfigGetQueryKey(),
     queryFn: () => getFcmConfigApiV1SettingsFcmConfigGet() as unknown as Promise<FCMConfigResponse>,
     staleTime: 5 * 60 * 1000,
+  });
+};
+
+/**
+ * Every guild with its storage cap, for the platform settings → Guilds tab.
+ * Owner-only (`config.manage`); pass `{ enabled }` to skip the request for
+ * non-owners.
+ */
+export const usePlatformGuilds = (options?: QueryOpts<PlatformGuildStorageRead[]>) => {
+  return useQuery<PlatformGuildStorageRead[]>({
+    queryKey: getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey(),
+    queryFn: () =>
+      listPlatformGuildStorageApiV1SettingsGuildsGet() as unknown as Promise<
+        PlatformGuildStorageRead[]
+      >,
+    ...options,
   });
 };
 
@@ -223,6 +245,37 @@ export const useSendTestEmail = (
       await sendTestEmailApiV1SettingsEmailTestPost(data);
     },
     onSuccess,
+    onError,
+    onSettled,
+  });
+};
+
+export const useUpdateGuildStorage = (
+  options?: MutationOpts<
+    PlatformGuildStorageRead,
+    { guildId: number; data: PlatformGuildStorageUpdate }
+  >
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async ({
+      guildId,
+      data,
+    }: {
+      guildId: number;
+      data: PlatformGuildStorageUpdate;
+    }) => {
+      return updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch(
+        guildId,
+        data as Parameters<typeof updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch>[1]
+      ) as unknown as Promise<PlatformGuildStorageRead>;
+    },
+    onSuccess: (...args) => {
+      void invalidatePlatformGuilds();
+      onSuccess?.(...args);
+    },
     onError,
     onSettled,
   });

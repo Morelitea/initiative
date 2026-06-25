@@ -740,12 +740,32 @@
   },
   "platformLayout": {
     "title": "Platform settings",
-    "subtitle": "Configure authentication, branding, email, and AI for the entire platform.",
+    "subtitle": "Configure authentication, branding, email, AI, and guild storage for the entire platform.",
     "tabs": {
       "auth": "Auth",
       "branding": "Branding",
       "email": "Email",
-      "ai": "AI"
+      "ai": "AI",
+      "guilds": "Guilds"
+    }
+  },
+  "guilds": {
+    "title": "Guild storage limits",
+    "description": "Set the maximum total storage each guild may use for uploaded files. Lowering a limit below current usage blocks new uploads but never deletes existing files.",
+    "adminOnly": "You need the platform owner role to manage guild storage limits.",
+    "loading": "Loading guilds…",
+    "loadError": "Could not load guilds. Please try again.",
+    "filterByName": "Filter guilds by name",
+    "unlimitedPlaceholder": "Unlimited",
+    "helpText": "Limits are in GB and save automatically. Leave a field blank for unlimited storage.",
+    "limitInputLabel": "Storage limit for {{name}} in GB",
+    "saved": "Updated storage limit for {{name}}.",
+    "saveError": "Could not update the storage limit. Please try again.",
+    "columns": {
+      "id": "ID",
+      "guild": "Guild",
+      "members": "Members",
+      "storageLimit": "Storage limit"
     }
   },
   "adminDashboard": {
