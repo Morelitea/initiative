@@ -35,6 +35,40 @@ from app.services.storage import StorageBackend, s3_guild_storage
 
 logger = logging.getLogger(__name__)
 
+# One-shot guard so the "HeadObject 403 -> probably missing s3:ListBucket" hint is
+# logged once per run, not once per file. Reset at the start of each backfill.
+_warned_head_forbidden = False
+
+
+def _object_exists(dest: StorageBackend, key: str) -> bool:
+    """Whether ``key`` is already in ``dest``, tolerating a 403 HeadObject.
+
+    Many S3 stores (and AWS itself) return **403 Forbidden** instead of 404 for
+    ``HeadObject`` on a *missing* key when the credentials lack ``s3:ListBucket``
+    on the bucket. That must not abort the migration: we can't confirm presence,
+    so we report "not present" and let the idempotent write below decide — a real
+    write-permission problem then surfaces on ``PutObject`` (recorded per file),
+    while a fresh bucket simply gets every object (re-runs lose the skip
+    optimization but stay correct). Non-403 errors propagate as before.
+    """
+    from botocore.exceptions import ClientError
+
+    try:
+        return dest.exists(key)
+    except ClientError as exc:
+        if exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 403:
+            raise
+        global _warned_head_forbidden
+        if not _warned_head_forbidden:
+            _warned_head_forbidden = True
+            logger.warning(
+                "HeadObject returned 403 for a not-yet-copied object; the bucket "
+                "credentials likely lack s3:ListBucket (so the store can't answer "
+                "'not found'). Proceeding to upload anyway. Grant s3:ListBucket to "
+                "enable skip-on-rerun and silence this."
+            )
+        return False
+
 
 @dataclass
 class BackfillSummary:
@@ -74,7 +108,7 @@ def backfill_guild_dir(
             content_type = mimetypes.guess_type(key)[0]
         label = f"guild_{guild_id}/{key}"
         try:
-            if dest.exists(key):
+            if _object_exists(dest, key):
                 summary.skipped += 1
                 continue
             data = path.read_bytes()
@@ -121,6 +155,8 @@ async def _guild_upload_meta(
 
 async def backfill_uploads_to_s3(*, dry_run: bool = False) -> BackfillSummary:
     """Copy every guild's local blobs into S3. See module docstring."""
+    global _warned_head_forbidden
+    _warned_head_forbidden = False
     summary = BackfillSummary()
     root = Path(settings.UPLOADS_DIR)
     engine = db_session.provisioning_engine  # superuser: reads every guild schema

@@ -5,6 +5,8 @@ a destination backend), so these run without a database. The DB-backed guild
 iteration is a thin shell over it.
 """
 
+from botocore.exceptions import ClientError
+
 from app.db.backfill_uploads_to_s3 import BackfillSummary, backfill_guild_dir
 
 
@@ -97,3 +99,54 @@ def test_backfill_dry_run_checks_dest_and_writes_nothing(tmp_path):
     assert summary.skipped == 1
     assert summary.copied == 1
     assert "b.png" not in dest.written  # dry-run writes nothing
+
+
+class _ForbiddenHeadDest(_FakeDest):
+    """A store whose credentials lack s3:ListBucket: HeadObject on a missing key
+    raises 403 (Forbidden) instead of returning 404, but writes still work."""
+
+    def exists(self, key: str) -> bool:
+        raise ClientError(
+            {"Error": {"Code": "403"}, "ResponseMetadata": {"HTTPStatusCode": 403}},
+            "HeadObject",
+        )
+
+
+def test_backfill_tolerates_403_head_and_uploads(tmp_path):
+    """A 403 on the existence check (missing s3:ListBucket) must not abort the
+    migration — the object is uploaded anyway, not recorded as a failure."""
+    gd = tmp_path / "guild_5"
+    gd.mkdir()
+    (gd / "a.png").write_bytes(b"img")
+    dest = _ForbiddenHeadDest()
+    summary = BackfillSummary()
+
+    backfill_guild_dir(gd, {}, dest, summary, guild_id=5, dry_run=False)
+
+    assert summary.failed == 0
+    assert summary.copied == 1
+    assert dest.written["a.png"][0] == b"img"
+
+
+class _BrokenHeadDest(_FakeDest):
+    """A non-403 HeadObject error (e.g. wrong endpoint) is a real failure."""
+
+    def exists(self, key: str) -> bool:
+        raise ClientError(
+            {"Error": {"Code": "500"}, "ResponseMetadata": {"HTTPStatusCode": 500}},
+            "HeadObject",
+        )
+
+
+def test_backfill_non_403_head_error_is_a_failure(tmp_path):
+    gd = tmp_path / "guild_5"
+    gd.mkdir()
+    (gd / "a.png").write_bytes(b"img")
+    dest = _BrokenHeadDest()
+    summary = BackfillSummary()
+
+    backfill_guild_dir(gd, {}, dest, summary, guild_id=5, dry_run=False)
+
+    assert summary.failed == 1
+    assert summary.copied == 0
+    assert "a.png" not in dest.written
