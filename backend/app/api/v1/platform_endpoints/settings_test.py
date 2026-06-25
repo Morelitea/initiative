@@ -398,3 +398,185 @@ async def test_guild_storage_endpoints_reject_below_admin(
             f"{method.upper()} {url} as {role.value}: {resp.status_code}"
         )
         assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"
+
+
+# --- Object storage (platform settings → Storage tab) ----------------------
+
+
+@pytest.fixture
+def reset_storage_cache():
+    """Keep the process-wide storage-config snapshot from leaking across tests:
+    a test that saves an ``s3`` backend would otherwise route a later upload
+    test's writes at a non-existent bucket."""
+    from app.services import storage_config
+
+    storage_config.reset_for_tests()
+    yield
+    storage_config.reset_for_tests()
+
+
+_S3_PAYLOAD = {
+    "backend": "s3",
+    "s3_bucket": "my-bucket",
+    "s3_region": "eu-west-1",
+    "s3_endpoint_url": "https://s3.example.com",
+    "s3_access_key_id": "AKIAEXAMPLE",
+    "s3_secret_access_key": "super-secret-value",
+    "s3_use_path_style": True,
+    "s3_kms_key_id": None,
+    "s3_local_fallback": True,
+}
+
+
+@pytest.mark.integration
+async def test_storage_settings_round_trip_never_returns_secret(
+    client: AsyncClient,
+    session: AsyncSession,
+    reset_storage_cache: None,
+) -> None:
+    """PUT saves S3 config; GET reflects it but never echoes the secret (only a
+    ``has_secret_access_key`` flag). The secret is persisted encrypted."""
+    owner = await create_user(
+        session, email="owner-storage-rt@example.com", role=UserRole.owner
+    )
+    headers = get_auth_headers(owner)
+
+    put = await client.put(
+        "/api/v1/settings/storage", json=_S3_PAYLOAD, headers=headers
+    )
+    assert put.status_code == 200, put.text
+    body = put.json()
+    assert body["backend"] == "s3"
+    assert body["s3_bucket"] == "my-bucket"
+    assert body["s3_region"] == "eu-west-1"
+    assert body["s3_use_path_style"] is True
+    assert body["s3_local_fallback"] is True
+    assert body["has_secret_access_key"] is True
+    # The plaintext secret must never appear in any response.
+    assert "super-secret-value" not in put.text
+    assert "s3_secret_access_key" not in body
+
+    get = await client.get("/api/v1/settings/storage", headers=headers)
+    assert get.status_code == 200
+    assert get.json()["s3_bucket"] == "my-bucket"
+    assert get.json()["has_secret_access_key"] is True
+    assert "super-secret-value" not in get.text
+
+    # Stored encrypted, and decrypts back to the original.
+    from app.core.encryption import SALT_S3_SECRET_KEY, decrypt_field
+    from app.services.platform.app_settings import get_app_settings
+
+    row = await get_app_settings(session, force_refresh=True)
+    assert row.s3_secret_access_key_encrypted
+    assert row.s3_secret_access_key_encrypted != "super-secret-value"
+    assert (
+        decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)
+        == "super-secret-value"
+    )
+
+
+@pytest.mark.integration
+async def test_storage_update_keeps_secret_when_omitted(
+    client: AsyncClient,
+    session: AsyncSession,
+    reset_storage_cache: None,
+) -> None:
+    """Re-saving without ``s3_secret_access_key`` keeps the stored key (the SMTP
+    password pattern), so an admin can tweak the bucket without re-typing it."""
+    owner = await create_user(
+        session, email="owner-storage-keep@example.com", role=UserRole.owner
+    )
+    headers = get_auth_headers(owner)
+
+    assert (
+        await client.put("/api/v1/settings/storage", json=_S3_PAYLOAD, headers=headers)
+    ).status_code == 200
+
+    no_secret = {k: v for k, v in _S3_PAYLOAD.items() if k != "s3_secret_access_key"}
+    no_secret["s3_bucket"] = "renamed-bucket"
+    resp = await client.put("/api/v1/settings/storage", json=no_secret, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["s3_bucket"] == "renamed-bucket"
+    assert resp.json()["has_secret_access_key"] is True
+
+    from app.core.encryption import SALT_S3_SECRET_KEY, decrypt_field
+    from app.services.platform.app_settings import get_app_settings
+
+    row = await get_app_settings(session, force_refresh=True)
+    assert (
+        decrypt_field(row.s3_secret_access_key_encrypted, SALT_S3_SECRET_KEY)
+        == "super-secret-value"
+    )
+
+
+@pytest.mark.integration
+async def test_storage_update_refreshes_process_config(
+    client: AsyncClient,
+    session: AsyncSession,
+    reset_storage_cache: None,
+) -> None:
+    """Saving updates the live process snapshot so the request path uses the new
+    backend without a restart."""
+    owner = await create_user(
+        session, email="owner-storage-cache@example.com", role=UserRole.owner
+    )
+    resp = await client.put(
+        "/api/v1/settings/storage", json=_S3_PAYLOAD, headers=get_auth_headers(owner)
+    )
+    assert resp.status_code == 200
+
+    from app.services import storage_config
+
+    cfg = storage_config.current_storage_config()
+    assert cfg.backend == "s3"
+    assert cfg.bucket == "my-bucket"
+    assert cfg.secret_access_key == "super-secret-value"
+    assert cfg.use_path_style is True
+
+
+@pytest.mark.integration
+async def test_storage_backfill_requires_bucket(
+    client: AsyncClient,
+    session: AsyncSession,
+    reset_storage_cache: None,
+) -> None:
+    """The backfill writes to S3, so it needs a bucket configured first."""
+    owner = await create_user(
+        session, email="owner-storage-bf@example.com", role=UserRole.owner
+    )
+    resp = await client.post(
+        "/api/v1/settings/storage/backfill", headers=get_auth_headers(owner)
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("role", _NON_OWNER_ROLES)
+async def test_storage_endpoints_reject_non_owner(
+    client: AsyncClient,
+    session: AsyncSession,
+    role: UserRole,
+    reset_storage_cache: None,
+) -> None:
+    """Every storage endpoint is owner-only (config.manage)."""
+    user = await create_user(
+        session, email=f"storage-deny-{role.value}@example.com", role=role
+    )
+    headers = get_auth_headers(user)
+
+    requests = [
+        ("get", "/api/v1/settings/storage", None),
+        ("put", "/api/v1/settings/storage", {"backend": "local"}),
+        ("post", "/api/v1/settings/storage/test", {"backend": "local"}),
+        ("post", "/api/v1/settings/storage/backfill", None),
+        ("get", "/api/v1/settings/storage/backfill", None),
+    ]
+    for method, url, json_body in requests:
+        resp = await getattr(client, method)(
+            url, headers=headers, **({"json": json_body} if json_body else {})
+        )
+        assert resp.status_code == 403, (
+            f"{method.upper()} {url} as {role.value}: {resp.status_code}"
+        )
+        assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"

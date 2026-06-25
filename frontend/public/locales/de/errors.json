@@ -281,5 +281,9 @@
   "ADMIN_CANNOT_DELETE_LAST_OWNER": "Der letzte Plattformeigentümer kann nicht gelöscht werden.",
   "DOCUMENT_GRANT_CANNOT_MANAGE_MEMBERS": "Temporärer Zugriff kann keine Dokumentmitglieder verwalten",
   "COUNTER_GRANT_CANNOT_MANAGE": "Temporärer Zugriff kann den Zugriff auf Zählergruppen nicht verwalten",
-  "NATIVE_OTA_BUNDLE_NOT_AVAILABLE": "Dieser Server-Build hat kein Over-the-Air-Update-Bundle verfügbar"
+  "NATIVE_OTA_BUNDLE_NOT_AVAILABLE": "Dieser Server-Build hat kein Over-the-Air-Update-Bundle verfügbar",
+  "SETTINGS_STORAGE_S3_INCOMPLETE": "Die S3-Speichereinstellungen sind unvollständig.",
+  "SETTINGS_STORAGE_TEST_FAILED": "Verbindung zum Speicher-Backend nicht möglich.",
+  "SETTINGS_STORAGE_BACKFILL_RUNNING": "Ein Backfill läuft bereits.",
+  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Konfiguriere einen S3-Bucket, bevor du den Backfill ausführst."
 }

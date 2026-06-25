@@ -10,6 +10,7 @@ from app.core.config import settings as app_config
 from app.core.encryption import (
     encrypt_field,
     SALT_OIDC_CLIENT_SECRET,
+    SALT_S3_SECRET_KEY,
     SALT_SMTP_PASSWORD,
 )
 from app.core.pam_context import has_active_grant
@@ -74,6 +75,7 @@ def _build_default_app_settings() -> AppSetting:
     """
     _oidc_secret = _normalize_optional_string(app_config.OIDC_CLIENT_SECRET)
     _smtp_pw = _normalize_optional_string(app_config.SMTP_PASSWORD)
+    _s3_secret = _normalize_optional_string(app_config.S3_SECRET_ACCESS_KEY)
     return AppSetting(
         id=GLOBAL_SETTINGS_ID,
         oidc_enabled=bool(app_config.OIDC_ENABLED),
@@ -100,6 +102,17 @@ def _build_default_app_settings() -> AppSetting:
         else None,
         smtp_from_address=_normalize_optional_string(app_config.SMTP_FROM_ADDRESS),
         smtp_test_recipient=_normalize_optional_string(app_config.SMTP_TEST_RECIPIENT),
+        storage_backend=(app_config.STORAGE_BACKEND or "local").lower(),
+        s3_bucket=_normalize_optional_string(app_config.S3_BUCKET),
+        s3_region=app_config.S3_REGION or "us-east-1",
+        s3_endpoint_url=_normalize_optional_string(app_config.S3_ENDPOINT_URL),
+        s3_access_key_id=_normalize_optional_string(app_config.S3_ACCESS_KEY_ID),
+        s3_secret_access_key_encrypted=encrypt_field(_s3_secret, SALT_S3_SECRET_KEY)
+        if _s3_secret
+        else None,
+        s3_use_path_style=bool(app_config.S3_USE_PATH_STYLE),
+        s3_kms_key_id=_normalize_optional_string(app_config.S3_KMS_KEY_ID),
+        s3_local_fallback=bool(app_config.S3_LOCAL_FALLBACK),
     )
 
 
@@ -164,6 +177,33 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         env_scopes = _normalize_scopes(app_config.OIDC_SCOPES or [])
         if env_scopes and not settings_row.oidc_scopes:
             env_updates["oidc_scopes"] = env_scopes
+        # Storage: backfill only the optional *string* S3 fields from env when the
+        # DB value is empty (same rule as OIDC issuer/client-id above). The enum/bool
+        # fields — storage_backend, s3_use_path_style, s3_local_fallback — are seeded
+        # on first creation only and never re-forced from env, so an admin can switch
+        # backend or toggle fallback in the UI without the env var overriding them.
+        if not settings_row.s3_bucket and app_config.S3_BUCKET:
+            env_updates["s3_bucket"] = _normalize_optional_string(app_config.S3_BUCKET)
+        if not settings_row.s3_endpoint_url and app_config.S3_ENDPOINT_URL:
+            env_updates["s3_endpoint_url"] = _normalize_optional_string(
+                app_config.S3_ENDPOINT_URL
+            )
+        if not settings_row.s3_access_key_id and app_config.S3_ACCESS_KEY_ID:
+            env_updates["s3_access_key_id"] = _normalize_optional_string(
+                app_config.S3_ACCESS_KEY_ID
+            )
+        if (
+            not settings_row.s3_secret_access_key_encrypted
+            and app_config.S3_SECRET_ACCESS_KEY
+        ):
+            v = _normalize_optional_string(app_config.S3_SECRET_ACCESS_KEY)
+            env_updates["s3_secret_access_key_encrypted"] = (
+                encrypt_field(v, SALT_S3_SECRET_KEY) if v else None
+            )
+        if not settings_row.s3_kms_key_id and app_config.S3_KMS_KEY_ID:
+            env_updates["s3_kms_key_id"] = _normalize_optional_string(
+                app_config.S3_KMS_KEY_ID
+            )
         if not env_updates:
             return settings_row
         if await _session_can_write_app_settings(session):
@@ -274,6 +314,47 @@ async def update_email_settings(
     await session.commit()
     await reapply_rls_context(session)
     await session.refresh(settings_row)
+    return settings_row
+
+
+async def update_storage_settings(
+    session: AsyncSession,
+    *,
+    backend: str,
+    s3_bucket: str | None,
+    s3_region: str | None,
+    s3_endpoint_url: str | None,
+    s3_access_key_id: str | None,
+    s3_secret_access_key: str | None,
+    secret_provided: bool,
+    s3_use_path_style: bool,
+    s3_kms_key_id: str | None,
+    s3_local_fallback: bool,
+) -> AppSetting:
+    settings_row = await _ensure_app_settings(session)
+    settings_row.storage_backend = (backend or "local").lower()
+    settings_row.s3_bucket = _normalize_optional_string(s3_bucket)
+    settings_row.s3_region = (s3_region or "us-east-1").strip() or "us-east-1"
+    settings_row.s3_endpoint_url = _normalize_optional_string(s3_endpoint_url)
+    settings_row.s3_access_key_id = _normalize_optional_string(s3_access_key_id)
+    if secret_provided:
+        normalized = _normalize_optional_string(s3_secret_access_key)
+        settings_row.s3_secret_access_key_encrypted = (
+            encrypt_field(normalized, SALT_S3_SECRET_KEY) if normalized else None
+        )
+    settings_row.s3_use_path_style = bool(s3_use_path_style)
+    settings_row.s3_kms_key_id = _normalize_optional_string(s3_kms_key_id)
+    settings_row.s3_local_fallback = bool(s3_local_fallback)
+    session.add(settings_row)
+    await session.commit()
+    await reapply_rls_context(session)
+    await session.refresh(settings_row)
+    # Refresh the process-wide resolved storage config so the live request path
+    # picks up new creds/backend immediately (lazy import avoids a cycle: the
+    # storage_config module reads get_app_settings from here).
+    from app.services import storage_config
+
+    await storage_config.refresh_storage_config(session)
     return settings_row
 
 
