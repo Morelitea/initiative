@@ -745,8 +745,7 @@
       "auth": "Autenticación",
       "branding": "Personalización",
       "email": "Email",
-      "ai": "IA",
-      "guilds": "Gremios"
+      "ai": "IA"
     }
   },
   "adminDashboard": {
@@ -754,7 +753,8 @@
     "subtitle": "Administra los usuarios de la plataforma y los accesos temporales.",
     "tabs": {
       "users": "Usuarios",
-      "access": "Acceso"
+      "access": "Acceso",
+      "guilds": "Gremios"
     }
   },
   "guilds": {

@@ -745,8 +745,7 @@
       "auth": "Auth",
       "branding": "Branding",
       "email": "E-Mail",
-      "ai": "KI",
-      "guilds": "Gilden"
+      "ai": "KI"
     }
   },
   "adminDashboard": {
@@ -754,7 +753,8 @@
     "subtitle": "Verwalte Plattformbenutzer und zeitlich begrenzte Zugriffsrechte.",
     "tabs": {
       "users": "Benutzer",
-      "access": "Zugriff"
+      "access": "Zugriff",
+      "guilds": "Gilden"
     }
   },
   "guilds": {

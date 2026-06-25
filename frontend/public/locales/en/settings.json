@@ -745,8 +745,7 @@
       "auth": "Auth",
       "branding": "Branding",
       "email": "Email",
-      "ai": "AI",
-      "guilds": "Guilds"
+      "ai": "AI"
     }
   },
   "guilds": {
@@ -773,7 +772,8 @@
     "subtitle": "Manage platform users and time-bound access grants.",
     "tabs": {
       "users": "Users",
-      "access": "Access"
+      "access": "Access",
+      "guilds": "Guilds"
     }
   }
 }

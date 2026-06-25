@@ -90,12 +90,12 @@ const GuildStorageCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   );
 };
 
-export const SettingsGuildsPage = () => {
+export const AdminDashboardGuildsPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
-  const isPlatformAdmin = hasCapability(user, Capability.configManage);
+  const canManageGuilds = hasCapability(user, Capability.guildsManage);
 
-  const guildsQuery = usePlatformGuilds({ enabled: isPlatformAdmin });
+  const guildsQuery = usePlatformGuilds({ enabled: canManageGuilds });
 
   const columns: ColumnDef<PlatformGuildStorageRead>[] = [
     {
@@ -125,7 +125,7 @@ export const SettingsGuildsPage = () => {
     },
   ];
 
-  if (!isPlatformAdmin) {
+  if (!canManageGuilds) {
     return <p className="text-muted-foreground text-sm">{t("guilds.adminOnly")}</p>;
   }
 
