@@ -177,33 +177,11 @@ async def _ensure_app_settings(session: AsyncSession) -> AppSetting:
         env_scopes = _normalize_scopes(app_config.OIDC_SCOPES or [])
         if env_scopes and not settings_row.oidc_scopes:
             env_updates["oidc_scopes"] = env_scopes
-        # Storage: backfill only the optional *string* S3 fields from env when the
-        # DB value is empty (same rule as OIDC issuer/client-id above). The enum/bool
-        # fields — storage_backend, s3_use_path_style, s3_local_fallback — are seeded
-        # on first creation only and never re-forced from env, so an admin can switch
-        # backend or toggle fallback in the UI without the env var overriding them.
-        if not settings_row.s3_bucket and app_config.S3_BUCKET:
-            env_updates["s3_bucket"] = _normalize_optional_string(app_config.S3_BUCKET)
-        if not settings_row.s3_endpoint_url and app_config.S3_ENDPOINT_URL:
-            env_updates["s3_endpoint_url"] = _normalize_optional_string(
-                app_config.S3_ENDPOINT_URL
-            )
-        if not settings_row.s3_access_key_id and app_config.S3_ACCESS_KEY_ID:
-            env_updates["s3_access_key_id"] = _normalize_optional_string(
-                app_config.S3_ACCESS_KEY_ID
-            )
-        if (
-            not settings_row.s3_secret_access_key_encrypted
-            and app_config.S3_SECRET_ACCESS_KEY
-        ):
-            v = _normalize_optional_string(app_config.S3_SECRET_ACCESS_KEY)
-            env_updates["s3_secret_access_key_encrypted"] = (
-                encrypt_field(v, SALT_S3_SECRET_KEY) if v else None
-            )
-        if not settings_row.s3_kms_key_id and app_config.S3_KMS_KEY_ID:
-            env_updates["s3_kms_key_id"] = _normalize_optional_string(
-                app_config.S3_KMS_KEY_ID
-            )
+        # NOTE: storage (storage_backend / s3_*) is intentionally NOT env-backfilled
+        # on read. Env seeds a *new* row once (_build_default_app_settings) and an
+        # existing row once (the storage migration's data step); after that the DB is
+        # authoritative. Re-seeding empty fields here would silently revert a value an
+        # owner just *cleared* in the Storage tab back to the still-set env var.
         if not env_updates:
             return settings_row
         if await _session_can_write_app_settings(session):

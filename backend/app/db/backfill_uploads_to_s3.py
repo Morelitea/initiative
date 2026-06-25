@@ -31,7 +31,8 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.config import settings
 from app.db import session as db_session
 from app.db.schema_provisioning import guild_schema_name
-from app.services.storage import StorageBackend, s3_guild_storage
+from app.services import storage_config
+from app.services.storage import S3Storage, StorageBackend, build_s3_client
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,8 @@ class BackfillSummary:
     failed: int = 0
     hash_mismatches: int = 0
     failed_keys: list[str] = field(default_factory=list)
+    # True when another worker held the advisory lock, so this run did nothing.
+    already_running: bool = False
 
 
 def backfill_guild_dir(
@@ -153,29 +156,64 @@ async def _guild_upload_meta(
     return {row[0]: (row[1], row[2]) for row in rows if row[0]}
 
 
+# Cluster-wide advisory-lock key (arbitrary constant) so at most one backfill runs
+# at a time across every worker/process — the in-process status guard can't see a
+# run started on another worker.
+_BACKFILL_LOCK_KEY = 0x1014_5311
+
+
 async def backfill_uploads_to_s3(*, dry_run: bool = False) -> BackfillSummary:
     """Copy every guild's local blobs into S3. See module docstring."""
     global _warned_head_forbidden
     _warned_head_forbidden = False
     summary = BackfillSummary()
     root = Path(settings.UPLOADS_DIR)
+    # Snapshot the storage config once for the whole run: a settings change
+    # mid-backfill must not send later guilds to a different bucket. One client,
+    # one bucket/prefix scheme, for every guild.
+    cfg = storage_config.current_storage_config()
+    if cfg.backend != "s3" or not cfg.bucket:
+        raise ValueError("backfill requires an S3 backend with S3_BUCKET configured")
+    client = build_s3_client(cfg)
     engine = db_session.provisioning_engine  # superuser: reads every guild schema
     async with engine.connect() as conn:
-        guild_ids = (
-            (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
-            .scalars()
-            .all()
-        )
-        for gid in guild_ids:
-            guild_dir = root / f"guild_{gid}"
-            if not guild_dir.is_dir():
-                continue
-            meta = await _guild_upload_meta(conn, guild_schema_name(gid))
-            # Always a real S3 backend, even on a dry run, so the exists() skip
-            # check reflects what's already in the bucket.
-            dest = s3_guild_storage(gid)
-            backfill_guild_dir(
-                guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run
+        # One backfill at a time, cluster-wide. pg_try_advisory_lock is per-session
+        # (held for this connection); a second worker that can't take it backs off
+        # rather than double-copying every guild into the bucket.
+        locked = (
+            await conn.execute(
+                text("SELECT pg_try_advisory_lock(:k)"), {"k": _BACKFILL_LOCK_KEY}
+            )
+        ).scalar()
+        if not locked:
+            logger.warning("backfill skipped: another run holds the advisory lock")
+            summary.already_running = True
+            return summary
+        try:
+            guild_ids = (
+                (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
+                .scalars()
+                .all()
+            )
+            for gid in guild_ids:
+                guild_dir = root / f"guild_{gid}"
+                if not guild_dir.is_dir():
+                    continue
+                meta = await _guild_upload_meta(conn, guild_schema_name(gid))
+                # Always a real S3 backend, even on a dry run, so the exists() skip
+                # check reflects what's already in the bucket.
+                dest = S3Storage(
+                    bucket=cfg.bucket,
+                    client=client,
+                    prefix=f"guild_{int(gid)}/",
+                    kms_key_id=cfg.kms_key_id,
+                )
+                backfill_guild_dir(
+                    guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run
+                )
+        finally:
+            await conn.execute(
+                text("SELECT pg_advisory_unlock(:k)"), {"k": _BACKFILL_LOCK_KEY}
             )
     return summary
 

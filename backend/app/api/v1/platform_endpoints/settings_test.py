@@ -510,6 +510,37 @@ async def test_storage_update_keeps_secret_when_omitted(
 
 
 @pytest.mark.integration
+async def test_storage_clearing_a_field_does_not_revert_to_env(
+    client: AsyncClient,
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    reset_storage_cache: None,
+) -> None:
+    """An owner clearing an S3 field must stay cleared even when the matching
+    ``S3_*`` env var is still set — the DB is authoritative once saved (env only
+    seeds the first-run/migrated row, never re-seeds on read)."""
+    from app.core.config import settings as app_config
+
+    monkeypatch.setattr(app_config, "S3_BUCKET", "env-bucket", raising=False)
+    owner = await create_user(
+        session, email="owner-storage-clear@example.com", role=UserRole.owner
+    )
+    headers = get_auth_headers(owner)
+
+    assert (
+        await client.put("/api/v1/settings/storage", json=_S3_PAYLOAD, headers=headers)
+    ).status_code == 200
+
+    cleared = {**_S3_PAYLOAD, "s3_bucket": None}
+    resp = await client.put("/api/v1/settings/storage", json=cleared, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["s3_bucket"] is None  # NOT re-seeded to "env-bucket"
+
+    get = await client.get("/api/v1/settings/storage", headers=headers)
+    assert get.json()["s3_bucket"] is None
+
+
+@pytest.mark.integration
 async def test_storage_update_refreshes_process_config(
     client: AsyncClient,
     session: AsyncSession,

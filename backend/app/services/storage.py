@@ -629,21 +629,6 @@ def get_guild_storage(guild_id: int) -> StorageBackend:
     return _make(f"guild_{int(guild_id)}/")
 
 
-def s3_guild_storage(guild_id: int) -> S3Storage:
-    """Build an S3 backend scoped to a guild prefix, regardless of
-    ``STORAGE_BACKEND``.
-
-    For the local→S3 backfill, which writes to S3 while the app may still be
-    running on the local backend. Raises if S3 isn't configured (``S3_BUCKET``).
-    """
-    return S3Storage(
-        bucket=_require_bucket(),
-        client=_get_s3_client(),
-        prefix=f"guild_{int(guild_id)}/",
-        kms_key_id=current_storage_config().kms_key_id,
-    )
-
-
 def purge_guild_blobs(guild_id: int) -> int:
     """Remove all of a guild's stored blobs — called on guild deprovision.
 

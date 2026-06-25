@@ -2,13 +2,16 @@
 
 Wraps :func:`app.db.backfill_uploads_to_s3.backfill_uploads_to_s3` so the Storage
 settings tab can kick off the migration and poll its progress. The backfill reads
-every guild schema via the provisioning (superuser) engine and writes through
-``s3_guild_storage`` — which now resolves the *saved* DB credentials — so it works
-while the app is still serving on ``local`` (the documented cutover order).
+every guild schema via the provisioning (superuser) engine and writes through a
+single S3 client built from the *saved* DB config snapshot, so it works while the
+app is still serving on ``local`` (the documented cutover order).
 
-Status is held in this module (per process). A multi-worker deploy would track a
-run only in the worker that started it; for the self-host single-process default
-that's exactly right, and a re-poll simply reports ``idle`` elsewhere.
+Concurrency: at most one backfill runs cluster-wide — the worker that does the
+copying holds a Postgres advisory lock (``backfill_uploads_to_s3``), so a second
+POST that lands on another worker backs off instead of double-copying. The
+``status`` reported here, however, is still per process: a poll that lands on a
+worker which didn't start the run sees ``idle``. That's an accepted limitation of
+the self-host single-process default; the lock is what guarantees correctness.
 """
 
 from __future__ import annotations
@@ -56,7 +59,13 @@ async def _run() -> None:
     try:
         summary = await backfill_uploads_to_s3()
         _apply_summary(summary)
-        _state.status = "failed" if summary.failed else "complete"
+        if summary.already_running:
+            # Another worker holds the cluster-wide advisory lock; this run was a
+            # no-op. Report it instead of a misleading "complete, copied=0".
+            _state.status = "failed"
+            _state.error = "another backfill is already running"
+        else:
+            _state.status = "failed" if summary.failed else "complete"
     except Exception as exc:  # noqa: BLE001 — surface the failure in status
         logger.exception("storage backfill failed")
         _state.status = "failed"

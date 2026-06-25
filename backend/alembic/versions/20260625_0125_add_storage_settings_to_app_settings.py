@@ -80,6 +80,40 @@ def upgrade() -> None:
         ),
     )
 
+    # One-time seed from env for an install that configured S3 via STORAGE_BACKEND /
+    # S3_* before this tab existed: its app_settings singleton (id=1) already exists,
+    # so the columns we just added landed at their defaults (storage_backend='local',
+    # S3 fields NULL) and the backend selection would be lost on upgrade. Seed it once
+    # here. After this the service treats the DB row as authoritative (it does not
+    # re-seed storage from env), so an owner can later clear a field without it
+    # reverting. A fresh DB has no row yet (it's created post-migrate, env-seeded by
+    # _build_default_app_settings), so this updates 0 rows there.
+    from app.core.config import settings as cfg
+    from app.core.encryption import SALT_S3_SECRET_KEY, encrypt_field
+
+    secret = (cfg.S3_SECRET_ACCESS_KEY or "").strip() or None
+    op.get_bind().execute(
+        sa.text(
+            "UPDATE app_settings SET "
+            "storage_backend = :backend, s3_bucket = :bucket, s3_region = :region, "
+            "s3_endpoint_url = :endpoint, s3_access_key_id = :akid, "
+            "s3_secret_access_key_encrypted = :secret, "
+            "s3_use_path_style = :path_style, s3_kms_key_id = :kms, "
+            "s3_local_fallback = :fallback WHERE id = 1"
+        ),
+        {
+            "backend": (cfg.STORAGE_BACKEND or "local").lower(),
+            "bucket": (cfg.S3_BUCKET or "").strip() or None,
+            "region": cfg.S3_REGION or "us-east-1",
+            "endpoint": (cfg.S3_ENDPOINT_URL or "").strip() or None,
+            "akid": (cfg.S3_ACCESS_KEY_ID or "").strip() or None,
+            "secret": encrypt_field(secret, SALT_S3_SECRET_KEY) if secret else None,
+            "path_style": bool(cfg.S3_USE_PATH_STYLE),
+            "kms": (cfg.S3_KMS_KEY_ID or "").strip() or None,
+            "fallback": bool(cfg.S3_LOCAL_FALLBACK),
+        },
+    )
+
 
 def downgrade() -> None:
     op.drop_column("app_settings", "s3_local_fallback")
