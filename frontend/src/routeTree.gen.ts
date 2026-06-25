@@ -49,7 +49,6 @@ import { Route as ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport } 
 import { Route as ServerRequiredAuthenticatedSettingsGuildIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/index'
 import { Route as ServerRequiredAuthenticatedSettingsAdminIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/index'
 import { Route as ServerRequiredAuthenticatedGGuildIdIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/index'
-import { Route as ServerRequiredAuthenticatedSettingsPlatformGuildsRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/guilds'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/email'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformBrandingRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/branding'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/auth'
@@ -58,6 +57,7 @@ import { Route as ServerRequiredAuthenticatedSettingsGuildUsersRouteImport } fro
 import { Route as ServerRequiredAuthenticatedSettingsGuildTrashRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/trash'
 import { Route as ServerRequiredAuthenticatedSettingsGuildAiRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/ai'
 import { Route as ServerRequiredAuthenticatedSettingsAdminUsersRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/users'
+import { Route as ServerRequiredAuthenticatedSettingsAdminGuildsRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/guilds'
 import { Route as ServerRequiredAuthenticatedSettingsAdminAccessRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/access'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings'
 import { Route as ServerRequiredAuthenticatedGGuildIdQueuesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/queues'
@@ -323,12 +323,6 @@ const ServerRequiredAuthenticatedGGuildIdIndexRoute =
     path: '/',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
-const ServerRequiredAuthenticatedSettingsPlatformGuildsRoute =
-  ServerRequiredAuthenticatedSettingsPlatformGuildsRouteImport.update({
-    id: '/guilds',
-    path: '/guilds',
-    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
-  } as any)
 const ServerRequiredAuthenticatedSettingsPlatformEmailRoute =
   ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport.update({
     id: '/email',
@@ -375,6 +369,12 @@ const ServerRequiredAuthenticatedSettingsAdminUsersRoute =
   ServerRequiredAuthenticatedSettingsAdminUsersRouteImport.update({
     id: '/users',
     path: '/users',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsAdminRoute,
+  } as any)
+const ServerRequiredAuthenticatedSettingsAdminGuildsRoute =
+  ServerRequiredAuthenticatedSettingsAdminGuildsRouteImport.update({
+    id: '/guilds',
+    path: '/guilds',
     getParentRoute: () => ServerRequiredAuthenticatedSettingsAdminRoute,
   } as any)
 const ServerRequiredAuthenticatedSettingsAdminAccessRoute =
@@ -619,6 +619,7 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   '/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
   '/settings/guild/trash': typeof ServerRequiredAuthenticatedSettingsGuildTrashRoute
@@ -627,7 +628,6 @@ export interface FileRoutesByFullPath {
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
-  '/settings/platform/guilds': typeof ServerRequiredAuthenticatedSettingsPlatformGuildsRoute
   '/g/$guildId/': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/guild/': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
@@ -693,6 +693,7 @@ export interface FileRoutesByTo {
   '/g/$guildId/projects': typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   '/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   '/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
   '/settings/guild/trash': typeof ServerRequiredAuthenticatedSettingsGuildTrashRoute
@@ -701,7 +702,6 @@ export interface FileRoutesByTo {
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
-  '/settings/platform/guilds': typeof ServerRequiredAuthenticatedSettingsPlatformGuildsRoute
   '/g/$guildId': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
@@ -776,6 +776,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   '/_serverRequired/_authenticated/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   '/_serverRequired/_authenticated/settings/admin/access': typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  '/_serverRequired/_authenticated/settings/admin/guilds': typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   '/_serverRequired/_authenticated/settings/admin/users': typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   '/_serverRequired/_authenticated/settings/guild/ai': typeof ServerRequiredAuthenticatedSettingsGuildAiRoute
   '/_serverRequired/_authenticated/settings/guild/trash': typeof ServerRequiredAuthenticatedSettingsGuildTrashRoute
@@ -784,7 +785,6 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/_serverRequired/_authenticated/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/_serverRequired/_authenticated/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
-  '/_serverRequired/_authenticated/settings/platform/guilds': typeof ServerRequiredAuthenticatedSettingsPlatformGuildsRoute
   '/_serverRequired/_authenticated/g/$guildId/': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/_serverRequired/_authenticated/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/_serverRequired/_authenticated/settings/guild/': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
@@ -858,6 +858,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/queues'
     | '/g/$guildId/settings'
     | '/settings/admin/access'
+    | '/settings/admin/guilds'
     | '/settings/admin/users'
     | '/settings/guild/ai'
     | '/settings/guild/trash'
@@ -866,7 +867,6 @@ export interface FileRouteTypes {
     | '/settings/platform/auth'
     | '/settings/platform/branding'
     | '/settings/platform/email'
-    | '/settings/platform/guilds'
     | '/g/$guildId/'
     | '/settings/admin/'
     | '/settings/guild/'
@@ -932,6 +932,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/projects'
     | '/g/$guildId/queues'
     | '/settings/admin/access'
+    | '/settings/admin/guilds'
     | '/settings/admin/users'
     | '/settings/guild/ai'
     | '/settings/guild/trash'
@@ -940,7 +941,6 @@ export interface FileRouteTypes {
     | '/settings/platform/auth'
     | '/settings/platform/branding'
     | '/settings/platform/email'
-    | '/settings/platform/guilds'
     | '/g/$guildId'
     | '/settings/admin'
     | '/settings/guild'
@@ -1014,6 +1014,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/queues'
     | '/_serverRequired/_authenticated/g/$guildId/settings'
     | '/_serverRequired/_authenticated/settings/admin/access'
+    | '/_serverRequired/_authenticated/settings/admin/guilds'
     | '/_serverRequired/_authenticated/settings/admin/users'
     | '/_serverRequired/_authenticated/settings/guild/ai'
     | '/_serverRequired/_authenticated/settings/guild/trash'
@@ -1022,7 +1023,6 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/platform/auth'
     | '/_serverRequired/_authenticated/settings/platform/branding'
     | '/_serverRequired/_authenticated/settings/platform/email'
-    | '/_serverRequired/_authenticated/settings/platform/guilds'
     | '/_serverRequired/_authenticated/g/$guildId/'
     | '/_serverRequired/_authenticated/settings/admin/'
     | '/_serverRequired/_authenticated/settings/guild/'
@@ -1339,13 +1339,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
-    '/_serverRequired/_authenticated/settings/platform/guilds': {
-      id: '/_serverRequired/_authenticated/settings/platform/guilds'
-      path: '/guilds'
-      fullPath: '/settings/platform/guilds'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformGuildsRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
-    }
     '/_serverRequired/_authenticated/settings/platform/email': {
       id: '/_serverRequired/_authenticated/settings/platform/email'
       path: '/email'
@@ -1400,6 +1393,13 @@ declare module '@tanstack/react-router' {
       path: '/users'
       fullPath: '/settings/admin/users'
       preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsAdminUsersRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsAdminRoute
+    }
+    '/_serverRequired/_authenticated/settings/admin/guilds': {
+      id: '/_serverRequired/_authenticated/settings/admin/guilds'
+      path: '/guilds'
+      fullPath: '/settings/admin/guilds'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsAdminGuildsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedSettingsAdminRoute
     }
     '/_serverRequired/_authenticated/settings/admin/access': {
@@ -1660,6 +1660,7 @@ const ServerRequiredAuthenticatedProfileRouteWithChildren =
 
 interface ServerRequiredAuthenticatedSettingsAdminRouteChildren {
   ServerRequiredAuthenticatedSettingsAdminAccessRoute: typeof ServerRequiredAuthenticatedSettingsAdminAccessRoute
+  ServerRequiredAuthenticatedSettingsAdminGuildsRoute: typeof ServerRequiredAuthenticatedSettingsAdminGuildsRoute
   ServerRequiredAuthenticatedSettingsAdminUsersRoute: typeof ServerRequiredAuthenticatedSettingsAdminUsersRoute
   ServerRequiredAuthenticatedSettingsAdminIndexRoute: typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
 }
@@ -1668,6 +1669,8 @@ const ServerRequiredAuthenticatedSettingsAdminRouteChildren: ServerRequiredAuthe
   {
     ServerRequiredAuthenticatedSettingsAdminAccessRoute:
       ServerRequiredAuthenticatedSettingsAdminAccessRoute,
+    ServerRequiredAuthenticatedSettingsAdminGuildsRoute:
+      ServerRequiredAuthenticatedSettingsAdminGuildsRoute,
     ServerRequiredAuthenticatedSettingsAdminUsersRoute:
       ServerRequiredAuthenticatedSettingsAdminUsersRoute,
     ServerRequiredAuthenticatedSettingsAdminIndexRoute:
@@ -1708,7 +1711,6 @@ interface ServerRequiredAuthenticatedSettingsPlatformRouteChildren {
   ServerRequiredAuthenticatedSettingsPlatformAuthRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   ServerRequiredAuthenticatedSettingsPlatformBrandingRoute: typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   ServerRequiredAuthenticatedSettingsPlatformEmailRoute: typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
-  ServerRequiredAuthenticatedSettingsPlatformGuildsRoute: typeof ServerRequiredAuthenticatedSettingsPlatformGuildsRoute
   ServerRequiredAuthenticatedSettingsPlatformIndexRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
 }
 
@@ -1722,8 +1724,6 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsPlatformBrandingRoute,
     ServerRequiredAuthenticatedSettingsPlatformEmailRoute:
       ServerRequiredAuthenticatedSettingsPlatformEmailRoute,
-    ServerRequiredAuthenticatedSettingsPlatformGuildsRoute:
-      ServerRequiredAuthenticatedSettingsPlatformGuildsRoute,
     ServerRequiredAuthenticatedSettingsPlatformIndexRoute:
       ServerRequiredAuthenticatedSettingsPlatformIndexRoute,
   }

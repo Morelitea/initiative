@@ -342,15 +342,45 @@ async def test_update_guild_storage_unknown_guild_returns_404(
     assert resp.json()["detail"] == "SETTINGS_GUILD_NOT_FOUND"
 
 
+# The Guilds tab moved from Platform settings (owner-only) to the Admin
+# dashboard, so it now gates on ``guilds.manage`` — held by admin *and* owner.
+_BELOW_ADMIN_ROLES = [UserRole.member, UserRole.support, UserRole.moderator]
+
+
 @pytest.mark.integration
-@pytest.mark.parametrize("role", _NON_OWNER_ROLES)
-async def test_guild_storage_endpoints_reject_non_owner(
+async def test_guild_storage_endpoints_allow_admin(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A platform ``admin`` (guilds.manage) can list guilds and set a storage
+    cap from the Admin dashboard Guilds tab."""
+    admin = await create_user(
+        session, email="gstor-admin@example.com", role=UserRole.admin
+    )
+    guild = await create_guild(session, creator=admin)
+    headers = get_auth_headers(admin)
+
+    list_resp = await client.get("/api/v1/settings/guilds", headers=headers)
+    assert list_resp.status_code == 200
+
+    patch_resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_storage_bytes": 1024},
+        headers=headers,
+    )
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["max_storage_bytes"] == 1024
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("role", _BELOW_ADMIN_ROLES)
+async def test_guild_storage_endpoints_reject_below_admin(
     client: AsyncClient,
     session: AsyncSession,
     role: UserRole,
 ) -> None:
-    """The Guilds tab is owner-only (config.manage). No other platform tier —
-    not even ``admin`` — may list guilds or change a storage cap."""
+    """The Guilds tab gates on ``guilds.manage``. No tier below ``admin`` —
+    member, support, or moderator — may list guilds or change a storage cap."""
     user = await create_user(
         session, email=f"gstor-deny-{role.value}@example.com", role=role
     )

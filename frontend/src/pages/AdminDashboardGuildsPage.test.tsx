@@ -20,17 +20,17 @@ vi.mock("@/hooks/useSettings", () => ({
   useUpdateGuildStorage: () => ({ mutate, isPending: false }),
 }));
 
-import { SettingsGuildsPage } from "./SettingsGuildsPage";
+import { AdminDashboardGuildsPage } from "./AdminDashboardGuildsPage";
 
 const renderPage = () =>
-  renderWithProviders(<SettingsGuildsPage />, {
+  renderWithProviders(<AdminDashboardGuildsPage />, {
     auth: { user: buildUser({ role: "owner" }) },
   });
 
 const limitInput = (guildName: string) =>
   screen.getByLabelText(`Storage limit for ${guildName} in GB`) as HTMLInputElement;
 
-describe("SettingsGuildsPage", () => {
+describe("AdminDashboardGuildsPage", () => {
   beforeEach(() => {
     mutate.mockClear();
   });
