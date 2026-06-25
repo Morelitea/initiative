@@ -986,9 +986,9 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
 }
 
 /**
- * List every guild with its storage cap, for the platform Guilds tab.
+ * List every guild with its storage cap, for the Admin dashboard Guilds tab.
  *
- * Owner-only (``config.manage``). Reads only shared ``public`` tables
+ * Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
  * (``guilds``, ``guild_memberships``) — no guild-scoped content — so it runs on
  * the BYPASSRLS admin engine without routing into any guild schema. Member
  * counts come from a single grouped query rather than per-guild (no N+1).
@@ -1137,7 +1137,7 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
 }
 
 /**
- * Set a guild's storage cap (bytes; ``null`` = unlimited). Owner-only.
+ * Set a guild's storage cap (bytes; ``null`` = unlimited). Admin/owner.
  *
  * Writes only ``public.guilds.max_storage_bytes`` — a shared column — so no
  * guild-schema routing is needed. The cap is enforced on every upload by
