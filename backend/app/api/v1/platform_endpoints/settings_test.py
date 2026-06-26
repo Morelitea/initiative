@@ -583,6 +583,25 @@ async def test_storage_backfill_requires_bucket(
 
 
 @pytest.mark.integration
+async def test_storage_backfill_status_reads_shared_row(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """GET status returns the shared DB-backed row (idle by default), so every
+    worker reports the same thing rather than its own in-memory guess."""
+    owner = await create_user(
+        session, email="owner-storage-bfstatus@example.com", role=UserRole.owner
+    )
+    resp = await client.get(
+        "/api/v1/settings/storage/backfill", headers=get_auth_headers(owner)
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "idle"
+    assert body["copied"] == 0
+
+
+@pytest.mark.integration
 @pytest.mark.parametrize("role", _NON_OWNER_ROLES)
 async def test_storage_endpoints_reject_non_owner(
     client: AsyncClient,

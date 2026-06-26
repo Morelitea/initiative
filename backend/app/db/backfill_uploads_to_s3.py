@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import logging
 import mimetypes
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -162,8 +163,16 @@ async def _guild_upload_meta(
 _BACKFILL_LOCK_KEY = 0x1014_5311
 
 
-async def backfill_uploads_to_s3(*, dry_run: bool = False) -> BackfillSummary:
-    """Copy every guild's local blobs into S3. See module docstring."""
+async def backfill_uploads_to_s3(
+    *,
+    dry_run: bool = False,
+    on_progress: "Callable[[BackfillSummary], Awaitable[None]] | None" = None,
+) -> BackfillSummary:
+    """Copy every guild's local blobs into S3. See module docstring.
+
+    ``on_progress`` (if given) is awaited after each guild with the running
+    summary, so a caller can persist a heartbeat + live counts to shared state.
+    """
     global _warned_head_forbidden
     _warned_head_forbidden = False
     summary = BackfillSummary()
@@ -211,6 +220,8 @@ async def backfill_uploads_to_s3(*, dry_run: bool = False) -> BackfillSummary:
                 backfill_guild_dir(
                     guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run
                 )
+                if on_progress is not None:
+                    await on_progress(summary)
         finally:
             await conn.execute(
                 text("SELECT pg_advisory_unlock(:k)"), {"k": _BACKFILL_LOCK_KEY}

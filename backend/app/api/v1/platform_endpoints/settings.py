@@ -18,6 +18,7 @@ from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.storage_backfill_state import StorageBackfillState
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.models.platform.oidc_claim_mapping import (
@@ -304,9 +305,23 @@ async def test_storage_connection(
     return StorageTestResponse(success=ok, message=message)
 
 
+def _backfill_payload(row: StorageBackfillState) -> StorageBackfillStatusResponse:
+    return StorageBackfillStatusResponse(
+        status=row.status,  # type: ignore[arg-type]
+        copied=row.copied,
+        skipped=row.skipped,
+        failed=row.failed,
+        hash_mismatches=row.hash_mismatches,
+        failed_keys=list(row.failed_keys or []),
+        started_at=row.started_at.isoformat() if row.started_at else None,
+        finished_at=row.finished_at.isoformat() if row.finished_at else None,
+        error=row.error,
+    )
+
+
 @router.post("/storage/backfill", response_model=StorageBackfillStatusResponse)
 async def start_storage_backfill(
-    session: UserSessionDep,
+    session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> StorageBackfillStatusResponse:
     # The backfill writes to S3 via the saved credentials, so they must be set
@@ -320,21 +335,21 @@ async def start_storage_backfill(
     # Make sure the detached task resolves the freshly-saved S3 credentials.
     await storage_config.refresh_storage_config(session)
     try:
-        storage_backfill.start_backfill()
-    except RuntimeError:
+        row = await storage_backfill.start_backfill(session)
+    except storage_backfill.BackfillAlreadyRunning:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=SettingsMessages.STORAGE_BACKFILL_RUNNING,
         ) from None
-    return StorageBackfillStatusResponse(**storage_backfill.get_status())
+    return _backfill_payload(row)
 
 
 @router.get("/storage/backfill", response_model=StorageBackfillStatusResponse)
 async def get_storage_backfill_status(
-    _session: UserSessionDep,
+    session: AdminSessionDep,
     _admin: ConfigManageDep,
 ) -> StorageBackfillStatusResponse:
-    return StorageBackfillStatusResponse(**storage_backfill.get_status())
+    return _backfill_payload(await storage_backfill.get_status(session))
 
 
 @router.get("/fcm-config", response_model=FCMConfigResponse)
