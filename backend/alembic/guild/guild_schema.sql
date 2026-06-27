@@ -240,6 +240,7 @@ CREATE TABLE IF NOT EXISTS initiatives (
 	purge_at TIMESTAMP WITH TIME ZONE, 
 	advanced_tool_enabled BOOLEAN DEFAULT false NOT NULL, 
 	counters_enabled BOOLEAN DEFAULT false NOT NULL, 
+	is_archived BOOLEAN DEFAULT false NOT NULL, 
 	CONSTRAINT teams_pkey PRIMARY KEY (id)
 );
 CREATE TABLE IF NOT EXISTS project_documents (
@@ -483,6 +484,8 @@ CREATE TABLE IF NOT EXISTS uploads (
 	uploader_user_id INTEGER NOT NULL, 
 	size_bytes INTEGER DEFAULT 0 NOT NULL, 
 	created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL, 
+	content_type VARCHAR(255), 
+	content_hash VARCHAR(64), 
 	CONSTRAINT uploads_pkey PRIMARY KEY (id)
 );
 CREATE TABLE IF NOT EXISTS webhook_subscriptions (

@@ -90,6 +90,12 @@ async def lifespan(app: FastAPI):
             backfill.provisioned,
             backfill.total,
         )
+    # Relocate any legacy flat local uploads into per-guild dirs (guild_<id>/),
+    # matching the object-store layout. Local-only, idempotent, self-disabling —
+    # a no-op once converted, so packaged deploys convert themselves on boot.
+    from app.db.local_upload_migration import migrate_local_uploads_to_guild_prefix
+
+    await migrate_local_uploads_to_guild_prefix()
     # Rotate SECRET_KEY-derived data (encrypted fields + email_hash) when
     # PREVIOUS_SECRET_KEY names a prior key. Runs after guild schemas exist and
     # before traffic is served, so a packaged deploy rotates itself on boot.
@@ -231,20 +237,14 @@ async def serve_upload_file(
     filename: str,
     current_user: Annotated[User, Depends(get_upload_user)],
     session: Annotated[AsyncSession, Depends(get_admin_session)],
-) -> FileResponse:
+) -> Response:
     """Serve an uploaded file — requires authentication and an Upload row in
     the path-addressed guild."""
     from pathlib import Path as FilePath
 
     from sqlalchemy import text
 
-    try:
-        file_path = (uploads_path / filename).resolve()
-        file_path.relative_to(uploads_path.resolve())
-    except ValueError:
-        raise HTTPException(status_code=404)
-    if not file_path.is_file():
-        raise HTTPException(status_code=404)
+    from app.services.storage import build_upload_response, get_guild_storage
 
     # Guild authorization via the ``/uploads/{guild_id}/…`` path: media is
     # referenced by pages inside a guild, and ``<img>``/iframe can't send headers,
@@ -293,13 +293,19 @@ async def serve_upload_file(
     if hit is None:
         raise HTTPException(status_code=404)
 
+    # Storage is touched only after authorization passes. open_readable returns
+    # None for a missing/traversal key -> 404 (same fail-closed shape as before).
+    blob = get_guild_storage(guild_id).open_readable(filename)
+    if blob is None:
+        raise HTTPException(status_code=404)
+
     headers: dict[str, str] = {}
     if filename.lower().endswith((".svg", ".html", ".htm")):
         headers["Content-Disposition"] = "attachment"
         headers["Content-Security-Policy"] = "script-src 'none'"
         headers["X-Content-Type-Options"] = "nosniff"
     logger.info("upload_served filename=%s user=%d", filename, current_user.id)
-    return FileResponse(file_path, headers=headers)
+    return build_upload_response(blob, headers=headers)
 
 
 app.include_router(api_router, prefix=settings.API_V1_STR)

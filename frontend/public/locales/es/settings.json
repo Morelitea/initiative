@@ -23,6 +23,7 @@
       "guild": "Gremio",
       "ai": "IA",
       "users": "Usuarios",
+      "initiatives": "Iniciativas",
       "trash": "Papelera",
       "dangerZone": "Zona de peligro"
     }
@@ -752,7 +753,27 @@
     "subtitle": "Administra los usuarios de la plataforma y los accesos temporales.",
     "tabs": {
       "users": "Usuarios",
-      "access": "Acceso"
+      "access": "Acceso",
+      "guilds": "Gremios"
+    }
+  },
+  "guilds": {
+    "title": "Límites de almacenamiento por gremio",
+    "description": "Establece el almacenamiento total máximo que cada gremio puede usar para los archivos subidos. Bajar un límite por debajo del uso actual bloquea las nuevas subidas, pero nunca elimina los archivos existentes.",
+    "adminOnly": "Necesitas el rol de propietario de la plataforma para gestionar los límites de almacenamiento de los gremios.",
+    "loading": "Cargando gremios…",
+    "loadError": "No se pudieron cargar los gremios. Inténtalo de nuevo.",
+    "filterByName": "Filtrar gremios por nombre",
+    "unlimitedPlaceholder": "Ilimitado",
+    "helpText": "Los límites están en GB y se guardan automáticamente. Deja un campo en blanco para almacenamiento ilimitado.",
+    "limitInputLabel": "Límite de almacenamiento para {{name}} en GB",
+    "saved": "Límite de almacenamiento actualizado para {{name}}.",
+    "saveError": "No se pudo actualizar el límite de almacenamiento. Inténtalo de nuevo.",
+    "columns": {
+      "id": "ID",
+      "guild": "Gremio",
+      "members": "Miembros",
+      "storageLimit": "Límite de almacenamiento"
     }
   }
 }

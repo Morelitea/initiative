@@ -242,3 +242,159 @@ async def test_oidc_mapping_endpoints_require_authentication(
     ]:
         resp = await getattr(client, method)(url)
         assert resp.status_code == 401, f"{method.upper()} {url}: {resp.status_code}"
+
+
+# --- Guild storage limits (platform settings → Guilds tab) -----------------
+
+
+@pytest.mark.integration
+async def test_list_guild_storage_returns_all_guilds(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """The Guilds tab lists every guild (not just the operator's own) with its
+    member count and current storage cap."""
+    owner = await create_user(
+        session, email="owner-gstor-list@example.com", role=UserRole.owner
+    )
+    capped = await create_guild(
+        session, creator=owner, name="Capped Guild", max_storage_bytes=1024
+    )
+    await create_guild_membership(
+        session, user=owner, guild=capped, role=GuildRole.admin
+    )
+    uncapped = await create_guild(session, creator=owner, name="Uncapped Guild")
+
+    resp = await client.get("/api/v1/settings/guilds", headers=get_auth_headers(owner))
+    assert resp.status_code == 200
+    rows = {row["name"]: row for row in resp.json()}
+
+    assert rows["Capped Guild"]["id"] == capped.id
+    assert rows["Capped Guild"]["max_storage_bytes"] == 1024
+    assert rows["Capped Guild"]["member_count"] == 1
+    # An unlimited guild reports null, and no membership rows -> 0 members.
+    assert rows["Uncapped Guild"]["id"] == uncapped.id
+    assert rows["Uncapped Guild"]["max_storage_bytes"] is None
+    assert rows["Uncapped Guild"]["member_count"] == 0
+
+
+@pytest.mark.integration
+async def test_update_guild_storage_sets_and_clears_limit(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An operator can cap a guild and later switch it back to unlimited (null)."""
+    owner = await create_user(
+        session, email="owner-gstor-upd@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    headers = get_auth_headers(owner)
+
+    set_resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_storage_bytes": 5_000_000},
+        headers=headers,
+    )
+    assert set_resp.status_code == 200
+    assert set_resp.json()["max_storage_bytes"] == 5_000_000
+
+    clear_resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_storage_bytes": None},
+        headers=headers,
+    )
+    assert clear_resp.status_code == 200
+    assert clear_resp.json()["max_storage_bytes"] is None
+
+
+@pytest.mark.integration
+async def test_update_guild_storage_rejects_negative_limit(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    owner = await create_user(
+        session, email="owner-gstor-neg@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_storage_bytes": -1},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.integration
+async def test_update_guild_storage_unknown_guild_returns_404(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    owner = await create_user(
+        session, email="owner-gstor-404@example.com", role=UserRole.owner
+    )
+    resp = await client.patch(
+        "/api/v1/settings/guilds/999999",
+        json={"max_storage_bytes": 1024},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "SETTINGS_GUILD_NOT_FOUND"
+
+
+# The Guilds tab moved from Platform settings (owner-only) to the Admin
+# dashboard, so it now gates on ``guilds.manage`` — held by admin *and* owner.
+_BELOW_ADMIN_ROLES = [UserRole.member, UserRole.support, UserRole.moderator]
+
+
+@pytest.mark.integration
+async def test_guild_storage_endpoints_allow_admin(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A platform ``admin`` (guilds.manage) can list guilds and set a storage
+    cap from the Admin dashboard Guilds tab."""
+    admin = await create_user(
+        session, email="gstor-admin@example.com", role=UserRole.admin
+    )
+    guild = await create_guild(session, creator=admin)
+    headers = get_auth_headers(admin)
+
+    list_resp = await client.get("/api/v1/settings/guilds", headers=headers)
+    assert list_resp.status_code == 200
+
+    patch_resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_storage_bytes": 1024},
+        headers=headers,
+    )
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["max_storage_bytes"] == 1024
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("role", _BELOW_ADMIN_ROLES)
+async def test_guild_storage_endpoints_reject_below_admin(
+    client: AsyncClient,
+    session: AsyncSession,
+    role: UserRole,
+) -> None:
+    """The Guilds tab gates on ``guilds.manage``. No tier below ``admin`` —
+    member, support, or moderator — may list guilds or change a storage cap."""
+    user = await create_user(
+        session, email=f"gstor-deny-{role.value}@example.com", role=role
+    )
+    guild = await create_guild(session, creator=user)
+    headers = get_auth_headers(user)
+
+    for method, url, json_body in [
+        ("get", "/api/v1/settings/guilds", None),
+        ("patch", f"/api/v1/settings/guilds/{guild.id}", {"max_storage_bytes": 1024}),
+    ]:
+        resp = await getattr(client, method)(
+            url, headers=headers, **({"json": json_body} if json_body else {})
+        )
+        assert resp.status_code == 403, (
+            f"{method.upper()} {url} as {role.value}: {resp.status_code}"
+        )
+        assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"

@@ -32,6 +32,7 @@ class GuildRead(GuildBase):
     created_at: datetime
     updated_at: datetime
     retention_days: Optional[int] = None
+    max_storage_bytes: Optional[int] = None
     member_count: int = 0
 
 
@@ -82,6 +83,40 @@ class GuildUpdate(SanitizedBaseModel):
     # Sentinel "unset" semantics: explicitly omit the field to leave the
     # current setting untouched; set null to switch to never-purge.
     retention_days: Optional[int] = Field(default=None, ge=1, le=3650)
+    # Max total stored bytes for this guild's blobs. None means "unlimited".
+    # Same sentinel "unset" semantics as retention_days: omit to leave the
+    # current value untouched; set null to switch to unlimited.
+    max_storage_bytes: Optional[int] = Field(default=None, ge=0)
+
+
+class PlatformGuildStorageRead(SanitizedBaseModel):
+    """Operator view of a guild's storage cap (platform settings → Guilds tab).
+
+    Unlike :class:`GuildRead`, this carries no per-user membership fields
+    (``role``/``position``): the platform operator lists every guild regardless
+    of whether they belong to it, so only platform-wide attributes apply.
+    """
+
+    model_config = ConfigDict(
+        from_attributes=True, json_schema_serialization_defaults_required=True
+    )
+
+    id: int
+    name: str
+    member_count: int = 0
+    # Max total stored blob bytes for this guild. None means "unlimited".
+    max_storage_bytes: Optional[int] = None
+
+
+class PlatformGuildStorageUpdate(SanitizedBaseModel):
+    """Set a guild's storage cap from the platform Guilds tab.
+
+    Single-field body, so (unlike :class:`GuildUpdate`'s omit-to-skip sentinel)
+    the value always represents the new state: send a byte count to cap the
+    guild, or ``null`` to switch it back to unlimited.
+    """
+
+    max_storage_bytes: Optional[int] = Field(default=None, ge=0)
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

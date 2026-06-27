@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Annotated, List, Optional
 
 from fastapi import (
@@ -15,7 +14,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from sqlalchemy import delete as sa_delete, exists, func, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -33,9 +32,13 @@ from app.api.deps import (
     GuildAccessError,
     GuildContext,
 )
-from app.core.config import settings
 from app.db.query import unbounded_page_limit
-from app.core.messages import DocumentMessages, InitiativeMessages, QueryMessages
+from app.core.messages import (
+    AttachmentMessages,
+    DocumentMessages,
+    InitiativeMessages,
+    QueryMessages,
+)
 from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, reapply_rls_context
@@ -80,6 +83,7 @@ from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
 from app.services import attachments as attachments_service
+from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
@@ -276,25 +280,22 @@ def _get_document_permission(document: Document, user_id: int) -> ResourceGrant 
 
 def _file_download_response(
     *,
+    guild_id: int,
     file_url: str,
     content_type: str | None,
     original_filename: str | None,
     inline: bool,
-) -> FileResponse:
-    """Build a hardened FileResponse for a stored upload blob.
+) -> Response:
+    """Build a hardened download response for a stored upload blob.
 
     Shared by the current-document download and the per-version download so
     the path-traversal guard and SVG/HTML stored-XSS hardening can't drift
-    between the two endpoints.
+    between the two endpoints. Serves through the guild's storage backend
+    (local FileResponse or S3 streaming proxy) via :func:`build_upload_response`.
     """
-    uploads_path = Path(settings.UPLOADS_DIR)
     filename = file_url.split("/")[-1]
-    try:
-        file_path = (uploads_path / filename).resolve()
-        file_path.relative_to(uploads_path.resolve())
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
-    if not file_path.is_file():
+    blob = get_guild_storage(guild_id).open_readable(filename)
+    if blob is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
 
     headers: dict[str, str] = {"X-Content-Type-Options": "nosniff"}
@@ -320,9 +321,9 @@ def _file_download_response(
             headers["Content-Security-Policy"] = "script-src 'none'"
 
     if inline:
-        return FileResponse(file_path, media_type=content_type or None, headers=headers)
-    return FileResponse(
-        file_path, filename=original_filename or filename, headers=headers
+        return build_upload_response(blob, media_type=content_type, headers=headers)
+    return build_upload_response(
+        blob, filename=original_filename or filename, headers=headers
     )
 
 
@@ -979,9 +980,19 @@ async def upload_document_file(
             detail=DocumentMessages.INVALID_FILE,
         )
 
+    try:
+        await attachments_service.enforce_storage_quota(
+            session, guild_id=guild_context.guild_id, incoming_bytes=len(contents)
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
+
     # Save file to uploads directory
     file_url = attachments_service.save_document_file(
-        contents, extension, guild_context.guild_id
+        contents, extension, guild_context.guild_id, content_type=mime_type
     )
 
     # Track the upload in the uploads table for guild-scoped access control
@@ -990,6 +1001,8 @@ async def upload_document_file(
         guild_id=guild_context.guild_id,
         uploader_user_id=current_user.id,
         size_bytes=len(contents),
+        content_type=mime_type,
+        content_hash=attachments_service.compute_content_hash(contents),
     )
     session.add(upload_record)
 
@@ -1132,8 +1145,18 @@ async def upload_document_version(
             detail=DocumentMessages.VERSION_TYPE_MISMATCH,
         )
 
+    try:
+        await attachments_service.enforce_storage_quota(
+            session, guild_id=guild_context.guild_id, incoming_bytes=len(contents)
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
+
     file_url = attachments_service.save_document_file(
-        contents, extension, guild_context.guild_id
+        contents, extension, guild_context.guild_id, content_type=mime_type
     )
 
     # Track the new blob in the uploads table for guild-scoped access control.
@@ -1142,6 +1165,8 @@ async def upload_document_version(
         guild_id=guild_context.guild_id,
         uploader_user_id=current_user.id,
         size_bytes=len(contents),
+        content_type=mime_type,
+        content_hash=attachments_service.compute_content_hash(contents),
     )
     session.add(upload_record)
 
@@ -1500,14 +1525,20 @@ async def duplicate_document(
             detail=DocumentMessages.TITLE_REQUIRED,
         )
 
-    duplicated = await documents_service.duplicate_document(
-        session,
-        source=document,
-        target_initiative_id=document.initiative_id,
-        title=title,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
+    try:
+        duplicated = await documents_service.duplicate_document(
+            session,
+            source=document,
+            target_initiative_id=document.initiative_id,
+            title=title,
+            user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
     hydrated = await _get_document_or_404(
         session, document_id=duplicated.id, guild_id=guild_context.guild_id
     )
@@ -1559,14 +1590,20 @@ async def copy_document(
             detail=DocumentMessages.TITLE_REQUIRED,
         )
 
-    duplicated = await documents_service.duplicate_document(
-        session,
-        source=document,
-        target_initiative_id=target_initiative.id,
-        title=title,
-        user_id=current_user.id,
-        guild_id=guild_context.guild_id,
-    )
+    try:
+        duplicated = await documents_service.duplicate_document(
+            session,
+            source=document,
+            target_initiative_id=target_initiative.id,
+            title=title,
+            user_id=current_user.id,
+            guild_id=guild_context.guild_id,
+        )
+    except attachments_service.StorageQuotaExceededError:
+        raise HTTPException(
+            status_code=status.HTTP_507_INSUFFICIENT_STORAGE,
+            detail=AttachmentMessages.STORAGE_QUOTA_EXCEEDED,
+        )
     hydrated = await _get_document_or_404(
         session, document_id=duplicated.id, guild_id=guild_context.guild_id
     )
@@ -1954,7 +1991,7 @@ async def download_document_file(
     # access.
     session: Annotated[AsyncSession, Depends(get_admin_session)],
     inline: bool = False,
-) -> FileResponse:
+) -> Response:
     """Download a file-type document — requires read permission on the document."""
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
@@ -1981,6 +2018,7 @@ async def download_document_file(
         inline,
     )
     return _file_download_response(
+        guild_id=guild_id,
         file_url=document.file_url,
         content_type=document.file_content_type,
         original_filename=document.original_filename,
@@ -2000,7 +2038,7 @@ async def download_document_file_version(
     # and routes the admin session into the path-addressed guild's schema.
     session: Annotated[AsyncSession, Depends(get_admin_session)],
     inline: bool = False,
-) -> FileResponse:
+) -> Response:
     """Download a specific stored version of a file document — read permission."""
     document, guild_role = await _load_download_document(
         session, current_user, guild_id, document_id
@@ -2035,6 +2073,7 @@ async def download_document_file_version(
         inline,
     )
     return _file_download_response(
+        guild_id=guild_id,
         file_url=version.file_url,
         content_type=version.file_content_type,
         original_filename=version.original_filename,

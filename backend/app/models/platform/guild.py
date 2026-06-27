@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Boolean, Column, DateTime, String, Integer
+from sqlalchemy import BigInteger, Boolean, Column, DateTime, String, Integer
 from sqlmodel import Field, SQLModel, Enum as SQLEnum, Relationship
 from pydantic import ConfigDict
 
@@ -31,6 +31,10 @@ class Guild(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    # Max total stored blob bytes for this guild. NULL = unlimited (default).
+    max_storage_bytes: Optional[int] = Field(
+        default=None, sa_column=Column(BigInteger, nullable=True)
     )
 
     members: List["GuildMembership"] = Relationship(

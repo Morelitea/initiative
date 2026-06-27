@@ -12,7 +12,7 @@ import {
 
 import { apiClient } from "@/api/client";
 import type { AccessGrantRead, GuildRead } from "@/api/generated/initiativeAPI.schemas";
-import { resetGuildScopedQueries } from "@/api/query-keys";
+import { resetGuildScopedQueries, setInvalidationGuild } from "@/api/query-keys";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getItem, removeItem, setItem } from "@/lib/storage";
@@ -96,6 +96,7 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   role: "member",
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
+  max_storage_bytes: null,
   member_count: 0,
   created_at: grant.requested_at,
   updated_at: grant.requested_at,
@@ -116,6 +117,13 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
   const hasFetchedRef = useRef(false);
   const activeGuildIdRef = useRef(activeGuildId);
   activeGuildIdRef.current = activeGuildId;
+  // Mirror the active guild to the invalidation layer synchronously on every
+  // render (same pattern as the ref above) so guild-scoped invalidation is
+  // scoped from the very FIRST render — `activeGuildId` is seeded from storage
+  // by useState, so deferring this to an effect would leave a one-render window
+  // where a mutation's onSuccess falls through to matching all guilds. Per-tab:
+  // a module var is per-JS-context (see query-keys.ts).
+  setInvalidationGuild(activeGuildId);
 
   const canCreateGuilds = user?.can_create_guilds ?? true;
 

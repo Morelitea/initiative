@@ -1,0 +1,596 @@
+"""Pluggable blob storage backend.
+
+Storage rebuild (see ``history/blob-storage-tenancy-design.md``): a single seam
+over blob I/O so the local filesystem (FOSS / self-host / dev) and an
+S3-compatible object store (cloud, or a self-hosted Garage) become interchangeable
+behind one config flag — ``STORAGE_BACKEND=local|s3``.
+
+The backend is *dumb about tenancy*: it operates on opaque object keys (today,
+the stored filename — a UUID-hex basename). Tenancy is owned by the **resolver**
+(:func:`get_guild_storage`), the storage twin of ``set_rls_context``: it hands
+back a backend whose keys are namespaced to the guild (``guild_<id>/`` for S3 —
+the object-store expression of the schema-per-guild boundary, and what the
+per-request IAM prefix scopes to; design §6). Callers still pass the flat
+filename and own the ``/uploads/{guild_id}/{filename}`` URL scheme.
+
+Phases delivered here:
+- ``LocalFilesystemStorage`` — files under ``UPLOADS_DIR/guild_<id>/`` (same
+  per-guild layout as S3; legacy flat files are relocated on boot).
+- ``S3Storage`` — boto3 against any S3-compatible endpoint; serves via streaming
+  proxy (:func:`build_upload_response`) and can presign for opt-in offload.
+
+``STORAGE_BACKEND`` defaults to ``local``; the S3 path is dormant until a bucket
+is configured.
+"""
+
+from __future__ import annotations
+
+import logging
+import mimetypes
+import shutil
+from dataclasses import dataclass
+from pathlib import Path
+from typing import TYPE_CHECKING, Iterator, Protocol, runtime_checkable
+from urllib.parse import quote
+
+from fastapi.responses import FileResponse, Response, StreamingResponse
+
+from app.core.config import settings
+
+if TYPE_CHECKING:  # botocore imported lazily at call time; type-only here
+    from botocore.client import BaseClient
+
+logger = logging.getLogger(__name__)
+
+# Streaming proxy chunk size for S3 GetObject bodies.
+_STREAM_CHUNK = 64 * 1024
+
+# S3 error codes that mean "object/bucket not here" rather than a real failure.
+_S3_MISSING_CODES = {"404", "NoSuchKey", "NoSuchBucket", "NotFound"}
+
+
+def _content_disposition_attachment(filename: str) -> str:
+    """Build a safe ``attachment`` Content-Disposition value.
+
+    Mirrors Starlette's ``FileResponse`` so a user-supplied filename containing a
+    double-quote or non-ASCII char can't break out of the header: RFC 5987
+    ``filename*=utf-8''…`` when the name needs escaping, plain ``filename="…"``
+    otherwise.
+    """
+    quoted = quote(filename)
+    if quoted != filename:
+        return f"attachment; filename*=utf-8''{quoted}"
+    return f'attachment; filename="{filename}"'
+
+
+@dataclass
+class ReadableBlob:
+    """A served blob, backend-agnostic.
+
+    Local sets ``path`` (so the serve adapter keeps ``FileResponse`` sendfile +
+    range support); S3 sets ``stream``. Both populate ``content_type`` and
+    ``content_length`` — S3 from the object metadata, local from the file's
+    extension/size — so the blob is consistent regardless of backend.
+    """
+
+    path: Path | None = None
+    stream: Iterator[bytes] | None = None
+    content_type: str | None = None
+    content_length: int | None = None
+
+
+@runtime_checkable
+class StorageBackend(Protocol):
+    """Object-store contract. ``key`` is an opaque object name (a flat filename);
+    the resolver applies any tenant prefix before the backend sees it."""
+
+    def write(
+        self, key: str, data: bytes, *, content_type: str | None = None
+    ) -> None: ...
+
+    def delete(self, key: str) -> bool: ...
+
+    def copy(self, src_key: str, dst_key: str) -> bool: ...
+
+    def delete_prefix(self) -> int: ...
+
+    def exists(self, key: str) -> bool: ...
+
+    def open_readable(self, key: str) -> ReadableBlob | None: ...
+
+    def presign_get(
+        self, key: str, *, ttl: int, filename: str | None = None
+    ) -> str | None: ...
+
+
+class LocalFilesystemStorage:
+    """Stores objects as files under ``UPLOADS_DIR[/<prefix>]``.
+
+    ``key`` is the stored filename; ``prefix`` is the resolver-supplied guild
+    namespace (``guild_<id>/``), so a guild's blobs live under
+    ``UPLOADS_DIR/guild_<id>/`` — the same per-guild layout as the S3 backend.
+    Keys are reduced to a basename before they touch the filesystem, so a key
+    can never escape the (prefixed) base directory; this centralizes the
+    path-traversal guard the two serve endpoints previously duplicated. The
+    directory is created on demand.
+
+    (Legacy flat files written before this layout are relocated into their
+    ``guild_<id>/`` subdir by the one-time startup migration in
+    ``app.db.local_upload_migration``.)
+    """
+
+    def __init__(self, base_dir: str | None = None, prefix: str = "") -> None:
+        self._base_dir = base_dir
+        self._prefix = prefix
+
+    def _root(self) -> Path:
+        return Path(self._base_dir or settings.UPLOADS_DIR)
+
+    def _dir(self) -> Path:
+        # ``Path / ""`` is a no-op, so an empty prefix yields the flat root.
+        path = self._root() / self._prefix
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _safe_path(self, key: str) -> Path | None:
+        name = Path(key).name
+        if not name:
+            return None
+        base = self._dir()
+        try:
+            target = (base / name).resolve()
+            target.relative_to(base.resolve())
+        except ValueError:
+            return None
+        return target
+
+    def write(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
+        # content_type is meaningless on a filesystem (inferred at serve time);
+        # accepted for protocol parity with S3 and ignored.
+        target = self._safe_path(key)
+        if target is None:
+            raise ValueError(f"Invalid storage key: {key!r}")
+        target.write_bytes(data)
+
+    def delete(self, key: str) -> bool:
+        target = self._safe_path(key)
+        if target is None:
+            return False
+        try:
+            if target.exists() and target.is_file():
+                target.unlink()
+                return True
+        except OSError as exc:
+            logger.warning("Failed to delete blob %s: %s", target, exc)
+        return False
+
+    def copy(self, src_key: str, dst_key: str) -> bool:
+        src = self._safe_path(src_key)
+        dst = self._safe_path(dst_key)
+        if src is None or dst is None or not src.exists():
+            return False
+        try:
+            shutil.copy2(src, dst)
+            return True
+        except OSError as exc:
+            logger.error("Failed to copy blob %s -> %s: %s", src, dst, exc)
+            return False
+
+    def delete_prefix(self) -> int:
+        """Remove this backend's whole namespace dir (``UPLOADS_DIR/<prefix>``).
+
+        Used to tear down a guild's content on deprovision. Refuses an empty
+        prefix so it can never wipe the entire uploads root. Returns the number
+        of files removed.
+        """
+        if not self._prefix:
+            raise ValueError(
+                "delete_prefix refused: empty prefix would target all uploads"
+            )
+        target_dir = self._root() / self._prefix
+        if not target_dir.is_dir():
+            return 0
+        total = sum(1 for p in target_dir.rglob("*") if p.is_file())
+        shutil.rmtree(target_dir, ignore_errors=True)
+        # Count only what actually went away and surface the rest: a file rmtree
+        # couldn't remove (e.g. permissions) would otherwise be silently reported
+        # as deleted — the very orphan it's meant to prevent.
+        remaining = (
+            [p for p in target_dir.rglob("*") if p.is_file()]
+            if target_dir.exists()
+            else []
+        )
+        for leftover in remaining:
+            logger.error("delete_prefix could not remove %s", leftover)
+        return total - len(remaining)
+
+    def exists(self, key: str) -> bool:
+        target = self._safe_path(key)
+        return bool(target and target.is_file())
+
+    def resolve_readable(self, key: str) -> Path | None:
+        """Filesystem path for a key, or None. Retained for local-only callers."""
+        target = self._safe_path(key)
+        if target is None or not target.is_file():
+            return None
+        return target
+
+    def open_readable(self, key: str) -> ReadableBlob | None:
+        target = self.resolve_readable(key)
+        if target is None:
+            return None
+        # The filesystem stores no object metadata (unlike S3), so derive the
+        # content-type from the extension — keeping ReadableBlob consistent across
+        # backends, and giving a cross-store copy a type to carry over.
+        return ReadableBlob(
+            path=target,
+            content_type=mimetypes.guess_type(target.name)[0],
+            content_length=target.stat().st_size,
+        )
+
+    def presign_get(
+        self, key: str, *, ttl: int, filename: str | None = None
+    ) -> str | None:
+        # A filesystem has no signed URLs; local content is always proxy-served.
+        return None
+
+
+class S3Storage:
+    """S3-compatible object store (AWS S3, Garage, R2, …) via boto3.
+
+    Dumb about tenancy: it reads/writes keys within the ``(bucket, client,
+    prefix)`` the resolver handed it. ``prefix`` is the guild namespace
+    (``guild_<id>/``); the resolver owns it. Keys are reduced to a basename
+    before the prefix is applied, mirroring the local traversal guard.
+    """
+
+    def __init__(
+        self,
+        *,
+        bucket: str,
+        client: "BaseClient",
+        prefix: str = "",
+        kms_key_id: str | None = None,
+    ) -> None:
+        self._bucket = bucket
+        self._client = client
+        self._prefix = prefix
+        self._kms_key_id = kms_key_id
+
+    def _object_key(self, key: str) -> str:
+        name = Path(key).name
+        if not name:
+            raise ValueError(f"Invalid storage key: {key!r}")
+        return f"{self._prefix}{name}"
+
+    def _sse_params(self) -> dict[str, str]:
+        if self._kms_key_id:
+            return {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": self._kms_key_id}
+        return {}
+
+    def _head(self, object_key: str) -> bool:
+        from botocore.exceptions import ClientError
+
+        try:
+            self._client.head_object(Bucket=self._bucket, Key=object_key)
+            return True
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in _S3_MISSING_CODES:
+                return False
+            raise
+
+    def write(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
+        extra = self._sse_params()
+        if content_type:
+            extra["ContentType"] = content_type
+        self._client.put_object(
+            Bucket=self._bucket, Key=self._object_key(key), Body=data, **extra
+        )
+
+    def delete(self, key: str) -> bool:
+        object_key = self._object_key(key)
+        # head first so the bool return matches local semantics (missing -> False);
+        # delete_object itself is idempotent.
+        if not self._head(object_key):
+            return False
+        self._client.delete_object(Bucket=self._bucket, Key=object_key)
+        return True
+
+    def copy(self, src_key: str, dst_key: str) -> bool:
+        src = self._object_key(src_key)
+        dst = self._object_key(dst_key)
+        if not self._head(src):
+            return False
+        # Server-side copy — no bytes through the app (design §7 / tier migration).
+        self._client.copy_object(
+            Bucket=self._bucket,
+            Key=dst,
+            CopySource={"Bucket": self._bucket, "Key": src},
+            **self._sse_params(),
+        )
+        return True
+
+    def delete_prefix(self) -> int:
+        """Delete every object under this backend's namespace (``self._prefix``).
+
+        Used to tear down a guild's content on deprovision. Refuses an empty
+        prefix so it can never target the whole bucket. Returns the number of
+        objects deleted.
+        """
+        if not self._prefix:
+            raise ValueError(
+                "delete_prefix refused: empty prefix would target the whole bucket"
+            )
+        deleted = 0
+        token: str | None = None
+        while True:
+            kwargs: dict = {"Bucket": self._bucket, "Prefix": self._prefix}
+            if token:
+                kwargs["ContinuationToken"] = token
+            resp = self._client.list_objects_v2(**kwargs)
+            objects = [{"Key": o["Key"]} for o in resp.get("Contents", [])]
+            if objects:
+                result = self._client.delete_objects(
+                    Bucket=self._bucket, Delete={"Objects": objects, "Quiet": True}
+                )
+                # Quiet=True returns only per-object failures; surface them and
+                # count only the ones that actually deleted (an unlogged failure
+                # would silently re-orphan the very blobs this is meant to purge).
+                errors = result.get("Errors") or []
+                for err in errors:
+                    logger.error(
+                        "delete_prefix could not delete %s: %s %s",
+                        err.get("Key"),
+                        err.get("Code"),
+                        err.get("Message"),
+                    )
+                deleted += len(objects) - len(errors)
+            if resp.get("IsTruncated"):
+                token = resp.get("NextContinuationToken")
+            else:
+                break
+        return deleted
+
+    def exists(self, key: str) -> bool:
+        return self._head(self._object_key(key))
+
+    def open_readable(self, key: str) -> ReadableBlob | None:
+        from botocore.exceptions import ClientError
+
+        try:
+            obj = self._client.get_object(
+                Bucket=self._bucket, Key=self._object_key(key)
+            )
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in _S3_MISSING_CODES:
+                return None
+            raise
+        return ReadableBlob(
+            stream=obj["Body"].iter_chunks(chunk_size=_STREAM_CHUNK),
+            content_type=obj.get("ContentType"),
+            content_length=obj.get("ContentLength"),
+        )
+
+    def presign_get(
+        self, key: str, *, ttl: int, filename: str | None = None
+    ) -> str | None:
+        params: dict[str, str] = {"Bucket": self._bucket, "Key": self._object_key(key)}
+        if filename:
+            params["ResponseContentDisposition"] = _content_disposition_attachment(
+                filename
+            )
+        return self._client.generate_presigned_url(
+            "get_object", Params=params, ExpiresIn=ttl
+        )
+
+
+class DualReadStorage:
+    """Local→S3 cutover safety net (enabled by ``S3_LOCAL_FALLBACK``).
+
+    Writes and deletes go to the primary (S3); reads fall back to the local
+    fallback on a miss, so blobs the backfill hasn't copied yet still serve while
+    a deployment is being moved onto S3. ``delete_prefix`` purges **both** stores
+    (guild teardown). Flip the flag off once the backfill is verified complete.
+    """
+
+    def __init__(self, *, primary: StorageBackend, fallback: StorageBackend) -> None:
+        self._primary = primary
+        self._fallback = fallback
+
+    def write(self, key: str, data: bytes, *, content_type: str | None = None) -> None:
+        self._primary.write(key, data, content_type=content_type)
+
+    def delete(self, key: str) -> bool:
+        # Remove from both stores so a deleted blob can't reappear via fallback.
+        primary_deleted = self._primary.delete(key)
+        fallback_deleted = self._fallback.delete(key)
+        return primary_deleted or fallback_deleted
+
+    def copy(self, src_key: str, dst_key: str) -> bool:
+        if self._primary.copy(src_key, dst_key):
+            return True
+        # Source not yet backfilled into S3: read it from local, write to S3.
+        blob = self._fallback.open_readable(src_key)
+        if blob is None or blob.path is None:
+            return False
+        # Carry the source's content-type onto the S3 object so it isn't served as
+        # octet-stream once the fallback window closes (open_readable populates it
+        # for both backends).
+        self._primary.write(
+            dst_key, blob.path.read_bytes(), content_type=blob.content_type
+        )
+        return True
+
+    def delete_prefix(self) -> int:
+        return self._primary.delete_prefix() + self._fallback.delete_prefix()
+
+    def exists(self, key: str) -> bool:
+        return self._primary.exists(key) or self._fallback.exists(key)
+
+    def open_readable(self, key: str) -> ReadableBlob | None:
+        return self._primary.open_readable(key) or self._fallback.open_readable(key)
+
+    def presign_get(
+        self, key: str, *, ttl: int, filename: str | None = None
+    ) -> str | None:
+        # Only S3 can sign; if the object is still local-only, return None so the
+        # caller proxy-serves it instead.
+        if self._primary.exists(key):
+            return self._primary.presign_get(key, ttl=ttl, filename=filename)
+        return None
+
+
+def build_upload_response(
+    blob: ReadableBlob,
+    *,
+    headers: dict[str, str] | None = None,
+    media_type: str | None = None,
+    filename: str | None = None,
+) -> Response:
+    """Adapt a :class:`ReadableBlob` into a Starlette response.
+
+    Local blobs become a ``FileResponse`` (sendfile + range, media type inferred
+    from the path as before). S3 blobs stream via ``StreamingResponse`` using the
+    content-type recorded on the object. ``filename`` forces an attachment
+    download; otherwise the response is inline. The serve endpoints keep owning
+    their security headers (CSP / nosniff / Content-Disposition) and pass them in.
+    """
+    headers = dict(headers or {})
+    if blob.path is not None:
+        if filename is not None:
+            return FileResponse(
+                blob.path,
+                filename=filename,
+                media_type=media_type or None,
+                headers=headers,
+            )
+        return FileResponse(blob.path, media_type=media_type or None, headers=headers)
+
+    media = media_type or blob.content_type or "application/octet-stream"
+    if blob.content_length is not None and "Content-Length" not in headers:
+        headers["Content-Length"] = str(blob.content_length)
+    if filename is not None and "Content-Disposition" not in headers:
+        headers["Content-Disposition"] = _content_disposition_attachment(filename)
+    return StreamingResponse(blob.stream or iter(()), media_type=media, headers=headers)
+
+
+_local_backends: dict[str, LocalFilesystemStorage] = {}
+_s3_client: "BaseClient | None" = None
+
+
+def _backend_name() -> str:
+    return (settings.STORAGE_BACKEND or "local").lower()
+
+
+def _local(prefix: str = "") -> LocalFilesystemStorage:
+    backend = _local_backends.get(prefix)
+    if backend is None:
+        backend = LocalFilesystemStorage(prefix=prefix)
+        _local_backends[prefix] = backend
+    return backend
+
+
+def _get_s3_client() -> "BaseClient":
+    global _s3_client
+    if _s3_client is None:
+        import boto3
+        from botocore.config import Config
+
+        config_kwargs: dict = {"signature_version": "s3v4"}
+        if settings.S3_USE_PATH_STYLE:
+            # Garage and most non-AWS stores require path-style addressing.
+            config_kwargs["s3"] = {"addressing_style": "path"}
+
+        client_kwargs: dict = {
+            "region_name": settings.S3_REGION,
+            "config": Config(**config_kwargs),
+        }
+        if settings.S3_ENDPOINT_URL:
+            client_kwargs["endpoint_url"] = settings.S3_ENDPOINT_URL
+        # Explicit keys for a self-hosted store; leave unset on AWS so the ambient
+        # chain (IRSA / instance role / env) supplies credentials.
+        if settings.S3_ACCESS_KEY_ID and settings.S3_SECRET_ACCESS_KEY:
+            client_kwargs["aws_access_key_id"] = settings.S3_ACCESS_KEY_ID
+            client_kwargs["aws_secret_access_key"] = settings.S3_SECRET_ACCESS_KEY
+
+        _s3_client = boto3.client("s3", **client_kwargs)
+    return _s3_client
+
+
+def _require_bucket() -> str:
+    if not settings.S3_BUCKET:
+        raise ValueError("STORAGE_BACKEND='s3' requires S3_BUCKET to be set")
+    return settings.S3_BUCKET
+
+
+def _make(prefix: str) -> StorageBackend:
+    name = _backend_name()
+    if name == "local":
+        return _local(prefix)
+    if name == "s3":
+        s3 = S3Storage(
+            bucket=_require_bucket(),
+            client=_get_s3_client(),
+            prefix=prefix,
+            kms_key_id=settings.S3_KMS_KEY_ID,
+        )
+        # Cutover window: serve blobs the backfill hasn't copied yet from local.
+        if settings.S3_LOCAL_FALLBACK:
+            return DualReadStorage(primary=s3, fallback=_local(prefix))
+        return s3
+    raise ValueError(f"Unsupported STORAGE_BACKEND={name!r} (expected 'local' or 's3')")
+
+
+def get_storage() -> StorageBackend:
+    """Return the process-wide local backend.
+
+    There is no *unscoped* S3 backend: all object-store content is guild-scoped,
+    so S3 writes MUST go through :func:`get_guild_storage` (which namespaces keys
+    under ``guild_<id>/``). Returning a root-prefixed S3 backend here would let a
+    caller write objects at the bucket root, outside any guild namespace — so the
+    S3 path raises instead. Identity media (avatars, icons) stays in Postgres, so
+    there is no public-plane S3 caller that would need this.
+    """
+    if _backend_name() == "s3":
+        raise NotImplementedError(
+            "get_storage() has no unscoped S3 backend; use get_guild_storage(guild_id)"
+        )
+    return _make("")
+
+
+def get_guild_storage(guild_id: int) -> StorageBackend:
+    """Return a content-plane backend scoped to ``guild_id`` (the resolver).
+
+    Both backends namespace the guild's blobs under ``guild_<id>/`` — the
+    object-store twin of the schema-per-guild boundary, and exactly what the
+    per-request IAM prefix scopes to on S3 (design §6). Local writes them under
+    ``UPLOADS_DIR/guild_<id>/``. Pooled-cloud per-request STS downscope plugs in
+    here; today the resolver uses the ambient credential (works for Garage,
+    siloed IRSA, dev).
+    """
+    return _make(f"guild_{int(guild_id)}/")
+
+
+def s3_guild_storage(guild_id: int) -> S3Storage:
+    """Build an S3 backend scoped to a guild prefix, regardless of
+    ``STORAGE_BACKEND``.
+
+    For the local→S3 backfill, which writes to S3 while the app may still be
+    running on the local backend. Raises if S3 isn't configured (``S3_BUCKET``).
+    """
+    return S3Storage(
+        bucket=_require_bucket(),
+        client=_get_s3_client(),
+        prefix=f"guild_{int(guild_id)}/",
+        kms_key_id=settings.S3_KMS_KEY_ID,
+    )
+
+
+def purge_guild_blobs(guild_id: int) -> int:
+    """Remove all of a guild's stored blobs — called on guild deprovision.
+
+    Both backends sweep the guild's ``guild_<id>/`` namespace in one pass (S3:
+    batch object delete; local: remove the directory tree), so this is uniform
+    and needs no per-file bookkeeping. Returns the number of objects removed.
+    """
+    return get_guild_storage(guild_id).delete_prefix()

@@ -24,6 +24,22 @@ def _uploads_dir() -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def _isolated_uploads_dir(tmp_path, monkeypatch):
+    """Point UPLOADS_DIR at a throwaway dir so staged blobs don't litter the repo
+    and never leak across tests."""
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path / "uploads"))
+
+
+def _stage_upload(guild_id: int, filename: str, content: bytes = b"hello") -> None:
+    """Write a blob where the per-guild storage backend serves it from
+    (``UPLOADS_DIR/guild_<id>/``), via the real resolver — so tests track the
+    production layout instead of hardcoding it."""
+    from app.services.storage import get_guild_storage
+
+    get_guild_storage(guild_id).write(filename, content)
+
+
 @pytest.mark.integration
 async def test_upload_unauthenticated_returns_401(client: AsyncClient) -> None:
     """GET /uploads/<file> without any auth token returns 401."""
@@ -44,30 +60,25 @@ async def test_upload_accessible_with_auth_header(
     """GET /uploads/<file> with Authorization Bearer header returns 200."""
     from app.models.tenant.upload import Upload
 
-    uploads_dir = _uploads_dir()
-    test_file = uploads_dir / "test_auth_header.txt"
-    test_file.write_text("hello")
-    try:
-        user = await create_user(session)
-        guild = await create_guild(session, creator=user)
-        await create_guild_membership(session, user=user, guild=guild)
-        session.add(
-            Upload(
-                filename="test_auth_header.txt",
-                guild_id=guild.id,
-                uploader_user_id=user.id,
-                size_bytes=5,
-            )
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "test_auth_header.txt")
+    session.add(
+        Upload(
+            filename="test_auth_header.txt",
+            guild_id=guild.id,
+            uploader_user_id=user.id,
+            size_bytes=5,
         )
-        await session.commit()
+    )
+    await session.commit()
 
-        headers = await get_guild_headers(session, guild, user)
-        response = await client.get(
-            f"/uploads/{guild.id}/test_auth_header.txt", headers=headers
-        )
-        assert response.status_code == 200
-    finally:
-        test_file.unlink(missing_ok=True)
+    headers = await get_guild_headers(session, guild, user)
+    response = await client.get(
+        f"/uploads/{guild.id}/test_auth_header.txt", headers=headers
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.integration
@@ -97,31 +108,26 @@ async def test_upload_accessible_with_scoped_upload_token(
     """A short-lived, uploads-scoped token IS accepted via ?token=. SEC-12."""
     from app.models.tenant.upload import Upload
 
-    uploads_dir = _uploads_dir()
-    test_file = uploads_dir / "test_query_upload_token.txt"
-    test_file.write_text("hello")
-    try:
-        user = await create_user(session)
-        # SEC-6 (merged): files are only served with a matching Upload row and
-        # guild membership — the scoped token answers "who", not "may".
-        guild = await create_guild(session, creator=user)
-        await create_guild_membership(session, user=user, guild=guild)
-        session.add(
-            Upload(
-                filename="test_query_upload_token.txt",
-                guild_id=guild.id,
-                uploader_user_id=user.id,
-                size_bytes=5,
-            )
+    user = await create_user(session)
+    # SEC-6 (merged): files are only served with a matching Upload row and
+    # guild membership — the scoped token answers "who", not "may".
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "test_query_upload_token.txt")
+    session.add(
+        Upload(
+            filename="test_query_upload_token.txt",
+            guild_id=guild.id,
+            uploader_user_id=user.id,
+            size_bytes=5,
         )
-        await session.commit()
-        token, _ = create_upload_token(user_id=user.id)
-        response = await client.get(
-            f"/uploads/{guild.id}/test_query_upload_token.txt?token={token}",
-        )
-        assert response.status_code == 200
-    finally:
-        test_file.unlink(missing_ok=True)
+    )
+    await session.commit()
+    token, _ = create_upload_token(user_id=user.id)
+    response = await client.get(
+        f"/uploads/{guild.id}/test_query_upload_token.txt?token={token}",
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.integration
@@ -144,37 +150,32 @@ async def test_issue_upload_token_endpoint(
     """POST /auth/upload-token mints a token that opens /uploads. SEC-12."""
     from app.models.tenant.upload import Upload
 
-    uploads_dir = _uploads_dir()
-    test_file = uploads_dir / "test_minted_token.txt"
-    test_file.write_text("hello")
-    try:
-        user = await create_user(session)
-        # SEC-6 (merged): serving requires a matching Upload row + membership.
-        guild = await create_guild(session, creator=user)
-        await create_guild_membership(session, user=user, guild=guild)
-        session.add(
-            Upload(
-                filename="test_minted_token.txt",
-                guild_id=guild.id,
-                uploader_user_id=user.id,
-                size_bytes=5,
-            )
+    user = await create_user(session)
+    # SEC-6 (merged): serving requires a matching Upload row + membership.
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "test_minted_token.txt")
+    session.add(
+        Upload(
+            filename="test_minted_token.txt",
+            guild_id=guild.id,
+            uploader_user_id=user.id,
+            size_bytes=5,
         )
-        await session.commit()
-        mint = await client.post(
-            "/api/v1/auth/upload-token", headers=get_auth_headers(user)
-        )
-        assert mint.status_code == 200
-        body = mint.json()
-        assert body["token_type"] == "upload_token"
-        assert body["expires_in"] > 0
-        token = body["upload_token"]
-        response = await client.get(
-            f"/uploads/{guild.id}/test_minted_token.txt?token={token}"
-        )
-        assert response.status_code == 200
-    finally:
-        test_file.unlink(missing_ok=True)
+    )
+    await session.commit()
+    mint = await client.post(
+        "/api/v1/auth/upload-token", headers=get_auth_headers(user)
+    )
+    assert mint.status_code == 200
+    body = mint.json()
+    assert body["token_type"] == "upload_token"
+    assert body["expires_in"] > 0
+    token = body["upload_token"]
+    response = await client.get(
+        f"/uploads/{guild.id}/test_minted_token.txt?token={token}"
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.integration
@@ -216,30 +217,25 @@ async def test_upload_guild_member_can_access_file(
     """Authenticated guild member can access a file uploaded by that guild."""
     from app.models.tenant.upload import Upload
 
-    uploads_dir = _uploads_dir()
-    test_file = uploads_dir / "test_guild_access.png"
-    test_file.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)  # minimal PNG header
-    try:
-        user = await create_user(session)
-        guild = await create_guild(session, creator=user)
-        await create_guild_membership(session, user=user, guild=guild)
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "test_guild_access.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 8)
 
-        upload = Upload(
-            filename="test_guild_access.png",
-            guild_id=guild.id,
-            uploader_user_id=user.id,
-            size_bytes=16,
-        )
-        session.add(upload)
-        await session.commit()
+    upload = Upload(
+        filename="test_guild_access.png",
+        guild_id=guild.id,
+        uploader_user_id=user.id,
+        size_bytes=16,
+    )
+    session.add(upload)
+    await session.commit()
 
-        headers = await get_guild_headers(session, guild, user)
-        response = await client.get(
-            f"/uploads/{guild.id}/test_guild_access.png", headers=headers
-        )
-        assert response.status_code == 200
-    finally:
-        test_file.unlink(missing_ok=True)
+    headers = await get_guild_headers(session, guild, user)
+    response = await client.get(
+        f"/uploads/{guild.id}/test_guild_access.png", headers=headers
+    )
+    assert response.status_code == 200
 
 
 @pytest.mark.integration
@@ -331,52 +327,47 @@ async def test_upload_row_in_guild_schema_is_served(
 
     from app.db.schema_provisioning import guild_schema_name
 
-    uploads_dir = _uploads_dir()
-    test_file = uploads_dir / "test_guild_schema_row.txt"
-    test_file.write_text("hello")
-    try:
-        user = await create_user(session)
-        guild = await create_guild(session, creator=user)
-        await create_guild_membership(session, user=user, guild=guild)
-        schema = guild_schema_name(guild.id)
-        # Insert the row into the guild schema ONLY (mimicking the production
-        # request path, where set_rls_context routes search_path there).
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "test_guild_schema_row.txt")
+    schema = guild_schema_name(guild.id)
+    # Insert the row into the guild schema ONLY (mimicking the production
+    # request path, where set_rls_context routes search_path there).
+    await session.exec(
+        text(
+            f'INSERT INTO "{schema}".uploads'
+            " (filename, guild_id, uploader_user_id, size_bytes, created_at)"
+            " VALUES (:fn, :gid, :uid, 5, now())"
+        ),
+        params={"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
+    )
+    await session.commit()
+    # Prove the row is invisible from public.uploads.
+    public_hit = (
         await session.exec(
-            text(
-                f'INSERT INTO "{schema}".uploads'
-                " (filename, guild_id, uploader_user_id, size_bytes, created_at)"
-                " VALUES (:fn, :gid, :uid, 5, now())"
-            ),
-            params={"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
+            text("SELECT 1 FROM public.uploads WHERE filename = :fn"),
+            params={"fn": "test_guild_schema_row.txt"},
         )
-        await session.commit()
-        # Prove the row is invisible from public.uploads.
-        public_hit = (
-            await session.exec(
-                text("SELECT 1 FROM public.uploads WHERE filename = :fn"),
-                params={"fn": "test_guild_schema_row.txt"},
-            )
-        ).first()
-        assert public_hit is None
+    ).first()
+    assert public_hit is None
 
-        response = await client.get(
-            f"/uploads/{guild.id}/test_guild_schema_row.txt",
-            headers=await get_guild_headers(session, guild, user),
-        )
-        assert response.status_code == 200
-        assert response.text == "hello"
+    response = await client.get(
+        f"/uploads/{guild.id}/test_guild_schema_row.txt",
+        headers=await get_guild_headers(session, guild, user),
+    )
+    assert response.status_code == 200
+    assert response.text == "hello"
 
-        # A user outside the guild fails membership validation → 404
-        # (existence not confirmed), not the file — even with their flag
-        # pointed at the guild.
-        outsider = await create_user(session, email="outsider-schema@example.com")
-        response = await client.get(
-            f"/uploads/{guild.id}/test_guild_schema_row.txt",
-            headers=await get_guild_headers(session, guild, outsider),
-        )
-        assert response.status_code == 404
-    finally:
-        test_file.unlink(missing_ok=True)
+    # A user outside the guild fails membership validation → 404
+    # (existence not confirmed), not the file — even with their flag
+    # pointed at the guild.
+    outsider = await create_user(session, email="outsider-schema@example.com")
+    response = await client.get(
+        f"/uploads/{guild.id}/test_guild_schema_row.txt",
+        headers=await get_guild_headers(session, guild, outsider),
+    )
+    assert response.status_code == 404
 
 
 @pytest.mark.integration

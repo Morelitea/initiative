@@ -83,7 +83,10 @@ export function useInitiativeAccess() {
   const filterVisible = useCallback(
     (initiatives: InitiativeRead[] | undefined): InitiativeRead[] => {
       if (!user) return [];
-      const source = initiatives ?? [];
+      // Archived initiatives are hidden from the main sidebar for everyone
+      // (admins included); they stay manageable from guild settings →
+      // Initiatives, which reads the unfiltered list directly.
+      const source = (initiatives ?? []).filter((initiative) => !initiative.is_archived);
       if (seesAllInitiatives) {
         return source.slice().sort(byName);
       }

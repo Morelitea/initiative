@@ -356,6 +356,27 @@ class Settings(BaseSettings):
     )
 
     UPLOADS_DIR: str = "uploads"
+    # Blob storage backend. "local" = filesystem under UPLOADS_DIR (FOSS/self-host/
+    # dev default). "s3" = any S3-compatible object store (a self-hosted Garage
+    # instance, AWS S3, R2, etc.) — see the S3_* settings below.
+    STORAGE_BACKEND: str = "local"
+    # --- S3 / S3-compatible object storage (only used when STORAGE_BACKEND="s3") ---
+    # Point at your own object store (e.g. a self-hosted Garage instance): set
+    # S3_BUCKET + S3_ENDPOINT_URL + S3_REGION, S3_USE_PATH_STYLE=true (Garage and
+    # most non-AWS stores), and the access/secret keys (or leave them unset to use
+    # the ambient credential chain). See docs/OBJECT_STORAGE.md.
+    S3_BUCKET: str | None = None
+    S3_REGION: str = "us-east-1"
+    S3_ENDPOINT_URL: str | None = None
+    S3_ACCESS_KEY_ID: str | None = None
+    S3_SECRET_ACCESS_KEY: str | None = None
+    S3_USE_PATH_STYLE: bool = False
+    S3_KMS_KEY_ID: str | None = None
+    # Migration safety net: while cutting a deployment over from "local" to "s3",
+    # set true so a read that misses in S3 falls back to the local filesystem
+    # (serves blobs not yet copied by the backfill). Turn off once the backfill is
+    # verified complete. Only consulted when STORAGE_BACKEND="s3".
+    S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
     FIRST_SUPERUSER_EMAIL: EmailStr | None = None

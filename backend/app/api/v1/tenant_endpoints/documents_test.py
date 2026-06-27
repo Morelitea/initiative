@@ -36,6 +36,13 @@ def _uploads_dir() -> Path:
     return path
 
 
+@pytest.fixture(autouse=True)
+def _isolated_uploads_dir(tmp_path, monkeypatch):
+    """Point UPLOADS_DIR at a throwaway dir so staged blobs (now in per-guild
+    subdirs) don't litter the repo and never leak across tests."""
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path / "uploads"))
+
+
 async def _create_file_document(
     session: AsyncSession,
     *,
@@ -44,8 +51,11 @@ async def _create_file_document(
     filename: str,
 ) -> Document:
     """Create a file-type Document with a dummy file on disk and owner permission."""
-    file_path = _uploads_dir() / filename
-    file_path.write_bytes(b"%PDF-1.4 test")
+    # Stage the blob via the real resolver so it lands where the serve path reads
+    # it (UPLOADS_DIR/guild_<id>/), and use the canonical guild-scoped URL.
+    from app.services.storage import get_guild_storage
+
+    get_guild_storage(initiative.guild_id).write(filename, b"%PDF-1.4 test")
 
     doc = Document(
         title="Test File Doc",
@@ -54,7 +64,7 @@ async def _create_file_document(
         created_by_id=owner.id,
         updated_by_id=owner.id,
         document_type=DocumentType.file,
-        file_url=f"/uploads/{filename}",
+        file_url=f"/uploads/{initiative.guild_id}/{filename}",
         original_filename=filename,
         file_content_type="application/pdf",
         file_size=13,

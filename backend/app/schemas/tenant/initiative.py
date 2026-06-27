@@ -37,6 +37,7 @@ class InitiativeUpdate(SanitizedBaseModel):
     events_enabled: Optional[bool] = None
     advanced_tool_enabled: Optional[bool] = None
     counters_enabled: Optional[bool] = None
+    is_archived: Optional[bool] = None
 
 
 # Role schemas
@@ -193,6 +194,8 @@ class InitiativeRead(InitiativeBase):
     id: int
     guild_id: int
     is_default: bool = False
+    # Hidden from the main sidebar when true (see Initiative.is_archived).
+    is_archived: bool = False
     created_at: datetime
     updated_at: datetime
     members: List[InitiativeMemberRead] = Field(default_factory=list)
@@ -360,6 +363,7 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         description=initiative.description,
         color=initiative.color,
         is_default=initiative.is_default,
+        is_archived=getattr(initiative, "is_archived", False),
         queues_enabled=initiative_queues_enabled,
         events_enabled=initiative_events_enabled,
         advanced_tool_enabled=initiative_advanced_tool_enabled,

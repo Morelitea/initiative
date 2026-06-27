@@ -173,6 +173,16 @@ export const InitiativeSettingsPage = () => {
     setShowDeleteConfirm(true);
   };
 
+  const handleToggleArchive = () => {
+    if (!initiative) {
+      return;
+    }
+    updateInitiative.mutate({
+      initiativeId,
+      data: { is_archived: !initiative.is_archived },
+    });
+  };
+
   const confirmDeleteInitiative = () => {
     deleteInitiative.mutate(initiativeId);
     setShowDeleteConfirm(false);
@@ -297,6 +307,10 @@ export const InitiativeSettingsPage = () => {
 
         <InitiativeSettingsDangerTab
           isDefault={initiative.is_default}
+          isArchived={initiative.is_archived}
+          canArchiveInitiative={isGuildAdmin}
+          isArchiving={updateInitiative.isPending}
+          onToggleArchive={handleToggleArchive}
           canDeleteInitiative={canDeleteInitiative}
           isDeleting={deleteInitiative.isPending}
           onDeleteInitiative={handleDeleteInitiative}

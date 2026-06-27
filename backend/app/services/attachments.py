@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import hashlib
 import logging
-import shutil
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Set, Tuple
 from urllib.parse import urlparse
@@ -10,6 +10,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.core.config import settings
+from app.services.storage import get_guild_storage
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,23 @@ class FileTooLargeError(Exception):
         super().__init__(f"File exceeds maximum size of {max_size} bytes")
 
 
+class StorageQuotaExceededError(Exception):
+    """Raised when an upload would push a guild over its ``max_storage_bytes``.
+
+    Carries the limit, the current usage, and the incoming size so callers can
+    build an accurate error response.
+    """
+
+    def __init__(self, *, limit: int, usage: int, incoming: int) -> None:
+        self.limit = limit
+        self.usage = usage
+        self.incoming = incoming
+        super().__init__(
+            f"Upload of {incoming} bytes would exceed the guild storage limit "
+            f"of {limit} bytes (current usage {usage})"
+        )
+
+
 async def read_upload_bounded(file: UploadFile, max_size: int) -> bytes:
     """Read an upload without buffering more than ``max_size`` bytes.
 
@@ -43,6 +61,12 @@ async def read_upload_bounded(file: UploadFile, max_size: int) -> bytes:
     if len(contents) > max_size:
         raise FileTooLargeError(max_size)
     return contents
+
+
+def compute_content_hash(data: bytes) -> str:
+    """SHA-256 hex of blob bytes — recorded on the ``uploads`` row for integrity
+    verification (object-store migration) and future content dedup."""
+    return hashlib.sha256(data).hexdigest()
 
 
 # Supported MIME types for document file uploads (based on react-doc-viewer support)
@@ -114,17 +138,33 @@ def normalize_upload_url(url: str | None) -> str | None:
     return path
 
 
+def guild_id_from_upload_url(url: str | None) -> int | None:
+    """Extract the guild id from a ``/uploads/{guild_id}/{filename}`` URL.
+
+    The guild rides in the URL path (it's part of the canonical upload URL), so
+    storage ops can route to the right guild namespace via the resolver.
+    """
+    normalized = normalize_upload_url(url)
+    if not normalized:
+        return None
+    # normalized is ``/uploads/{guild_id}/{filename}`` -> ['', 'uploads', gid, ...]
+    parts = normalized.split("/")
+    if len(parts) < 4:
+        return None
+    try:
+        return int(parts[2])
+    except ValueError:
+        return None
+
+
 def delete_upload_by_url(url: str | None) -> None:
     normalized = normalize_upload_url(url)
     if not normalized:
         return
-    filename = Path(normalized).name
-    target = _uploads_dir() / filename
-    try:
-        if target.exists() and target.is_file():
-            target.unlink()
-    except OSError as exc:
-        logger.warning("Failed to delete upload %s: %s", target, exc)
+    guild_id = guild_id_from_upload_url(normalized)
+    if guild_id is None:
+        return
+    get_guild_storage(guild_id).delete(Path(normalized).name)
 
 
 def delete_uploads_by_urls(urls: Iterable[str]) -> None:
@@ -277,29 +317,37 @@ def duplicate_upload(url: str | None) -> str | None:
     if not normalized:
         return None
 
-    source_path = _uploads_dir() / Path(normalized).name
-    if not source_path.exists():
-        logger.warning("Attempted to duplicate missing upload %s", source_path)
+    guild_id = guild_id_from_upload_url(normalized)
+    if guild_id is None:
+        # Can't route to a storage namespace without the guild segment. Fall back
+        # to the source URL (the "couldn't duplicate" signal duplicate_uploads
+        # already handles by not remapping); warn so it's diagnosable rather than
+        # a silent alias.
+        logger.warning(
+            "Cannot resolve guild for upload %s; not duplicating", normalized
+        )
         return normalized
 
-    extension = source_path.suffix
+    # A duplicate stays in the same guild, so source and dest share one namespace.
+    storage = get_guild_storage(guild_id)
+    source_name = Path(normalized).name
+    if not storage.exists(source_name):
+        logger.warning("Attempted to duplicate missing upload %s", source_name)
+        return normalized
+
+    extension = Path(source_name).suffix
     for _ in range(10):
         new_name = f"{uuid4().hex}{extension}"
-        destination = _uploads_dir() / new_name
-        if destination.exists():
+        if storage.exists(new_name):
             continue
-        try:
-            shutil.copy2(source_path, destination)
+        if storage.copy(source_name, new_name):
             # Keep the source URL's ``/uploads/{guild_id}`` prefix — a duplicate
             # stays in the same guild — and swap only the filename segment.
-            return f"{normalized.rsplit('/', 1)[0]}/{destination.name}"
-        except OSError as exc:
-            logger.error(
-                "Failed to duplicate upload %s -> %s: %s", source_path, destination, exc
-            )
-            return normalized
+            return f"{normalized.rsplit('/', 1)[0]}/{new_name}"
+        logger.error("Failed to duplicate upload %s -> %s", source_name, new_name)
+        return normalized
     logger.error(
-        "Unable to allocate new filename for duplicated upload %s", source_path
+        "Unable to allocate new filename for duplicated upload %s", source_name
     )
     return normalized
 
@@ -424,14 +472,22 @@ def validate_document_file(
     return detected_mime, extension
 
 
-def save_document_file(content: bytes, extension: str, guild_id: int) -> str:
-    """Save document file content to the uploads directory.
+def save_document_file(
+    content: bytes,
+    extension: str,
+    guild_id: int,
+    content_type: str | None = None,
+) -> str:
+    """Save document file content to storage for ``guild_id``.
 
     Args:
         content: File content bytes
         extension: File extension (including dot)
         guild_id: Guild the file belongs to — encoded into the URL path so the
-            served media self-describes its guild (e.g. /uploads/7/abc123.pdf).
+            served media self-describes its guild (e.g. /uploads/7/abc123.pdf),
+            and used to route the write to the guild's storage namespace.
+        content_type: MIME type recorded on the object (so S3 GetObject can serve
+            it without re-sniffing); ignored by the local filesystem backend.
 
     Returns:
         URL path to the uploaded file (e.g., /uploads/7/abc123.pdf)
@@ -439,8 +495,127 @@ def save_document_file(content: bytes, extension: str, guild_id: int) -> str:
     safe_extension = extension if extension.startswith(".") else f".{extension}"
     filename = f"{uuid4().hex}{safe_extension}"
 
-    upload_dir = _uploads_dir()
-    destination = upload_dir / filename
-    destination.write_bytes(content)
+    get_guild_storage(guild_id).write(filename, content, content_type=content_type)
 
     return f"{UPLOADS_URL_PREFIX}{guild_id}/{filename}"
+
+
+async def get_guild_storage_usage(session) -> int:
+    """Total stored blob bytes for the active guild — ``SUM(uploads.size_bytes)``.
+
+    Runs under the guild-routed RLS session, so the sum is scoped to the active
+    guild's schema.
+    """
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+
+    return (
+        await session.exec(select(func.coalesce(func.sum(Upload.size_bytes), 0)))
+    ).one()
+
+
+async def get_upload_bytes_for_urls(session, urls: Iterable[str]) -> int:
+    """Total stored size of the uploads referenced by ``urls`` (matched by
+    filename) — ``SUM(uploads.size_bytes)`` over those rows.
+
+    Used to size a clone's incoming bytes before any blob is copied: a copy is the
+    same size as its source, so this is the storage a duplicate will add. Runs
+    under the guild-routed RLS session. Legacy blobs without an ``uploads`` row
+    contribute 0.
+    """
+    from sqlalchemy import func
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+
+    filenames = {
+        Path(normalized).name
+        for url in urls
+        if (normalized := normalize_upload_url(url))
+    }
+    if not filenames:
+        return 0
+    return (
+        await session.exec(
+            select(func.coalesce(func.sum(Upload.size_bytes), 0)).where(
+                Upload.filename.in_(filenames)
+            )
+        )
+    ).one()
+
+
+async def get_upload_metadata_for_urls(
+    session, urls: Iterable[str]
+) -> Dict[str, Tuple[str | None, str | None]]:
+    """Map ``{filename: (content_type, content_hash)}`` for the uploads referenced
+    by ``urls`` (matched by filename).
+
+    Used to carry metadata onto byte-identical copies (clones) without re-reading
+    the blobs — a copy shares its source's content type and hash. Runs under the
+    guild-routed RLS session.
+    """
+    from sqlmodel import select
+
+    from app.models.tenant.upload import Upload
+
+    filenames = {
+        Path(normalized).name
+        for url in urls
+        if (normalized := normalize_upload_url(url))
+    }
+    if not filenames:
+        return {}
+    rows = await session.exec(
+        select(Upload.filename, Upload.content_type, Upload.content_hash).where(
+            Upload.filename.in_(filenames)
+        )
+    )
+    return {fn: (ct, ch) for fn, ct, ch in rows.all()}
+
+
+# Advisory-lock namespace for per-guild storage-quota admission. A large fixed
+# tag (ASCII "STOR") so the two-int key (namespace, guild_id) can't collide with
+# the (user_id, guild_id) advisory locks used elsewhere (user ids are small).
+_QUOTA_LOCK_NAMESPACE = 0x53544F52  # 1397114706
+
+
+async def enforce_storage_quota(session, *, guild_id: int, incoming_bytes: int) -> None:
+    """Reject an upload that would exceed the guild's ``max_storage_bytes``.
+
+    NULL / absent limit means unlimited (the default), so this is a no-op until a
+    quota is set on the guild. The limit lives on the shared ``guilds`` row; the
+    usage (``SUM(uploads.size_bytes)``) is read from the active guild's schema, so
+    this must run under the guild-routed RLS session.
+
+    Must be called within the SAME transaction that then inserts the ``uploads``
+    row and commits. When a limit is set, it takes a transaction-scoped advisory
+    lock keyed on the guild before reading usage, so the check and the insert that
+    follows cannot interleave with a concurrent upload — without it, two uploads
+    to a near-full guild could each read the pre-upload usage and collectively
+    exceed the limit (a TOCTOU race). The lock releases on commit/rollback;
+    uploads to other guilds are unaffected.
+    """
+    from sqlalchemy import text
+    from sqlmodel import select
+
+    from app.models.platform.guild import Guild
+
+    limit = (
+        await session.exec(select(Guild.max_storage_bytes).where(Guild.id == guild_id))
+    ).one_or_none()
+    if limit is None:
+        return
+    # Serialize concurrent uploads for this guild for the remainder of the
+    # transaction so the usage check + the row insert that follows are atomic
+    # w.r.t. other uploads to the same guild.
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
+        params={"ns": _QUOTA_LOCK_NAMESPACE, "gid": int(guild_id)},
+    )
+    usage = await get_guild_storage_usage(session)
+    if usage + incoming_bytes > limit:
+        raise StorageQuotaExceededError(
+            limit=limit, usage=usage, incoming=incoming_bytes
+        )
