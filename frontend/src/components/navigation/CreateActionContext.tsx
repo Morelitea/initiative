@@ -16,6 +16,8 @@ import {
  */
 export type PrimaryCreateAction = {
   run: () => void;
+  /** Localized label of what gets created, e.g. "Add Task" — shown on wide screens. */
+  label: string;
 };
 
 type RegistryEntry = {
@@ -91,12 +93,13 @@ export function useRegisterPrimaryCreateAction(action: PrimaryCreateAction | nul
   const actionRef = useRef(action);
   actionRef.current = action;
   const available = action != null;
+  const label = action?.label ?? "";
 
   useEffect(() => {
     if (!api) return;
-    api.register(id, available ? { run: () => actionRef.current?.run() } : null);
+    api.register(id, available ? { run: () => actionRef.current?.run(), label } : null);
     return () => api.unregister(id);
-  }, [api, id, available]);
+  }, [api, id, available, label]);
 }
 
 /** Read the currently-registered create action (for the bottom-nav add button). */

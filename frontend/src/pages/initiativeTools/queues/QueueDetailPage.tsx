@@ -151,7 +151,9 @@ export function QueueDetailPage() {
   const canEdit = queue?.my_permission_level === "owner" || queue?.my_permission_level === "write";
 
   // Drive the app-wide bottom-nav add button for this route.
-  useRegisterPrimaryCreateAction(canEdit ? { run: () => setAddItemOpen(true) } : null);
+  useRegisterPrimaryCreateAction(
+    canEdit ? { run: () => setAddItemOpen(true), label: t("addItem") } : null
+  );
 
   // Sort items by position descending (highest initiative goes first)
   const sortedItems = useMemo(() => {

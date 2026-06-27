@@ -92,21 +92,23 @@ export function BottomNav() {
           (action ? (
             <Button
               size="icon"
-              className="pointer-events-auto h-12 w-12 rounded-full shadow-lg shadow-primary/40"
+              className="pointer-events-auto h-12 w-12 rounded-full shadow-lg shadow-primary/40 lg:w-auto lg:px-5"
               onClick={() => action.run()}
-              aria-label={t("bottomNav.add")}
+              aria-label={action.label || t("bottomNav.add")}
             >
               <Plus className="h-5 w-5" />
+              <span className="hidden lg:inline">{action.label}</span>
             </Button>
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   size="icon"
-                  className="pointer-events-auto h-12 w-12 rounded-full shadow-lg shadow-primary/40"
+                  className="pointer-events-auto h-12 w-12 rounded-full shadow-lg shadow-primary/40 lg:w-auto lg:px-5"
                   aria-label={t("bottomNav.add")}
                 >
                   <Plus className="h-5 w-5" />
+                  <span className="hidden lg:inline">{t("bottomNav.add")}</span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" side="top" className="mb-2">

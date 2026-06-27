@@ -128,7 +128,9 @@ export function CounterGroupDetailPage() {
   const canManage = group?.my_permission_level === "owner";
 
   // Drive the app-wide bottom-nav add button for this route.
-  useRegisterPrimaryCreateAction(canWrite ? { run: () => setAddOpen(true) } : null);
+  useRegisterPrimaryCreateAction(
+    canWrite ? { run: () => setAddOpen(true), label: t("addCounter") } : null
+  );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;

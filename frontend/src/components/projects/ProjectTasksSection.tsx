@@ -295,7 +295,7 @@ export const ProjectTasksSection = ({
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
-    canEditTaskDetails ? { run: () => setIsComposerOpen(true) } : null
+    canEditTaskDetails ? { run: () => setIsComposerOpen(true), label: t("tasks.addTask") } : null
   );
 
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);

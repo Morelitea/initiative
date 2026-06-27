@@ -320,6 +320,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
             setCreateDefaultDate(null);
             setCreateDialogOpen(true);
           },
+          label: t("createEvent"),
         }
       : null
   );

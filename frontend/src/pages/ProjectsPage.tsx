@@ -303,7 +303,9 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   }, [canCreate, filteredInitiativeId, filteredInitiativePermissions, isProjectManager]);
 
   // Drive the app-wide bottom-nav add button for this route.
-  useRegisterPrimaryCreateAction(canCreateProjects ? { run: () => setIsComposerOpen(true) } : null);
+  useRegisterPrimaryCreateAction(
+    canCreateProjects ? { run: () => setIsComposerOpen(true), label: t("addProject") } : null
+  );
 
   // Helper function for per-project DAC checks
   const hasProjectWritePermission = (project: ProjectRead): boolean => {

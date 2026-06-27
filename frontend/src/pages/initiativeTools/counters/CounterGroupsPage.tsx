@@ -107,7 +107,9 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const [search, setSearch] = useState("");
 
   // Drive the app-wide bottom-nav add button for this route.
-  useRegisterPrimaryCreateAction(canCreateGroups ? { run: () => setCreateOpen(true) } : null);
+  useRegisterPrimaryCreateAction(
+    canCreateGroups ? { run: () => setCreateOpen(true), label: t("createGroup") } : null
+  );
 
   // Open the create dialog whenever ?create=true is present — including when
   // the sidebar "+" navigates here while already on the page (the useState

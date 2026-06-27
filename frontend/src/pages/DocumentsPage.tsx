@@ -469,7 +469,9 @@ export const DocumentsView = ({
 
   // Drive the app-wide bottom-nav add button for this route.
   useRegisterPrimaryCreateAction(
-    canCreateDocuments ? { run: () => setCreateDialogOpen(true) } : null
+    canCreateDocuments
+      ? { run: () => setCreateDialogOpen(true), label: t("page.newDocument") }
+      : null
   );
 
   // Open create dialog when ?create=true is in URL

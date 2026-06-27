@@ -14,6 +14,7 @@ function Consumer() {
     <>
       <span data-testid="ctx">{String(isCreateContext)}</span>
       <span data-testid="action">{action ? "yes" : "no"}</span>
+      <span data-testid="label">{action?.label ?? ""}</span>
       <button type="button" data-testid="run" onClick={() => action?.run()}>
         run
       </button>
@@ -44,20 +45,22 @@ describe("CreateActionContext", () => {
 
   it("exposes a registered action and runs the latest handler (permitted route)", () => {
     const run = vi.fn();
-    const { rerender } = render(<Tree mounted={true} action={{ run }} />);
+    const { rerender } = render(<Tree mounted={true} action={{ run, label: "Add Task" }} />);
 
     expect(screen.getByTestId("ctx").textContent).toBe("true");
     expect(screen.getByTestId("action").textContent).toBe("yes");
+    expect(screen.getByTestId("label").textContent).toBe("Add Task");
 
     fireEvent.click(screen.getByTestId("run"));
     expect(run).toHaveBeenCalledTimes(1);
 
     // A re-render with a fresh handler should run the new one, not the stale one.
     const nextRun = vi.fn();
-    rerender(<Tree mounted={true} action={{ run: nextRun }} />);
+    rerender(<Tree mounted={true} action={{ run: nextRun, label: "Add Document" }} />);
     fireEvent.click(screen.getByTestId("run"));
     expect(nextRun).toHaveBeenCalledTimes(1);
     expect(run).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("label").textContent).toBe("Add Document");
   });
 
   it("marks a create context but exposes a null action when unpermitted (button hidden)", () => {
@@ -69,7 +72,9 @@ describe("CreateActionContext", () => {
   });
 
   it("clears the registration when the create-able page unmounts", () => {
-    const { rerender } = render(<Tree mounted={true} action={{ run: vi.fn() }} />);
+    const { rerender } = render(
+      <Tree mounted={true} action={{ run: vi.fn(), label: "Add Item" }} />
+    );
     expect(screen.getByTestId("ctx").textContent).toBe("true");
 
     rerender(<Tree mounted={false} action={null} />);

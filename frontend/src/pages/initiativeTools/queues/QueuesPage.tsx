@@ -172,7 +172,9 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
 
   // Drive the app-wide bottom-nav add button for this route.
-  useRegisterPrimaryCreateAction(canCreateQueues ? { run: () => setCreateDialogOpen(true) } : null);
+  useRegisterPrimaryCreateAction(
+    canCreateQueues ? { run: () => setCreateDialogOpen(true), label: t("createQueue") } : null
+  );
 
   // Open create dialog when ?create=true is in URL
   useEffect(() => {
