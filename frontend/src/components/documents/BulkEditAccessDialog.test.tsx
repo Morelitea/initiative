@@ -65,6 +65,22 @@ function allMembersDoc(extraGrants: ResourceGrantSchema[] = []): DocumentSummary
   });
 }
 
+/**
+ * A document that is NOT shared with all initiative members — only an owner and
+ * one individual grant. Removing all-members access on this doc is a no-op.
+ */
+function restrictedDoc(id: number): DocumentSummary {
+  return buildDocumentSummary({
+    id,
+    initiative_id: INITIATIVE_ID,
+    my_permission_level: "owner",
+    grants: [
+      { user_id: 999, level: "owner" },
+      { user_id: BOB_ID, level: "read" },
+    ],
+  });
+}
+
 /** Capture the PUT /grants payloads crossing the network boundary. */
 function captureGrantPuts() {
   const captured: ResourceGrantSchema[][] = [];
@@ -93,12 +109,12 @@ describe("BulkEditAccessDialog grant rebuild", () => {
 
     renderDialog([allMembersDoc()]);
 
-    await user.click(screen.getByRole("tab", { name: "Users" }));
+    // People is the default tab.
     // Open the picker via its placeholder text (its accessible *name* is the
-    // "Users" label, which collides with the tab — match the visible text).
-    await user.click(screen.getByText("Select users..."));
+    // "People" label, which collides with the tab — match the visible text).
+    await user.click(screen.getByText("Select people…"));
     await user.click(await screen.findByText("Bob Builder"));
-    await user.click(screen.getByRole("button", { name: /Grant 1 user/i }));
+    await user.click(screen.getByRole("button", { name: /Grant 1 person/i }));
 
     await waitFor(() => expect(captured).toHaveLength(1));
     const payload = captured[0];
@@ -117,8 +133,9 @@ describe("BulkEditAccessDialog grant rebuild", () => {
 
     renderDialog([allMembersDoc()]);
 
-    // Roles is the default tab. Open the picker via its placeholder text.
-    await user.click(screen.getByText("Select roles..."));
+    await user.click(screen.getByRole("tab", { name: "Roles" }));
+    // Open the picker via its placeholder text.
+    await user.click(screen.getByText("Select roles…"));
     await user.click(await screen.findByText("Editor"));
     await user.click(screen.getByRole("button", { name: /Grant 1 role/i }));
 
@@ -135,21 +152,64 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     // Doc shared with all members AND with Bob individually.
     renderDialog([allMembersDoc([{ user_id: BOB_ID, level: "read" }])]);
 
-    await user.click(screen.getByRole("tab", { name: "Users" }));
+    // People is the default tab.
     // Switch the action mode from Grant to Revoke (the mode select is labelled
     // "Action"; click the trigger, not the pointer-events:none value span).
     await user.click(screen.getByLabelText("Action"));
     await user.click(await screen.findByRole("option", { name: "Revoke access" }));
-    await user.click(screen.getByText("Select users to revoke..."));
+    await user.click(screen.getByText("Select people to revoke…"));
     // Bob has no resolvable name in revoke mode (doc.initiative is null), so the
     // picker falls back to "User <id>".
     await user.click(await screen.findByText(`User ${BOB_ID}`));
-    await user.click(screen.getByRole("button", { name: /Revoke 1 user/i }));
+    await user.click(screen.getByRole("button", { name: /Revoke 1 person/i }));
 
     await waitFor(() => expect(captured).toHaveLength(1));
     const payload = captured[0];
     // Revoking one grantee must NOT silently strip everyone's all-members share.
     expect(payload.some((g) => g.all_initiative_members)).toBe(true);
     expect(payload.some((g) => g.user_id === BOB_ID)).toBe(false);
+  });
+
+  it("all-members remove only writes docs that actually have an all-members grant", async () => {
+    const user = userEvent.setup();
+    const captured = captureGrantPuts();
+
+    // One doc shared with all members (id 10), one restricted-only (id 11).
+    renderDialog([allMembersDoc(), restrictedDoc(11)]);
+
+    await user.click(screen.getByRole("tab", { name: "All members" }));
+    await user.click(screen.getByLabelText("Action"));
+    await user.click(await screen.findByRole("option", { name: "Remove all-members access" }));
+    await user.click(screen.getByRole("button", { name: "Remove all-members access" }));
+
+    // Exactly one PUT: the restricted-only doc is skipped (no-op), not re-saved
+    // with an unchanged grant list.
+    await waitFor(() => expect(captured).toHaveLength(1));
+    expect(captured[0].some((g) => g.all_initiative_members)).toBe(false);
+  });
+
+  it("all-members remove makes no request when nothing is shared with all members", async () => {
+    const user = userEvent.setup();
+    const captured = captureGrantPuts();
+    const onSuccess = vi.fn();
+
+    renderWithProviders(
+      <BulkEditAccessDialog
+        open
+        onOpenChange={vi.fn()}
+        onSuccess={onSuccess}
+        documents={[restrictedDoc(11)]}
+      />,
+      { auth: { user: buildUser({ id: 1 }) } }
+    );
+
+    await user.click(screen.getByRole("tab", { name: "All members" }));
+    await user.click(screen.getByLabelText("Action"));
+    await user.click(await screen.findByRole("option", { name: "Remove all-members access" }));
+    await user.click(screen.getByRole("button", { name: "Remove all-members access" }));
+
+    // The handler still settles (dialog closes) but issues zero writes.
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(captured).toHaveLength(0);
   });
 });
