@@ -95,11 +95,19 @@ export function useRegisterPrimaryCreateAction(action: PrimaryCreateAction | nul
   const available = action != null;
   const label = action?.label ?? "";
 
+  // Upsert on every change. `register` replaces the entry in a single state
+  // update, so flipping `available`/`label` (e.g. a locale switch) never empties
+  // the registry — `isCreateContext` stays stable and the nav can't flash the
+  // wrong add button. Unregistering happens only on unmount (separate effect).
   useEffect(() => {
     if (!api) return;
     api.register(id, available ? { run: () => actionRef.current?.run(), label } : null);
-    return () => api.unregister(id);
   }, [api, id, available, label]);
+
+  useEffect(() => {
+    if (!api) return;
+    return () => api.unregister(id);
+  }, [api, id]);
 }
 
 /** Read the currently-registered create action (for the bottom-nav add button). */

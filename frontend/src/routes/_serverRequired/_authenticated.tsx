@@ -7,7 +7,7 @@ import {
   useLocation,
   useSearch,
 } from "@tanstack/react-router";
-import { Loader2, LogOut, Menu, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
+import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,7 +24,7 @@ import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionDialog } from "@/components/VersionDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -224,10 +224,8 @@ function AppLayout() {
                 style={{ paddingTop: "var(--safe-area-inset-top)" }}
               >
                 <div className="hidden h-12 lg:flex">
-                  <SidebarTrigger
-                    icon={<Menu />}
-                    className="h-12 w-12 shrink-0 rounded-none border-r lg:hidden"
-                  />
+                  {/* Mobile hamburger now lives in BottomNav; this desktop-only
+                      row keeps search + recents. */}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
