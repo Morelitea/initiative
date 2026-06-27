@@ -93,12 +93,12 @@ describe("BulkEditAccessDialog grant rebuild", () => {
 
     renderDialog([allMembersDoc()]);
 
-    await user.click(screen.getByRole("tab", { name: "Users" }));
+    // People is the default tab.
     // Open the picker via its placeholder text (its accessible *name* is the
-    // "Users" label, which collides with the tab — match the visible text).
-    await user.click(screen.getByText("Select users..."));
+    // "People" label, which collides with the tab — match the visible text).
+    await user.click(screen.getByText("Select people…"));
     await user.click(await screen.findByText("Bob Builder"));
-    await user.click(screen.getByRole("button", { name: /Grant 1 user/i }));
+    await user.click(screen.getByRole("button", { name: /Grant 1 person/i }));
 
     await waitFor(() => expect(captured).toHaveLength(1));
     const payload = captured[0];
@@ -117,8 +117,9 @@ describe("BulkEditAccessDialog grant rebuild", () => {
 
     renderDialog([allMembersDoc()]);
 
-    // Roles is the default tab. Open the picker via its placeholder text.
-    await user.click(screen.getByText("Select roles..."));
+    await user.click(screen.getByRole("tab", { name: "Roles" }));
+    // Open the picker via its placeholder text.
+    await user.click(screen.getByText("Select roles…"));
     await user.click(await screen.findByText("Editor"));
     await user.click(screen.getByRole("button", { name: /Grant 1 role/i }));
 
@@ -135,16 +136,16 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     // Doc shared with all members AND with Bob individually.
     renderDialog([allMembersDoc([{ user_id: BOB_ID, level: "read" }])]);
 
-    await user.click(screen.getByRole("tab", { name: "Users" }));
+    // People is the default tab.
     // Switch the action mode from Grant to Revoke (the mode select is labelled
     // "Action"; click the trigger, not the pointer-events:none value span).
     await user.click(screen.getByLabelText("Action"));
     await user.click(await screen.findByRole("option", { name: "Revoke access" }));
-    await user.click(screen.getByText("Select users to revoke..."));
+    await user.click(screen.getByText("Select people to revoke…"));
     // Bob has no resolvable name in revoke mode (doc.initiative is null), so the
     // picker falls back to "User <id>".
     await user.click(await screen.findByText(`User ${BOB_ID}`));
-    await user.click(screen.getByRole("button", { name: /Revoke 1 user/i }));
+    await user.click(screen.getByRole("button", { name: /Revoke 1 person/i }));
 
     await waitFor(() => expect(captured).toHaveLength(1));
     const payload = captured[0];

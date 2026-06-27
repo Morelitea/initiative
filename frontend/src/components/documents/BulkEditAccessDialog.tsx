@@ -71,13 +71,13 @@ export function BulkEditAccessDialog({
   documents,
   onSuccess,
 }: BulkEditAccessDialogProps) {
-  const { t } = useTranslation(["documents", "common"]);
+  const { t } = useTranslation(["documents", "common", "access"]);
   const guildId = useActiveGuildId();
   const { user: currentUser } = useAuth();
-  const [tab, setTab] = useState<"roles" | "users">("roles");
+  const [tab, setTab] = useState<"people" | "roles" | "all">("people");
   const [isPending, setIsPending] = useState(false);
 
-  // Individual user state
+  // Individual people state
   const [userMode, setUserMode] = useState<"grant" | "revoke">("grant");
   const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
   const [level, setLevel] = useState<"read" | "write">("read");
@@ -90,6 +90,10 @@ export function BulkEditAccessDialog({
   const [roleLevel, setRoleLevel] = useState<"read" | "write">("read");
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const [roleSearch, setRoleSearch] = useState("");
+
+  // All-initiative-members state (the "all members" share mode, applied in bulk)
+  const [allMode, setAllMode] = useState<"share" | "remove">("share");
+  const [allLevel, setAllLevel] = useState<"read" | "write">("read");
 
   // Gather unique initiative IDs from selected documents
   const initiativeIds = useMemo(() => {
@@ -178,7 +182,7 @@ export function BulkEditAccessDialog({
     );
   }, [displayRoles, roleSearch]);
 
-  // Build list of users from initiatives the selected documents belong to
+  // Build list of people from initiatives the selected documents belong to
   const availableUsers = useMemo(() => {
     const userMap = new Map<number, SelectableUser>();
     const relevantInitiatives = initiatives.filter((i) => initiativeIds.includes(i.id));
@@ -196,7 +200,7 @@ export function BulkEditAccessDialog({
     return Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [initiatives, initiativeIds, currentUser]);
 
-  // Users who have non-owner access on at least one selected document (for revoke)
+  // People who have non-owner access on at least one selected document (for revoke)
   const revocableUsers = useMemo(() => {
     const userMap = new Map<number, SelectableUser>();
     for (const doc of documents) {
@@ -257,7 +261,7 @@ export function BulkEditAccessDialog({
   }, []);
 
   const resetState = useCallback(() => {
-    setTab("roles");
+    setTab("people");
     setUserMode("grant");
     setSelectedUserIds(new Set());
     setLevel("read");
@@ -268,6 +272,8 @@ export function BulkEditAccessDialog({
     setRoleLevel("read");
     setRoleSearch("");
     setRolePickerOpen(false);
+    setAllMode("share");
+    setAllLevel("read");
   }, []);
 
   const handleOpenChange = useCallback(
@@ -294,11 +300,11 @@ export function BulkEditAccessDialog({
           const existing = (doc.grants ?? []).filter((g) => g.level !== "owner");
           let next: ResourceGrantSchema[];
           if (userMode === "grant") {
-            // Granting specific users switches the doc to "restricted" mode, so
+            // Granting specific people switches the doc to "restricted" mode, so
             // drop any "all initiative members" grant — ShareControl can't
             // represent a mixed all-members + per-grantee list and would
             // silently discard it on the next save. Also drop any existing
-            // per-user grant for the targeted users, then add them back at the
+            // per-user grant for the targeted people, then add them back at the
             // chosen level.
             next = existing.filter(
               (g) => !g.all_initiative_members && (g.user_id == null || !userIds.has(g.user_id))
@@ -419,23 +425,67 @@ export function BulkEditAccessDialog({
     guildId,
   ]);
 
+  const handleApplyAllMembers = useCallback(async () => {
+    setIsPending(true);
+    try {
+      await Promise.all(
+        documents.map((doc) => {
+          let next: ResourceGrantSchema[];
+          if (allMode === "share") {
+            // Switch every selected doc to "all members" mode: a single
+            // all-members grant. Per-person and per-role grants are dropped so
+            // the doc has one coherent share mode (ShareControl can't render a
+            // mixed all-members + restricted list). The owner is preserved
+            // server-side, so we don't send it.
+            next = [{ all_initiative_members: true, level: allLevel }];
+          } else {
+            // Remove all-members access only; keep existing restricted grants.
+            next = (doc.grants ?? []).filter(
+              (g) => g.level !== "owner" && !g.all_initiative_members
+            );
+          }
+          return setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, next);
+        })
+      );
+
+      toast.success(
+        allMode === "share"
+          ? t("bulkAccess.allMembersShared", { count: documents.length })
+          : t("bulkAccess.allMembersRemoved", { count: documents.length })
+      );
+
+      void invalidateAllDocuments();
+      resetState();
+      onOpenChange(false);
+      onSuccess();
+    } catch (error) {
+      toast.error(getErrorMessage(error, "documents:bulkAccess.updateError"));
+    } finally {
+      setIsPending(false);
+    }
+  }, [allMode, allLevel, documents, resetState, onOpenChange, onSuccess, t, guildId]);
+
   const selectedUserCount = selectedUserIds.size;
   const selectedRoleCount = selectedRoleIds.size;
   const canApplyUsers = selectedUserCount > 0;
   const canApplyRoles = selectedRoleCount > 0;
 
-  const activeMode = tab === "roles" ? roleMode : userMode;
   const docCount = documents.length;
   const dialogDescription = useMemo(() => {
     if (tab === "roles") {
-      return activeMode === "grant"
+      return roleMode === "grant"
         ? t("bulkAccess.descriptionGrant", { count: docCount })
         : t("bulkAccess.descriptionRevoke", { count: docCount });
     }
-    return activeMode === "grant"
-      ? t("bulkAccess.descriptionGrantUser", { count: docCount })
-      : t("bulkAccess.descriptionRevokeUser", { count: docCount });
-  }, [tab, activeMode, docCount, t]);
+    if (tab === "people") {
+      return userMode === "grant"
+        ? t("bulkAccess.descriptionGrantUser", { count: docCount })
+        : t("bulkAccess.descriptionRevokeUser", { count: docCount });
+    }
+    return allMode === "share"
+      ? t("bulkAccess.descriptionAllShare", { count: docCount })
+      : t("bulkAccess.descriptionAllRemove", { count: docCount });
+  }, [tab, roleMode, userMode, allMode, docCount, t]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -448,7 +498,7 @@ export function BulkEditAccessDialog({
         <Tabs
           value={tab}
           onValueChange={(v) => {
-            setTab(v as "roles" | "users");
+            setTab(v as "people" | "roles" | "all");
             setSelectedUserIds(new Set());
             setUserSearch("");
             setUserPickerOpen(false);
@@ -458,13 +508,87 @@ export function BulkEditAccessDialog({
           }}
         >
           <TabsList className="w-full">
-            <TabsTrigger value="roles" className="flex-1">
-              {t("bulkAccess.tabRoles")}
+            <TabsTrigger value="people" className="flex-1">
+              {t("access:share.people")}
             </TabsTrigger>
-            <TabsTrigger value="users" className="flex-1">
-              {t("bulkAccess.tabUsers")}
+            <TabsTrigger value="roles" className="flex-1">
+              {t("access:share.roles")}
+            </TabsTrigger>
+            <TabsTrigger value="all" className="flex-1">
+              {t("bulkAccess.tabAllMembers")}
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="people" className="mt-4 space-y-3">
+            <div className="space-y-2">
+              <label htmlFor="userMode" className="font-medium text-sm">
+                {t("bulkAccess.actionLabel")}
+              </label>
+              <Select
+                value={userMode}
+                onValueChange={(v) => {
+                  setUserMode(v as "grant" | "revoke");
+                  setSelectedUserIds(new Set());
+                  setUserSearch("");
+                  setUserPickerOpen(false);
+                }}
+              >
+                <SelectTrigger id="userMode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="grant">{t("bulkAccess.grantAccess")}</SelectItem>
+                  <SelectItem value="revoke">{t("bulkAccess.revokeAccess")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {userMode === "revoke" && revocableUsers.length === 0 ? (
+              <p className="text-muted-foreground text-sm">{t("bulkAccess.noUserAccess")}</p>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="userPicker" className="font-medium text-sm">
+                    {t("access:share.people")}
+                  </label>
+                  <UserMultiPicker
+                    id="userPicker"
+                    users={filteredUsers}
+                    selectedIds={selectedUserIds}
+                    onToggle={toggleUser}
+                    open={userPickerOpen}
+                    onOpenChange={setUserPickerOpen}
+                    search={userSearch}
+                    onSearchChange={setUserSearch}
+                    placeholder={
+                      userMode === "grant"
+                        ? t("bulkAccess.selectPeople")
+                        : t("bulkAccess.selectPeopleToRevoke")
+                    }
+                    emptyMessage={t("access:share.noPeople")}
+                    selectedMessage={(count) => t("bulkAccess.peopleSelected", { count })}
+                    searchPlaceholder={t("access:share.searchPeople")}
+                  />
+                </div>
+                {userMode === "grant" && (
+                  <div className="space-y-2">
+                    <label htmlFor="userLevel" className="font-medium text-sm">
+                      {t("bulkAccess.permissionLevel")}
+                    </label>
+                    <Select value={level} onValueChange={(v) => setLevel(v as "read" | "write")}>
+                      <SelectTrigger id="userLevel">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="read">{t("access:share.viewer")}</SelectItem>
+                        <SelectItem value="write">{t("access:share.editor")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </>
+            )}
+          </TabsContent>
 
           <TabsContent value="roles" className="mt-4 space-y-3">
             <div className="space-y-2">
@@ -496,7 +620,7 @@ export function BulkEditAccessDialog({
               <>
                 <div className="space-y-2">
                   <label htmlFor="rolePicker" className="font-medium text-sm">
-                    {t("bulkAccess.rolesLabel")}
+                    {t("access:share.roles")}
                   </label>
                   <ItemMultiPicker
                     id="rolePicker"
@@ -516,9 +640,9 @@ export function BulkEditAccessDialog({
                         ? t("bulkAccess.selectRoles")
                         : t("bulkAccess.selectRolesToRevoke")
                     }
-                    emptyMessage={t("bulkAccess.noRolesFound")}
+                    emptyMessage={t("access:share.noRoles")}
                     selectedMessage={(count) => t("bulkAccess.rolesSelected", { count })}
-                    searchPlaceholder={t("bulkAccess.searchUsers")}
+                    searchPlaceholder={t("access:share.searchRoles")}
                   />
                 </div>
                 {roleMode === "grant" && (
@@ -534,8 +658,8 @@ export function BulkEditAccessDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="read">{t("bulkAccess.canView")}</SelectItem>
-                        <SelectItem value="write">{t("bulkAccess.canEdit")}</SelectItem>
+                        <SelectItem value="read">{t("access:share.viewer")}</SelectItem>
+                        <SelectItem value="write">{t("access:share.editor")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -544,75 +668,44 @@ export function BulkEditAccessDialog({
             )}
           </TabsContent>
 
-          <TabsContent value="users" className="mt-4 space-y-3">
+          <TabsContent value="all" className="mt-4 space-y-3">
             <div className="space-y-2">
-              <label htmlFor="userMode" className="font-medium text-sm">
+              <label htmlFor="allMode" className="font-medium text-sm">
                 {t("bulkAccess.actionLabel")}
               </label>
-              <Select
-                value={userMode}
-                onValueChange={(v) => {
-                  setUserMode(v as "grant" | "revoke");
-                  setSelectedUserIds(new Set());
-                  setUserSearch("");
-                  setUserPickerOpen(false);
-                }}
-              >
-                <SelectTrigger id="userMode">
+              <Select value={allMode} onValueChange={(v) => setAllMode(v as "share" | "remove")}>
+                <SelectTrigger id="allMode">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="grant">{t("bulkAccess.grantAccess")}</SelectItem>
-                  <SelectItem value="revoke">{t("bulkAccess.revokeAccess")}</SelectItem>
+                  <SelectItem value="share">{t("bulkAccess.shareAllMembers")}</SelectItem>
+                  <SelectItem value="remove">{t("bulkAccess.removeAllMembersAccess")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {userMode === "revoke" && revocableUsers.length === 0 ? (
-              <p className="text-muted-foreground text-sm">{t("bulkAccess.noUserAccess")}</p>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <label htmlFor="userPicker" className="font-medium text-sm">
-                    {t("bulkAccess.usersLabel")}
-                  </label>
-                  <UserMultiPicker
-                    id="userPicker"
-                    users={filteredUsers}
-                    selectedIds={selectedUserIds}
-                    onToggle={toggleUser}
-                    open={userPickerOpen}
-                    onOpenChange={setUserPickerOpen}
-                    search={userSearch}
-                    onSearchChange={setUserSearch}
-                    placeholder={
-                      userMode === "grant"
-                        ? t("bulkAccess.selectUsers")
-                        : t("bulkAccess.selectUsersToRevoke")
-                    }
-                    emptyMessage={t("bulkAccess.noUsersFound")}
-                    selectedMessage={(count) => t("bulkAccess.usersSelected", { count })}
-                    searchPlaceholder={t("bulkAccess.searchUsers")}
-                  />
-                </div>
-                {userMode === "grant" && (
-                  <div className="space-y-2">
-                    <label htmlFor="userLevel" className="font-medium text-sm">
-                      {t("bulkAccess.permissionLevel")}
-                    </label>
-                    <Select value={level} onValueChange={(v) => setLevel(v as "read" | "write")}>
-                      <SelectTrigger id="userLevel">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="read">{t("bulkAccess.canView")}</SelectItem>
-                        <SelectItem value="write">{t("bulkAccess.canEdit")}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-              </>
+            {allMode === "share" && (
+              <div className="space-y-2">
+                <label htmlFor="allLevel" className="font-medium text-sm">
+                  {t("bulkAccess.permissionLevel")}
+                </label>
+                <Select value={allLevel} onValueChange={(v) => setAllLevel(v as "read" | "write")}>
+                  <SelectTrigger id="allLevel">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="read">{t("access:share.viewer")}</SelectItem>
+                    <SelectItem value="write">{t("access:share.editor")}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             )}
+
+            <p className="text-muted-foreground text-xs">
+              {allMode === "share"
+                ? t("bulkAccess.shareAllMembersHint")
+                : t("bulkAccess.removeAllMembersHint")}
+            </p>
           </TabsContent>
         </Tabs>
 
@@ -637,7 +730,7 @@ export function BulkEditAccessDialog({
                 t("bulkAccess.revokeRoles", { count: selectedRoleCount })
               )}
             </Button>
-          ) : (
+          ) : tab === "people" ? (
             <Button
               onClick={() => void handleApply()}
               disabled={isPending || !canApplyUsers}
@@ -649,9 +742,26 @@ export function BulkEditAccessDialog({
                   {t("bulkAccess.applying")}
                 </>
               ) : userMode === "grant" ? (
-                t("bulkAccess.grantUsers", { count: selectedUserCount })
+                t("bulkAccess.grantPeople", { count: selectedUserCount })
               ) : (
-                t("bulkAccess.revokeUsers", { count: selectedUserCount })
+                t("bulkAccess.revokePeople", { count: selectedUserCount })
+              )}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => void handleApplyAllMembers()}
+              disabled={isPending}
+              variant={allMode === "remove" ? "destructive" : "default"}
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {t("bulkAccess.applying")}
+                </>
+              ) : allMode === "share" ? (
+                t("bulkAccess.shareAllMembers")
+              ) : (
+                t("bulkAccess.removeAllMembersAccess")
               )}
             </Button>
           )}
