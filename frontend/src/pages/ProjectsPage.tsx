@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllProjects } from "@/api/query-keys";
 import { Markdown } from "@/components/Markdown";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
 import { ProjectImportDialog } from "@/components/projects/ProjectImportDialog";
@@ -300,6 +301,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     // Fall back to legacy check (user is PM in any initiative)
     return isProjectManager;
   }, [canCreate, filteredInitiativeId, filteredInitiativePermissions, isProjectManager]);
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canCreateProjects ? { run: () => setIsComposerOpen(true), label: t("addProject") } : null
+  );
 
   // Helper function for per-project DAC checks
   const hasProjectWritePermission = (project: ProjectRead): boolean => {
@@ -838,16 +844,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             )}
           </TabsContent>
         </Tabs>
-
-        {canCreateProjects && (
-          <Button
-            className="fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
-            onClick={() => setIsComposerOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            {t("addProject")}
-          </Button>
-        )}
 
         {canCreateProjects && (
           <CreateProjectDialog

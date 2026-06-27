@@ -11,6 +11,7 @@ import { QueueControls } from "@/components/initiativeTools/queues/QueueControls
 import { QueueItemRow } from "@/components/initiativeTools/queues/QueueItemRow";
 import { QueueTimeline } from "@/components/initiativeTools/queues/QueueTimeline";
 import { QueueViewToggle } from "@/components/initiativeTools/queues/QueueViewToggle";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -148,6 +149,11 @@ export function QueueDetailPage() {
   const [editingItem, setEditingItem] = useState<QueueItemRead | null>(null);
 
   const canEdit = queue?.my_permission_level === "owner" || queue?.my_permission_level === "write";
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canEdit ? { run: () => setAddItemOpen(true), label: t("addItem") } : null
+  );
 
   // Sort items by position descending (highest initiative goes first)
   const sortedItems = useMemo(() => {

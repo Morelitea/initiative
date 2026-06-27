@@ -51,6 +51,15 @@
   "events": "Calendrier",
   "allEvents": "Tous les événements",
   "createEvent": "Nouvel événement",
+  "bottomNav": {
+    "label": "Navigation rapide",
+    "menu": "Ouvrir le menu",
+    "search": "Rechercher",
+    "home": "Accueil",
+    "add": "Créer",
+    "addTask": "Ajouter une tâche",
+    "addDocument": "Ajouter un document"
+  },
   "navigate": {
     "signInRequired": "Veuillez vous reconnecter pour suivre ce lien.",
     "missingDestination": "Ce lien manque de détails de destination.",

@@ -54,6 +54,15 @@
   "events": "Kalender",
   "allEvents": "Alle Termine",
   "createEvent": "Neuer Termin",
+  "bottomNav": {
+    "label": "Schnellnavigation",
+    "menu": "Menü öffnen",
+    "search": "Suchen",
+    "home": "Startseite",
+    "add": "Erstellen",
+    "addTask": "Aufgabe hinzufügen",
+    "addDocument": "Dokument hinzufügen"
+  },
   "navigate": {
     "signInRequired": "Bitte melde dich erneut an, um diesem Link zu folgen.",
     "missingDestination": "Diesem Link fehlen Zielangaben.",

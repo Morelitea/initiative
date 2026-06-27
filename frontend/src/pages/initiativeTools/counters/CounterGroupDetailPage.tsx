@@ -29,6 +29,7 @@ import { useTranslation } from "react-i18next";
 import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { type CounterLayout, CounterRow } from "@/components/initiativeTools/counters/CounterRow";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -125,6 +126,11 @@ export function CounterGroupDetailPage() {
 
   const canWrite = group?.my_permission_level === "owner" || group?.my_permission_level === "write";
   const canManage = group?.my_permission_level === "owner";
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canWrite ? { run: () => setAddOpen(true), label: t("addCounter") } : null
+  );
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;

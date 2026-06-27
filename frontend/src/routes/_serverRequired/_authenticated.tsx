@@ -7,7 +7,7 @@ import {
   useLocation,
   useSearch,
 } from "@tanstack/react-router";
-import { Loader2, LogOut, Menu, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
+import { Loader2, LogOut, Plus, Search, Settings, Ticket, UserCog } from "lucide-react";
 import { Suspense, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,13 +16,15 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { CommandCenter, getOpenCommandCenter } from "@/components/CommandCenter";
 import { CreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { GuildAccessBanner } from "@/components/guilds/GuildAccessBanner";
+import { BottomNav } from "@/components/navigation/BottomNav";
+import { CreateActionProvider } from "@/components/navigation/CreateActionContext";
 import { PushPermissionPrompt } from "@/components/notifications/PushPermissionPrompt";
 import { ProjectActivitySidebar } from "@/components/projects/ProjectActivitySidebar";
 import { RecentTabsBar } from "@/components/recents/RecentTabsBar";
 import { CreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { VersionDialog } from "@/components/VersionDialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -199,7 +201,7 @@ function AppLayout() {
   // const isDark = document.documentElement.classList.contains("dark");
 
   return (
-    <>
+    <CreateActionProvider>
       <CommandCenter />
       <CreateTaskWizard />
       <CreateDocumentWizard />
@@ -218,14 +220,12 @@ function AppLayout() {
             <AppSidebar />
             <div className="min-w-0 flex-1 bg-muted/50 md:pl-0">
               <div
-                className="sticky top-0 z-50 flex flex-col border-b bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60"
+                className="sticky top-0 z-50 flex flex-col bg-card/70 backdrop-blur supports-backdrop-filter:bg-card/60 lg:border-b"
                 style={{ paddingTop: "var(--safe-area-inset-top)" }}
               >
-                <div className="flex h-12">
-                  <SidebarTrigger
-                    icon={<Menu />}
-                    className="h-12 w-12 shrink-0 rounded-none border-r lg:hidden"
-                  />
+                <div className="hidden h-12 lg:flex">
+                  {/* Mobile hamburger now lives in BottomNav; this desktop-only
+                      row keeps search + recents. */}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -263,7 +263,7 @@ function AppLayout() {
                     backgroundSize: "37px 64px",
                   }}
                 />*/}
-                <main className="container mx-auto min-w-0 p-4 pb-20 md:p-8 md:pb-20">
+                <main className="container mx-auto min-w-0 p-4 pb-24 md:p-8 md:pb-24">
                   <Suspense fallback={<PageLoader />}>
                     <Outlet />
                   </Suspense>
@@ -271,6 +271,7 @@ function AppLayout() {
               </div>
             </div>
             <ProjectActivitySidebar projectId={activeProjectId} />
+            <BottomNav />
           </SidebarProvider>
         </div>
         <VersionDialog
@@ -281,7 +282,7 @@ function AppLayout() {
           onClose={closeDialog}
         />
       </div>
-    </>
+    </CreateActionProvider>
   );
 }
 
