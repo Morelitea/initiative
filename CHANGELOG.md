@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Bulk-share documents with all initiative members.** The documents' bulk **Edit access** dialog has a new **All members** tab that shares — or removes sharing for — every selected document with everyone in its initiative in one step, at Viewer or Editor.
 
+## [0.53.2] - 2026-06-27
+
 ### Added
 
 - **Manage all of a guild's initiatives from one place.** Guild settings has a new **Initiatives** tab (admin only) listing every initiative with its member count, where you can archive, delete, or grant the Project Manager **Full access** for each one without opening each initiative individually.
