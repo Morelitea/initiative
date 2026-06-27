@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { CountersFilterBar } from "@/components/initiativeTools/counters/CountersFilterBar";
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCounterGroupsList } from "@/hooks/useCounters";
@@ -104,6 +105,11 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const [createOpen, setCreateOpen] = useState(searchParams.create === "true");
   const isClosingCreateDialog = useRef(false);
   const [search, setSearch] = useState("");
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canCreateGroups ? { run: () => setCreateOpen(true), label: t("createGroup") } : null
+  );
 
   // Open the create dialog whenever ?create=true is present — including when
   // the sidebar "+" navigates here while already on the page (the useState

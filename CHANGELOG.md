@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Floating pill bottom navigation.** On phones the top toolbar (menu, search, recents) is replaced by a floating pill at the bottom of the screen with menu (showing your unread-notification count), search, and home buttons. A separate **add** button — shown on every screen size — opens the right "create" dialog for wherever you are (new task in a project, new project in the project list, new document, queue, queue item, counter, counter group, or calendar event), and expands to Add Task / Add Document everywhere else. It hides automatically when you can't create anything in the current view, and replaces the old bottom-right add buttons.
+
 ## [0.53.3] - 2026-06-27
 
 ### Added
