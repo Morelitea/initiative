@@ -357,6 +357,12 @@ async def _create_guild(
     creator: User,
 ) -> Guild:
     """Create a guild and admin membership for the creator."""
+    # Creating a public.guilds row is a bootstrap write: there is no guild to be
+    # admin of yet, so no guild-admin RLS leg can authorize it — it must run on the
+    # BYPASSRLS login role (app_admin). After seeding a previous guild's content the
+    # session is still SET ROLE'd into that guild_<id> (and the is_superadmin
+    # dual-path bypass is retired), so reset to the bare login-role baseline first.
+    await set_rls_context(session)
     guild = Guild(
         name=name,
         description=description,
