@@ -7,7 +7,7 @@ Server defaults mirror the env defaults so existing installs keep behaving as
 "local" until an owner configures S3.
 
 Revision ID: 20260625_0125
-Revises: 20260624_0124
+Revises: 20260626_0125
 Create Date: 2026-06-25
 """
 
@@ -15,7 +15,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "20260625_0125"
-down_revision = "20260624_0124"
+down_revision = "20260626_0125"
 branch_labels = None
 depends_on = None
 
