@@ -745,7 +745,8 @@
       "auth": "Autenticación",
       "branding": "Personalización",
       "email": "Email",
-      "ai": "IA"
+      "ai": "IA",
+      "storage": "Almacenamiento"
     }
   },
   "adminDashboard": {
@@ -774,6 +775,57 @@
       "guild": "Gremio",
       "members": "Miembros",
       "storageLimit": "Límite de almacenamiento"
+    }
+  },
+  "storage": {
+    "adminOnly": "Solo los propietarios de la plataforma pueden configurar el almacenamiento.",
+    "loading": "Cargando la configuración de almacenamiento…",
+    "loadError": "No se pudo cargar la configuración de almacenamiento.",
+    "title": "Almacenamiento de objetos",
+    "description": "Elige dónde se guardan los archivos subidos (documentos, adjuntos). De forma predeterminada usa el sistema de archivos local; cambia a un almacén compatible con S3 para despliegues escalables o compartidos.",
+    "backendLabel": "Backend de almacenamiento",
+    "backendLocal": "Sistema de archivos local",
+    "backendS3": "Compatible con S3",
+    "backendHelp": "Local guarda los archivos en el disco del servidor. S3 funciona con AWS S3, una instancia autoalojada de Garage/MinIO, Cloudflare R2 y similares.",
+    "cutoverTitle": "Cambiar a S3 no mueve los archivos existentes",
+    "cutoverHelp": "Guarda esta configuración, ejecuta Probar conexión y luego usa Migración a continuación para copiar los archivos locales existentes al bucket. Cambia el backend a S3 solo cuando termine la migración; opcionalmente deja activado «Servir objetos faltantes desde local» durante un periodo de verificación.",
+    "bucketLabel": "Bucket",
+    "bucketPlaceholder": "my-initiative-uploads",
+    "regionLabel": "Región",
+    "endpointLabel": "URL del endpoint",
+    "endpointPlaceholder": "https://s3.example.com",
+    "endpointHelp": "Déjalo en blanco para AWS S3. Configúralo para Garage, MinIO, R2 o cualquier almacén que no sea de AWS.",
+    "accessKeyLabel": "ID de clave de acceso",
+    "accessKeyPlaceholder": "Déjalo en blanco para usar la cadena de credenciales del entorno",
+    "secretKeyLabel": "Clave de acceso secreta",
+    "secretKeySet": "•••••••• (sin cambios)",
+    "secretKeyHelp": "Déjalo en blanco para conservar la clave guardada. Se guarda cifrada; nunca se muestra.",
+    "kmsLabel": "ID de clave KMS (opcional)",
+    "kmsPlaceholder": "Para cifrado del lado del servidor SSE-KMS",
+    "pathStyleLabel": "Direccionamiento de tipo ruta",
+    "pathStyleHelp": "Requerido para Garage y la mayoría de almacenes que no son de AWS.",
+    "localFallbackLabel": "Servir objetos faltantes desde local",
+    "localFallbackHelp": "Durante la migración, lee desde el disco local los blobs aún no copiados a S3.",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saveSuccess": "Configuración de almacenamiento guardada.",
+    "saveError": "No se pudo guardar la configuración de almacenamiento.",
+    "testConnection": "Probar conexión",
+    "testing": "Probando…",
+    "testSuccess": "Conexión correcta.",
+    "testError": "La conexión falló.",
+    "backfillTitle": "Migrar archivos locales a S3",
+    "backfillHelp": "Copia cada archivo local existente al bucket configurado. Idempotente y seguro de volver a ejecutar; hazlo antes de cambiar el backend a S3.",
+    "startBackfill": "Iniciar migración",
+    "backfillRunning": "Migración en curso…",
+    "backfillStarted": "Migración iniciada.",
+    "backfillError": "No se pudo iniciar la migración.",
+    "backfillCounts": "Copiados {{copied}} · Omitidos {{skipped}} · Fallidos {{failed}}",
+    "backfillStatus": {
+      "idle": "Inactivo",
+      "running": "En curso…",
+      "complete": "Completado",
+      "failed": "Fallido"
     }
   }
 }

@@ -1,6 +1,7 @@
 """Import all models for Alembic or metadata creation."""
 
 from app.models.platform.app_setting import AppSetting
+from app.models.platform.storage_backfill_state import StorageBackfillState
 from app.models.platform.guild import Guild, GuildMembership, GuildInvite
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.tenant.project import Project
@@ -63,6 +64,7 @@ __all__ = [
     "TaskStatus",
     "Subtask",
     "AppSetting",
+    "StorageBackfillState",
     "Guild",
     "GuildMembership",
     "GuildInvite",

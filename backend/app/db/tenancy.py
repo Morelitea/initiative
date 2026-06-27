@@ -69,6 +69,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "oidc_claim_mappings",  # SSO auto-join rules, read across all guilds at login
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
+        "storage_backfill_state",  # cluster-wide local->S3 backfill status (admin-only)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)
     }

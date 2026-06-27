@@ -158,6 +158,40 @@ async def _run_alembic_async(action: str, revision: str) -> None:
         await lock_conn.close()  # closing the connection releases the advisory lock
 
 
+async def _run_upgrade_chain_locked_async(revisions: list[str]) -> None:
+    """Apply ``revisions`` in order while holding the migration lock for the WHOLE
+    chain, asserting the stamp after each step.
+
+    Stepping that releases the lock between revisions (the obvious loop of
+    ``_run_alembic`` calls) leaves this worker mid-chain after 0068 created the
+    cluster-global ``automation_engine`` role + tables but before 0077 drops them.
+    A concurrent worker that grabs the lock and runs ``upgrade head`` then hits
+    0077's ``DROP ROLE``, which fails because this DB still has automation tables
+    depending on the shared role (``DROP ROLE`` consults the cluster-wide
+    ``pg_shdepend``). Holding the lock across the chain keeps that transient window
+    invisible to other workers — the only place the suite walks *through* the
+    0068→0077 window one step at a time.
+    """
+    lock_conn = await asyncpg.connect(**_parse_admin_url(), database="postgres")
+    try:
+        await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
+        saved = (settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX)
+        settings.GUILD_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
+        settings.PLATFORM_ROLE_PREFIX = _MIGRATIONS_ROLE_PREFIX
+        try:
+            for rev in revisions:
+                await asyncio.to_thread(_alembic_command, "upgrade", rev)
+                stamp = await _fetch_current_revision_async()
+                assert stamp == rev, (
+                    f"After upgrading to {rev}, alembic_version is {stamp!r}. "
+                    "A migration likely failed silently or skipped a step."
+                )
+        finally:
+            settings.GUILD_ROLE_PREFIX, settings.PLATFORM_ROLE_PREFIX = saved
+    finally:
+        await lock_conn.close()  # closing the connection releases the advisory lock
+
+
 def _ordered_revisions_base_to_head() -> list[str]:
     """Return every revision id in apply order (base first, head last)."""
     script = _script_directory()
@@ -348,16 +382,10 @@ class TestMigrationsAgainstDatabase:
             f"got {revisions[0]!r}. The migration chain is misconfigured."
         )
 
-        _run_alembic("upgrade", BASELINE_REVISION)
-        assert _current_alembic_revision() == BASELINE_REVISION
-
-        for rev in revisions[1:]:
-            _run_alembic("upgrade", rev)
-            stamp = _current_alembic_revision()
-            assert stamp == rev, (
-                f"After upgrading to {rev}, alembic_version is {stamp!r}. "
-                "A migration likely failed silently or skipped a step."
-            )
+        # Hold the migration lock across the whole chain (not per step) so the
+        # transient cluster-global automation_engine role (0068→0077) is never
+        # exposed to a concurrent worker's DROP ROLE. See the helper's docstring.
+        asyncio.run(_run_upgrade_chain_locked_async(revisions))
 
     def test_full_round_trip_down_to_first_reversible_then_back(
         self, fresh_migrations_db: str

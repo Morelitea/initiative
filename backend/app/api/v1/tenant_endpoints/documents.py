@@ -83,6 +83,7 @@ from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
 from app.services import attachments as attachments_service
+from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.services.tenant import documents as documents_service
@@ -954,6 +955,9 @@ async def upload_document_file(
             detail=DocumentMessages.TITLE_REQUIRED,
         )
 
+    # Pick up a backend/credential change saved in another worker before writing.
+    await storage_config.ensure_storage_config_fresh(session)
+
     # Check for duplicate title in initiative
     await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
 
@@ -1108,6 +1112,9 @@ async def upload_document_version(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
         )
+
+    # Pick up a backend/credential change saved in another worker before writing.
+    await storage_config.ensure_storage_config_fresh(session)
     _require_document_access(document, current_user, access="write")
 
     # Read the body with a hard cap so an over-limit upload is rejected before

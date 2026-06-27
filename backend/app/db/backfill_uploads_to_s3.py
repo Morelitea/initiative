@@ -22,6 +22,7 @@ import asyncio
 import hashlib
 import logging
 import mimetypes
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,9 +32,44 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.core.config import settings
 from app.db import session as db_session
 from app.db.schema_provisioning import guild_schema_name
-from app.services.storage import StorageBackend, s3_guild_storage
+from app.services import storage_config
+from app.services.storage import S3Storage, StorageBackend, build_s3_client
 
 logger = logging.getLogger(__name__)
+
+# One-shot guard so the "HeadObject 403 -> probably missing s3:ListBucket" hint is
+# logged once per run, not once per file. Reset at the start of each backfill.
+_warned_head_forbidden = False
+
+
+def _object_exists(dest: StorageBackend, key: str) -> bool:
+    """Whether ``key`` is already in ``dest``, tolerating a 403 HeadObject.
+
+    Many S3 stores (and AWS itself) return **403 Forbidden** instead of 404 for
+    ``HeadObject`` on a *missing* key when the credentials lack ``s3:ListBucket``
+    on the bucket. That must not abort the migration: we can't confirm presence,
+    so we report "not present" and let the idempotent write below decide — a real
+    write-permission problem then surfaces on ``PutObject`` (recorded per file),
+    while a fresh bucket simply gets every object (re-runs lose the skip
+    optimization but stay correct). Non-403 errors propagate as before.
+    """
+    from botocore.exceptions import ClientError
+
+    try:
+        return dest.exists(key)
+    except ClientError as exc:
+        if exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 403:
+            raise
+        global _warned_head_forbidden
+        if not _warned_head_forbidden:
+            _warned_head_forbidden = True
+            logger.warning(
+                "HeadObject returned 403 for a not-yet-copied object; the bucket "
+                "credentials likely lack s3:ListBucket (so the store can't answer "
+                "'not found'). Proceeding to upload anyway. Grant s3:ListBucket to "
+                "enable skip-on-rerun and silence this."
+            )
+        return False
 
 
 @dataclass
@@ -45,6 +81,8 @@ class BackfillSummary:
     failed: int = 0
     hash_mismatches: int = 0
     failed_keys: list[str] = field(default_factory=list)
+    # True when another worker held the advisory lock, so this run did nothing.
+    already_running: bool = False
 
 
 def backfill_guild_dir(
@@ -74,7 +112,7 @@ def backfill_guild_dir(
             content_type = mimetypes.guess_type(key)[0]
         label = f"guild_{guild_id}/{key}"
         try:
-            if dest.exists(key):
+            if _object_exists(dest, key):
                 summary.skipped += 1
                 continue
             data = path.read_bytes()
@@ -119,27 +157,74 @@ async def _guild_upload_meta(
     return {row[0]: (row[1], row[2]) for row in rows if row[0]}
 
 
-async def backfill_uploads_to_s3(*, dry_run: bool = False) -> BackfillSummary:
-    """Copy every guild's local blobs into S3. See module docstring."""
+# Cluster-wide advisory-lock key (arbitrary constant) so at most one backfill runs
+# at a time across every worker/process — the in-process status guard can't see a
+# run started on another worker.
+_BACKFILL_LOCK_KEY = 0x1014_5311
+
+
+async def backfill_uploads_to_s3(
+    *,
+    dry_run: bool = False,
+    on_progress: "Callable[[BackfillSummary], Awaitable[None]] | None" = None,
+) -> BackfillSummary:
+    """Copy every guild's local blobs into S3. See module docstring.
+
+    ``on_progress`` (if given) is awaited after each guild with the running
+    summary, so a caller can persist a heartbeat + live counts to shared state.
+    """
+    global _warned_head_forbidden
+    _warned_head_forbidden = False
     summary = BackfillSummary()
     root = Path(settings.UPLOADS_DIR)
+    # Snapshot the storage config once for the whole run: a settings change
+    # mid-backfill must not send later guilds to a different bucket. One client,
+    # one bucket/prefix scheme, for every guild.
+    cfg = storage_config.current_storage_config()
+    if cfg.backend != "s3" or not cfg.bucket:
+        raise ValueError("backfill requires an S3 backend with S3_BUCKET configured")
+    client = build_s3_client(cfg)
     engine = db_session.provisioning_engine  # superuser: reads every guild schema
     async with engine.connect() as conn:
-        guild_ids = (
-            (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
-            .scalars()
-            .all()
-        )
-        for gid in guild_ids:
-            guild_dir = root / f"guild_{gid}"
-            if not guild_dir.is_dir():
-                continue
-            meta = await _guild_upload_meta(conn, guild_schema_name(gid))
-            # Always a real S3 backend, even on a dry run, so the exists() skip
-            # check reflects what's already in the bucket.
-            dest = s3_guild_storage(gid)
-            backfill_guild_dir(
-                guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run
+        # One backfill at a time, cluster-wide. pg_try_advisory_lock is per-session
+        # (held for this connection); a second worker that can't take it backs off
+        # rather than double-copying every guild into the bucket.
+        locked = (
+            await conn.execute(
+                text("SELECT pg_try_advisory_lock(:k)"), {"k": _BACKFILL_LOCK_KEY}
+            )
+        ).scalar()
+        if not locked:
+            logger.warning("backfill skipped: another run holds the advisory lock")
+            summary.already_running = True
+            return summary
+        try:
+            guild_ids = (
+                (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
+                .scalars()
+                .all()
+            )
+            for gid in guild_ids:
+                guild_dir = root / f"guild_{gid}"
+                if not guild_dir.is_dir():
+                    continue
+                meta = await _guild_upload_meta(conn, guild_schema_name(gid))
+                # Always a real S3 backend, even on a dry run, so the exists() skip
+                # check reflects what's already in the bucket.
+                dest = S3Storage(
+                    bucket=cfg.bucket,
+                    client=client,
+                    prefix=f"guild_{int(gid)}/",
+                    kms_key_id=cfg.kms_key_id,
+                )
+                backfill_guild_dir(
+                    guild_dir, meta, dest, summary, guild_id=gid, dry_run=dry_run
+                )
+                if on_progress is not None:
+                    await on_progress(summary)
+        finally:
+            await conn.execute(
+                text("SELECT pg_advisory_unlock(:k)"), {"k": _BACKFILL_LOCK_KEY}
             )
     return summary
 

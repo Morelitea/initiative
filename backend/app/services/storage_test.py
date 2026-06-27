@@ -421,6 +421,27 @@ def test_dualread_read_falls_back_to_local_then_prefers_s3(tmp_path):
     assert b"".join(blob2.stream) == b"s3-bytes"
 
 
+def test_dualread_read_falls_back_to_local_on_s3_error(tmp_path):
+    """During cutover (S3_LOCAL_FALLBACK on), an S3 read *error* — not just a
+    clean miss — must fall back to local rather than bubble up a 500. The blob
+    still exists locally, so the page keeps working while the S3 problem (auth,
+    signature, etc.) is fixed."""
+    _, s3, local, dual = _dual(tmp_path)
+    local.write("doc.svg", b"local-bytes")
+
+    def _boom(*, Bucket, Key):
+        raise ClientError(
+            {"Error": {"Code": "AccessDenied", "Message": "Invalid signature"}},
+            "GetObject",
+        )
+
+    s3._client.get_object = _boom  # primary read raises instead of missing
+
+    blob = dual.open_readable("doc.svg")
+    assert blob is not None and blob.path is not None
+    assert blob.path.read_bytes() == b"local-bytes"
+
+
 def test_dualread_exists_checks_both(tmp_path):
     _, s3, local, dual = _dual(tmp_path)
     local.write("a", b"1")
