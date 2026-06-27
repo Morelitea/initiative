@@ -537,6 +537,7 @@
     "allMembersShared_other": "{{count}} documentos compartidos con todos los miembros",
     "allMembersRemoved_one": "Acceso de todos los miembros quitado de {{count}} documento",
     "allMembersRemoved_other": "Acceso de todos los miembros quitado de {{count}} documentos",
+    "noAllMembersAccess": "Ninguno de los documentos seleccionados estaba compartido con todos los miembros.",
     "rolesAlreadyAssigned": "Los roles seleccionados ya están asignados a todos los documentos seleccionados.",
     "updateError": "No se pudo actualizar el acceso en este momento.",
     "roleUpdateError": "No se pudo actualizar el acceso por rol en este momento."

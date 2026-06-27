@@ -65,6 +65,22 @@ function allMembersDoc(extraGrants: ResourceGrantSchema[] = []): DocumentSummary
   });
 }
 
+/**
+ * A document that is NOT shared with all initiative members — only an owner and
+ * one individual grant. Removing all-members access on this doc is a no-op.
+ */
+function restrictedDoc(id: number): DocumentSummary {
+  return buildDocumentSummary({
+    id,
+    initiative_id: INITIATIVE_ID,
+    my_permission_level: "owner",
+    grants: [
+      { user_id: 999, level: "owner" },
+      { user_id: BOB_ID, level: "read" },
+    ],
+  });
+}
+
 /** Capture the PUT /grants payloads crossing the network boundary. */
 function captureGrantPuts() {
   const captured: ResourceGrantSchema[][] = [];
@@ -152,5 +168,48 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     // Revoking one grantee must NOT silently strip everyone's all-members share.
     expect(payload.some((g) => g.all_initiative_members)).toBe(true);
     expect(payload.some((g) => g.user_id === BOB_ID)).toBe(false);
+  });
+
+  it("all-members remove only writes docs that actually have an all-members grant", async () => {
+    const user = userEvent.setup();
+    const captured = captureGrantPuts();
+
+    // One doc shared with all members (id 10), one restricted-only (id 11).
+    renderDialog([allMembersDoc(), restrictedDoc(11)]);
+
+    await user.click(screen.getByRole("tab", { name: "All members" }));
+    await user.click(screen.getByLabelText("Action"));
+    await user.click(await screen.findByRole("option", { name: "Remove all-members access" }));
+    await user.click(screen.getByRole("button", { name: "Remove all-members access" }));
+
+    // Exactly one PUT: the restricted-only doc is skipped (no-op), not re-saved
+    // with an unchanged grant list.
+    await waitFor(() => expect(captured).toHaveLength(1));
+    expect(captured[0].some((g) => g.all_initiative_members)).toBe(false);
+  });
+
+  it("all-members remove makes no request when nothing is shared with all members", async () => {
+    const user = userEvent.setup();
+    const captured = captureGrantPuts();
+    const onSuccess = vi.fn();
+
+    renderWithProviders(
+      <BulkEditAccessDialog
+        open
+        onOpenChange={vi.fn()}
+        onSuccess={onSuccess}
+        documents={[restrictedDoc(11)]}
+      />,
+      { auth: { user: buildUser({ id: 1 }) } }
+    );
+
+    await user.click(screen.getByRole("tab", { name: "All members" }));
+    await user.click(screen.getByLabelText("Action"));
+    await user.click(await screen.findByRole("option", { name: "Remove all-members access" }));
+    await user.click(screen.getByRole("button", { name: "Remove all-members access" }));
+
+    // The handler still settles (dialog closes) but issues zero writes.
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(captured).toHaveLength(0);
   });
 });

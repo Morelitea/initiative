@@ -428,31 +428,42 @@ export function BulkEditAccessDialog({
   const handleApplyAllMembers = useCallback(async () => {
     setIsPending(true);
     try {
-      await Promise.all(
-        documents.map((doc) => {
-          let next: ResourceGrantSchema[];
-          if (allMode === "share") {
-            // Switch every selected doc to "all members" mode: a single
-            // all-members grant. Per-person and per-role grants are dropped so
-            // the doc has one coherent share mode (ShareControl can't render a
-            // mixed all-members + restricted list). The owner is preserved
-            // server-side, so we don't send it.
-            next = [{ all_initiative_members: true, level: allLevel }];
-          } else {
-            // Remove all-members access only; keep existing restricted grants.
-            next = (doc.grants ?? []).filter(
-              (g) => g.level !== "owner" && !g.all_initiative_members
-            );
-          }
-          return setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, next);
-        })
-      );
-
-      toast.success(
-        allMode === "share"
-          ? t("bulkAccess.allMembersShared", { count: documents.length })
-          : t("bulkAccess.allMembersRemoved", { count: documents.length })
-      );
+      if (allMode === "share") {
+        // Switch every selected doc to "all members" mode: a single all-members
+        // grant. Per-person and per-role grants are dropped so the doc has one
+        // coherent share mode (ShareControl can't render a mixed all-members +
+        // restricted list). The owner is preserved server-side, so we don't send
+        // it.
+        await Promise.all(
+          documents.map((doc) =>
+            setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, [
+              { all_initiative_members: true, level: allLevel },
+            ])
+          )
+        );
+        toast.success(t("bulkAccess.allMembersShared", { count: documents.length }));
+      } else {
+        // Only touch docs that actually have an all-members grant — PUTting an
+        // unchanged list is a pointless write and would let the success toast
+        // claim removals that never happened.
+        const affected = documents.filter((doc) =>
+          (doc.grants ?? []).some((g) => g.all_initiative_members)
+        );
+        await Promise.all(
+          affected.map((doc) =>
+            setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(
+              guildId,
+              doc.id,
+              (doc.grants ?? []).filter((g) => g.level !== "owner" && !g.all_initiative_members)
+            )
+          )
+        );
+        if (affected.length === 0) {
+          toast.info(t("bulkAccess.noAllMembersAccess"));
+        } else {
+          toast.success(t("bulkAccess.allMembersRemoved", { count: affected.length }));
+        }
+      }
 
       void invalidateAllDocuments();
       resetState();

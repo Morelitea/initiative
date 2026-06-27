@@ -537,6 +537,7 @@
     "allMembersShared_other": "Shared {{count}} documents with all members",
     "allMembersRemoved_one": "Removed all-members access from {{count}} document",
     "allMembersRemoved_other": "Removed all-members access from {{count}} documents",
+    "noAllMembersAccess": "None of the selected documents were shared with all members.",
     "rolesAlreadyAssigned": "Selected roles are already assigned to all selected documents.",
     "updateError": "Unable to update access right now.",
     "roleUpdateError": "Unable to update role access right now."

@@ -537,6 +537,7 @@
     "allMembersShared_other": "{{count}} Dokumente mit allen Mitgliedern geteilt",
     "allMembersRemoved_one": "Zugriff für alle Mitglieder von {{count}} Dokument entfernt",
     "allMembersRemoved_other": "Zugriff für alle Mitglieder von {{count}} Dokumenten entfernt",
+    "noAllMembersAccess": "Keines der ausgewählten Dokumente war mit allen Mitgliedern geteilt.",
     "rolesAlreadyAssigned": "Die ausgewählten Rollen sind bereits allen ausgewählten Dokumenten zugewiesen.",
     "updateError": "Zugriff kann derzeit nicht aktualisiert werden.",
     "roleUpdateError": "Rollenzugriff kann derzeit nicht aktualisiert werden."

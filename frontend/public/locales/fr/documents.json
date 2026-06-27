@@ -537,6 +537,7 @@
     "allMembersShared_other": "{{count}} documents partagés avec tous les membres",
     "allMembersRemoved_one": "Accès de tous les membres retiré de {{count}} document",
     "allMembersRemoved_other": "Accès de tous les membres retiré de {{count}} documents",
+    "noAllMembersAccess": "Aucun des documents sélectionnés n'était partagé avec tous les membres.",
     "rolesAlreadyAssigned": "Les rôles sélectionnés sont déjà attribués à tous les documents sélectionnés.",
     "updateError": "Impossible de mettre à jour l'accès pour l'instant.",
     "roleUpdateError": "Impossible de mettre à jour l'accès par rôle pour l'instant."
