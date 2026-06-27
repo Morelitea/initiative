@@ -122,11 +122,30 @@ def _backfill_calendar_events(conn) -> None:
 
 def upgrade() -> None:
     conn = op.get_bind()
-    for schema in _guild_schemas(conn):
-        conn.execute(text(f'SET search_path TO "{schema}", public'))
-        _backfill(conn)
-        _backfill_calendar_events(conn)
-    conn.execute(text("SET search_path TO public"))
+    # The source tables (the legacy *_permissions tables, plus calendar_events)
+    # carry FORCE ROW LEVEL SECURITY with initiative_access policies. A migration
+    # sets no RLS context, so under any migration role that lacks BYPASSRLS (typical
+    # of managed Postgres, where the admin role has CREATEROLE/CREATEDB but not
+    # rolsuper/rolbypassrls) every policy evaluates false and the INSERT...SELECT
+    # below copies ZERO rows — silently, since there is no row-count guard and the
+    # inserts use ON CONFLICT DO NOTHING. The NEXT migration (0116) then drops the
+    # source tables, so the grants are lost outright.
+    #
+    # Assume the guild-admin leg of public.initiative_access (current_guild_role =
+    # 'admin'), which short-circuits the policy true, so every row is visible
+    # regardless of the role's bypass bit. (The original release omitted this; see
+    # 20260626_0125, which rebuilds the recoverable owner grants for deployments that
+    # already ran the broken version. Editing this migration only helps deployments
+    # that have NOT yet applied it — alembic will not re-run it where it already ran.)
+    conn.execute(text("SELECT set_config('app.current_guild_role', 'admin', false)"))
+    try:
+        for schema in _guild_schemas(conn):
+            conn.execute(text(f'SET search_path TO "{schema}", public'))
+            _backfill(conn)
+            _backfill_calendar_events(conn)
+    finally:
+        conn.execute(text("SET search_path TO public"))
+        conn.execute(text("SELECT set_config('app.current_guild_role', '', false)"))
 
 
 def downgrade() -> None:
