@@ -1,7 +1,7 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { addYears, endOfYear, format, startOfYear, subYears } from "date-fns";
-import { ChevronDown, Download, Filter, Loader2, Plus, Upload } from "lucide-react";
+import { ChevronDown, Download, Filter, Loader2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -22,6 +22,7 @@ import {
 } from "@/components/calendar";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import {
   PropertyFilter,
   type PropertyFilterCondition,
@@ -311,6 +312,18 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | null>(null);
 
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canCreateEvents && initiativeId
+      ? {
+          run: () => {
+            setCreateDefaultDate(null);
+            setCreateDialogOpen(true);
+          },
+        }
+      : null
+  );
+
   useEffect(() => {
     const shouldCreate = searchParams.create === "true";
     if (shouldCreate && !createDialogOpen && !isClosingCreateDialog.current) {
@@ -596,19 +609,6 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         onOpenChange={setImportDialogOpen}
         fixedInitiativeId={initiativeId ?? undefined}
       />
-
-      {canCreateEvents && initiativeId && (
-        <Button
-          className="fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
-          onClick={() => {
-            setCreateDefaultDate(null);
-            setCreateDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          {t("createEvent")}
-        </Button>
-      )}
     </div>
   );
 };

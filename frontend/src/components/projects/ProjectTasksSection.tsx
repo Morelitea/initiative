@@ -40,6 +40,7 @@ import {
   CalendarView,
   type CalendarViewMode,
 } from "@/components/calendar";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { ProjectGanttView } from "@/components/projects/ProjectGanttView";
 import { ProjectTaskComposer } from "@/components/projects/ProjectTaskComposer";
 import { ProjectTasksFilters } from "@/components/projects/ProjectTasksFilters";
@@ -291,6 +292,12 @@ export const ProjectTasksSection = ({
   useEffect(() => {
     onComposerOpenChange?.(isComposerOpen);
   }, [isComposerOpen, onComposerOpenChange]);
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canEditTaskDetails ? { run: () => setIsComposerOpen(true) } : null
+  );
+
   const [activeTaskId, setActiveTaskId] = useState<number | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<TaskListRead[]>([]);
   const [isBulkEditDialogOpen, setIsBulkEditDialogOpen] = useState(false);
@@ -1079,22 +1086,6 @@ export const ProjectTasksSection = ({
 
       {canEditTaskDetails ? (
         <>
-          <TooltipProvider>
-            <Tooltip delayDuration={400}>
-              <TooltipTrigger asChild>
-                <Button
-                  className="fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
-                  onClick={() => setIsComposerOpen(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                  {t("tasks.addTask")}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={12}>
-                {t("tasks.enterTooltip")}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
           <Dialog open={isComposerOpen} onOpenChange={setIsComposerOpen}>
             <ProjectTaskComposer
               title={title}

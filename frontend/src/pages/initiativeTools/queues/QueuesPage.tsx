@@ -9,6 +9,7 @@ import {
   QueuesFilterBar,
   type StatusFilter,
 } from "@/components/initiativeTools/queues/QueuesFilterBar";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
@@ -169,6 +170,9 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   const getDefaultFiltersVisibility = () =>
     typeof window !== "undefined" && window.matchMedia("(min-width: 640px)").matches;
   const [filtersOpen, setFiltersOpen] = useState(getDefaultFiltersVisibility);
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(canCreateQueues ? { run: () => setCreateDialogOpen(true) } : null);
 
   // Open create dialog when ?create=true is in URL
   useEffect(() => {
@@ -334,17 +338,6 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
         }
         onSuccess={handleQueueCreated}
       />
-
-      {canCreateQueues && (
-        <Button
-          type="button"
-          className="fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          {t("createQueue")}
-        </Button>
-      )}
     </div>
   );
 };

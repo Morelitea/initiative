@@ -18,6 +18,7 @@ import { DocumentsFilterBar } from "@/components/documents/DocumentsFilterBar";
 import { DocumentsListView } from "@/components/documents/DocumentsListView";
 import { DocumentsTagsView } from "@/components/documents/DocumentsTagsView";
 import { PaginationBar } from "@/components/documents/PaginationBar";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import type { PropertyFilterCondition } from "@/components/properties/PropertyFilter";
 import { UNTAGGED_PATH } from "@/components/tags/TagTreeView";
 import { Button } from "@/components/ui/button";
@@ -466,6 +467,11 @@ export const DocumentsView = ({
     creatableInitiatives,
   ]);
 
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canCreateDocuments ? { run: () => setCreateDialogOpen(true) } : null
+  );
+
   // Open create dialog when ?create=true is in URL
   useEffect(() => {
     const shouldCreate = searchParams.create === "true";
@@ -772,17 +778,6 @@ export const DocumentsView = ({
         documents={selectedDocuments}
         onSuccess={() => {}}
       />
-
-      {canCreateDocuments ? (
-        <Button
-          type="button"
-          className="fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
-          onClick={() => setCreateDialogOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          {t("page.newDocument")}
-        </Button>
-      ) : null}
     </div>
   );
 };
