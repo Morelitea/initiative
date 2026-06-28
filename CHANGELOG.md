@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Chester toasts no longer overlay the bottom navigation pill and are limited to showing 2 at a time.
+
 ## [0.53.4] - 2026-06-27
 
 ### Added
