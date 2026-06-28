@@ -70,6 +70,10 @@ const buildInput = (
     robotVariant: opts?.robotVariant ?? VARIANT_BY_TYPE[type],
     position: opts?.position ?? "bottom-center",
     typeSpeed: opts?.typeSpeed ?? 20,
+    // Cap how many toasts are visible at once; the rest queue and appear as
+    // slots free up (robot-toast reads this per call, falling back to its
+    // unlimited default otherwise).
+    limit: 2,
   };
   if (opts?.duration !== undefined) {
     input.autoClose = Number.isFinite(opts.duration) ? opts.duration : false;

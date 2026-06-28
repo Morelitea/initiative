@@ -525,3 +525,15 @@ html.pride [data-slot="button"].bg-primary:hover {
 .animate-chester-sparkle {
   animation: chester-sparkle 1.2s ease-in-out infinite;
 }
+
+/* Lift Chester (robot-toast) toasts above the floating bottom nav.
+   robot-toast positions each toast with an inline `bottom` (and centers via
+   `transform`), so we offset with `margin-bottom` — it shifts the whole stack
+   up uniformly without disturbing the library's stacking math or its
+   transform-based centering / drag handling. The safe-area term keeps the gap
+   consistent on notched devices. */
+.robot-toast-bottom-center,
+.robot-toast-bottom-left,
+.robot-toast-bottom-right {
+  margin-bottom: calc(4.5rem + var(--safe-area-inset-bottom, 0px)) !important;
+}
