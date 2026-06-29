@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.136.1,<0.139",
     "uvicorn[standard]>=0.41.0,<0.50",
-    "sqlmodel>=0.0.38,<0.0.39",
+    "sqlmodel>=0.0.38,<0.0.40",
     "sqlalchemy>=2.0.49,<3",
     "greenlet>=3.0",                     # SQLAlchemy async; its own marker skips macOS arm64, so require explicitly
     "asyncpg>=0.31.0,<0.32",
