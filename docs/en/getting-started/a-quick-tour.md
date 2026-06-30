@@ -34,7 +34,7 @@ When you're in a guild, the sidebar maps out that guild. You'll usually find:
 Pinned to the **bottom** of the sidebar are your personal controls:
 
 - Your **name and avatar** — opens your **account menu**, **settings**, and **sign out**.
-- The **light / dark theme** toggle.
+- The **light / dark theme** toggle — switch the whole app between **Light**, **Dark**, or **System** (which follows your device's own setting). Set it once and forget it.
 - Your **notifications** — a running list of everything you've been alerted to.
 
 Below those, you'll see the app's **version number** and a link to the project's **open-source code on GitHub**.
@@ -58,10 +58,6 @@ Search is often quicker than clicking through the sidebar — it's worth getting
 
     Save as `en/images/getting-started/search.png`, then use:
     `![The search box, opened with Cmd or Ctrl + K](../images/getting-started/search.png)`
-
-## Light or dark, your choice
-
-Prefer a dark screen? Use the **light / dark theme** toggle near the bottom of the sidebar — choose **Light**, **Dark**, or **System** (which follows your device). Set it once and forget it.
 
 ## Next
 
