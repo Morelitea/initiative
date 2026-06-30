@@ -38,7 +38,7 @@ Initiative is built to avoid locking your information in:
 - **Anything you delete** goes to the **Trash** first, where it can be restored until the retention period passes — then it's permanently removed. Administrators set how long that is (see [Working with guilds](../guides/guilds.md#trash-and-retention)).
 - **Your account** can be **deactivated** (you can't sign in, but your content stays) or **deleted**. Deleting offers a choice: *anonymize* (your personal details are removed and your past contributions show as "Deleted user") or, for administrators, *hard delete* (everything is removed). See [Profile & preferences](../account/profile-and-preferences.md).
 
-This directly supports the kind of "right to erasure" and "right to access" requests that privacy regulations expect: you can produce a person's data and remove their personal information.
+Together, the **export** tools above and these **removal** tools cover the two requests privacy laws ask for most often: handing someone a copy of the data held about them (a *right to access* request), and erasing their personal information (a *right to erasure* request).
 
 ### Accountability
 
