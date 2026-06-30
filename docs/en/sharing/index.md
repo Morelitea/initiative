@@ -4,7 +4,7 @@ icon: lucide/users-round
 
 # Sharing & access
 
-"Who can see this?" is one of the most important questions in any shared tool — and one of the easiest to get wrong elsewhere. Initiative keeps it simple by building access up in **layers**, from the outside in. This section explains those layers in plain language, then shows you how to share specific projects and documents.
+"Who can see this?" is one of the most important questions in any shared tool — and one of the easiest to get wrong elsewhere. Initiative keeps it simple by building access up in **layers**, from the outside in. This section walks through those layers, then shows you how to share specific projects and documents.
 
 ## The simple version
 

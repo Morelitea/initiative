@@ -4,7 +4,7 @@ icon: lucide/server-cog
 
 # For administrators
 
-This section is for the person who **runs** Initiative for their group — installing it, configuring it, and keeping it healthy. It's more technical than the rest of the help center by nature, but we've kept it as plain as the subject allows.
+This section is for the person who **runs** Initiative for their group — installing it, configuring it, and keeping it healthy.
 
 If you only *use* Initiative, you can happily skip this section. Everything you need is in [Using Initiative](../guides/index.md).
 

@@ -4,7 +4,7 @@ icon: lucide/network
 
 # How Initiative is organized
 
-Initiative has a simple shape underneath it. Once you picture how the pieces nest together, everything else clicks into place. This page is the map. It's worth five minutes.
+Initiative has a simple shape underneath it. Once you picture how the pieces nest together, everything else clicks into place.
 
 ## The big picture
 

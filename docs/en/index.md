@@ -6,8 +6,6 @@ icon: lucide/compass
 
 Initiative is a friendly home for your group's projects, tasks, documents, and plans. It's built for teams, clubs, gaming groups, and families who want to stay organized together without wrestling with complicated software.
 
-This help center walks you through everything in plain language. You don't need to be "techy" to follow along. Where some readers want the deeper detail — how your data is kept private, how to run your own copy — we put it in clearly marked boxes you can read or skip.
-
 !!! screenshot "The main screen, after signing in"
     **Show:** the whole app — the sidebar on the left (guild name at the top, Initiatives listed below) and a project board open in the middle.
 
@@ -61,13 +59,6 @@ If this is your first time, **Getting started** is the place to go. It covers cr
     [:octicons-arrow-right-24: Admin guide](admin/index.md)
 
 </div>
-
-## Who these guides are for
-
-We write for two kinds of reader, and we try to serve both on every page:
-
-- **Everyday users** — you want to get things done. Most of each page is for you: simple steps, clear pictures, no jargon.
-- **Project managers and administrators** — you sometimes want the precise detail. Look for the green **"For the technically minded"** boxes. They sit apart from the main text, so you can open them when you want them and ignore them when you don't.
 
 ??? techspec "For the technically minded — what Initiative is, briefly"
     Initiative is a self-hosted web application. The interface is a single-page web app; it talks to a Python service backed by a PostgreSQL database. Each group ("guild") gets its own isolated area of the database, and who-can-see-what is enforced inside the database itself, not only in the app. There's a companion mobile app (iOS and Android) for notifications and on-the-go use. More in [Security & privacy](security/index.md) and the [administrator guide](admin/index.md).

@@ -4,7 +4,7 @@ icon: lucide/shield-check
 
 # Security & privacy
 
-"Is my stuff safe and private?" is a fair question to ask of any tool you trust with your group's information. This section answers it twice: once in plain language for everyone, and once in technical detail for the people who want it.
+"Is my stuff safe and private?" is a fair question to ask of any tool you trust with your group's information. Here's how Initiative protects your group's data, and where to find the details.
 
 - **This page** explains what security means for *you*, as someone using Initiative day to day.
 - **[How your data is kept separate](how-your-data-is-kept-separate.md)** is the technical explanation of multi-tenancy and how the boundaries are enforced — written for project managers, administrators, and anyone evaluating Initiative.
