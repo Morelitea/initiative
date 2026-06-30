@@ -25,10 +25,19 @@ When you're in a guild, the sidebar maps out that guild. You'll usually find:
 
 - **Initiatives** — the heart of the workspace. Each one expands to show its projects and documents, and clicking an initiative's **title** opens that initiative's own **dashboard**. This is where most of your work lives.
 - **Tags** and **Favorites** — quick ways to find things you've labeled or starred.
-- **At the bottom** — your **name and avatar** (which open your account menu, settings, and sign out), the **light / dark theme** toggle, and your **notifications** (a running list of everything you've been alerted to). Below those sit the app's **version number** and a link to the project's **open-source code on GitHub**.
 
 !!! tip "Collapse what you don't need"
     Initiatives expand and collapse, so you can keep the sidebar tidy. There's also a control to **collapse all** or **expand all** at once.
+
+## The bottom of the sidebar
+
+Pinned to the **bottom** of the sidebar are your personal controls:
+
+- Your **name and avatar** — opens your **account menu**, **settings**, and **sign out**.
+- The **light / dark theme** toggle.
+- Your **notifications** — a running list of everything you've been alerted to.
+
+Below those, you'll see the app's **version number** and a link to the project's **open-source code on GitHub**.
 
 ## The main area (in the middle)
 
