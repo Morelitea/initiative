@@ -43,7 +43,7 @@ Let's take them one at a time.
 
 A **guild** is the outermost container: one separate space for one group of people. Your tabletop campaign, your work team, and your neighborhood association would each be their own guild.
 
-Guilds don't mix. Nothing in one guild is visible from another, even on the same server. You can belong to several guilds and switch between them from the top of the sidebar — but each is its own sealed world.
+Guilds don't mix. Nothing in one guild is visible from another, even on the same server. You can belong to several guilds and switch between them from the guild rail down the left edge of the screen — but each is its own sealed world.
 
 Within a guild there are just two member levels: **admin** (runs the place) and **member** (takes part). More in [Working with guilds](../guides/guilds.md).
 

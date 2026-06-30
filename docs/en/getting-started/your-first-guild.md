@@ -14,7 +14,7 @@ Most people join a guild that already exists, using an **invite link** from some
 2. **Sign in** (or [create your account](create-account.md) if you haven't yet).
 3. You're in. The link adds you to the guild and drops you on its home screen.
 
-That's all there is to it. The guild now appears in your **guild switcher** at the top of the sidebar.
+That's all there is to it. The guild now appears on the **guild rail** down the far-left edge of the screen.
 
 !!! note "Invite links can expire"
     For safety, an invite link may have a limited number of uses or an expiry date. If yours says it's no longer valid, ask the person who sent it for a fresh one.
@@ -23,10 +23,9 @@ That's all there is to it. The guild now appears in your **guild switcher** at t
 
 If you're starting fresh — setting up a space for your own group — you can create a guild yourself, as long as your server allows it.
 
-1. Open the **guild switcher** at the top of the sidebar.
-2. Choose **Create guild** (or **Create a new guild**).
-3. Give it a **name** (for example, "Tuesday Night D&D" or "Marketing Team"). You can add an **icon** to make it easy to recognize.
-4. Create it. You're now the guild's first **administrator**.
+1. On the **guild rail** down the far-left edge of the screen, choose **Create guild** (look for an **add** / **+** control on the rail).
+2. Give it a **name** (for example, "Tuesday Night D&D" or "Marketing Team"). You can add an **icon** to make it easy to recognize.
+3. Create it. You're now the guild's first **administrator**.
 
 !!! screenshot "Creating a guild"
     **Show:** the "Create guild" dialog with the guild name field (and icon option).
@@ -50,7 +49,7 @@ We cover all of this in detail in [Using Initiative](../guides/index.md).
 
 ## Switching between guilds
 
-You can belong to as many guilds as you like — your gaming group, your volunteer committee, your workplace — and each stays completely separate. Use the **guild switcher** at the top of the sidebar to move between them. Switching changes everything below it (initiatives, projects, your home dashboard) to that guild.
+You can belong to as many guilds as you like — your gaming group, your volunteer committee, your workplace — and each stays completely separate. Use the **guild rail** on the far-left edge of the screen to move between them — click a guild's icon to switch. Switching changes everything else (the sidebar, initiatives, and projects) to that guild and opens its dashboard.
 
 ??? techspec "For the technically minded — guilds are a hard boundary"
     A guild isn't just a label. Each guild's content lives in its own isolated area of the database, and the system enforces that you can only ever read or write guilds you belong to — at the database level, not just in the interface. Two browser tabs can even sit in two different guilds at once without leaking between them. This is the foundation of how Initiative keeps groups' data apart; see [How your data is kept separate](../security/how-your-data-is-kept-separate.md).

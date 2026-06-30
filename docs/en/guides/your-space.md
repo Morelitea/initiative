@@ -4,24 +4,7 @@ icon: lucide/user
 
 # Your space
 
-Most of Initiative is organized by guild and initiative. But you also get a set of **personal views** that gather *your* things from across **every** guild you belong to — so you never have to go hunting guild by guild. You'll find them near the top of the sidebar.
-
-## Home
-
-Your **Home** dashboard is the at-a-glance overview for the guild you're currently in:
-
-- **Upcoming tasks**, grouped by urgency (overdue, today, and coming up).
-- **Project health** — how your projects are progressing.
-- **Recent comments** and **recently updated projects**.
-- A few quick numbers, like tasks completed this week and your on-time rate.
-
-It's a good first stop each day to see what needs your attention.
-
-!!! screenshot "The Home dashboard"
-    **Show:** the Home dashboard with upcoming tasks, project health, and the summary numbers.
-
-    Save as `en/images/your-space/home.png`, then use:
-    `![The Home dashboard](../images/your-space/home.png)`
+Most of Initiative is organized by guild and initiative. But you also get a set of **personal views** that gather *your* things from across **every** guild you belong to — so you never have to go hunting guild by guild. Reach them by clicking the **Initiative logo** in the **top-left corner** of the screen (it sits above your guilds on the rail).
 
 ## My Tasks
 

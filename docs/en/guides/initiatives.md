@@ -27,6 +27,10 @@ Your new initiative appears in the sidebar. Click to expand it and you'll see it
 !!! info "The Default Initiative"
     Every guild starts with a **Default Initiative** so there's always somewhere to begin. You can rename it and use it like any other — but it can't be deleted, so your guild is never left without a home for new work.
 
+## The initiative dashboard
+
+Clicking an initiative's **title** in the sidebar opens its **dashboard** — an overview of that effort: how its projects are progressing, upcoming tasks, and recent activity. It's a quick way to see how the whole initiative is doing.
+
 ## Adding members
 
 An initiative is only visible to its **members**. To bring people in:

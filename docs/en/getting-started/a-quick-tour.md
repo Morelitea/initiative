@@ -7,21 +7,25 @@ icon: lucide/map
 Let's walk through the screen so everything feels familiar. Don't worry about remembering it all — you'll learn it naturally as you go. Here's the lay of the land.
 
 !!! screenshot "The whole screen, labeled"
-    **Show:** the full app with the three main regions visible — the **sidebar** (left), the **main area** (center), and the **tab bar** (top). If you can add simple labels/arrows pointing to each, even better.
+    **Show:** the full app with its regions visible — the **guild rail** (far-left edge), the **sidebar** (right next to it), the **main area** (center), and the **tab bar** (top). If you can add simple labels/arrows pointing to each, even better.
 
     Save as `en/images/getting-started/tour-overview.png`, then use:
-    `![The Initiative screen, with the sidebar, main area, and tab bar labeled](../images/getting-started/tour-overview.png)`
+    `![The Initiative screen, with the guild rail, sidebar, main area, and tab bar labeled](../images/getting-started/tour-overview.png)`
 
-## The sidebar (on the left)
+## The guild rail (far-left edge)
 
-This is your main map. From top to bottom you'll usually find:
+Down the **far-left edge of the screen** is a narrow vertical strip of icons:
 
-- **The guild switcher** at the very top. It shows which workspace ("guild") you're in. Click it to switch to another group you belong to. (More on this in [Your first guild](your-first-guild.md).)
-- **Home** — your dashboard: an overview of what's happening and what's coming up.
-- **Your personal views** — *My Tasks*, *Tasks I Created*, *My Projects*, *My Documents*, *My Calendar*, and *My Stats*. These gather *your* things from across every group, in one place. See [Your space](../guides/your-space.md).
-- **Initiatives** — the heart of the workspace. Each initiative expands to show its projects and documents. This is where most of your work lives.
+- At the **top** is the **Initiative logo**. Click it to reach **your personal space** — the things that are *yours*, pulled together from across every guild: *My Tasks*, *Tasks I Created*, *My Projects*, *My Documents*, *My Calendar*, and *My Stats*. See [Your space](../guides/your-space.md).
+- **Below the logo** is one icon for **each guild** you belong to. The highlighted icon is the guild you're in now; click another to switch. Opening a guild shows that guild's **dashboard** and fills the sidebar with its contents. (More on guilds in [Your first guild](your-first-guild.md).)
+
+## The sidebar (next to it)
+
+When you're in a guild, the sidebar maps out that guild. You'll usually find:
+
+- **Initiatives** — the heart of the workspace. Each one expands to show its projects and documents, and clicking an initiative's **title** opens that initiative's own **dashboard**. This is where most of your work lives.
 - **Tags** and **Favorites** — quick ways to find things you've labeled or starred.
-- **Your name and avatar** at the bottom — your account menu, settings, theme toggle, and sign out.
+- **At the bottom** — your **name and avatar** (which open your account menu, settings, and sign out), the **light / dark theme** toggle, and your **notifications** (a running list of everything you've been alerted to). Below those sit the app's **version number** and a link to the project's **open-source code on GitHub**.
 
 !!! tip "Collapse what you don't need"
     Initiatives expand and collapse, so you can keep the sidebar tidy. There's also a control to **collapse all** or **expand all** at once.
@@ -48,7 +52,7 @@ Search is often quicker than clicking through the sidebar — it's worth getting
 
 ## Light or dark, your choice
 
-Prefer a dark screen? Use the **theme toggle** in your account menu — choose **Light**, **Dark**, or **System** (which follows your device). Set it once and forget it.
+Prefer a dark screen? Use the **light / dark theme** toggle near the bottom of the sidebar — choose **Light**, **Dark**, or **System** (which follows your device). Set it once and forget it.
 
 ## Next
 

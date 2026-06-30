@@ -10,11 +10,19 @@ If you haven't joined or created a guild yet, start with [Your first guild](../g
 
 ## Switching between guilds
 
-You can belong to many guilds at once. The **guild switcher** sits at the very top of the sidebar and shows the one you're currently in.
+You can belong to many guilds at once. The **guild rail** runs down the far-left edge of the screen — a vertical strip of icons, one per guild. The highlighted icon is the guild you're in now, and the **Initiative logo** above the guilds takes you to [your personal space](your-space.md).
 
-- Click it to see your other guilds and switch to one.
-- Switching changes everything below it — initiatives, projects, your home dashboard — to that guild.
+- Click any guild's icon to switch to it.
+- Switching changes everything else — the sidebar, initiatives, projects, and the dashboard — over to that guild.
 - Each guild is independent. Work, people, and settings never cross between them.
+
+Opening a guild lands you on its **dashboard** — an at-a-glance overview of that guild: upcoming tasks, how projects are progressing, and recent activity.
+
+!!! screenshot "A guild dashboard"
+    **Show:** the dashboard you see right after opening a guild — upcoming tasks, project health, and the summary numbers.
+
+    Save as `en/images/guilds/guild-dashboard.png`, then use:
+    `![A guild's dashboard](../images/guilds/guild-dashboard.png)`
 
 !!! tip "Two guilds at once"
     Open Initiative in two browser tabs and you can have each tab in a different guild — handy if you're juggling, say, a work team and a side project.
@@ -54,7 +62,7 @@ Administrators can promote a member to admin, or step a member back down, from *
 
 ## Guild settings (administrators)
 
-Open **Guild settings** from the sidebar (or the guild switcher). You'll find tabs for:
+Open **Guild settings** from the sidebar (or the guild rail). You'll find tabs for:
 
 - **Guild** — the name, description, and icon. (Icons should be a square image, up to 512&nbsp;KB.)
 - **Users** — members, their roles, and invite links.
@@ -72,11 +80,11 @@ When something is deleted, it isn't gone immediately — it goes to the guild's 
 The **Danger zone** holds actions that are hard or impossible to undo — most importantly, **deleting the guild**. Deleting a guild permanently removes *everything* in it: initiatives, projects, tasks, documents, and members. To prevent accidents, you'll be asked to confirm carefully (including re-entering details). Only do this if you're certain.
 
 ??? techspec "For the technically minded — what guild deletion does"
-    Deleting a guild removes its isolated database area and the database roles tied to it, and cleans up the shared records that connect people to it (memberships, invites, single-sign-on mappings, access grants). It's thorough and final. If you only want to step back from a guild without destroying it, **leave** it instead (from the guild switcher) — that just removes *you*.
+    Deleting a guild removes its isolated database area and the database roles tied to it, and cleans up the shared records that connect people to it (memberships, invites, single-sign-on mappings, access grants). It's thorough and final. If you only want to step back from a guild without destroying it, **leave** it instead (from the guild rail) — that just removes *you*.
 
 ## Leaving a guild
 
-Don't want to be in a guild anymore? Open the **guild switcher** and choose **Leave guild**. This removes you only — the guild and everyone else carry on. If you're the *last administrator*, you'll need to promote someone else to admin first, so the guild isn't left without anyone in charge.
+Don't want to be in a guild anymore? On the **guild rail**, open the guild's menu and choose **Leave guild**. This removes you only — the guild and everyone else carry on. If you're the *last administrator*, you'll need to promote someone else to admin first, so the guild isn't left without anyone in charge.
 
 ## Related
 

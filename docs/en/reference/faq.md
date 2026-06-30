@@ -24,7 +24,7 @@ Invite links can be set to expire or to allow a limited number of uses. Ask whoe
 
 ### I can't find a project or document I know exists.
 
-Two likely reasons: you're in a **different guild** (check the switcher at the top of the sidebar), or it hasn't been **shared** with you. The fastest way to look is search — press ++cmd+k++ / ++ctrl+k++ and type its name. See [Search & shortcuts](../guides/search-and-shortcuts.md).
+Two likely reasons: you're in a **different guild** (check the **guild rail** down the far-left edge), or it hasn't been **shared** with you. The fastest way to look is search — press ++cmd+k++ / ++ctrl+k++ and type its name. See [Search & shortcuts](../guides/search-and-shortcuts.md).
 
 ### Why does a link to something give "not found" when I know it's there?
 
@@ -60,7 +60,7 @@ Tune them per category in **User settings → Notifications** — each has its o
 
 ### How do I leave a group?
 
-Open the guild switcher and choose **Leave guild**. If you're the last admin, promote someone else first. See [Working with guilds](../guides/guilds.md#leaving-a-guild).
+On the **guild rail**, open the guild's menu and choose **Leave guild**. If you're the last admin, promote someone else first. See [Working with guilds](../guides/guilds.md#leaving-a-guild).
 
 ### What's the difference between deactivating and deleting my account?
 
