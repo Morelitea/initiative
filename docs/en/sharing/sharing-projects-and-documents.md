@@ -51,11 +51,11 @@ You can also update access on **several items at once** — handy when a new tea
 ## A couple of things to remember
 
 - **Initiative membership comes first.** You can only share an item with someone who's already a member of its initiative. If they're not in the initiative, [add them there](../guides/initiatives.md#adding-members) first.
-- **Full-access roles see everything.** A member with a [full-access role](initiative-roles.md#the-full-access-shortcut) can open the item regardless of these per-item settings. That's intended — keep it in mind for truly private material.
+- **Managers see everything.** A member with the initiative's [Manager role](initiative-roles.md#the-built-in-manager-role) can open the item regardless of these per-item settings. That's intended — keep it in mind for truly private material.
 - **Guild admins see everything in their guild.** Again by design, so someone can always administer the group.
 
 ??? techspec "For the technically minded — how item sharing is stored and checked"
-    Per-item sharing is recorded as grants that name a project or document, a person *or* a role, and a level (view / edit / own). On every request, the database evaluates whether the current user satisfies the grant — directly, through a role they hold, through a full-access role, or as a guild admin — before any data is returned. Because this is enforced in the database alongside the guild and initiative boundaries, a project shared with "Editors" can't be reached by someone who has merely guessed its link. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
+    Per-item sharing is recorded as grants that name a project or document, a person *or* a role, and a level (view / edit / own). On every request, the database evaluates whether the current user satisfies the grant — directly, through a role they hold, through the initiative's Manager role, or as a guild admin — before any data is returned. Because this is enforced in the database alongside the guild and initiative boundaries, a project shared with "Editors" can't be reached by someone who has merely guessed its link. See [How your data is kept separate](../security/how-your-data-is-kept-separate.md).
 
 ## Related
 

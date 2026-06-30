@@ -42,7 +42,7 @@ If you're not in an initiative, its projects and documents don't appear as locke
 
 -   :material-shield-account-outline: __Initiative roles__
 
-    What roles are, the permissions they unlock, and the "full access" shortcut.
+    What roles are, the permissions they unlock, and the Manager role's full access.
 
     [:octicons-arrow-right-24: Initiative roles](initiative-roles.md)
 

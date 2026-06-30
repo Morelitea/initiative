@@ -68,7 +68,7 @@ A reusable bundle of permissions within an initiative — like "Director" or "Ca
 
 ### Full access
 
-A property a role can have that lets its members see **everything** in an initiative, regardless of per-item sharing. Reserve it for leads.
+The override held by the built-in **Manager** role: Managers see **everything** in their initiative, regardless of per-item sharing. It's unique to Manager — no other role can be given it. See [Initiative roles](../sharing/initiative-roles.md#the-built-in-manager-role).
 
 ### Access level (Viewer / Editor / Owner)
 

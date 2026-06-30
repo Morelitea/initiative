@@ -68,8 +68,8 @@ There's a full walkthrough of roles and how they combine with sharing in [Initia
     Save as `en/images/initiatives/roles.png`, then use:
     `![Setting permissions for an initiative role](../images/initiatives/roles.png)`
 
-!!! tip "'Full access' is a shortcut"
-    A role can be marked **Full access**, which gives its members access to everything in the initiative without sharing each item one by one. It's handy for leads — but give it only to people who genuinely need to see everything.
+!!! tip "Managers can see everything"
+    The built-in **Manager** role has full access to the whole initiative — its members reach every project and document without each being shared with them. This is unique to Manager; custom roles don't get it. Give the Manager role only to people who genuinely need the whole picture.
 
 ## Initiative settings
 

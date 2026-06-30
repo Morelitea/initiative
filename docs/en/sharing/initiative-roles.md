@@ -38,7 +38,12 @@ So a "Contributor" role might be allowed to view and create projects and documen
 
 ## The built-in Manager role
 
-Every initiative includes a **Manager** role (think project lead). Its permissions are fixed and broad — managers run the initiative. The creator of an initiative starts as its manager.
+Every initiative includes a **Manager** role (also called the project manager, or PM). It's the lead role: its permissions are fixed and broad, and whoever creates an initiative starts as its Manager.
+
+The Manager role is also the **only** role with **full access** — Managers can reach **everything** in the initiative, including projects and documents that were never shared with them individually. This override belongs to Manager alone; no other role, built-in or custom, can be given it.
+
+!!! warning "Managers see everything — choose them carefully"
+    Because the Manager role overrides per-item sharing, anything kept private to a few people is still visible to a Manager. Give the Manager role only to the few people who genuinely need the whole picture.
 
 ## Creating your own roles
 
@@ -50,13 +55,6 @@ Beyond Manager, you can create roles that match how your group actually works:
 4. Save. The role is now available when you add or edit members.
 
 Name roles for *people*, not permissions — "Volunteer" is friendlier and clearer than "View-only contributor."
-
-## The "Full access" shortcut
-
-A role can be marked **Full access**. Members with a full-access role can reach **everything** in the initiative without each project and document being shared with them individually. It's the right choice for leads who genuinely need to see all of it.
-
-!!! warning "Give 'Full access' sparingly"
-    Full access overrides item-level sharing — so anything marked private to a few people is still visible to a full-access member. Reserve it for the small number of people who truly need the whole picture.
 
 ## Assigning roles to members
 
