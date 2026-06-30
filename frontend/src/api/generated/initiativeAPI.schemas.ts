@@ -2398,6 +2398,73 @@ export interface RestoreRequest {
   new_owner_id?: number | null;
 }
 
+export type StorageBackfillStatusResponseStatus =
+  (typeof StorageBackfillStatusResponseStatus)[keyof typeof StorageBackfillStatusResponseStatus];
+
+export const StorageBackfillStatusResponseStatus = {
+  idle: "idle",
+  running: "running",
+  complete: "complete",
+  failed: "failed",
+} as const;
+
+export interface StorageBackfillStatusResponse {
+  status: StorageBackfillStatusResponseStatus;
+  copied: number;
+  skipped: number;
+  failed: number;
+  hash_mismatches: number;
+  failed_keys: string[];
+  started_at: string | null;
+  finished_at: string | null;
+  error: string | null;
+}
+
+export type StorageSettingsResponseBackend =
+  (typeof StorageSettingsResponseBackend)[keyof typeof StorageSettingsResponseBackend];
+
+export const StorageSettingsResponseBackend = {
+  local: "local",
+  s3: "s3",
+} as const;
+
+export interface StorageSettingsResponse {
+  backend: StorageSettingsResponseBackend;
+  s3_bucket: string | null;
+  s3_region: string;
+  s3_endpoint_url: string | null;
+  s3_access_key_id: string | null;
+  has_secret_access_key: boolean;
+  s3_use_path_style: boolean;
+  s3_kms_key_id: string | null;
+  s3_local_fallback: boolean;
+}
+
+export type StorageSettingsUpdateBackend =
+  (typeof StorageSettingsUpdateBackend)[keyof typeof StorageSettingsUpdateBackend];
+
+export const StorageSettingsUpdateBackend = {
+  local: "local",
+  s3: "s3",
+} as const;
+
+export interface StorageSettingsUpdate {
+  backend?: StorageSettingsUpdateBackend;
+  s3_bucket?: string | null;
+  s3_region?: string;
+  s3_endpoint_url?: string | null;
+  s3_access_key_id?: string | null;
+  s3_secret_access_key?: string | null;
+  s3_use_path_style?: boolean;
+  s3_kms_key_id?: string | null;
+  s3_local_fallback?: boolean;
+}
+
+export interface StorageTestResponse {
+  success: boolean;
+  message: string;
+}
+
 /**
  * Create multiple subtasks at once.
  */

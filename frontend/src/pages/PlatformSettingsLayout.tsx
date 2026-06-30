@@ -32,6 +32,11 @@ export const PlatformSettingsLayout = () => {
       },
       { value: "email", label: t("platformLayout.tabs.email"), path: "/settings/platform/email" },
       { value: "ai", label: t("platformLayout.tabs.ai"), path: "/settings/platform/ai" },
+      {
+        value: "storage",
+        label: t("platformLayout.tabs.storage"),
+        path: "/settings/platform/storage",
+      },
     ];
     return hasCapability(user, Capability.configManage) ? all : [];
   }, [t, user]);

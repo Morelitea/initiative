@@ -281,5 +281,9 @@
   "ADMIN_CANNOT_DELETE_LAST_OWNER": "Impossible de supprimer le dernier propriétaire de la plateforme.",
   "DOCUMENT_GRANT_CANNOT_MANAGE_MEMBERS": "L'accès temporaire ne peut pas gérer les membres du document",
   "COUNTER_GRANT_CANNOT_MANAGE": "L'accès temporaire ne peut pas gérer l'accès au groupe de compteurs",
-  "NATIVE_OTA_BUNDLE_NOT_AVAILABLE": "Cette version du serveur n'a pas de paquet de mise à jour à distance disponible"
+  "NATIVE_OTA_BUNDLE_NOT_AVAILABLE": "Cette version du serveur n'a pas de paquet de mise à jour à distance disponible",
+  "SETTINGS_STORAGE_S3_INCOMPLETE": "Les paramètres de stockage S3 sont incomplets.",
+  "SETTINGS_STORAGE_TEST_FAILED": "Impossible de se connecter au backend de stockage.",
+  "SETTINGS_STORAGE_BACKFILL_RUNNING": "Une migration est déjà en cours.",
+  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Configurez un bucket S3 avant de lancer la migration."
 }

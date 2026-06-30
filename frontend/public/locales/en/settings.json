@@ -745,7 +745,8 @@
       "auth": "Auth",
       "branding": "Branding",
       "email": "Email",
-      "ai": "AI"
+      "ai": "AI",
+      "storage": "Storage"
     }
   },
   "guilds": {
@@ -774,6 +775,57 @@
       "users": "Users",
       "access": "Access",
       "guilds": "Guilds"
+    }
+  },
+  "storage": {
+    "adminOnly": "Only platform owners can configure storage.",
+    "loading": "Loading storage settings…",
+    "loadError": "Failed to load storage settings.",
+    "title": "Object storage",
+    "description": "Choose where uploaded files (documents, attachments) are stored. Defaults to the local filesystem; switch to an S3-compatible store for scalable or shared deployments.",
+    "backendLabel": "Storage backend",
+    "backendLocal": "Local filesystem",
+    "backendS3": "S3-compatible",
+    "backendHelp": "Local stores files on the server disk. S3 works with AWS S3, a self-hosted Garage/MinIO instance, Cloudflare R2, and similar.",
+    "cutoverTitle": "Switching to S3 doesn't move existing files",
+    "cutoverHelp": "Save these settings, run Test connection, then use Backfill below to copy existing local files into the bucket. Switch the backend to S3 only once the backfill completes — optionally keep \"Serve missing objects from local\" on during a verification window.",
+    "bucketLabel": "Bucket",
+    "bucketPlaceholder": "my-initiative-uploads",
+    "regionLabel": "Region",
+    "endpointLabel": "Endpoint URL",
+    "endpointPlaceholder": "https://s3.example.com",
+    "endpointHelp": "Leave blank for AWS S3. Set this for Garage, MinIO, R2, or any non-AWS store.",
+    "accessKeyLabel": "Access key ID",
+    "accessKeyPlaceholder": "Leave blank to use the ambient credential chain",
+    "secretKeyLabel": "Secret access key",
+    "secretKeySet": "•••••••• (unchanged)",
+    "secretKeyHelp": "Leave blank to keep the stored key. Stored encrypted; never displayed.",
+    "kmsLabel": "KMS key ID (optional)",
+    "kmsPlaceholder": "For SSE-KMS server-side encryption",
+    "pathStyleLabel": "Path-style addressing",
+    "pathStyleHelp": "Required for Garage and most non-AWS stores.",
+    "localFallbackLabel": "Serve missing objects from local",
+    "localFallbackHelp": "During cutover, read blobs not yet copied to S3 from the local disk.",
+    "save": "Save",
+    "saving": "Saving…",
+    "saveSuccess": "Storage settings saved.",
+    "saveError": "Failed to save storage settings.",
+    "testConnection": "Test connection",
+    "testing": "Testing…",
+    "testSuccess": "Connection successful.",
+    "testError": "Connection failed.",
+    "backfillTitle": "Backfill local files to S3",
+    "backfillHelp": "Copies every existing local upload into the configured bucket. Idempotent and safe to re-run; run it before switching the backend to S3.",
+    "startBackfill": "Start backfill",
+    "backfillRunning": "Backfill running…",
+    "backfillStarted": "Backfill started.",
+    "backfillError": "Failed to start the backfill.",
+    "backfillCounts": "Copied {{copied}} · Skipped {{skipped}} · Failed {{failed}}",
+    "backfillStatus": {
+      "idle": "Idle",
+      "running": "Running…",
+      "complete": "Complete",
+      "failed": "Failed"
     }
   }
 }
