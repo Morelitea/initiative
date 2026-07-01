@@ -45,6 +45,7 @@ from app.models.platform.guild import GuildRole
 from app.models.tenant.document import Document, ProjectDocument
 from app.models.tenant.tag import Tag, ProjectTag, TaskTag
 from app.api import resource_access
+from app.core.tools import Tool
 from app.services import notifications as notifications_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services.tenant import documents as documents_service
@@ -123,36 +124,16 @@ def _project_documents(
     for link in getattr(project, "document_links", []) or []:
         doc = getattr(link, "document", None)
         if user_id is not None and doc is not None:
-            if not _user_can_access_document(doc, user_id, project):
+            # Single source of truth: the document DAC engine (per-user / per-role /
+            # all-initiative-members grants, plus guild-admin, Full-access, and PAM
+            # overrides) — no re-implementation here.
+            if permissions_service.compute_document_permission(doc, user_id) is None:
                 continue
         summary = serialize_project_document_link(link)
         if summary:
             documents.append(summary)
     documents.sort(key=lambda item: (item.title.lower(), item.document_id))
     return documents
-
-
-def _user_can_access_document(doc, user_id: int, project: Project) -> bool:
-    """Check if a user has access to a document via a user or role grant."""
-    grants = getattr(doc, "grants", None) or []
-    # Check explicit per-user grants
-    for grant in grants:
-        if grant.user_id == user_id:
-            return True
-    # Check role-based grants against the user's roles in the project's initiative
-    role_grant_ids = {g.role_id for g in grants if g.role_id is not None}
-    if role_grant_ids:
-        initiative = getattr(project, "initiative", None)
-        if initiative:
-            memberships = getattr(initiative, "memberships", None) or []
-            user_role_ids = {
-                m.role_id
-                for m in memberships
-                if m.user_id == user_id and m.role_id is not None
-            }
-            if role_grant_ids & user_role_ids:
-                return True
-    return False
 
 
 async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -> None:
@@ -222,6 +203,9 @@ async def _get_project_or_404(
             .selectinload(ProjectDocument.document)
             .options(
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
+                # Linked-doc visibility defers to the shared document DAC, which
+                # reads the doc's own initiative memberships (all-members grants).
+                selectinload(Document.initiative).selectinload(Initiative.memberships),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -496,6 +480,9 @@ async def _visible_projects(
             .selectinload(ProjectDocument.document)
             .options(
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
+                # Linked-doc visibility defers to the shared document DAC, which
+                # reads the doc's own initiative memberships (all-members grants).
+                selectinload(Document.initiative).selectinload(Initiative.memberships),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -658,6 +645,9 @@ async def _projects_by_ids(
             .selectinload(ProjectDocument.document)
             .options(
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
+                # Linked-doc visibility defers to the shared document DAC, which
+                # reads the doc's own initiative memberships (all-members grants).
+                selectinload(Document.initiative).selectinload(Initiative.memberships),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -749,7 +739,7 @@ async def _require_project_membership(
     access. Loads the permission row first in case it wasn't eager-loaded."""
     await _get_project_permission(project, current_user.id, session)
     resource_access.authorize(
-        "project",
+        Tool.project,
         project,
         current_user,
         access=access,
@@ -847,6 +837,11 @@ async def _list_global_projects(
                 .selectinload(ProjectDocument.document)
                 .options(
                     selectinload(Document.grants).selectinload(ResourceGrant.role),
+                    # Linked-doc visibility defers to the shared document DAC, which
+                    # reads the doc's own initiative memberships (all-members grants).
+                    selectinload(Document.initiative).selectinload(
+                        Initiative.memberships
+                    ),
                 ),
                 selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             )
@@ -1862,42 +1857,6 @@ async def set_project_tags(
     )
 
 
-def _project_write_holder_ids(project: Project) -> set[int]:
-    """Initiative-member user IDs with effective write+ (write/owner) access to the
-    project — i.e. those eligible to be task assignees. Pure read of the
-    eager-loaded ``grants`` + ``initiative.memberships`` (no DB I/O)."""
-    resource = permissions_service.DAC_RESOURCES["project"]
-    memberships = getattr(project.initiative, "memberships", None) or []
-    return {
-        m.user_id
-        for m in memberships
-        if m.user_id is not None
-        and permissions_service.effective_level(resource, project, m.user_id)
-        in ("write", "owner")
-    }
-
-
-async def _remove_user_task_assignments(
-    session: SessionDep, project_id: int, user_ids: set[int]
-) -> None:
-    """Unassign the given users from every task in the project. Called when a grant
-    change drops a user below write access, since a user cannot be assigned to
-    tasks they can no longer edit."""
-    if not user_ids:
-        return
-    task_ids = (
-        await session.exec(select(Task.id).where(Task.project_id == project_id))
-    ).all()
-    if not task_ids:
-        return
-    await session.exec(
-        sa_delete(TaskAssignee).where(
-            TaskAssignee.task_id.in_(task_ids),
-            TaskAssignee.user_id.in_(list(user_ids)),
-        )
-    )
-
-
 @router.put("/{project_id}/grants", response_model=ProjectRead)
 async def set_project_grants(
     project_id: int,
@@ -1913,38 +1872,13 @@ async def set_project_grants(
     Anyone the new grants drop below write access is unassigned from the project's
     tasks (you can't be assigned to tasks you can't edit).
     """
+    # One shared flow (load + authorize manage-access + archived guard + rebuild
+    # grants + unassign anyone dropped below write). Then reload the full graph for
+    # the response.
+    await resource_access.set_resource_grants(
+        session, Tool.project, project_id, current_user, guild_context, grants
+    )
     project = await _get_project_or_404(project_id, session, guild_context.guild_id)
-    await _require_project_membership(
-        project, current_user, session, access="write", manage_access=True
-    )
-    _ensure_not_archived(project)
-
-    # Snapshot who can edit the project before the change, to diff against after.
-    writers_before = _project_write_holder_ids(project)
-
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="project",
-        resource_id=project_id,
-        guild_id=guild_context.guild_id,
-        initiative_id=project.initiative_id,
-        owner_id=project.owner_id,
-        grants=grants,
-    )
-    await session.commit()
-    await reapply_rls_context(session)
-
-    # replace_resource_grants rewrites resource_grants rows directly (by
-    # resource_type/resource_id), so the cached Project.grants collection is now
-    # stale — reload just that one collection rather than re-fetching the whole graph.
-    await session.refresh(project, attribute_names=["grants"])
-
-    demoted = writers_before - _project_write_holder_ids(project)
-    if demoted:
-        await _remove_user_task_assignments(session, project_id, demoted)
-        await session.commit()
-        await reapply_rls_context(session)
-
     return await _project_read_for_user(session, current_user, project)
 
 

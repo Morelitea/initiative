@@ -38,7 +38,7 @@ history/
 
 ## Project Structure & Module Organization
 
-`backend/` hosts the FastAPI service; routers sit in `app/api`, config in `core`, persistence helpers in `db`, domain models in `models`, payloads in `schemas`, and business logic in `services`, with `main.py` as the uvicorn entry point. `frontend/src` stays feature-first (`api`, `components`, `features`, `pages`, `hooks`, `lib`, `types`). Dockerfiles plus the root `docker-compose.yml` wire Postgres, backend, and the nginx React build.
+`backend/` hosts the FastAPI service; routers sit in `app/api`, config in `core`, persistence helpers in `db`, domain models in `models`, payloads in `schemas`, and business logic in `services`, with `main.py` as the uvicorn entry point. `frontend/src` stays feature-first (`api`, `components`, `features`, `pages`, `hooks`, `lib`, `types`). Dockerfiles plus the root `docker-compose.yml` wire Postgres, backend, and the nginx React build. User-facing documentation is a Zensical static site under `docs/en/` (build/preview with `zensical build`/`serve`; see `docs/en/admin/maintaining-these-docs.md`).
 
 ## Build, Test, and Development Commands
 
@@ -47,9 +47,9 @@ history/
 - `cd backend && uvicorn app.main:app --reload` — run the API on http://localhost:8000.
 - `cd backend && alembic upgrade head` — apply the latest database migrations (or run `python -m app.db.init_db` to migrate plus seed defaults).
 - `cd backend && alembic revision --autogenerate -m "desc"` — generate a migration after SQLModel changes.
-- `cd frontend && npm install && npm run dev` — launch the Vite dev server (uses `VITE_API_URL`, defaults to `http://localhost:8000/api/v1`).
+- `cd frontend && pnpm install && pnpm dev` — launch the Vite dev server (uses `VITE_API_URL`, defaults to `http://localhost:8000/api/v1`).
 - `docker-compose up --build` — start Postgres 17, backend, and the nginx SPA.
-- `cd backend && pytest` / `ruff check app` and `cd frontend && npm run lint` — run tests and linters. Tests are co-located alongside source files in `app/` (not in a separate `tests/` directory).
+- `cd backend && pytest` / `ruff check app` and `cd frontend && pnpm lint` — run tests and linters. Tests are co-located alongside source files in `app/` (not in a separate `tests/` directory).
 
 ## Generated API Types (Orval)
 
@@ -185,7 +185,7 @@ All user-facing strings must be externalized for localization. **Never hardcode 
 
 Translation files live in `frontend/public/locales/en/<namespace>.json`. The app uses `i18next-http-backend` to lazy-load namespaces on first use.
 
-**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`
+**Namespaces**: `common`, `auth`, `nav`, `projects`, `tasks`, `documents`, `initiatives`, `settings`, `tags`, `guilds`, `import`, `notifications`, `stats`, `landing`, `errors`, `dates`, `access`, `command`, `counters`, `dashboard`, `events`, `properties`, `queues`, `trash`
 
 **Rules:**
 
@@ -283,7 +283,7 @@ Available factories:
 Auth helpers:
 - `get_auth_token(user)` — returns a JWT string for the user
 - `get_auth_headers(user)` — returns `{"Authorization": "Bearer <token>"}` dict
-- `get_guild_headers(guild, user=None)` — returns `{"X-Guild-ID": "..."}` with optional auth
+- `get_guild_headers(session, guild, user)` — async; wraps `get_auth_headers` (guild context is path-based now, so it writes no state). Address the guild in the URL, e.g. `/api/v1/g/{guild.id}/initiatives/`
 
 ```python
 from app.testing import create_user, create_guild, create_guild_membership, get_guild_headers
@@ -293,8 +293,8 @@ async def test_something(session, client):
     user = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    headers = get_guild_headers(guild, user)
-    response = await client.get("/api/v1/initiatives", headers=headers)
+    headers = await get_guild_headers(session, guild, user)
+    response = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
     assert response.status_code == 200
 ```
 
@@ -332,84 +332,55 @@ History favors short subjects (e.g., `MVP WIP 1`), so keep the first line impera
 
 Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EMAIL_DOMAINS`, and optional `FIRST_SUPERUSER_*`, then run `alembic upgrade head` (or `python -m app.db.init_db`) so the schema is current and default settings/SUs are seeded. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.
 
-## Row-Level Security (RLS)
+## Tenancy, Database Architecture & RLS
 
-This project enforces PostgreSQL Row-Level Security at the database level. **Every backend endpoint must use the correct session type** to ensure data isolation between guilds.
+Tenancy is enforced in Postgres, not just app code. See **CLAUDE.md → "Tenancy, Database Architecture & RLS"** for the authoritative full detail. Key facts:
+
+- **Schema-per-guild.** Each guild's content lives in its own `guild_<id>` schema; shared identity/config lives in `public`. Isolation = the schema boundary + per-request `SET ROLE`.
+- **Three logins:** `app_user` (`DATABASE_URL_APP`, RLS-enforced request path), `app_admin` (`DATABASE_URL_ADMIN`, the **only** BYPASSRLS role — jobs/seeding/bootstrapping), superuser (`DATABASE_URL`, migrations + provisioning). No standing all-guild bypass on the request path; `app.is_superadmin` is retired from it.
+- **Guild context is path-based:** guild requests are addressed as `/g/{guild_id}/…`. There is **no `X-Guild-ID` header and no `users.active_guild_id`** (both removed). Cross-guild "my" views are `/api/v1/me/*`.
+- **Initiative-member RLS** on guild content defers to one function, `public.initiative_access(initiative_id, user_id, need_write)` (member OR guild admin OR PAM). A non-member sees **404** (row hidden), not 403. The structural initiative tables are guild-scoped only (not initiative-gated).
+- **Cross-guild access** (PAM / break-glass) is time-bound, per-guild, and audited — never a standing bypass.
 
 ### Session Types (choose the right one)
 
-| Session Dep | When to use | RLS context set? |
+| Session Dep | Engine / role assumed | When to use |
 |---|---|---|
-| `RLSSessionDep` | Guild-scoped data endpoints (projects, tasks, documents, initiatives, tags, comments, task statuses, collaboration, imports, guild-scoped settings) | Yes — user + guild + role + superadmin |
-| `UserSessionDep` | Cross-guild user operations (list guilds, reorder guilds, leave guild, leave eligibility) | Yes — user + superadmin only (no guild) |
-| `AdminSessionDep` | Bootstrapping operations where the entity doesn't exist yet (create guild, accept invite), admin/auth/user management, background jobs, startup seeding | No — bypasses RLS entirely |
-| `SessionDep` | Only for unauthenticated endpoints or where another dep manually calls `set_rls_context()` in the handler (e.g., guild admin endpoints that validate role first) | No — raw session, no RLS context |
+| `RLSSessionDep` (`get_guild_session`) | `app_user` → `SET ROLE guild_<id>`/`_ro` | Guild-scoped data under `/g/{guild_id}/…`. Pair with `GuildContextDep`. |
+| `UserSessionDep` (`get_user_session`) | `app_user` → `platform_<tier>` | Authenticated cross-guild/platform reads with no guild (`/me/*`, list/reorder/leave guilds). |
+| `AdminSessionDep` (`get_admin_session`) | `app_admin` (**BYPASSRLS**) | Bootstrapping (create guild, accept invite), platform user/access-grant mgmt, background jobs, seeding. |
+| `SessionDep` (`get_session`) | `app_user`, login role | Unauthenticated, or handlers that call `set_rls_context()` themselves after validating. |
 
 ### Rules for writing backend endpoints
 
-1. **Default to `RLSSessionDep`** for any endpoint that reads/writes guild-scoped data. It requires `GuildContextDep` in the same endpoint signature.
-2. **After every `session.commit()` that is followed by a database query** (including `session.refresh()`), call `await reapply_rls_context(session)`. Commits may release the connection back to the pool; the next query could land on a connection without RLS variables set.
-3. **Use `AdminSessionDep`** for operations that can't work under RLS — e.g., creating a guild (the guild and membership don't exist yet, so INSERT...RETURNING triggers a SELECT policy that can't match).
-4. **Never use `SessionDep` for guild-scoped data** — it has no RLS context and will either return all rows (if connected as superuser) or zero rows (if connected as `app_user`).
-5. **`set_rls_context()` uses `set_config()`** (not `SET` commands) to guarantee execution on the same pooled connection as subsequent queries.
-6. **New RLS policies** for new tables must be added via Alembic migration. Include `FORCE ROW LEVEL SECURITY` and add a superadmin bypass (`OR current_setting('app.is_superadmin', true) = 'true'`).
+1. **Default to `RLSSessionDep`** (+ `GuildContextDep`) for any guild-scoped data; the guild comes from the `/g/{guild_id}` path. Never use `SessionDep` for guild-scoped data.
+2. **After every `session.commit()` followed by a query** (incl. `session.refresh()`), call `await reapply_rls_context(session)` — a commit may release the connection back to the pool.
+3. **Use `UserSessionDep`** for authenticated cross-guild/platform reads; reserve `AdminSessionDep` (BYPASSRLS) for bootstrapping/lifecycle/jobs that can't run under a scoped role.
+4. **Gate platform endpoints on `require_capability(...)`** — never reintroduce a request-path `is_superadmin`.
+5. **`set_rls_context()` uses `set_config()`** so the assumed role/GUCs land on the same pooled connection as subsequent queries.
 
-### Adding or updating tables (RLS policy checklist)
+### Adding or changing tables
 
-Every guild-scoped table **must** have RLS policies. When creating a new table or changing an existing table's relationships, follow this checklist:
+The path depends on where the table lives:
 
-1. **New guild-scoped table with `guild_id` column** — create an Alembic migration that:
-   - `ALTER TABLE <name> ENABLE ROW LEVEL SECURITY`
-   - `ALTER TABLE <name> FORCE ROW LEVEL SECURITY`
-   - Creates a `guild_isolation` policy (or command-specific `guild_select`, `guild_insert`, etc. if access rules differ per operation)
-   - Includes a superadmin bypass: `OR current_setting('app.is_superadmin', true) = 'true'`
-
-2. **New junction/association table without `guild_id`** (e.g., `task_tags`, `document_tags`) — use an `EXISTS` subquery through the related table that does have `guild_id`:
-   ```sql
-   CREATE POLICY guild_isolation ON junction_table
-   FOR ALL
-   USING (
-       EXISTS (
-           SELECT 1 FROM parent_table
-           WHERE parent_table.id = junction_table.parent_id
-           AND parent_table.guild_id = current_setting('app.current_guild_id', true)::int
-       )
-       OR current_setting('app.is_superadmin', true) = 'true'
-   )
-   WITH CHECK (...)  -- same predicate
-   ```
-
-3. **Initiative-scoped tables** — add a second `AS RESTRICTIVE` policy layer for initiative membership on top of the guild isolation policy. Reference `20260210_0046_initiative_scoped_rls.py` for the pattern.
-
-4. **Renaming or dropping a table** — drop existing policies first (`DROP POLICY IF EXISTS ... ON ...`), then disable RLS before the DDL change. Re-create policies on the new table name if renaming.
-
-5. **Adding `guild_id` to an existing table that lacked it** — backfill the column, then add RLS policies in the same migration.
-
-6. **Session variable constants** — use these in migration SQL:
-   ```python
-   CURRENT_GUILD_ID = "current_setting('app.current_guild_id', true)::int"
-   CURRENT_USER_ID  = "NULLIF(current_setting('app.current_user_id', true), '')::int"
-   CURRENT_GUILD_ROLE = "current_setting('app.current_guild_role', true)"
-   IS_SUPERADMIN = "current_setting('app.is_superadmin', true) = 'true'"
-   ```
-
-7. **Downgrade function** — always include `DROP POLICY IF EXISTS` and `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` so rollbacks are clean.
-
-8. **Verify after migration** — connect as `app_user` (not the superuser) and confirm that queries only return rows for the active guild. A missing policy silently returns zero rows; a wrong policy leaks cross-guild data.
+1. **Guild-scoped (content) table** — add/modify the SQLModel + autogenerate the migration, then do **both**: regenerate the guild schema (`python scripts/gen_guild_schema.py`), and classify it for initiative RLS in **one** place — either *initiative-scoped* via an entry in `INITIATIVE_PATHS` in `app/db/initiative_rls.py` (then `python scripts/gen_guild_rls.py` to regenerate `guild_rls.sql`), or *guild-level* via `GUILD_LEVEL_TABLES` in `app/db/tenancy.py`. CI fails if a new table is in neither bucket, or if the committed `guild_rls.sql` drifts from the generator. Content tables do **not** get the old `guild_isolation`/`is_superadmin` policies.
+2. **Shared/platform table in `public`** (identity/config) — Alembic migration with `ENABLE` + `FORCE ROW LEVEL SECURITY` and role-scoped `TO platform_<tier>` policies + own-row predicates; gate the endpoints on the matching capability.
+3. **Renaming/dropping** — `DROP POLICY IF EXISTS …` and `DISABLE ROW LEVEL SECURITY` before the DDL; always provide a clean downgrade.
+4. **Verify** as `app_user` (not the superuser): for guild content, `SET ROLE guild_<id>` and confirm only that guild's schema is reachable. A missing policy silently returns zero rows; a wrong one leaks.
 
 ### Rules for writing frontend code
 
 1. **React Query cache keys for the same data must match across components.** If the sidebar uses `["initiatives", guildId]` and a page uses `["initiatives", { guildId }]`, invalidation from one won't reach the other. Use prefix invalidation (`queryKey: ["initiatives"]`) when mutations should refresh all consumers.
-2. **Always include the `X-Guild-ID` header** when calling guild-scoped endpoints. The `apiClient` interceptor handles this automatically via `activeGuildId`.
+2. **Guild context is in the URL path, not server-held.** Every guild-scoped request addresses its guild as `/api/v1/g/{guildId}/…`; there is no `X-Guild-ID` header and no server-held active guild (the `users.active_guild_id` column was removed). `useActiveGuildId()` derives the guild from the route; cross-guild "my" views call `/api/v1/me/*`.
 3. **Never use `localStorage` directly.** Import `getItem`, `setItem`, `removeItem` from `@/lib/storage` instead. The storage module uses an in-memory cache backed by Capacitor Preferences on native (preventing data loss when the OS clears localStorage) and delegates to localStorage on web. `initStorage()` hydrates the cache before React renders, so all reads are synchronous.
 
 ## Guild Architecture Notes
 
-- Guilds are the primary tenancy boundary. Every user can join multiple guilds, and most API endpoints infer the active guild from the `X-Guild-ID` header (set by the SPA) or fall back to `users.active_guild_id`. Always include the guild header in new client calls when the route depends on guild context.
-- Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project configuration, and can delete their guild; they cannot delete users from the entire app. Keep server-side checks scoped to guild roles, not legacy global roles.
-- The bootstrap super user (ID `1`) is the only account allowed to change app-wide configuration (OIDC, SMTP email, branding accents, role labels). Those routes live under `/settings/admin` in the SPA and corresponding `/api/v1/settings/*` endpoints check for that ID explicitly.
-- `.env` supports `DISABLE_GUILD_CREATION`. When set to `true`, POST `/guilds/` must return 403 and the frontend should hide “Create guild” affordances, forcing new users to redeem invites issued by guild admins.
-- Every new guild automatically seeds a "Default Initiative" and makes the creator a guild admin. Be mindful when writing migrations or services so this invariant remains intact, especially when cascading deletes (guild deletion must clean up initiatives, projects, tasks, memberships, and settings).
+- Guilds are the primary tenancy boundary; users can join many. The active guild is **addressed in the URL path** (`/g/{guild_id}/…`) — there is no server-held active guild (`users.active_guild_id` was removed) and no `X-Guild-ID` header. `GuildContextDep`/`RLSSessionDep` resolve the guild from the path and re-validate membership (or a live PAM/break-glass grant) per request; a forged/stale path fails closed (403). Cross-guild "my" views are `/api/v1/me/*`.
+- Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project config, and can delete their guild. A guild admin sees the whole guild via the `current_guild_role='admin'` RLS leg, not a bypass.
+- **Platform roles are a 5-rung ladder** (`member → support → moderator → admin → owner`, stored in `users.role`) resolved to capabilities in `backend/app/core/capabilities.py`. Gate platform endpoints on a capability via `require_capability(...)`, not a role name. App-wide config (OIDC, SMTP, branding, role labels, platform AI) requires `config.manage` (owner-only); the first/bootstrap user becomes `owner`. Never leave the platform without a `config.manage` holder.
+- `.env` supports `DISABLE_GUILD_CREATION`: when `true`, POST `/guilds/` returns 403 and the SPA hides “Create guild” affordances.
+- Every new guild **provisions its `guild_<id>` schema + per-guild roles**, seeds a "Default Initiative", and makes the creator a guild admin. Guild deletion must drop the schema + roles and clean up the shared rows that cascade off `public.guilds`.
 
 ## Docker Deployment
 

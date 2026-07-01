@@ -167,6 +167,10 @@ class CounterGroupSummary(CounterGroupBase):
     my_permission_level: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    # The full sharing state — every resource_grants row for this group. Exposed on
+    # the summary (not just the detail read) so list views can manage sharing in
+    # bulk without a per-item detail fetch.
+    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
 class CounterGroupListResponse(SanitizedBaseModel):
@@ -181,8 +185,6 @@ class CounterGroupListResponse(SanitizedBaseModel):
 
 class CounterGroupRead(CounterGroupSummary):
     counters: List[CounterRead] = Field(default_factory=list)
-    # The full sharing state — every resource_grants row for this group.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +240,9 @@ def serialize_counter_group_summary(
     *,
     my_permission_level: Optional[str] = None,
 ) -> CounterGroupSummary:
+    # Local import avoids a schema -> service import cycle.
+    from app.services.permissions import serialize_grants
+
     return CounterGroupSummary(
         id=group.id,
         name=group.name,
@@ -249,6 +254,7 @@ def serialize_counter_group_summary(
         my_permission_level=my_permission_level,
         created_at=group.created_at,
         updated_at=group.updated_at,
+        grants=serialize_grants(group),
     )
 
 
@@ -261,11 +267,7 @@ def serialize_counter_group(
         group, my_permission_level=my_permission_level
     )
     counters = sorted(_active_counters(group), key=lambda c: c.position)
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import serialize_grants
-
     return CounterGroupRead(
         **summary.model_dump(),
         counters=[serialize_counter(c) for c in counters],
-        grants=serialize_grants(group),
     )

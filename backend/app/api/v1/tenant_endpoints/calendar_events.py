@@ -52,6 +52,7 @@ from app.schemas.tenant.ical import (
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.api import resource_access
+from app.core.tools import Tool
 from app.models.tenant.resource_grant import ResourceGrant, ResourceAccessLevel
 from app.services import permissions as permissions_service
 from app.services.tenant import calendar_events as events_service
@@ -138,7 +139,7 @@ async def _get_event_or_404(
     # Feature gate + per-event DAC. Writes additionally gate on create_events in
     # the handler, so read access here is sufficient.
     resource_access.authorize(
-        "calendar_event", event, user, access=access, guild_role=guild_context.role
+        Tool.calendar_event, event, user, access=access, guild_role=guild_context.role
     )
     return event
 
@@ -1022,38 +1023,8 @@ async def set_calendar_event_grants(
     full list of grants (all-initiative-members / per-user / per-role). Every
     non-owner grant is rebuilt from it; the owner is always preserved.
     """
-    event = await _get_event_or_404(
-        session, event_id, current_user, guild_context, access="write"
+    await resource_access.set_resource_grants(
+        session, Tool.calendar_event, event_id, current_user, guild_context, grants
     )
-    # Managing sharing additionally rejects PAM grantees — a grant never manages
-    # access (mirrors the projects/documents/counters grant endpoints).
-    resource_access.authorize(
-        "calendar_event",
-        event,
-        current_user,
-        access="write",
-        manage_access=True,
-        guild_role=guild_context.role,
-    )
-
-    # The owner is the user holding the owner-level grant, else the creator.
-    owner_id = event.created_by_id
-    for g in event.grants or []:
-        if g.user_id is not None and g.level == ResourceAccessLevel.owner:
-            owner_id = g.user_id
-            break
-
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="calendar_event",
-        resource_id=event.id,
-        guild_id=event.guild_id,
-        initiative_id=event.initiative_id,
-        owner_id=owner_id,
-        grants=grants,
-    )
-
-    await session.commit()
-    await reapply_rls_context(session)
-    hydrated = await _refetch_event(session, event.id)
+    hydrated = await _refetch_event(session, event_id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)

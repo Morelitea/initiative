@@ -50,5 +50,10 @@ history/
 # Docker
 docker-compose.yml
 
+# Zensical documentation build output
+/site/
+/.cache/
+.zensical/
+
 # Git worktrees
 .worktrees/

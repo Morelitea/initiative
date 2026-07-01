@@ -1,0 +1,183 @@
+# ============================================================================
+# Zensical configuration for the Initiative documentation site.
+#
+# Build locally:   zensical serve     (preview at http://localhost:8000)
+# Build static:    zensical build     (output in ./site)
+#
+# Content lives under docs/en/ so that other languages (e.g. docs/es/) can be
+# added later without restructuring. See docs/en/admin/maintaining-these-docs.md.
+# ============================================================================
+
+[project]
+
+site_name = "Initiative Help"
+site_description = "Guides and reference for Initiative — projects, documents, and task boards for your whole group."
+site_author = "Morelitea"
+
+# The canonical URL for the published site (powers search, the sitemap, and
+# social previews). For GitHub Pages on this repo it's the project URL below.
+# If you later use a custom domain, change this to that domain (e.g.
+# "https://docs.initiative.app/").
+site_url = "https://morelitea.github.io/initiative/"
+
+# Link the header logo/title back to the source repository.
+repo_url = "https://github.com/Morelitea/initiative"
+repo_name = "Morelitea/initiative"
+
+copyright = """
+Copyright &copy; 2026 Morelitea
+"""
+
+# Bring your own styling for the "screenshot placeholder" and "technical
+# details" callouts used throughout these docs.
+extra_css = ["stylesheets/extra.css"]
+
+# ----------------------------------------------------------------------------
+# Navigation. Paths are relative to the docs directory. The English tree lives
+# under en/; to add a language later, copy en/ to a new language folder and add
+# a parallel block here (and a language switcher) once translations exist.
+# ----------------------------------------------------------------------------
+nav = [
+  { "Home" = "en/index.md" },
+  { "Getting started" = [
+    "en/getting-started/index.md",
+    "en/getting-started/create-account.md",
+    "en/getting-started/signing-in.md",
+    "en/getting-started/a-quick-tour.md",
+    "en/getting-started/your-first-guild.md",
+  ] },
+  { "How Initiative is organized" = [
+    "en/concepts/index.md",
+  ] },
+  { "Using Initiative" = [
+    "en/guides/index.md",
+    "en/guides/guilds.md",
+    "en/guides/initiatives.md",
+    "en/guides/projects-and-tasks.md",
+    "en/guides/task-views.md",
+    "en/guides/documents.md",
+    "en/guides/tools.md",
+    "en/guides/tags.md",
+    "en/guides/your-space.md",
+    "en/guides/search-and-shortcuts.md",
+    "en/guides/notifications.md",
+  ] },
+  { "Sharing & access" = [
+    "en/sharing/index.md",
+    "en/sharing/initiative-roles.md",
+    "en/sharing/sharing-projects-and-documents.md",
+  ] },
+  { "Security & privacy" = [
+    "en/security/index.md",
+    "en/security/how-your-data-is-kept-separate.md",
+    "en/security/data-and-compliance.md",
+    "en/security/reporting-a-problem.md",
+  ] },
+  { "Account & settings" = [
+    "en/account/index.md",
+    "en/account/profile-and-preferences.md",
+    "en/account/ai-features.md",
+    "en/account/api-keys-and-integrations.md",
+  ] },
+  { "For administrators" = [
+    "en/admin/index.md",
+    "en/admin/installation.md",
+    "en/admin/configuration.md",
+    "en/admin/single-sign-on.md",
+    "en/admin/email.md",
+    "en/admin/push-notifications.md",
+    "en/admin/object-storage.md",
+    "en/admin/platform-roles.md",
+    "en/admin/backups-and-updates.md",
+    "en/admin/maintaining-these-docs.md",
+  ] },
+  { "Help & reference" = [
+    "en/reference/index.md",
+    "en/reference/glossary.md",
+    "en/reference/faq.md",
+    "en/reference/keyboard-shortcuts.md",
+  ] },
+]
+
+# ----------------------------------------------------------------------------
+# Theme
+# ----------------------------------------------------------------------------
+[project.theme]
+
+language = "en"
+
+features = [
+  "announce.dismiss",
+  "content.code.copy",
+  "content.tooltips",
+  "navigation.footer",
+  "navigation.indexes",
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.path",
+  "navigation.sections",
+  "navigation.tabs",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "search.share",
+  "toc.follow",
+]
+
+[project.theme.icon]
+logo = "lucide/compass"
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "deep purple"
+accent = "deep purple"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "deep purple"
+accent = "deep purple"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/Morelitea/initiative"
+
+# ----------------------------------------------------------------------------
+# Markdown extensions (kept close to the Zensical defaults).
+# ----------------------------------------------------------------------------
+[project.markdown_extensions.abbr]
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.footnotes]
+[project.markdown_extensions.md_in_html]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.betterem]
+[project.markdown_extensions.pymdownx.caret]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_generator = "zensical.extensions.emoji.to_svg"
+emoji_index = "zensical.extensions.emoji.twemoji"
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+[project.markdown_extensions.pymdownx.inlinehilite]
+[project.markdown_extensions.pymdownx.keys]
+[project.markdown_extensions.pymdownx.magiclink]
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
+]
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+combine_header_slug = true
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+[project.markdown_extensions.pymdownx.tilde]

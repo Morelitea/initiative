@@ -25,6 +25,7 @@ from app.api.v1.tenant_endpoints import (
     property_definitions,
     queues,
     recents,
+    resource_grants,
     tags,
     task_statuses,
     tasks,
@@ -112,6 +113,9 @@ guild_router.include_router(
 )
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
+)
+guild_router.include_router(
+    resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]
 )
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 guild_router.include_router(

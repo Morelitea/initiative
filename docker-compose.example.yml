@@ -51,7 +51,7 @@ services:
       # OIDC_PROVIDER_NAME: Your Provider Name
       # OIDC_SCOPES: openid,profile,email,offline_access
       # Optional: Enable push notifications (requires Firebase project)
-      # See docs/FIREBASE_SETUP.md for setup instructions
+      # See docs/en/admin/push-notifications.md for setup instructions
       # FCM_ENABLED: false
       # FCM_PROJECT_ID: your-firebase-project-id
       # FCM_APPLICATION_ID: 1:123456789:android:abcdef

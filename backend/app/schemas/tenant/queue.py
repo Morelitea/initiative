@@ -144,6 +144,10 @@ class QueueSummary(QueueBase):
     created_at: datetime
     updated_at: datetime
     my_permission_level: Optional[str] = None
+    # The full sharing state — every resource_grants row for this queue. Exposed on
+    # the summary (not just the detail read) so list views can manage sharing in
+    # bulk without a per-item detail fetch.
+    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
 class QueueListResponse(SanitizedBaseModel):
@@ -159,8 +163,6 @@ class QueueListResponse(SanitizedBaseModel):
 class QueueRead(QueueSummary):
     items: List[QueueItemRead] = Field(default_factory=list)
     current_item: Optional[QueueItemRead] = None
-    # The full sharing state — every resource_grants row for this queue.
-    grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +236,9 @@ def serialize_queue_summary(
     my_permission_level: Optional[str] = None,
 ) -> QueueSummary:
     items = getattr(queue, "items", None) or []
+    # Local import avoids a schema -> service import cycle.
+    from app.services.permissions import serialize_grants
+
     return QueueSummary(
         id=queue.id,
         name=queue.name,
@@ -247,6 +252,7 @@ def serialize_queue_summary(
         created_at=queue.created_at,
         updated_at=queue.updated_at,
         my_permission_level=my_permission_level,
+        grants=serialize_grants(queue),
     )
 
 
@@ -264,12 +270,8 @@ def serialize_queue(
                 current_item = item
                 break
     summary = serialize_queue_summary(queue, my_permission_level=my_permission_level)
-    # Local import avoids a schema -> service import cycle.
-    from app.services.permissions import serialize_grants
-
     return QueueRead(
         **summary.model_dump(),
         items=serialized_items,
         current_item=current_item,
-        grants=serialize_grants(queue),
     )

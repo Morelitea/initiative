@@ -20,7 +20,11 @@ import { type HTMLAttributes, useCallback, useEffect, useMemo, useRef, useState 
 import { useTranslation } from "react-i18next";
 
 import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllProjects } from "@/api/query-keys";
+import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
+import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { Markdown } from "@/components/Markdown";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
@@ -39,6 +43,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import {
@@ -77,7 +82,7 @@ type ProjectsViewProps = {
 };
 
 export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: ProjectsViewProps) => {
-  const { t } = useTranslation(["projects", "common"]);
+  const { t } = useTranslation(["projects", "common", "access"]);
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   // Single source of truth for "what can I do in each initiative" — honors
@@ -527,49 +532,81 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     });
   };
 
-  const projectCards =
-    sortMode === "custom" ? (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleProjectDragEnd}
-      >
-        <SortableContext
-          items={sortedProjects.map((project) => project.id.toString())}
-          strategy={verticalListSortingStrategy}
-        >
-          {viewMode === "list" ? (
-            <div className="space-y-3">
-              {sortedProjects.map((project) => (
-                <SortableProjectRowLink key={project.id} project={project} userId={user?.id} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {sortedProjects.map((project) => (
-                <SortableProjectCardLink key={project.id} project={project} userId={user?.id} />
-              ))}
-            </div>
-          )}
-        </SortableContext>
-      </DndContext>
+  const selection = useGridSelection<(typeof sortedProjects)[number]>();
+  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+
+  const projectCards = selection.active ? (
+    viewMode === "list" ? (
+      <div className="space-y-3">
+        {sortedProjects.map((project) => (
+          <SelectableGridItem
+            key={project.id}
+            active
+            selected={selection.selectedIds.has(project.id)}
+            onToggle={() => selection.toggle(project)}
+            label={project.name}
+          >
+            <ProjectRowLink project={project} userId={user?.id} />
+          </SelectableGridItem>
+        ))}
+      </div>
     ) : (
-      <>
+      <div className="grid gap-4 md:grid-cols-2">
+        {sortedProjects.map((project) => (
+          <SelectableGridItem
+            key={project.id}
+            active
+            selected={selection.selectedIds.has(project.id)}
+            onToggle={() => selection.toggle(project)}
+            label={project.name}
+          >
+            <ProjectCardLink project={project} userId={user?.id} />
+          </SelectableGridItem>
+        ))}
+      </div>
+    )
+  ) : sortMode === "custom" ? (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleProjectDragEnd}
+    >
+      <SortableContext
+        items={sortedProjects.map((project) => project.id.toString())}
+        strategy={verticalListSortingStrategy}
+      >
         {viewMode === "list" ? (
           <div className="space-y-3">
             {sortedProjects.map((project) => (
-              <ProjectRowLink key={project.id} project={project} userId={user?.id} />
+              <SortableProjectRowLink key={project.id} project={project} userId={user?.id} />
             ))}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {sortedProjects.map((project) => (
-              <ProjectCardLink key={project.id} project={project} userId={user?.id} />
+              <SortableProjectCardLink key={project.id} project={project} userId={user?.id} />
             ))}
           </div>
         )}
-      </>
-    );
+      </SortableContext>
+    </DndContext>
+  ) : (
+    <>
+      {viewMode === "list" ? (
+        <div className="space-y-3">
+          {sortedProjects.map((project) => (
+            <ProjectRowLink key={project.id} project={project} userId={user?.id} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {sortedProjects.map((project) => (
+            <ProjectCardLink key={project.id} project={project} userId={user?.id} />
+          ))}
+        </div>
+      )}
+    </>
+  );
 
   const pinnedProjectsSection =
     pinnedProjects.length > 0 ? (
@@ -677,6 +714,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
+              {canViewProjects && sortedProjects.length > 0 && !selection.active && (
+                <Button variant="outline" onClick={selection.enter}>
+                  {t("access:bulkBar.select")}
+                </Button>
+              )}
             </div>
             <ProjectsFilterBar
               searchQuery={searchQuery}
@@ -710,7 +752,16 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               </p>
             ) : (
               <>
-                {pinnedProjectsSection}
+                {selection.active ? (
+                  <BulkAccessBar
+                    count={selection.selectedItems.length}
+                    canManage={canManageSharing(selection.selectedItems)}
+                    onEditAccess={() => setBulkAccessOpen(true)}
+                    onExit={selection.exit}
+                  />
+                ) : (
+                  pinnedProjectsSection
+                )}
                 {sortedProjects.length > 0 ? (
                   projectCards
                 ) : pinnedProjects.length > 0 ? (
@@ -869,6 +920,15 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             defaultInitiativeId={initiativeId}
           />
         )}
+
+        <BulkEditAccessDialog
+          open={bulkAccessOpen}
+          onOpenChange={setBulkAccessOpen}
+          items={selection.selectedItems}
+          resourceType={Tool.project}
+          invalidate={invalidateAllProjects}
+          onSuccess={selection.exit}
+        />
       </div>
     </PullToRefresh>
   );

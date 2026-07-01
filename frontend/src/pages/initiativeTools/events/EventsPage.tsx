@@ -7,11 +7,16 @@ import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import type {
+  CalendarEventSummary,
   FilterCondition,
   ListTasksApiV1GGuildIdTasksGetParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllCalendarEvents } from "@/api/query-keys";
+import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import {
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
@@ -34,6 +39,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEventsList, useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
+import { useGridSelection } from "@/hooks/useGridSelection";
 import {
   canCreate as canCreatePermission,
   useMyInitiativePermissions,
@@ -102,7 +108,7 @@ type EventsViewProps = {
 };
 
 export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) => {
-  const { t } = useTranslation(["events", "tasks", "common"]);
+  const { t } = useTranslation(["events", "tasks", "common", "access"]);
   const router = useRouter();
   const { user } = useAuth();
   const gp = useGuildPath();
@@ -306,6 +312,42 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
 
     return entries;
   }, [showEvents, showTasks, eventsQuery.data, tasksQuery.data, canCreateEvents, canEditTasks]);
+
+  // --- Bulk edit-access selection (list view only) ---
+  const eventSelection = useGridSelection<CalendarEventSummary>();
+  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+
+  const eventsById = useMemo(() => {
+    const map = new Map<number, CalendarEventSummary>();
+    for (const event of eventsQuery.data?.items ?? []) map.set(event.id, event);
+    return map;
+  }, [eventsQuery.data]);
+
+  const selectedEntryIds = useMemo(
+    () => new Set<CalendarEntry["id"]>(eventSelection.selectedItems.map((e) => `event-${e.id}`)),
+    [eventSelection.selectedItems]
+  );
+
+  const isEntrySelectable = useCallback(
+    (entry: CalendarEntry) => (entry.meta as { type?: string } | undefined)?.type === "event",
+    []
+  );
+
+  const toggleEntrySelection = useCallback(
+    (entry: CalendarEntry) => {
+      const eventId = (entry.meta as { eventId?: number } | undefined)?.eventId;
+      const event = typeof eventId === "number" ? eventsById.get(eventId) : undefined;
+      if (event) eventSelection.toggle(event);
+    },
+    [eventsById, eventSelection]
+  );
+
+  // Selection only exists in the list view — leaving it cancels the selection.
+  // Depend on the stable primitive/callback, not the per-render selection object.
+  const { active: selectionModeActive, exit: exitSelection } = eventSelection;
+  useEffect(() => {
+    if (viewMode !== "list" && selectionModeActive) exitSelection();
+  }, [viewMode, selectionModeActive, exitSelection]);
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -582,17 +624,37 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           {t("loading")}
         </div>
       ) : (
-        <CalendarView
-          entries={calendarEntries}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          focusDate={focusDate}
-          onFocusDateChange={setFocusDate}
-          onEntryClick={handleEntryClick}
-          onSlotClick={canCreateEvents ? handleSlotClick : undefined}
-          onEntryReschedule={canCreateEvents || canEditTasks ? handleEntryReschedule : undefined}
-          weekStartsOn={weekStartsOn}
-        />
+        <div className="space-y-3">
+          {eventSelection.active ? (
+            <BulkAccessBar
+              count={eventSelection.selectedItems.length}
+              canManage={canManageSharing(eventSelection.selectedItems)}
+              onEditAccess={() => setBulkAccessOpen(true)}
+              onExit={eventSelection.exit}
+            />
+          ) : viewMode === "list" ? (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={eventSelection.enter}>
+                {t("access:bulkBar.select")}
+              </Button>
+            </div>
+          ) : null}
+          <CalendarView
+            entries={calendarEntries}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            focusDate={focusDate}
+            onFocusDateChange={setFocusDate}
+            onEntryClick={handleEntryClick}
+            onSlotClick={canCreateEvents ? handleSlotClick : undefined}
+            onEntryReschedule={canCreateEvents || canEditTasks ? handleEntryReschedule : undefined}
+            weekStartsOn={weekStartsOn}
+            selectionActive={eventSelection.active}
+            selectedEntryIds={selectedEntryIds}
+            isEntrySelectable={isEntrySelectable}
+            onToggleEntrySelection={toggleEntrySelection}
+          />
+        </div>
       )}
 
       {initiativeId && (
@@ -604,6 +666,15 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           onSuccess={handleEventCreated}
         />
       )}
+
+      <BulkEditAccessDialog
+        open={bulkAccessOpen}
+        onOpenChange={setBulkAccessOpen}
+        items={eventSelection.selectedItems}
+        resourceType={Tool.calendar_event}
+        invalidate={invalidateAllCalendarEvents}
+        onSuccess={eventSelection.exit}
+      />
 
       <ICalImportDialog
         open={importDialogOpen}
