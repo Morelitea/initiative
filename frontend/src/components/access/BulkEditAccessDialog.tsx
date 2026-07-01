@@ -98,6 +98,12 @@ export function BulkEditAccessDialog({
   const { t } = useTranslation(["access", "common"]);
   const guildId = useActiveGuildId();
   const { user: currentUser } = useAuth();
+  // The tool noun, pluralized for `count`, so descriptions/toasts read "2 queues"
+  // rather than a hardcoded "documents".
+  const resourceNoun = useCallback(
+    (n: number) => t(`bulkBar.resource_${resourceType}`, { count: n }),
+    [t, resourceType]
+  );
   const [tab, setTab] = useState<"people" | "roles" | "all">("people");
   const [isPending, setIsPending] = useState(false);
 
@@ -381,8 +387,14 @@ export function BulkEditAccessDialog({
 
       toast.success(
         userMode === "grant"
-          ? t("bulkAccess.userAccessGranted", { count: items.length })
-          : t("bulkAccess.userAccessRevoked", { count: items.length })
+          ? t("bulkAccess.userAccessGranted", {
+              count: items.length,
+              items: resourceNoun(items.length),
+            })
+          : t("bulkAccess.userAccessRevoked", {
+              count: items.length,
+              items: resourceNoun(items.length),
+            })
       );
       finish();
     } catch (error) {
@@ -390,7 +402,7 @@ export function BulkEditAccessDialog({
     } finally {
       setIsPending(false);
     }
-  }, [selectedUserIds, userMode, items, level, applyBulk, finish, t]);
+  }, [selectedUserIds, userMode, items, level, applyBulk, finish, resourceNoun, t]);
 
   const handleApplyRoles = useCallback(async () => {
     if (selectedRoleIds.size === 0) return;
@@ -441,8 +453,14 @@ export function BulkEditAccessDialog({
       } else {
         toast.success(
           roleMode === "grant"
-            ? t("bulkAccess.roleAccessGranted", { count: affected })
-            : t("bulkAccess.roleAccessRevoked", { count: affected })
+            ? t("bulkAccess.roleAccessGranted", {
+                count: affected,
+                items: resourceNoun(affected),
+              })
+            : t("bulkAccess.roleAccessRevoked", {
+                count: affected,
+                items: resourceNoun(affected),
+              })
         );
       }
       finish();
@@ -451,7 +469,17 @@ export function BulkEditAccessDialog({
     } finally {
       setIsPending(false);
     }
-  }, [selectedRoleIds, roleMode, roleLevel, items, availableRoles, applyBulk, finish, t]);
+  }, [
+    selectedRoleIds,
+    roleMode,
+    roleLevel,
+    items,
+    availableRoles,
+    applyBulk,
+    finish,
+    resourceNoun,
+    t,
+  ]);
 
   const handleApplyAllMembers = useCallback(async () => {
     setIsPending(true);
@@ -467,7 +495,12 @@ export function BulkEditAccessDialog({
             grants: [{ all_initiative_members: true, level: allLevel }],
           }))
         );
-        toast.success(t("bulkAccess.allMembersShared", { count: items.length }));
+        toast.success(
+          t("bulkAccess.allMembersShared", {
+            count: items.length,
+            items: resourceNoun(items.length),
+          })
+        );
       } else {
         // Only touch resources that actually have an all-members grant — an
         // unchanged write is pointless and would let the toast claim removals
@@ -486,7 +519,12 @@ export function BulkEditAccessDialog({
         if (affected.length === 0) {
           toast.info(t("bulkAccess.noAllMembersAccess"));
         } else {
-          toast.success(t("bulkAccess.allMembersRemoved", { count: affected.length }));
+          toast.success(
+            t("bulkAccess.allMembersRemoved", {
+              count: affected.length,
+              items: resourceNoun(affected.length),
+            })
+          );
         }
       }
       finish();
@@ -495,7 +533,7 @@ export function BulkEditAccessDialog({
     } finally {
       setIsPending(false);
     }
-  }, [allMode, allLevel, items, applyBulk, finish, t]);
+  }, [allMode, allLevel, items, applyBulk, finish, resourceNoun, t]);
 
   const selectedUserCount = selectedUserIds.size;
   const selectedRoleCount = selectedRoleIds.size;
@@ -504,20 +542,21 @@ export function BulkEditAccessDialog({
 
   const count = items.length;
   const dialogDescription = useMemo(() => {
+    const opts = { count, items: resourceNoun(count) };
     if (tab === "roles") {
       return roleMode === "grant"
-        ? t("bulkAccess.descriptionGrant", { count })
-        : t("bulkAccess.descriptionRevoke", { count });
+        ? t("bulkAccess.descriptionGrant", opts)
+        : t("bulkAccess.descriptionRevoke", opts);
     }
     if (tab === "people") {
       return userMode === "grant"
-        ? t("bulkAccess.descriptionGrantUser", { count })
-        : t("bulkAccess.descriptionRevokeUser", { count });
+        ? t("bulkAccess.descriptionGrantUser", opts)
+        : t("bulkAccess.descriptionRevokeUser", opts);
     }
     return allMode === "share"
-      ? t("bulkAccess.descriptionAllShare", { count })
-      : t("bulkAccess.descriptionAllRemove", { count });
-  }, [tab, roleMode, userMode, allMode, count, t]);
+      ? t("bulkAccess.descriptionAllShare", opts)
+      : t("bulkAccess.descriptionAllRemove", opts);
+  }, [tab, roleMode, userMode, allMode, count, resourceNoun, t]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

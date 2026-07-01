@@ -209,6 +209,25 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     expect(captured[0].some((g) => g.all_initiative_members)).toBe(false);
   });
 
+  it("names the resource type in copy, not a hardcoded 'documents'", async () => {
+    captureGrantPuts();
+
+    renderWithProviders(
+      <BulkEditAccessDialog
+        open
+        onOpenChange={vi.fn()}
+        onSuccess={vi.fn()}
+        items={[{ id: 1, initiative_id: INITIATIVE_ID, grants: [] }]}
+        resourceType={Tool.queue}
+        invalidate={vi.fn()}
+      />,
+      { auth: { user: buildUser({ id: 1 }) } }
+    );
+
+    // Default People tab, grant mode → the description uses the queue noun.
+    expect(await screen.findByText("Grant people access on 1 queue.")).toBeInTheDocument();
+  });
+
   it("all-members remove makes no request when nothing is shared with all members", async () => {
     const user = userEvent.setup();
     const captured = captureGrantPuts();
