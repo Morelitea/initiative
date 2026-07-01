@@ -34,6 +34,8 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.core.tools import TOOL_TYPES, Tool  # noqa: F401  (Tool re-exported)
+
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import InitiativeRoleModel
     from app.models.platform.user import User
@@ -45,9 +47,10 @@ class ResourceAccessLevel(str, Enum):
     read = "read"
 
 
-RESOURCE_TYPES = frozenset(
-    {"project", "document", "queue", "counter_group", "calendar_event"}
-)
+# A resource_grants row's ``resource_type`` is one of the app-wide tool kinds. The
+# canonical enum lives in ``app.core.tools`` (it's an app-wide concept, not a
+# grants-only one); re-exported here for callers near the grant model.
+RESOURCE_TYPES = TOOL_TYPES
 
 
 class ResourceGrant(SQLModel, table=True):

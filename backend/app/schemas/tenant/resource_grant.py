@@ -12,9 +12,15 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
+
+# Upper bound on how many resources one bulk grant request may touch. Each item is
+# a load + authorize + rewrite + commit, so an unbounded list is a DoS / slow-query
+# risk; a multi-select bulk-edit UI never needs more than this in one call.
+MAX_BULK_GRANT_ITEMS = 200
 
 
 class ResourceGrantSchema(SanitizedBaseModel):
@@ -50,3 +56,37 @@ class ResourceGrantSchema(SanitizedBaseModel):
                 "Exactly one of user_id, role_id, or all_initiative_members must be set"
             )
         return self
+
+
+class ResourceGrantBulkItem(SanitizedBaseModel):
+    """One tool's full target sharing state in a bulk request — the same ``grants``
+    body the per-resource ``PUT /{id}/grants`` takes, tagged with which tool it
+    applies to (the app-wide ``Tool`` enum)."""
+
+    resource_type: Tool
+    resource_id: int
+    grants: list[ResourceGrantSchema]
+
+
+class ResourceGrantBulkRequest(SanitizedBaseModel):
+    """Replace sharing on many resources (possibly of different types) in one call.
+    Capped at ``MAX_BULK_GRANT_ITEMS`` items (422 otherwise)."""
+
+    items: list[ResourceGrantBulkItem] = Field(
+        min_length=1, max_length=MAX_BULK_GRANT_ITEMS
+    )
+
+
+class ResourceGrantBulkItemResult(SanitizedBaseModel):
+    """Per-item outcome — bulk is best-effort: a resource the caller can't manage
+    (``forbidden``) or that doesn't exist (``not_found``) is skipped without
+    blocking the rest."""
+
+    resource_type: Tool
+    resource_id: int
+    status: Literal["ok", "forbidden", "not_found"]
+    detail: Optional[str] = None
+
+
+class ResourceGrantBulkResponse(SanitizedBaseModel):
+    results: list[ResourceGrantBulkItemResult]

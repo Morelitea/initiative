@@ -24,6 +24,7 @@ from sqlmodel import select
 
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
 from app.core.role_context import active_guild_role, request_overrides_sharing
+from app.core.tools import Tool
 from app.services.membership import guild_member_clause
 
 from app.models.platform.guild import GuildRole
@@ -311,44 +312,44 @@ def initiative_scope_ok(
 
 @dataclass(frozen=True)
 class DacResource:
-    name: str
+    name: Tool
     scope_gate: bool  # gate on initiative_scope_ok? (project/document yes)
     denied_msg: str
     owner_msg: str
     write_msg: str
 
 
-DAC_RESOURCES: dict[str, DacResource] = {
-    "project": DacResource(
-        "project",
+DAC_RESOURCES: dict[Tool, DacResource] = {
+    Tool.project: DacResource(
+        Tool.project,
         True,
         ProjectMessages.NO_ACCESS,
         ProjectMessages.OWNER_REQUIRED,
         ProjectMessages.WRITE_ACCESS_REQUIRED,
     ),
-    "document": DacResource(
-        "document",
+    Tool.document: DacResource(
+        Tool.document,
         True,
         DocumentMessages.NO_ACCESS,
         DocumentMessages.OWNER_REQUIRED,
         DocumentMessages.WRITE_ACCESS_REQUIRED,
     ),
-    "queue": DacResource(
-        "queue",
+    Tool.queue: DacResource(
+        Tool.queue,
         False,
         QueueMessages.PERMISSION_REQUIRED,
         QueueMessages.OWNER_REQUIRED,
         QueueMessages.WRITE_ACCESS_REQUIRED,
     ),
-    "counter_group": DacResource(
-        "counter_group",
+    Tool.counter_group: DacResource(
+        Tool.counter_group,
         False,
         CounterMessages.PERMISSION_REQUIRED,
         CounterMessages.OWNER_REQUIRED,
         CounterMessages.WRITE_ACCESS_REQUIRED,
     ),
-    "calendar_event": DacResource(
-        "calendar_event",
+    Tool.calendar_event: DacResource(
+        Tool.calendar_event,
         False,
         CalendarEventMessages.PERMISSION_REQUIRED,
         CalendarEventMessages.OWNER_REQUIRED,
@@ -565,7 +566,7 @@ def compute_project_permission(
     user_id: int,
 ) -> str | None:
     """Effective project permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES["project"], project, user_id)
+    return compute_permission(DAC_RESOURCES[Tool.project], project, user_id)
 
 
 def require_project_access(
@@ -578,7 +579,7 @@ def require_project_access(
 ) -> None:
     """Raise 403 unless the user may act on the project (delegates to the engine)."""
     require_access(
-        DAC_RESOURCES["project"],
+        DAC_RESOURCES[Tool.project],
         project,
         user,
         access=access,
@@ -592,7 +593,7 @@ def has_project_write_access(
     user: User,
 ) -> bool:
     """Check if user has write access (synchronous, for filtering)."""
-    return effective_level(DAC_RESOURCES["project"], project, user.id) in (
+    return effective_level(DAC_RESOURCES[Tool.project], project, user.id) in (
         "write",
         "owner",
     )
@@ -606,12 +607,12 @@ def compute_document_permission(
     user_id: int,
 ) -> str | None:
     """Effective document permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES["document"], document, user_id)
+    return compute_permission(DAC_RESOURCES[Tool.document], document, user_id)
 
 
 def compute_calendar_event_permission(event: Any, user_id: int) -> str | None:
     """Effective calendar-event permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES["calendar_event"], event, user_id)
+    return compute_permission(DAC_RESOURCES[Tool.calendar_event], event, user_id)
 
 
 def require_document_access(
@@ -624,7 +625,7 @@ def require_document_access(
 ) -> None:
     """Raise 403 unless the user may act on the document (delegates to the engine)."""
     require_access(
-        DAC_RESOURCES["document"],
+        DAC_RESOURCES[Tool.document],
         document,
         user,
         access=access,

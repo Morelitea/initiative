@@ -60,6 +60,7 @@ from app.schemas.tenant.queue import (
     serialize_queue_item,
 )
 from app.api import resource_access
+from app.core.tools import Tool
 from app.services import permissions as permissions_service
 from app.services.tenant import queues as queues_service
 from app.services.tenant import recent_views as recent_views_service
@@ -164,7 +165,7 @@ async def _get_queue_with_access(
 ) -> Queue:
     """Fetch + authorize a queue via the shared enforcement path."""
     return await resource_access.load_authorized(
-        session, "queue", queue_id, user, guild_context, access=access
+        session, Tool.queue, queue_id, user, guild_context, access=access
     )
 
 
@@ -186,7 +187,7 @@ async def _get_item_for_queue(
 def _compute_my_permission(
     queue: Queue, user: User, guild_context: GuildContext
 ) -> str | None:
-    return resource_access.my_permission_level(queue, "queue", user, guild_context)
+    return resource_access.my_permission_level(queue, Tool.queue, user, guild_context)
 
 
 async def _refetch_queue(
@@ -300,7 +301,7 @@ async def read_queue(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     queue: Annotated[
-        Queue, Depends(resource_access.resource_dependency("queue", "read"))
+        Queue, Depends(resource_access.resource_dependency(Tool.queue, "read"))
     ],
 ) -> QueueRead:
     """Get a queue; access enforced by resource_dependency before the body runs."""
@@ -1042,37 +1043,11 @@ async def set_queue_grants(
     full list of grants (all-initiative-members / per-user / per-role). Every
     non-owner grant is rebuilt from it; the owner is always preserved.
     """
-    queue = await resource_access.load_authorized(
-        session,
-        "queue",
-        queue_id,
-        current_user,
-        guild_context,
-        access="write",
-        manage_access=True,
+    await resource_access.set_resource_grants(
+        session, Tool.queue, queue_id, current_user, guild_context, grants
     )
 
-    # The owner is the user holding the owner-level grant, else the creator.
-    owner_id = queue.created_by_id
-    for g in queue.grants or []:
-        if g.user_id is not None and g.level == ResourceAccessLevel.owner:
-            owner_id = g.user_id
-            break
-
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="queue",
-        resource_id=queue.id,
-        guild_id=queue.guild_id,
-        initiative_id=queue.initiative_id,
-        owner_id=owner_id,
-        grants=grants,
-    )
-
-    await session.commit()
-    await reapply_rls_context(session)
-
-    hydrated = await _refetch_queue(session, queue.id)
+    hydrated = await _refetch_queue(session, queue_id)
     result = serialize_queue(
         hydrated,
         my_permission_level=_compute_my_permission(

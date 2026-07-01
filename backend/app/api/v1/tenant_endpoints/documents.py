@@ -85,6 +85,7 @@ from app.schemas.tenant.tag import TagSetRequest
 from app.services import attachments as attachments_service
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
+from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
@@ -263,7 +264,7 @@ def _require_document_access(
     permission ops) additionally rejects PAM grantees — a grant never manages
     access."""
     resource_access.authorize(
-        "document",
+        Tool.document,
         document,
         user,
         access=access,
@@ -1874,31 +1875,9 @@ async def set_document_grants(
     full list of grants (all-initiative-members / per-user / per-role). Every
     non-owner grant is rebuilt from it; the owner is always preserved.
     """
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+    await resource_access.set_resource_grants(
+        session, Tool.document, document_id, current_user, guild_context, grants
     )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-    owner_id = next(
-        (
-            g.user_id
-            for g in document.grants
-            if g.level == ResourceAccessLevel.owner and g.user_id is not None
-        ),
-        document.created_by_id,
-    )
-
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="document",
-        resource_id=document_id,
-        guild_id=guild_context.guild_id,
-        initiative_id=document.initiative_id,
-        owner_id=owner_id,
-        grants=grants,
-    )
-
-    await session.commit()
-    await reapply_rls_context(session)
     hydrated = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id
     )
