@@ -18,10 +18,12 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
+from app.models.tenant.document import Document, DocumentType, ProjectDocument
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
+    create_initiative_member,
     create_user,
     get_guild_headers,
 )
@@ -1153,9 +1155,6 @@ async def test_project_shows_all_members_document_to_member(
     is visible to a plain member on the project view. Regression: the linked-doc
     filter used to ignore all-members grants, so such docs vanished for anyone
     without a personal/role grant."""
-    from app.models.tenant.document import Document, DocumentType, ProjectDocument
-    from app.testing.factories import create_initiative_member
-
     owner = await create_user(session, email="owner@example.com")
     member = await create_user(session, email="member@example.com")
     guild = await create_guild(session)
