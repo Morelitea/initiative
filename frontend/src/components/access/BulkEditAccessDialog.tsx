@@ -3,17 +3,17 @@ import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut } from "@/api/generated/documents/documents";
 import type {
-  DocumentSummary,
   InitiativeRoleRead,
+  ResourceGrantBulkItem,
   ResourceGrantSchema,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   getListInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGetQueryKey,
   listInitiativeRolesApiV1GGuildIdInitiativesInitiativeIdRolesGet,
 } from "@/api/generated/initiatives/initiatives";
-import { invalidateAllDocuments } from "@/api/query-keys";
+import { bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut } from "@/api/generated/resource-grants/resource-grants";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -47,8 +47,20 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { cn } from "@/lib/utils";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
+/** The minimal shape the bulk dialog needs from any tool (project, queue, …). */
+export interface BulkAccessItem {
+  id: number;
+  initiative_id: number;
+  grants?: ResourceGrantSchema[] | null;
+}
+
 interface BulkEditAccessDialogProps extends DialogWithSuccessProps {
-  documents: DocumentSummary[];
+  /** The selected resources to edit sharing on. */
+  items: BulkAccessItem[];
+  /** Which tool these are — routes to the right adapter server-side. */
+  resourceType: Tool;
+  /** Invalidate the relevant list caches after a successful change. */
+  invalidate: () => void;
 }
 
 interface SelectableUser {
@@ -65,15 +77,33 @@ interface SelectableRole {
   initiativeName: string;
 }
 
+// The bulk endpoint caps items per request; chunk larger selections transparently.
+const MAX_BULK_ITEMS = 200;
+
+/**
+ * Bulk-edit sharing across many resources of one tool type. Keeps a safe
+ * additive add/remove model (People / Roles) plus an All-members mode, and
+ * persists every change in one bulk request per chunk. Resource-agnostic — the
+ * per-tool wrappers (documents, projects, queues, counters) supply `items`,
+ * `resourceType`, and how to invalidate their caches.
+ */
 export function BulkEditAccessDialog({
   open,
   onOpenChange,
-  documents,
+  items,
+  resourceType,
+  invalidate,
   onSuccess,
 }: BulkEditAccessDialogProps) {
-  const { t } = useTranslation(["documents", "common", "access"]);
+  const { t } = useTranslation(["access", "common"]);
   const guildId = useActiveGuildId();
   const { user: currentUser } = useAuth();
+  // The tool noun, pluralized for `count`, so descriptions/toasts read "2 queues"
+  // rather than a hardcoded "documents".
+  const resourceNoun = useCallback(
+    (n: number) => t(`bulkBar.resource_${resourceType}`, { count: n }),
+    [t, resourceType]
+  );
   const [tab, setTab] = useState<"people" | "roles" | "all">("people");
   const [isPending, setIsPending] = useState(false);
 
@@ -95,17 +125,43 @@ export function BulkEditAccessDialog({
   const [allMode, setAllMode] = useState<"share" | "remove">("share");
   const [allLevel, setAllLevel] = useState<"read" | "write">("read");
 
-  // Gather unique initiative IDs from selected documents
+  // Gather unique initiative IDs from the selected resources
   const initiativeIds = useMemo(() => {
     const ids = new Set<number>();
-    for (const doc of documents) {
-      if (doc.initiative_id) ids.add(doc.initiative_id);
+    for (const item of items) {
+      if (item.initiative_id) ids.add(item.initiative_id);
     }
     return [...ids];
-  }, [documents]);
+  }, [items]);
 
-  // Fetch initiative data to get member lists
+  // Fetch initiative data to get member lists + names
   const { data: initiatives = [] } = useInitiatives({ enabled: open });
+
+  const initiativeNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const initiative of initiatives) map.set(initiative.id, initiative.name);
+    return map;
+  }, [initiatives]);
+
+  // Every member across the relevant initiatives, for resolving names in both
+  // grant (pick) and revoke (already-granted) modes — works for tools whose
+  // summaries don't embed the initiative (queues, counters).
+  const membersById = useMemo(() => {
+    const map = new Map<number, SelectableUser>();
+    for (const initiative of initiatives) {
+      if (!initiativeIds.includes(initiative.id)) continue;
+      for (const member of initiative.members) {
+        if (!map.has(member.user.id)) {
+          map.set(member.user.id, {
+            id: member.user.id,
+            name: member.user.full_name || member.user.email,
+            email: member.user.email,
+          });
+        }
+      }
+    }
+    return map;
+  }, [initiatives, initiativeIds]);
 
   // Fetch roles for each relevant initiative (reuses same query key as useInitiativeRoles)
   const roleQueries = useQueries({
@@ -130,19 +186,18 @@ export function BulkEditAccessDialog({
       const query = roleQueries[i];
       const initiativeId = initiativeIds[i];
       if (!query.data) continue;
-      const initiative = initiatives.find((init) => init.id === initiativeId);
       for (const role of query.data) {
         roles.push({
           id: role.id,
           name: role.name,
           displayName: role.display_name,
           initiativeId,
-          initiativeName: initiative?.name ?? `Initiative ${initiativeId}`,
+          initiativeName: initiativeNameById.get(initiativeId) ?? `Initiative ${initiativeId}`,
         });
       }
     }
     return roles.sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [roleQueries, initiativeIds, initiatives]);
+  }, [roleQueries, initiativeIds, initiativeNameById]);
 
   // Resolve a role id to its display info (from the fetched initiative roles).
   const rolesById = useMemo(() => {
@@ -151,24 +206,25 @@ export function BulkEditAccessDialog({
     return map;
   }, [availableRoles]);
 
-  // Roles that are currently granted on at least one selected document (for revoke)
+  // Roles that are currently granted on at least one selected resource (for revoke)
   const revocableRoles = useMemo(() => {
     const roleMap = new Map<number, SelectableRole>();
-    for (const doc of documents) {
-      for (const grant of doc.grants ?? []) {
+    for (const item of items) {
+      for (const grant of item.grants ?? []) {
         if (grant.role_id == null || roleMap.has(grant.role_id)) continue;
         const known = rolesById.get(grant.role_id);
         roleMap.set(grant.role_id, {
           id: grant.role_id,
           name: known?.name ?? `role-${grant.role_id}`,
           displayName: known?.displayName ?? `Role ${grant.role_id}`,
-          initiativeId: doc.initiative_id,
-          initiativeName: doc.initiative?.name ?? `Initiative ${doc.initiative_id}`,
+          initiativeId: item.initiative_id,
+          initiativeName:
+            initiativeNameById.get(item.initiative_id) ?? `Initiative ${item.initiative_id}`,
         });
       }
     }
     return Array.from(roleMap.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [documents, rolesById]);
+  }, [items, rolesById, initiativeNameById]);
 
   const displayRoles = roleMode === "grant" ? availableRoles : revocableRoles;
 
@@ -182,29 +238,18 @@ export function BulkEditAccessDialog({
     );
   }, [displayRoles, roleSearch]);
 
-  // Build list of people from initiatives the selected documents belong to
+  // Build list of people from initiatives the selected resources belong to
   const availableUsers = useMemo(() => {
-    const userMap = new Map<number, SelectableUser>();
-    const relevantInitiatives = initiatives.filter((i) => initiativeIds.includes(i.id));
-    for (const initiative of relevantInitiatives) {
-      for (const member of initiative.members) {
-        if (member.user.id !== currentUser?.id && !userMap.has(member.user.id)) {
-          userMap.set(member.user.id, {
-            id: member.user.id,
-            name: member.user.full_name || member.user.email,
-            email: member.user.email,
-          });
-        }
-      }
-    }
-    return Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [initiatives, initiativeIds, currentUser]);
+    return Array.from(membersById.values())
+      .filter((u) => u.id !== currentUser?.id)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [membersById, currentUser]);
 
-  // People who have non-owner access on at least one selected document (for revoke)
+  // People who have non-owner access on at least one selected resource (for revoke)
   const revocableUsers = useMemo(() => {
     const userMap = new Map<number, SelectableUser>();
-    for (const doc of documents) {
-      for (const grant of doc.grants ?? []) {
+    for (const item of items) {
+      for (const grant of item.grants ?? []) {
         const userId = grant.user_id;
         if (
           userId != null &&
@@ -212,18 +257,17 @@ export function BulkEditAccessDialog({
           userId !== currentUser?.id &&
           !userMap.has(userId)
         ) {
-          // Try to find user info from initiative members
-          const member = doc.initiative?.members?.find((m) => m.user.id === userId);
+          const known = membersById.get(userId);
           userMap.set(userId, {
             id: userId,
-            name: member?.user?.full_name || member?.user?.email || `User ${userId}`,
-            email: member?.user?.email || "",
+            name: known?.name || `User ${userId}`,
+            email: known?.email || "",
           });
         }
       }
     }
     return Array.from(userMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [documents, currentUser]);
+  }, [items, membersById, currentUser]);
 
   const displayUsers = userMode === "grant" ? availableUsers : revocableUsers;
 
@@ -286,65 +330,86 @@ export function BulkEditAccessDialog({
     [onOpenChange, resetState]
   );
 
+  // Persist rebuilt grant lists in one bulk request per chunk (owner preserved
+  // server-side). Each entry is one resource's full non-owner grant list.
+  const applyBulk = useCallback(
+    async (entries: { resourceId: number; grants: ResourceGrantSchema[] }[]) => {
+      for (let i = 0; i < entries.length; i += MAX_BULK_ITEMS) {
+        const slice = entries.slice(i, i + MAX_BULK_ITEMS);
+        const bulkItems: ResourceGrantBulkItem[] = slice.map((e) => ({
+          resource_type: resourceType,
+          resource_id: e.resourceId,
+          grants: e.grants,
+        }));
+        await bulkSetResourceGrantsApiV1GGuildIdResourceGrantsBulkPut(guildId, {
+          items: bulkItems,
+        });
+      }
+    },
+    [guildId, resourceType]
+  );
+
+  const finish = useCallback(() => {
+    invalidate();
+    resetState();
+    onOpenChange(false);
+    onSuccess();
+  }, [invalidate, resetState, onOpenChange, onSuccess]);
+
   const handleApply = useCallback(async () => {
     if (selectedUserIds.size === 0) return;
 
     setIsPending(true);
     try {
       const userIds = new Set(selectedUserIds);
+      const entries: { resourceId: number; grants: ResourceGrantSchema[] }[] = [];
 
-      // Rebuild each document's non-owner grant list (the owner is preserved
-      // server-side regardless of what we send).
-      await Promise.all(
-        documents.map((doc) => {
-          const existing = (doc.grants ?? []).filter((g) => g.level !== "owner");
-          let next: ResourceGrantSchema[];
-          if (userMode === "grant") {
-            // Granting specific people switches the doc to "restricted" mode, so
-            // drop any "all initiative members" grant — ShareControl can't
-            // represent a mixed all-members + per-grantee list and would
-            // silently discard it on the next save. Also drop any existing
-            // per-user grant for the targeted people, then add them back at the
-            // chosen level.
-            next = existing.filter(
-              (g) => !g.all_initiative_members && (g.user_id == null || !userIds.has(g.user_id))
-            );
-            for (const userId of userIds) {
-              next.push({ user_id: userId, level });
-            }
-          } else {
-            next = existing.filter((g) => g.user_id == null || !userIds.has(g.user_id));
-          }
-          return setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, next);
-        })
-      );
-
-      if (userMode === "grant") {
-        toast.success(t("bulkAccess.userAccessGranted", { count: documents.length }));
-      } else {
-        toast.success(t("bulkAccess.userAccessRevoked", { count: documents.length }));
+      for (const item of items) {
+        const existing = (item.grants ?? []).filter((g) => g.level !== "owner");
+        if (userMode === "grant") {
+          // Granting specific people switches the resource to "restricted" mode,
+          // so drop any "all initiative members" grant — ShareControl can't
+          // represent a mixed all-members + per-grantee list and would silently
+          // discard it on the next save. Also drop any existing per-user grant for
+          // the targeted people, then add them back at the chosen level.
+          const next = existing.filter(
+            (g) => !g.all_initiative_members && (g.user_id == null || !userIds.has(g.user_id))
+          );
+          for (const userId of userIds) next.push({ user_id: userId, level });
+          entries.push({ resourceId: item.id, grants: next });
+        } else {
+          // Revoke: only touch items that actually grant one of the targeted
+          // people, so the count/toast reflect real changes (not every selection).
+          const hasTarget = existing.some((g) => g.user_id != null && userIds.has(g.user_id));
+          if (!hasTarget) continue;
+          entries.push({
+            resourceId: item.id,
+            grants: existing.filter((g) => g.user_id == null || !userIds.has(g.user_id)),
+          });
+        }
       }
 
-      void invalidateAllDocuments();
-      resetState();
-      onOpenChange(false);
-      onSuccess();
+      await applyBulk(entries);
+
+      const affected = entries.length;
+      if (userMode === "grant") {
+        toast.success(
+          t("bulkAccess.userAccessGranted", { count: affected, items: resourceNoun(affected) })
+        );
+      } else if (affected === 0) {
+        toast.info(t("bulkAccess.nothingToUpdate"));
+      } else {
+        toast.success(
+          t("bulkAccess.userAccessRevoked", { count: affected, items: resourceNoun(affected) })
+        );
+      }
+      finish();
     } catch (error) {
-      toast.error(getErrorMessage(error, "documents:bulkAccess.updateError"));
+      toast.error(getErrorMessage(error, "access:bulkAccess.updateError"));
     } finally {
       setIsPending(false);
     }
-  }, [
-    selectedUserIds,
-    userMode,
-    documents,
-    level,
-    resetState,
-    onOpenChange,
-    onSuccess,
-    t,
-    guildId,
-  ]);
+  }, [selectedUserIds, userMode, items, level, applyBulk, finish, resourceNoun, t]);
 
   const handleApplyRoles = useCallback(async () => {
     if (selectedRoleIds.size === 0) return;
@@ -352,63 +417,62 @@ export function BulkEditAccessDialog({
     setIsPending(true);
     try {
       const roleIds = [...selectedRoleIds];
+      const entries: { resourceId: number; grants: ResourceGrantSchema[] }[] = [];
 
-      const affectedDocIds = new Set<number>();
-      const updates: Promise<unknown>[] = [];
-
-      for (const doc of documents) {
-        const existing = (doc.grants ?? []).filter((g) => g.level !== "owner");
+      for (const item of items) {
+        const existing = (item.grants ?? []).filter((g) => g.level !== "owner");
         const grantedRoleIds = new Set(
           existing.filter((g) => g.role_id != null).map((g) => g.role_id as number)
         );
 
         if (roleMode === "grant") {
-          // Only grant roles that belong to this doc's initiative and aren't already granted.
-          const docRoleIds = availableRoles
-            .filter((r) => r.initiativeId === doc.initiative_id && roleIds.includes(r.id))
+          // Only grant roles that belong to this item's initiative and aren't already granted.
+          const itemRoleIds = availableRoles
+            .filter((r) => r.initiativeId === item.initiative_id && roleIds.includes(r.id))
             .map((r) => r.id)
             .filter((id) => !grantedRoleIds.has(id));
-          if (docRoleIds.length === 0) continue;
-          affectedDocIds.add(doc.id);
-          const next: ResourceGrantSchema[] = [
-            // Granting specific roles switches the doc to "restricted" mode;
-            // drop any "all initiative members" grant so ShareControl doesn't
-            // receive a mixed list it can't display (and would silently discard
-            // on the next save).
-            ...existing.filter((g) => !g.all_initiative_members),
-            ...docRoleIds.map((id) => ({ role_id: id, level: roleLevel })),
-          ];
-          updates.push(
-            setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, next)
-          );
+          if (itemRoleIds.length === 0) continue;
+          entries.push({
+            resourceId: item.id,
+            grants: [
+              // Granting specific roles switches the resource to "restricted" mode;
+              // drop any "all initiative members" grant so ShareControl doesn't
+              // receive a mixed list it can't display.
+              ...existing.filter((g) => !g.all_initiative_members),
+              ...itemRoleIds.map((id) => ({ role_id: id, level: roleLevel })),
+            ],
+          });
         } else {
           const toRevoke = roleIds.filter((id) => grantedRoleIds.has(id));
           if (toRevoke.length === 0) continue;
-          affectedDocIds.add(doc.id);
           const revokeSet = new Set(toRevoke);
-          const next = existing.filter((g) => g.role_id == null || !revokeSet.has(g.role_id));
-          updates.push(
-            setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, next)
-          );
+          entries.push({
+            resourceId: item.id,
+            grants: existing.filter((g) => g.role_id == null || !revokeSet.has(g.role_id)),
+          });
         }
       }
 
-      await Promise.all(updates);
-      const affected = affectedDocIds.size;
+      await applyBulk(entries);
+      const affected = entries.length;
       if (affected === 0) {
         toast.info(t("bulkAccess.rolesAlreadyAssigned"));
-      } else if (roleMode === "grant") {
-        toast.success(t("bulkAccess.roleAccessGranted", { count: affected }));
       } else {
-        toast.success(t("bulkAccess.roleAccessRevoked", { count: affected }));
+        toast.success(
+          roleMode === "grant"
+            ? t("bulkAccess.roleAccessGranted", {
+                count: affected,
+                items: resourceNoun(affected),
+              })
+            : t("bulkAccess.roleAccessRevoked", {
+                count: affected,
+                items: resourceNoun(affected),
+              })
+        );
       }
-
-      void invalidateAllDocuments();
-      resetState();
-      onOpenChange(false);
-      onSuccess();
+      finish();
     } catch (error) {
-      toast.error(getErrorMessage(error, "documents:bulkAccess.roleUpdateError"));
+      toast.error(getErrorMessage(error, "access:bulkAccess.roleUpdateError"));
     } finally {
       setIsPending(false);
     }
@@ -416,87 +480,90 @@ export function BulkEditAccessDialog({
     selectedRoleIds,
     roleMode,
     roleLevel,
-    documents,
+    items,
     availableRoles,
-    resetState,
-    onOpenChange,
-    onSuccess,
+    applyBulk,
+    finish,
+    resourceNoun,
     t,
-    guildId,
   ]);
 
   const handleApplyAllMembers = useCallback(async () => {
     setIsPending(true);
     try {
       if (allMode === "share") {
-        // Switch every selected doc to "all members" mode: a single all-members
-        // grant. Per-person and per-role grants are dropped so the doc has one
-        // coherent share mode (ShareControl can't render a mixed all-members +
-        // restricted list). The owner is preserved server-side, so we don't send
-        // it.
-        await Promise.all(
-          documents.map((doc) =>
-            setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(guildId, doc.id, [
-              { all_initiative_members: true, level: allLevel },
-            ])
-          )
+        // Switch every selected resource to "all members" mode: a single
+        // all-members grant. Per-person and per-role grants are dropped so the
+        // resource has one coherent share mode. The owner is preserved
+        // server-side, so we don't send it.
+        await applyBulk(
+          items.map((item) => ({
+            resourceId: item.id,
+            grants: [{ all_initiative_members: true, level: allLevel }],
+          }))
         );
-        toast.success(t("bulkAccess.allMembersShared", { count: documents.length }));
+        toast.success(
+          t("bulkAccess.allMembersShared", {
+            count: items.length,
+            items: resourceNoun(items.length),
+          })
+        );
       } else {
-        // Only touch docs that actually have an all-members grant — PUTting an
-        // unchanged list is a pointless write and would let the success toast
-        // claim removals that never happened.
-        const affected = documents.filter((doc) =>
-          (doc.grants ?? []).some((g) => g.all_initiative_members)
+        // Only touch resources that actually have an all-members grant — an
+        // unchanged write is pointless and would let the toast claim removals
+        // that never happened.
+        const affected = items.filter((item) =>
+          (item.grants ?? []).some((g) => g.all_initiative_members)
         );
-        await Promise.all(
-          affected.map((doc) =>
-            setDocumentGrantsApiV1GGuildIdDocumentsDocumentIdGrantsPut(
-              guildId,
-              doc.id,
-              (doc.grants ?? []).filter((g) => g.level !== "owner" && !g.all_initiative_members)
-            )
-          )
+        await applyBulk(
+          affected.map((item) => ({
+            resourceId: item.id,
+            grants: (item.grants ?? []).filter(
+              (g) => g.level !== "owner" && !g.all_initiative_members
+            ),
+          }))
         );
         if (affected.length === 0) {
           toast.info(t("bulkAccess.noAllMembersAccess"));
         } else {
-          toast.success(t("bulkAccess.allMembersRemoved", { count: affected.length }));
+          toast.success(
+            t("bulkAccess.allMembersRemoved", {
+              count: affected.length,
+              items: resourceNoun(affected.length),
+            })
+          );
         }
       }
-
-      void invalidateAllDocuments();
-      resetState();
-      onOpenChange(false);
-      onSuccess();
+      finish();
     } catch (error) {
-      toast.error(getErrorMessage(error, "documents:bulkAccess.updateError"));
+      toast.error(getErrorMessage(error, "access:bulkAccess.updateError"));
     } finally {
       setIsPending(false);
     }
-  }, [allMode, allLevel, documents, resetState, onOpenChange, onSuccess, t, guildId]);
+  }, [allMode, allLevel, items, applyBulk, finish, resourceNoun, t]);
 
   const selectedUserCount = selectedUserIds.size;
   const selectedRoleCount = selectedRoleIds.size;
   const canApplyUsers = selectedUserCount > 0;
   const canApplyRoles = selectedRoleCount > 0;
 
-  const docCount = documents.length;
+  const count = items.length;
   const dialogDescription = useMemo(() => {
+    const opts = { count, items: resourceNoun(count) };
     if (tab === "roles") {
       return roleMode === "grant"
-        ? t("bulkAccess.descriptionGrant", { count: docCount })
-        : t("bulkAccess.descriptionRevoke", { count: docCount });
+        ? t("bulkAccess.descriptionGrant", opts)
+        : t("bulkAccess.descriptionRevoke", opts);
     }
     if (tab === "people") {
       return userMode === "grant"
-        ? t("bulkAccess.descriptionGrantUser", { count: docCount })
-        : t("bulkAccess.descriptionRevokeUser", { count: docCount });
+        ? t("bulkAccess.descriptionGrantUser", opts)
+        : t("bulkAccess.descriptionRevokeUser", opts);
     }
     return allMode === "share"
-      ? t("bulkAccess.descriptionAllShare", { count: docCount })
-      : t("bulkAccess.descriptionAllRemove", { count: docCount });
-  }, [tab, roleMode, userMode, allMode, docCount, t]);
+      ? t("bulkAccess.descriptionAllShare", opts)
+      : t("bulkAccess.descriptionAllRemove", opts);
+  }, [tab, roleMode, userMode, allMode, count, resourceNoun, t]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -520,10 +587,10 @@ export function BulkEditAccessDialog({
         >
           <TabsList className="w-full">
             <TabsTrigger value="people" className="flex-1">
-              {t("access:share.people")}
+              {t("share.people")}
             </TabsTrigger>
             <TabsTrigger value="roles" className="flex-1">
-              {t("access:share.roles")}
+              {t("share.roles")}
             </TabsTrigger>
             <TabsTrigger value="all" className="flex-1">
               {t("bulkAccess.tabAllMembers")}
@@ -560,7 +627,7 @@ export function BulkEditAccessDialog({
               <>
                 <div className="space-y-2">
                   <label htmlFor="userPicker" className="font-medium text-sm">
-                    {t("access:share.people")}
+                    {t("share.people")}
                   </label>
                   <UserMultiPicker
                     id="userPicker"
@@ -576,9 +643,9 @@ export function BulkEditAccessDialog({
                         ? t("bulkAccess.selectPeople")
                         : t("bulkAccess.selectPeopleToRevoke")
                     }
-                    emptyMessage={t("access:share.noPeople")}
-                    selectedMessage={(count) => t("bulkAccess.peopleSelected", { count })}
-                    searchPlaceholder={t("access:share.searchPeople")}
+                    emptyMessage={t("share.noPeople")}
+                    selectedMessage={(c) => t("bulkAccess.peopleSelected", { count: c })}
+                    searchPlaceholder={t("share.searchPeople")}
                   />
                 </div>
                 {userMode === "grant" && (
@@ -591,8 +658,8 @@ export function BulkEditAccessDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="read">{t("access:share.viewer")}</SelectItem>
-                        <SelectItem value="write">{t("access:share.editor")}</SelectItem>
+                        <SelectItem value="read">{t("share.viewer")}</SelectItem>
+                        <SelectItem value="write">{t("share.editor")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -631,7 +698,7 @@ export function BulkEditAccessDialog({
               <>
                 <div className="space-y-2">
                   <label htmlFor="rolePicker" className="font-medium text-sm">
-                    {t("access:share.roles")}
+                    {t("share.roles")}
                   </label>
                   <ItemMultiPicker
                     id="rolePicker"
@@ -651,9 +718,9 @@ export function BulkEditAccessDialog({
                         ? t("bulkAccess.selectRoles")
                         : t("bulkAccess.selectRolesToRevoke")
                     }
-                    emptyMessage={t("access:share.noRoles")}
-                    selectedMessage={(count) => t("bulkAccess.rolesSelected", { count })}
-                    searchPlaceholder={t("access:share.searchRoles")}
+                    emptyMessage={t("share.noRoles")}
+                    selectedMessage={(c) => t("bulkAccess.rolesSelected", { count: c })}
+                    searchPlaceholder={t("share.searchRoles")}
                   />
                 </div>
                 {roleMode === "grant" && (
@@ -669,8 +736,8 @@ export function BulkEditAccessDialog({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="read">{t("access:share.viewer")}</SelectItem>
-                        <SelectItem value="write">{t("access:share.editor")}</SelectItem>
+                        <SelectItem value="read">{t("share.viewer")}</SelectItem>
+                        <SelectItem value="write">{t("share.editor")}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -705,8 +772,8 @@ export function BulkEditAccessDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="read">{t("access:share.viewer")}</SelectItem>
-                    <SelectItem value="write">{t("access:share.editor")}</SelectItem>
+                    <SelectItem value="read">{t("share.viewer")}</SelectItem>
+                    <SelectItem value="write">{t("share.editor")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

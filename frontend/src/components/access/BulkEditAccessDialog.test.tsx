@@ -14,6 +14,7 @@ import type {
   InitiativeRoleRead,
   ResourceGrantSchema,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 
 import { BulkEditAccessDialog } from "./BulkEditAccessDialog";
 
@@ -81,15 +82,28 @@ function restrictedDoc(id: number): DocumentSummary {
   });
 }
 
-/** Capture the PUT /grants payloads crossing the network boundary. */
+/**
+ * Capture the grant lists crossing the network boundary. The dialog persists via
+ * the bulk endpoint (one request, many items); we flatten to one entry per item's
+ * grant list so `captured.length` still means "how many resources were written".
+ */
 function captureGrantPuts() {
   const captured: ResourceGrantSchema[][] = [];
   server.use(
     guildHttp.get("/initiatives/", () => HttpResponse.json([initiative])),
     guildHttp.get("/initiatives/:initiativeId/roles", () => HttpResponse.json(roles)),
-    guildHttp.put("/documents/:documentId/grants", async ({ request }) => {
-      captured.push((await request.json()) as ResourceGrantSchema[]);
-      return HttpResponse.json({});
+    guildHttp.put("/resource-grants/bulk", async ({ request }) => {
+      const body = (await request.json()) as {
+        items: { resource_type: string; resource_id: number; grants: ResourceGrantSchema[] }[];
+      };
+      for (const item of body.items) captured.push(item.grants);
+      return HttpResponse.json({
+        results: body.items.map((i) => ({
+          resource_type: i.resource_type,
+          resource_id: i.resource_id,
+          status: "ok",
+        })),
+      });
     })
   );
   return captured;
@@ -97,7 +111,14 @@ function captureGrantPuts() {
 
 function renderDialog(documents: DocumentSummary[]) {
   return renderWithProviders(
-    <BulkEditAccessDialog open onOpenChange={vi.fn()} onSuccess={vi.fn()} documents={documents} />,
+    <BulkEditAccessDialog
+      open
+      onOpenChange={vi.fn()}
+      onSuccess={vi.fn()}
+      items={documents}
+      resourceType={Tool.document}
+      invalidate={vi.fn()}
+    />,
     { auth: { user: buildUser({ id: 1 }) } }
   );
 }
@@ -158,9 +179,9 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     await user.click(screen.getByLabelText("Action"));
     await user.click(await screen.findByRole("option", { name: "Revoke access" }));
     await user.click(screen.getByText("Select people to revoke…"));
-    // Bob has no resolvable name in revoke mode (doc.initiative is null), so the
-    // picker falls back to "User <id>".
-    await user.click(await screen.findByText(`User ${BOB_ID}`));
+    // Names resolve from the fetched initiative members (not the resource row), so
+    // Bob shows by name even in revoke mode.
+    await user.click(await screen.findByText("Bob Builder"));
     await user.click(screen.getByRole("button", { name: /Revoke 1 person/i }));
 
     await waitFor(() => expect(captured).toHaveLength(1));
@@ -188,6 +209,50 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     expect(captured[0].some((g) => g.all_initiative_members)).toBe(false);
   });
 
+  it("revoke skips items the person isn't granted on (accurate count)", async () => {
+    const user = userEvent.setup();
+    const captured = captureGrantPuts();
+
+    // Doc 10 grants Bob; doc 11 does not (owner only).
+    const docWithBob = allMembersDoc([{ user_id: BOB_ID, level: "read" }]);
+    const docWithoutBob = buildDocumentSummary({
+      id: 11,
+      initiative_id: INITIATIVE_ID,
+      my_permission_level: "owner",
+      grants: [{ user_id: 999, level: "owner" }],
+    });
+    renderDialog([docWithBob, docWithoutBob]);
+
+    await user.click(screen.getByLabelText("Action"));
+    await user.click(await screen.findByRole("option", { name: "Revoke access" }));
+    await user.click(screen.getByText("Select people to revoke…"));
+    await user.click(await screen.findByText("Bob Builder"));
+    await user.click(screen.getByRole("button", { name: /Revoke 1 person/i }));
+
+    // Only the doc that actually granted Bob is written — the other is skipped.
+    await waitFor(() => expect(captured).toHaveLength(1));
+    expect(captured[0].some((g) => g.user_id === BOB_ID)).toBe(false);
+  });
+
+  it("names the resource type in copy, not a hardcoded 'documents'", async () => {
+    captureGrantPuts();
+
+    renderWithProviders(
+      <BulkEditAccessDialog
+        open
+        onOpenChange={vi.fn()}
+        onSuccess={vi.fn()}
+        items={[{ id: 1, initiative_id: INITIATIVE_ID, grants: [] }]}
+        resourceType={Tool.queue}
+        invalidate={vi.fn()}
+      />,
+      { auth: { user: buildUser({ id: 1 }) } }
+    );
+
+    // Default People tab, grant mode → the description uses the queue noun.
+    expect(await screen.findByText("Grant people access on 1 queue.")).toBeInTheDocument();
+  });
+
   it("all-members remove makes no request when nothing is shared with all members", async () => {
     const user = userEvent.setup();
     const captured = captureGrantPuts();
@@ -198,7 +263,9 @@ describe("BulkEditAccessDialog grant rebuild", () => {
         open
         onOpenChange={vi.fn()}
         onSuccess={onSuccess}
-        documents={[restrictedDoc(11)]}
+        items={[restrictedDoc(11)]}
+        resourceType={Tool.document}
+        invalidate={vi.fn()}
       />,
       { auth: { user: buildUser({ id: 1 }) } }
     );

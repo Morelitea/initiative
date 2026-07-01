@@ -10,7 +10,9 @@ import type {
   TagRead,
   TagSummary,
 } from "@/api/generated/initiativeAPI.schemas";
-import { BulkEditAccessDialog } from "@/components/documents/BulkEditAccessDialog";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllDocuments } from "@/api/query-keys";
+import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import { BulkEditTagsDialog } from "@/components/documents/BulkEditTagsDialog";
 import { CreateDocumentDialog } from "@/components/documents/CreateDocumentDialog";
 import { DocumentCard } from "@/components/documents/DocumentCard";
@@ -777,7 +779,9 @@ export const DocumentsView = ({
       <BulkEditAccessDialog
         open={bulkEditAccessOpen}
         onOpenChange={setBulkEditAccessOpen}
-        documents={selectedDocuments}
+        items={selectedDocuments}
+        resourceType={Tool.document}
+        invalidate={invalidateAllDocuments}
         onSuccess={() => {}}
       />
     </div>
