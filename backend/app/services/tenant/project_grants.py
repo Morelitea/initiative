@@ -20,6 +20,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import ProjectMessages
+from app.core.tools import Tool
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
@@ -55,7 +56,7 @@ def write_holder_ids(project: Project) -> set[int]:
     """Initiative-member user IDs with effective write+ (write/owner) access to the
     project — i.e. those eligible to be task assignees. Pure read of the
     eager-loaded ``grants`` + ``initiative.memberships`` (no DB I/O)."""
-    resource = permissions_service.DAC_RESOURCES["project"]
+    resource = permissions_service.DAC_RESOURCES[Tool.project]
     memberships = getattr(project.initiative, "memberships", None) or []
     return {
         m.user_id

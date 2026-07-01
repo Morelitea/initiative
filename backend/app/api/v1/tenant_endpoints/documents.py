@@ -264,7 +264,7 @@ def _require_document_access(
     permission ops) additionally rejects PAM grantees — a grant never manages
     access."""
     resource_access.authorize(
-        "document",
+        Tool.document,
         document,
         user,
         access=access,

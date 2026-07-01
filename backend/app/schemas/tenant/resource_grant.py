@@ -12,10 +12,15 @@ from __future__ import annotations
 
 from typing import Literal, Optional
 
-from pydantic import ConfigDict, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
+
+# Upper bound on how many resources one bulk grant request may touch. Each item is
+# a load + authorize + rewrite + commit, so an unbounded list is a DoS / slow-query
+# risk; a multi-select bulk-edit UI never needs more than this in one call.
+MAX_BULK_GRANT_ITEMS = 200
 
 
 class ResourceGrantSchema(SanitizedBaseModel):
@@ -64,9 +69,12 @@ class ResourceGrantBulkItem(SanitizedBaseModel):
 
 
 class ResourceGrantBulkRequest(SanitizedBaseModel):
-    """Replace sharing on many resources (possibly of different types) in one call."""
+    """Replace sharing on many resources (possibly of different types) in one call.
+    Capped at ``MAX_BULK_GRANT_ITEMS`` items (422 otherwise)."""
 
-    items: list[ResourceGrantBulkItem]
+    items: list[ResourceGrantBulkItem] = Field(
+        min_length=1, max_length=MAX_BULK_GRANT_ITEMS
+    )
 
 
 class ResourceGrantBulkItemResult(SanitizedBaseModel):

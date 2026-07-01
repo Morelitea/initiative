@@ -246,3 +246,36 @@ async def test_bulk_skips_archived_project_but_applies_the_rest(
     )
     assert resp.status_code == 200
     assert _results_by_id(resp.json()) == {live.id: "ok", archived.id: "forbidden"}
+
+
+@pytest.mark.integration
+async def test_bulk_rejects_too_many_items(client: AsyncClient, session: AsyncSession):
+    """A request over the item cap is rejected (422) before any work is done."""
+    from app.schemas.tenant.resource_grant import MAX_BULK_GRANT_ITEMS
+
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=owner, guild=guild)
+    headers = await get_guild_headers(session, guild, owner)
+
+    item = {"resource_type": "project", "resource_id": 1, "grants": []}
+    resp = await client.put(
+        BULK.format(guild=guild.id),
+        headers=headers,
+        json={"items": [item] * (MAX_BULK_GRANT_ITEMS + 1)},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.integration
+async def test_bulk_rejects_empty_items(client: AsyncClient, session: AsyncSession):
+    """An empty item list is rejected (422)."""
+    owner = await create_user(session, email="owner@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=owner, guild=guild)
+    headers = await get_guild_headers(session, guild, owner)
+
+    resp = await client.put(
+        BULK.format(guild=guild.id), headers=headers, json={"items": []}
+    )
+    assert resp.status_code == 422

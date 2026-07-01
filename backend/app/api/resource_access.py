@@ -110,7 +110,7 @@ GRANTABLE_KINDS: tuple[Tool, ...] = tuple(Tool)
 
 
 def authorize(
-    kind: str,
+    kind: Tool,
     row: Any,
     user: Optional[User] = None,
     *,
@@ -152,7 +152,7 @@ def authorize(
 
 async def load_authorized(
     session: Any,
-    kind: str,
+    kind: Tool,
     resource_id: int,
     user: User,
     guild_context: GuildContext,
@@ -181,7 +181,7 @@ async def load_authorized(
 
 
 def resource_dependency(
-    kind: str, access: str = "read", *, require_owner: bool = False
+    kind: Tool, access: str = "read", *, require_owner: bool = False
 ) -> Callable[..., Awaitable[Any]]:
     """FastAPI dependency injecting a pre-authorized resource (check before body)."""
     cfg = RESOURCE_ACCESS[kind]
@@ -206,7 +206,7 @@ def resource_dependency(
 
 
 def my_permission_level(
-    row: Any, kind: str, user: User, guild_context: GuildContext
+    row: Any, kind: Tool, user: User, guild_context: GuildContext
 ) -> str | None:
     """`my_permission_level` for the client: guild admin → owner, else DAC."""
     cfg = RESOURCE_ACCESS[kind]

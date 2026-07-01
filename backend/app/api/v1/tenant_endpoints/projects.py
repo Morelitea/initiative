@@ -750,7 +750,7 @@ async def _require_project_membership(
     access. Loads the permission row first in case it wasn't eager-loaded."""
     await _get_project_permission(project, current_user.id, session)
     resource_access.authorize(
-        "project",
+        Tool.project,
         project,
         current_user,
         access=access,

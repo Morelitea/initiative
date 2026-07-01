@@ -139,7 +139,7 @@ async def _get_event_or_404(
     # Feature gate + per-event DAC. Writes additionally gate on create_events in
     # the handler, so read access here is sufficient.
     resource_access.authorize(
-        "calendar_event", event, user, access=access, guild_role=guild_context.role
+        Tool.calendar_event, event, user, access=access, guild_role=guild_context.role
     )
     return event
 

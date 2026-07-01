@@ -166,7 +166,7 @@ async def _get_counter_group_with_access(
     """Fetch + authorize a counter group via the shared enforcement path."""
     return await resource_access.load_authorized(
         session,
-        "counter_group",
+        Tool.counter_group,
         group_id,
         user,
         guild_context,
@@ -199,7 +199,7 @@ def _compute_my_permission(
     guild_context: GuildContext,
 ) -> str | None:
     return resource_access.my_permission_level(
-        group, "counter_group", user, guild_context
+        group, Tool.counter_group, user, guild_context
     )
 
 
@@ -301,7 +301,7 @@ async def read_counter_group(
     guild_context: GuildContextDep,
     group: Annotated[
         CounterGroup,
-        Depends(resource_access.resource_dependency("counter_group", "read")),
+        Depends(resource_access.resource_dependency(Tool.counter_group, "read")),
     ],
 ) -> CounterGroupRead:
     """Access enforced by resource_dependency before the body runs."""

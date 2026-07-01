@@ -165,7 +165,7 @@ async def _get_queue_with_access(
 ) -> Queue:
     """Fetch + authorize a queue via the shared enforcement path."""
     return await resource_access.load_authorized(
-        session, "queue", queue_id, user, guild_context, access=access
+        session, Tool.queue, queue_id, user, guild_context, access=access
     )
 
 
@@ -187,7 +187,7 @@ async def _get_item_for_queue(
 def _compute_my_permission(
     queue: Queue, user: User, guild_context: GuildContext
 ) -> str | None:
-    return resource_access.my_permission_level(queue, "queue", user, guild_context)
+    return resource_access.my_permission_level(queue, Tool.queue, user, guild_context)
 
 
 async def _refetch_queue(
@@ -301,7 +301,7 @@ async def read_queue(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     queue: Annotated[
-        Queue, Depends(resource_access.resource_dependency("queue", "read"))
+        Queue, Depends(resource_access.resource_dependency(Tool.queue, "read"))
     ],
 ) -> QueueRead:
     """Get a queue; access enforced by resource_dependency before the body runs."""
