@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - dev
+    # Skip the dev image build on docs-only pushes.
+    paths-ignore:
+      - "docs/**"
+      - "zensical.toml"
+      - ".github/workflows/docs.yml"
   workflow_dispatch: # Allow manual trigger
 
 permissions:

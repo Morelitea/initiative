@@ -5,6 +5,12 @@ on:
     branches: [main, dev]
   push:
     branches: [main, dev]
+    # Skip app CI on docs-only pushes (the Documentation workflow handles those).
+    # Left on pull_request so required checks still run for PRs.
+    paths-ignore:
+      - "docs/**"
+      - "zensical.toml"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read
