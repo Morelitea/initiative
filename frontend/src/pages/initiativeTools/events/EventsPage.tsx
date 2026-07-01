@@ -343,9 +343,11 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   );
 
   // Selection only exists in the list view — leaving it cancels the selection.
+  // Depend on the stable primitive/callback, not the per-render selection object.
+  const { active: selectionModeActive, exit: exitSelection } = eventSelection;
   useEffect(() => {
-    if (viewMode !== "list" && eventSelection.active) eventSelection.exit();
-  }, [viewMode, eventSelection]);
+    if (viewMode !== "list" && selectionModeActive) exitSelection();
+  }, [viewMode, selectionModeActive, exitSelection]);
 
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
