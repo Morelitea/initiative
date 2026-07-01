@@ -9,7 +9,6 @@ name: Documentation
 on:
   push:
     branches:
-      - dev
       - main
     paths:
       - "docs/**"
