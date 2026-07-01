@@ -164,11 +164,32 @@ async def enqueue_task_assignment_event(
 async def clear_task_assignment_queue_for_user(
     session: AsyncSession, user_id: int
 ) -> None:
+    """Clear the user's pending digest items in the CURRENTLY ROUTED guild
+    schema. Callers on the platform path (no guild route) must use
+    :func:`clear_task_assignment_queue_across_guilds` instead."""
     stmt = delete(TaskAssignmentDigestItem).where(
         TaskAssignmentDigestItem.user_id == user_id,
         TaskAssignmentDigestItem.processed_at.is_(None),
     )
     await session.exec(stmt)
+
+
+async def clear_task_assignment_queue_across_guilds(
+    session: AsyncSession, user_id: int
+) -> None:
+    """Platform-path variant: the digest queue is guild-scoped, so visit each
+    of the user's guild schemas. Leaves the session routed into the last guild
+    and the identity map expunged — the caller restores its own context.
+    Deletes are flushed, not committed; they ride the caller's transaction."""
+    from app.services import cross_guild
+
+    guild_ids = await cross_guild.member_guild_ids(session, user_id)
+
+    async def _clear(routed: AsyncSession, _gid: int) -> list:
+        await clear_task_assignment_queue_for_user(routed, user_id)
+        return []
+
+    await cross_guild.gather_across_guilds(session, user_id, guild_ids, _clear)
 
 
 async def notify_initiative_membership(
