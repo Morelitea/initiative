@@ -14,10 +14,11 @@ site_name = "Initiative Help"
 site_description = "Guides and reference for Initiative — projects, documents, and task boards for your whole group."
 site_author = "Morelitea"
 
-# The canonical URL for the published site. Update this to wherever the docs
-# are hosted before publishing (it powers search, the sitemap, and social
-# previews). Left commented until a host is chosen.
-#site_url = "https://docs.example.com/"
+# The canonical URL for the published site (powers search, the sitemap, and
+# social previews). For GitHub Pages on this repo it's the project URL below.
+# If you later use a custom domain, change this to that domain (e.g.
+# "https://docs.initiative.app/").
+site_url = "https://morelitea.github.io/initiative/"
 
 # Link the header logo/title back to the source repository.
 repo_url = "https://github.com/Morelitea/initiative"
