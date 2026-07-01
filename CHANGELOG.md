@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Documents shared with "all initiative members" now show on the project they're attached to.** The project view filtered attached documents with its own check that only understood per-person and per-role sharing, so a document shared with everyone in the initiative disappeared for members without a personal grant. It now defers to the standard document access rules (which also covers guild admins and Full-access roles).
 - Chester toasts no longer overlay the bottom navigation pill and are limited to showing 2 at a time.
 
 ## [0.53.4] - 2026-06-27

@@ -124,36 +124,16 @@ def _project_documents(
     for link in getattr(project, "document_links", []) or []:
         doc = getattr(link, "document", None)
         if user_id is not None and doc is not None:
-            if not _user_can_access_document(doc, user_id, project):
+            # Single source of truth: the document DAC engine (per-user / per-role /
+            # all-initiative-members grants, plus guild-admin, Full-access, and PAM
+            # overrides) — no re-implementation here.
+            if permissions_service.compute_document_permission(doc, user_id) is None:
                 continue
         summary = serialize_project_document_link(link)
         if summary:
             documents.append(summary)
     documents.sort(key=lambda item: (item.title.lower(), item.document_id))
     return documents
-
-
-def _user_can_access_document(doc, user_id: int, project: Project) -> bool:
-    """Check if a user has access to a document via a user or role grant."""
-    grants = getattr(doc, "grants", None) or []
-    # Check explicit per-user grants
-    for grant in grants:
-        if grant.user_id == user_id:
-            return True
-    # Check role-based grants against the user's roles in the project's initiative
-    role_grant_ids = {g.role_id for g in grants if g.role_id is not None}
-    if role_grant_ids:
-        initiative = getattr(project, "initiative", None)
-        if initiative:
-            memberships = getattr(initiative, "memberships", None) or []
-            user_role_ids = {
-                m.role_id
-                for m in memberships
-                if m.user_id == user_id and m.role_id is not None
-            }
-            if role_grant_ids & user_role_ids:
-                return True
-    return False
 
 
 async def _attach_task_summaries(session: SessionDep, projects: List[Project]) -> None:
@@ -223,6 +203,9 @@ async def _get_project_or_404(
             .selectinload(ProjectDocument.document)
             .options(
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
+                # Linked-doc visibility defers to the shared document DAC, which
+                # reads the doc's own initiative memberships (all-members grants).
+                selectinload(Document.initiative).selectinload(Initiative.memberships),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -497,6 +480,9 @@ async def _visible_projects(
             .selectinload(ProjectDocument.document)
             .options(
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
+                # Linked-doc visibility defers to the shared document DAC, which
+                # reads the doc's own initiative memberships (all-members grants).
+                selectinload(Document.initiative).selectinload(Initiative.memberships),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -659,6 +645,9 @@ async def _projects_by_ids(
             .selectinload(ProjectDocument.document)
             .options(
                 selectinload(Document.grants).selectinload(ResourceGrant.role),
+                # Linked-doc visibility defers to the shared document DAC, which
+                # reads the doc's own initiative memberships (all-members grants).
+                selectinload(Document.initiative).selectinload(Initiative.memberships),
             ),
             selectinload(Project.tag_links).selectinload(ProjectTag.tag),
         )
@@ -848,6 +837,11 @@ async def _list_global_projects(
                 .selectinload(ProjectDocument.document)
                 .options(
                     selectinload(Document.grants).selectinload(ResourceGrant.role),
+                    # Linked-doc visibility defers to the shared document DAC, which
+                    # reads the doc's own initiative memberships (all-members grants).
+                    selectinload(Document.initiative).selectinload(
+                        Initiative.memberships
+                    ),
                 ),
                 selectinload(Project.tag_links).selectinload(ProjectTag.tag),
             )
