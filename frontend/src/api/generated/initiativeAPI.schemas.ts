@@ -739,6 +739,7 @@ export interface CounterGroupSummary {
   my_permission_level: string | null;
   created_at: string;
   updated_at: string;
+  grants: ResourceGrantSchema[];
 }
 
 export interface CounterGroupListResponse {
@@ -787,8 +788,8 @@ export interface CounterGroupRead {
   my_permission_level: string | null;
   created_at: string;
   updated_at: string;
-  counters: CounterRead[];
   grants: ResourceGrantSchema[];
+  counters: CounterRead[];
 }
 
 export interface CounterGroupUpdate {
@@ -2270,6 +2271,7 @@ export interface QueueSummary {
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
+  grants: ResourceGrantSchema[];
 }
 
 export interface QueueListResponse {
@@ -2297,9 +2299,9 @@ export interface QueueRead {
   created_at: string;
   updated_at: string;
   my_permission_level: string | null;
+  grants: ResourceGrantSchema[];
   items: QueueItemRead[];
   current_item: QueueItemRead | null;
-  grants: ResourceGrantSchema[];
 }
 
 /**
@@ -2381,6 +2383,59 @@ export interface ResolvedAISettingsResponse {
   base_url: string | null;
   model: string | null;
   source: string;
+}
+
+export type Tool = (typeof Tool)[keyof typeof Tool];
+
+export const Tool = {
+  project: "project",
+  document: "document",
+  queue: "queue",
+  counter_group: "counter_group",
+  calendar_event: "calendar_event",
+} as const;
+
+/**
+ * One tool's full target sharing state in a bulk request — the same ``grants``
+ * body the per-resource ``PUT /{id}/grants`` takes, tagged with which tool it
+ * applies to (the app-wide ``Tool`` enum).
+ */
+export interface ResourceGrantBulkItem {
+  resource_type: Tool;
+  resource_id: number;
+  grants: ResourceGrantSchema[];
+}
+
+export type ResourceGrantBulkItemResultStatus =
+  (typeof ResourceGrantBulkItemResultStatus)[keyof typeof ResourceGrantBulkItemResultStatus];
+
+export const ResourceGrantBulkItemResultStatus = {
+  ok: "ok",
+  forbidden: "forbidden",
+  not_found: "not_found",
+} as const;
+
+/**
+ * Per-item outcome — bulk is best-effort: a resource the caller can't manage
+ * (``forbidden``) or that doesn't exist (``not_found``) is skipped without
+ * blocking the rest.
+ */
+export interface ResourceGrantBulkItemResult {
+  resource_type: Tool;
+  resource_id: number;
+  status: ResourceGrantBulkItemResultStatus;
+  detail?: string | null;
+}
+
+/**
+ * Replace sharing on many resources (possibly of different types) in one call.
+ */
+export interface ResourceGrantBulkRequest {
+  items: ResourceGrantBulkItem[];
+}
+
+export interface ResourceGrantBulkResponse {
+  results: ResourceGrantBulkItemResult[];
 }
 
 /**

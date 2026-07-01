@@ -31,10 +31,17 @@ from app.core.messages import (
     QueueMessages,
 )
 from app.core.pam_context import has_active_grant
+from app.core.tools import Tool
+from app.db.session import reapply_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
-from app.services.tenant import counters as counters_service
+from app.models.tenant.resource_grant import ResourceAccessLevel
+from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
+from app.services.tenant import calendar_events as calendar_events_service
+from app.services.tenant import counters as counters_service
+from app.services.tenant import documents as documents_service
+from app.services.tenant import project_grants
 from app.services.tenant import queues as queues_service
 
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
@@ -43,7 +50,7 @@ CurrentUserDep = Annotated[User, Depends(get_current_active_user)]
 
 @dataclass(frozen=True)
 class ResourceAccessConfig:
-    dac_kind: Optional[str] = None  # key into DAC_RESOURCES; None = feature gate only
+    dac_kind: Optional[Tool] = None  # key into DAC_RESOURCES; None = feature gate only
     feature_attr: Optional[str] = None  # initiative flag gating the feature
     feature_disabled_msg: Optional[str] = None
     grant_cannot_manage_msg: Optional[str] = None
@@ -54,25 +61,31 @@ class ResourceAccessConfig:
     not_found_msg: Optional[str] = None
 
 
-RESOURCE_ACCESS: dict[str, ResourceAccessConfig] = {
-    "project": ResourceAccessConfig(
-        dac_kind="project",
+RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
+    Tool.project: ResourceAccessConfig(
+        dac_kind=Tool.project,
         grant_cannot_manage_msg=ProjectMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        loader=project_grants.get_project,
+        path_param="project_id",
+        not_found_msg=ProjectMessages.NOT_FOUND,
     ),
-    "document": ResourceAccessConfig(
-        dac_kind="document",
+    Tool.document: ResourceAccessConfig(
+        dac_kind=Tool.document,
         grant_cannot_manage_msg=DocumentMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        loader=documents_service.get_document_for_grants,
+        path_param="document_id",
+        not_found_msg=DocumentMessages.NOT_FOUND,
     ),
-    "queue": ResourceAccessConfig(
-        dac_kind="queue",
+    Tool.queue: ResourceAccessConfig(
+        dac_kind=Tool.queue,
         feature_attr="queues_enabled",
         feature_disabled_msg=QueueMessages.FEATURE_DISABLED,
         loader=queues_service.get_queue,
         path_param="queue_id",
         not_found_msg=QueueMessages.NOT_FOUND,
     ),
-    "counter_group": ResourceAccessConfig(
-        dac_kind="counter_group",
+    Tool.counter_group: ResourceAccessConfig(
+        dac_kind=Tool.counter_group,
         feature_attr="counters_enabled",
         feature_disabled_msg=CounterMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=CounterMessages.GRANT_CANNOT_MANAGE,
@@ -80,13 +93,20 @@ RESOURCE_ACCESS: dict[str, ResourceAccessConfig] = {
         path_param="group_id",
         not_found_msg=CounterMessages.GROUP_NOT_FOUND,
     ),
-    "calendar_event": ResourceAccessConfig(
-        dac_kind="calendar_event",
+    Tool.calendar_event: ResourceAccessConfig(
+        dac_kind=Tool.calendar_event,
         feature_attr="events_enabled",
         feature_disabled_msg=CalendarEventMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=CalendarEventMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        loader=calendar_events_service.get_event,
+        path_param="event_id",
+        not_found_msg=CalendarEventMessages.NOT_FOUND,
     ),
 }
+
+# The tools whose sharing can be set through the unified grant flow
+# (``set_resource_grants`` / the bulk endpoint) — every tool, all registered above.
+GRANTABLE_KINDS: tuple[Tool, ...] = tuple(Tool)
 
 
 def authorize(
@@ -195,3 +215,104 @@ def my_permission_level(
     return permissions_service.compute_permission(
         permissions_service.DAC_RESOURCES[cfg.dac_kind], row, user.id
     )
+
+
+# ── Unified grant-set flow ───────────────────────────────────────────────────
+# One code path for replacing a resource's sharing — used by every per-resource
+# ``PUT /{id}/grants`` endpoint and by the bulk endpoint. The only per-kind
+# variation is an optional post-change side effect (projects unassign anyone
+# dropped below write access from the project's tasks).
+
+
+@dataclass(frozen=True)
+class GrantHooks:
+    # raise to reject the change (e.g. archived project) — runs after authorization
+    precheck: Optional[Callable[[Any], None]] = None
+    # snapshot of who can write *before* the change, for diffing afterwards
+    writers_before: Optional[Callable[[Any], set[int]]] = None
+    # post-change hook: (session, reloaded_row, writers_before) -> None
+    on_changed: Optional[Callable[..., Awaitable[None]]] = None
+
+
+async def _project_on_grants_changed(
+    session: Any, row: Any, writers_before: set[int]
+) -> None:
+    """Unassign anyone the grant change dropped below project write access — you
+    can't be assigned to tasks you can no longer edit. Commits + reapplies RLS
+    only when something actually changed."""
+    demoted = writers_before - project_grants.write_holder_ids(row)
+    if demoted:
+        await project_grants.remove_user_task_assignments(session, row.id, demoted)
+        await session.commit()
+        await reapply_rls_context(session)
+
+
+GRANT_HOOKS: dict[Tool, GrantHooks] = {
+    Tool.project: GrantHooks(
+        precheck=project_grants.ensure_grantable,
+        writers_before=project_grants.write_holder_ids,
+        on_changed=_project_on_grants_changed,
+    ),
+}
+
+
+def _resolve_owner_id(row: Any) -> Optional[int]:
+    """The user holding the owner-level grant, else the resource's own owner /
+    creator column. Mirrors the per-resource endpoints' owner handling — the owner
+    grant is preserved server-side and the owner is never written as a non-owner
+    grant."""
+    for g in getattr(row, "grants", None) or []:
+        if g.user_id is not None and g.level == ResourceAccessLevel.owner:
+            return g.user_id
+    return getattr(row, "owner_id", None) or getattr(row, "created_by_id", None)
+
+
+async def set_resource_grants(
+    session: Any,
+    kind: Tool,
+    resource_id: int,
+    user: User,
+    guild_context: GuildContext,
+    grants: list[ResourceGrantSchema],
+) -> None:
+    """Replace one resource's sharing the unified way: load + 404, authorize
+    *managing* access (``manage_access=True``), rebuild every non-owner grant from
+    ``grants`` (owner preserved), then run the resource's optional post-change side
+    effect. Commits. Raises ``HTTPException`` 404 (missing) / 403 (no manage
+    access). The single source of truth behind the per-resource grant endpoints and
+    the bulk endpoint."""
+    row = await load_authorized(
+        session,
+        kind,
+        resource_id,
+        user,
+        guild_context,
+        access="write",
+        manage_access=True,
+    )
+    hooks = GRANT_HOOKS.get(kind)
+    if hooks and hooks.precheck:
+        hooks.precheck(row)
+    writers_before = (
+        hooks.writers_before(row) if hooks and hooks.writers_before else None
+    )
+
+    await permissions_service.replace_resource_grants(
+        session,
+        resource_type=kind,
+        resource_id=row.id,
+        guild_id=row.guild_id,
+        initiative_id=row.initiative_id,
+        owner_id=_resolve_owner_id(row),
+        grants=grants,
+    )
+    await session.commit()
+    await reapply_rls_context(session)
+
+    if hooks and hooks.on_changed:
+        # replace_resource_grants rewrites resource_grants rows directly (by
+        # resource_type/resource_id), so ``row.grants`` in the identity map is now
+        # stale — refresh just that one collection (the memberships the diff needs
+        # are untouched) rather than reloading the whole graph.
+        await session.refresh(row, attribute_names=["grants"])
+        await hooks.on_changed(session, row, writers_before or set())

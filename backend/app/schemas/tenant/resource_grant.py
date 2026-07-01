@@ -14,6 +14,7 @@ from typing import Literal, Optional
 
 from pydantic import ConfigDict, model_validator
 
+from app.core.tools import Tool
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -50,3 +51,34 @@ class ResourceGrantSchema(SanitizedBaseModel):
                 "Exactly one of user_id, role_id, or all_initiative_members must be set"
             )
         return self
+
+
+class ResourceGrantBulkItem(SanitizedBaseModel):
+    """One tool's full target sharing state in a bulk request — the same ``grants``
+    body the per-resource ``PUT /{id}/grants`` takes, tagged with which tool it
+    applies to (the app-wide ``Tool`` enum)."""
+
+    resource_type: Tool
+    resource_id: int
+    grants: list[ResourceGrantSchema]
+
+
+class ResourceGrantBulkRequest(SanitizedBaseModel):
+    """Replace sharing on many resources (possibly of different types) in one call."""
+
+    items: list[ResourceGrantBulkItem]
+
+
+class ResourceGrantBulkItemResult(SanitizedBaseModel):
+    """Per-item outcome — bulk is best-effort: a resource the caller can't manage
+    (``forbidden``) or that doesn't exist (``not_found``) is skipped without
+    blocking the rest."""
+
+    resource_type: Tool
+    resource_id: int
+    status: Literal["ok", "forbidden", "not_found"]
+    detail: Optional[str] = None
+
+
+class ResourceGrantBulkResponse(SanitizedBaseModel):
+    results: list[ResourceGrantBulkItemResult]

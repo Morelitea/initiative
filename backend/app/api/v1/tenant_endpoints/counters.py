@@ -63,6 +63,7 @@ from app.services.tenant import counters as counters_service
 from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
 from app.api import resource_access
+from app.core.tools import Tool
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
@@ -845,36 +846,11 @@ async def set_counter_group_grants(
     """
     # Write access is sufficient to manage sharing; only deleting the group is
     # reserved for owners. The owner row itself is preserved regardless.
-    group = await _get_counter_group_with_access(
-        session,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
-        manage_access=True,
+    await resource_access.set_resource_grants(
+        session, Tool.counter_group, group_id, current_user, guild_context, grants
     )
 
-    # The owner is the user holding the owner-level grant, else the creator.
-    owner_id = group.created_by_id
-    for g in group.grants or []:
-        if g.user_id is not None and g.level == ResourceAccessLevel.owner:
-            owner_id = g.user_id
-            break
-
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="counter_group",
-        resource_id=group.id,
-        guild_id=group.guild_id,
-        initiative_id=group.initiative_id,
-        owner_id=owner_id,
-        grants=grants,
-    )
-
-    await session.commit()
-    await reapply_rls_context(session)
-
-    hydrated = await _refetch_group(session, group.id)
+    hydrated = await _refetch_group(session, group_id)
     result = serialize_counter_group(
         hydrated,
         my_permission_level=_compute_my_permission(

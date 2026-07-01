@@ -179,6 +179,32 @@ async def get_document(
     return document
 
 
+async def get_document_for_grants(
+    session: AsyncSession, document_id: int
+) -> Document | None:
+    """Load a document with just the relationships the grant flow needs — its
+    ``grants`` (owner resolution) and ``initiative.memberships`` (authorization).
+    RLS scopes the row to the request's guild, so no explicit guild filter (mirrors
+    the queue/counter grant loaders). Uniform ``(session, id)`` shape so
+    ``resource_access`` can register it like the others."""
+    statement = (
+        select(Document)
+        .where(Document.id == document_id)
+        .options(
+            selectinload(Document.initiative)
+            .selectinload(Initiative.memberships)
+            .options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(
+                    InitiativeRoleModel.permissions
+                ),
+            ),
+            selectinload(Document.grants).selectinload(ResourceGrant.role),
+        )
+    )
+    return (await session.exec(statement)).one_or_none()
+
+
 async def attach_document_to_project(
     session: AsyncSession,
     *,
