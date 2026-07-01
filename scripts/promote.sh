@@ -58,6 +58,8 @@ Options:
   --version X.Y.Z      Promote + set explicit version
   --cherry-pick SHA... Cherry-pick specific commits instead of full merge
   --rollback           Revert a release on main
+  --docs               Promote ONLY the docs (docs/ + zensical.toml) to main —
+                       no app code, no version bump, no changelog
   --force-native       Force-bump MIN_NATIVE_VERSION to the release version even if no
                        native change is auto-detected (CI will build a fresh APK/IPA).
                        Use when a native-affecting change landed only via pnpm-lock.yaml.
@@ -75,6 +77,8 @@ Examples:
   scripts/promote.sh --cherry-pick abc123   # Cherry-pick a hotfix to main
   scripts/promote.sh --rollback             # Revert the latest release
   scripts/promote.sh --rollback --version 0.29.1  # Revert a specific release
+  scripts/promote.sh --docs                 # Promote docs-only changes to main
+  scripts/promote.sh --docs --dry-run       # Preview the docs that would be promoted
 EOF
 }
 
@@ -101,6 +105,7 @@ parse_args() {
                 [[ ${#CHERRY_SHAS[@]} -eq 0 ]] && die "--cherry-pick requires at least one SHA"
                 ;;
             --rollback) MODE="rollback"; shift ;;
+            --docs)     MODE="docs"; shift ;;
             --force-native) FORCE_NATIVE=true; shift ;;
             --dry-run)  DRY_RUN=true; shift ;;
             -y)         AUTO_CONFIRM=true; shift ;;
@@ -128,6 +133,11 @@ parse_args() {
     # so it never silently no-ops.
     if $FORCE_NATIVE && [[ -z "$BUMP_TYPE" ]]; then
         die "--force-native requires a version bump (--patch/--minor/--major/--version)"
+    fi
+
+    # --docs is a standalone, version-free promotion.
+    if [[ "$MODE" == "docs" && -n "$BUMP_TYPE" ]]; then
+        die "--docs cannot be combined with a version bump"
     fi
 }
 
@@ -684,6 +694,84 @@ EOF
     git checkout dev
 }
 
+# ── Docs-only promotion ──────────────────────────────────────────────────────
+# The documentation site that gets promoted on its own. zensical.toml is the docs
+# build config (nav/theme), so it travels with docs/ to keep main's build coherent.
+DOCS_PATHS=("docs" "zensical.toml")
+
+# Sync just the docs site from dev to main via a PR — no app code, no version bump,
+# no changelog. Deletions inside docs/ are captured too, so main's docs tree ends up
+# matching dev's exactly.
+do_docs() {
+    echo -e "${BOLD}Mode: Promote docs → main${NC}"
+    echo "═══════════════════════════════════════"
+    echo ""
+
+    preflight
+    check_branch_sync "dev"
+    check_branch_sync "main"
+    echo ""
+
+    # Anything to promote?
+    if git diff --quiet "origin/main" "origin/dev" -- "${DOCS_PATHS[@]}"; then
+        die "No documentation changes between main and dev (${DOCS_PATHS[*]})"
+    fi
+
+    echo -e "${BOLD}Documentation changes (main → dev):${NC}"
+    git diff --stat "origin/main" "origin/dev" -- "${DOCS_PATHS[@]}"
+    echo ""
+
+    if $DRY_RUN; then
+        info "Dry run complete — no changes made."
+        return
+    fi
+
+    confirm "Open a docs-only PR to main (no app code, no version bump)?" || { echo "Aborted."; exit 0; }
+
+    local branch="docs/$DATE"
+    CLEANUP_BRANCH="$branch"
+    git checkout -b "$branch" origin/main
+
+    # Make docs/ match dev exactly (added, changed AND removed files), then bring in
+    # the docs build config.
+    rm -rf docs
+    git checkout origin/dev -- docs
+    git checkout origin/dev -- zensical.toml
+    git add -A docs zensical.toml
+
+    # Safety net: refuse if anything outside the docs site got staged.
+    local stray
+    stray=$(git diff --cached --name-only | grep -vE '^docs/|^zensical\.toml$' || true)
+    [[ -n "$stray" ]] && die "Refusing — non-docs files are staged:\n$stray"
+
+    if git diff --cached --quiet; then
+        die "No documentation changes to commit"
+    fi
+
+    git commit -m "docs: sync documentation to main ($DATE)"
+    git push -u origin "$branch"
+    CLEANUP_BRANCH=""
+
+    local pr_url
+    pr_url=$(gh pr create \
+        --base main \
+        --head "$branch" \
+        --title "Docs update ($DATE)" \
+        --body "$(cat <<EOF
+## Summary
+- Syncs the documentation site (\`docs/\` + \`zensical.toml\`) from \`dev\` to \`main\`.
+- **Docs only** — no app code, no version bump, no changelog stamp.
+
+## Changed files
+$(git diff --stat "origin/main"..HEAD -- "${DOCS_PATHS[@]}")
+EOF
+)")
+
+    info "PR created: $pr_url"
+    info "Merging republishes the docs site (GitHub Pages) from main."
+    git checkout dev
+}
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 main() {
     # Ensure we're at the repo root
@@ -697,6 +785,7 @@ main() {
         release)     do_release ;;
         cherry-pick) do_cherry_pick ;;
         rollback)    do_rollback ;;
+        docs)        do_docs ;;
         *)           die "Unknown mode: $MODE" ;;
     esac
 }
