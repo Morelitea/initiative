@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Bulk-edit access on projects, queues, and counter groups.** Like documents, these lists now have a **Select** mode: pick several items, then **Edit access** to share them with people, roles, or all initiative members — in one step. The same tabbed dialog everywhere (People / Roles / All members, Viewer/Editor), and it only touches items you own or can edit.
+
 ### Fixed
 
 - Chester toasts no longer overlay the bottom navigation pill and are limited to showing 2 at a time.

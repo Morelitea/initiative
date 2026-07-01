@@ -3,6 +3,11 @@ import { Loader2, Plus } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllQueues } from "@/api/query-keys";
+import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
+import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { CreateQueueDialog } from "@/components/initiativeTools/queues/CreateQueueDialog";
 import { QueueCard } from "@/components/initiativeTools/queues/QueueCard";
 import {
@@ -13,6 +18,7 @@ import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateAc
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
+import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
   canCreate as canCreatePermission,
@@ -30,7 +36,7 @@ type QueuesViewProps = {
 };
 
 export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) => {
-  const { t } = useTranslation(["queues", "common"]);
+  const { t } = useTranslation(["queues", "common", "access"]);
   const router = useRouter();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
@@ -228,6 +234,9 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     ? (initiativeNameMap.get(lockedInitiativeId) ?? null)
     : null;
 
+  const selection = useGridSelection(queues);
+  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+
   return (
     <div className="space-y-6">
       {!lockedInitiativeId && (
@@ -280,13 +289,34 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
         <p className="text-destructive text-sm">{t("loadError")}</p>
       ) : queues.length > 0 ? (
         <>
+          {selection.active ? (
+            <BulkAccessBar
+              count={selection.selectedItems.length}
+              canManage={canManageSharing(selection.selectedItems)}
+              onEditAccess={() => setBulkAccessOpen(true)}
+              onExit={selection.exit}
+            />
+          ) : (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={selection.enter}>
+                {t("access:bulkBar.select")}
+              </Button>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {queues.map((queue) => (
-              <QueueCard
+              <SelectableGridItem
                 key={queue.id}
-                queue={queue}
-                initiativeName={initiativeNameMap.get(queue.initiative_id)}
-              />
+                active={selection.active}
+                selected={selection.selectedIds.has(queue.id)}
+                onToggle={() => selection.toggle(queue.id)}
+                label={queue.name}
+              >
+                <QueueCard
+                  queue={queue}
+                  initiativeName={initiativeNameMap.get(queue.initiative_id)}
+                />
+              </SelectableGridItem>
             ))}
           </div>
 
@@ -339,6 +369,15 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
           initiativeFilter !== INITIATIVE_FILTER_ALL ? Number(initiativeFilter) : undefined
         }
         onSuccess={handleQueueCreated}
+      />
+
+      <BulkEditAccessDialog
+        open={bulkAccessOpen}
+        onOpenChange={setBulkAccessOpen}
+        items={selection.selectedItems}
+        resourceType={Tool.queue}
+        invalidate={invalidateAllQueues}
+        onSuccess={selection.exit}
       />
     </div>
   );
