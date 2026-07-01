@@ -62,9 +62,10 @@ def split_sql_statements(sql: str) -> list[str]:
     """Split an SQL script into single statements for asyncpg's extended
     (one-statement-per-execute) protocol.
 
-    Handles ``--`` line comments, single-quoted strings, and dollar-quoted
-    bodies (``$$ … $$`` / ``$tag$ … $tag$``), so a ``;`` inside any of those
-    does not split. Used by migrations that RUN the committed SQL artifacts
+    Handles ``--`` line comments, ``/* … */`` block comments (nested, as
+    Postgres allows), single-quoted strings, and dollar-quoted bodies
+    (``$$ … $$`` / ``$tag$ … $tag$``), so a ``;`` inside any of those does not
+    split. Used by migrations that RUN the committed SQL artifacts
     (``guild_schema.sql``, ``guild_rls.sql``, the baseline snapshot)."""
     statements: list[str] = []
     buf: list[str] = []
@@ -85,6 +86,16 @@ def split_sql_statements(sql: str) -> list[str]:
             eol = sql.find("\n", i)
             i = n if eol == -1 else eol + 1  # drop comment, keep statement flow
             continue
+        if ch == "/" and sql.startswith("/*", i):
+            depth, i = 1, i + 2
+            while i < n and depth:
+                if sql.startswith("/*", i):  # Postgres block comments nest
+                    depth, i = depth + 1, i + 2
+                elif sql.startswith("*/", i):
+                    depth, i = depth - 1, i + 2
+                else:
+                    i += 1
+            continue  # dropped, like line comments
         if ch == "'":
             end = i + 1
             while end < n:
