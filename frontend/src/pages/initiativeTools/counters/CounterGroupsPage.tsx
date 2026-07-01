@@ -162,7 +162,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
     void router.navigate({ to: gp(`/counter-groups/${group.id}`) });
   };
 
-  const selection = useGridSelection(groups);
+  const selection = useGridSelection<(typeof groups)[number]>();
   const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
 
   return (
@@ -234,7 +234,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
                 key={group.id}
                 active={selection.active}
                 selected={selection.selectedIds.has(group.id)}
-                onToggle={() => selection.toggle(group.id)}
+                onToggle={() => selection.toggle(group)}
                 label={group.name}
               >
                 <CounterGroupCard

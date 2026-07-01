@@ -532,7 +532,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     });
   };
 
-  const selection = useGridSelection(sortedProjects);
+  const selection = useGridSelection<(typeof sortedProjects)[number]>();
   const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
 
   const projectCards = selection.active ? (
@@ -543,7 +543,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             key={project.id}
             active
             selected={selection.selectedIds.has(project.id)}
-            onToggle={() => selection.toggle(project.id)}
+            onToggle={() => selection.toggle(project)}
             label={project.name}
           >
             <ProjectRowLink project={project} userId={user?.id} />
@@ -557,7 +557,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             key={project.id}
             active
             selected={selection.selectedIds.has(project.id)}
-            onToggle={() => selection.toggle(project.id)}
+            onToggle={() => selection.toggle(project)}
             label={project.name}
           >
             <ProjectCardLink project={project} userId={user?.id} />

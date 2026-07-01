@@ -3,33 +3,34 @@ import { useCallback, useMemo, useState } from "react";
 /**
  * Multi-select state for a card/grid list (projects, queues, counter groups, …).
  * Selection is a mode you enter explicitly — cards become checkboxes and their
- * links stop navigating while it's active. `selectedItems` is derived from the
- * live list, so items that scroll/paginate away silently drop out of the result.
+ * links stop navigating while it's active.
+ *
+ * Selected items are stored **by value**, not derived from the current page, so a
+ * selection survives pagination/filtering: pick items on page 1, page to page 2,
+ * pick more, and all of them are acted on together.
  */
-export function useGridSelection<T extends { id: number }>(items: T[]) {
+export function useGridSelection<T extends { id: number }>() {
   const [active, setActive] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedMap, setSelectedMap] = useState<Map<number, T>>(new Map());
 
-  const selectedItems = useMemo(
-    () => items.filter((item) => selectedIds.has(item.id)),
-    [items, selectedIds]
-  );
+  const selectedItems = useMemo(() => [...selectedMap.values()], [selectedMap]);
+  const selectedIds = useMemo(() => new Set(selectedMap.keys()), [selectedMap]);
 
-  const toggle = useCallback((id: number) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+  const toggle = useCallback((item: T) => {
+    setSelectedMap((prev) => {
+      const next = new Map(prev);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.set(item.id, item);
       return next;
     });
   }, []);
 
-  const clear = useCallback(() => setSelectedIds(new Set()), []);
+  const clear = useCallback(() => setSelectedMap(new Map()), []);
 
   const enter = useCallback(() => setActive(true), []);
   const exit = useCallback(() => {
     setActive(false);
-    setSelectedIds(new Set());
+    setSelectedMap(new Map());
   }, []);
 
   return { active, selectedIds, selectedItems, toggle, clear, enter, exit };

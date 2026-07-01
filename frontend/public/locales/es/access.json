@@ -82,7 +82,8 @@
     "noAllMembersAccess": "Ninguno de los elementos seleccionados estaba compartido con todos los miembros.",
     "rolesAlreadyAssigned": "Los roles seleccionados ya están asignados a todos los elementos seleccionados.",
     "updateError": "No se pudo actualizar el acceso en este momento.",
-    "roleUpdateError": "No se pudo actualizar el acceso por rol en este momento."
+    "roleUpdateError": "No se pudo actualizar el acceso por rol en este momento.",
+    "nothingToUpdate": "No se necesitaron cambios."
   },
   "bulkBar": {
     "selected_one": "{{count}} seleccionado",

@@ -209,6 +209,31 @@ describe("BulkEditAccessDialog grant rebuild", () => {
     expect(captured[0].some((g) => g.all_initiative_members)).toBe(false);
   });
 
+  it("revoke skips items the person isn't granted on (accurate count)", async () => {
+    const user = userEvent.setup();
+    const captured = captureGrantPuts();
+
+    // Doc 10 grants Bob; doc 11 does not (owner only).
+    const docWithBob = allMembersDoc([{ user_id: BOB_ID, level: "read" }]);
+    const docWithoutBob = buildDocumentSummary({
+      id: 11,
+      initiative_id: INITIATIVE_ID,
+      my_permission_level: "owner",
+      grants: [{ user_id: 999, level: "owner" }],
+    });
+    renderDialog([docWithBob, docWithoutBob]);
+
+    await user.click(screen.getByLabelText("Action"));
+    await user.click(await screen.findByRole("option", { name: "Revoke access" }));
+    await user.click(screen.getByText("Select people to revoke…"));
+    await user.click(await screen.findByText("Bob Builder"));
+    await user.click(screen.getByRole("button", { name: /Revoke 1 person/i }));
+
+    // Only the doc that actually granted Bob is written — the other is skipped.
+    await waitFor(() => expect(captured).toHaveLength(1));
+    expect(captured[0].some((g) => g.user_id === BOB_ID)).toBe(false);
+  });
+
   it("names the resource type in copy, not a hardcoded 'documents'", async () => {
     captureGrantPuts();
 

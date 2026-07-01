@@ -362,40 +362,47 @@ export function BulkEditAccessDialog({
     setIsPending(true);
     try {
       const userIds = new Set(selectedUserIds);
-      const entries = items.map((item) => {
+      const entries: { resourceId: number; grants: ResourceGrantSchema[] }[] = [];
+
+      for (const item of items) {
         const existing = (item.grants ?? []).filter((g) => g.level !== "owner");
-        let next: ResourceGrantSchema[];
         if (userMode === "grant") {
           // Granting specific people switches the resource to "restricted" mode,
           // so drop any "all initiative members" grant — ShareControl can't
           // represent a mixed all-members + per-grantee list and would silently
           // discard it on the next save. Also drop any existing per-user grant for
           // the targeted people, then add them back at the chosen level.
-          next = existing.filter(
+          const next = existing.filter(
             (g) => !g.all_initiative_members && (g.user_id == null || !userIds.has(g.user_id))
           );
-          for (const userId of userIds) {
-            next.push({ user_id: userId, level });
-          }
+          for (const userId of userIds) next.push({ user_id: userId, level });
+          entries.push({ resourceId: item.id, grants: next });
         } else {
-          next = existing.filter((g) => g.user_id == null || !userIds.has(g.user_id));
+          // Revoke: only touch items that actually grant one of the targeted
+          // people, so the count/toast reflect real changes (not every selection).
+          const hasTarget = existing.some((g) => g.user_id != null && userIds.has(g.user_id));
+          if (!hasTarget) continue;
+          entries.push({
+            resourceId: item.id,
+            grants: existing.filter((g) => g.user_id == null || !userIds.has(g.user_id)),
+          });
         }
-        return { resourceId: item.id, grants: next };
-      });
+      }
 
       await applyBulk(entries);
 
-      toast.success(
-        userMode === "grant"
-          ? t("bulkAccess.userAccessGranted", {
-              count: items.length,
-              items: resourceNoun(items.length),
-            })
-          : t("bulkAccess.userAccessRevoked", {
-              count: items.length,
-              items: resourceNoun(items.length),
-            })
-      );
+      const affected = entries.length;
+      if (userMode === "grant") {
+        toast.success(
+          t("bulkAccess.userAccessGranted", { count: affected, items: resourceNoun(affected) })
+        );
+      } else if (affected === 0) {
+        toast.info(t("bulkAccess.nothingToUpdate"));
+      } else {
+        toast.success(
+          t("bulkAccess.userAccessRevoked", { count: affected, items: resourceNoun(affected) })
+        );
+      }
       finish();
     } catch (error) {
       toast.error(getErrorMessage(error, "access:bulkAccess.updateError"));

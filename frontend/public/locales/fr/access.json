@@ -82,7 +82,8 @@
     "noAllMembersAccess": "Aucun des éléments sélectionnés n'était partagé avec tous les membres.",
     "rolesAlreadyAssigned": "Les rôles sélectionnés sont déjà attribués à tous les éléments sélectionnés.",
     "updateError": "Impossible de mettre à jour l'accès pour l'instant.",
-    "roleUpdateError": "Impossible de mettre à jour l'accès par rôle pour l'instant."
+    "roleUpdateError": "Impossible de mettre à jour l'accès par rôle pour l'instant.",
+    "nothingToUpdate": "Aucune modification n'était nécessaire."
   },
   "bulkBar": {
     "selected_one": "{{count}} sélectionné",

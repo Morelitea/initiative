@@ -82,7 +82,8 @@
     "noAllMembersAccess": "None of the selected items were shared with all members.",
     "rolesAlreadyAssigned": "Selected roles are already assigned to all selected items.",
     "updateError": "Unable to update access right now.",
-    "roleUpdateError": "Unable to update role access right now."
+    "roleUpdateError": "Unable to update role access right now.",
+    "nothingToUpdate": "No changes were needed."
   },
   "bulkBar": {
     "selected_one": "{{count}} selected",

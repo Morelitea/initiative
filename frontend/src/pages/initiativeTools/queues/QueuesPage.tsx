@@ -234,7 +234,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     ? (initiativeNameMap.get(lockedInitiativeId) ?? null)
     : null;
 
-  const selection = useGridSelection(queues);
+  const selection = useGridSelection<(typeof queues)[number]>();
   const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
 
   return (
@@ -309,7 +309,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
                 key={queue.id}
                 active={selection.active}
                 selected={selection.selectedIds.has(queue.id)}
-                onToggle={() => selection.toggle(queue.id)}
+                onToggle={() => selection.toggle(queue)}
                 label={queue.name}
               >
                 <QueueCard

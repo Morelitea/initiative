@@ -28,7 +28,9 @@ export function BulkAccessBar({ count, canManage, onEditAccess, onExit }: BulkAc
           size="sm"
           onClick={onEditAccess}
           disabled={count === 0 || !canManage}
-          title={canManage ? undefined : t("bulkBar.needManage")}
+          // Only explain the permission block when something is actually selected;
+          // with nothing selected the button is simply inactive.
+          title={count > 0 && !canManage ? t("bulkBar.needManage") : undefined}
         >
           <Shield className="h-4 w-4" />
           {t("bulkBar.editAccess")}

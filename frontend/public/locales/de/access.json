@@ -82,7 +82,8 @@
     "noAllMembersAccess": "Keines der ausgewählten Elemente war mit allen Mitgliedern geteilt.",
     "rolesAlreadyAssigned": "Die ausgewählten Rollen sind bereits allen ausgewählten Elementen zugewiesen.",
     "updateError": "Zugriff kann derzeit nicht aktualisiert werden.",
-    "roleUpdateError": "Rollenzugriff kann derzeit nicht aktualisiert werden."
+    "roleUpdateError": "Rollenzugriff kann derzeit nicht aktualisiert werden.",
+    "nothingToUpdate": "Keine Änderungen erforderlich."
   },
   "bulkBar": {
     "selected_one": "{{count}} ausgewählt",

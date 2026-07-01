@@ -28,7 +28,11 @@ export function SelectableGridItem({
 
   return (
     <div className="relative">
-      <div className="pointer-events-none select-none">{children}</div>
+      {/* `inert` blocks pointer *and* keyboard/AT focus from reaching the card's
+          links/buttons while selecting — the overlay is the only interactive part. */}
+      <div inert className="select-none">
+        {children}
+      </div>
       <button
         type="button"
         onClick={onToggle}
