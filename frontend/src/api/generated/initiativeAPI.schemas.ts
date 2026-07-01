@@ -2429,8 +2429,13 @@ export interface ResourceGrantBulkItemResult {
 
 /**
  * Replace sharing on many resources (possibly of different types) in one call.
+ * Capped at ``MAX_BULK_GRANT_ITEMS`` items (422 otherwise).
  */
 export interface ResourceGrantBulkRequest {
+  /**
+   * @minItems 1
+   * @maxItems 200
+   */
   items: ResourceGrantBulkItem[];
 }
 

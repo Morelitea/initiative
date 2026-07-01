@@ -1207,7 +1207,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.34.2" },
     { name = "slowapi", specifier = ">=0.1.9,<0.2" },
     { name = "sqlalchemy", specifier = ">=2.0.49,<3" },
-    { name = "sqlmodel", specifier = ">=0.0.38,<0.0.39" },
+    { name = "sqlmodel", specifier = ">=0.0.38,<0.0.40" },
     { name = "tzdata", specifier = ">=2026.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.50" },
 ]
