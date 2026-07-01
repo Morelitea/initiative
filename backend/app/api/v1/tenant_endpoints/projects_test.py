@@ -1143,3 +1143,77 @@ async def test_set_project_access_remove_grant_keeps_all_members(
     assert r.status_code == 200, r.text
     assert [g for g in r.json()["grants"] if g["user_id"] == member.id] == []
     assert any(g["all_initiative_members"] for g in r.json()["grants"])
+
+
+@pytest.mark.integration
+async def test_project_shows_all_members_document_to_member(
+    client: AsyncClient, session: AsyncSession
+):
+    """A document attached to a project and shared with *all initiative members*
+    is visible to a plain member on the project view. Regression: the linked-doc
+    filter used to ignore all-members grants, so such docs vanished for anyone
+    without a personal/role grant."""
+    from app.models.tenant.document import Document, DocumentType, ProjectDocument
+    from app.testing.factories import create_initiative_member
+
+    owner = await create_user(session, email="owner@example.com")
+    member = await create_user(session, email="member@example.com")
+    guild = await create_guild(session)
+    await create_guild_membership(session, user=owner, guild=guild)
+    await create_guild_membership(session, user=member, guild=guild)
+    initiative = await _create_initiative_with_member(session, guild, owner)
+    await create_initiative_member(session, initiative, member, role_name="member")
+    project = await _create_project(session, initiative, owner)
+
+    doc = Document(
+        title="Shared with everyone",
+        initiative_id=initiative.id,
+        guild_id=guild.id,
+        created_by_id=owner.id,
+        updated_by_id=owner.id,
+        document_type=DocumentType.native,
+    )
+    session.add(doc)
+    await session.flush()
+    session.add_all(
+        [
+            # Project shared with all members so the member can open it at all.
+            ResourceGrant(
+                resource_type="project",
+                resource_id=project.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=guild.id,
+                initiative_id=initiative.id,
+            ),
+            ResourceGrant(
+                resource_type="document",
+                resource_id=doc.id,
+                user_id=owner.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=guild.id,
+                initiative_id=initiative.id,
+            ),
+            ResourceGrant(
+                resource_type="document",
+                resource_id=doc.id,
+                all_initiative_members=True,
+                level=ResourceAccessLevel.read,
+                guild_id=guild.id,
+                initiative_id=initiative.id,
+            ),
+            ProjectDocument(
+                project_id=project.id,
+                document_id=doc.id,
+                guild_id=guild.id,
+                attached_by_id=owner.id,
+            ),
+        ]
+    )
+    await session.commit()
+
+    headers = await get_guild_headers(session, guild, member)
+    r = await client.get(f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers)
+    assert r.status_code == 200, r.text
+    doc_ids = [d["document_id"] for d in r.json()["documents"]]
+    assert doc.id in doc_ids
