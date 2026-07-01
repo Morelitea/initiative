@@ -20,10 +20,13 @@ if str(BASE_DIR) not in sys.path:
 
 from app.core.config import settings  # noqa: E402
 from app.db import base  # noqa: F401,E402  # ensure models are imported
+from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
 
 config = context.config
 
-if config.config_file_name is not None and config.attributes.get("configure_logger", True):
+if config.config_file_name is not None and config.attributes.get(
+    "configure_logger", True
+):
     fileConfig(config.config_file_name)
 
 # Only set URL for CLI invocations. When called programmatically via
@@ -33,6 +36,24 @@ if not config.attributes.get("url_configured"):
     config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = SQLModel.metadata
+
+
+def _include_object(obj, name, type_, reflected, compare_to):
+    """Keep autogenerate away from guild-content tables.
+
+    Those tables live in the per-guild schemas (guild_template + guild_<id>),
+    which migrations maintain via ``apply_to_all_guild_schemas`` — never via
+    autogenerate against ``public``. Without this filter, autogenerate would
+    try to CREATE them in ``public`` on a fresh database (the model metadata
+    still declares them for the ORM) or DROP/ALTER the frozen legacy copies on
+    a pre-squash database.
+    """
+    if type_ == "table":
+        return name not in GUILD_SCOPED_TABLES
+    table = getattr(obj, "table", None)  # indexes/constraints/columns
+    if table is not None and table.name in GUILD_SCOPED_TABLES:
+        return False
+    return True
 
 
 def _process_revision_directives(context, revision, directives):
@@ -48,7 +69,12 @@ def _process_revision_directives(context, revision, directives):
     for f in versions_dir.glob("*.py"):
         name = f.stem
         # Match pattern: YYYYMMDD_NNNN_...
-        if len(name) >= 13 and name[8] == "_" and name[:8].isdigit() and name[9:13].isdigit():
+        if (
+            len(name) >= 13
+            and name[8] == "_"
+            and name[:8].isdigit()
+            and name[9:13].isdigit()
+        ):
             max_seq = max(max_seq, int(name[9:13]))
 
     next_seq = max_seq + 1
@@ -66,6 +92,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         render_as_batch=True,
+        include_object=_include_object,
         process_revision_directives=_process_revision_directives,
     )
 
@@ -82,6 +109,7 @@ def do_run_migrations(connection: Connection) -> None:
         # Commit after each migration to allow PostgreSQL enum values
         # added in one migration to be used in subsequent migrations
         transaction_per_migration=True,
+        include_object=_include_object,
         process_revision_directives=_process_revision_directives,
     )
 

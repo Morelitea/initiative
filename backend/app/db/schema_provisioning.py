@@ -12,13 +12,11 @@ guild-scoped queries into the schema, where the RLS policies (deferring to
 `public.initiative_access`) enforce initiative membership for non-admin roles.
 
 `backfill_guild_schemas` re-runs that idempotent provisioning for *every*
-existing guild on every boot (`main.on_startup`, after the legacy conversion).
-This closes two drift gaps the one-time conversion leaves open: a guild
-provisioned before `guild_schema.sql` gained a table/column/index never receives
-it (and `search_path = guild_<id>, public` silently falls through to the frozen
-public backup rather than erroring), and a crash mid-provision can leave a guild
-row whose schema doesn't exist. Provisioning is ~0.2s/guild and idempotent, so a
-plain sequential loop heals both with no extra bookkeeping.
+existing guild on every boot (`main.on_startup`). This closes two drift gaps: a
+guild provisioned before `guild_schema.sql` gained a table/column/index never
+receives it, and a crash mid-provision can leave a guild row whose schema
+doesn't exist. Provisioning is ~0.2s/guild and idempotent, so a plain
+sequential loop heals both with no extra bookkeeping.
 """
 
 from __future__ import annotations
@@ -90,8 +88,9 @@ def platform_role_name(role: str) -> str:
 
 
 # The single source for a guild schema's structure: schema-relative DDL generated
-# from the public tables Alembic builds (regenerate with scripts/gen_guild_schema.py
-# after any guild-scoped migration). The model is never used to build the DB.
+# from the Alembic-maintained guild_template schema (regenerate with
+# scripts/gen_guild_schema.py after any guild-scoped migration). The model is
+# never used to build the DB.
 GUILD_SCHEMA_SQL_PATH = (
     Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_schema.sql"
 )

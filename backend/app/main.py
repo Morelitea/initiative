@@ -62,11 +62,6 @@ async def lifespan(app: FastAPI):
     install_soft_delete_filter()
     await check_pre_baseline_db()
     await run_migrations()
-    # Move any pre-cutover guild data from public into per-guild schemas. Idempotent
-    # — a no-op once converted — so packaged deploys convert themselves on boot.
-    from app.db.guild_conversion import convert_public_to_guild_schemas
-
-    await convert_public_to_guild_schemas()
     # Re-run the idempotent per-guild provisioning for every guild so any
     # table/column/index/grant added to guild_schema.sql since a guild was
     # provisioned is back-filled, and any guild left without a schema (e.g. a

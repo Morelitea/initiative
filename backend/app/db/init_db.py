@@ -16,11 +16,9 @@ from app.models.platform.user import User, UserRole
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 
-BASELINE_REVISION = "20260216_0053"
-UPGRADE_SCRIPT_URL = (
-    "https://raw.githubusercontent.com/Morelitea/initiative/"
-    "main/scripts/upgrade-to-baseline.sql"
-)
+# The squashed baseline (v0.53.5 snapshot). Databases stamped at an older
+# revision must go through a v0.53.x release first — see check_pre_baseline_db.
+BASELINE_REVISION = "20260626_0125"
 
 
 async def init_superuser() -> None:
@@ -81,8 +79,20 @@ async def init_superuser() -> None:
             raise
 
 
+def _is_dated_revision(revision: str) -> bool:
+    """True for this repo's YYYYMMDD_NNNN revision ids (explicit check)."""
+    return (
+        len(revision) == 13
+        and revision[8] == "_"
+        and revision[:8].isdigit()
+        and revision[9:].isdigit()
+    )
+
+
 async def check_pre_baseline_db() -> None:
-    """Exit with upgrade instructions if the database is pre-v0.30.0."""
+    """Exit with upgrade instructions if the database predates the v0.53.5
+    baseline squash — its revision id no longer exists in this chain, so
+    alembic would fail with a cryptic "can't locate revision" otherwise."""
     parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
 
     try:
@@ -112,19 +122,14 @@ async def check_pre_baseline_db() -> None:
         if revision is None:
             return  # Fresh database (empty alembic_version)
 
-        # Check whether the baseline migration has already been applied.
-        # After post-baseline migrations run, the stamp advances past
-        # BASELINE_REVISION, so we also check for the app_user role which
-        # the baseline creates.
-        has_roles = await conn.fetchval(
-            "SELECT EXISTS (  SELECT 1 FROM pg_roles WHERE rolname = 'app_user')"
-        )
-
         if revision == BASELINE_REVISION:
-            # Already on baseline, but roles may be missing if the user
-            # upgraded to v0.30.0 without running init-db.sh. Clear the
-            # stamp so the baseline migration re-runs — it's idempotent
-            # and will create roles, RLS policies, and grants as needed.
+            # Stamped at the baseline, but roles may be missing on a database
+            # that never actually ran it (e.g. restored without roles). Clear
+            # the stamp so the (idempotent) baseline migration re-runs — it
+            # recreates roles, RLS policies, and grants as needed.
+            has_roles = await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_user')"
+            )
             if not has_roles:
                 print(
                     "Baseline stamped but database roles missing. Re-running baseline migration..."
@@ -132,25 +137,20 @@ async def check_pre_baseline_db() -> None:
                 await conn.execute("DELETE FROM alembic_version")
             return
 
-        if has_roles:
-            return  # Post-baseline revision; baseline was already applied
+        if _is_dated_revision(revision) and revision > BASELINE_REVISION:
+            return  # post-squash revision (e.g. 20260701_0126) — normal upgrade
 
         raise SystemExit(
             f"\n{'=' * 70}\n"
-            f"Pre-v0.30.0 database detected (revision: {revision}).\n\n"
-            f"The database schema must be upgraded before this version can run.\n"
-            f"Run the upgrade script with psql:\n\n"
-            f"  curl -fsSL {UPGRADE_SCRIPT_URL} \\\n"
-            f"    -o upgrade-to-baseline.sql\n\n"
-            f"  psql -v ON_ERROR_STOP=1 \\\n"
-            f'    -f upgrade-to-baseline.sql "$DATABASE_URL"\n\n'
-            f"If psql is not available (e.g. Synology, Unraid), pipe through\n"
-            f"the Postgres container:\n\n"
-            f"  curl -fsSL {UPGRADE_SCRIPT_URL} | \\\n"
-            f"    docker exec -i initiative-db \\\n"
-            f"    psql -v ON_ERROR_STOP=1 -U initiative -d initiative\n\n"
-            f"Then restart the application. The baseline migration will\n"
-            f"create database roles, RLS policies, and grants automatically.\n"
+            f"Pre-v0.53.2 database detected (revision: {revision}).\n\n"
+            f"This version's migration history starts at the v0.53.5 baseline;\n"
+            f"older databases must step through a v0.53.x release first:\n\n"
+            f"  1. Deploy any v0.53.x image (e.g. morelitea/initiative:0.53.5)\n"
+            f"     and let it boot once — its migrations and startup conversion\n"
+            f"     bring the database to the baseline state.\n"
+            f"  2. Then deploy this version and restart.\n\n"
+            f"(Installs older than v0.30.0 should first follow the v0.30.0\n"
+            f"upgrade instructions, then step through v0.53.x.)\n"
             f"{'=' * 70}"
         )
     finally:
@@ -160,12 +160,6 @@ async def check_pre_baseline_db() -> None:
 async def init() -> None:
     await check_pre_baseline_db()
     await run_migrations()
-    # Provision + migrate any pre-cutover guilds from public into their schemas
-    # BEFORE anything below routes into a guild's role/schema — an existing guild
-    # has no guild_<id> role until it's provisioned, so set_rls_context would fail.
-    from app.db.guild_conversion import convert_public_to_guild_schemas
-
-    await convert_public_to_guild_schemas()
     await init_superuser()
     async with AdminSessionLocal() as session:
         # guild_settings is guild-scoped; route into the primary guild's schema so
