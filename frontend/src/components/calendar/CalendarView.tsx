@@ -1438,6 +1438,11 @@ function ListView({
     const result: ListRow[] = [];
 
     for (const entry of entries) {
+      // In selection mode the list is a picker for shareable entries only — hide
+      // everything that can't be selected (e.g. tasks) so it can't be confused
+      // for something you can bulk-edit.
+      if (selectionActive && !(isEntrySelectable?.(entry) ?? false)) continue;
+
       const { start, end } = parseEntry(entry);
       if (Number.isNaN(start.getTime())) continue;
 
@@ -1462,7 +1467,7 @@ function ListView({
 
     result.sort((a, b) => a.displayDate.getTime() - b.displayDate.getTime());
     return result;
-  }, [entries, focusDate]);
+  }, [entries, focusDate, selectionActive, isEntrySelectable]);
 
   if (rows.length === 0) {
     return (

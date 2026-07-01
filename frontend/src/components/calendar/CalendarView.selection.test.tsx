@@ -43,21 +43,18 @@ function renderList(onToggle = vi.fn()) {
 }
 
 describe("CalendarView list-view selection", () => {
-  it("only event rows are selectable; task rows are disabled", async () => {
+  it("shows only selectable (event) rows and toggles them", async () => {
     const user = userEvent.setup();
     const onToggle = renderList();
 
-    const eventRow = screen.getByRole("button", { name: /Launch party/i });
-    const taskRow = screen.getByRole("button", { name: /Do the thing/i });
+    // Tasks can't be shared, so they're hidden entirely while selecting — the
+    // list is a picker for events only.
+    expect(screen.queryByRole("button", { name: /Do the thing/i })).toBeNull();
 
-    // Task entries can't be shared, so their row is inert during selection.
-    expect(taskRow).toBeDisabled();
+    const eventRow = screen.getByRole("button", { name: /Launch party/i });
     expect(eventRow).not.toBeDisabled();
 
     await user.click(eventRow);
     expect(onToggle).toHaveBeenCalledWith(expect.objectContaining({ id: "event-1" }));
-
-    await user.click(taskRow);
-    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });
