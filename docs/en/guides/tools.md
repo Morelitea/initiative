@@ -6,6 +6,9 @@ icon: lucide/wrench
 
 Beyond projects and documents, each initiative can use a few extra **tools**. They're optional — there if your group needs them, out of the way if it doesn't. You'll find them in the sidebar under the initiative, once your [role](../sharing/initiative-roles.md) allows it.
 
+!!! tip "Bulk-edit who can access them"
+    You can select several **events, queues, or counters** in a list view and update **who can see or edit them** all at once — the same bulk access editing available for projects and documents. See [Sharing & access](../sharing/index.md).
+
 ## Calendar & events
 
 The **calendar** is for things that happen at a time: meetings, sessions, deadlines, performances.

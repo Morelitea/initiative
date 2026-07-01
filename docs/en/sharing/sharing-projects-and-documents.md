@@ -46,7 +46,7 @@ Start restricted when in doubt; you can always widen access later.
 
 Open the **Access** tab in a project's or document's settings at any time to add people, change someone's level, or remove access. Changes apply immediately.
 
-You can also update access on **several items at once** — handy when a new team member should be added to a batch of projects, or when someone leaves.
+You can also **edit access on several items at once**: from a list view, select multiple **documents, projects, queues, counters, or calendar events** and update who can see or edit them in one step — handy when a new teammate joins a batch of work, or when someone leaves.
 
 ## A couple of things to remember
 
