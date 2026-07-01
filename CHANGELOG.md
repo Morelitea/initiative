@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Bulk-edit access on projects, queues, and counter groups.** Like documents, these lists now have a **Select** mode: pick several items, then **Edit access** to share them with people, roles, or all initiative members — in one step. The same tabbed dialog everywhere (People / Roles / All members, Viewer/Editor), and it only touches items you own or can edit.
+- **Bulk-edit access on projects, queues, counter groups, and calendar events.** Like documents, these now have a **Select** mode: pick several items, then **Edit access** to share them with people, roles, or all initiative members — in one step. The same tabbed dialog everywhere (People / Roles / All members, Viewer/Editor), and it only touches items you own or can edit. For calendar events, Select lives in the calendar's **list** view.
 
 ### Fixed
 
