@@ -459,7 +459,6 @@ _REQUEST_RESET_SQL = (
     "SELECT set_config('app.current_user_id', '', false), "
     "set_config('app.current_guild_id', '', false), "
     "set_config('app.current_guild_role', '', false), "
-    "set_config('app.is_superadmin', 'false', false), "
     "set_config('app.pam_guild_id', '', false), "
     "set_config('app.pam_read', 'false', false), "
     "set_config('app.pam_write', 'false', false), "

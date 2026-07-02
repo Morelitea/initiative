@@ -1935,7 +1935,7 @@ async def _load_download_document(
 
     # Route into the guild through the single entry point — same resolution and
     # applied context (membership / live PAM / break-glass, then SET ROLE +
-    # active_role/grant, no is_superadmin bypass) as REST and the realtime
+    # active_role/grant, no ambient bypass) as REST and the realtime
     # sockets. Fine-grained read permission is then enforced by
     # require_document_access against the context this established.
     try:

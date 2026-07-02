@@ -95,13 +95,13 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
     guild, so it routes into each guild's schema AS A GUILD ADMIN
     (``current_guild_role='admin'``). That admin leg is what clears both the
     initiative-member policies and the ``soft_delete_admin_purge`` RESTRICTIVE
-    guard on the soft-delete tables — routing into ``guild_<id>`` drops the
-    ``app_admin`` BYPASSRLS, so an admin context (not the retired ``is_superadmin``
-    GUC) is what lets the hard deletes through. Guilds are enumerated on the admin
-    context first; each schema gets its own committed pass. Split out so tests can
-    drive it with the test session.
+    guard on the soft-delete tables — the system engine holds no ambient
+    bypass, so the admin context is what lets the hard deletes through. Guilds
+    are enumerated on the system engine first (its ``TO app_admin`` policy on
+    ``guilds``); each schema gets its own committed pass. Split out so tests
+    can drive it with the test session.
     """
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     guild_ids = list(await session.exec(select(Guild.id).order_by(Guild.id.asc())))
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.

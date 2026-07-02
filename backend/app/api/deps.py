@@ -535,7 +535,6 @@ async def _apply_guild_session_context(
             user_id=current_user.id,
             guild_id=None,
             guild_role=None,
-            is_superadmin=False,
             pam_guild_id=guild_context.guild_id,
             pam_read=True,
             pam_write=(access_level == AccessLevel.read_write.value),
@@ -548,7 +547,7 @@ async def _apply_guild_session_context(
     set_active_role(guild_context.guild_id, guild_context.role.value)
     # No standing all-guild bypass: a guild admin sees the whole guild via the
     # ``current_guild_role='admin'`` RLS leg (and the guild role they SET into),
-    # not ``is_superadmin``. A ``data.bypass`` holder who isn't a member reaches
+    # never an ambient bypass. A ``data.bypass`` holder who isn't a member reaches
     # this guild only through a break-glass PAM grant (the ``is_pam`` branch above).
     await set_rls_context(
         session,
@@ -629,7 +628,7 @@ async def get_user_session(
     to route. Guild-addressed work uses ``get_guild_session`` instead, which
     ``SET ROLE``s into the guild role.
 
-    No standing ``is_superadmin`` bypass: a platform admin's cross-user/guild
+    No standing all-guild bypass: a platform admin's cross-user/guild
     reach on this path is authorized by the ``platform_<tier>`` RLS policies
     (Phase 2), and reaching a guild's *data* requires an explicit break-glass
     PAM grant (§7), never an ambient flag.

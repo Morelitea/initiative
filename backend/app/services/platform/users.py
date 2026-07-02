@@ -315,7 +315,7 @@ async def get_initiative_blocker_details(
     # Reset to the public baseline so callers' subsequent reads aren't trapped
     # in the last guild's schema.
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     return blockers
 
 
@@ -451,7 +451,7 @@ async def check_deletion_eligibility(
             for p in await get_owned_projects(session, user_id)
         )
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
 
     if sole_pm_initiatives:
         for initiative in sole_pm_initiatives:
@@ -526,7 +526,7 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
     # Back to the public, login-role baseline for the shared-table work: the
     # membership rows themselves and the caller's PII/status writes.
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     memberships = (
         await session.exec(
             select(GuildMembership).where(GuildMembership.user_id == user_id)
@@ -753,7 +753,7 @@ async def transfer_owned_projects(
                 session, project.id, project_transfers[key]
             )
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
 
 
 async def reassign_user_content(
@@ -1054,10 +1054,10 @@ async def hard_delete_user(
         await session.flush()
 
     # Phase 2 — shared/public cleanup. Reset to the public, login-role baseline
-    # (BYPASSRLS) so these shared-table writes aren't trapped in the last guild's
-    # schema/role.
+    # so these shared-table writes aren't trapped in the last guild's
+    # schema/role (the system engine's TO app_admin policies govern them).
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
 
     await session.exec(delete(Notification).where(Notification.user_id == user_id))
     await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))

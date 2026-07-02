@@ -191,7 +191,7 @@ async def sync_oidc_assignments(
 
     for gid in relevant_guilds:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
 
         guild_inits = {iid for iid, g in initiative_guild.items() if g == gid}
         # Drop references to initiatives that no longer exist in this schema
@@ -275,7 +275,7 @@ async def sync_oidc_assignments(
     from app.services.tenant.initiatives import remove_user_from_guild_initiatives
 
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     stale_guild_ids = (
         await session.exec(
             select(GuildMembership.guild_id).where(
@@ -288,7 +288,7 @@ async def sync_oidc_assignments(
         if stale_gid in matched_guild_ids:
             continue
         session.expunge_all()
-        await set_rls_context(session, guild_id=stale_gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=stale_gid, guild_role="admin")
         await _auto_transfer_owned_projects(
             session, user_id=user_id, guild_id=stale_gid
         )
@@ -297,7 +297,7 @@ async def sync_oidc_assignments(
         )
         await session.flush()
         session.expunge_all()
-        await set_rls_context(session, is_superadmin=True)
+        await set_rls_context(session)
         await session.exec(
             delete(GuildMembership).where(
                 GuildMembership.user_id == user_id,
@@ -307,7 +307,7 @@ async def sync_oidc_assignments(
         result.guilds_removed.append(stale_gid)
 
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     await session.commit()
     return result
 

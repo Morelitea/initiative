@@ -124,7 +124,7 @@ async def _insert_grant(session, user_id: int, guild_id: int) -> None:
 
 async def test_access_grants_self_vs_admin(session):
     """A grantee sees only their own grant (``access_grants_self``); an admin sees
-    the whole queue (``access_grants_admin``). ``is_superadmin`` is retired here."""
+    the whole queue (``access_grants_admin``). There is no superadmin bypass."""
     guild = await create_guild(session)
     u1 = await create_user(session)
     u2 = await create_user(session)

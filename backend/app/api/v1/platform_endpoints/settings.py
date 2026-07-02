@@ -334,7 +334,7 @@ async def _route_admin_to_guild(session: AsyncSession, guild_id: int) -> None:
     routed guild could otherwise be returned for a colliding id.
     """
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id)
 
 
 async def _reset_admin_session(session: AsyncSession) -> None:
@@ -363,7 +363,7 @@ async def _lookup_guild_initiative(
     a colliding id from another guild already in the identity map from being
     returned stale — ids are unique only within a schema.
     """
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id)
     try:
         initiative = (
             await session.exec(

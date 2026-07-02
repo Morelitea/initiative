@@ -278,7 +278,7 @@ async def serve_upload_file(
     ).first()
     if exists is None:
         raise HTTPException(status_code=404)
-    await set_rls_context(session, guild_id=int(guild_id), is_superadmin=True)
+    await set_rls_context(session, guild_id=int(guild_id))
     hit = (
         await session.exec(
             text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),

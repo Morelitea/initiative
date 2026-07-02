@@ -46,7 +46,6 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
                 "SELECT set_config('app.current_user_id', '', false), "
                 "set_config('app.current_guild_id', '', false), "
                 "set_config('app.current_guild_role', '', false), "
-                "set_config('app.is_superadmin', 'false', false), "
                 "set_config('app.pam_guild_id', '', false), "
                 "set_config('app.pam_read', 'false', false), "
                 "set_config('app.pam_write', 'false', false), "
@@ -60,7 +59,10 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
-    """Get a session that bypasses RLS (for migrations, background jobs, etc.)."""
+    """Get a session on the system engine (background jobs, bootstrapping,
+    platform lifecycle). The engine is policy-bound like every other: its
+    reach on shared tables comes from explicit ``TO app_admin`` policies, and
+    guild schemas require ``SET ROLE guild_<id>`` via set_rls_context()."""
     async with AdminSessionLocal() as session:
         # Reset routing GUCs on the recycled connection. Without this an admin
         # session inherits whatever search_path / assumed guild role the previous
@@ -74,7 +76,6 @@ async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
                 "SELECT set_config('app.current_user_id', '', false), "
                 "set_config('app.current_guild_id', '', false), "
                 "set_config('app.current_guild_role', '', false), "
-                "set_config('app.is_superadmin', 'false', false), "
                 "set_config('app.pam_guild_id', '', false), "
                 "set_config('app.pam_read', 'false', false), "
                 "set_config('app.pam_write', 'false', false), "
@@ -90,7 +91,6 @@ async def set_rls_context(
     user_id: Optional[int] = None,
     guild_id: Optional[int] = None,
     guild_role: Optional[str] = None,
-    is_superadmin: bool = False,
     pam_guild_id: Optional[int] = None,
     pam_read: bool = False,
     pam_write: bool = False,
@@ -113,9 +113,8 @@ async def set_rls_context(
     the flag is set. ``pam_guild_id`` is deliberately separate from
     ``current_guild_id`` — the existing write policies treat a matching
     ``current_guild_id`` as proof of membership, so a grantee must leave it
-    unset and be scoped via ``pam_guild_id`` instead. PAM access is distinct
-    from ``is_superadmin`` (all-guild bypass): a grantee gets scoped access,
-    not god-mode.
+    unset and be scoped via ``pam_guild_id`` instead. A grantee gets scoped,
+    time-bound access to one guild; there is no all-guild bypass.
 
     ``platform_role`` is the caller's platform tier (``users.role``). When the
     request carries no guild context (and no active PAM grant), the public/platform
@@ -141,7 +140,6 @@ async def set_rls_context(
         "user_id": user_id,
         "guild_id": guild_id,
         "guild_role": guild_role,
-        "is_superadmin": is_superadmin,
         "pam_guild_id": pam_guild_id,
         "pam_read": pam_read,
         "pam_write": pam_write,
@@ -156,7 +154,6 @@ async def set_rls_context(
     uid = str(int(user_id)) if user_id is not None else ""
     gid = str(int(guild_id)) if guild_id is not None else ""
     grole = guild_role if guild_role is not None else ""
-    sa = "true" if is_superadmin else "false"
     pgid = str(int(pam_guild_id)) if pam_guild_id is not None else ""
     pr = "true" if pam_read else "false"
     pw = "true" if pam_write else "false"
@@ -211,7 +208,6 @@ async def set_rls_context(
             "SELECT set_config('app.current_user_id', :uid, false), "
             "set_config('app.current_guild_id', :gid, false), "
             "set_config('app.current_guild_role', :grole, false), "
-            "set_config('app.is_superadmin', :sa, false), "
             "set_config('app.pam_guild_id', :pgid, false), "
             "set_config('app.pam_read', :pr, false), "
             "set_config('app.pam_write', :pw, false), "
@@ -222,7 +218,6 @@ async def set_rls_context(
             "uid": uid,
             "gid": gid,
             "grole": grole,
-            "sa": sa,
             "pgid": pgid,
             "pr": pr,
             "pw": pw,
@@ -250,7 +245,6 @@ async def rls_session(
     user_id: int,
     guild_id: int,
     guild_role: Optional[str] = None,
-    is_superadmin: bool = False,
 ) -> AsyncGenerator[AsyncSession, None]:
     """Context manager that provides a session with RLS context set.
 
@@ -266,7 +260,6 @@ async def rls_session(
                 user_id=user_id,
                 guild_id=guild_id,
                 guild_role=guild_role,
-                is_superadmin=is_superadmin,
             )
             yield session
 

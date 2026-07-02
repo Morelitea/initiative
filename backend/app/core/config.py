@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import EmailStr, Field, field_validator, model_validator
+from pydantic import AliasChoices, EmailStr, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Origins used by the Capacitor native mobile app (iOS and Android).
@@ -379,9 +379,25 @@ class Settings(BaseSettings):
     S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
-    FIRST_SUPERUSER_EMAIL: EmailStr | None = None
-    FIRST_SUPERUSER_PASSWORD: str | None = None
-    FIRST_SUPERUSER_FULL_NAME: str | None = None
+    # First/bootstrap user — becomes the platform `owner` tier (there is no
+    # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
+    # as aliases so existing deployments keep working.
+    FIRST_OWNER_EMAIL: EmailStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FIRST_OWNER_EMAIL", "FIRST_SUPERUSER_EMAIL"),
+    )
+    FIRST_OWNER_PASSWORD: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "FIRST_OWNER_PASSWORD", "FIRST_SUPERUSER_PASSWORD"
+        ),
+    )
+    FIRST_OWNER_FULL_NAME: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "FIRST_OWNER_FULL_NAME", "FIRST_SUPERUSER_FULL_NAME"
+        ),
+    )
     DISABLE_GUILD_CREATION: bool = False
     ENABLE_PUBLIC_REGISTRATION: bool = (
         True  # When False, requires invite code to register
