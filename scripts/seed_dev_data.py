@@ -224,9 +224,9 @@ def _load_state() -> dict | None:
 
 async def _find_superuser(session: AsyncSession) -> User:
     """Find the superuser created by init_db."""
-    email = settings.FIRST_SUPERUSER_EMAIL
+    email = settings.FIRST_OWNER_EMAIL
     if not email:
-        print("ERROR: FIRST_SUPERUSER_EMAIL is not set in .env or environment.")
+        print("ERROR: FIRST_OWNER_EMAIL is not set in .env or environment.")
         sys.exit(1)
     result = await session.exec(select(User).where(User.email_hash == hash_email(email)))
     user = result.one_or_none()
@@ -360,7 +360,7 @@ async def _create_guild(
     # Creating a public.guilds row is a bootstrap write: there is no guild to be
     # admin of yet, so no guild-admin RLS leg can authorize it — it must run on the
     # BYPASSRLS login role (app_admin). After seeding a previous guild's content the
-    # session is still SET ROLE'd into that guild_<id> (and the is_superadmin
+    # session is still SET ROLE'd into that guild_<id> (and the admin-role
     # dual-path bypass is retired), so reset to the bare login-role baseline first.
     await set_rls_context(session)
     guild = Guild(
@@ -1422,7 +1422,7 @@ async def seed() -> None:
         # — initiatives, projects, tasks, ... — is created there, not in public.
         await session.commit()
         await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin", is_superadmin=True
+            session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin"
         )
 
         # Add members to primary guild
@@ -2279,7 +2279,7 @@ async def seed() -> None:
         _expunge_guild_scoped(session)  # clear guild 1's per-schema ids from the identity map
         await provision_guild(g2_id)
         await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g2_id, guild_role="admin", is_superadmin=True
+            session, user_id=admin_user.id, guild_id=g2_id, guild_role="admin"
         )
 
         await _add_guild_members(
@@ -2915,7 +2915,7 @@ async def seed() -> None:
         _expunge_guild_scoped(session)  # clear guild 2's per-schema ids from the identity map
         await provision_guild(g3_id)
         await set_rls_context(
-            session, user_id=admin_user.id, guild_id=g3_id, guild_role="admin", is_superadmin=True
+            session, user_id=admin_user.id, guild_id=g3_id, guild_role="admin"
         )
 
         await _add_guild_members(
@@ -3636,7 +3636,7 @@ async def seed() -> None:
     )
     print(f"  {len(ids.data['comments'])} comments")
     print(f"  {len(ids.data['project_favorites'])} favorites, {len(ids.data['document_links'])} doc links")
-    print(f"\n  Superuser login: {settings.FIRST_SUPERUSER_EMAIL} / {settings.FIRST_SUPERUSER_PASSWORD}")
+    print(f"\n  Owner login: {settings.FIRST_OWNER_EMAIL} / {settings.FIRST_OWNER_PASSWORD}")
     print("  All other users: user1@example.com .. user8@example.com / changeme")
 
 
