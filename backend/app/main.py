@@ -65,9 +65,14 @@ async def lifespan(app: FastAPI):
     # Re-run the idempotent per-guild provisioning for every guild so any
     # table/column/index/grant added to guild_schema.sql since a guild was
     # provisioned is back-filled, and any guild left without a schema (e.g. a
-    # crash mid-provision) is healed. One broken guild is logged and skipped.
-    from app.db.schema_provisioning import backfill_guild_schemas
+    # crash mid-provision) is healed. One broken guild is logged and skipped;
+    # guilds stamped with the current artifact version are skipped entirely.
+    from app.db.schema_provisioning import (
+        backfill_guild_schemas,
+        warn_if_privileged_database_url,
+    )
 
+    await warn_if_privileged_database_url()
     backfill = await backfill_guild_schemas()
     if backfill.failed:
         # WARNING so partial failure survives INFO-filtered logs (per-guild
@@ -81,8 +86,9 @@ async def lifespan(app: FastAPI):
         )
     else:
         logger.info(
-            "guild schema back-fill: %d provisioned (of %d)",
+            "guild schema back-fill: %d provisioned, %d up-to-date (of %d)",
             backfill.provisioned,
+            backfill.skipped,
             backfill.total,
         )
     # Relocate any legacy flat local uploads into per-guild dirs (guild_<id>/),

@@ -309,7 +309,7 @@ async def hard_purge_entity(
 
     The caller's ``session`` must be able to clear the RESTRICTIVE FOR DELETE
     policies on these tables — either a routed **guild-admin** RLS session (the
-    interactive purge endpoint) or a BYPASSRLS ``app_admin`` session (the
+    interactive purge endpoint) or a guild-admin-routed ``app_admin`` session (the
     background auto-purge worker, which has no guild context). The caller is also
     responsible for locking the target against a concurrent restore and for
     committing.

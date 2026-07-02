@@ -15,7 +15,10 @@ from app.db import base  # noqa: F401  # ensure models are imported for Alembic
 # Primary engine: non-superuser (DATABASE_URL_APP) for RLS-enforced queries.
 engine = create_async_engine(settings.DATABASE_URL_APP, echo=False)
 
-# Admin engine: for background jobs and startup seeding (BYPASSRLS).
+# System engine: background jobs, startup seeding, platform lifecycle.
+# The textbook Postgres trusted-batch actor: BYPASSRLS, bounded by
+# enumerated per-table GRANTs (migration 0129). Guild schemas still
+# require SET ROLE guild_<id>, which drops the bypass.
 admin_engine = create_async_engine(settings.DATABASE_URL_ADMIN, echo=False)
 
 # Provisioning engine: superuser credentials (same as migrations) for privileged
@@ -60,9 +63,10 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
     """Get a session on the system engine (background jobs, bootstrapping,
-    platform lifecycle). The engine is policy-bound like every other: its
-    reach on shared tables comes from explicit ``TO app_admin`` policies, and
-    guild schemas require ``SET ROLE guild_<id>`` via set_rls_context()."""
+    platform lifecycle). ``app_admin`` is the standard Postgres trusted-batch
+    actor — BYPASSRLS, bounded by enumerated per-table GRANTs (0129); guild
+    schemas require ``SET ROLE guild_<id>`` (dropping the bypass) via
+    set_rls_context()."""
     async with AdminSessionLocal() as session:
         # Reset routing GUCs on the recycled connection. Without this an admin
         # session inherits whatever search_path / assumed guild role the previous

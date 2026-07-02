@@ -22,7 +22,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_schema_name
+from app.db.schema_provisioning import guild_role_name, guild_schema_name
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,7 @@ def relocate_flat_uploads(
 async def _build_filename_guild_map() -> dict[str, int]:
     """Map every guild's ``uploads.filename`` -> guild id (filenames are UUIDs,
     so they're globally unique and never collide across guilds)."""
-    engine = db_session.provisioning_engine  # superuser: can read every schema
+    engine = db_session.admin_engine  # system engine; guild schemas via SET ROLE
     mapping: dict[str, int] = {}
     async with engine.connect() as conn:
         guild_ids = (
@@ -86,6 +86,12 @@ async def _build_filename_guild_map() -> dict[str, int]:
             ).scalar()
             if exists is None:  # schema missing/partial — skip
                 continue
+            # Assume the guild's own role for the schema read (the system
+            # login holds no standing guild-schema access).
+            await conn.execute(
+                text("SELECT set_config('role', :r, false)"),
+                {"r": guild_role_name(gid)},
+            )
             rows = (
                 (await conn.execute(text(f'SELECT filename FROM "{schema}".uploads')))
                 .scalars()

@@ -255,7 +255,7 @@ async def list_platform_guild_storage(
 
     Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
     (``guilds``, ``guild_memberships``) — no guild-scoped content — so it runs on
-    the BYPASSRLS admin engine without routing into any guild schema. Member
+    the system admin engine without routing into any guild schema. Member
     counts come from a single grouped query rather than per-guild (no N+1).
     """
     guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
@@ -342,7 +342,7 @@ async def _reset_admin_session(session: AsyncSession) -> None:
 
     After routing into a guild schema the session has assumed that guild's role,
     which has no write access to shared ``public`` config tables. Reset to the
-    BYPASSRLS admin login role (``SET ROLE none``, ``search_path public``) before
+    admin login role (``SET ROLE none``, ``search_path public``) before
     writing the mapping back to ``public``.
     """
     await set_rls_context(session)
@@ -358,7 +358,7 @@ async def _lookup_guild_initiative(
 
     Routes the session into ``guild_<id>`` for the read, then resets it back to
     the neutral admin baseline so callers can write the mapping to the shared
-    ``public.oidc_claim_mappings`` table as the BYPASSRLS admin login role (the
+    ``public.oidc_claim_mappings`` table as the admin login role (the
     guild role has no write grant on config tables). ``populate_existing`` keeps
     a colliding id from another guild already in the identity map from being
     returned stale — ids are unique only within a schema.

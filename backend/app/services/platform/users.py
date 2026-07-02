@@ -1055,7 +1055,7 @@ async def hard_delete_user(
 
     # Phase 2 — shared/public cleanup. Reset to the public, login-role baseline
     # so these shared-table writes aren't trapped in the last guild's
-    # schema/role (the system engine's TO app_admin policies govern them).
+    # schema/role (restoring the system engine's BYPASSRLS).
     session.expunge_all()
     await set_rls_context(session)
 

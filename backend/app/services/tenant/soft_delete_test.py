@@ -242,7 +242,7 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
     (``app.current_guild_role = 'admin'``); a hard delete is a purge. Post-squash
     these tables (and thus their policies) live in the per-guild schemas, not
     ``public`` — the canonical copy is the Alembic-maintained ``guild_template``
-    schema (created by migration 20260701_0126). The BYPASSRLS admin fixture can't
+    schema (created by migration 20260701_0126). The admin fixture can't
     exercise the policy at runtime, so we inspect ``pg_policies`` in the template."""
     expected = {
         "projects",

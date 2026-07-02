@@ -1923,7 +1923,7 @@ async def _load_download_document(
 
     # Guard the SET ROLE sink: if the guild schema/role isn't provisioned,
     # establish_guild_access would fault rather than 404. (The session is the
-    # BYPASSRLS admin engine, so this lookup runs regardless of context.)
+    # system admin engine (BYPASSRLS), so this lookup runs regardless of context.)
     schema_exists = (
         await session.exec(
             text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),

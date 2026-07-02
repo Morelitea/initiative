@@ -239,7 +239,7 @@ async def count_members(session: AsyncSession, *, guild_id: int) -> int:
     """Total number of members in a guild.
 
     The caller must already hold a session that can see the guild's
-    ``guild_memberships`` rows — an admin (BYPASSRLS) session, or one whose RLS
+    ``guild_memberships`` rows — a system-engine session, or one whose RLS
     context is set to this guild (``guild_id = current_guild_id``). Under a
     user-only context the ``guild_memberships_select`` policy would expose only
     the caller's own row."""

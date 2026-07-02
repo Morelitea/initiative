@@ -283,14 +283,19 @@ _provisioned_guild_ids: set[int] = set()
 
 
 @pytest.fixture(autouse=True)
-def _schema_test_harness(engine, monkeypatch):
+async def _schema_test_harness(engine, monkeypatch):
     """Make every test schema-per-guild aware.
 
     - Installs the before_flush router so direct-session (factory) guild-scoped
       writes land in the guild's schema, mirroring what set_rls_context does for
       the request path.
-    - Points the (superuser) provisioning engine at the test DB so create_guild /
-      the guilds endpoint provision schemas/roles on the test database.
+    - Points the provisioning engine at the test DB so create_guild / the guilds
+      endpoint provision schemas/roles on the test database.
+    - Points the system (admin) engine at the test DB **as the real app_admin
+      role**, so maintenance jobs that use ``db_session.admin_engine`` /
+      ``AdminSessionLocal`` directly (secret-key rotation, upload back-fills,
+      workers) run against test data under the real policy-bound role instead
+      of silently hitting the dev database.
     - Wraps ``provision_guild`` (the universal provisioning choke point — factory,
       guild endpoints, backfill, and conversion all route through it) to record
       which guilds got a schema this test, so teardown can skip its cleanup scan
@@ -302,6 +307,21 @@ def _schema_test_harness(engine, monkeypatch):
 
     install_guild_routing()
     monkeypatch.setattr(db_session, "provisioning_engine", engine)
+
+    test_admin_engine = create_async_engine(
+        _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
+    )
+    monkeypatch.setattr(db_session, "admin_engine", test_admin_engine)
+    monkeypatch.setattr(
+        db_session,
+        "AdminSessionLocal",
+        async_sessionmaker(
+            bind=test_admin_engine,
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        ),
+    )
 
     _provisioned_guild_ids.clear()
     _orig_provision_guild = schema_provisioning.provision_guild
@@ -315,6 +335,8 @@ def _schema_test_harness(engine, monkeypatch):
     monkeypatch.setattr(
         schema_provisioning, "provision_guild", _tracking_provision_guild
     )
+    yield
+    await test_admin_engine.dispose()
 
 
 @pytest.fixture(scope="function")
@@ -479,7 +501,8 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     for *data setup* (factories commit, so the request connection sees the rows) and
     for the privileged teardown (TRUNCATE / DROP SCHEMA / DROP ROLE).
 
-    ``AdminSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS) session,
+    ``AdminSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS,
+    grant-bounded) session,
     mirroring the production admin engine, so bootstrapping endpoints (guild
     creation, background-job style ops) keep their intended RLS bypass instead of
     silently leaning on the superuser.

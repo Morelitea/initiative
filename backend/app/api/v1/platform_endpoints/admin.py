@@ -65,7 +65,7 @@ async def list_all_users(
 
     Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
     cross-user read is authorized by RLS (``users_platform_read``, support+) rather
-    than the BYPASSRLS admin engine. Initiative roles are guild-scoped and
+    than the system admin engine. Initiative roles are guild-scoped and
     deliberately NOT loaded here — a platform user view exposes platform data only.
     """
     from app.services.platform.users import SYSTEM_USER_EMAIL

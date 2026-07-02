@@ -241,7 +241,7 @@ async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
 
 
 async def test_support_can_list_users_role_scoped(client, acting_user):
-    """The moved ``GET /admin/users`` runs as ``platform_support`` (off the BYPASSRLS
+    """The moved ``GET /admin/users`` runs as ``platform_support`` (off the
     engine) and the cross-user read is authorized by ``users_platform_read``."""
     a = await acting_user("support")
     resp = await client.get("/api/v1/admin/users", headers=a.headers)

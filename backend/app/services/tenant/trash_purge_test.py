@@ -135,7 +135,7 @@ async def test_auto_purge_sweeps_every_guild_schema(
         await session.commit()
         targets.append((guild.id, initiative.id))
 
-    # Production runs the worker on AdminSessionLocal (app_admin, BYPASSRLS).
+    # Production runs the worker on AdminSessionLocal (app_admin, policy-bound).
     admin = await role_session("app_admin")
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
 

@@ -136,7 +136,7 @@ class Settings(BaseSettings):
     DATABASE_URL_APP: (
         str  # Non-superuser connection for RLS-enforced queries (required)
     )
-    DATABASE_URL_ADMIN: str  # Admin connection with BYPASSRLS for migrations (required)
+    DATABASE_URL_ADMIN: str  # System-engine login (BYPASSRLS, grant-bounded) for jobs/seeding (required)
 
     SECRET_KEY: str
     # Optional: the *previous* SECRET_KEY, set only while rotating the encryption
@@ -399,6 +399,9 @@ class Settings(BaseSettings):
         ),
     )
     DISABLE_GUILD_CREATION: bool = False
+    # Boot back-fill normally skips guild schemas stamped with the current
+    # provisioning-artifact version; set true to force a full sweep once.
+    FORCE_GUILD_BACKFILL: bool = False
     ENABLE_PUBLIC_REGISTRATION: bool = (
         True  # When False, requires invite code to register
     )

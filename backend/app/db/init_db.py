@@ -68,7 +68,7 @@ async def init_owner() -> None:
             # every restart, stranding the primary guild without a schema. Mirrors
             # the API/registration cleanup. Roll back FIRST (an aborted session
             # would fault the cleanup queries, and it reverts the seed's SET ROLE
-            # so deprovision can DROP the role); this is an admin (BYPASSRLS)
+            # so deprovision can DROP the role); this is a system-engine
             # session, so the bulk DELETEs aren't RLS-filtered.
             await session.rollback()
             with suppress(Exception):
