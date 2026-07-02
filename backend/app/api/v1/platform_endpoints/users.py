@@ -292,12 +292,16 @@ async def update_users_me(
     if not update_data:
         return current_user
 
-    if update_data.get("email_task_assignment") is False:
+    if (
+        update_data.get("email_task_assignment") is False
+        and current_user.email_task_assignment is not False
+    ):
         # The digest queue is guild-scoped, so it must be cleared inside each
         # of the user's guild schemas — before any mutation below, because the
         # fan-out expunges the identity map (per-schema ids collide). Restore
         # the platform context and re-fetch the user afterwards; the deletes
-        # ride this request's transaction and commit with it.
+        # ride this request's transaction and commit with it. Skipped when the
+        # preference is already off (nothing can be queued).
         user_id = current_user.id
         await notifications_service.clear_task_assignment_queue_across_guilds(
             session, user_id

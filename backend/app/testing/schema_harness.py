@@ -47,9 +47,10 @@ async def route_session_to_guild(session, guild_id: int) -> None:
     """
     gid = int(guild_id)
     conn = await session.connection()
-    await conn.exec_driver_sql(
+    result = await conn.exec_driver_sql(
         f"SELECT set_config('search_path', 'guild_{gid}, public', false)"
     )
+    result.close()
 
 
 def _tenant_rows(session: Session) -> list:
@@ -78,7 +79,7 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
         gid = next(iter(gids))
         conn.exec_driver_sql(
             f"SELECT set_config('search_path', 'guild_{gid}, public', false)"
-        )
+        ).close()
         return
     # Tenant rows without a guild_id column (property values, junctions):
     # they must inherit an existing guild route — falling through to public

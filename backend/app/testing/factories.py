@@ -860,20 +860,23 @@ async def create_document(
     document = Document(**{**defaults, **overrides})
     session.add(document)
 
+    # The owner grant is part of the factory's contract in BOTH modes; with
+    # commit=False it is flushed (id available) but left uncommitted with the
+    # rest of the caller's transaction.
+    await (session.commit() if commit else session.flush())
     if commit:
-        await session.commit()
         await session.refresh(document)
-
-        session.add(
-            ResourceGrant(
-                resource_type="document",
-                resource_id=document.id,
-                user_id=creator.id,
-                level=ResourceAccessLevel.owner,
-                guild_id=document.guild_id,
-                initiative_id=document.initiative_id,
-            )
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=document.id,
+            user_id=creator.id,
+            level=ResourceAccessLevel.owner,
+            guild_id=document.guild_id,
+            initiative_id=document.initiative_id,
         )
+    )
+    if commit:
         await session.commit()
 
     return document
