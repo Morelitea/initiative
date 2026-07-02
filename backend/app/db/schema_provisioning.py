@@ -333,6 +333,9 @@ async def backfill_guild_schemas() -> BackfillSummary:
     # actor — FORCE RLS filters its unrouted data reads to zero rows (by
     # design). Reading data is the system engine's job (BYPASSRLS).
     async with db_session.admin_engine.connect() as conn:
+        # Pooled connection: shed any guild role a previous checkout assumed
+        # (a leaked role would RLS-filter public.guilds to zero rows).
+        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         rows = (
             await conn.execute(
                 text(

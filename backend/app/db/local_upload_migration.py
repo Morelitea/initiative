@@ -72,6 +72,8 @@ async def _build_filename_guild_map() -> dict[str, int]:
     engine = db_session.admin_engine  # system engine; guild schemas via SET ROLE
     mapping: dict[str, int] = {}
     async with engine.connect() as conn:
+        # Pooled connection: shed any guild role a previous checkout assumed.
+        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         guild_ids = (
             (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
             .scalars()
@@ -79,9 +81,16 @@ async def _build_filename_guild_map() -> dict[str, int]:
         )
         for gid in guild_ids:
             schema = guild_schema_name(gid)
+            # Existence check via pg_catalog (needs no schema USAGE —
+            # to_regclass would raise: name resolution requires USAGE, and
+            # the system login holds none until it assumes the guild role).
             exists = (
                 await conn.execute(
-                    text("SELECT to_regclass(:t)"), {"t": f"{schema}.uploads"}
+                    text(
+                        "SELECT 1 FROM pg_tables "
+                        "WHERE schemaname = :s AND tablename = 'uploads'"
+                    ),
+                    {"s": schema},
                 )
             ).scalar()
             if exists is None:  # schema missing/partial — skip

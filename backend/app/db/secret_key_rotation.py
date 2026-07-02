@@ -288,6 +288,9 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
     # second (engine.begin()) — separate connections so an open read cursor and the
     # UPDATEs don't collide on asyncpg. The write txn commits together, resumable.
     async with engine.connect() as read_conn, engine.begin() as write_conn:
+        for conn_ in (read_conn, write_conn):
+            # Pooled connections: shed any guild role a prior checkout assumed.
+            await conn_.execute(text("SELECT set_config('role', 'none', false)"))
         summary.columns.append(
             await _rotate_user_emails(read_conn, write_conn, old_key, new_key, dry_run)
         )
