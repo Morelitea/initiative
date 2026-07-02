@@ -13,9 +13,10 @@ resubmits with ``new_owner_id=N`` which the service re-validates and applies
 before completing the restore.
 
 Hard-purge is admin-only at the DB layer on EVERY soft-delete table: the
-``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE policy (generated into
-``the rendered RLS DDL (app.db.guild_ddl)`` from the SoftDeleteMixin subclasses) admits only a routed guild
-admin, so a non-admin DELETE is refused by Postgres, not just by app code. The two
+``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE policy (rendered by
+``app.db.guild_ddl`` from the SoftDeleteMixin subclasses) admits only a routed
+guild admin, so a non-admin DELETE is refused by Postgres, not just by app code.
+The two
 guild-level soft-delete tables (initiatives, tags) have RLS enabled solely to host
 that guard — not a membership gate (initiative is the gate; guilds gate at the
 schema). For Documents (and Initiatives whose cascade includes Documents), upload
