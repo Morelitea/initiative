@@ -28,7 +28,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session, get_session
+from app.db.session import (
+    REQUEST_CONTEXT_RESET_SQL,
+    get_admin_session,
+    get_session,
+)
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
@@ -474,19 +478,9 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                 await rconn.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')
 
 
-# GUC + role reset mirroring the production get_session/get_admin_session
-# checkout reset, so each request starts from a clean baseline on the bound
-# request connection (a prior request's assumed role can't bleed in).
-_REQUEST_RESET_SQL = (
-    "SELECT set_config('app.current_user_id', '', false), "
-    "set_config('app.current_guild_id', '', false), "
-    "set_config('app.current_guild_role', '', false), "
-    "set_config('app.pam_guild_id', '', false), "
-    "set_config('app.pam_read', 'false', false), "
-    "set_config('app.pam_write', 'false', false), "
-    "set_config('search_path', 'public', false), "
-    "set_config('role', 'none', false)"
-)
+# The PRODUCTION checkout reset, imported (not mirrored) so the harness can
+# never drift from what get_session/get_admin_session actually run.
+_REQUEST_RESET_SQL = REQUEST_CONTEXT_RESET_SQL
 
 
 @pytest.fixture

@@ -620,3 +620,37 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
                 text("DELETE FROM public.guilds WHERE id = ANY(:ids)"),
                 {"ids": [ok_a, ok_b, bad]},
             )
+
+
+def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics():
+    """The back-fill skip stamp is derived from ``_grant_statements``' RENDERED
+    output — no manual version bump a human can forget: a behavioral grants
+    change moves it; a cosmetic rewrite of the function does not."""
+    from unittest import mock
+
+    from app.db import schema_provisioning as sp
+
+    sp.provisioning_stamp.cache_clear()
+    baseline = sp.provisioning_stamp()
+
+    def _different_grants(schema: str, role: str, ro_role: str) -> list[str]:
+        return ["GRANT USAGE ON SCHEMA x TO y"]
+
+    def _cosmetic_rewrite(schema: str, role: str, ro_role: str) -> list[str]:
+        # Different source text, byte-identical output.
+        return list(_original(schema, role, ro_role))
+
+    _original = sp._grant_statements
+    try:
+        with mock.patch.object(sp, "_grant_statements", _different_grants):
+            sp.provisioning_stamp.cache_clear()
+            changed = sp.provisioning_stamp()
+        with mock.patch.object(sp, "_grant_statements", _cosmetic_rewrite):
+            sp.provisioning_stamp.cache_clear()
+            cosmetic = sp.provisioning_stamp()
+    finally:
+        sp.provisioning_stamp.cache_clear()
+
+    assert changed != baseline, "a behavioral grants change must move the stamp"
+    assert cosmetic == baseline, "a cosmetic rewrite must NOT move the stamp"
+    assert sp.provisioning_stamp() == baseline, "stamp is stable when unchanged"

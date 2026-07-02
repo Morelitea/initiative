@@ -39,25 +39,28 @@ AdminSessionLocal = async_sessionmaker(
     class_=AsyncSession,
 )
 
+# The per-checkout context reset, shared by BOTH session dependencies (and the
+# test harness, which mirrors the request lifecycle): clear every RLS GUC,
+# route guild-scoped names back to public, and drop any assumed role a prior
+# checkout of this pooled connection left behind. Single source of truth —
+# a GUC added to set_rls_context() must be reset here, once.
+REQUEST_CONTEXT_RESET_SQL = (
+    "SELECT set_config('app.current_user_id', '', false), "
+    "set_config('app.current_guild_id', '', false), "
+    "set_config('app.current_guild_role', '', false), "
+    "set_config('app.pam_guild_id', '', false), "
+    "set_config('app.pam_read', 'false', false), "
+    "set_config('app.pam_write', 'false', false), "
+    "set_config('search_path', 'public', false), "
+    "set_config('role', 'none', false)"
+)
+
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
-        # Reset RLS variables from any previous request on this pooled connection.
-        # Uses set_config() in a single round-trip for efficiency.
-        await session.exec(
-            text(
-                "SELECT set_config('app.current_user_id', '', false), "
-                "set_config('app.current_guild_id', '', false), "
-                "set_config('app.current_guild_role', '', false), "
-                "set_config('app.pam_guild_id', '', false), "
-                "set_config('app.pam_read', 'false', false), "
-                "set_config('app.pam_write', 'false', false), "
-                # Route guild-scoped tables back to public and drop any assumed guild
-                # role on a recycled connection.
-                "set_config('search_path', 'public', false), "
-                "set_config('role', 'none', false)"
-            )
-        )
+        # Reset RLS variables from any previous request on this pooled connection
+        # (single round-trip; see REQUEST_CONTEXT_RESET_SQL).
+        await session.exec(text(REQUEST_CONTEXT_RESET_SQL))
         yield session
 
 
@@ -75,18 +78,7 @@ async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
         # (or `public`) nondeterministically. Start every admin session from a
         # clean public, login-role baseline; callers that need a guild schema
         # call set_rls_context() explicitly.
-        await session.exec(
-            text(
-                "SELECT set_config('app.current_user_id', '', false), "
-                "set_config('app.current_guild_id', '', false), "
-                "set_config('app.current_guild_role', '', false), "
-                "set_config('app.pam_guild_id', '', false), "
-                "set_config('app.pam_read', 'false', false), "
-                "set_config('app.pam_write', 'false', false), "
-                "set_config('search_path', 'public', false), "
-                "set_config('role', 'none', false)"
-            )
-        )
+        await session.exec(text(REQUEST_CONTEXT_RESET_SQL))
         yield session
 
 
