@@ -492,7 +492,8 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
 
     await _dispatch(session)
 
-    # Count across guilds: notifications are shared, so view them as superadmin.
+    # Count across guilds: notifications are shared, so read them on the
+    # unrouted system engine.
     await set_rls_context(session)
     reminders = await _reminders_for(session, attendee.id)
     assert len(reminders) == 2

@@ -1164,7 +1164,7 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
     Split out from ``process_task_assignment_digests`` so tests can drive it with
     the test session. Each user's pending digest items live in their own guild
     schemas, so they're gathered with the user's membership context (no
-    superadmin) and the items are marked processed back in each schema.
+    the guild's role) and the items are marked processed back in each schema.
     """
     result = await session.exec(
         select(User).where(User.email_task_assignment.is_not(False))
@@ -1326,7 +1326,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
     Split out from ``process_overdue_notifications`` so tests can drive it with
     the test session (the worker opens its own ``AdminSessionLocal``). Each
     user's overdue tasks are gathered from their own guild schemas with their
-    membership context — no superadmin / all-guild access.
+    membership context — no all-guild access.
     """
     result = await session.exec(select(User).where(User.email_overdue_tasks.is_(True)))
     users = result.scalars().all()
@@ -1360,7 +1360,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         if last_at and last_at.astimezone(tz).date() == now_local.date():
             continue
         # User-scoped: visit each of the user's guild schemas with their own
-        # membership context (no superadmin) and collect their overdue tasks.
+        # membership context (no all-guild access) and collect their overdue tasks.
         guild_ids = await member_guild_ids(session, user_id)
         tasks = await gather_across_guilds(
             session,

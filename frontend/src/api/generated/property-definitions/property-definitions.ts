@@ -223,7 +223,7 @@ export function useListPropertyDefinitionsApiV1GGuildIdPropertyDefinitionsGet<
  * Create a new property definition on an initiative.
  *
  * Requires the caller to be a member of the target initiative (or a
- * guild admin / superadmin). The membership check runs on the routed
+ * guild admin). The membership check runs on the routed
  * request session, so it resolves against the active guild's schema —
  * the only place the target initiative and its definitions live under
  * schema-per-guild.

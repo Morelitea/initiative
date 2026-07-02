@@ -171,7 +171,7 @@ Images support `linux/amd64` and `linux/arm64` architectures.
 
 | Variable | Description | Default |
 |---|---|---|
-| `DATABASE_URL` | Superuser PostgreSQL connection (migrations, role creation) | Required |
+| `DATABASE_URL` | Provisioning PostgreSQL connection (migrations, guild/role creation; not a superuser) | Required |
 | `DATABASE_URL_APP` | RLS-enforced connection (`app_user` role) | Required |
 | `DATABASE_URL_ADMIN` | Admin connection for background jobs (`app_admin` role) | Required |
 | `SECRET_KEY` | JWT signing and encryption key | Required |
@@ -184,8 +184,8 @@ Images support `linux/amd64` and `linux/arm64` architectures.
 | `CAPTCHA_SECRET_KEY` | Server-side key for the provider's siteverify endpoint | - |
 | `BEHIND_PROXY` | Trust `X-Forwarded-For` headers | `false` |
 | `FORWARDED_ALLOW_IPS` | Trusted proxy IPs (when `BEHIND_PROXY=true`) | `*` |
-| `FIRST_SUPERUSER_EMAIL` | Bootstrap admin email | - |
-| `FIRST_SUPERUSER_PASSWORD` | Bootstrap admin password | - |
+| `FIRST_OWNER_EMAIL` | Bootstrap owner email (legacy `FIRST_SUPERUSER_EMAIL` accepted) | - |
+| `FIRST_OWNER_PASSWORD` | Bootstrap owner password (legacy `FIRST_SUPERUSER_PASSWORD` accepted) | - |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` | SMTP server configuration | - |
 | `SMTP_FROM_ADDRESS` | Email sender address | - |
 | `FCM_ENABLED` | Enable Firebase Cloud Messaging | `false` |
@@ -198,11 +198,11 @@ For FCM setup, see [docs/en/admin/push-notifications.md](docs/en/admin/push-noti
 
 Initiative needs **three** PostgreSQL connection strings, and the container will not start without all of them (`DATABASE_URL_APP` and `DATABASE_URL_ADMIN` have no defaults — a missing one aborts startup with a config validation error). They work as a set:
 
-- **`DATABASE_URL`** — a **superuser** connection used once at startup to run migrations and **auto-create two least-privilege roles**: `app_user` (RLS-enforced, used for all normal request traffic) and `app_admin` (`BYPASSRLS`, used for migrations and background jobs).
+- **`DATABASE_URL`** — the **provisioning role** (`app_provisioner`): runs migrations and creates/removes guild schemas, and **auto-creates the two roles below**. It is deliberately *not* a superuser — the example compose file creates `app_provisioner` automatically when the database volume is first initialized, and the app warns at boot if this URL connects as a superuser (existing installs: run `backend/scripts/create-provisioner.sql` once to switch).
 - **`DATABASE_URL_APP`** — connects as `app_user`. The password in this URL is the password the `app_user` role is created/updated with.
-- **`DATABASE_URL_ADMIN`** — connects as `app_admin`. Likewise, its password seeds that role.
+- **`DATABASE_URL_ADMIN`** — connects as `app_admin`, the system role for background jobs and startup seeding. Likewise, its password seeds that role.
 
-In other words, the superuser URL bootstraps the roles, while the `APP`/`ADMIN` URLs both *define* those roles' passwords and are what the running app actually uses. The [example compose file](docker-compose.example.yml) wires all three together with matching credentials, so the default `docker-compose up` path works as-is. If you write your own compose file or use `docker run`, set all three.
+In other words, the provisioning URL bootstraps the roles, while the `APP`/`ADMIN` URLs both *define* those roles' passwords and are what the running app actually uses. The [example compose file](docker-compose.example.yml) wires all three together with matching credentials, so the default `docker-compose up` path works as-is. If you write your own compose file or use `docker run`, set all three.
 
 ### Running as a non-root user (PUID/PGID)
 
