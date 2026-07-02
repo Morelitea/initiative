@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The database role handling requests now holds only the minimal per-table access the sign-in and account-security flows actually use, and the security posture (role attributes, per-table access, row-security configuration) is verified by automated tests on every CI run.
+
+### Changed
+
 - **No more superadmin.** The internal `is_superadmin` flag and its dead policy legs are gone. The system database role follows PostgreSQL's standard trusted-batch model — bounded by explicit, per-table grants (new tables give it nothing by default) — and background jobs and maintenance sweeps route into each guild under that guild's own scoped role.
 - **The app no longer needs a Postgres superuser.** Fresh docker-compose installs create a least-privilege `app_provisioner` role (migrations + guild provisioning only) automatically at first database init, and `DATABASE_URL` points at it from the start. Existing deployments run `backend/scripts/create-provisioner.sql` once and switch `DATABASE_URL`; staying on a superuser keeps working but logs a boot warning.
 - Faster boots on large installs: guild schemas already built by the current version are skipped by the startup sweep (set `FORCE_GUILD_BACKFILL=true` for a one-off full sweep).
