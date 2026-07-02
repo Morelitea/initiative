@@ -55,10 +55,10 @@ BASELINE_REVISION = "20260626_0125"
 INTENTIONALLY_IRREVERSIBLE = frozenset(
     {
         BASELINE_REVISION,
-        # heal_guild_public_refs: cleanup of legacy state (public-schema
-        # sequence defaults, dead enums) — re-breaking it has no faithful
-        # inverse; roll forward only.
-        "20260701_0127",
+        # post_squash_reconcile: folds the (never-shipped) 0126–0130 chain —
+        # legacy healing + policy strips + grant matrices. It reconciles
+        # pre-collapse states that no longer have code paths; roll forward only.
+        "20260702_0126",
     }
 )
 
@@ -376,9 +376,15 @@ class TestMigrationsAgainstDatabase:
         anchor = head
         while anchor in INTENTIONALLY_IRREVERSIBLE:
             parent = script.get_revision(anchor).down_revision
-            assert isinstance(parent, str) and parent, (
-                f"Irreversible revision {anchor!r} needs a single parent to anchor "
-                f"the reversible walk; got down_revision={parent!r}."
+            if parent is None:
+                # Walked off the base: the entire chain is irreversible (e.g.
+                # right after a squash — only the baseline + reconciler exist,
+                # both roll-forward-only). Nothing reversible to round-trip;
+                # TestMostRecentRevision covers the head's own upgrade.
+                pytest.skip("no reversible migration above the irreversible baseline")
+            assert isinstance(parent, str), (
+                f"Irreversible revision {anchor!r} has multiple parents "
+                f"{parent!r}; the round-trip walk only handles linear chains."
             )
             anchor = parent
 

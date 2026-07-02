@@ -1,9 +1,10 @@
 """Provision and tear down a per-guild PostgreSQL schema.
 
 `provision_guild_schema` creates `guild_<id>` (tables via `apply_guild_schema`,
-which RUNS the canonical Alembic-owned DDL in `alembic/guild/guild_schema.sql`),
+which RUNS structure DDL reflected LIVE from the guild_template schema),
 per-guild Postgres roles, and the initiative-level RLS policies (via
-`apply_guild_rls`, running `alembic/guild/guild_rls.sql`); `drop_guild_schema`
+`apply_guild_rls`, running RLS DDL rendered from the INITIATIVE_PATHS
+registry); `drop_guild_schema`
 removes the schema + roles. Idempotent — re-running back-fills any guild-scoped
 table a later migration added and re-asserts the policies. The model is never
 used to build the DB: Alembic is the single source, applied per schema.
@@ -13,7 +14,7 @@ guild-scoped queries into the schema, where the RLS policies (deferring to
 
 `backfill_guild_schemas` re-runs that idempotent provisioning for *every*
 existing guild on every boot (`main.on_startup`). This closes two drift gaps: a
-guild provisioned before `guild_schema.sql` gained a table/column/index never
+guild provisioned before guild_template gained a table/column/index never
 receives it, and a crash mid-provision can leave a guild row whose schema
 doesn't exist. Provisioning is ~0.2s/guild and idempotent, so a plain
 sequential loop heals both with no extra bookkeeping.
@@ -25,8 +26,6 @@ import asyncio
 import hashlib
 import logging
 from dataclasses import dataclass, field
-from functools import lru_cache
-from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -89,45 +88,61 @@ def platform_role_name(role: str) -> str:
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
 
 
-# The single source for a guild schema's structure: schema-relative DDL generated
-# from the Alembic-maintained guild_template schema (regenerate with
-# scripts/gen_guild_schema.py after any guild-scoped migration). The model is
-# never used to build the DB.
-GUILD_SCHEMA_SQL_PATH = (
-    Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_schema.sql"
-)
+@dataclass(frozen=True)
+class ProvisioningBundle:
+    """The per-process render of everything provisioning applies.
 
-# Companion to guild_schema.sql: initiative-level RLS for the schema's tables.
-# The access RULE lives once in public.initiative_access (member OR guild-admin OR
-# PAM); these policies just resolve each table's initiative id and defer to it.
-GUILD_RLS_SQL_PATH = (
-    Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_rls.sql"
-)
-
-
-@lru_cache(maxsize=1)
-def provisioning_stamp() -> str:
-    """Schema-comment stamp identifying the provisioning artifacts' version.
-
-    A guild schema whose comment carries the current stamp was provisioned by
-    exactly these artifacts, so the boot back-fill can skip it — O(changed
-    guilds) boots instead of O(all guilds). The stamp covers the two SQL
-    artifacts AND the grant layer — hashed from ``_grant_statements``'
-    RENDERED output (with placeholder identifiers), so any behavioral grants
-    change produces a new stamp and a one-time full sweep, while cosmetic
-    edits (comments, docstrings, refactors) don't. The login-role names are
-    covered implicitly: they appear inside the rendered statements. No manual
-    version bump to forget.
+    ``schema_ddl`` is reflected LIVE from the Alembic-maintained
+    ``guild_template`` schema; ``rls_ddl`` is rendered from the
+    ``INITIATIVE_PATHS`` registry (see ``app.db.guild_ddl``). There are no
+    committed artifacts — new guilds match the template + registry by
+    construction. ``stamp`` hashes both renders plus the rendered grant
+    statements, so ANY provisioning-relevant change (a guild migration, a
+    registry edit, a grants change) produces a new stamp and a one-time
+    re-provisioning sweep on the next boot.
     """
-    digest = hashlib.sha256()
-    digest.update(GUILD_SCHEMA_SQL_PATH.read_bytes())
-    digest.update(GUILD_RLS_SQL_PATH.read_bytes())
-    digest.update(
-        "\n".join(
-            _grant_statements("__stamp__", "__stamp_role__", "__stamp_ro__")
-        ).encode()
-    )
-    return f"provisioned:{digest.hexdigest()[:16]}"
+
+    schema_ddl: str
+    rls_ddl: str
+    stamp: str
+
+
+_bundle: ProvisioningBundle | None = None
+_bundle_lock = asyncio.Lock()
+
+
+async def get_provisioning_bundle() -> ProvisioningBundle:
+    """Render (once per process, after migrations have run) and cache."""
+    global _bundle
+    if _bundle is not None:
+        return _bundle
+    async with _bundle_lock:
+        if _bundle is not None:
+            return _bundle
+        from app.db.guild_ddl import render_guild_rls_ddl, render_guild_schema_ddl
+
+        schema_ddl = await render_guild_schema_ddl(db_session.provisioning_engine)
+        rls_ddl = render_guild_rls_ddl()
+        digest = hashlib.sha256()
+        digest.update(schema_ddl.encode())
+        digest.update(rls_ddl.encode())
+        digest.update(
+            "\n".join(
+                _grant_statements("__stamp__", "__stamp_role__", "__stamp_ro__")
+            ).encode()
+        )
+        _bundle = ProvisioningBundle(
+            schema_ddl=schema_ddl,
+            rls_ddl=rls_ddl,
+            stamp=f"provisioned:{digest.hexdigest()[:16]}",
+        )
+        return _bundle
+
+
+def reset_provisioning_bundle() -> None:
+    """Drop the cached render (tests; or after in-process template changes)."""
+    global _bundle
+    _bundle = None
 
 
 async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
@@ -140,7 +155,7 @@ async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
     ``public``) and idempotent (``IF NOT EXISTS`` / guarded constraints), so a
     re-run back-fills anything a later migration added. No model, no clone.
     """
-    ddl = GUILD_SCHEMA_SQL_PATH.read_text()
+    ddl = (await get_provisioning_bundle()).schema_ddl
     raw = await conn.get_raw_connection()
     # search_path so unqualified CREATEs land in the schema and intra-schema FKs
     # resolve there; reset to public so it doesn't leak onto the pooled connection.
@@ -151,7 +166,7 @@ async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
 
 async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
     """Apply the initiative-level RLS policies to ``schema``'s tables by RUNNING
-    the canonical ``guild_rls.sql`` with the search_path pointed at it.
+    the registry-rendered RLS DDL with the search_path pointed at it.
 
     Schema-relative + idempotent (``ENABLE/FORCE`` + ``DROP POLICY IF EXISTS`` +
     ``CREATE POLICY``), so a re-run (provisioning, boot back-fill) re-asserts the
@@ -160,7 +175,7 @@ async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
     against the guild-local tables. Requires ``public.initiative_access`` to exist
     (created by migration 20260616_0110).
     """
-    ddl = GUILD_RLS_SQL_PATH.read_text()
+    ddl = (await get_provisioning_bundle()).rls_ddl
     raw = await conn.get_raw_connection()
     await raw.driver_connection.execute(
         f'SET search_path TO "{schema}", public;\n{ddl}\nSET search_path TO public;'
@@ -171,10 +186,10 @@ def _grant_statements(schema: str, role: str, ro_role: str) -> list[str]:
     """Fail-closed grants tying a guild ``role`` (read/write) and ``ro_role``
     (read-only) to its ``schema``.
 
-    NOTE: ``provisioning_stamp()`` hashes this function's RENDERED output, so
-    changing WHAT it grants invalidates every guild's stamp and schedules one
-    full (idempotent) re-provisioning sweep on the next boot — cosmetic edits
-    here don't.
+    NOTE: the provisioning-bundle stamp hashes this function's RENDERED
+    output, so changing WHAT it grants invalidates every guild's stamp and
+    schedules one full (idempotent) re-provisioning sweep on the next boot —
+    cosmetic edits here don't.
 
     Each role inherits shared/public access from ``app_guild_base``. The login
     roles are granted membership in both ``WITH INHERIT FALSE`` — they can
@@ -247,9 +262,8 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
     # Stamp the artifacts' version so the boot back-fill can skip this guild
     # until they change (constant hex literal, safe to inline).
-    await conn.exec_driver_sql(
-        f"COMMENT ON SCHEMA \"{schema}\" IS '{provisioning_stamp()}'"
-    )
+    stamp = (await get_provisioning_bundle()).stamp
+    await conn.exec_driver_sql(f"COMMENT ON SCHEMA \"{schema}\" IS '{stamp}'")
     return schema
 
 
@@ -322,8 +336,8 @@ async def backfill_guild_schemas() -> BackfillSummary:
 
     Enumerates guild ids (and their schema-comment stamps) from the
     provisioning engine, then runs the idempotent ``provision_guild`` for each
-    guild whose stamp doesn't match :func:`provisioning_stamp` — i.e. its
-    schema predates the current ``guild_schema.sql`` / ``guild_rls.sql`` /
+    guild whose stamp doesn't match the bundle stamp — i.e. its
+    schema predates the current template structure / rendered RLS /
     grants version, is missing entirely, or was never stamped. Because
     provisioning re-runs the canonical DDL (``CREATE ... IF NOT EXISTS``) and
     re-applies grants, this back-fills any table/column/index/grant added
@@ -336,7 +350,7 @@ async def backfill_guild_schemas() -> BackfillSummary:
     in its own transaction, so a failure rolls back only that guild. Returns a
     summary for the caller to log.
     """
-    stamp = provisioning_stamp()
+    stamp = (await get_provisioning_bundle()).stamp
     # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids
     # live in the RLS-forced public.guilds, and the provisioner is a pure DDL
     # actor — FORCE RLS filters its unrouted data reads to zero rows (by

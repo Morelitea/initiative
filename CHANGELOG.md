@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- Guild-schema migrations are now generated with `alembic` autogenerate (`scripts/gen_guild_migration.py`) instead of being hand-written, and new guild schemas are built by reflecting a live template rather than a committed SQL artifact — removing a class of drift and hand-maintenance.
 
 - The database role handling requests now holds only the minimal per-table access the sign-in and account-security flows actually use, and the security posture (role attributes, per-table access, row-security configuration) is verified by automated tests on every CI run.
 - **No more superadmin.** The internal `is_superadmin` flag and its dead policy legs are gone. The system database role follows PostgreSQL's standard trusted-batch model — bounded by explicit, per-table grants (new tables give it nothing by default) — and background jobs and maintenance sweeps route into each guild under that guild's own scoped role.

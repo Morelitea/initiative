@@ -7,7 +7,7 @@ declaration we derive:
 
 - ``INITIATIVE_SCOPED_TABLES`` (``app.db.tenancy`` re-exports it and folds it
   into ``GUILD_SCOPED_TABLES``), and
-- ``alembic/guild/guild_rls.sql`` (``scripts/gen_guild_rls.py`` stamps the
+- the rendered RLS DDL (``app.db.guild_ddl`` stamps the
   uniform policy boilerplate around each path).
 
 So a new initiative-scoped table is added in ONE place — add a path here — and
@@ -139,7 +139,7 @@ def document_links_path() -> PathBuilder:
 
 
 # table -> how its rows resolve an initiative for initiative_access(...). THE
-# source of truth: INITIATIVE_SCOPED_TABLES and guild_rls.sql both derive from
+# source of truth: INITIATIVE_SCOPED_TABLES and the rendered RLS DDL (app.db.guild_ddl) both derive from
 # this dict, so a new initiative-scoped table is declared here exactly once.
 INITIATIVE_PATHS: dict[str, PathBuilder] = {
     # Own initiative_id column

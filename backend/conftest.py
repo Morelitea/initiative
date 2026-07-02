@@ -312,6 +312,10 @@ async def _schema_test_harness(engine, monkeypatch):
     install_guild_routing()
     monkeypatch.setattr(db_session, "provisioning_engine", engine)
 
+    # The provisioning bundle reflects the LIVE guild_template; reset it per
+    # test so a stale render can't leak across the per-worker test DB lifecycle.
+    schema_provisioning.reset_provisioning_bundle()
+
     test_admin_engine = create_async_engine(
         _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
     )

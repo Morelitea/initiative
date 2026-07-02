@@ -1,12 +1,14 @@
 --
 -- FROZEN SNAPSHOT — part of the 20260626_0125 baseline migration record.
--- The shared/public schema exactly as the pre-squash Alembic chain built it at
--- v0.53.5 (revision 20260626_0125), MINUS the legacy public copies of
--- guild-content tables (fresh installs never create those; guild content lives
--- only in guild_<id> schemas / guild_template). Generated once with pg_dump and
--- curated; never regenerate or edit. Later shared-schema changes are ordinary
--- new migrations. Role names `platform_base` / `platform_<tier>` are templated
--- with settings.PLATFORM_ROLE_PREFIX by the baseline migration at apply time.
+-- The shared/public schema as the collapsed post-squash chain builds it
+-- (superadmin policy legs stripped; app_admin/app_user grants at their audited
+-- matrices; no future-table default privileges for the login roles), MINUS the
+-- legacy public copies of guild-content tables (fresh installs never create
+-- those; guild content lives only in guild_<id> schemas / guild_template).
+-- Generated once with pg_dump and curated; never regenerate or edit. Later
+-- shared-schema changes are ordinary new migrations. Role names
+-- `platform_base` / `platform_<tier>` are templated with
+-- settings.PLATFORM_ROLE_PREFIX by the baseline migration at apply time.
 --
 
 --
@@ -438,8 +440,8 @@ CREATE TABLE public.access_grants (
     revoked_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT ck_access_grants_access_level CHECK (((access_level)::text = ANY ((ARRAY['read'::character varying, 'read_write'::character varying])::text[]))),
-    CONSTRAINT ck_access_grants_status CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'approved'::character varying, 'denied'::character varying, 'revoked'::character varying, 'expired'::character varying])::text[])))
+    CONSTRAINT ck_access_grants_access_level CHECK (((access_level)::text = ANY (ARRAY[('read'::character varying)::text, ('read_write'::character varying)::text]))),
+    CONSTRAINT ck_access_grants_status CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('approved'::character varying)::text, ('denied'::character varying)::text, ('revoked'::character varying)::text, ('expired'::character varying)::text])))
 );
 
 ALTER TABLE ONLY public.access_grants FORCE ROW LEVEL SECURITY;
@@ -1456,28 +1458,28 @@ CREATE POLICY app_settings_read ON public.app_settings FOR SELECT USING (true);
 -- Name: guild_invites guild_delete; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_delete ON public.guild_invites FOR DELETE USING (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_delete ON public.guild_invites FOR DELETE USING ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer));
 
 
 --
 -- Name: guilds guild_delete; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_delete ON public.guilds FOR DELETE USING ((((id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) AND (current_setting('app.current_guild_role'::text, true) = 'admin'::text)) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_delete ON public.guilds FOR DELETE USING (((id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) AND (current_setting('app.current_guild_role'::text, true) = 'admin'::text)));
 
 
 --
 -- Name: guild_invites guild_insert; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_insert ON public.guild_invites FOR INSERT WITH CHECK (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_insert ON public.guild_invites FOR INSERT WITH CHECK ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer));
 
 
 --
 -- Name: guilds guild_insert; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_insert ON public.guilds FOR INSERT WITH CHECK ((((NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer IS NOT NULL) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_insert ON public.guilds FOR INSERT WITH CHECK (((NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer IS NOT NULL));
 
 
 --
@@ -1490,7 +1492,7 @@ ALTER TABLE public.guild_invites ENABLE ROW LEVEL SECURITY;
 -- Name: oidc_claim_mappings guild_isolation; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_isolation ON public.oidc_claim_mappings USING (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text))) WITH CHECK (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_isolation ON public.oidc_claim_mappings USING ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer)) WITH CHECK ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1503,37 +1505,37 @@ ALTER TABLE public.guild_memberships ENABLE ROW LEVEL SECURITY;
 -- Name: guild_memberships guild_memberships_delete; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_memberships_delete ON public.guild_memberships FOR DELETE USING (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_memberships_delete ON public.guild_memberships FOR DELETE USING ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer));
 
 
 --
 -- Name: guild_memberships guild_memberships_insert; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_memberships_insert ON public.guild_memberships FOR INSERT WITH CHECK (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_memberships_insert ON public.guild_memberships FOR INSERT WITH CHECK ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer));
 
 
 --
 -- Name: guild_memberships guild_memberships_select; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_memberships_select ON public.guild_memberships FOR SELECT USING (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_memberships_select ON public.guild_memberships FOR SELECT USING (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer)));
 
 
 --
 -- Name: guild_memberships guild_memberships_update; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_memberships_update ON public.guild_memberships FOR UPDATE USING (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text))) WITH CHECK (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_memberships_update ON public.guild_memberships FOR UPDATE USING ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer)) WITH CHECK ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer));
 
 
 --
 -- Name: guild_invites guild_select; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_select ON public.guild_invites FOR SELECT USING (((EXISTS ( SELECT 1
+CREATE POLICY guild_select ON public.guild_invites FOR SELECT USING ((EXISTS ( SELECT 1
    FROM public.guild_memberships
-  WHERE ((guild_memberships.guild_id = guild_invites.guild_id) AND (guild_memberships.user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer)))) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+  WHERE ((guild_memberships.guild_id = guild_invites.guild_id) AND (guild_memberships.user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer)))));
 
 
 --
@@ -1542,21 +1544,21 @@ CREATE POLICY guild_select ON public.guild_invites FOR SELECT USING (((EXISTS ( 
 
 CREATE POLICY guild_select ON public.guilds FOR SELECT USING (((id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (EXISTS ( SELECT 1
    FROM public.guild_memberships
-  WHERE ((guild_memberships.guild_id = guilds.id) AND (guild_memberships.user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer)))) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+  WHERE ((guild_memberships.guild_id = guilds.id) AND (guild_memberships.user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer))))));
 
 
 --
 -- Name: guild_invites guild_update; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_update ON public.guild_invites FOR UPDATE USING (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text))) WITH CHECK (((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_update ON public.guild_invites FOR UPDATE USING ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer)) WITH CHECK ((guild_id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer));
 
 
 --
 -- Name: guilds guild_update; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY guild_update ON public.guilds FOR UPDATE USING ((((id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) AND (current_setting('app.current_guild_role'::text, true) = 'admin'::text)) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text))) WITH CHECK ((((id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) AND (current_setting('app.current_guild_role'::text, true) = 'admin'::text)) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY guild_update ON public.guilds FOR UPDATE USING (((id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) AND (current_setting('app.current_guild_role'::text, true) = 'admin'::text))) WITH CHECK (((id = (NULLIF(current_setting('app.current_guild_id'::text, true), ''::text))::integer) AND (current_setting('app.current_guild_role'::text, true) = 'admin'::text)));
 
 
 --
@@ -1588,7 +1590,7 @@ ALTER TABLE public.user_view_preferences ENABLE ROW LEVEL SECURITY;
 -- Name: user_view_preferences user_view_preferences_self_scope; Type: POLICY; Schema: public; Owner: initiative
 --
 
-CREATE POLICY user_view_preferences_self_scope ON public.user_view_preferences USING (((user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text))) WITH CHECK (((user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer) OR (current_setting('app.is_superadmin'::text, true) = 'true'::text)));
+CREATE POLICY user_view_preferences_self_scope ON public.user_view_preferences USING ((user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer)) WITH CHECK ((user_id = (NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer));
 
 
 --
@@ -1660,10 +1662,10 @@ GRANT ALL ON FUNCTION public.reorder_guild_memberships(p_user_id integer, p_guil
 -- Name: TABLE access_grants; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.access_grants TO app_user;
-GRANT ALL ON TABLE public.access_grants TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.access_grants TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.access_grants TO platform_base;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.access_grants TO app_admin;
+GRANT SELECT ON TABLE public.access_grants TO app_user;
 
 
 --
@@ -1680,10 +1682,10 @@ GRANT SELECT,USAGE ON SEQUENCE public.access_grants_id_seq TO platform_base;
 -- Name: TABLE user_api_keys; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_api_keys TO app_user;
-GRANT ALL ON TABLE public.user_api_keys TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_api_keys TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_api_keys TO platform_base;
+GRANT SELECT,DELETE ON TABLE public.user_api_keys TO app_admin;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_api_keys TO app_user;
 
 
 --
@@ -1700,11 +1702,11 @@ GRANT SELECT,USAGE ON SEQUENCE public.admin_api_keys_id_seq TO platform_base;
 -- Name: TABLE app_settings; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT ON TABLE public.app_settings TO app_user;
-GRANT ALL ON TABLE public.app_settings TO app_admin;
 GRANT SELECT ON TABLE public.app_settings TO app_guild_base;
 GRANT SELECT ON TABLE public.app_settings TO platform_base;
 GRANT INSERT,DELETE,UPDATE ON TABLE public.app_settings TO platform_owner;
+GRANT SELECT,INSERT,UPDATE ON TABLE public.app_settings TO app_admin;
+GRANT SELECT ON TABLE public.app_settings TO app_user;
 
 
 --
@@ -1721,20 +1723,20 @@ GRANT SELECT,USAGE ON SEQUENCE public.app_settings_id_seq TO platform_base;
 -- Name: TABLE auto_delegation_jti_blocklist; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.auto_delegation_jti_blocklist TO app_user;
-GRANT ALL ON TABLE public.auto_delegation_jti_blocklist TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.auto_delegation_jti_blocklist TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.auto_delegation_jti_blocklist TO platform_base;
+GRANT SELECT,INSERT ON TABLE public.auto_delegation_jti_blocklist TO app_admin;
+GRANT SELECT,INSERT ON TABLE public.auto_delegation_jti_blocklist TO app_user;
 
 
 --
 -- Name: TABLE guild_invites; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guild_invites TO app_user;
-GRANT ALL ON TABLE public.guild_invites TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guild_invites TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guild_invites TO platform_base;
+GRANT SELECT,INSERT,UPDATE ON TABLE public.guild_invites TO app_admin;
+GRANT SELECT ON TABLE public.guild_invites TO app_user;
 
 
 --
@@ -1751,20 +1753,20 @@ GRANT SELECT,USAGE ON SEQUENCE public.guild_invites_id_seq TO platform_base;
 -- Name: TABLE guild_memberships; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guild_memberships TO app_user;
-GRANT ALL ON TABLE public.guild_memberships TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guild_memberships TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guild_memberships TO platform_base;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guild_memberships TO app_admin;
+GRANT SELECT ON TABLE public.guild_memberships TO app_user;
 
 
 --
 -- Name: TABLE guilds; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guilds TO app_user;
-GRANT ALL ON TABLE public.guilds TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guilds TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guilds TO platform_base;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.guilds TO app_admin;
+GRANT SELECT ON TABLE public.guilds TO app_user;
 
 
 --
@@ -1781,10 +1783,9 @@ GRANT SELECT,USAGE ON SEQUENCE public.guilds_id_seq TO platform_base;
 -- Name: TABLE notifications; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notifications TO app_user;
-GRANT ALL ON TABLE public.notifications TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notifications TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.notifications TO platform_base;
+GRANT SELECT,INSERT,DELETE ON TABLE public.notifications TO app_admin;
 
 
 --
@@ -1801,10 +1802,9 @@ GRANT SELECT,USAGE ON SEQUENCE public.notifications_id_seq TO platform_base;
 -- Name: TABLE oidc_claim_mappings; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.oidc_claim_mappings TO app_user;
-GRANT ALL ON TABLE public.oidc_claim_mappings TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.oidc_claim_mappings TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.oidc_claim_mappings TO platform_base;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.oidc_claim_mappings TO app_admin;
 
 
 --
@@ -1821,10 +1821,9 @@ GRANT SELECT,USAGE ON SEQUENCE public.oidc_claim_mappings_id_seq TO platform_bas
 -- Name: TABLE push_tokens; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.push_tokens TO app_user;
-GRANT ALL ON TABLE public.push_tokens TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.push_tokens TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.push_tokens TO platform_base;
+GRANT SELECT,INSERT,DELETE ON TABLE public.push_tokens TO app_admin;
 
 
 --
@@ -1841,10 +1840,10 @@ GRANT SELECT,USAGE ON SEQUENCE public.push_tokens_id_seq TO platform_base;
 -- Name: TABLE user_tokens; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_tokens TO app_user;
-GRANT ALL ON TABLE public.user_tokens TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_tokens TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_tokens TO platform_base;
+GRANT SELECT,INSERT,DELETE ON TABLE public.user_tokens TO app_admin;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_tokens TO app_user;
 
 
 --
@@ -1861,8 +1860,6 @@ GRANT SELECT,USAGE ON SEQUENCE public.user_tokens_id_seq TO platform_base;
 -- Name: TABLE user_view_preferences; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_view_preferences TO app_user;
-GRANT ALL ON TABLE public.user_view_preferences TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_view_preferences TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.user_view_preferences TO platform_base;
 
@@ -1881,10 +1878,10 @@ GRANT SELECT,USAGE ON SEQUENCE public.user_view_preferences_id_seq TO platform_b
 -- Name: TABLE users; Type: ACL; Schema: public; Owner: initiative
 --
 
-GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO app_user;
-GRANT ALL ON TABLE public.users TO app_admin;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO app_guild_base;
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO platform_base;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.users TO app_admin;
+GRANT SELECT,UPDATE ON TABLE public.users TO app_user;
 
 
 --
@@ -1901,8 +1898,6 @@ GRANT SELECT,USAGE ON SEQUENCE public.users_id_seq TO platform_base;
 -- Name: DEFAULT PRIVILEGES FOR SEQUENCES; Type: DEFAULT ACL; Schema: public; Owner: initiative
 --
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,USAGE ON SEQUENCES TO app_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO app_admin;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,USAGE ON SEQUENCES TO app_guild_base;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,USAGE ON SEQUENCES TO platform_base;
 
@@ -1911,8 +1906,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,USAGE ON SEQUENCES TO pla
 -- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: initiative
 --
 
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO app_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO app_admin;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO app_guild_base;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT,INSERT,DELETE,UPDATE ON TABLES TO platform_base;
 

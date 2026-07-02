@@ -13,7 +13,7 @@ from app.core.encryption import (
     SALT_SMTP_PASSWORD,
 )
 from app.core.pam_context import has_active_grant
-from app.db.session import reapply_rls_context
+from app.db.session import reapply_rls_context, set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.guild_setting import GuildSetting
 from app.services.platform import guilds as guilds_service
@@ -280,4 +280,13 @@ async def update_email_settings(
 async def ensure_defaults(session: AsyncSession) -> None:
     await _ensure_app_settings(session)
     primary_guild_id = await guilds_service.get_primary_guild_id(session)
-    await _ensure_guild_setting(session, primary_guild_id)
+    # guild_settings is guild-scoped (lives only in the guild schema), so route
+    # into the primary guild before seeding it — mirroring init_db.init(). On
+    # the unrouted (public) admin session the table isn't visible. Reset to the
+    # public baseline in a finally so a failure can't leave the session
+    # guild-routed for a caller that reuses it.
+    await set_rls_context(session, guild_id=primary_guild_id)
+    try:
+        await _ensure_guild_setting(session, primary_guild_id)
+    finally:
+        await set_rls_context(session)

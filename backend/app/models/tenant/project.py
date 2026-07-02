@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Text
 from sqlmodel import Field, Relationship
 
 from app.models.tenant._mixins import SoftDeleteMixin
@@ -30,7 +30,8 @@ class Project(SoftDeleteMixin, table=True):
     )
     name: str = Field(index=True, nullable=False)
     icon: Optional[str] = Field(default=None, max_length=8)
-    description: Optional[str] = Field(default=None)
+    # TEXT in DDL (unbounded); sa_column keeps autogen quiet vs AutoString
+    description: Optional[str] = Field(default=None, sa_column=Column(Text))
     owner_id: int = Field(foreign_key="users.id", nullable=False)
     initiative_id: int = Field(foreign_key="initiatives.id", nullable=False, index=True)
     created_at: datetime = Field(

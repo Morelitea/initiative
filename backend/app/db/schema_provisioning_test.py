@@ -348,14 +348,12 @@ def _norm_constraint(s):
 
 
 async def test_guild_schema_matches_guild_template(engine):
-    """The schema provisioning builds (by running alembic/guild/guild_schema.sql)
-    must be structurally identical to the ``guild_template`` schema Alembic
-    maintains (migration 20260701_0126 builds it from the same artifacts) — same
-    columns/types/nullability/defaults, CHECK/PK/UNIQUE, indexes (incl.
-    opclasses), and intra-schema FK ON DELETE rules. Cross-schema FKs are
-    intentionally absent (soft refs). Post-squash there are no tenant tables in
-    ``public``, so the template is the canonical reference. This fails if the
-    artifact drifts from Alembic; regenerate it with scripts/gen_guild_schema.py."""
+    """A provisioned guild schema must be a structurally faithful CLONE of the
+    ``guild_template`` schema it was rendered from (``app.db.guild_ddl`` reflects
+    the live template) — same columns/types/nullability/defaults, CHECK/PK/UNIQUE,
+    indexes (incl. opclasses), and intra-schema FK ON DELETE rules. Cross-schema
+    FKs are intentionally absent (soft refs). This catches any fidelity gap in the
+    live-reflection renderer."""
     schema = guild_schema_name(_GID_DRIFT)
     try:
         async with engine.begin() as conn:
@@ -622,16 +620,19 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
             )
 
 
-def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics():
-    """The back-fill skip stamp is derived from ``_grant_statements``' RENDERED
-    output — no manual version bump a human can forget: a behavioral grants
-    change moves it; a cosmetic rewrite of the function does not."""
+async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
+    """The back-fill skip stamp is derived from the RENDERED provisioning bundle
+    (live schema DDL + registry RLS + rendered grant statements) — no manual
+    version bump: a behavioral grants change moves it; a cosmetic rewrite of
+    ``_grant_statements`` does not."""
     from unittest import mock
 
     from app.db import schema_provisioning as sp
 
-    sp.provisioning_stamp.cache_clear()
-    baseline = sp.provisioning_stamp()
+    sp.reset_provisioning_bundle()
+    baseline = (await sp.get_provisioning_bundle()).stamp
+
+    _original = sp._grant_statements
 
     def _different_grants(schema: str, role: str, ro_role: str) -> list[str]:
         return ["GRANT USAGE ON SCHEMA x TO y"]
@@ -640,17 +641,16 @@ def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics():
         # Different source text, byte-identical output.
         return list(_original(schema, role, ro_role))
 
-    _original = sp._grant_statements
     try:
         with mock.patch.object(sp, "_grant_statements", _different_grants):
-            sp.provisioning_stamp.cache_clear()
-            changed = sp.provisioning_stamp()
+            sp.reset_provisioning_bundle()
+            changed = (await sp.get_provisioning_bundle()).stamp
         with mock.patch.object(sp, "_grant_statements", _cosmetic_rewrite):
-            sp.provisioning_stamp.cache_clear()
-            cosmetic = sp.provisioning_stamp()
+            sp.reset_provisioning_bundle()
+            cosmetic = (await sp.get_provisioning_bundle()).stamp
     finally:
-        sp.provisioning_stamp.cache_clear()
+        sp.reset_provisioning_bundle()
 
     assert changed != baseline, "a behavioral grants change must move the stamp"
     assert cosmetic == baseline, "a cosmetic rewrite must NOT move the stamp"
-    assert sp.provisioning_stamp() == baseline, "stamp is stable when unchanged"
+    assert (await sp.get_provisioning_bundle()).stamp == baseline

@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
     await check_pre_baseline_db()
     await run_migrations()
     # Re-run the idempotent per-guild provisioning for every guild so any
-    # table/column/index/grant added to guild_schema.sql since a guild was
+    # table/column/index/grant the live guild_template gained since a guild was
     # provisioned is back-filled, and any guild left without a schema (e.g. a
     # crash mid-provision) is healed. One broken guild is logged and skipped;
     # guilds stamped with the current artifact version are skipped entirely.

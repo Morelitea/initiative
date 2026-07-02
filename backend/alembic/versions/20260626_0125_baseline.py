@@ -12,14 +12,20 @@ schema only**, by running the frozen snapshot artifact
 ``alembic/baseline/public_schema_0125.sql`` (pg_dump of a chain-built v0.53.5
 database, curated).
 
+It also builds ``guild_template`` — the Alembic-maintained reference schema
+for all guild content — from its own frozen snapshot
+(``alembic/baseline/guild_template_0125.sql``). Ongoing guild-schema changes
+are ordinary migrations (``scripts/gen_guild_migration.py``); NEW guilds are
+provisioned at runtime by reflecting the LIVE template, never from a file.
+
 Deliberately ABSENT — the point of this squash:
 
 * The legacy ``public.<guild-content>`` tables (tasks, projects, documents, …).
   Guild content lives only in per-guild ``guild_<id>`` schemas (and
-  ``guild_template``, created by migration 20260701_0126) built from
-  ``alembic/guild/guild_schema.sql``. Fresh installs never get public copies.
-  Existing deployments keep their frozen copies untouched — nothing reads or
-  writes them, and this squash does NOT drop them (data-integrity backstop).
+  ``guild_template``). Fresh installs never get public copies. Existing
+  deployments keep their frozen copies untouched — nothing reads or writes
+  them, and this squash does NOT drop them (data-integrity backstop; see the
+  20260702_0126 reconciler for what pre-collapse deployments replay).
 
 **Upgrade floor: v0.53.2.** A deployment older than that must upgrade to a
 v0.53.x release and boot it once (its startup runs the schema-per-guild data
@@ -50,6 +56,9 @@ depends_on = None
 
 _SNAPSHOT_SQL_PATH = (
     Path(__file__).resolve().parents[1] / "baseline" / "public_schema_0125.sql"
+)
+_TEMPLATE_SQL_PATH = (
+    Path(__file__).resolve().parents[1] / "baseline" / "guild_template_0125.sql"
 )
 
 # The five platform tiers, least -> most privileged. A frozen copy of
@@ -253,11 +262,21 @@ def _apply_public_snapshot(connection) -> None:
         connection.execute(text(statement))
 
 
+def _apply_guild_template_snapshot(connection) -> None:
+    """Build guild_template from its frozen snapshot: tables, indexes,
+    constraints, guild_id triggers and initiative RLS policies, all
+    schema-qualified. Runs after the public snapshot (the shared enums and
+    trigger functions the template references live there)."""
+    for statement in split_sql_statements(_TEMPLATE_SQL_PATH.read_text()):
+        connection.execute(text(statement))
+
+
 def upgrade() -> None:
     connection = op.get_bind()
     _create_login_roles(connection)
     _create_support_roles(connection)
     _apply_public_snapshot(connection)
+    _apply_guild_template_snapshot(connection)
 
 
 def downgrade() -> None:
