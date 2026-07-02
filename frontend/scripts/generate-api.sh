@@ -19,7 +19,24 @@ if [[ -n "$SPEC_PATH" ]]; then
 else
   API_URL="${VITE_API_URL:-http://localhost:8000/api/v1}"
   echo "Fetching OpenAPI spec from ${API_URL}/openapi.json..."
-  curl -sf "${API_URL}/openapi.json" -o "${FRONTEND_DIR}/openapi.json"
+  # The backend takes several seconds to boot (migrations + guild backfill +
+  # seeding), and editor tasks often start it in parallel with this script —
+  # retry briefly instead of losing that race.
+  fetched=0
+  for attempt in $(seq 1 20); do
+    if curl -sf "${API_URL}/openapi.json" -o "${FRONTEND_DIR}/openapi.json"; then
+      fetched=1
+      break
+    fi
+    [[ "$attempt" -eq 1 ]] && echo "Backend not responding yet; waiting (up to 30s)..."
+    sleep 1.5
+  done
+  if [[ "$fetched" -ne 1 ]]; then
+    # No running backend: fall back to exporting the spec directly from the
+    # app (no server needed) — same path CI uses.
+    echo "Backend unreachable; exporting the spec without a server..."
+    (cd "${FRONTEND_DIR}/../backend" && uv run python scripts/export_openapi.py "${FRONTEND_DIR}/openapi.json")
+  fi
 fi
 
 echo "Generating TypeScript types and React Query hooks..."

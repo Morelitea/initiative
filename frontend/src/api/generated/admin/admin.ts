@@ -48,7 +48,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  *
  * Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
  * cross-user read is authorized by RLS (``users_platform_read``, support+) rather
- * than the BYPASSRLS admin engine. Initiative roles are guild-scoped and
+ * than the system admin engine. Initiative roles are guild-scoped and
  * deliberately NOT loaded here — a platform user view exposes platform data only.
  * @summary List All Users
  */
@@ -1176,8 +1176,9 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
  * ``guild_id`` is REQUIRED: initiatives live in per-guild schemas with
  * independent id sequences, so ``initiative_id`` alone is ambiguous across
  * guilds. The caller (the blocker-resolution UI) has it from the blocker
- * record. We route into that guild's schema as superadmin so the cascade
- * deletes the real rows, not the frozen ``public`` backup copies.
+ * record. We route into that guild's schema as a guild admin (full authority
+ * over the guild; clears the purge guard) so the cascade deletes the real
+ * rows, not the frozen ``public`` backup copies.
  * @summary Admin Delete Initiative
  */
 export const adminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDelete = (
@@ -1406,9 +1407,9 @@ export const useAdminUpdateGuildMemberRoleApiV1AdminGuildsGuildIdMembersUserIdRo
  * List members of any initiative (platform admin only).
  *
  * ``guild_id`` is required: initiatives live in per-guild schemas with
- * independent id sequences. We route into that guild's schema as superadmin
- * so the member list comes from the live data, not the frozen ``public``
- * backup.
+ * independent id sequences. We route into that guild's schema as a guild
+ * admin so the member list comes from the live data, not the frozen
+ * ``public`` backup.
  * @summary Admin Get Initiative Members
  */
 export const adminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGet = (
@@ -1631,7 +1632,7 @@ export function useAdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMem
  * even if they're not a member. Useful for resolving "sole PM" blockers.
  *
  * ``guild_id`` is required (per-guild schemas; ``initiative_id`` is not unique
- * across guilds). We route into that guild's schema as superadmin.
+ * across guilds). We route into that guild's schema as a guild admin.
  *
  * Restrictions:
  * - Cannot demote the last project manager
