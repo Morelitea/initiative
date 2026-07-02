@@ -203,9 +203,11 @@ async def set_rls_context(
         name_fn = guild_readonly_role_name if read_only_grant else guild_role_name
         role_target = name_fn(route_guild)
 
-    # Reset to the login role first: a session already SET ROLE'd into guild A
-    # cannot SET ROLE into guild B (it isn't a member). 'none' returns to the
-    # authenticated login role, which IS a member of every provisioned guild role.
+    # Reset to the login role first. NOT because switching requires it — SET
+    # ROLE checks the SESSION user's memberships (the login role, a member of
+    # every provisioned guild role), so guild A -> guild B directly is legal —
+    # but as a defensive baseline: if the set below fails mid-way, the
+    # connection is left as the login role, never wearing a stale guild role.
     await session.exec(text("SELECT set_config('role', 'none', false)"))
     await session.exec(
         text(

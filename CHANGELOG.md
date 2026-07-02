@@ -13,9 +13,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The app no longer needs a Postgres superuser.** Fresh docker-compose installs create a least-privilege `app_provisioner` role (migrations + guild provisioning only) automatically at first database init, and `DATABASE_URL` points at it from the start. Existing deployments run `backend/scripts/create-provisioner.sql` once and switch `DATABASE_URL`; staying on a superuser keeps working but logs a boot warning.
 - Faster boots on large installs: guild schemas already built by the current version are skipped by the startup sweep (set `FORCE_GUILD_BACKFILL=true` for a one-off full sweep).
 - `FIRST_SUPERUSER_*` settings are renamed `FIRST_OWNER_*` (old names still accepted).
-
-### Changed
-
 - **Database migration history squashed to a v0.53.5 baseline.** Fresh installs now build the shared schema from a single baseline plus a `guild_template` schema, and never create the legacy public copies of guild content (tasks, projects, documents, …) — guild data lives only in per-guild schemas. Existing deployments are unaffected: their frozen legacy copies are kept untouched.
 - **Upgrade note:** deployments running a version older than **v0.53.2** must upgrade to any v0.53.x release and boot it once before upgrading to this version. The app refuses to start (with instructions) if the database is older.
 
