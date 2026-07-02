@@ -20,8 +20,9 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
   policies deferring to ``public.initiative_access(...)``. They are declared once
   in ``app.db.initiative_rls.INITIATIVE_PATHS`` (table -> initiative path);
   ``INITIATIVE_SCOPED_TABLES`` is the keys of that registry, and
-  ``guild_rls.sql`` is generated from it. So adding an initiative-scoped table
-  is a *single* edit (a path in ``initiative_rls``).
+  the RLS DDL is rendered from it at provisioning time (``app.db.guild_ddl``).
+  So adding an initiative-scoped table is a *single* edit (a path in
+  ``initiative_rls``).
 - **Guild-level** tables (``GUILD_LEVEL_TABLES``) are exempt — guild-wide,
   structural, or own-row — protected only by the schema boundary (the
   ``guild_<id>`` role). Adding one here is the explicit "not initiative-scoped"
@@ -83,7 +84,7 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # NB: "guild-level" = not initiative-membership-gated. Two members here
         # (initiatives, tags) are soft-deletable and so DO carry RLS — but only to
         # host the admin-only purge guard (guild_level_open allow-all +
-        # soft_delete_admin_purge), never a membership scope. See guild_rls.sql.
+        # soft_delete_admin_purge), never a membership scope. See the rendered RLS DDL.
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
         "webhook_subscriptions",  # guild integration config; initiative_id nullable
@@ -95,7 +96,7 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # Structural initiative tables — deliberately guild-scoped, not
         # initiative-member-scoped (the membership table can't be gated by the
         # membership check it backs without recursing; own-row scoping would
-        # break co-member rosters). See guild_rls.sql header.
+        # break co-member rosters). See the rendered RLS DDL header.
         "initiatives",  # purge-guarded (admin-only DELETE), not membership-gated
         "initiative_members",
         "initiative_roles",
