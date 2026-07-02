@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import logging
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -104,11 +105,6 @@ GUILD_RLS_SQL_PATH = (
     Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_rls.sql"
 )
 
-# Bump when _grant_statements() changes: the provisioning stamp hashes the two
-# SQL artifacts plus this number, so a grants-only change still re-provisions
-# every guild on the next boot.
-GRANTS_VERSION = 1
-
 
 @lru_cache(maxsize=1)
 def provisioning_stamp() -> str:
@@ -116,13 +112,17 @@ def provisioning_stamp() -> str:
 
     A guild schema whose comment carries the current stamp was provisioned by
     exactly these artifacts, so the boot back-fill can skip it — O(changed
-    guilds) boots instead of O(all guilds). Any artifact change (or a
-    GRANTS_VERSION bump) produces a new stamp and a one-time full sweep.
+    guilds) boots instead of O(all guilds). The stamp covers the two SQL
+    artifacts AND the grant layer (the ``_grant_statements`` source plus the
+    login-role names it targets), so any provisioning change — including a
+    grants-only edit — produces a new stamp and a one-time full sweep. No
+    manual version bump to forget.
     """
     digest = hashlib.sha256()
     digest.update(GUILD_SCHEMA_SQL_PATH.read_bytes())
     digest.update(GUILD_RLS_SQL_PATH.read_bytes())
-    digest.update(str(GRANTS_VERSION).encode())
+    digest.update(inspect.getsource(_grant_statements).encode())
+    digest.update(f"{APP_LOGIN_ROLE}|{ADMIN_LOGIN_ROLE}".encode())
     return f"provisioned:{digest.hexdigest()[:16]}"
 
 

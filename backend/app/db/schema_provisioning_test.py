@@ -620,3 +620,28 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
                 text("DELETE FROM public.guilds WHERE id = ANY(:ids)"),
                 {"ids": [ok_a, ok_b, bad]},
             )
+
+
+async def test_provisioning_stamp_tracks_grant_statement_source():
+    """The back-fill skip stamp must change when the grant layer changes —
+    derived from ``_grant_statements``' source, not a manual version bump a
+    human can forget."""
+    from unittest import mock
+
+    from app.db import schema_provisioning as sp
+
+    sp.provisioning_stamp.cache_clear()
+    baseline = sp.provisioning_stamp()
+
+    def _edited_grants(schema: str, role: str, ro_role: str) -> list[str]:
+        return ["GRANT USAGE ON SCHEMA x TO y"]  # pragma: no cover — source only
+
+    try:
+        with mock.patch.object(sp, "_grant_statements", _edited_grants):
+            sp.provisioning_stamp.cache_clear()
+            changed = sp.provisioning_stamp()
+    finally:
+        sp.provisioning_stamp.cache_clear()
+
+    assert changed != baseline, "a grants-source change must invalidate the stamp"
+    assert sp.provisioning_stamp() == baseline, "stamp is stable when unchanged"
