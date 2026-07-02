@@ -135,12 +135,12 @@ async def test_auto_purge_sweeps_every_guild_schema(
         await session.commit()
         targets.append((guild.id, initiative.id))
 
-    # Production runs the worker on AdminSessionLocal (app_admin, BYPASSRLS).
+    # Production runs the worker on AdminSessionLocal (app_admin, policy-bound).
     admin = await role_session("app_admin")
     await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
 
     for guild_id, initiative_id in targets:
-        await set_rls_context(admin, guild_id=guild_id, is_superadmin=True)
+        await set_rls_context(admin, guild_id=guild_id, guild_role="admin")
         count = (
             await admin.exec(
                 text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
@@ -157,7 +157,7 @@ async def test_auto_purge_clears_content_table_guard(
 
     Content tables carry both the initiative-member delete policy AND the
     soft_delete_admin_purge RESTRICTIVE guard; the worker clears both by routing
-    as a guild admin. Regression: routing in as the bare ``is_superadmin`` GUC
+    as a guild admin. Regression: routing in without the admin guild-role GUC
     cleared neither, so the DELETE silently matched 0 rows."""
     from app.services.tenant.trash_purge import _purge_all_guilds
 

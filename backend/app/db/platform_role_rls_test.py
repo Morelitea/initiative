@@ -124,7 +124,7 @@ async def _insert_grant(session, user_id: int, guild_id: int) -> None:
 
 async def test_access_grants_self_vs_admin(session):
     """A grantee sees only their own grant (``access_grants_self``); an admin sees
-    the whole queue (``access_grants_admin``). ``is_superadmin`` is retired here."""
+    the whole queue (``access_grants_admin``). There is no superadmin bypass."""
     guild = await create_guild(session)
     u1 = await create_user(session)
     u2 = await create_user(session)
@@ -241,7 +241,7 @@ async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
 
 
 async def test_support_can_list_users_role_scoped(client, acting_user):
-    """The moved ``GET /admin/users`` runs as ``platform_support`` (off the BYPASSRLS
+    """The moved ``GET /admin/users`` runs as ``platform_support`` (off the
     engine) and the cross-user read is authorized by ``users_platform_read``."""
     a = await acting_user("support")
     resp = await client.get("/api/v1/admin/users", headers=a.headers)

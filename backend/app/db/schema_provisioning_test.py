@@ -489,7 +489,10 @@ async def test_backfill_provisions_a_guild_missing_its_schema(engine):
         # shared test DB, and an unrelated broken guild must not fail this test.
         assert done not in summary.failed_guild_ids
         assert missing not in summary.failed_guild_ids
-        assert summary.provisioned >= 2
+        # `missing` had no schema, so it must have been provisioned; `done` was
+        # provisioned with the current artifacts, so the stamp skips it.
+        assert summary.provisioned >= 1
+        assert summary.skipped >= 1
 
         async with engine.connect() as conn:
             tables = await conn.scalar(
@@ -512,15 +515,23 @@ async def test_backfill_provisions_a_guild_missing_its_schema(engine):
 
 async def test_backfill_repairs_a_dropped_table(engine):
     """A table missing from an already-provisioned schema (drift: a table added to
-    guild_schema.sql after the guild was made) is recreated by the back-fill."""
+    guild_schema.sql after the guild was made) is recreated by the back-fill.
+
+    In that scenario the guild's schema-comment stamp predates the current
+    artifacts, so the sweep re-provisions it (a schema stamped with the CURRENT
+    artifacts is skipped — out-of-band corruption needs FORCE_GUILD_BACKFILL)."""
     gid = _GID_BACKFILL_DRIFT
     schema = guild_schema_name(gid)
     try:
         async with engine.begin() as conn:
             await _insert_public_guild(conn, gid, "backfill-drift")
             await provision_guild_schema(conn, gid)
-            # Simulate a table that didn't exist when the schema was provisioned.
+            # Simulate a table that didn't exist when the schema was provisioned:
+            # the table is absent AND the stamp names the older artifact version.
             await conn.exec_driver_sql(f'DROP TABLE "{schema}".subtasks CASCADE')
+            await conn.exec_driver_sql(
+                f"COMMENT ON SCHEMA \"{schema}\" IS 'provisioned:pre-subtasks'"
+            )
 
         async with engine.connect() as conn:
             gone = await conn.scalar(text(f"SELECT to_regclass('{schema}.subtasks')"))

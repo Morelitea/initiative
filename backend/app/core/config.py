@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import EmailStr, Field, field_validator, model_validator
+from pydantic import AliasChoices, EmailStr, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Origins used by the Capacitor native mobile app (iOS and Android).
@@ -136,7 +136,7 @@ class Settings(BaseSettings):
     DATABASE_URL_APP: (
         str  # Non-superuser connection for RLS-enforced queries (required)
     )
-    DATABASE_URL_ADMIN: str  # Admin connection with BYPASSRLS for migrations (required)
+    DATABASE_URL_ADMIN: str  # System-engine login (BYPASSRLS, grant-bounded) for jobs/seeding (required)
 
     SECRET_KEY: str
     # Optional: the *previous* SECRET_KEY, set only while rotating the encryption
@@ -379,10 +379,29 @@ class Settings(BaseSettings):
     S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
-    FIRST_SUPERUSER_EMAIL: EmailStr | None = None
-    FIRST_SUPERUSER_PASSWORD: str | None = None
-    FIRST_SUPERUSER_FULL_NAME: str | None = None
+    # First/bootstrap user — becomes the platform `owner` tier (there is no
+    # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
+    # as aliases so existing deployments keep working.
+    FIRST_OWNER_EMAIL: EmailStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FIRST_OWNER_EMAIL", "FIRST_SUPERUSER_EMAIL"),
+    )
+    FIRST_OWNER_PASSWORD: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "FIRST_OWNER_PASSWORD", "FIRST_SUPERUSER_PASSWORD"
+        ),
+    )
+    FIRST_OWNER_FULL_NAME: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "FIRST_OWNER_FULL_NAME", "FIRST_SUPERUSER_FULL_NAME"
+        ),
+    )
     DISABLE_GUILD_CREATION: bool = False
+    # Boot back-fill normally skips guild schemas stamped with the current
+    # provisioning-artifact version; set true to force a full sweep once.
+    FORCE_GUILD_BACKFILL: bool = False
     ENABLE_PUBLIC_REGISTRATION: bool = (
         True  # When False, requires invite code to register
     )

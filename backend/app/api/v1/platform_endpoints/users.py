@@ -618,11 +618,11 @@ async def get_my_initiative_members(
     Used by the account-deletion transfer-target picker. ``guild_id`` is
     required: the initiative lives in that guild's schema (ids repeat across
     guild schemas), and the caller has it from the blocker record. We route in
-    as superadmin so the member list is read from the live guild schema (the
+    into the guild schema so the member list is read from the live data (the
     intentional cross-guild visibility the picker needs), not the frozen
     ``public`` backup.
     """
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(

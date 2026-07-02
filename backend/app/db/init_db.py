@@ -21,14 +21,14 @@ from app.services.platform import guilds as guilds_service
 BASELINE_REVISION = "20260626_0125"
 
 
-async def init_superuser() -> None:
-    if not (settings.FIRST_SUPERUSER_EMAIL and settings.FIRST_SUPERUSER_PASSWORD):
+async def init_owner() -> None:
+    if not (settings.FIRST_OWNER_EMAIL and settings.FIRST_OWNER_PASSWORD):
         return
 
     async with AdminSessionLocal() as session:
         existing = await session.exec(
             select(User).where(
-                User.email_hash == hash_email(settings.FIRST_SUPERUSER_EMAIL)
+                User.email_hash == hash_email(settings.FIRST_OWNER_EMAIL)
             )
         )
         if existing.one_or_none() is not None:
@@ -36,10 +36,10 @@ async def init_superuser() -> None:
 
         # Create the first superuser (the platform owner)...
         user = User(
-            email_hash=hash_email(settings.FIRST_SUPERUSER_EMAIL),
-            email_encrypted=encrypt_field(settings.FIRST_SUPERUSER_EMAIL, SALT_EMAIL),
-            full_name=settings.FIRST_SUPERUSER_FULL_NAME,
-            hashed_password=get_password_hash(settings.FIRST_SUPERUSER_PASSWORD),
+            email_hash=hash_email(settings.FIRST_OWNER_EMAIL),
+            email_encrypted=encrypt_field(settings.FIRST_OWNER_EMAIL, SALT_EMAIL),
+            full_name=settings.FIRST_OWNER_FULL_NAME,
+            hashed_password=get_password_hash(settings.FIRST_OWNER_PASSWORD),
             role=UserRole.owner,
             email_verified=True,
         )
@@ -64,11 +64,11 @@ async def init_superuser() -> None:
             await session.commit()
         except Exception:
             # Undo the whole first-boot seed so a restart re-initializes cleanly.
-            # Otherwise the committed user makes init_superuser short-circuit on
+            # Otherwise the committed user makes init_owner short-circuit on
             # every restart, stranding the primary guild without a schema. Mirrors
             # the API/registration cleanup. Roll back FIRST (an aborted session
             # would fault the cleanup queries, and it reverts the seed's SET ROLE
-            # so deprovision can DROP the role); this is an admin (BYPASSRLS)
+            # so deprovision can DROP the role); this is a system-engine
             # session, so the bulk DELETEs aren't RLS-filtered.
             await session.rollback()
             with suppress(Exception):
@@ -160,11 +160,11 @@ async def check_pre_baseline_db() -> None:
 async def init() -> None:
     await check_pre_baseline_db()
     await run_migrations()
-    await init_superuser()
+    await init_owner()
     async with AdminSessionLocal() as session:
         # guild_settings is guild-scoped; route into the primary guild's schema so
         # the seeded settings row lands there, not in public. get_primary_guild_id
-        # provisions the guild if it has to create it (no-FIRST_SUPERUSER path).
+        # provisions the guild if it has to create it (no-FIRST_OWNER path).
         primary_id = await guilds_service.get_primary_guild_id(session)
         await set_rls_context(session, guild_id=primary_id)
         await app_settings_service.get_or_create_guild_settings(

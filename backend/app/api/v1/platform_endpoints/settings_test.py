@@ -173,7 +173,7 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
 
 
 # The whole OIDC claim-mapping surface reads/writes guild-scoped data through the
-# BYPASSRLS admin engine, so the ONLY thing standing between a caller and every
+# system admin engine, so the ONLY thing standing between a caller and every
 # guild's data is the owner-only ``config.manage`` capability gate. These tests
 # hard-pin that gate per endpoint so a future edit can't silently drop it and let
 # a non-owner (even a platform admin) through.

@@ -990,7 +990,7 @@ export function useGetFcmConfigApiV1SettingsFcmConfigGet<
  *
  * Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
  * (``guilds``, ``guild_memberships``) — no guild-scoped content — so it runs on
- * the BYPASSRLS admin engine without routing into any guild schema. Member
+ * the system admin engine without routing into any guild schema. Member
  * counts come from a single grouped query rather than per-guild (no N+1).
  * @summary List Platform Guild Storage
  */

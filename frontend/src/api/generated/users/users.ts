@@ -409,7 +409,7 @@ export function useCheckDeletionEligibilityApiV1UsersMeDeletionEligibilityGet<
  * Used by the account-deletion transfer-target picker. ``guild_id`` is
  * required: the initiative lives in that guild's schema (ids repeat across
  * guild schemas), and the caller has it from the blocker record. We route in
- * as superadmin so the member list is read from the live guild schema (the
+ * into the guild schema so the member list is read from the live data (the
  * intentional cross-guild visibility the picker needs), not the frozen
  * ``public`` backup.
  * @summary Get My Initiative Members

@@ -58,7 +58,7 @@ from app.core.encryption import (
     hash_email,
 )
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_schema_name
+from app.db.schema_provisioning import guild_role_name, guild_schema_name
 
 logger = logging.getLogger(__name__)
 
@@ -279,12 +279,18 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
         )
 
     summary = RotationSummary(dry_run=dry_run)
-    engine = db_session.provisioning_engine  # superuser: all schemas, bypasses RLS
+    # System engine (policy-bound): the public half runs as app_admin under its
+    # enumerated `_system` policies; each guild schema is entered by assuming
+    # that guild's own role (app_admin holds INHERIT FALSE membership in all).
+    engine = db_session.admin_engine
 
     # Platform tables (public). Reads stream on one connection; writes commit on a
     # second (engine.begin()) — separate connections so an open read cursor and the
     # UPDATEs don't collide on asyncpg. The write txn commits together, resumable.
     async with engine.connect() as read_conn, engine.begin() as write_conn:
+        for conn_ in (read_conn, write_conn):
+            # Pooled connections: shed any guild role a prior checkout assumed.
+            await conn_.execute(text("SELECT set_config('role', 'none', false)"))
         summary.columns.append(
             await _rotate_user_emails(read_conn, write_conn, old_key, new_key, dry_run)
         )
@@ -318,6 +324,11 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                 engine.connect() as read_conn,
                 engine.begin() as write_conn,
             ):
+                for conn_ in (read_conn, write_conn):
+                    await conn_.execute(
+                        text("SELECT set_config('role', :r, false)"),
+                        {"r": guild_role_name(gid)},
+                    )
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(
                         await _rotate_fernet_column(

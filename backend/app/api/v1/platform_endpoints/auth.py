@@ -223,7 +223,7 @@ async def register_user(
                 # PendingRollbackError and the already-committed user + guild rows
                 # are stranded. Rollback also reverts the seed's SET ROLE (Postgres
                 # SET is transactional) so deprovision can DROP the role; this is an
-                # admin (BYPASSRLS) session, so removing the shared rows isn't filtered.
+                # system-engine session (BYPASSRLS), so removing the shared rows isn't filtered.
                 await session.rollback()
                 with _suppress(Exception):
                     await deprovision_guild(guild_id)

@@ -352,7 +352,7 @@ History favors short subjects (e.g., `MVP WIP 1`), so keep the first line impera
 
 ## Security & Configuration Tips
 
-Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EMAIL_DOMAINS`, and optional `FIRST_SUPERUSER_*`, then run `alembic upgrade head` (or `python -m app.db.init_db`) so the schema is current and default settings/SUs are seeded. The app connects through **three Postgres logins** (see the tenancy/RLS section): `DATABASE_URL` (superuser — migrations + guild provisioning), `DATABASE_URL_APP` (`app_user`, RLS-enforced request path), and `DATABASE_URL_ADMIN` (`app_admin`, BYPASSRLS system engine); all three point at the same database. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.
+Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EMAIL_DOMAINS`, and optional `FIRST_OWNER_*` (legacy `FIRST_SUPERUSER_*` names still accepted), then run `alembic upgrade head` (or `python -m app.db.init_db`) so the schema is current and default settings/owner are seeded. The app connects through **three Postgres logins** (see the tenancy/RLS section): `DATABASE_URL` (the provisioning role — migrations + guild provisioning; the least-privilege `app_provisioner`, NOT a superuser — fresh docker-compose installs create it via the db init script; existing installs run `backend/scripts/create-provisioner.sql` once; the app warns at boot if it detects a superuser), `DATABASE_URL_APP` (`app_user`, RLS-enforced request path), and `DATABASE_URL_ADMIN` (`app_admin`, the policy-bound system engine); all three point at the same database. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.
 
 ## Tenancy, Database Architecture & RLS
 
@@ -379,8 +379,8 @@ Two rules follow from this being a **DB-layer** standard: authorization is a pro
 ### Three engines (Postgres logins) — [`session.py`](backend/app/db/session.py)
 
 - **`app_user`** (`DATABASE_URL_APP`, `LOGIN NOINHERIT`, **RLS-enforced**) — the request path. Holds *no* standing access to any guild schema; every request `SET ROLE`s into a scoped role first.
-- **`app_admin`** (`DATABASE_URL_ADMIN`, `LOGIN BYPASSRLS`) — the **only** RLS-bypassing role. System engine: startup seeding, background jobs, provisioning, and bootstrapping/lifecycle endpoints that can't run under a scoped role. No user request gets ambient BYPASSRLS.
-- **superuser** (`DATABASE_URL`, `provisioning_engine`) — privileged DDL only: migrations, `CREATE SCHEMA`/`CREATE ROLE`, guild provisioning.
+- **`app_admin`** (`DATABASE_URL_ADMIN`, `LOGIN BYPASSRLS`) — the system engine: startup seeding, background jobs, and bootstrapping/lifecycle endpoints that can't run under a scoped role. This is PostgreSQL's textbook trusted-batch actor (BYPASSRLS is the documented mechanism for administrative sweeps); its boundary is **enumerated per-table GRANTs** (migration 0129) — a new shared table gives it nothing until a migration grants it. Guild schemas require `SET ROLE guild_<id>` (which **drops** the bypass), with `guild_role='admin'` for full-authority maintenance. No *user-facing* role ever bypasses RLS.
+- **`app_provisioner`** (`DATABASE_URL`, `provisioning_engine`) — DDL only: migrations, `CREATE SCHEMA`/`CREATE ROLE`, guild provisioning. A least-privilege `NOSUPERUSER CREATEROLE` role that owns the app's objects — created by infrastructure, not app code (fresh installs: the compose `initdb` script; existing installs: `backend/scripts/create-provisioner.sql`, run once); `FORCE ROW LEVEL SECURITY` keeps even the owner policy-bound for DML. The app never holds Postgres superuser credentials — boot logs a warning if `DATABASE_URL` is a superuser/BYPASSRLS role.
 
 ### Schema-per-guild
 
@@ -395,7 +395,7 @@ Guild **content** (projects, tasks, documents, initiatives, queues, counters, ca
 - **Per-guild roles** `guild_<id>` (read/write its schema) and `guild_<id>_ro` (SELECT-only, for PAM *read* grants). Both inherit shared/`public` access from **`app_guild_base`**. The login roles are granted membership in every guild role **`WITH INHERIT FALSE`** — they can `SET ROLE` in but hold no standing access (fail-closed).
 - **Platform-tier roles** `platform_<tier>` (member/support/moderator/admin/owner, `NOLOGIN`) + a shared **`platform_base`** floor; the public/platform path assumes `platform_<users.role>`.
 - **Routing:** a **guild request** (`/g/{guild_id}/…`) → `SET ROLE guild_<id>` (or `_ro`), `search_path = guild_<id>, public`; a **public/platform request** → `SET ROLE platform_<tier>`, `search_path = public`. Each request resets to the login role (`SET ROLE none`) first, and the connection is reset on return to the pool.
-- **No standing all-guild bypass.** The `app.is_superadmin` GUC is retired from the request path; it is set only on the `app_admin` (BYPASSRLS) engine, where it's moot. A platform admin reaches a guild's data only via an explicit **break-glass** grant (below).
+- **No standing all-guild bypass for users, no superadmin.** The `app.is_superadmin` GUC and its policy legs were removed entirely (migration 0128). The only BYPASSRLS holder is the system engine (`app_admin`, the standard trusted-batch role — grant-bounded, never serving a user request as itself). A platform admin reaches a guild's data only via an explicit **break-glass** grant (below).
 
 ### Session Types (choose the right one)
 
@@ -403,7 +403,7 @@ Guild **content** (projects, tasks, documents, initiatives, queues, counters, ca
 |---|---|---|
 | `RLSSessionDep` (`get_guild_session`) | `app_user` → `SET ROLE guild_<id>`/`_ro` | Guild-scoped data under `/g/{guild_id}/…` (projects, tasks, documents, initiatives, tags, comments, task statuses, collaboration, imports). Pair with `GuildContextDep`. |
 | `UserSessionDep` (`get_user_session`) | `app_user` → `SET ROLE platform_<tier>` | Authenticated public/platform path with no guild: list/reorder/leave guilds, cross-guild "my" (`/me/*`) reads, platform reads governed by `platform_<tier>` policies. |
-| `AdminSessionDep` (`get_admin_session`) | `app_admin` (**BYPASSRLS**) | Bootstrapping where the entity doesn't exist yet (create guild, accept invite), platform user management + `access_grants` endpoints (capability-gated), background jobs, startup seeding. |
+| `AdminSessionDep` (`get_admin_session`) | `app_admin` (system engine: BYPASSRLS, grant-bounded) | Bootstrapping where the entity doesn't exist yet (create guild, accept invite), platform user management + `access_grants` endpoints (capability-gated), background jobs, startup seeding. Guild schemas only via `set_rls_context(guild_id=…)` — SET ROLE drops the bypass. |
 | `SessionDep` (`get_session`) | `app_user`, login role (no `SET ROLE`) | Unauthenticated endpoints, or handlers that call `set_rls_context()` themselves after validating. |
 
 ### Path-based guild tenancy
@@ -425,7 +425,7 @@ A user reaches a guild they don't belong to only through a **time-bound, per-gui
 
 1. **Default to `RLSSessionDep`** for any endpoint that reads/writes guild-scoped data; it requires `GuildContextDep` in the same signature (the guild comes from the `/g/{guild_id}` path).
 2. **After every `session.commit()` that is followed by a database query** (including `session.refresh()`), call `await reapply_rls_context(session)`. A commit may release the connection back to the pool; the next query could land on a connection without the `SET ROLE`/GUCs.
-3. **Use `UserSessionDep`** for authenticated cross-guild/platform reads so the request is `platform_<tier>`-scoped; reserve `AdminSessionDep` (BYPASSRLS) for bootstrapping/lifecycle/jobs that genuinely can't run under a scoped role.
+3. **Use `UserSessionDep`** for authenticated cross-guild/platform reads so the request is `platform_<tier>`-scoped; reserve `AdminSessionDep` (the system engine) for bootstrapping/lifecycle/jobs that genuinely can't run under a scoped role — and remember a new shared table needs an explicit `GRANT … TO app_admin` before the system engine can touch it.
 4. **Never use `SessionDep` for guild-scoped data** — without a `SET ROLE` it can't even see the guild schema (and shared-table reads run as the bare login role).
 5. **Gate platform endpoints on `require_capability(...)`**; never re-introduce a request-path `is_superadmin=True` (that was Phase 3's whole removal).
 6. **`set_rls_context()` uses `set_config()`** (not `SET` commands) so the assumed role and GUCs land on the same pooled connection as subsequent queries.

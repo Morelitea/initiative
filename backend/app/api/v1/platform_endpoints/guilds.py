@@ -203,7 +203,6 @@ async def create_guild(
             session,
             guild_id=guild.id,
             creator=current_user,
-            is_superadmin=user_has_capability(current_user, Capability.DATA_BYPASS),
         )
         await session.commit()
     except Exception:

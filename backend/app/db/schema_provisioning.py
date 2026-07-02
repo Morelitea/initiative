@@ -22,8 +22,10 @@ sequential loop heals both with no extra bookkeeping.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 from sqlalchemy import text
@@ -101,6 +103,27 @@ GUILD_SCHEMA_SQL_PATH = (
 GUILD_RLS_SQL_PATH = (
     Path(__file__).resolve().parents[2] / "alembic" / "guild" / "guild_rls.sql"
 )
+
+# Bump when _grant_statements() changes: the provisioning stamp hashes the two
+# SQL artifacts plus this number, so a grants-only change still re-provisions
+# every guild on the next boot.
+GRANTS_VERSION = 1
+
+
+@lru_cache(maxsize=1)
+def provisioning_stamp() -> str:
+    """Schema-comment stamp identifying the provisioning artifacts' version.
+
+    A guild schema whose comment carries the current stamp was provisioned by
+    exactly these artifacts, so the boot back-fill can skip it — O(changed
+    guilds) boots instead of O(all guilds). Any artifact change (or a
+    GRANTS_VERSION bump) produces a new stamp and a one-time full sweep.
+    """
+    digest = hashlib.sha256()
+    digest.update(GUILD_SCHEMA_SQL_PATH.read_bytes())
+    digest.update(GUILD_RLS_SQL_PATH.read_bytes())
+    digest.update(str(GRANTS_VERSION).encode())
+    return f"provisioned:{digest.hexdigest()[:16]}"
 
 
 async def apply_guild_schema(conn: AsyncConnection, schema: str) -> None:
@@ -213,6 +236,11 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
     await _exec_batch(conn, _grant_statements(schema, role, ro_role))
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
+    # Stamp the artifacts' version so the boot back-fill can skip this guild
+    # until they change (constant hex literal, safe to inline).
+    await conn.exec_driver_sql(
+        f"COMMENT ON SCHEMA \"{schema}\" IS '{provisioning_stamp()}'"
+    )
     return schema
 
 
@@ -226,8 +254,14 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     # this drop is idempotent so a retry recovers cleanly.
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
+    provisioning_login = make_url(settings.DATABASE_URL).username
     for role in (guild_role_name(guild_id), guild_readonly_role_name(guild_id)):
         if await _role_exists(conn, role):
+            # DROP OWNED requires the role's PRIVILEGES, not just ADMIN OPTION
+            # on it (PG16+ separates the two). The provisioning login
+            # administers every guild role, so grant itself membership first —
+            # a no-op under a superuser DATABASE_URL.
+            await conn.exec_driver_sql(f'GRANT "{role}" TO "{provisioning_login}"')
             await conn.exec_driver_sql(f'DROP OWNED BY "{role}"')  # clear grants first
             await conn.exec_driver_sql(f'DROP ROLE "{role}"')
 
@@ -270,36 +304,56 @@ class BackfillSummary:
     total: int
     provisioned: int
     failed: int
+    skipped: int = 0  # stamp matched — provisioned by the current artifacts
     failed_guild_ids: list[int] = field(default_factory=list)
 
 
 async def backfill_guild_schemas() -> BackfillSummary:
-    """Re-provision every existing guild's schema + roles on boot. Idempotent.
+    """Re-provision every guild schema the current artifacts haven't built yet.
 
-    Enumerates guild ids from the shared ``public.guilds`` table on the
-    provisioning (superuser) engine, then runs the idempotent
-    ``provision_guild`` for each. Because provisioning re-runs the canonical
-    ``guild_schema.sql`` DDL (``CREATE ... IF NOT EXISTS``) and re-applies grants,
-    this back-fills any table/column/index/grant added since a guild was first
-    provisioned and (re-)creates a schema that is missing entirely — healing both
-    the silent-drift gap and a crash that left a guild row without its schema.
+    Enumerates guild ids (and their schema-comment stamps) from the
+    provisioning engine, then runs the idempotent ``provision_guild`` for each
+    guild whose stamp doesn't match :func:`provisioning_stamp` — i.e. its
+    schema predates the current ``guild_schema.sql`` / ``guild_rls.sql`` /
+    grants version, is missing entirely, or was never stamped. Because
+    provisioning re-runs the canonical DDL (``CREATE ... IF NOT EXISTS``) and
+    re-applies grants, this back-fills any table/column/index/grant added
+    since, then re-stamps. Already-stamped guilds are skipped, so a boot with
+    unchanged artifacts is O(changed guilds), not O(all guilds) — set
+    ``FORCE_GUILD_BACKFILL=true`` to sweep everything regardless.
 
     Per-guild failures are logged with the guild id and skipped so one broken
     guild can't take down boot for the rest; ``provision_guild`` runs each guild
     in its own transaction, so a failure rolls back only that guild. Returns a
     summary for the caller to log.
     """
-    engine = db_session.provisioning_engine  # superuser
-    async with engine.connect() as conn:
-        guild_ids = (
-            (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
-            .scalars()
-            .all()
-        )
+    stamp = provisioning_stamp()
+    # Enumerate on the SYSTEM engine, not the provisioning engine: guild ids
+    # live in the RLS-forced public.guilds, and the provisioner is a pure DDL
+    # actor — FORCE RLS filters its unrouted data reads to zero rows (by
+    # design). Reading data is the system engine's job (BYPASSRLS).
+    async with db_session.admin_engine.connect() as conn:
+        # Pooled connection: shed any guild role a previous checkout assumed
+        # (a leaked role would RLS-filter public.guilds to zero rows).
+        await conn.execute(text("SELECT set_config('role', 'none', false)"))
+        rows = (
+            await conn.execute(
+                text(
+                    "SELECT g.id, obj_description(n.oid) "
+                    "FROM public.guilds g "
+                    "LEFT JOIN pg_namespace n ON n.nspname = 'guild_' || g.id "
+                    "ORDER BY g.id"
+                )
+            )
+        ).all()
 
     provisioned = 0
+    skipped = 0
     failed_guild_ids: list[int] = []
-    for gid in guild_ids:
+    for gid, comment in rows:
+        if comment == stamp and not settings.FORCE_GUILD_BACKFILL:
+            skipped += 1
+            continue
         try:
             await provision_guild(gid)
             provisioned += 1
@@ -308,8 +362,38 @@ async def backfill_guild_schemas() -> BackfillSummary:
             logger.exception("guild schema back-fill failed for guild %s", gid)
 
     return BackfillSummary(
-        total=len(guild_ids),
+        total=len(rows),
         provisioned=provisioned,
         failed=len(failed_guild_ids),
+        skipped=skipped,
         failed_guild_ids=failed_guild_ids,
     )
+
+
+async def warn_if_privileged_database_url() -> None:
+    """Warn when DATABASE_URL connects as a superuser (or BYPASSRLS) role.
+
+    The app never needs a Postgres superuser: migrations + guild provisioning
+    fit in the least-privilege ``app_provisioner`` role (NOSUPERUSER CREATEROLE
+    + CREATE on the database + ownership of the app's objects). Role creation
+    is an infrastructure concern, not app code: fresh docker-compose installs
+    get the role from the Postgres image's ``docker-entrypoint-initdb.d``
+    script; existing deployments run ``scripts/create-provisioner.sql`` once
+    (see the deployment docs), then point DATABASE_URL at ``app_provisioner``.
+    """
+    async with db_session.provisioning_engine.connect() as conn:
+        rolsuper, rolbypassrls = (
+            await conn.execute(
+                text(
+                    "SELECT rolsuper, rolbypassrls FROM pg_roles "
+                    "WHERE rolname = current_user"
+                )
+            )
+        ).one()
+    if rolsuper or rolbypassrls:
+        logger.warning(
+            "DATABASE_URL connects as %s role — the app does not need this. "
+            "Run backend/scripts/create-provisioner.sql once (see the "
+            "deployment docs) and point DATABASE_URL at app_provisioner.",
+            "a SUPERUSER" if rolsuper else "a BYPASSRLS",
+        )

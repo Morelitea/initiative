@@ -1,6 +1,6 @@
 """DB-level RLS isolation tests for PAM grants.
 
-The test database connects as a BYPASSRLS superuser, so these tests explicitly
+The default test connection would mask RLS, so these tests explicitly
 ``SET ROLE app_user`` (the non-privileged role the app uses at runtime) to make
 RLS + FORCE ROW LEVEL SECURITY actually apply. Without that, the policies would
 silently pass and prove nothing.

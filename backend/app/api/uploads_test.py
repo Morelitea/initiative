@@ -409,7 +409,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
     await admin.rollback()
 
     # The production pattern (SET ROLE via set_rls_context) succeeds.
-    await set_rls_context(admin, guild_id=guild.id, is_superadmin=True)
+    await set_rls_context(admin, guild_id=guild.id)
     row = (
         await admin.exec(
             text("SELECT filename FROM uploads WHERE filename = 'grant_probe.jpg'")

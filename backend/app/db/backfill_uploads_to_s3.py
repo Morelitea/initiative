@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.config import settings
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_schema_name
+from app.db.schema_provisioning import guild_role_name, guild_schema_name
 from app.services.storage import StorageBackend, s3_guild_storage
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,13 @@ async def _guild_upload_meta(
     """filename -> (content_type, content_hash) for a guild's uploads, or {} if
     the schema/table is absent."""
     exists = (
-        await conn.execute(text("SELECT to_regclass(:t)"), {"t": f"{schema}.uploads"})
+        await conn.execute(
+            text(
+                "SELECT 1 FROM pg_tables "
+                "WHERE schemaname = :s AND tablename = 'uploads'"
+            ),
+            {"s": schema},
+        )
     ).scalar()
     if exists is None:
         return {}
@@ -123,8 +129,10 @@ async def backfill_uploads_to_s3(*, dry_run: bool = False) -> BackfillSummary:
     """Copy every guild's local blobs into S3. See module docstring."""
     summary = BackfillSummary()
     root = Path(settings.UPLOADS_DIR)
-    engine = db_session.provisioning_engine  # superuser: reads every guild schema
+    engine = db_session.admin_engine  # system engine; guild schemas via SET ROLE
     async with engine.connect() as conn:
+        # Pooled connection: shed any guild role a previous checkout assumed.
+        await conn.execute(text("SELECT set_config('role', 'none', false)"))
         guild_ids = (
             (await conn.execute(text("SELECT id FROM public.guilds ORDER BY id")))
             .scalars()
@@ -134,6 +142,12 @@ async def backfill_uploads_to_s3(*, dry_run: bool = False) -> BackfillSummary:
             guild_dir = root / f"guild_{gid}"
             if not guild_dir.is_dir():
                 continue
+            # Assume the guild's own role for the schema read (the system
+            # login holds no standing guild-schema access).
+            await conn.execute(
+                text("SELECT set_config('role', :r, false)"),
+                {"r": guild_role_name(gid)},
+            )
             meta = await _guild_upload_meta(conn, guild_schema_name(gid))
             # Always a real S3 backend, even on a dry run, so the exists() skip
             # check reflects what's already in the bucket.

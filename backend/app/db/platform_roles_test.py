@@ -149,7 +149,7 @@ async def test_platform_and_guild_roles_coexist(client, acting_user):
 
     SET ROLE is single-valued per statement, so the two never conflict and neither
     costs the other. Uses a non-bypass platform tier (member) so the guild request
-    is governed purely by the guild role, not data.bypass / is_superadmin.
+    is governed purely by the guild role, not data.bypass or any bypass flag.
     """
     a = await acting_user("member", guild_role="admin")
 

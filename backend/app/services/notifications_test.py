@@ -52,7 +52,7 @@ async def _dispatch(session: AsyncSession) -> None:
     """Drive the reminder pass with the test session. The worker's
     AdminSessionLocal (app_admin) sees the shared users table; mirror that so the
     user-list read isn't RLS-filtered (the gather inside is still member-scoped)."""
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
 
 
@@ -364,7 +364,7 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
 
     # Mirror the worker's starting context: its AdminSessionLocal (app_admin) sees
     # the shared users table; the gather inside still scopes guild data per member.
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
     assert captured.get("user_id") == user.id
@@ -377,7 +377,7 @@ async def _assignment_item_in_new_guild(
     """Queue a task-assignment digest item for ``user`` in a brand-new guild."""
     # A prior call left the session in a guild-member context; reset so the new
     # guild INSERT into public.guilds isn't RLS-denied.
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name=label)
@@ -442,7 +442,7 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
         email_service, "send_task_assignment_digest_email", _capture_email
     )
 
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
 
     assert captured.get("user_id") == user.id
@@ -470,9 +470,7 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
         session, email="multi-reminder@example.com", event_reminder_minutes_before=15
     )
     for label in ("Alpha", "Beta"):
-        await set_rls_context(
-            session, is_superadmin=True
-        )  # permissive for the guild INSERT
+        await set_rls_context(session)  # permissive for the guild INSERT
         creator = await create_user(session, email=f"organizer-{label}@example.com")
         guild = await create_guild(session, creator=creator)
         initiative = await create_initiative(session, guild, creator, name=label)
@@ -495,6 +493,6 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
     await _dispatch(session)
 
     # Count across guilds: notifications are shared, so view them as superadmin.
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     reminders = await _reminders_for(session, attendee.id)
     assert len(reminders) == 2
