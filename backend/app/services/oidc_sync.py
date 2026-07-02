@@ -139,7 +139,7 @@ async def sync_oidc_assignments(
 
     # ``oidc_claim_mappings`` is shared, but initiatives/roles/members are
     # guild-scoped (per-guild schemas). Every guild-scoped read/write below is
-    # therefore routed into the relevant guild's schema as superadmin — the
+    # therefore routed into the relevant guild's schema as its guild role — the
     # unrouted (public) default would touch the frozen backup and silently
     # desync SSO role assignment.
 

@@ -149,8 +149,8 @@ async def check_pre_baseline_db() -> None:
             f"     and let it boot once — its migrations and startup conversion\n"
             f"     bring the database to the baseline state.\n"
             f"  2. Then deploy this version and restart.\n\n"
-            f"(Installs older than v0.30.0 should first follow the v0.30.0\n"
-            f"upgrade instructions, then step through v0.53.x.)\n"
+            f"(Installs older than v0.30.0 are no longer supported for\n"
+            f"in-place upgrade — restore into a fresh install instead.)\n"
             f"{'=' * 70}"
         )
     finally:

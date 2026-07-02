@@ -90,7 +90,7 @@ async def test_list_property_definitions_scoped_by_initiative_id_query(
 ):
     """Requesting a specific ``initiative_id`` scopes the result even when
     the caller technically has visibility across multiple initiatives
-    (guild admin / superadmin bypass paths still respect explicit
+    (guild-admin visibility still respects explicit
     filtering through the query param).
     """
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)

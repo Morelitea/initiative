@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Support for in-place upgrades from versions older than v0.30.0 (the `upgrade-to-baseline.sql` helper is gone; it remains available in older release tags). Upgrades from v0.30.0+ still step through a v0.53.x release as before.
 - The one-time schema-per-guild startup data conversion (every deployment that can cross the v0.53.x floor has already converted).
 
 ## [0.53.5] - 2026-07-01
