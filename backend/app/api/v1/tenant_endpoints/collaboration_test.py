@@ -16,15 +16,9 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.security import create_upload_token
 from app.models.platform.access_grant import AccessGrant
-from app.models.tenant.document import (
-    Document,
-    DocumentType,
-)
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
+from app.models.tenant.document import Document
 from app.testing import (
-    create_guild,
-    create_guild_membership,
-    create_initiative,
+    create_document,
     create_user,
     get_auth_token,
 )
@@ -38,45 +32,13 @@ from app.models.platform.user import UserRole
 from app.services import permissions as permissions_service
 
 
-async def _create_native_document(
-    session: AsyncSession,
-    *,
-    initiative,
-    owner,
-) -> Document:
-    """Create a native (Lexical) document with owner write permission."""
-    doc = Document(
-        title="Sync Target",
-        initiative_id=initiative.id,
-        guild_id=initiative.guild_id,
-        created_by_id=owner.id,
-        updated_by_id=owner.id,
-        document_type=DocumentType.native,
-        content={"root": {"children": []}},
-    )
-    session.add(doc)
-    await session.flush()
-
-    perm = ResourceGrant(
-        resource_type="document",
-        resource_id=doc.id,
-        user_id=owner.id,
-        level=ResourceAccessLevel.owner,
-        guild_id=initiative.guild_id,
-        initiative_id=doc.initiative_id,
-    )
-    session.add(perm)
-    await session.commit()
-    return doc
-
-
 def _sync_url(guild_id: int, document_id: int) -> str:
     return f"/api/v1/g/{guild_id}/collaboration/documents/{document_id}/sync-content"
 
 
 @pytest.mark.integration
 async def test_collaboration_guild_admin_gets_full_access(
-    session: AsyncSession,
+    session: AsyncSession, acting_user
 ) -> None:
     """A guild admin must get full collaboration access to a restricted document
     they hold no grant on and aren't an initiative member of — mirroring the REST
@@ -85,17 +47,11 @@ async def test_collaboration_guild_admin_gets_full_access(
     ``is_request_guild_admin`` check reads the active guild-role context that
     ``establish_guild_access`` records. Without that context the admin is wrongly
     denied — the original "access denied" bug."""
-    owner = await create_user(session, email="owner@example.com")
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
     # admin is deliberately NOT a member of this initiative and holds no grant.
-    initiative = await create_initiative(session, guild, owner)
-    doc = await _create_native_document(session, initiative=initiative, owner=owner)
-    document = await _get_document_with_permissions(session, doc.id, guild.id)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
+    doc = await create_document(session, owner.initiative, owner.user)
+    document = await _get_document_with_permissions(session, doc.id, owner.guild.id)
 
     set_active_grant(None, None)
 
@@ -103,15 +59,17 @@ async def test_collaboration_guild_admin_gets_full_access(
     # it would leave): the admin holds no grant and isn't an initiative member, so
     # the engine resolves no access.
     set_active_role(None, None)
-    assert permissions_service.compute_document_permission(document, admin.id) is None
+    assert (
+        permissions_service.compute_document_permission(document, admin.user.id) is None
+    )
 
     # With the guild-admin role recorded — as establish_guild_access now does for
     # every transport — the engine's guild-admin bypass returns full ("owner")
     # access.
-    set_active_role(guild.id, GuildRole.admin.value)
+    set_active_role(owner.guild.id, GuildRole.admin.value)
     try:
         assert (
-            permissions_service.compute_document_permission(document, admin.id)
+            permissions_service.compute_document_permission(document, admin.user.id)
             == "owner"
         )
     finally:
@@ -120,20 +78,17 @@ async def test_collaboration_guild_admin_gets_full_access(
 
 @pytest.mark.integration
 async def test_sync_content_scoped_upload_token_persists(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A short-lived, uploads-scoped ?token= authenticates the sync (the
     credential native WebViews carry in the URL) and the content is written."""
-    owner = await create_user(session)
-    guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild)
-    initiative = await create_initiative(session, guild, owner)
-    doc = await _create_native_document(session, initiative=initiative, owner=owner)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
 
-    token, _ = create_upload_token(user_id=owner.id)
+    token, _ = create_upload_token(user_id=owner.user.id)
     new_content = {"root": {"children": [{"type": "paragraph"}]}}
     response = await client.post(
-        f"{_sync_url(guild.id, doc.id)}?token={token}",
+        f"{_sync_url(owner.guild.id, doc.id)}?token={token}",
         json=new_content,
     )
 
@@ -148,19 +103,16 @@ async def test_sync_content_scoped_upload_token_persists(
 
 @pytest.mark.integration
 async def test_sync_content_session_jwt_rejected_in_query_param(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """The long-lived session JWT must NOT authenticate the sync via ?token=
     (it would leak a full-API credential through the URL). SEC-12."""
-    owner = await create_user(session)
-    guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild)
-    initiative = await create_initiative(session, guild, owner)
-    doc = await _create_native_document(session, initiative=initiative, owner=owner)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
 
-    session_jwt = get_auth_token(owner)
+    session_jwt = get_auth_token(owner.user)
     response = await client.post(
-        f"{_sync_url(guild.id, doc.id)}?token={session_jwt}",
+        f"{_sync_url(owner.guild.id, doc.id)}?token={session_jwt}",
         json={"root": {"children": []}},
     )
 
@@ -169,7 +121,7 @@ async def test_sync_content_session_jwt_rejected_in_query_param(
 
 @pytest.mark.integration
 async def test_sync_content_rejects_non_member(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A validly-authenticated user who is not a member of the path guild can't
     sync into it — the guild boundary holds independent of how auth arrived.
@@ -182,16 +134,13 @@ async def test_sync_content_rejects_non_member(
     *authentication* now hard-fails (401), because that is enforced by the
     ``UploadUserDep`` dependency before the handler runs.
     """
-    owner = await create_user(session)
-    guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild)
-    initiative = await create_initiative(session, guild, owner)
-    doc = await _create_native_document(session, initiative=initiative, owner=owner)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
 
     outsider = await create_user(session)
     token, _ = create_upload_token(user_id=outsider.id)
     response = await client.post(
-        f"{_sync_url(guild.id, doc.id)}?token={token}",
+        f"{_sync_url(owner.guild.id, doc.id)}?token={token}",
         json={"root": {"children": []}},
     )
 
@@ -221,30 +170,27 @@ async def _approved_grant(session, *, user, guild, owner, level: str) -> AccessG
 
 @pytest.mark.integration
 async def test_sync_content_break_glass_admin_can_write(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A platform admin (``data.bypass``) who is NOT a guild member but holds a
     live ``read_write`` break-glass grant can sync — ``establish_guild_access``
     elevates them to a full guild admin for the grant's window. The
     pre-consolidation handler did a membership-only check and would have rejected
     this; routing through the single entry point gains break-glass for free."""
-    owner = await create_user(session)
-    guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild)
-    initiative = await create_initiative(session, guild, owner)
-    doc = await _create_native_document(session, initiative=initiative, owner=owner)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
 
     # data.bypass platform admin, deliberately NOT a member of this guild —
     # reaches it only through the break-glass grant.
     bg_admin = await create_user(session, role=UserRole.admin)
     await _approved_grant(
-        session, user=bg_admin, guild=guild, owner=owner, level="read_write"
+        session, user=bg_admin, guild=owner.guild, owner=owner.user, level="read_write"
     )
 
     token, _ = create_upload_token(user_id=bg_admin.id)
     new_content = {"root": {"children": [{"type": "paragraph"}]}}
     response = await client.post(
-        f"{_sync_url(guild.id, doc.id)}?token={token}",
+        f"{_sync_url(owner.guild.id, doc.id)}?token={token}",
         json=new_content,
     )
 
@@ -258,26 +204,25 @@ async def test_sync_content_break_glass_admin_can_write(
 
 @pytest.mark.integration
 async def test_sync_content_pam_read_grant_cannot_write(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ) -> None:
     """A scoped PAM *read* grantee (no ``data.bypass``, not a member) can reach
     the guild but not edit it: sync returns the soft ``No write access`` error,
     distinct from ``No guild access``. Confirms the grant's read/write scope
     flows through the single entry point to the per-document check — the handler
     no longer rejects non-members outright (it used to be membership-only)."""
-    owner = await create_user(session)
-    guild = await create_guild(session, creator=owner)
-    await create_guild_membership(session, user=owner, guild=guild)
-    initiative = await create_initiative(session, guild, owner)
-    doc = await _create_native_document(session, initiative=initiative, owner=owner)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    doc = await create_document(session, owner.initiative, owner.user)
 
     # Platform member (no data.bypass) → a read grant is a scoped PAM grant.
     grantee = await create_user(session)
-    await _approved_grant(session, user=grantee, guild=guild, owner=owner, level="read")
+    await _approved_grant(
+        session, user=grantee, guild=owner.guild, owner=owner.user, level="read"
+    )
 
     token, _ = create_upload_token(user_id=grantee.id)
     response = await client.post(
-        f"{_sync_url(guild.id, doc.id)}?token={token}",
+        f"{_sync_url(owner.guild.id, doc.id)}?token={token}",
         json={"root": {"children": [{"type": "paragraph"}]}},
     )
 

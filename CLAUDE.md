@@ -281,31 +281,44 @@ Both backend and frontend provide factory functions for creating test data with 
 
 **Backend factories** live in `app/testing/factories.py` and are re-exported from `app/testing/__init__.py`. They are async functions that persist models to the test database and accept keyword overrides for any field.
 
+They are **schema-per-guild native**: tenant models (initiatives, projects, tasks, documents, queues, counters, events, tags, uploads, …) exist only in per-guild Postgres schemas (`guild_<id>`), never in `public`. Every tenant factory routes the session to the right guild schema automatically (derived from its parent argument). Raw `session.add(<tenant model>)` in a test works when the row carries a `guild_id` or the session is already routed; an unroutable tenant write **raises** (fail-closed — see `app/testing/schema_harness.py`). For raw tenant *reads* on a fresh session, call `await route_session_to_guild(session, guild_id)` first.
+
 Available factories:
 - `create_user(session, **overrides)` — creates a `User` with unique email, hashed password, and default notification preferences
-- `create_guild(session, creator=None, **overrides)` — creates a `Guild`; auto-creates a creator user if not provided
+- `create_guild(session, creator=None, **overrides)` — creates a `Guild` and provisions its `guild_<id>` schema + roles; auto-creates a creator user if not provided
 - `create_guild_membership(session, user=None, guild=None, role=GuildRole.member)` — links a user to a guild
 - `create_initiative(session, guild, creator, **overrides)` — creates an `Initiative` with built-in roles and adds the creator as project manager
 - `create_initiative_member(session, initiative, user, role_name="member")` — adds a user to an initiative with proper role lookup
-- `create_project(session, initiative, owner, **overrides)` — creates a `Project` with owner permission
+- `create_project(session, initiative, owner, **overrides)` — creates a `Project` with owner grant
+- `create_task(session, project, status_category=..., assignees=[...])`, `create_task_status`, `create_subtask`
+- `create_document(session, initiative, creator)` — native document + owner grant
+- `create_comment(session, author, task=... | document=...)`
+- `create_tag(session, guild)`, `create_upload(session, guild, uploader)`
+- `create_queue(session, initiative, creator)`, `create_queue_item(session, queue)`
+- `create_counter_group(session, initiative, creator)`, `create_counter(session, group)`
+- `create_calendar_event(session, initiative, creator)`, `create_property_definition(session, initiative)`, plus `create_{document,task,calendar_event}_property_value`
 
 Auth helpers:
 - `get_auth_token(user)` — returns a JWT string for the user
 - `get_auth_headers(user)` — returns `{"Authorization": "Bearer <token>"}` dict
-- `get_guild_headers(session, guild, user)` — async; a thin wrapper over `get_auth_headers` kept for call-site compatibility (guild context is path-based now, so it writes no state). Address the guild in the request URL: `await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)`
+
+**The role seam — `acting_user`** (fixture in `conftest.py`, backed by `app.testing.Actor`/`make_actor`): every endpoint test states its actor's platform and guild roles through this one seam and gets an `Actor` dataclass back. With the real-role `client` fixture the request then executes as the real `app_user` → `platform_<tier>`/`guild_<id>` roles — RLS enforced, like production.
 
 ```python
-from app.testing import create_user, create_guild, create_guild_membership, get_guild_headers
-from app.models.guild import GuildRole
+from app.models.platform.guild import GuildRole
 
-async def test_something(session, client):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    headers = await get_guild_headers(session, guild, user)
-    response = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+async def test_something(client, acting_user):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    # a.user / a.headers / a.guild / a.membership / a.initiative / a.project
+    response = await client.get(a.g("/initiatives/"), headers=a.headers)
     assert response.status_code == 200
+
+    # Second actor joining the same workspace at lower privilege:
+    b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+                          initiative=a.initiative, initiative_role="member")
 ```
+
+Platform role defaults: `owner` for public-path actors (`await acting_user()`), but `member` when `guild_role` is given — guild access must never depend on platform tier, and defaulting low keeps the suite proving that. Pass a platform tier explicitly (`await acting_user("support")`) to test platform ceilings. The superuser-backed `session` fixture is for setup/assertions only; `role_session` exercises the raw `app_user`/`app_admin` privilege boundary.
 
 **Frontend factories** live in `src/__tests__/factories/` and are pure functions that return typed API response objects. They use auto-incrementing IDs and accept partial overrides via a spread pattern.
 

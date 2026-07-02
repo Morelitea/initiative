@@ -9,45 +9,28 @@ cleaned up, and a stale row alone would not grant access anyway
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.testing.factories import (
-    create_guild,
-    create_guild_membership,
-    create_initiative,
-    create_initiative_member,
-    create_user,
-    get_guild_headers,
-)
-
-
-async def _setup(session: AsyncSession):
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
-    initiative = await create_initiative(session, guild, admin)
-    await create_initiative_member(session, initiative, member)
-    return admin, member, guild, initiative
 
 
 @pytest.mark.integration
 async def test_initiative_removal_ends_document_access(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
-    admin, member, guild, initiative = await _setup(session)
-    admin_headers = await get_guild_headers(session, guild, admin)
-    member_headers = await get_guild_headers(session, guild, member)
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
+    )
+    initiative = admin.initiative
+    admin_headers = admin.headers
+    member_headers = member.headers
 
     # Admin creates a document and shares it with the member.
     response = await client.post(
-        f"/api/v1/g/{guild.id}/documents/",
+        admin.g("/documents/"),
         headers=admin_headers,
         json={"title": "Shared Doc", "initiative_id": initiative.id},
     )
@@ -55,25 +38,23 @@ async def test_initiative_removal_ends_document_access(
     doc_id = response.json()["id"]
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc_id}/grants",
+        admin.g(f"/documents/{doc_id}/grants"),
         headers=admin_headers,
-        json=[{"user_id": member.id, "level": "write"}],
+        json=[{"user_id": member.user.id, "level": "write"}],
     )
     assert response.status_code == 200
 
     # Member can open and list the document while in the initiative.
     response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/{doc_id}", headers=member_headers
+        member.g(f"/documents/{doc_id}"), headers=member_headers
     )
     assert response.status_code == 200
-    response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/", headers=member_headers
-    )
+    response = await client.get(member.g("/documents/"), headers=member_headers)
     assert doc_id in {d["id"] for d in response.json()["items"]}
 
     # Remove the member from the initiative.
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{member.id}",
+        admin.g(f"/initiatives/{initiative.id}/members/{member.user.id}"),
         headers=admin_headers,
     )
     assert response.status_code == 200
@@ -82,16 +63,12 @@ async def test_initiative_removal_ends_document_access(
     # document entirely — open is 404 (not a 403 existence leak), and the list no
     # longer contains it.
     response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/{doc_id}", headers=member_headers
+        member.g(f"/documents/{doc_id}"), headers=member_headers
     )
     assert response.status_code == 404
-    response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/", headers=member_headers
-    )
+    response = await client.get(member.g("/documents/"), headers=member_headers)
     assert doc_id not in {d["id"] for d in response.json()["items"]}
 
     # The admin (initiative PM here) is unaffected.
-    response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/{doc_id}", headers=admin_headers
-    )
+    response = await client.get(admin.g(f"/documents/{doc_id}"), headers=admin_headers)
     assert response.status_code == 200

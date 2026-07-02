@@ -24,7 +24,6 @@ from app.testing import (
     create_project,
     create_user,
     get_auth_headers,
-    get_guild_headers,
 )
 
 
@@ -96,7 +95,7 @@ async def test_admin_reaches_guild_only_after_clicking_through(
     guild = await create_guild(session, creator=owner)
     await create_initiative(session, guild, owner, name="Recon Wing")
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
 
     # BEFORE: no membership, no grant — the standing bypass is gone, so 403.
     resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
@@ -136,7 +135,7 @@ async def test_break_glass_read_default_is_read_only(
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner, name="Ops")
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
     resp = await client.post(
         "/api/v1/access-grants/break-glass",
         json={"guild_id": guild.id, "reason": "read only look"},
@@ -175,7 +174,7 @@ async def test_break_glass_read_write_is_full_guild_admin(
     init = await create_initiative(session, guild, owner, name="War Room")
     project = await create_project(session, init, owner, name="Existing")
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
     resp = await client.post(
         "/api/v1/access-grants/break-glass",
         json={

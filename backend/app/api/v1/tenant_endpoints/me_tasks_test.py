@@ -20,7 +20,7 @@ from app.testing.factories import (
     create_initiative,
     create_project,
     create_user,
-    get_guild_headers,
+    get_auth_headers,
 )
 
 
@@ -93,7 +93,7 @@ async def test_list_my_tasks_returns_assigned(
     await _assign(session, task1, user.id)
     await _assign(session, task2, user.id)
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     response = await client.get("/api/v1/me/tasks", headers=headers)
 
     assert response.status_code == 200, response.text
@@ -126,7 +126,7 @@ async def test_list_my_tasks_excludes_unassigned_and_others(
     others = await _create_task(session, project, "Others", created_by_id=user.id)
     await _assign(session, others, other.id)
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     response = await client.get("/api/v1/me/tasks", headers=headers)
 
     assert response.status_code == 200, response.text
@@ -166,7 +166,7 @@ async def test_admin_sees_assigned_task_in_non_member_initiative(
     )
     await _assign(session, task, admin.id)
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
     response = await client.get("/api/v1/me/tasks", headers=headers)
 
     assert response.status_code == 200, response.text
@@ -195,7 +195,7 @@ async def test_list_my_tasks_priority_filter(
     await _assign(session, high, user.id)
     await _assign(session, low, user.id)
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     conditions = json.dumps([{"field": "priority", "op": "in_", "value": ["high"]}])
     response = await client.get(
         f"/api/v1/me/tasks?conditions={conditions}", headers=headers
@@ -234,7 +234,7 @@ async def test_list_my_tasks_guild_ids_filter(
     await _assign(session, task1, user.id)
     await _assign(session, task2, user.id)
 
-    headers = await get_guild_headers(session, guild1, user)
+    headers = get_auth_headers(user)
 
     def keyed(resp):
         # Task ids are per-guild (per-schema); key by (guild_id, id).
@@ -268,7 +268,7 @@ async def test_list_my_tasks_pagination(client: AsyncClient, session: AsyncSessi
         task = await _create_task(session, project, f"Task {i}", created_by_id=user.id)
         await _assign(session, task, user.id)
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
 
     # Page 1 with page_size=2
     response = await client.get("/api/v1/me/tasks?page=1&page_size=2", headers=headers)
@@ -331,7 +331,7 @@ async def test_list_my_tasks_date_group_sorted_across_guilds(
     for task in (g1_overdue, g1_later, g2_today, g2_week):
         await _assign(session, task, user.id)
 
-    headers = await get_guild_headers(session, guild1, user)
+    headers = get_auth_headers(user)
     sorting = json.dumps(
         [{"field": "date_group", "dir": "asc"}, {"field": "due_date", "dir": "asc"}]
     )
@@ -375,7 +375,7 @@ async def test_list_my_tasks_priority_sorted_desc_across_guilds(
     for task in (g1_low, g1_high, g2_medium, g2_urgent):
         await _assign(session, task, user.id)
 
-    headers = await get_guild_headers(session, guild1, user)
+    headers = get_auth_headers(user)
     sorting = json.dumps([{"field": "priority", "dir": "desc"}])
     response = await client.get(f"/api/v1/me/tasks?sorting={sorting}", headers=headers)
     assert response.status_code == 200, response.text

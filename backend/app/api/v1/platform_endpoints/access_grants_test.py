@@ -14,7 +14,6 @@ from app.testing import (
     create_project,
     create_user,
     get_auth_headers,
-    get_guild_headers,
 )
 
 
@@ -344,7 +343,7 @@ async def test_grant_cannot_manage_project_members(
         session, user=support, guild=guild, owner=owner, level="read_write"
     )
 
-    headers = await get_guild_headers(session, guild, support)
+    headers = get_auth_headers(support)
     resp = await client.put(
         f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
         json=[{"user_id": target.id, "level": "write"}],
@@ -380,7 +379,7 @@ async def test_grant_cannot_manage_counter_group_access(
         session, user=support, guild=guild, owner=owner, level="read_write"
     )
 
-    headers = await get_guild_headers(session, guild, support)
+    headers = get_auth_headers(support)
     resp = await client.put(
         f"/api/v1/g/{guild.id}/counter-groups/{cg.id}/grants",
         json=[],
@@ -406,7 +405,7 @@ async def test_grantee_sees_guild_content(client: AsyncClient, session: AsyncSes
     project = await create_project(session, init, owner, name="Alpha Site")
     await _approved_read_grant(session, user=support, guild=guild, owner=owner)
 
-    headers = await get_guild_headers(session, guild, support)
+    headers = get_auth_headers(support)
 
     resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
     assert resp.status_code == 200, resp.text

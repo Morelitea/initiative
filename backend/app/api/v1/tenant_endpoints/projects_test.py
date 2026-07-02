@@ -23,53 +23,25 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
-    create_initiative_member,
-    create_user,
-    get_guild_headers,
+    create_initiative,
+    create_project,
 )
-
-
-async def _create_initiative_with_member(session, guild, user):
-    """Helper to create an initiative and add the user as project manager."""
-    from app.testing.factories import create_initiative as factory_create_initiative
-
-    initiative = await factory_create_initiative(
-        session, guild, user, name="Test Initiative"
-    )
-    # Factory already adds creator as project_manager
-    return initiative
-
-
-async def _create_project(session, initiative, owner):
-    """Helper to create a project."""
-    from app.testing.factories import create_project as factory_create_project
-
-    project = await factory_create_project(
-        session, initiative, owner, name="Test Project", description="Test description"
-    )
-    return project
 
 
 @pytest.mark.integration
 async def test_list_projects_as_admin_shows_all(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that guild admin can see all projects."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await create_project(session, admin.initiative, admin.user, name="Test Project")
+    project2 = await create_project(
+        session, admin.initiative, admin.user, name="Project 2"
     )
-
-    initiative = await _create_initiative_with_member(session, guild, admin)
-    await _create_project(session, initiative, admin)
-    project2 = await _create_project(session, initiative, admin)
-    project2.name = "Project 2"
     session.add(project2)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, admin)
-    response = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
+    response = await client.get(admin.g("/projects/"), headers=admin.headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -83,31 +55,24 @@ async def test_list_projects_as_admin_shows_all(
 
 @pytest.mark.integration
 async def test_list_projects_member_sees_initiative_projects(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that initiative members see projects in their initiative."""
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
-    await create_guild_membership(session, user=member, guild=guild)
 
-    initiative = await _create_initiative_with_member(session, guild, admin)
-
-    # Add member to initiative
-    from app.testing.factories import create_initiative_member
-
-    await create_initiative_member(session, initiative, member, role_name="member")
-
-    project = await _create_project(session, initiative, admin)
+    project = await create_project(session, admin.initiative, admin.user)
 
     # Give member read access to the project (pure DAC requires explicit permission)
     member_permission = ResourceGrant(
         resource_type="project",
         resource_id=project.id,
-        user_id=member.id,
+        user_id=member.user.id,
         level=ResourceAccessLevel.read,
         guild_id=project.guild_id,
         initiative_id=project.initiative_id,
@@ -115,8 +80,7 @@ async def test_list_projects_member_sees_initiative_projects(
     session.add(member_permission)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, member)
-    response = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
+    response = await client.get(member.g("/projects/"), headers=member.headers)
 
     assert response.status_code == 200
     data = response.json()["items"]
@@ -126,25 +90,18 @@ async def test_list_projects_member_sees_initiative_projects(
 
 @pytest.mark.integration
 async def test_list_projects_excludes_archived_by_default(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that archived projects are excluded by default."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    initiative = await _create_initiative_with_member(session, guild, admin)
-    project = await _create_project(session, initiative, admin)
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(session, admin.initiative, admin.user)
 
     # Archive the project
     project.is_archived = True
     session.add(project)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, admin)
-    response = await client.get(f"/api/v1/g/{guild.id}/projects/", headers=headers)
+    response = await client.get(admin.g("/projects/"), headers=admin.headers)
 
     assert response.status_code == 200
     data = response.json()["items"]
@@ -154,24 +111,17 @@ async def test_list_projects_excludes_archived_by_default(
 
 @pytest.mark.integration
 async def test_list_projects_with_archived_filter(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test listing projects with archived filter."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    initiative = await _create_initiative_with_member(session, guild, admin)
-    project = await _create_project(session, initiative, admin)
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(session, admin.initiative, admin.user)
     project.is_archived = True
     session.add(project)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.get(
-        f"/api/v1/g/{guild.id}/projects/?archived=true", headers=headers
+        admin.g("/projects/?archived=true"), headers=admin.headers
     )
 
     assert response.status_code == 200
@@ -181,51 +131,39 @@ async def test_list_projects_with_archived_filter(
 
 
 @pytest.mark.integration
-async def test_create_project(client: AsyncClient, session: AsyncSession):
+async def test_create_project(client: AsyncClient, acting_user):
     """Test creating a new project."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    initiative = await _create_initiative_with_member(session, guild, admin)
-
-    headers = await get_guild_headers(session, guild, admin)
     payload = {
         "name": "New Project",
         "description": "Project description",
-        "initiative_id": initiative.id,
+        "initiative_id": admin.initiative.id,
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+        admin.g("/projects/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 201
     data = response.json()
     assert data["name"] == "New Project"
     assert data["description"] == "Project description"
-    assert data["initiative"]["id"] == initiative.id
+    assert data["initiative"]["id"] == admin.initiative.id
 
 
 @pytest.mark.integration
-async def test_create_project_as_member(client: AsyncClient, session: AsyncSession):
+async def test_create_project_as_member(client: AsyncClient, acting_user):
     """Test that initiative members can create projects."""
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=member, guild=guild)
+    member = await acting_user(guild_role=GuildRole.member, initiative=True)
 
-    initiative = await _create_initiative_with_member(session, guild, member)
-
-    headers = await get_guild_headers(session, guild, member)
     payload = {
         "name": "Member Project",
-        "initiative_id": initiative.id,
+        "initiative_id": member.initiative.id,
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+        member.g("/projects/"), headers=member.headers, json=payload
     )
 
     assert response.status_code == 201
@@ -235,47 +173,34 @@ async def test_create_project_as_member(client: AsyncClient, session: AsyncSessi
 
 @pytest.mark.integration
 async def test_create_project_not_in_initiative_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
     """Test that users not in initiative cannot create projects."""
-    admin = await create_user(session, email="admin@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(session, user=outsider, guild=guild)
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
-    initiative = await _create_initiative_with_member(session, guild, admin)
-
-    headers = await get_guild_headers(session, guild, outsider)
     payload = {
         "name": "Forbidden Project",
-        "initiative_id": initiative.id,
+        "initiative_id": admin.initiative.id,
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+        outsider.g("/projects/"), headers=outsider.headers, json=payload
     )
 
     assert response.status_code == 403
 
 
 @pytest.mark.integration
-async def test_get_project_by_id(client: AsyncClient, session: AsyncSession):
+async def test_get_project_by_id(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test getting a project by ID."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    project = await create_project(session, admin.initiative, admin.user)
 
-    initiative = await _create_initiative_with_member(session, guild, admin)
-    project = await _create_project(session, initiative, admin)
-
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+        admin.g(f"/projects/{project.id}"), headers=admin.headers
     )
 
     assert response.status_code == 200
@@ -285,35 +210,27 @@ async def test_get_project_by_id(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_get_project_not_found(client: AsyncClient, session: AsyncSession):
+async def test_get_project_not_found(client: AsyncClient, acting_user):
     """Test getting non-existent project."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    headers = await get_guild_headers(session, guild, admin)
-    response = await client.get(f"/api/v1/g/{guild.id}/projects/99999", headers=headers)
+    response = await client.get(admin.g("/projects/99999"), headers=admin.headers)
 
     assert response.status_code == 404
 
 
 @pytest.mark.integration
-async def test_update_project_as_owner(client: AsyncClient, session: AsyncSession):
+async def test_update_project_as_owner(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that project owner can update project."""
-    owner = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, owner.initiative, owner.user)
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-
-    headers = await get_guild_headers(session, guild, owner)
     payload = {"name": "Updated Name", "description": "Updated description"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers, json=payload
+        owner.g(f"/projects/{project.id}"), headers=owner.headers, json=payload
     )
 
     assert response.status_code == 200
@@ -323,24 +240,24 @@ async def test_update_project_as_owner(client: AsyncClient, session: AsyncSessio
 
 
 @pytest.mark.integration
-async def test_update_project_as_admin(client: AsyncClient, session: AsyncSession):
+async def test_update_project_as_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that guild admin can update any project."""
-    admin = await create_user(session, email="admin@example.com")
-    owner = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
-    await create_guild_membership(session, user=owner, guild=guild)
-
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
+    project = await create_project(session, admin.initiative, owner.user)
 
     # Give admin write access to the project (pure DAC requires explicit permission)
     admin_permission = ResourceGrant(
         resource_type="project",
         resource_id=project.id,
-        user_id=admin.id,
+        user_id=admin.user.id,
         level=ResourceAccessLevel.owner,
         guild_id=project.guild_id,
         initiative_id=project.initiative_id,
@@ -348,11 +265,10 @@ async def test_update_project_as_admin(client: AsyncClient, session: AsyncSessio
     session.add(admin_permission)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, admin)
     payload = {"name": "Admin Updated"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers, json=payload
+        admin.g(f"/projects/{project.id}"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 200
@@ -362,23 +278,17 @@ async def test_update_project_as_admin(client: AsyncClient, session: AsyncSessio
 
 @pytest.mark.integration
 async def test_update_project_without_permission_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that users without permission cannot update project."""
-    owner = await create_user(session, email="owner@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=outsider, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    project = await create_project(session, owner.initiative, owner.user)
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-
-    headers = await get_guild_headers(session, guild, outsider)
     payload = {"name": "Hacked Name"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers, json=payload
+        outsider.g(f"/projects/{project.id}"), headers=outsider.headers, json=payload
     )
 
     assert (
@@ -387,42 +297,39 @@ async def test_update_project_without_permission_forbidden(
 
 
 @pytest.mark.integration
-async def test_delete_project_as_owner(client: AsyncClient, session: AsyncSession):
+async def test_delete_project_as_owner(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that project owner can delete project."""
-    owner = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, owner.initiative, owner.user)
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-
-    headers = await get_guild_headers(session, guild, owner)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+        owner.g(f"/projects/{project.id}"), headers=owner.headers
     )
 
     assert response.status_code == 204
 
 
 @pytest.mark.integration
-async def test_delete_project_as_admin(client: AsyncClient, session: AsyncSession):
+async def test_delete_project_as_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that guild admin can delete any project."""
-    admin = await create_user(session, email="admin@example.com")
-    owner = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    owner = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
-    await create_guild_membership(session, user=owner, guild=guild)
-
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
+    project = await create_project(session, admin.initiative, owner.user)
 
     # Give admin owner access to the project (pure DAC requires explicit permission)
     admin_permission = ResourceGrant(
         resource_type="project",
         resource_id=project.id,
-        user_id=admin.id,
+        user_id=admin.user.id,
         level=ResourceAccessLevel.owner,
         guild_id=project.guild_id,
         initiative_id=project.initiative_id,
@@ -430,9 +337,8 @@ async def test_delete_project_as_admin(client: AsyncClient, session: AsyncSessio
     session.add(admin_permission)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+        admin.g(f"/projects/{project.id}"), headers=admin.headers
     )
 
     assert response.status_code == 204
@@ -440,21 +346,15 @@ async def test_delete_project_as_admin(client: AsyncClient, session: AsyncSessio
 
 @pytest.mark.integration
 async def test_delete_project_without_permission_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that users without permission cannot delete project."""
-    owner = await create_user(session, email="owner@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=outsider, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    project = await create_project(session, owner.initiative, owner.user)
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-
-    headers = await get_guild_headers(session, guild, outsider)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers
+        outsider.g(f"/projects/{project.id}"), headers=outsider.headers
     )
 
     assert (
@@ -463,18 +363,13 @@ async def test_delete_project_without_permission_forbidden(
 
 
 @pytest.mark.integration
-async def test_archive_project(client: AsyncClient, session: AsyncSession):
+async def test_archive_project(client: AsyncClient, session: AsyncSession, acting_user):
     """Test archiving a project."""
-    owner = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, owner.initiative, owner.user)
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-
-    headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/archive", headers=headers
+        owner.g(f"/projects/{project.id}/archive"), headers=owner.headers
     )
 
     assert response.status_code == 200
@@ -483,21 +378,18 @@ async def test_archive_project(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_unarchive_project(client: AsyncClient, session: AsyncSession):
+async def test_unarchive_project(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test unarchiving a project."""
-    owner = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, owner.initiative, owner.user)
     project.is_archived = True
     session.add(project)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, owner)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/unarchive", headers=headers
+        owner.g(f"/projects/{project.id}/unarchive"), headers=owner.headers
     )
 
     assert response.status_code == 200
@@ -506,18 +398,15 @@ async def test_unarchive_project(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_add_project_favorite(client: AsyncClient, session: AsyncSession):
+async def test_add_project_favorite(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test adding a project to favorites."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    user = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, user.initiative, user.user)
 
-    initiative = await _create_initiative_with_member(session, guild, user)
-    project = await _create_project(session, initiative, user)
-
-    headers = await get_guild_headers(session, guild, user)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/favorite", headers=headers
+        user.g(f"/projects/{project.id}/favorite"), headers=user.headers
     )
 
     assert response.status_code == 200
@@ -526,25 +415,22 @@ async def test_add_project_favorite(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_remove_project_favorite(client: AsyncClient, session: AsyncSession):
+async def test_remove_project_favorite(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test removing a project from favorites."""
     from app.models.tenant.project_activity import ProjectFavorite
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative_with_member(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    user = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, user.initiative, user.user)
 
     # Add to favorites first
-    favorite = ProjectFavorite(user_id=user.id, project_id=project.id)
+    favorite = ProjectFavorite(user_id=user.user.id, project_id=project.id)
     session.add(favorite)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/favorite", headers=headers
+        user.g(f"/projects/{project.id}/favorite"), headers=user.headers
     )
 
     assert response.status_code == 200
@@ -553,26 +439,21 @@ async def test_remove_project_favorite(client: AsyncClient, session: AsyncSessio
 
 
 @pytest.mark.integration
-async def test_list_favorite_projects(client: AsyncClient, session: AsyncSession):
+async def test_list_favorite_projects(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test listing favorite projects."""
     from app.models.tenant.project_activity import ProjectFavorite
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative_with_member(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    user = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, user.initiative, user.user)
 
     # Add to favorites
-    favorite = ProjectFavorite(user_id=user.id, project_id=project.id)
+    favorite = ProjectFavorite(user_id=user.user.id, project_id=project.id)
     session.add(favorite)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
-    response = await client.get(
-        f"/api/v1/g/{guild.id}/projects/favorites", headers=headers
-    )
+    response = await client.get(user.g("/projects/favorites"), headers=user.headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -581,18 +462,15 @@ async def test_list_favorite_projects(client: AsyncClient, session: AsyncSession
 
 
 @pytest.mark.integration
-async def test_mark_project_as_viewed(client: AsyncClient, session: AsyncSession):
+async def test_mark_project_as_viewed(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test marking a project as recently viewed."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    user = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, user.initiative, user.user)
 
-    initiative = await _create_initiative_with_member(session, guild, user)
-    project = await _create_project(session, initiative, user)
-
-    headers = await get_guild_headers(session, guild, user)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
+        user.g(f"/projects/{project.id}/view"), headers=user.headers
     )
 
     assert response.status_code == 200
@@ -604,26 +482,22 @@ async def test_mark_project_as_viewed(client: AsyncClient, session: AsyncSession
 
 @pytest.mark.integration
 async def test_set_project_access_grants_user(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """PUT /access grants an individual user (Restrict-by-user)."""
-    owner = await create_user(session, email="owner@example.com")
-    new_member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=new_member, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    new_member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    project = await create_project(session, owner.initiative, owner.user)
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    from app.testing.factories import create_initiative_member
-
-    await create_initiative_member(session, initiative, new_member, role_name="member")
-    project = await _create_project(session, initiative, owner)
-
-    headers = await get_guild_headers(session, guild, owner)
     response = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
-        headers=headers,
-        json=[{"user_id": new_member.id, "level": "write"}],
+        owner.g(f"/projects/{project.id}/grants"),
+        headers=owner.headers,
+        json=[{"user_id": new_member.user.id, "level": "write"}],
     )
 
     assert response.status_code == 200
@@ -632,28 +506,23 @@ async def test_set_project_access_grants_user(
         for g in response.json()["grants"]
         if g["user_id"] is not None
     }
-    assert grants.get(new_member.id) == "write"
+    assert grants.get(new_member.user.id) == "write"
 
 
 @pytest.mark.integration
 async def test_set_project_access_replaces_grants(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """PUT /access replaces the full non-owner grant set; the owner is preserved."""
-    owner = await create_user(session, email="owner@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=member, guild=guild)
-
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    project = await create_project(session, owner.initiative, owner.user)
 
     session.add(
         ResourceGrant(
             resource_type="project",
             resource_id=project.id,
-            user_id=member.id,
+            user_id=member.user.id,
             level=ResourceAccessLevel.write,
             guild_id=project.guild_id,
             initiative_id=project.initiative_id,
@@ -661,10 +530,9 @@ async def test_set_project_access_replaces_grants(
     )
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, owner)
     response = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
-        headers=headers,
+        owner.g(f"/projects/{project.id}/grants"),
+        headers=owner.headers,
         json=[],
     )
 
@@ -672,39 +540,32 @@ async def test_set_project_access_replaces_grants(
     user_ids = {
         g["user_id"] for g in response.json()["grants"] if g["user_id"] is not None
     }
-    assert member.id not in user_ids  # grant removed
-    assert owner.id in user_ids  # owner preserved
+    assert member.user.id not in user_ids  # grant removed
+    assert owner.user.id in user_ids  # owner preserved
 
 
 @pytest.mark.integration
 async def test_set_project_access_all_members(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """all_initiative_members grants every member access with no personal grant."""
-    owner = await create_user(session, email="owner@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=member, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    project = await create_project(session, owner.initiative, owner.user)
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    from app.testing.factories import create_initiative_member
-
-    await create_initiative_member(session, initiative, member, role_name="member")
-    project = await _create_project(session, initiative, owner)
-
-    member_headers = await get_guild_headers(session, guild, member)
     # Restricted: a member with no grant is denied (the row is RLS-visible to a
     # member, so DAC denies with 403 rather than hiding it as 404).
-    r = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=member_headers
-    )
+    r = await client.get(member.g(f"/projects/{project.id}"), headers=member.headers)
     assert r.status_code == 403
 
-    owner_headers = await get_guild_headers(session, guild, owner)
     r = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
-        headers=owner_headers,
+        owner.g(f"/projects/{project.id}/grants"),
+        headers=owner.headers,
         json=[{"all_initiative_members": True, "level": "read"}],
     )
     assert r.status_code == 200
@@ -713,9 +574,7 @@ async def test_set_project_access_all_members(
     )
 
     # Now the member can read it via all-initiative-members access alone.
-    r = await client.get(
-        f"/api/v1/g/{guild.id}/projects/{project.id}", headers=member_headers
-    )
+    r = await client.get(member.g(f"/projects/{project.id}"), headers=member.headers)
     assert r.status_code == 200
     assert r.json()["my_permission_level"] == "read"
 
@@ -736,109 +595,104 @@ async def _task_assignee_ids(session, guild_id: int, task_id: int) -> set[int]:
 
 @pytest.mark.integration
 async def test_set_project_grants_unassigns_demoted_user(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A user dropped below write by a grant change is unassigned from the
     project's tasks (you can't be assigned to tasks you can't edit)."""
-    owner = await create_user(session, email="owner@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=member, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    from app.testing.factories import create_task
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    from app.testing.factories import create_initiative_member, create_task
+    project = await create_project(session, owner.initiative, owner.user)
 
-    await create_initiative_member(session, initiative, member, role_name="member")
-    project = await _create_project(session, initiative, owner)
-
-    owner_headers = await get_guild_headers(session, guild, owner)
     # Grant the member write, then assign them to a task.
     r = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
-        headers=owner_headers,
-        json=[{"user_id": member.id, "level": "write"}],
+        owner.g(f"/projects/{project.id}/grants"),
+        headers=owner.headers,
+        json=[{"user_id": member.user.id, "level": "write"}],
     )
     assert r.status_code == 200
-    task = await create_task(session, project, assignees=[member])
-    assert member.id in await _task_assignee_ids(session, guild.id, task.id)
+    task = await create_task(session, project, assignees=[member.user])
+    assert member.user.id in await _task_assignee_ids(session, owner.guild.id, task.id)
 
     # Remove the member's grant entirely -> they lose write -> get unassigned.
     r = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
-        headers=owner_headers,
+        owner.g(f"/projects/{project.id}/grants"),
+        headers=owner.headers,
         json=[],
     )
     assert r.status_code == 200
-    assert member.id not in await _task_assignee_ids(session, guild.id, task.id)
+    assert member.user.id not in await _task_assignee_ids(
+        session, owner.guild.id, task.id
+    )
 
 
 @pytest.mark.integration
 async def test_set_project_grants_keeps_assignment_when_still_writable(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A user who keeps write via another grant (all-members write) stays assigned —
     the cleanup is effective-access based, not a blunt per-user wipe."""
-    owner = await create_user(session, email="owner@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=member, guild=guild)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    from app.testing.factories import create_task
 
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    from app.testing.factories import create_initiative_member, create_task
+    project = await create_project(session, owner.initiative, owner.user)
 
-    await create_initiative_member(session, initiative, member, role_name="member")
-    project = await _create_project(session, initiative, owner)
-
-    owner_headers = await get_guild_headers(session, guild, owner)
     r = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
-        headers=owner_headers,
-        json=[{"user_id": member.id, "level": "write"}],
+        owner.g(f"/projects/{project.id}/grants"),
+        headers=owner.headers,
+        json=[{"user_id": member.user.id, "level": "write"}],
     )
     assert r.status_code == 200
-    task = await create_task(session, project, assignees=[member])
+    task = await create_task(session, project, assignees=[member.user])
 
     # Swap the per-user grant for an all-members WRITE grant: the member still has
     # write, so the assignment must survive.
     r = await client.put(
-        f"/api/v1/g/{guild.id}/projects/{project.id}/grants",
-        headers=owner_headers,
+        owner.g(f"/projects/{project.id}/grants"),
+        headers=owner.headers,
         json=[{"all_initiative_members": True, "level": "write"}],
     )
     assert r.status_code == 200
-    assert member.id in await _task_assignee_ids(session, guild.id, task.id)
+    assert member.user.id in await _task_assignee_ids(session, owner.guild.id, task.id)
 
 
 @pytest.mark.integration
-async def test_project_guild_isolation(client: AsyncClient, session: AsyncSession):
+async def test_project_guild_isolation(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that projects are isolated by guild."""
-    user = await create_user(session, email="user@example.com")
-    guild1 = await create_guild(session, name="Guild 1")
-    guild2 = await create_guild(session, name="Guild 2")
-    await create_guild_membership(
-        session, user=user, guild=guild1, role=GuildRole.admin
+    # Same user is a guild admin in two separate guilds/initiatives.
+    a1 = await acting_user(
+        guild_role=GuildRole.admin, initiative=True, email="user@example.com"
     )
+    user = a1.user
+    initiative1 = a1.initiative
+
+    guild2 = await create_guild(session, name="Guild 2")
     await create_guild_membership(
         session, user=user, guild=guild2, role=GuildRole.admin
     )
-
-    from app.testing.factories import create_project as factory_create_project
-
-    initiative1 = await _create_initiative_with_member(session, guild1, user)
-    initiative2 = await _create_initiative_with_member(session, guild2, user)
+    initiative2 = await create_initiative(session, guild2, user)
 
     # Distinct names so the cross-guild check below can tell them apart even when
     # their per-schema ids collide.
-    project1 = await factory_create_project(
-        session, initiative1, user, name="Guild 1 Project"
-    )
-    await factory_create_project(session, initiative2, user, name="Guild 2 Project")
+    project1 = await create_project(session, initiative1, user, name="Guild 1 Project")
+    await create_project(session, initiative2, user, name="Guild 2 Project")
 
     # Request with guild1 context
-    headers1 = await get_guild_headers(session, guild1, user)
-    response1 = await client.get(f"/api/v1/g/{guild1.id}/projects/", headers=headers1)
+    response1 = await client.get(a1.g("/projects/"), headers=a1.headers)
 
     assert response1.status_code == 200
     data1 = response1.json()["items"]
@@ -849,9 +703,8 @@ async def test_project_guild_isolation(client: AsyncClient, session: AsyncSessio
     # Cannot access guild1's project with guild2 context. Under schema-per-guild
     # ids are per-schema (not globally unique), so project1.id may collide with a
     # guild2 project — but it must never resolve to guild1's project.
-    headers2 = await get_guild_headers(session, guild2, user)
     response2 = await client.get(
-        f"/api/v1/g/{guild2.id}/projects/{project1.id}", headers=headers2
+        f"/api/v1/g/{guild2.id}/projects/{project1.id}", headers=a1.headers
     )
 
     if response2.status_code == 200:
@@ -861,34 +714,26 @@ async def test_project_guild_isolation(client: AsyncClient, session: AsyncSessio
 
 
 @pytest.mark.integration
-async def test_create_project_with_user_permissions(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_create_project_with_user_permissions(client: AsyncClient, acting_user):
     """Test creating a project with explicit user permissions."""
-    from app.testing.factories import create_initiative_member
-
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
-    await create_guild_membership(session, user=member, guild=guild)
 
-    initiative = await _create_initiative_with_member(session, guild, admin)
-    await create_initiative_member(session, initiative, member, role_name="member")
-
-    headers = await get_guild_headers(session, guild, admin)
     payload = {
         "name": "Project With Permissions",
-        "initiative_id": initiative.id,
+        "initiative_id": admin.initiative.id,
         "grants": [
-            {"user_id": member.id, "level": "write"},
+            {"user_id": member.user.id, "level": "write"},
         ],
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+        admin.g("/projects/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 201
@@ -896,46 +741,39 @@ async def test_create_project_with_user_permissions(
     assert data["name"] == "Project With Permissions"
     # Owner grant + explicitly granted member (no all-members grant was sent)
     user_grants = {g["user_id"]: g["level"] for g in data["grants"] if g["user_id"]}
-    assert user_grants.get(admin.id) == "owner"
-    assert user_grants.get(member.id) == "write"
+    assert user_grants.get(admin.user.id) == "owner"
+    assert user_grants.get(member.user.id) == "write"
 
 
 @pytest.mark.integration
 async def test_create_project_with_role_permissions(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test creating a project with role-based permissions."""
     from sqlmodel import select
     from app.models.tenant.initiative import InitiativeRoleModel
 
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    initiative = await _create_initiative_with_member(session, guild, admin)
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     # Find the member role
     result = await session.exec(
         select(InitiativeRoleModel).where(
-            InitiativeRoleModel.initiative_id == initiative.id,
+            InitiativeRoleModel.initiative_id == admin.initiative.id,
             InitiativeRoleModel.name == "member",
         )
     )
     member_role = result.one()
 
-    headers = await get_guild_headers(session, guild, admin)
     payload = {
         "name": "Project With Role Perms",
-        "initiative_id": initiative.id,
+        "initiative_id": admin.initiative.id,
         "grants": [
             {"role_id": member_role.id, "level": "read"},
         ],
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+        admin.g("/projects/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 201
@@ -948,32 +786,25 @@ async def test_create_project_with_role_permissions(
 
 @pytest.mark.integration
 async def test_create_project_defaults_to_all_members_viewer(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
     """Omitting `grants` defaults to Viewer for all initiative members (+ owner)."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    initiative = await _create_initiative_with_member(session, guild, admin)
-
-    headers = await get_guild_headers(session, guild, admin)
     payload = {
         "name": "Project Default Share",
-        "initiative_id": initiative.id,
+        "initiative_id": admin.initiative.id,
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+        admin.g("/projects/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 201
     data = response.json()
     # Owner grant + an all-initiative-members Viewer (read) grant.
     assert any(
-        g["user_id"] == admin.id and g["level"] == "owner" for g in data["grants"]
+        g["user_id"] == admin.user.id and g["level"] == "owner" for g in data["grants"]
     )
     assert any(
         g["all_initiative_members"] and g["level"] == "read" for g in data["grants"]
@@ -983,60 +814,48 @@ async def test_create_project_defaults_to_all_members_viewer(
 
 @pytest.mark.integration
 async def test_create_project_skips_owner_level_grants(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
     """Test that owner-level grants in user_permissions are silently ignored."""
-    from app.testing.factories import create_initiative_member
-
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
-    await create_guild_membership(session, user=member, guild=guild)
 
-    initiative = await _create_initiative_with_member(session, guild, admin)
-    await create_initiative_member(session, initiative, member, role_name="member")
-
-    headers = await get_guild_headers(session, guild, admin)
     payload = {
         "name": "Project Owner Skip",
-        "initiative_id": initiative.id,
+        "initiative_id": admin.initiative.id,
         "grants": [
-            {"user_id": member.id, "level": "owner"},
+            {"user_id": member.user.id, "level": "owner"},
         ],
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+        admin.g("/projects/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 201
     data = response.json()
     # Member should NOT have been granted owner
-    member_grants = [g for g in data["grants"] if g["user_id"] == member.id]
+    member_grants = [g for g in data["grants"] if g["user_id"] == member.user.id]
     assert len(member_grants) == 0
 
 
 @pytest.mark.integration
 async def test_create_project_rejects_foreign_initiative_role(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Role from a different initiative must be silently dropped."""
     from sqlmodel import select
     from app.models.tenant.initiative import InitiativeRoleModel
-    from app.testing.factories import create_initiative
 
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    initiative_a = await _create_initiative_with_member(session, guild, admin)
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    initiative_a = admin.initiative
     initiative_b = await create_initiative(
-        session, guild, admin, name="Other Initiative"
+        session, admin.guild, admin.user, name="Other Initiative"
     )
 
     # Get a role that belongs to initiative_b, not initiative_a
@@ -1048,7 +867,6 @@ async def test_create_project_rejects_foreign_initiative_role(
     )
     foreign_role = result.one()
 
-    headers = await get_guild_headers(session, guild, admin)
     payload = {
         "name": "Project Cross Initiative",
         "initiative_id": initiative_a.id,
@@ -1058,7 +876,7 @@ async def test_create_project_rejects_foreign_initiative_role(
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/projects/", headers=headers, json=payload
+        admin.g("/projects/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 201
@@ -1069,7 +887,7 @@ async def test_create_project_rejects_foreign_initiative_role(
 
 @pytest.mark.integration
 async def test_set_project_access_change_all_members_level(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Changing an EXISTING all-initiative-members grant's level (read -> write)
     must not trip ``resource_grants_unique_grantee``.
@@ -1081,23 +899,23 @@ async def test_set_project_access_change_all_members_level(
     a member hit switching a project's "all initiative members" share from Viewer
     to Editor.
     """
-    owner = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-    headers = await get_guild_headers(session, guild, owner)
-    url = f"/api/v1/g/{guild.id}/projects/{project.id}/grants"
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    project = await create_project(session, owner.initiative, owner.user)
+    url = owner.g(f"/projects/{project.id}/grants")
 
     # 1) create the all-members grant at read (Viewer)
     r = await client.put(
-        url, headers=headers, json=[{"all_initiative_members": True, "level": "read"}]
+        url,
+        headers=owner.headers,
+        json=[{"all_initiative_members": True, "level": "read"}],
     )
     assert r.status_code == 200, r.text
 
     # 2) change it to write (Editor) — the delete-then-reinsert collision path
     r = await client.put(
-        url, headers=headers, json=[{"all_initiative_members": True, "level": "write"}]
+        url,
+        headers=owner.headers,
+        json=[{"all_initiative_members": True, "level": "write"}],
     )
     assert r.status_code == 200, r.text
     members = [g for g in r.json()["grants"] if g["all_initiative_members"]]
@@ -1107,69 +925,70 @@ async def test_set_project_access_change_all_members_level(
 
 @pytest.mark.integration
 async def test_set_project_access_remove_grant_keeps_all_members(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Removing a per-user grant while keeping the all-members grant must not trip
     the unique constraint either — replace_resource_grants deletes ALL non-owner
     grants and re-inserts the kept set, so the all-members grant is deleted and
     re-inserted in the same flush. ("I also cannot remove access" — same cause.)
     """
-    owner = await create_user(session, email="owner@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=member, guild=guild)
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    from app.testing.factories import create_initiative_member
-
-    await create_initiative_member(session, initiative, member, role_name="member")
-    project = await _create_project(session, initiative, owner)
-    headers = await get_guild_headers(session, guild, owner)
-    url = f"/api/v1/g/{guild.id}/projects/{project.id}/grants"
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    project = await create_project(session, owner.initiative, owner.user)
+    url = owner.g(f"/projects/{project.id}/grants")
 
     # all-members read + a per-user write grant
     r = await client.put(
         url,
-        headers=headers,
+        headers=owner.headers,
         json=[
             {"all_initiative_members": True, "level": "read"},
-            {"user_id": member.id, "level": "write"},
+            {"user_id": member.user.id, "level": "write"},
         ],
     )
     assert r.status_code == 200, r.text
 
     # remove the per-user grant, keep all-members
     r = await client.put(
-        url, headers=headers, json=[{"all_initiative_members": True, "level": "read"}]
+        url,
+        headers=owner.headers,
+        json=[{"all_initiative_members": True, "level": "read"}],
     )
     assert r.status_code == 200, r.text
-    assert [g for g in r.json()["grants"] if g["user_id"] == member.id] == []
+    assert [g for g in r.json()["grants"] if g["user_id"] == member.user.id] == []
     assert any(g["all_initiative_members"] for g in r.json()["grants"])
 
 
 @pytest.mark.integration
 async def test_project_shows_all_members_document_to_member(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A document attached to a project and shared with *all initiative members*
     is visible to a plain member on the project view. Regression: the linked-doc
     filter used to ignore all-members grants, so such docs vanished for anyone
     without a personal/role grant."""
-    owner = await create_user(session, email="owner@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=member, guild=guild)
-    initiative = await _create_initiative_with_member(session, guild, owner)
-    await create_initiative_member(session, initiative, member, role_name="member")
-    project = await _create_project(session, initiative, owner)
+    owner = await acting_user(guild_role=GuildRole.member, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=owner.guild,
+        initiative=owner.initiative,
+        initiative_role="member",
+    )
+    guild = owner.guild
+    initiative = owner.initiative
+    project = await create_project(session, initiative, owner.user)
 
     doc = Document(
         title="Shared with everyone",
         initiative_id=initiative.id,
         guild_id=guild.id,
-        created_by_id=owner.id,
-        updated_by_id=owner.id,
+        created_by_id=owner.user.id,
+        updated_by_id=owner.user.id,
         document_type=DocumentType.native,
     )
     session.add(doc)
@@ -1188,7 +1007,7 @@ async def test_project_shows_all_members_document_to_member(
             ResourceGrant(
                 resource_type="document",
                 resource_id=doc.id,
-                user_id=owner.id,
+                user_id=owner.user.id,
                 level=ResourceAccessLevel.owner,
                 guild_id=guild.id,
                 initiative_id=initiative.id,
@@ -1205,14 +1024,13 @@ async def test_project_shows_all_members_document_to_member(
                 project_id=project.id,
                 document_id=doc.id,
                 guild_id=guild.id,
-                attached_by_id=owner.id,
+                attached_by_id=owner.user.id,
             ),
         ]
     )
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, member)
-    r = await client.get(f"/api/v1/g/{guild.id}/projects/{project.id}", headers=headers)
+    r = await client.get(member.g(f"/projects/{project.id}"), headers=member.headers)
     assert r.status_code == 200, r.text
     doc_ids = [d["document_id"] for d in r.json()["documents"]]
     assert doc.id in doc_ids
