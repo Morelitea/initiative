@@ -68,3 +68,69 @@ async def test_authenticated_request(client: AsyncClient, session: AsyncSession)
     data = response.json()
     assert data["email"] == "auth-test@example.com"
     assert data["id"] == user.id
+
+
+@pytest.mark.integration
+async def test_acting_user_builds_guild_workspace(client: AsyncClient, acting_user):
+    """The Actor seam provisions a guild + initiative + project and mints
+    headers that work through the real-role request path."""
+    from app.models.platform.guild import GuildRole
+    from app.models.platform.user import UserRole
+
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    # Guild-path actors default to the LOWEST platform tier: guild access
+    # must never depend on platform privileges.
+    assert a.user.role == UserRole.member
+    assert a.guild is not None and a.initiative is not None and a.project is not None
+
+    response = await client.get(a.g("/projects/"), headers=a.headers)
+    assert response.status_code == 200
+    assert any(p["id"] == a.project.id for p in response.json()["items"])
+
+    # A second actor joining the same guild/initiative at member level.
+    b = await acting_user(
+        guild_role=GuildRole.member,
+        guild=a.guild,
+        initiative=a.initiative,
+        initiative_role="member",
+    )
+    response = await client.get(b.g("/initiatives/"), headers=b.headers)
+    assert response.status_code == 200
+    assert any(i["id"] == a.initiative.id for i in response.json())
+
+
+@pytest.mark.unit
+async def test_tenant_rows_land_in_guild_schema(session: AsyncSession, acting_user):
+    """Factory-created tenant rows live in guild_<id>, not public (which no
+    longer has tenant tables since the baseline squash)."""
+    from sqlalchemy import text
+
+    a = await acting_user(guild_role="admin", initiative=True, project=True)
+    count = (
+        await session.exec(
+            text(  # type: ignore[call-overload]
+                f'SELECT count(*) FROM "guild_{a.guild.id}".projects'
+            )
+        )
+    ).scalar()
+    assert count == 1
+
+
+@pytest.mark.unit
+async def test_unrouted_tenant_write_fails_closed(session: AsyncSession, acting_user):
+    """A tenant write that carries no guild_id on an unrouted session must
+    raise the harness's explicit error, not fall through toward public."""
+    from sqlalchemy import text
+
+    from app.models.tenant.task import TaskAssignee
+
+    a = await acting_user(guild_role="admin")
+    # Un-route the session, then write a guild_id-less junction row. The
+    # router raises in before_flush, so no SQL (and no FK check) ever runs.
+    await session.exec(
+        text("SELECT set_config('search_path', 'public', false)")  # type: ignore[call-overload]
+    )
+    session.add(TaskAssignee(task_id=1, user_id=a.user.id))
+    with pytest.raises(RuntimeError, match="not routed to a guild schema"):
+        await session.commit()
+    await session.rollback()

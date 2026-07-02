@@ -35,6 +35,7 @@ from app.testing.factories import (
     create_project,
     create_user,
 )
+from app.testing.schema_harness import route_session_to_guild
 
 
 @pytest.mark.unit
@@ -324,6 +325,8 @@ async def test_sync_skips_orphaned_initiative_mapping(session: AsyncSession):
     result = await sync_oidc_assignments(session, user_id=user.id, claim_values={"eng"})
 
     assert result.initiatives_added == []
+    # initiative_members lives in the guild schema; route before asserting.
+    await route_session_to_guild(session, guild.id)
     members = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == user.id)

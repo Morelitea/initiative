@@ -28,9 +28,11 @@ Runs two ways:
         # 3. restart, confirm login / SMTP / AI keys work, then UNSET PREVIOUS_SECRET_KEY
 
 Schema-per-guild: ``guild_settings`` is guild-scoped, so its live rows live in every
-``guild_<id>`` schema (plus a retained ``public`` backup copy from the conversion);
-the sweep visits both. Runs on the provisioning (superuser) engine so it reaches
-every guild schema and bypasses RLS.
+``guild_<id>`` schema; the sweep re-keys them there. The frozen ``public`` copies of
+guild tables (a read-nothing/write-nothing integrity backup on legacy deployments)
+are deliberately NOT re-keyed — a stale backup holds old secrets, not live content,
+and writing it would touch guild data on an unrouted public pathway. Runs on the
+provisioning (superuser) engine so it reaches every guild schema and bypasses RLS.
 """
 
 from __future__ import annotations
@@ -62,8 +64,12 @@ logger = logging.getLogger(__name__)
 
 # Every Fernet column EXCEPT users.email_encrypted, which is handled specially
 # because its plaintext also feeds the email_hash HMAC (the two must move together).
-# (table, column, salt). All live in ``public``; guild_settings additionally lives in
-# each guild schema (see _GUILD_SCHEMA_COLUMNS).
+# (table, column, salt). These are the SHARED ``public`` tables only. Guild-scoped
+# columns (e.g. guild_settings) are re-keyed per guild schema via
+# _GUILD_SCHEMA_COLUMNS — never through a public copy: the frozen public copies of
+# guild tables are a read-nothing/write-nothing integrity backup, so re-encrypting
+# them would be a write of guild data on an unrouted public pathway. A legacy backup
+# left under the old key is fine — it holds stale secrets, not live content.
 _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     ("users", "ai_api_key_encrypted", SALT_AI_API_KEY),
     ("users", "oidc_refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
@@ -71,8 +77,6 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     ("app_settings", "ai_api_key_encrypted", SALT_AI_API_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
-    # Retained public backup copy of the (now guild-scoped) guild_settings rows.
-    ("guild_settings", "ai_api_key_encrypted", SALT_AI_API_KEY),
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies).
@@ -159,6 +163,16 @@ async def _rotate_fernet_column(
     UPDATE key (Fernet's random IV makes each value unique), so this needs no
     knowledge of the table's primary key."""
     result = ColumnResult(schema, table, column)
+    # Skip a guild-schema relation that isn't there yet: a guild schema can lag a
+    # migration that added a table/column, and reading a missing relation would
+    # abort the whole streamed sweep. Absent → nothing to re-key for this column.
+    if (
+        await read_conn.scalar(
+            text("SELECT to_regclass(:rel)"), {"rel": f'"{schema}"."{table}"'}
+        )
+        is None
+    ):
+        return result
     stream = await read_conn.stream(
         text(
             f'SELECT "{column}" FROM "{schema}"."{table}" WHERE "{column}" IS NOT NULL'

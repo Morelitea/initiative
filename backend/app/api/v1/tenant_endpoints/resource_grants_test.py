@@ -18,7 +18,7 @@ from app.testing.factories import (
     create_project,
     create_queue,
     create_user,
-    get_guild_headers,
+    get_auth_headers,
 )
 
 BULK = "/api/v1/g/{guild}/resource-grants/bulk"
@@ -43,7 +43,7 @@ async def test_bulk_applies_grants_across_many_projects(
     await create_initiative_member(session, initiative, member, role_name="member")
     p1 = await create_project(session, initiative, owner)
     p2 = await create_project(session, initiative, owner)
-    headers = await get_guild_headers(session, guild, owner)
+    headers = get_auth_headers(owner)
 
     resp = await client.put(
         BULK.format(guild=guild.id),
@@ -92,7 +92,7 @@ async def test_bulk_dispatches_across_resource_types(
     await create_initiative_member(session, initiative, member, role_name="member")
     project = await create_project(session, initiative, owner)
     queue = await create_queue(session, initiative, owner)
-    headers = await get_guild_headers(session, guild, owner)
+    headers = get_auth_headers(owner)
 
     resp = await client.put(
         BULK.format(guild=guild.id),
@@ -133,7 +133,7 @@ async def test_bulk_is_best_effort_per_item(client: AsyncClient, session: AsyncS
     initiative = await create_initiative(session, guild, owner)
     await create_initiative_member(session, initiative, member, role_name="member")
     project = await create_project(session, initiative, owner)
-    headers = await get_guild_headers(session, guild, owner)
+    headers = get_auth_headers(owner)
 
     resp = await client.put(
         BULK.format(guild=guild.id),
@@ -177,7 +177,7 @@ async def test_bulk_reports_forbidden_for_unmanageable_item(
     initiative = await create_initiative(session, guild, owner)
     await create_initiative_member(session, initiative, member, role_name="member")
     project = await create_project(session, initiative, owner)
-    member_headers = await get_guild_headers(session, guild, member)
+    member_headers = get_auth_headers(member)
 
     resp = await client.put(
         BULK.format(guild=guild.id),
@@ -196,7 +196,7 @@ async def test_bulk_reports_forbidden_for_unmanageable_item(
     assert _results_by_id(resp.json()) == {project.id: "forbidden"}
 
     # Nothing changed — the member did not self-grant write.
-    owner_headers = await get_guild_headers(session, guild, owner)
+    owner_headers = get_auth_headers(owner)
     detail = await client.get(
         f"/api/v1/g/{guild.id}/projects/{project.id}", headers=owner_headers
     )
@@ -224,7 +224,7 @@ async def test_bulk_skips_archived_project_but_applies_the_rest(
     archived.is_archived = True
     session.add(archived)
     await session.commit()
-    headers = await get_guild_headers(session, guild, owner)
+    headers = get_auth_headers(owner)
 
     resp = await client.put(
         BULK.format(guild=guild.id),
@@ -256,7 +256,7 @@ async def test_bulk_rejects_too_many_items(client: AsyncClient, session: AsyncSe
     owner = await create_user(session, email="owner@example.com")
     guild = await create_guild(session)
     await create_guild_membership(session, user=owner, guild=guild)
-    headers = await get_guild_headers(session, guild, owner)
+    headers = get_auth_headers(owner)
 
     item = {"resource_type": "project", "resource_id": 1, "grants": []}
     resp = await client.put(
@@ -273,7 +273,7 @@ async def test_bulk_rejects_empty_items(client: AsyncClient, session: AsyncSessi
     owner = await create_user(session, email="owner@example.com")
     guild = await create_guild(session)
     await create_guild_membership(session, user=owner, guild=guild)
-    headers = await get_guild_headers(session, guild, owner)
+    headers = get_auth_headers(owner)
 
     resp = await client.put(
         BULK.format(guild=guild.id), headers=headers, json={"items": []}

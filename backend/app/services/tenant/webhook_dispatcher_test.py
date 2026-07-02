@@ -119,9 +119,13 @@ async def _make_subscription(
 @pytest.mark.integration
 async def test_dispatch_skips_when_no_subscribers(session):
     """No subscriptions, no work — and crucially no errors."""
+    from app.testing import route_session_to_guild
     from app.testing.factories import create_guild
 
     guild = await create_guild(session)
+    # Production callers pass a guild-routed session (webhook_subscriptions is
+    # guild-scoped); mirror that — no tenant write here routes it implicitly.
+    await route_session_to_guild(session, guild.id)
     with patch(
         "app.services.tenant.webhook_dispatcher._deliver", new=AsyncMock()
     ) as mock_deliver:

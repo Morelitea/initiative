@@ -225,7 +225,8 @@ async def reactivate_user(
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    await initiatives_service.load_user_initiative_roles(session, [user])
+    # Platform user management stays platform-table-only: initiative
+    # membership is guild-schema content this path cannot read.
     return user
 
 
@@ -308,7 +309,7 @@ async def update_platform_role(
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    await initiatives_service.load_user_initiative_roles(session, [user])
+    # Platform user management stays platform-table-only (see reactivate).
     return user
 
 

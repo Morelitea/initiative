@@ -29,6 +29,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, get_session
+from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
 # --- Per-worker isolation (pytest-xdist) ---------------------------------------
@@ -424,14 +425,19 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                     )
                 ).all()
             ]
-        # Truncate all public tables to reset state — one multi-table TRUNCATE
-        # (a single round-trip) instead of one statement per table.
+        # Truncate the SHARED (public-schema) tables to reset state — one
+        # multi-table TRUNCATE (a single round-trip) instead of one statement
+        # per table. Only shared tables exist in public since the v0.53.5
+        # baseline squash; tenant content lives in the per-test guild schemas
+        # dropped above.
         await conn.execute(text("SET session_replication_role = 'replica'"))
-        all_tables = ", ".join(
-            f'"{table.name}"' for table in SQLModel.metadata.sorted_tables
+        shared_tables = ", ".join(
+            f'"{table.name}"'
+            for table in SQLModel.metadata.sorted_tables
+            if table.name in SHARED_TABLES
         )
         await conn.execute(
-            text(f"TRUNCATE TABLE {all_tables} RESTART IDENTITY CASCADE")
+            text(f"TRUNCATE TABLE {shared_tables} RESTART IDENTITY CASCADE")
         )
         await conn.execute(text("SET session_replication_role = 'origin'"))
 
@@ -602,61 +608,28 @@ def auth_headers() -> dict[str, str]:
 
 @pytest.fixture
 async def acting_user(session):
-    """Mint an authenticated test identity with a **required platform role** and an
-    **optional guild role** — the single seam for "run this test AS role X".
+    """Mint an authenticated test identity at explicit platform/guild roles —
+    the single seam for "run this test AS role X". Returns an
+    :class:`app.testing.Actor`; see ``app/testing/actor.py`` for the full
+    semantics (role defaults, initiative/project scaffolding, ``a.g()`` URLs).
 
-    The two role dimensions are orthogonal (see the platform-roles design §7):
+        a = await acting_user()                                  # platform owner
+        a = await acting_user("support")                         # tier ceilings
+        a = await acting_user(guild_role=GuildRole.admin,
+                              initiative=True, project=True)     # workspace
+        b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+                              initiative=a.initiative, initiative_role="member")
+        await client.get(a.g("/projects/"), headers=a.headers)
 
-    * **Platform role — required, defaults to ``owner``.** The platform tier the
-      public/platform request path assumes (``platform_<users.role>`` via
-      ``get_user_session`` -> ``set_rls_context``). Omit for ``owner`` (most
-      privileged, so role-agnostic tests run unblocked); pass a lower tier
-      (``member``/``support``/…) to exercise a public-path ceiling. With the
-      real-role ``client`` fixture, the request runs AS that platform role on a real
-      ``app_user`` connection at the database — RLS enforced, like production.
-
-    * **Guild role — optional, for guild-path testing.** When ``guild_role`` is
-      given, the harness also provisions a guild (or uses ``guild=``) and adds the
-      user as a member with that ``GuildRole``; the request then routes through
-      ``/g/{guild_id}`` and assumes ``guild_<id>`` with ``current_guild_role``.
-
-    Return arity follows the dimensions requested:
-        user, headers          = await acting_user()                       # owner, public path
-        user, headers          = await acting_user("member")               # member, public path
-        user, headers, guild   = await acting_user("member",
-                                                   guild_role=GuildRole.admin)  # + guild admin
-        await client.get(f"/api/v1/g/{guild.id}/projects", headers=headers)
+    With the real-role ``client`` fixture the request runs AS the actor's
+    platform tier (public path) or guild role (``/g/{guild_id}`` path) on a
+    real ``app_user`` connection — RLS enforced, like production.
     """
-    from app.models.platform.guild import GuildRole
-    from app.models.platform.user import UserRole
-    from app.testing import (
-        create_guild,
-        create_guild_membership,
-        create_user,
-        get_auth_headers,
-    )
+    import functools
 
-    async def _make(
-        role: "UserRole | str" = UserRole.owner,
-        *,
-        guild_role: "GuildRole | str | None" = None,
-        guild=None,
-        **overrides: Any,
-    ):
-        if isinstance(role, str):
-            role = UserRole(role)
-        user = await create_user(session, role=role, **overrides)
-        headers = get_auth_headers(user)
-        if guild_role is None:
-            return user, headers
-        if isinstance(guild_role, str):
-            guild_role = GuildRole(guild_role)
-        if guild is None:
-            guild = await create_guild(session)
-        await create_guild_membership(session, user=user, guild=guild, role=guild_role)
-        return user, headers, guild
+    from app.testing.actor import make_actor
 
-    return _make
+    return functools.partial(make_actor, session)
 
 
 def create_test_user_data(**overrides: Any) -> dict[str, Any]:

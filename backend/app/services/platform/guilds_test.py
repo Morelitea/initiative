@@ -542,10 +542,14 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     auto-purge for guilds that opted out.
     """
     from app.models.tenant.guild_setting import GuildSetting
+    from app.testing import route_session_to_guild
 
     # 1. No guild_settings row at all -> default 90.
     user = await create_user(session)
     guild = await create_guild(session)  # bare factory, no settings row
+    # guild_settings is guild-scoped: its rows live only in guild_<id> post-squash,
+    # so route the session there before reading it (production callers route too).
+    await route_session_to_guild(session, guild.id)
     await session.exec(
         # double-check no setting row exists (factory shouldn't create one)
         select(GuildSetting).where(GuildSetting.guild_id == guild.id)
@@ -556,12 +560,14 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     setting = GuildSetting(guild_id=guild.id, retention_days=30)
     session.add(setting)
     await session.commit()
+    await route_session_to_guild(session, guild.id)
     assert (await guild_service.get_guild_retention_days(session, guild.id)) == 30
 
     # 3. Row exists with retention_days = NULL -> None ("never").
     setting.retention_days = None
     session.add(setting)
     await session.commit()
+    await route_session_to_guild(session, guild.id)
     assert (await guild_service.get_guild_retention_days(session, guild.id)) is None
 
     # Suppress unused-name warning if linters complain about the user

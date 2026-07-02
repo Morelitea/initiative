@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/card";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
+import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTemplateProjects, useUpdateProject } from "@/hooks/useProjects";
 import { guildPath } from "@/lib/guildUrl";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -22,16 +24,21 @@ export const TemplatesPage = () => {
   const { t } = useTranslation("projects");
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+  // Same shared access helper ProjectsPage uses — honors guild-admin / PAM
+  // grants, so we derive manager state from guild-scoped initiative data rather
+  // than user.initiative_roles (no longer populated on the /users/me object).
+  const { filterVisible, permissionsFor } = useInitiativeAccess();
+  const initiativesQuery = useInitiatives();
 
   // Helper to create guild-scoped paths
   const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
-  const managedInitiatives = useMemo(
-    () =>
-      user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
-    [user]
-  );
-  const canManageProjects =
-    hasCapability(user, Capability.dataBypass) || managedInitiatives.length > 0;
+  const canManageProjects = useMemo(() => {
+    if (hasCapability(user, Capability.dataBypass)) return true;
+    if (!initiativesQuery.data) return false;
+    return filterVisible(initiativesQuery.data).some(
+      (initiative) => permissionsFor(initiative).canCreateProjects
+    );
+  }, [user, initiativesQuery.data, filterVisible, permissionsFor]);
 
   const templatesQuery = useTemplateProjects();
 

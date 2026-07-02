@@ -4,29 +4,19 @@ import io
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.testing import (
-    create_guild,
-    create_guild_membership,
-    create_user,
-    get_guild_headers,
-)
 from app.models.platform.guild import GuildRole
 
 
 @pytest.mark.integration
-async def test_upload_image_too_large(client: AsyncClient, session: AsyncSession):
+async def test_upload_image_too_large(client: AsyncClient, acting_user):
     """Uploading an image larger than MAX_IMAGE_BYTES returns 413."""
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    headers = await get_guild_headers(session, guild, user)
+    a = await acting_user(guild_role=GuildRole.admin)
 
     oversized = b"\x89PNG\r\n\x1a\n" + b"X" * (11 * 1024 * 1024)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/attachments/",
-        headers=headers,
+        a.g("/attachments/"),
+        headers=a.headers,
         files={"file": ("big.png", io.BytesIO(oversized), "image/png")},
     )
 
@@ -35,12 +25,9 @@ async def test_upload_image_too_large(client: AsyncClient, session: AsyncSession
 
 
 @pytest.mark.integration
-async def test_upload_image_within_limit(client: AsyncClient, session: AsyncSession):
+async def test_upload_image_within_limit(client: AsyncClient, acting_user):
     """A valid PNG under the size limit is accepted."""
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    headers = await get_guild_headers(session, guild, user)
+    a = await acting_user(guild_role=GuildRole.admin)
 
     tiny_png = (
         b"\x89PNG\r\n\x1a\n"
@@ -50,8 +37,8 @@ async def test_upload_image_within_limit(client: AsyncClient, session: AsyncSess
         b"\x00\x00\x00IEND\xaeB`\x82"
     )
     response = await client.post(
-        f"/api/v1/g/{guild.id}/attachments/",
-        headers=headers,
+        a.g("/attachments/"),
+        headers=a.headers,
         files={"file": ("pixel.png", io.BytesIO(tiny_png), "image/png")},
     )
 
