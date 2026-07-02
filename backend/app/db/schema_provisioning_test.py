@@ -622,7 +622,7 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
             )
 
 
-async def test_provisioning_stamp_tracks_grant_statement_source():
+def test_provisioning_stamp_tracks_grant_statement_source():
     """The back-fill skip stamp must change when the grant layer changes —
     derived from ``_grant_statements``' source, not a manual version bump a
     human can forget."""

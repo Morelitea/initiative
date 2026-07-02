@@ -167,6 +167,12 @@ def _grant_statements(schema: str, role: str, ro_role: str) -> list[str]:
     """Fail-closed grants tying a guild ``role`` (read/write) and ``ro_role``
     (read-only) to its ``schema``.
 
+    NOTE: ``provisioning_stamp()`` hashes this function's ENTIRE source —
+    docstring, comments, whitespace included — so ANY edit here (even
+    cosmetic) invalidates every guild's stamp and triggers one full
+    re-provisioning sweep on the next boot. That sweep is idempotent and
+    cheap (~0.2s/guild), but be aware you're scheduling it.
+
     Each role inherits shared/public access from ``app_guild_base``. The login
     roles are granted membership in both ``WITH INHERIT FALSE`` — they can
     ``SET ROLE`` into either but hold no standing access to the schema, so a
