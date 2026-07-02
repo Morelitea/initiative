@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import inspect
 import logging
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -113,16 +112,21 @@ def provisioning_stamp() -> str:
     A guild schema whose comment carries the current stamp was provisioned by
     exactly these artifacts, so the boot back-fill can skip it — O(changed
     guilds) boots instead of O(all guilds). The stamp covers the two SQL
-    artifacts AND the grant layer (the ``_grant_statements`` source plus the
-    login-role names it targets), so any provisioning change — including a
-    grants-only edit — produces a new stamp and a one-time full sweep. No
-    manual version bump to forget.
+    artifacts AND the grant layer — hashed from ``_grant_statements``'
+    RENDERED output (with placeholder identifiers), so any behavioral grants
+    change produces a new stamp and a one-time full sweep, while cosmetic
+    edits (comments, docstrings, refactors) don't. The login-role names are
+    covered implicitly: they appear inside the rendered statements. No manual
+    version bump to forget.
     """
     digest = hashlib.sha256()
     digest.update(GUILD_SCHEMA_SQL_PATH.read_bytes())
     digest.update(GUILD_RLS_SQL_PATH.read_bytes())
-    digest.update(inspect.getsource(_grant_statements).encode())
-    digest.update(f"{APP_LOGIN_ROLE}|{ADMIN_LOGIN_ROLE}".encode())
+    digest.update(
+        "\n".join(
+            _grant_statements("__stamp__", "__stamp_role__", "__stamp_ro__")
+        ).encode()
+    )
     return f"provisioned:{digest.hexdigest()[:16]}"
 
 
@@ -167,11 +171,10 @@ def _grant_statements(schema: str, role: str, ro_role: str) -> list[str]:
     """Fail-closed grants tying a guild ``role`` (read/write) and ``ro_role``
     (read-only) to its ``schema``.
 
-    NOTE: ``provisioning_stamp()`` hashes this function's ENTIRE source —
-    docstring, comments, whitespace included — so ANY edit here (even
-    cosmetic) invalidates every guild's stamp and triggers one full
-    re-provisioning sweep on the next boot. That sweep is idempotent and
-    cheap (~0.2s/guild), but be aware you're scheduling it.
+    NOTE: ``provisioning_stamp()`` hashes this function's RENDERED output, so
+    changing WHAT it grants invalidates every guild's stamp and schedules one
+    full (idempotent) re-provisioning sweep on the next boot — cosmetic edits
+    here don't.
 
     Each role inherits shared/public access from ``app_guild_base``. The login
     roles are granted membership in both ``WITH INHERIT FALSE`` — they can
