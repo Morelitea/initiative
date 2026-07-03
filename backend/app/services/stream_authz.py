@@ -34,14 +34,17 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import GuildAccessError, establish_guild_access
-from app.db.session import AsyncSessionLocal
+from app.db.session import RLS_CONTEXT_MAX_AGE_SECONDS, AsyncSessionLocal
 from app.models.platform.user import User
 
 logger = logging.getLogger(__name__)
 
 # Upper bound on how long a within-initiative DAC/settings revocation can lag
 # (guild- and initiative-level removals are immediate via revoke_user).
-REAUTH_INTERVAL_SECONDS = 30
+# Derived as half the session layer's snapshot-age floor: a healthy loop
+# re-validates every registered socket well before any held context could
+# trip StaleAuthorizationContext, and the two bounds cannot drift apart.
+REAUTH_INTERVAL_SECONDS = RLS_CONTEXT_MAX_AGE_SECONDS // 2
 
 # An adapter authorizes one socket against its resource, on a session that has
 # ALREADY been guild-established: load the resource (RLS enforces guild +

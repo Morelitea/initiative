@@ -1,12 +1,14 @@
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator, Optional
+from typing import Any, AsyncGenerator, Optional
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session as SyncSession
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
@@ -82,6 +84,147 @@ async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
+# --- Transaction-local RLS context -----------------------------------------
+#
+# All request context (assumed role, search_path, app.* GUCs) is applied with
+# set_config(..., is_local => true) — the SET LOCAL equivalent — so it DIES
+# WITH THE TRANSACTION. Nothing session-level is ever set: a forgotten reset
+# is unrepresentable, and the connection carries zero cross-transaction state
+# (the property a transaction-mode pooler requires).
+#
+# The parameters live in session.info; the _replay_rls_context after_begin
+# hook re-applies them at the start of EVERY transaction (autobegin after a
+# commit() included), on whatever pooled connection the transaction landed on.
+# See history/transaction-scoped-context-design.md.
+
+# Maximum age of a *user-derived* authorization snapshot. The stored params
+# capture membership / guild role / PAM state as validated by
+# establish_guild_access; replaying them indefinitely would launder a revoked
+# grant. The realtime spine re-validates sockets every REAUTH_INTERVAL_SECONDS
+# (= half this bound; stream_authz derives it from this constant), so any
+# properly registered consumer refreshes long before the floor. Only a
+# consumer that HOLDS a routed session without re-validating hits it — which
+# must fail. System contexts (no user_id: workers, seeding) are not
+# user-authorization snapshots and are exempt.
+RLS_CONTEXT_MAX_AGE_SECONDS = 60
+
+_RLS_PARAMS_INFO_KEY = "rls_params"
+_RLS_ESTABLISHED_INFO_KEY = "rls_established_at"
+
+
+class StaleAuthorizationContext(RuntimeError):
+    """A transaction tried to begin on an authorization snapshot older than
+    RLS_CONTEXT_MAX_AGE_SECONDS. Re-validate via establish_guild_access (or
+    re-call set_rls_context with freshly validated inputs) instead of holding
+    a routed session past the bound."""
+
+
+_ROLE_RESET_SQL = "SELECT set_config('role', 'none', true)"
+
+_CONTEXT_SQL = (
+    "SELECT set_config('app.current_user_id', :uid, true), "
+    "set_config('app.current_guild_id', :gid, true), "
+    "set_config('app.current_guild_role', :grole, true), "
+    "set_config('app.pam_guild_id', :pgid, true), "
+    "set_config('app.pam_read', :pr, true), "
+    "set_config('app.pam_write', :pw, true), "
+    "set_config('search_path', :sp, true), "
+    "set_config('role', :role, true)"
+)
+
+
+def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
+    """Compute the bind params for _CONTEXT_SQL from stored rls params.
+
+    Pure function shared by the async apply path (set_rls_context) and the
+    sync after_begin replay hook — one routing decision, two executors.
+    """
+    user_id = params.get("user_id")
+    guild_id = params.get("guild_id")
+    guild_role = params.get("guild_role")
+    pam_guild_id = params.get("pam_guild_id")
+    pam_read = bool(params.get("pam_read"))
+    pam_write = bool(params.get("pam_write"))
+    platform_role = params.get("platform_role")
+
+    # Route guild-scoped tables to the active guild's schema AND assume that
+    # guild's role. The login role has no standing access to any guild schema
+    # (fail-closed) — it must SET ROLE into the per-guild role. int() makes
+    # the schema/role name injection-safe. Route for a full guild context, or
+    # for an ACTIVE PAM grant (read or write); a grant with neither flag
+    # routes nowhere, so the grantee sees nothing. Lazy import avoids a
+    # circular import — schema_provisioning imports this module.
+    from app.db.schema_provisioning import (
+        guild_readonly_role_name,
+        guild_role_name,
+        guild_schema_name,
+        platform_role_name,
+    )
+
+    pam_active = pam_read or pam_write
+    route_guild = (
+        guild_id if guild_id is not None else (pam_guild_id if pam_active else None)
+    )
+    if route_guild is None:
+        # Public/platform path: assume the caller's platform-tier role when
+        # one is supplied so the request is role-scoped (fail-closed);
+        # 'none' (the login role) only for unauthenticated/unrouted contexts.
+        sp = "public"
+        role_target = (
+            platform_role_name(platform_role) if platform_role is not None else "none"
+        )
+    else:
+        sp = f"{guild_schema_name(route_guild)}, public"
+        # A pure read grant (read, not write, no full membership) assumes the
+        # read-only role so writes to the schema are denied at the role level.
+        read_only_grant = guild_id is None and pam_read and not pam_write
+        name_fn = guild_readonly_role_name if read_only_grant else guild_role_name
+        role_target = name_fn(route_guild)
+
+    return {
+        "uid": str(int(user_id)) if user_id is not None else "",
+        "gid": str(int(guild_id)) if guild_id is not None else "",
+        "grole": guild_role if guild_role is not None else "",
+        "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
+        "pr": "true" if pam_read else "false",
+        "pw": "true" if pam_write else "false",
+        "sp": sp,
+        "role": role_target,
+    }
+
+
+def _replay_rls_context(session: SyncSession, transaction, connection) -> None:
+    """after_begin hook: re-apply the session's stored context at the start of
+    every transaction, so no query ever runs without it — regardless of
+    commits or which pooled connection the transaction landed on."""
+    if transaction.nested:
+        # SET LOCAL scopes to the top-level transaction; savepoints inherit.
+        return
+    params = session.info.get(_RLS_PARAMS_INFO_KEY)
+    if params is None:
+        return
+    if params.get("user_id") is not None:
+        established = session.info.get(_RLS_ESTABLISHED_INFO_KEY)
+        if (
+            established is None
+            or time.monotonic() - established > RLS_CONTEXT_MAX_AGE_SECONDS
+        ):
+            raise StaleAuthorizationContext(
+                "Authorization snapshot exceeded "
+                f"{RLS_CONTEXT_MAX_AGE_SECONDS}s; re-validate via "
+                "establish_guild_access before further queries."
+            )
+    bind = _render_context_bind_params(params)
+    connection.execute(text(_ROLE_RESET_SQL))
+    connection.execute(text(_CONTEXT_SQL), bind)
+
+
+# propagate=True so the hook also fires for SQLModel's Session subclass (the
+# sync session under AsyncSession). Sessions without stored params are a
+# no-op, so the global listener is effectively scoped to routed sessions.
+event.listen(SyncSession, "after_begin", _replay_rls_context, propagate=True)
+
+
 async def set_rls_context(
     session: AsyncSession,
     user_id: Optional[int] = None,
@@ -92,12 +235,13 @@ async def set_rls_context(
     pam_write: bool = False,
     platform_role: Optional[str] = None,
 ) -> None:
-    """Set PostgreSQL session variables for RLS policy evaluation.
+    """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
-    These variables are used by RLS policies to determine which rows
-    the current session can access. Uses set_config() with is_local=false
-    so the settings persist across transaction boundaries and are
-    guaranteed to execute on the same connection as subsequent queries.
+    Uses set_config() with is_local=true (SET LOCAL semantics): the context
+    dies at COMMIT/ROLLBACK, and the _replay_rls_context after_begin hook
+    re-applies it on every new transaction from the params stored here. No
+    session-level state ever exists on the connection, so pooled-connection
+    staleness is unrepresentable and transaction-mode poolers are safe.
 
     All variables are always written (defaulting to empty/false)
     so that stale values from a previous request on the same pooled
@@ -130,9 +274,11 @@ async def set_rls_context(
     if platform_role is not None and platform_role not in PLATFORM_TIERS:
         raise ValueError(f"Invalid platform_role: {platform_role!r}")
 
-    # Store params on the session so reapply_rls_context() can re-set them
-    # after session.commit() which may release the connection to the pool.
-    session._rls_params = {  # type: ignore[attr-defined]
+    # Store params + freshness stamp BEFORE executing: the execute below may
+    # itself autobegin a transaction, firing the replay hook, which must see
+    # the new params. The stamp only refreshes here — i.e. on a call that
+    # carries freshly validated inputs — never on replay.
+    session.info[_RLS_PARAMS_INFO_KEY] = {
         "user_id": user_id,
         "guild_id": guild_id,
         "guild_role": guild_role,
@@ -141,101 +287,36 @@ async def set_rls_context(
         "pam_write": pam_write,
         "platform_role": platform_role,
     }
+    session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 
-    # Use set_config() (a regular SQL function) instead of SET commands.
-    # SET is a special PostgreSQL command that asyncpg may execute outside
-    # the normal query path, potentially on a different connection.
-    # set_config() is a standard SQL query guaranteed to run on the same
-    # connection as other session queries.
-    uid = str(int(user_id)) if user_id is not None else ""
-    gid = str(int(guild_id)) if guild_id is not None else ""
-    grole = guild_role if guild_role is not None else ""
-    pgid = str(int(pam_guild_id)) if pam_guild_id is not None else ""
-    pr = "true" if pam_read else "false"
-    pw = "true" if pam_write else "false"
+    await _apply_stored_context(session)
 
-    # Route guild-scoped tables to the active guild's schema AND assume that
-    # guild's role. Each guild's content lives in guild_<id>; that schema holds
-    # only the guild-scoped tables, so shared tables (users, guilds, ...) resolve
-    # in public. The login role has no standing access to any guild schema
-    # (fail-closed) — it must SET ROLE into the per-guild role, which owns its
-    # schema and inherits shared/public access from app_guild_base. int() makes
-    # the schema/role name injection-safe.
-    # Route to a guild's schema for a full guild context, or for an ACTIVE PAM
-    # grant (read or write). A grant with neither flag (e.g. requested but not yet
-    # approved) routes nowhere, so the grantee sees nothing. Schema names are
-    # per-database; role names are cluster-global and may carry a prefix. Lazy
-    # import avoids a circular import — schema_provisioning imports this module.
-    from app.db.schema_provisioning import (
-        guild_readonly_role_name,
-        guild_role_name,
-        guild_schema_name,
-        platform_role_name,
-    )
 
-    pam_active = pam_read or pam_write
-    route_guild = (
-        guild_id if guild_id is not None else (pam_guild_id if pam_active else None)
-    )
-    if route_guild is None:
-        # Public/platform path: no guild schema involved. Assume the caller's
-        # platform-tier role when one is supplied so the request is role-scoped
-        # (fail-closed) instead of running with the bare login role's broad
-        # grants; 'none' (the login role) only for unauthenticated/unrouted
-        # contexts that pass no tier.
-        sp = "public"
-        role_target = (
-            platform_role_name(platform_role) if platform_role is not None else "none"
-        )
-    else:
-        sp = f"{guild_schema_name(route_guild)}, public"
-        # A pure read grant (read, not write, no full membership) assumes the
-        # read-only role so writes to the schema are denied at the role level.
-        read_only_grant = guild_id is None and pam_read and not pam_write
-        name_fn = guild_readonly_role_name if read_only_grant else guild_role_name
-        role_target = name_fn(route_guild)
+async def _apply_stored_context(session: AsyncSession) -> None:
+    """Apply the session's stored context to the CURRENT transaction.
 
-    # Reset to the login role first. NOT because switching requires it — SET
-    # ROLE checks the SESSION user's memberships (the login role, a member of
-    # every provisioned guild role), so guild A -> guild B directly is legal —
-    # but as a defensive baseline: if the set below fails mid-way, the
-    # connection is left as the login role, never wearing a stale guild role.
-    await session.exec(text("SELECT set_config('role', 'none', false)"))
-    await session.exec(
-        text(
-            "SELECT set_config('app.current_user_id', :uid, false), "
-            "set_config('app.current_guild_id', :gid, false), "
-            "set_config('app.current_guild_role', :grole, false), "
-            "set_config('app.pam_guild_id', :pgid, false), "
-            "set_config('app.pam_read', :pr, false), "
-            "set_config('app.pam_write', :pw, false), "
-            "set_config('search_path', :sp, false), "
-            "set_config('role', :role, false)"
-        ),
-        params={
-            "uid": uid,
-            "gid": gid,
-            "grole": grole,
-            "pgid": pgid,
-            "pr": pr,
-            "pw": pw,
-            "sp": sp,
-            "role": role_target,
-        },
-    )
+    Uses set_config() (a regular SQL function) instead of SET commands —
+    set_config() is a standard SQL query guaranteed to run on the same
+    connection as other session queries. Resets to the login role first, NOT
+    because switching requires it (SET ROLE checks the SESSION user's
+    memberships, so guild A -> guild B directly is legal) but as a defensive
+    baseline: if the set below fails mid-way, the transaction is left as the
+    login role, never wearing a stale guild role.
+    """
+    bind = _render_context_bind_params(session.info[_RLS_PARAMS_INFO_KEY])
+    await session.exec(text(_ROLE_RESET_SQL))
+    await session.exec(text(_CONTEXT_SQL), params=bind)
 
 
 async def reapply_rls_context(session: AsyncSession) -> None:
-    """Re-apply stored RLS context after session.commit().
+    """Deprecated shim: context replay is now automatic (after_begin hook).
 
-    After commit(), SQLAlchemy may release the connection back to the pool
-    and acquire a different one for subsequent queries. The new connection
-    won't have our SET variables. Call this after any commit that is
-    followed by more queries in the same request.
+    Kept only until the manual call sites are deleted; re-applies the stored
+    context to the current transaction without refreshing the freshness
+    stamp (re-validation is establish_guild_access's job, not this one's).
     """
-    params = getattr(session, "_rls_params", None)
-    if params:
-        await set_rls_context(session, **params)
+    if session.info.get(_RLS_PARAMS_INFO_KEY):
+        await _apply_stored_context(session)
 
 
 @asynccontextmanager
