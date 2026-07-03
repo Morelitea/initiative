@@ -265,9 +265,9 @@ async def set_rls_context(
     if platform_role is not None and platform_role not in PLATFORM_TIERS:
         raise ValueError(f"Invalid platform_role: {platform_role!r}")
 
-    # Store params + freshness stamp BEFORE executing: the execute below may
-    # itself autobegin a transaction, firing the replay hook, which must see
-    # the new params. The stamp only refreshes here — i.e. on a call that
+    # Store params + freshness stamp BEFORE any execute: an execute may
+    # autobegin a transaction, firing the replay hook, which must see the
+    # new params. The stamp only refreshes here — i.e. on a call that
     # carries freshly validated inputs — never on replay.
     session.info[_RLS_PARAMS_INFO_KEY] = {
         "user_id": user_id,
@@ -280,7 +280,13 @@ async def set_rls_context(
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 
-    await _apply_stored_context(session)
+    # Only apply eagerly when a transaction is already open (the
+    # mid-transaction re-route path, e.g. cross_guild loops) — there the
+    # hook has already fired and the new context must land NOW. On a fresh
+    # session, the caller's first statement autobegins and the hook applies
+    # the stored params; applying here too would just do it twice.
+    if session.in_transaction():
+        await _apply_stored_context(session)
 
 
 async def _apply_stored_context(session: AsyncSession) -> None:
