@@ -96,6 +96,15 @@ def _role_exists(connection, rolname: str) -> bool:
     return result.fetchone() is not None
 
 
+def _role_bypassrls(connection, rolname: str) -> bool:
+    result = connection.execute(
+        text("SELECT rolbypassrls FROM pg_roles WHERE rolname = :name"),
+        {"name": rolname},
+    )
+    row = result.fetchone()
+    return bool(row and row[0])
+
+
 def _password_from_url(env_var: str) -> str | None:
     """Extract the password component from a DATABASE_URL env var.
 
@@ -178,9 +187,15 @@ def _create_login_roles(connection) -> None:
                 "The baseline migration handles this when DATABASE_URL_ADMIN is set."
             )
     else:
-        _exec_role_ddl(
-            connection, "ALTER ROLE app_admin WITH LOGIN BYPASSRLS", app_admin_pw
-        )
+        # Postgres 16+ requires the executor to hold BYPASSRLS just to NAME
+        # the attribute in ALTER ROLE — even when it isn't changing — and
+        # this migration runs as app_provisioner (NOBYPASSRLS by design).
+        # When app_admin already carries the attribute (created by the db
+        # init script or a superuser), sync only LOGIN + password.
+        ddl = "ALTER ROLE app_admin WITH LOGIN"
+        if not _role_bypassrls(connection, "app_admin"):
+            ddl += " BYPASSRLS"
+        _exec_role_ddl(connection, ddl, app_admin_pw)
 
 
 def _create_nologin_role(connection, role: str) -> None:

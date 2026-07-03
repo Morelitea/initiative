@@ -84,3 +84,17 @@ configs:
       CREATE ROLE app_provisioner WITH LOGIN CREATEROLE NOSUPERUSER NOBYPASSRLS
         PASSWORD '${PROVISIONER_PASSWORD:-provisioner_password}';
       GRANT CREATE, CONNECT ON DATABASE "${POSTGRES_DB:-initiative}" TO app_provisioner;
+      -- Postgres 15+ made CREATE on the public schema owner-only, and the
+      -- baseline migration (running as app_provisioner) builds the shared
+      -- schema there — including COMMENT ON SCHEMA, which needs ownership.
+      ALTER SCHEMA public OWNER TO app_provisioner;
+      -- Postgres 16+ lets only BYPASSRLS holders create/alter BYPASSRLS
+      -- roles, so the login roles are created here (superuser context),
+      -- never by the provisioner-run migration — it only syncs their
+      -- passwords from the APP/ADMIN URLs. ADMIN OPTION lets it do that.
+      CREATE ROLE app_user WITH LOGIN NOINHERIT
+        PASSWORD '${APP_USER_PASSWORD:-app_user_password}';
+      CREATE ROLE app_admin WITH LOGIN BYPASSRLS
+        PASSWORD '${APP_ADMIN_PASSWORD:-app_admin_password}';
+      GRANT app_user TO app_provisioner WITH ADMIN OPTION;
+      GRANT app_admin TO app_provisioner WITH ADMIN OPTION;
