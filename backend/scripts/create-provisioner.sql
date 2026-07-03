@@ -37,6 +37,11 @@ SELECT format(
 )
 \gexec
 
+-- 2b. The public schema itself. Postgres 15+ made CREATE on public
+--     owner-only, and provisioner-run migrations create shared tables there
+--     (the baseline also COMMENTs on the schema, which needs ownership).
+ALTER SCHEMA public OWNER TO app_provisioner;
+
 -- 3. Administer the app's existing cluster roles (sync login-role passwords,
 --    grant guild-role memberships, drop guild roles on deprovision). Roles the
 --    provisioner CREATES from now on carry implicit ADMIN (PG16+ CREATEROLE).

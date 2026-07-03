@@ -96,6 +96,31 @@ def _role_exists(connection, rolname: str) -> bool:
     return result.fetchone() is not None
 
 
+def _role_bypassrls(connection, rolname: str) -> bool:
+    result = connection.execute(
+        text("SELECT rolbypassrls FROM pg_roles WHERE rolname = :name"),
+        {"name": rolname},
+    )
+    row = result.fetchone()
+    return bool(row and row[0])
+
+
+def _executor_holds_bypassrls(connection) -> bool:
+    """Whether the role running this migration may lawfully create or alter
+    BYPASSRLS roles. Postgres reserves that for BYPASSRLS holders (superusers
+    implicitly qualify); app_provisioner is NOBYPASSRLS by design, so on the
+    provisioner path this is always False and the system engine's attributes
+    are the database bootstrap's responsibility, never this migration's."""
+    result = connection.execute(
+        text(
+            "SELECT rolsuper OR rolbypassrls FROM pg_roles"
+            " WHERE rolname = current_user"
+        )
+    )
+    row = result.fetchone()
+    return bool(row and row[0])
+
+
 def _password_from_url(env_var: str) -> str | None:
     """Extract the password component from a DATABASE_URL env var.
 
@@ -145,7 +170,18 @@ def _exec_role_ddl(connection, ddl_template: str, password: str | None) -> None:
 
 def _create_login_roles(connection) -> None:
     """app_user (RLS-enforced request path) and app_admin (BYPASSRLS system
-    engine), passwords synced from DATABASE_URL_APP / DATABASE_URL_ADMIN."""
+    engine), passwords synced from DATABASE_URL_APP / DATABASE_URL_ADMIN.
+
+    Privileged role *attributes* are the database bootstrap's job (the
+    docker-compose init script on fresh installs, create-provisioner.sql on
+    existing ones), because Postgres reserves BYPASSRLS surgery for BYPASSRLS
+    holders and this migration normally runs as app_provisioner (CREATEROLE,
+    NOBYPASSRLS). Within that model this function does only what its
+    executor lawfully can: create app_user (plain CREATEROLE work), sync
+    passwords through ADMIN OPTION membership, and *verify* the app_admin
+    contract — failing fast with repair instructions when it doesn't hold.
+    A legacy superuser DATABASE_URL retains its old self-healing behavior
+    (creating or repairing app_admin is lawful for it)."""
     app_user_pw = _password_from_url("DATABASE_URL_APP")
     if not _role_exists(connection, "app_user"):
         if app_user_pw:
@@ -166,21 +202,55 @@ def _create_login_roles(connection) -> None:
 
     app_admin_pw = _password_from_url("DATABASE_URL_ADMIN")
     if not _role_exists(connection, "app_admin"):
-        if app_admin_pw:
-            _exec_role_ddl(
-                connection, "CREATE ROLE app_admin WITH LOGIN BYPASSRLS", app_admin_pw
-            )
-        else:
+        if not app_admin_pw:
             print(
                 "NOTE: app_admin role does not exist and DATABASE_URL_ADMIN is not set.\n"
                 "The system engine requires this role. Create it with:\n"
                 "  CREATE ROLE app_admin WITH LOGIN BYPASSRLS PASSWORD 'your_password';\n"
                 "The baseline migration handles this when DATABASE_URL_ADMIN is set."
             )
+        elif _executor_holds_bypassrls(connection):
+            # Legacy superuser DATABASE_URL: creating the system engine
+            # here is lawful, preserving the old fresh-install behavior.
+            _exec_role_ddl(
+                connection, "CREATE ROLE app_admin WITH LOGIN BYPASSRLS", app_admin_pw
+            )
+        else:
+            raise RuntimeError(
+                "app_admin does not exist, and this migration is running as a "
+                "role that may not create BYPASSRLS roles (Postgres reserves "
+                "that for BYPASSRLS holders; app_provisioner is NOBYPASSRLS "
+                "by design). Create the system engine during database "
+                "bootstrap instead — fresh docker-compose installs do this "
+                "via the db init script; otherwise run as a superuser:\n"
+                "  CREATE ROLE app_admin WITH LOGIN BYPASSRLS "
+                "PASSWORD '<password from DATABASE_URL_ADMIN>';\n"
+                "  GRANT app_admin TO app_provisioner WITH ADMIN OPTION;\n"
+                "then restart the app."
+            )
+    elif not _role_bypassrls(connection, "app_admin"):
+        if _executor_holds_bypassrls(connection):
+            # Lawful repair (legacy superuser path) — same self-healing
+            # re-assertion this migration always performed.
+            _exec_role_ddl(
+                connection, "ALTER ROLE app_admin WITH LOGIN BYPASSRLS", app_admin_pw
+            )
+        else:
+            raise RuntimeError(
+                "app_admin exists WITHOUT the BYPASSRLS attribute, and this "
+                "migration is running as a role that may not add it "
+                "(Postgres reserves BYPASSRLS changes for BYPASSRLS "
+                "holders). The system engine cannot function without it. "
+                "Run as a superuser:\n"
+                "  ALTER ROLE app_admin WITH BYPASSRLS;\n"
+                "then restart the app."
+            )
     else:
-        _exec_role_ddl(
-            connection, "ALTER ROLE app_admin WITH LOGIN BYPASSRLS", app_admin_pw
-        )
+        # Contract holds — sync LOGIN + password only, which ADMIN OPTION
+        # membership permits. Deliberately never names BYPASSRLS: on
+        # Postgres 16+ even re-asserting an unchanged attribute requires
+        # holding it.
+        _exec_role_ddl(connection, "ALTER ROLE app_admin WITH LOGIN", app_admin_pw)
 
 
 def _create_nologin_role(connection, role: str) -> None:

@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`/users/me`, login/registration, and platform admin user responses no longer read guild content.** These platform endpoints enriched users with `initiative_roles` by querying initiative membership outside any guild context — on fresh post-squash installs this crashed, and on upgraded ones it silently served stale pre-conversion data. The field is now populated only by guild-scoped endpoints (member roster, guild CSV export); the app derives per-guild manager state from guild-scoped initiative data.
+- **Fresh installs through `app_provisioner` no longer fail on Postgres 15+.** Privileged role setup now lives where Postgres's privilege model puts it — database bootstrap, in superuser context: the compose init script hands the `public` schema to `app_provisioner` (Postgres 15 made CREATE on it owner-only) and pre-creates the `app_user`/`app_admin` login roles with `ADMIN OPTION` grants (Postgres 16 reserves BYPASSRLS creation/changes for BYPASSRLS holders). The baseline migration now only does what its executor lawfully can: create `app_user`, sync passwords, and verify the `app_admin` contract — failing fast with repair instructions if the role is missing or lacks `BYPASSRLS`, instead of dying on an opaque permission error. Legacy superuser `DATABASE_URL`s keep their old create/repair behavior. `create-provisioner.sql` gains the same `public`-schema ownership handover for existing installs.
 
 ### Removed
 
