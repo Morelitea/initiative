@@ -119,7 +119,10 @@ async def _guild_upload_meta(
         return {}
     rows = (
         await conn.execute(
-            text(f'SELECT filename, content_type, content_hash FROM "{schema}".uploads')
+            # schema = guild_schema_name(int) — injection-safe.
+            text(
+                f'SELECT filename, content_type, content_hash FROM "{schema}".uploads'  # noqa: S608
+            )
         )
     ).all()
     return {row[0]: (row[1], row[2]) for row in rows if row[0]}

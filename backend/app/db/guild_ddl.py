@@ -236,7 +236,10 @@ def _build_tables(sync_conn) -> list[str]:
 
 # Non-constraint indexes from Postgres itself (pg_get_indexdef preserves opclasses
 # like jsonb_path_ops, partial-index WHERE, etc. that SQLAlchemy reflection drops).
-_INDEX_SQL = text(
+# The only interpolation below is the _SRC_SCHEMA string literal — no user input
+# reaches this module's rendered SQL (scanner: hardcoded_sql_expressions is the
+# point; this file IS the DDL renderer).
+_INDEX_SQL = text(  # noqa: S608
     f"""
     SELECT tc.relname AS tbl, pg_get_indexdef(i.indexrelid) AS indexdef
     FROM pg_index i
@@ -263,7 +266,7 @@ def _schema_relative_index(indexdef: str) -> str:
 # public, no pinned search_path) and read the parent table unqualified, so under
 # search_path=<guild_schema>,public they populate guild_id from the guild's own
 # rows. They must live in each guild schema or NOT NULL guild_id inserts fail.
-_TRIGGER_SQL = text(
+_TRIGGER_SQL = text(  # noqa: S608 — interpolates only the _SRC_SCHEMA literal
     f"""
     SELECT cl.relname AS tbl, pg_get_triggerdef(tg.oid) AS triggerdef
     FROM pg_trigger tg
