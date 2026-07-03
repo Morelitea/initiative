@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.db.schema_provisioning import PLATFORM_TIERS, platform_role_name
-from app.db.session import reapply_rls_context, set_rls_context
+from app.db.session import set_rls_context
 
 
 async def _reset_role(session) -> None:
@@ -89,11 +89,12 @@ async def test_no_tier_stays_on_login_role(session):
     await _reset_role(session)
 
 
-async def test_reapply_preserves_platform_role(session):
-    """reapply_rls_context (used after a commit swaps connections) re-asserts the
-    platform role, so post-commit queries stay role-scoped."""
+async def test_commit_preserves_platform_role(session):
+    """The after_begin replay re-asserts the platform role on the transaction
+    after a commit, so post-commit queries stay role-scoped with no manual
+    reapply."""
     await set_rls_context(session, user_id=1, platform_role="support")
-    await reapply_rls_context(session)
+    await session.commit()
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert current == platform_role_name("support")
     await _reset_role(session)

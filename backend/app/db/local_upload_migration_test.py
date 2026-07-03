@@ -82,7 +82,7 @@ async def test_build_filename_guild_map_spans_multiple_guilds(engine, session):
         for guild, filename in ((guild_a, "map-a.png"), (guild_b, "map-b.png")):
             await conn.execute(
                 text(
-                    f'INSERT INTO "guild_{guild.id}".uploads '
+                    f'INSERT INTO "guild_{guild.id}".uploads '  # noqa: S608
                     "(filename, guild_id, uploader_user_id, size_bytes, created_at) "
                     "VALUES (:f, :g, :u, 1, now())"
                 ),

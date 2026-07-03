@@ -102,7 +102,12 @@ async def _build_filename_guild_map() -> dict[str, int]:
                 {"r": guild_role_name(gid)},
             )
             rows = (
-                (await conn.execute(text(f'SELECT filename FROM "{schema}".uploads')))
+                (
+                    await conn.execute(
+                        # schema = guild_schema_name(int) — injection-safe.
+                        text(f'SELECT filename FROM "{schema}".uploads')  # noqa: S608
+                    )
+                )
                 .scalars()
                 .all()
             )

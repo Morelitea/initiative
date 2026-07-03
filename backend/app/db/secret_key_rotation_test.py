@@ -225,7 +225,7 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
             )
             await conn.execute(
                 text(
-                    f'INSERT INTO "{schema}".guild_settings '
+                    f'INSERT INTO "{schema}".guild_settings '  # noqa: S608
                     "(guild_id, created_at, updated_at, ai_api_key_encrypted) "
                     "VALUES (:g, now(), now(), :a)"
                 ),

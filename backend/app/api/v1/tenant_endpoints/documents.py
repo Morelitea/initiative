@@ -41,7 +41,7 @@ from app.core.messages import (
 )
 from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session, reapply_rls_context
+from app.db.session import get_admin_session
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.models.tenant.document import (
     Document,
@@ -910,7 +910,6 @@ async def create_document(
     )
 
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _get_document_or_404(
         session, document_id=document.id, guild_id=guild_context.guild_id
@@ -1066,7 +1065,6 @@ async def upload_document_file(
         )
     )
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _get_document_or_404(
         session, document_id=document.id, guild_id=guild_context.guild_id
@@ -1209,13 +1207,11 @@ async def upload_document_version(
         # MAX() read and this commit. Roll back, drop the orphaned blob, and ask
         # the caller to retry rather than surfacing a 500.
         await session.rollback()
-        await reapply_rls_context(session)
         attachments_service.delete_upload_by_url(file_url)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=DocumentMessages.VERSION_CONFLICT,
         )
-    await reapply_rls_context(session)
     await session.refresh(version)
     return serialize_document_file_version(version, is_current=True)
 
@@ -1329,7 +1325,6 @@ async def delete_document_version(
                     document.featured_image_url = None
 
     await session.commit()
-    await reapply_rls_context(session)
 
     # Delete the blob after the row is gone so a failed commit doesn't orphan files.
     attachments_service.delete_upload_by_url(deleted_url)
@@ -1483,7 +1478,6 @@ async def update_document(
             filenames = [url.split("/")[-1] for url in removed_upload_urls]
             await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
         await session.commit()
-        await reapply_rls_context(session)
         # Invalidate any in-memory collaboration room so the next session
         # loads fresh state from the database. If a room has active
         # collaborators their in-memory state wins until they disconnect.
@@ -1832,7 +1826,6 @@ async def set_document_properties(
         )
     except HTTPException:
         await session.rollback()
-        await reapply_rls_context(session)
         raise
 
     # Bump updated_at via a lightweight select to avoid touching the
@@ -1842,7 +1835,6 @@ async def set_document_properties(
     ts_doc = ts_result.one()
     ts_doc.updated_at = datetime.now(timezone.utc)
     await session.commit()
-    await reapply_rls_context(session)
 
     # populate_existing=True forces selectinload to refresh the cached
     # document's property_values collection. Without it, expire_on_commit

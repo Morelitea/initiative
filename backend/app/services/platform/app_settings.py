@@ -13,7 +13,7 @@ from app.core.encryption import (
     SALT_SMTP_PASSWORD,
 )
 from app.core.pam_context import has_active_grant
-from app.db.session import reapply_rls_context, set_rls_context
+from app.db.session import set_rls_context
 from app.models.platform.app_setting import AppSetting
 from app.models.tenant.guild_setting import GuildSetting
 from app.services.platform import guilds as guilds_service
@@ -54,7 +54,6 @@ async def _ensure_guild_setting(session: AsyncSession, guild_id: int) -> GuildSe
     settings_row = GuildSetting(guild_id=guild_id)
     session.add(settings_row)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 
@@ -126,7 +125,6 @@ async def _session_can_write_app_settings(session: AsyncSession) -> bool:
 async def _write_app_settings(session: AsyncSession, settings_row: AppSetting) -> None:
     session.add(settings_row)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(settings_row)
 
 
@@ -223,7 +221,6 @@ async def update_oidc_settings(
     settings_row.oidc_scopes = _normalize_scopes(scopes)
     session.add(settings_row)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 
@@ -239,7 +236,6 @@ async def update_interface_colors(
     settings_row.dark_accent_color = dark_accent_color.strip() or "#60a5fa"
     session.add(settings_row)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 
@@ -272,7 +268,6 @@ async def update_email_settings(
     settings_row.smtp_test_recipient = _normalize_optional_string(test_recipient)
     session.add(settings_row)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(settings_row)
     return settings_row
 

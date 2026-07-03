@@ -29,10 +29,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import settings
 from app.core.rate_limit import limiter
 from app.db.session import (
-    REQUEST_CONTEXT_RESET_SQL,
+    clear_rls_context,
     get_admin_session,
     get_session,
 )
+from app.testing.schema_harness import clear_search_path_pin
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
@@ -407,21 +408,10 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
         # external connection does NOT end that connection's transaction, so the
         # test's trailing reads would keep AccessShare locks on the guild-schema
         # tables — which the teardown's DROP SCHEMA (AccessExclusive) would block on.
+        # The rollback also ends any assumed role / search_path routing: context
+        # is transaction-local now, so no committed reset is needed for the
+        # superuser cleanup below to run unrouted.
         await bound_conn.rollback()
-        # Drop any guild/platform role + schema routing the request path's
-        # set_rls_context left on this connection, so the superuser cleanup below
-        # isn't stuck as a non-superuser role (guild_<id> or platform_<tier>).
-        #
-        # This reset must be COMMITTED. A write request commits its `SET ROLE`
-        # as durable session state; the set_config() below runs in an autobegun
-        # transaction that returning the connection to the pool would otherwise
-        # roll back — reverting the role to the request's tier. The cleanup then
-        # reuses this connection and fails, because `session_replication_role`
-        # and TRUNCATE need the superuser. Committing makes the reset stick.
-        await bound_conn.exec_driver_sql(
-            "SELECT set_config('role', 'none', false), set_config('search_path', 'public', false)"
-        )
-        await bound_conn.commit()
 
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
@@ -480,11 +470,6 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                 await rconn.exec_driver_sql("SET lock_timeout = '5s'")
                 await rconn.exec_driver_sql(f'DROP OWNED BY "{role}"')
                 await rconn.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')
-
-
-# The PRODUCTION checkout reset, imported (not mirrored) so the harness can
-# never drift from what get_session/get_admin_session actually run.
-_REQUEST_RESET_SQL = REQUEST_CONTEXT_RESET_SQL
 
 
 @pytest.fixture
@@ -555,7 +540,14 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     # write on the SAME row, which then blocks until statement_timeout.
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
-        await req_session.exec(text(_REQUEST_RESET_SQL))
+        # Production gets a FRESH session (empty info) per request; this reused
+        # session must drop the previous request's stored context or the next
+        # transaction would replay it (stale user/guild) — including any
+        # harness pin the before_flush net recorded during the previous
+        # request's tenant writes. The DB side needs no reset:
+        # transaction-local context died with the request's rollback.
+        clear_rls_context(req_session)
+        clear_search_path_pin(req_session)
         try:
             yield req_session
         finally:
@@ -563,7 +555,8 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
-        await admin_session.exec(text(_REQUEST_RESET_SQL))
+        clear_rls_context(admin_session)
+        clear_search_path_pin(admin_session)
         try:
             yield admin_session
         finally:
@@ -599,12 +592,9 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             with suppress(Exception):
                 await sess.close()
             with suppress(Exception):
+                # Rollback ends the transaction and, with it, any assumed role
+                # (context is transaction-local — no committed reset needed).
                 await conn.rollback()
-                await conn.exec_driver_sql(
-                    "SELECT set_config('role', 'none', false), "
-                    "set_config('search_path', 'public', false)"
-                )
-                await conn.commit()
             with suppress(Exception):
                 await conn.close()
             with suppress(Exception):

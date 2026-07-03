@@ -574,14 +574,13 @@ async def get_guild_session(
 ) -> AsyncSession:
     """Get a session with RLS context set for the current user and guild.
 
-    This dependency injects PostgreSQL session variables (via set_config
-    with is_local=false) that RLS policies use to filter data. Use this
-    instead of SessionDep when you need database-level access control.
+    This dependency injects PostgreSQL context (via set_config with
+    is_local=true) that RLS policies use to filter data. Use this instead
+    of SessionDep when you need database-level access control.
 
-    Variables persist for the lifetime of the underlying connection, not
-    just the current transaction. After session.commit() the connection
-    may be returned to the pool, so call reapply_rls_context(session)
-    before any post-commit queries.
+    Context is transaction-local and replayed automatically at the start of
+    every transaction (see app.db.session), so post-commit queries need no
+    manual re-apply.
     """
     return await _apply_guild_session_context(session, current_user, guild_context)
 

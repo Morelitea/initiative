@@ -23,7 +23,7 @@ from app.core.user_input_validators import (
     normalize_timezone,
     normalize_week_starts_on,
 )
-from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
+from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole, GuildMembership
 from app.models.tenant.initiative import InitiativeMember
@@ -275,7 +275,6 @@ async def create_user(
         role=GuildRole.member,
     )
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -439,7 +438,6 @@ async def update_users_me(
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(current_user)
     # Platform path — no initiative_roles enrichment (see read_users_me).
     return current_user
@@ -526,7 +524,6 @@ async def update_user(
 
     session.add(user)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -574,7 +571,6 @@ async def approve_user(
         user.updated_at = datetime.now(timezone.utc)
         session.add(user)
         await session.commit()
-        await reapply_rls_context(session)
         await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user

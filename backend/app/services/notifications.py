@@ -9,7 +9,7 @@ from sqlalchemy import select, delete, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import email_t, translate
-from app.db.session import AdminSessionLocal, reapply_rls_context, set_rls_context
+from app.db.session import AdminSessionLocal, set_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
 from app.models.tenant.initiative import Initiative
@@ -1253,9 +1253,6 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
                 .values(processed_at=now)
             )
             await session.commit()
-            await reapply_rls_context(
-                session
-            )  # commit may have dropped the connection's context
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
         user = (
@@ -1476,7 +1473,6 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
                     )
                 )
                 await session.commit()
-                await reapply_rls_context(session)
                 recipient = (
                     await session.exec(select(User).where(User.id == user_id))
                 ).scalar_one_or_none()
@@ -1491,7 +1487,6 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
                     session, recipient=recipient, event=event, guild_id=ev_guild_id
                 )
                 await session.commit()
-                await reapply_rls_context(session)
 
 
 async def process_event_reminders() -> None:

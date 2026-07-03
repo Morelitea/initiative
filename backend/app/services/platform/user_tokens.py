@@ -6,7 +6,6 @@ from typing import Optional, List
 from sqlmodel import select, delete, update as sql_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import reapply_rls_context
 from app.models.platform.user import User
 from app.models.platform.user_token import UserToken, UserTokenPurpose
 from app.services.platform import api_keys as api_keys_service
@@ -105,7 +104,6 @@ async def consume_token(
     record.consumed_at = datetime.now(timezone.utc)
     session.add(record)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(record)
     return record
 
@@ -166,7 +164,6 @@ async def get_device_token(
         record.expires_at = now + timedelta(days=DEVICE_TOKEN_TTL_DAYS)
         session.add(record)
         await session.commit()
-        await reapply_rls_context(session)
         await session.refresh(record)
     return record
 

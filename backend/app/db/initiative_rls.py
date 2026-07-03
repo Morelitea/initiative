@@ -75,9 +75,13 @@ def via_property(entity_from: str, entity_pred: str, entity_init: str) -> PathBu
     ``entity_from`` is the FROM clause for the entity (e.g. ``documents d``),
     ``entity_pred`` ties the value row to that entity (e.g. ``d.id =
     {t}.document_id``), and ``entity_init`` is the entity's initiative column
-    (e.g. ``d.initiative_id``)."""
+    (e.g. ``d.initiative_id``).
+
+    Every fragment interpolated here is a string literal from the
+    INITIATIVE_PATHS registry in this module — policy DDL rendering, never
+    user input."""
     return lambda t, w: (
-        f"EXISTS (SELECT 1 FROM {entity_from} "
+        f"EXISTS (SELECT 1 FROM {entity_from} "  # noqa: S608
         f"JOIN property_definitions pd ON pd.id = {t}.property_id "
         f"WHERE {entity_pred.format(t=t)} AND {entity_init} = pd.initiative_id "
         f"AND {_access('pd.initiative_id', w)})"

@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.core.messages import AdvancedToolMessages, GuildMessages
 from app.core.security import create_advanced_tool_handoff_token, verify_password
 from app.db.schema_provisioning import deprovision_guild
-from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
+from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.guild import GuildRole, GuildMembership, Guild
 from app.models.platform.user import User
 from app.schemas.platform.guild import (
@@ -222,7 +222,6 @@ async def create_guild(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=GuildMessages.GUILD_PROVISION_FAILED,
         )
-    await reapply_rls_context(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )
@@ -280,7 +279,6 @@ async def update_guild(
         max_storage_bytes_provided=max_storage_bytes_provided,
     )
     await session.commit()
-    await reapply_rls_context(session)
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
     member_count = await guilds_service.count_members(session, guild_id=guild_id)
     return _serialize_guild(
@@ -484,7 +482,6 @@ async def accept_invite(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
     await session.commit()
-    await reapply_rls_context(session)
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
     )

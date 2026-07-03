@@ -32,7 +32,6 @@ from app.core.messages import (
 )
 from app.core.pam_context import has_active_grant
 from app.core.tools import Tool
-from app.db.session import reapply_rls_context
 from app.models.platform.guild import GuildRole
 from app.models.platform.user import User
 from app.models.tenant.resource_grant import ResourceAccessLevel
@@ -244,7 +243,6 @@ async def _project_on_grants_changed(
     if demoted:
         await project_grants.remove_user_task_assignments(session, row.id, demoted)
         await session.commit()
-        await reapply_rls_context(session)
 
 
 GRANT_HOOKS: dict[Tool, GrantHooks] = {
@@ -307,7 +305,6 @@ async def set_resource_grants(
         grants=grants,
     )
     await session.commit()
-    await reapply_rls_context(session)
 
     if hooks and hooks.on_changed:
         # replace_resource_grants rewrites resource_grants rows directly (by

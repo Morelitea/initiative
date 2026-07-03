@@ -18,7 +18,6 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import PropertyMessages
-from app.db.session import reapply_rls_context
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
@@ -237,7 +236,6 @@ async def create_property_definition(
     )
     session.add(defn)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(defn)
     return defn
 
@@ -307,7 +305,6 @@ async def update_property_definition(
     defn.updated_at = datetime.now(timezone.utc)
     session.add(defn)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(defn)
     return PropertyDefinitionUpdateResponse(
         definition=PropertyDefinitionRead.model_validate(defn),

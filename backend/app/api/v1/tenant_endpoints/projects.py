@@ -17,7 +17,6 @@ from app.api.deps import (
     GuildContext,
     require_guild_roles,
 )
-from app.db.session import reapply_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.models.tenant.project import (
     Project,
@@ -1094,7 +1093,6 @@ async def create_project(
             )
 
     await session.commit()
-    await reapply_rls_context(session)
 
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     if project.initiative_id and project.initiative:
@@ -1150,7 +1148,6 @@ async def archive_project(
         project.archived_at = datetime.now(timezone.utc)
         session.add(project)
         await session.commit()
-        await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
     await _broadcast_project(updated, "updated")
@@ -1268,7 +1265,6 @@ async def duplicate_project(
         fallback_status_ids=fallback_status_ids,
     )
     await session.commit()
-    await reapply_rls_context(session)
 
     new_project = await _get_project_or_404(
         new_project.id, session, guild_context.guild_id
@@ -1315,7 +1311,6 @@ async def unarchive_project(
         project.archived_at = None
         session.add(project)
         await session.commit()
-        await reapply_rls_context(session)
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [updated])
     await _broadcast_project(updated, "updated")
@@ -1586,7 +1581,6 @@ async def update_project(
 
     session.add(project)
     await session.commit()
-    await reapply_rls_context(session)
     project = await _get_project_or_404(project.id, session, guild_context.guild_id)
     await _attach_task_summaries(session, [project])
     await _broadcast_project(project, "updated")
@@ -1756,7 +1750,6 @@ async def reorder_projects(
         session.add(order)
 
     await session.commit()
-    await reapply_rls_context(session)
     return await _project_reads_with_order(
         session,
         current_user,
@@ -1845,7 +1838,6 @@ async def set_project_tags(
     proj = result.one()
     proj.updated_at = datetime.now(timezone.utc)
     await session.commit()
-    await reapply_rls_context(session)
 
     # Refetch with all relationships
     updated = await _get_project_or_404(project_id, session, guild_context.guild_id)
