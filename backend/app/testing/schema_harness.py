@@ -34,15 +34,23 @@ is never pin-replayed (the production hook governs).
 
 from __future__ import annotations
 
+import time
+
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 
-from app.db.session import _RLS_PARAMS_INFO_KEY
+from app.db.session import _RLS_ESTABLISHED_INFO_KEY, _RLS_PARAMS_INFO_KEY
 from app.db.tenancy import GUILD_SCOPED_TABLES
 
 _installed = False
 
 _PIN_INFO_KEY = "guild_search_path_pin"
+_PIN_STAMP_KEY = "guild_search_path_pin_at"
+
+
+def _record_pin(session, search_path: str) -> None:
+    session.info[_PIN_INFO_KEY] = search_path
+    session.info[_PIN_STAMP_KEY] = time.monotonic()
 
 
 def _pin_sql(search_path: str) -> str:
@@ -60,7 +68,7 @@ async def route_session_to_guild(session, guild_id: int) -> None:
     """
     gid = int(guild_id)
     sp = f"guild_{gid}, public"
-    session.info[_PIN_INFO_KEY] = sp
+    _record_pin(session, sp)
     conn = await session.connection()
     result = await conn.exec_driver_sql(_pin_sql(sp))
     result.close()
@@ -93,7 +101,7 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
         sp = f"guild_{gid}, public"
         # Record the pin so the after_begin listener re-routes the NEXT
         # transaction too (a factory that commits then reads back).
-        session.info[_PIN_INFO_KEY] = sp
+        _record_pin(session, sp)
         conn.exec_driver_sql(_pin_sql(sp)).close()
         return
     # Tenant rows without a guild_id column (property values, junctions):
@@ -113,16 +121,24 @@ def _route_before_flush(session: Session, flush_context, instances) -> None:
 def _replay_search_path_pin(session: Session, transaction, connection) -> None:
     """after_begin: re-apply the harness pin on each new transaction.
 
-    Skips sessions carrying production rls params — there the production
-    replay hook governs routing, and the pin (if any) would fight it.
+    Mirrors the old session-level semantics: the MOST RECENT routing intent
+    wins. A test session can interleave ``set_rls_context`` calls (service
+    code under test) with factory pins; whichever was applied last governs
+    the next transaction. This listener registers after the production
+    replay hook, so when the pin is newer it overrides the replayed
+    search_path (role/GUCs from the params still stand — the pin only
+    routes, exactly like the session-level pin it replaces).
     """
     if transaction.nested:
         return
-    if session.info.get(_RLS_PARAMS_INFO_KEY) is not None:
-        return
     pin = session.info.get(_PIN_INFO_KEY)
-    if pin:
-        connection.exec_driver_sql(_pin_sql(pin)).close()
+    if not pin:
+        return
+    if session.info.get(_RLS_PARAMS_INFO_KEY) is not None:
+        params_at = session.info.get(_RLS_ESTABLISHED_INFO_KEY, 0.0)
+        if params_at >= session.info.get(_PIN_STAMP_KEY, 0.0):
+            return  # production context is the newer routing intent
+    connection.exec_driver_sql(_pin_sql(pin)).close()
 
 
 def install_guild_routing() -> None:

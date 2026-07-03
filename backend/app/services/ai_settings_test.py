@@ -193,10 +193,6 @@ async def test_update_guild_ai_settings_allows_clear_settings_with_ollama_unset(
             AsyncMock(return_value=guild_settings),
         ),
         patch(
-            "app.services.ai_settings.reapply_rls_context",
-            AsyncMock(),
-        ),
-        patch(
             "app.services.ai_settings.get_guild_ai_settings",
             AsyncMock(return_value=MagicMock()),
         ),

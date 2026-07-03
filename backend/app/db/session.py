@@ -41,28 +41,13 @@ AdminSessionLocal = async_sessionmaker(
     class_=AsyncSession,
 )
 
-# The per-checkout context reset, shared by BOTH session dependencies (and the
-# test harness, which mirrors the request lifecycle): clear every RLS GUC,
-# route guild-scoped names back to public, and drop any assumed role a prior
-# checkout of this pooled connection left behind. Single source of truth —
-# a GUC added to set_rls_context() must be reset here, once.
-REQUEST_CONTEXT_RESET_SQL = (
-    "SELECT set_config('app.current_user_id', '', false), "
-    "set_config('app.current_guild_id', '', false), "
-    "set_config('app.current_guild_role', '', false), "
-    "set_config('app.pam_guild_id', '', false), "
-    "set_config('app.pam_read', 'false', false), "
-    "set_config('app.pam_write', 'false', false), "
-    "set_config('search_path', 'public', false), "
-    "set_config('role', 'none', false)"
-)
-
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    # No checkout reset: context is transaction-local (set_config is_local +
+    # SET LOCAL semantics), so a pooled connection carries NO role/GUC/
+    # search_path state between transactions — there is nothing to clear.
+    # The pool's rollback-on-return is the only baseline needed.
     async with AsyncSessionLocal() as session:
-        # Reset RLS variables from any previous request on this pooled connection
-        # (single round-trip; see REQUEST_CONTEXT_RESET_SQL).
-        await session.exec(text(REQUEST_CONTEXT_RESET_SQL))
         yield session
 
 
@@ -71,17 +56,23 @@ async def get_admin_session() -> AsyncGenerator[AsyncSession, None]:
     platform lifecycle). ``app_admin`` is the standard Postgres trusted-batch
     actor — BYPASSRLS, bounded by enumerated per-table GRANTs (0129); guild
     schemas require ``SET ROLE guild_<id>`` (dropping the bypass) via
-    set_rls_context()."""
+    set_rls_context(). Context is transaction-local, so a recycled pooled
+    connection starts every session at the login-role/public baseline with
+    no reset round-trip."""
     async with AdminSessionLocal() as session:
-        # Reset routing GUCs on the recycled connection. Without this an admin
-        # session inherits whatever search_path / assumed guild role the previous
-        # checkout of this pooled connection left behind — so an unrouted admin
-        # query for a guild-scoped table could land in a stale guild_<id> schema
-        # (or `public`) nondeterministically. Start every admin session from a
-        # clean public, login-role baseline; callers that need a guild schema
-        # call set_rls_context() explicitly.
-        await session.exec(text(REQUEST_CONTEXT_RESET_SQL))
         yield session
+
+
+def clear_rls_context(session: AsyncSession) -> None:
+    """Drop the session's stored context so no replay occurs.
+
+    Production sessions are per-request and die with their context; a
+    long-lived session that is REUSED across logical request boundaries (the
+    test harness's connection-bound sessions) calls this at each boundary so
+    the next transaction begins unrouted — fresh-session equivalence.
+    """
+    session.info.pop(_RLS_PARAMS_INFO_KEY, None)
+    session.info.pop(_RLS_ESTABLISHED_INFO_KEY, None)
 
 
 # --- Transaction-local RLS context -----------------------------------------
@@ -306,17 +297,6 @@ async def _apply_stored_context(session: AsyncSession) -> None:
     bind = _render_context_bind_params(session.info[_RLS_PARAMS_INFO_KEY])
     await session.exec(text(_ROLE_RESET_SQL))
     await session.exec(text(_CONTEXT_SQL), params=bind)
-
-
-async def reapply_rls_context(session: AsyncSession) -> None:
-    """Deprecated shim: context replay is now automatic (after_begin hook).
-
-    Kept only until the manual call sites are deleted; re-applies the stored
-    context to the current transaction without refreshing the freshness
-    stamp (re-validation is establish_guild_access's job, not this one's).
-    """
-    if session.info.get(_RLS_PARAMS_INFO_KEY):
-        await _apply_stored_context(session)
 
 
 @asynccontextmanager

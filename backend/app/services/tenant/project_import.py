@@ -27,7 +27,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.core.messages import ProjectExportMessages
-from app.db.session import reapply_rls_context
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -236,7 +235,6 @@ async def import_project(
         assignee_match_count += matched
 
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(project)
 
     return ProjectImportResult(

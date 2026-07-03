@@ -12,7 +12,6 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.pam_context import has_active_grant
-from app.db.session import reapply_rls_context
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative, InitiativeMember
@@ -45,11 +44,10 @@ async def _broadcast_comment(session, guild_id: int, comment, action: str) -> No
     A comment hangs off a task (→ project → initiative) or a document
     (→ initiative); the parent is resolved within the guild-routed session, so
     the ``(guild_id, initiative_id)`` room is guild-safe (initiative ids are
-    per-guild-schema). ``reapply_rls_context`` keeps the lookup under the guild
-    context after the commit. The client refetches through the RLS + DAC gated
+    per-guild-schema). The automatic context replay keeps the lookup under the
+    guild context after the commit. The client refetches through the RLS + DAC gated
     REST path — the bus carries ids only.
     """
-    await reapply_rls_context(session)
     ids: dict = {
         "comment_id": comment.id,
         "task_id": comment.task_id,
@@ -109,7 +107,6 @@ async def create_comment(
         ) from exc
 
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
     await _broadcast_comment(session, guild_context.guild_id, comment, "created")
@@ -283,7 +280,6 @@ async def update_comment(
     # CommentValidationError from service indicates data integrity issues (500).
 
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
     await _broadcast_comment(session, guild_context.guild_id, comment, "updated")

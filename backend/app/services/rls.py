@@ -37,8 +37,8 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.user import User
 
-# Re-export RLS context helpers so callers can import from a single place.
-from app.db.session import set_rls_context, reapply_rls_context  # noqa: F401
+# Re-export the RLS context helper so callers can import from a single place.
+from app.db.session import set_rls_context  # noqa: F401
 
 
 # ---------------------------------------------------------------------------
