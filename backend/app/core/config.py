@@ -505,6 +505,14 @@ class Settings(BaseSettings):
     # apply. The test suite sets ``limiter.enabled = False`` so this never
     # throttles the hundreds of rapid requests a test makes from one client IP.
     RATE_LIMIT_DEFAULT: str = "100/minute"
+    # Master on/off switch for ALL rate limiting — the global default *and* every
+    # per-route ``@limiter.limit(...)`` cap (e.g. login's ``5/15minutes``). Leave
+    # True in any shared/production environment; set ``RATE_LIMIT_ENABLED=false``
+    # in a local ``.env`` to stop throttling yourself while testing auth flows.
+    # This is the same lever the test suite pulls (``limiter.enabled = False``),
+    # surfaced as config — NOT a request-time bypass, so there is no hidden
+    # back door for an attacker to hit.
+    RATE_LIMIT_ENABLED: bool = True
     # Storage backend for rate-limit counters. Defaults to in-process memory
     # (``memory://``), which is per-worker — fine for a single process. For a
     # multi-worker / multi-replica deployment that needs a shared, accurate
