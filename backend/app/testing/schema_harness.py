@@ -53,6 +53,16 @@ def _record_pin(session, search_path: str) -> None:
     session.info[_PIN_STAMP_KEY] = time.monotonic()
 
 
+def clear_search_path_pin(session) -> None:
+    """Drop the harness pin — the counterpart of ``clear_rls_context`` for
+    sessions reused across request boundaries (the conftest overrides call
+    both). Without this, a pin the before_flush net recorded during one
+    request's tenant writes would re-route search_path for the NEXT request
+    once its production params are cleared."""
+    session.info.pop(_PIN_INFO_KEY, None)
+    session.info.pop(_PIN_STAMP_KEY, None)
+
+
 def _pin_sql(search_path: str) -> str:
     # search_path is always built from int(guild_id) — injection-safe.
     return f"SELECT set_config('search_path', '{search_path}', true)"

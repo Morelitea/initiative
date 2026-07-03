@@ -33,6 +33,7 @@ from app.db.session import (
     get_admin_session,
     get_session,
 )
+from app.testing.schema_harness import clear_search_path_pin
 from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
@@ -541,9 +542,12 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         await _publish_setup_state()
         # Production gets a FRESH session (empty info) per request; this reused
         # session must drop the previous request's stored context or the next
-        # transaction would replay it (stale user/guild). The DB side needs no
-        # reset: transaction-local context died with the request's rollback.
+        # transaction would replay it (stale user/guild) — including any
+        # harness pin the before_flush net recorded during the previous
+        # request's tenant writes. The DB side needs no reset:
+        # transaction-local context died with the request's rollback.
         clear_rls_context(req_session)
+        clear_search_path_pin(req_session)
         try:
             yield req_session
         finally:
@@ -552,6 +556,7 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
         clear_rls_context(admin_session)
+        clear_search_path_pin(admin_session)
         try:
             yield admin_session
         finally:
