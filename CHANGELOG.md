@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calendar events and the advanced tool now appear in the command palette (⌘K) — events are searchable like other tools; the advanced tool gets one jump entry per enabled initiative.
 - Initiative pages have an advanced-tools tab listing the initiative's advanced tools, with the standard Select → Edit access bulk-sharing flow (creation still happens in the connected automation service, and the UI says so).
 - Counter groups can now be created from the mobile initiative menu, matching the other tools.
+- Hard-purging an advanced tool (manual trash purge or the retention worker) now notifies the connected automation backend so its scheduling mirror is deleted too — including tools swept away by an initiative purge. Configured via `ADVANCED_TOOL_BACKEND_URL` + `ADVANCED_TOOL_PURGE_SECRET` (HMAC-signed, best-effort; unset on the default OSS image). Soft delete and archive stay pull-based — the automation side discovers them by syncing.
 
 ### Changed
 
@@ -24,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Trashed counter groups and counters now auto-purge after their retention window, like every other trashed item — previously they lingered in the database indefinitely once past retention.
 - Restoring an item from the trash now refreshes the relevant list pages immediately — the restore invalidation used cache keys that didn't match the app's real query keys, so restored items only reappeared after a manual reload.
+- The calendar event attendee picker no longer comes up empty. It now lists the initiative members who can access the event.
+- Clearing the initiative filter (e.g. clicking "All Documents") now resets to every document without a manual refresh.
+- Break-glass / PAM access now shows the granted guild in the switcher immediately, instead of requiring a page reload before the guild becomes reachable.
 
 ## [0.54.0] - 2026-07-03
 

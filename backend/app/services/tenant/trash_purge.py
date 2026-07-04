@@ -40,6 +40,10 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
+from app.services.tenant.advanced_tool_notify import (
+    drain_purged_advanced_tools,
+    notify_purged_advanced_tools,
+)
 from app.services.tenant.soft_delete import hard_purge_entity
 
 
@@ -117,6 +121,10 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
         await _run_purge_pass(session, now=now)
         await session.commit()
+        # Post-commit: tell the advanced tool's backend about hard-purged
+        # tools so their scheduling mirrors are deleted too. Best-effort —
+        # a failure logs and the next mirror sync hides the orphan anyway.
+        await notify_purged_advanced_tools(drain_purged_advanced_tools(session))
 
 
 async def process_trash_purges() -> None:

@@ -50,6 +50,10 @@ from app.schemas.tenant.trash import (
     TrashItem,
     TrashListResponse,
 )
+from app.services.tenant.advanced_tool_notify import (
+    drain_purged_advanced_tools,
+    notify_purged_advanced_tools,
+)
 from app.services.platform import guilds as guilds_service
 from app.services.tenant.soft_delete import (
     RestoreResult,
@@ -391,4 +395,7 @@ async def purge_trash_entity(
     )
     await hard_purge_entity(session, entity)
     await session.commit()
+    # Post-commit: hard purges must also delete the advanced tool's
+    # scheduling mirror on the external backend (best-effort).
+    await notify_purged_advanced_tools(drain_purged_advanced_tools(session))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

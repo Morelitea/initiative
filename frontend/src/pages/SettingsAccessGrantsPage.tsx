@@ -31,6 +31,7 @@ import {
   useRevokeAccessGrant,
 } from "@/hooks/useAccessGrants";
 import { useAuth } from "@/hooks/useAuth";
+import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
@@ -146,6 +147,7 @@ const BREAK_GLASS_DURATIONS_MINUTES = [60, 120, 240];
 // read-only by default, short-lived, and recorded as an audited grant.
 const BreakGlassSection = () => {
   const { t } = useTranslation(["settings", "common"]);
+  const { refreshGuilds } = useGuilds();
   const [guildId, setGuildId] = useState("");
   const [level, setLevel] = useState("read");
   const [duration, setDuration] = useState("60");
@@ -158,6 +160,11 @@ const BreakGlassSection = () => {
       setReason("");
       setLevel("read");
       setDuration("60");
+      // A break-glass grant is live immediately. The guild switcher and the
+      // /g/{id} route guard read from the GuildProvider's context list (not
+      // React Query), so refresh it here — otherwise the newly-reachable guild
+      // doesn't appear until a manual reload.
+      void refreshGuilds();
     },
     onError: (err) => toast.error(getErrorMessage(err, "settings:accessGrants.breakGlass.error")),
   });

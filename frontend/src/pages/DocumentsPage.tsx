@@ -100,15 +100,20 @@ export const DocumentsView = ({
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
   const isClosingCreateDialog = useRef(false);
 
-  // Check for query params to filter by initiative (consume once)
+  // Sync the initiative filter to the URL's ?initiativeId. A specific id filters
+  // to it; clearing the param — e.g. clicking "All Documents" from an
+  // initiative-scoped view — resets to ALL. Tracking lastConsumedParams lets the
+  // filter dropdown override the selection without the URL re-pinning it, while
+  // still resetting on real navigation. Without the reset the filter stayed
+  // pinned to the initiative we arrived from, so All Documents showed only that
+  // initiative's docs until a manual refresh.
   useEffect(() => {
+    if (lockedInitiativeId) return;
     const urlInitiativeId = searchParams.initiativeId;
     const paramKey = urlInitiativeId || "";
-
-    if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedParams.current) {
-      lastConsumedParams.current = paramKey;
-      setInitiativeFilter(urlInitiativeId);
-    }
+    if (paramKey === lastConsumedParams.current) return;
+    lastConsumedParams.current = paramKey;
+    setInitiativeFilter(urlInitiativeId || INITIATIVE_FILTER_ALL);
   }, [searchParams, lockedInitiativeId]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);

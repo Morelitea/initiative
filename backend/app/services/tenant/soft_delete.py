@@ -33,6 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
@@ -322,6 +323,7 @@ async def hard_purge_entity(
     disk and ``Upload`` rows pinned only by the doomed documents are also
     removed.
     """
+    from app.services.tenant.advanced_tool_notify import queue_purged_advanced_tool
     from app.services.attachments import purge_document_uploads
 
     descendants = await _gather_descendants(session, entity)
@@ -330,6 +332,26 @@ async def hard_purge_entity(
     doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:
         await purge_document_uploads(session, doomed_documents)
+
+    # A hard purge must also delete the advanced tool's scheduling mirror on
+    # the external backend (soft delete/archive need no push — the mirror sees
+    # our 404 on sync). Queue the pairs now, notify AFTER the caller commits.
+    # Initiative purges need explicit enumeration: advanced_tools hangs off
+    # the DB-level ON DELETE CASCADE, not the CASCADE_CHILDREN walk, so the
+    # doomed rows never appear in ``all_doomed``.
+    doomed_tools: list[AdvancedTool] = [
+        d for d in all_doomed if isinstance(d, AdvancedTool)
+    ]
+    doomed_initiatives = [d for d in all_doomed if isinstance(d, Initiative)]
+    for initiative in doomed_initiatives:
+        cascade_stmt = select_including_deleted(AdvancedTool).where(
+            AdvancedTool.initiative_id == initiative.id
+        )
+        doomed_tools.extend((await session.exec(cascade_stmt)).all())
+    for tool in doomed_tools:
+        queue_purged_advanced_tool(
+            session, guild_id=tool.guild_id, advanced_tool_id=tool.id
+        )
 
     # Reverse so we delete leaves before parents — needed because most FKs
     # in this codebase don't use DB-level ON DELETE CASCADE.
