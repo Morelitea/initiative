@@ -185,7 +185,8 @@ export const toolCamelPlural = (tool: Tool): string =>
 export const toolPascalSingular = (tool: Tool): string =>
   tool.replace(/(?:^|_)(\w)/g, (_, c: string) => c.toUpperCase());
 
-/** Guild-scoped API path prefix, e.g. "/api/v1/counter-groups". */
+/** Resource-relative API path (WITHOUT the `/g/{guildId}` segment), e.g. "/api/v1/counter-groups".
+ *  Callers must prepend `/api/v1/g/${guildId}` when building guild-scoped requests. */
 export const toolApiPath = (tool: Tool): string => `/api/v1/${toolRouteSegment(tool)}`;
 
 /** Guild-relative list route, e.g. "/counter-groups". */
