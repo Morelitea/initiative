@@ -9,9 +9,9 @@ table placement:
 
 * the app's role families never hold SUPERUSER; ``app_admin`` is the ONLY
   BYPASSRLS holder (PostgreSQL's trusted-batch actor, grant-bounded);
-* ``app_admin``'s per-table grants equal the audited matrix of migration
-  20260702_0129 — new shared tables give the system engine nothing until a
-  migration (and this matrix) says so;
+* ``app_admin`` (and ``app_user``) per-table grants equal the audited registry
+  in ``app.db.system_grants`` — new shared tables give the system engine (and
+  the bare login role) nothing until the registry (and a migration) says so;
 * every RLS-enabled shared table is FORCEd (even table owners obey policies);
 * the retired ``is_superadmin`` GUC appears in no policy anywhere;
 * no app role may CREATE objects in ``public`` (search_path hijack guard);
@@ -25,47 +25,12 @@ import pytest
 from sqlalchemy import text
 
 from app.core.config import settings
+from app.db.system_grants import (
+    SHARED_TABLE_APP_USER_GRANTS,
+    SHARED_TABLE_SYSTEM_GRANTS,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
-
-# Mirror of migration 20260702_0129's audited matrix. Deliberately duplicated
-# until the grants registry lands (issue #782 makes a registry the single
-# source and derives both the migration and this test from it).
-_APP_ADMIN_TABLE_GRANTS: dict[str, set[str] | None] = {
-    "users": {"SELECT", "INSERT", "UPDATE", "DELETE"},
-    "guilds": {"SELECT", "INSERT", "UPDATE", "DELETE"},
-    "guild_memberships": {"SELECT", "INSERT", "UPDATE", "DELETE"},
-    "guild_invites": {"SELECT", "INSERT", "UPDATE"},
-    "access_grants": {"SELECT", "INSERT", "UPDATE", "DELETE"},
-    "app_settings": {"SELECT", "INSERT", "UPDATE"},
-    "oidc_claim_mappings": {"SELECT", "INSERT", "UPDATE", "DELETE"},
-    "user_view_preferences": None,
-    "notifications": {"SELECT", "INSERT", "DELETE"},
-    "user_tokens": {"SELECT", "INSERT", "DELETE"},
-    "push_tokens": {"SELECT", "INSERT", "DELETE"},
-    "user_api_keys": {"SELECT", "DELETE"},
-    "auto_delegation_jti_blocklist": {"SELECT", "INSERT"},
-    "alembic_version": None,
-}
-
-# Mirror of migration 20260702_0130's audited matrix for the BARE login role
-# (pre-routing / unauthenticated surface). Same registry-consolidation note.
-_APP_USER_TABLE_GRANTS: dict[str, set[str] | None] = {
-    "users": {"SELECT", "UPDATE"},
-    "user_tokens": {"SELECT", "INSERT", "UPDATE", "DELETE"},
-    "user_api_keys": {"SELECT", "INSERT", "UPDATE", "DELETE"},
-    "auto_delegation_jti_blocklist": {"SELECT", "INSERT"},
-    "app_settings": {"SELECT"},
-    "guilds": {"SELECT"},
-    "guild_invites": {"SELECT"},
-    "guild_memberships": {"SELECT"},
-    "access_grants": {"SELECT"},
-    "notifications": None,
-    "oidc_claim_mappings": None,
-    "push_tokens": None,
-    "user_view_preferences": None,
-    "alembic_version": None,
-}
 
 # Shared tables that carry (FORCEd) row-level security.
 _RLS_SHARED_TABLES = {
@@ -146,19 +111,20 @@ def _assert_matrix(role: str, live: dict[str, set[str]], matrix) -> None:
             f"{sorted(expected or set())}, catalog has {sorted(got)}"
         )
     assert live == {}, (
-        f"shared tables with {role} grants but no matrix decision "
-        f"(add to the audited matrix / migration): {sorted(live)}"
+        f"shared tables with {role} grants but no decision in the "
+        f"app/db/system_grants.py registry (add an entry there, and have the "
+        f"migration's GRANT/REVOKE match it): {sorted(live)}"
     )
 
 
 async def test_app_admin_grants_match_audited_matrix(engine):
     live = await _table_grants_for(engine, "app_admin")
-    _assert_matrix("app_admin", live, _APP_ADMIN_TABLE_GRANTS)
+    _assert_matrix("app_admin", live, SHARED_TABLE_SYSTEM_GRANTS)
 
 
 async def test_app_user_grants_match_audited_matrix(engine):
     live = await _table_grants_for(engine, "app_user")
-    _assert_matrix("app_user", live, _APP_USER_TABLE_GRANTS)
+    _assert_matrix("app_user", live, SHARED_TABLE_APP_USER_GRANTS)
 
 
 async def test_rls_shared_tables_are_forced(engine):
