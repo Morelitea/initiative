@@ -111,8 +111,9 @@ def _assert_matrix(role: str, live: dict[str, set[str]], matrix) -> None:
             f"{sorted(expected or set())}, catalog has {sorted(got)}"
         )
     assert live == {}, (
-        f"shared tables with {role} grants but no matrix decision "
-        f"(add to the audited matrix / migration): {sorted(live)}"
+        f"shared tables with {role} grants but no decision in the "
+        f"app/db/system_grants.py registry (add an entry there, and have the "
+        f"migration's GRANT/REVOKE match it): {sorted(live)}"
     )
 
 
