@@ -24,6 +24,7 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import (
+    AdvancedToolMessages,
     CalendarEventMessages,
     CounterMessages,
     DocumentMessages,
@@ -37,6 +38,7 @@ from app.models.platform.user import User
 from app.models.tenant.resource_grant import ResourceAccessLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
+from app.services.tenant import advanced_tool as advanced_tool_service
 from app.services.tenant import calendar_events as calendar_events_service
 from app.services.tenant import counters as counters_service
 from app.services.tenant import documents as documents_service
@@ -101,11 +103,25 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
         path_param="event_id",
         not_found_msg=CalendarEventMessages.NOT_FOUND,
     ),
+    Tool.advanced_tool: ResourceAccessConfig(
+        dac_kind=Tool.advanced_tool,
+        # Only checked for initiative-scoped rows; a guild-wide advanced tool has
+        # no initiative, so authorize() skips the feature gate (it's admin-only
+        # by RLS instead).
+        feature_attr="advanced_tool_enabled",
+        feature_disabled_msg=AdvancedToolMessages.NOT_ENABLED,
+        grant_cannot_manage_msg=AdvancedToolMessages.GRANT_CANNOT_MANAGE_MEMBERS,
+        loader=advanced_tool_service.get_advanced_tool,
+        path_param="advanced_tool_id",
+        not_found_msg=AdvancedToolMessages.NOT_FOUND,
+    ),
 }
 
-# The tools whose sharing can be set through the unified grant flow
-# (``set_resource_grants`` / the bulk endpoint) — every tool, all registered above.
-GRANTABLE_KINDS: tuple[Tool, ...] = tuple(Tool)
+# The tools whose sharing can be set through the unified *local* grant flow
+# (``set_resource_grants`` / the bulk endpoint) — exactly the tools registered
+# above, derived so the two never drift. (The advanced tool is a DAC tool but its
+# grants are synced from the external automation service, not set here.)
+GRANTABLE_KINDS: tuple[Tool, ...] = tuple(RESOURCE_ACCESS)
 
 
 def authorize(
@@ -245,12 +261,24 @@ async def _project_on_grants_changed(
         await session.commit()
 
 
+def _reject_guild_wide_sharing(row: Any) -> None:
+    """A guild-wide advanced tool (no initiative) is admin-only and holds no
+    grants — and ``resource_grants.initiative_id`` is NOT NULL, so a grant can't
+    even be written. Reject sharing it rather than 500 on the constraint."""
+    if getattr(row, "initiative_id", None) is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=AdvancedToolMessages.GUILD_WIDE_NOT_SHAREABLE,
+        )
+
+
 GRANT_HOOKS: dict[Tool, GrantHooks] = {
     Tool.project: GrantHooks(
         precheck=project_grants.ensure_grantable,
         writers_before=project_grants.write_holder_ids,
         on_changed=_project_on_grants_changed,
     ),
+    Tool.advanced_tool: GrantHooks(precheck=_reject_guild_wide_sharing),
 }
 
 

@@ -9,6 +9,7 @@ from fastapi import APIRouter
 #                          them — the one place tenant data is read without a
 #                          single guild context (see /me routes below).
 from app.api.v1.tenant_endpoints import (
+    advanced_tool,
     ai_settings,
     attachments,
     auto_subscriptions,
@@ -118,6 +119,9 @@ guild_router.include_router(
     resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]
 )
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
+guild_router.include_router(
+    advanced_tool.router, prefix="/advanced-tools", tags=["advanced-tools"]
+)
 guild_router.include_router(
     property_definitions.router,
     prefix="/property-definitions",

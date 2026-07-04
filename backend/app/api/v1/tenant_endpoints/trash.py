@@ -31,6 +31,7 @@ from app.api.deps import (
 )
 from app.core.messages import TrashMessages
 from app.db.soft_delete_filter import select_including_deleted
+from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -77,6 +78,7 @@ ENTITY_REGISTRY: dict[EntityType, tuple[type[SQLModel], str]] = {
     "calendar_event": (CalendarEvent, "title"),
     "counter_group": (CounterGroup, "name"),
     "counter": (Counter, "name"),
+    "advanced_tool": (AdvancedTool, "name"),
 }
 
 
@@ -131,6 +133,9 @@ _DEDUP_PARENTS: dict[type[SQLModel], list[tuple[type[SQLModel], str]]] = {
     CalendarEvent: [(Initiative, "initiative_id")],
     CounterGroup: [(Initiative, "initiative_id")],
     Counter: [(CounterGroup, "counter_group_id")],
+    # Guild-wide advanced tools (initiative_id NULL) have no parent to cascade
+    # from; initiative-scoped ones dedup under their initiative like the rest.
+    AdvancedTool: [(Initiative, "initiative_id")],
 }
 
 

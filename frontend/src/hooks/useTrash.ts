@@ -63,6 +63,7 @@ const ENTITY_INVALIDATION_PREFIXES: Record<TrashItemEntityType, string[]> = {
   calendar_event: ["calendar-events", "calendarEvents"],
   counter_group: ["counter-groups"],
   counter: ["counter-groups"],
+  advanced_tool: ["advanced-tools"],
 };
 
 export type RestoreTrashVars = {

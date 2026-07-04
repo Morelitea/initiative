@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Trashed counter groups and counters now auto-purge after their retention window, like every other trashed item — previously they lingered in the database indefinitely once past retention.
+
 ## [0.54.0] - 2026-07-03
 
 ### Changed

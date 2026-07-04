@@ -154,6 +154,11 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "calendar_events": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
+    # Advanced tools: initiative_id is NULLABLE — a NULL row is guild-wide, and
+    # initiative_access(NULL, …) resolves to the admin/PAM legs only (the function
+    # is STABLE, not STRICT), so direct() gives admin-only for guild-wide rows and
+    # normal membership for initiative-scoped ones.
+    "advanced_tools": direct(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),

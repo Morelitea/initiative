@@ -1,17 +1,12 @@
-"""The app's tools — one canonical, app-wide enum.
+"""The canonical ``Tool`` enum — the app-wide set of shareable tool kinds.
 
-A **tool** is a first-class thing an initiative offers: a project, a document, a
-queue, a counter group, or a calendar event. This is the same set the six
-authorization gates call "tools" (the shareable DAC resources), the set the
-sharing engine keys on, and the set whose string values are persisted in
-``resource_grants.resource_type``.
-
-``Tool`` is the single source of truth for that set, app-wide — the sharing/DAC
-registries, the bulk-grants API, and anywhere else that needs to name a tool kind
-should reference it rather than repeating string literals. It is a ``str, Enum``
-(like ``ResourceAccessLevel``), so a member *is* its string value and
-interoperates transparently with the plain string column and any string-keyed
-lookup.
+A tool is a first-class thing an initiative offers. Every tool is the same shape:
+a soft-deletable content table under initiative-member RLS, shared via
+``resource_grants`` (its string value IS the ``resource_type``). The single source
+of truth for that set — the DAC registries and every tool endpoint reference it
+rather than repeating string literals. Kept dependency-free (just an enum) so it
+can be imported anywhere. ``tools_test.py`` asserts every per-tool surface covers
+this enum, so a new member that forgets to wire one fails CI.
 """
 
 from enum import Enum
@@ -23,7 +18,9 @@ class Tool(str, Enum):
     queue = "queue"
     counter_group = "counter_group"
     calendar_event = "calendar_event"
+    advanced_tool = "advanced_tool"
 
 
-# The tool string values as a set, derived from the enum (single source of truth).
+# The tool string values as a set — the accepted ``resource_grants.resource_type``
+# values, derived from the enum (single source of truth).
 TOOL_TYPES = frozenset(t.value for t in Tool)

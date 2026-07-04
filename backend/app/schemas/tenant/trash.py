@@ -20,6 +20,7 @@ EntityType = Literal[
     "calendar_event",
     "counter_group",
     "counter",
+    "advanced_tool",
 ]
 
 

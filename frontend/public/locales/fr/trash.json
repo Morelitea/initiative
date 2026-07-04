@@ -37,6 +37,7 @@
     "queue_item": "Élément de file",
     "calendar_event": "Événement de calendrier",
     "counter_group": "Groupe de compteurs",
-    "counter": "Compteur"
+    "counter": "Compteur",
+    "advanced_tool": "Outil avancé"
   }
 }
