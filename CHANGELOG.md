@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Calendar events now appear in the recent-items tabs bar, like projects, documents, queues, and counter groups.
+
+### Changed
+
+- **Canonical tool naming across the API (breaking, pre-v1).** Every per-tool name now derives from one canonical tool enum: initiative master switches (`events_enabled` → `calendar_events_enabled`, `counters_enabled` → `counter_groups_enabled`, `advanced_tool_enabled` → `advanced_tools_enabled`), role permission keys (`docs_enabled`/`create_docs` → `documents_enabled`/`create_documents`, `create_events` → `create_calendar_events`, `create_counters` → `create_counter_groups`, `create_advanced_tool` → `create_advanced_tools`), and the per-member permission flags (`can_view_docs` → `can_view_documents`, `can_view_events` → `can_view_calendar_events`, `can_view_counters` → `can_view_counter_groups`, `can_view_advanced_tool` → `can_view_advanced_tools`, plus the matching `can_create_*`). A guild migration renames the columns and rewrites stored permission keys; no compatibility shims. The advanced-tool embed handoff now reads `advanced_tools_enabled` and the `create_advanced_tools` claim — external embed backends must follow the rename.
+- Permission keys, initiative switch fields, membership permission flags, and recents entity types are now all derived from the tool enum in code (with CI drift tests), so adding a tool wires every backend surface automatically.
+
 ### Fixed
 
 - Trashed counter groups and counters now auto-purge after their retention window, like every other trashed item — previously they lingered in the database indefinitely once past retention.

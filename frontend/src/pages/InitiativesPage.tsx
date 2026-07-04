@@ -132,9 +132,9 @@ export const InitiativesPage = () => {
         description: newDescription.trim() || undefined,
         color: newColor,
         queues_enabled: queuesEnabled,
-        events_enabled: eventsEnabled,
-        counters_enabled: countersEnabled,
-        advanced_tool_enabled: advancedToolEnabled,
+        calendar_events_enabled: eventsEnabled,
+        counter_groups_enabled: countersEnabled,
+        advanced_tools_enabled: advancedToolEnabled,
       },
       {
         onSuccess: () => {

@@ -4,15 +4,14 @@ from typing import Optional
 from sqlalchemy import Column, DateTime, Text
 from sqlmodel import Field, SQLModel
 
+from app.core.tools import RECENTABLE_TOOLS
 
-# Allowed values mirror the CHECK constraint on the table. Keep in sync with
-# migration ``20260523_0088_create_recent_views.py``.
-RECENT_ENTITY_TYPES: tuple[str, ...] = (
-    "project",
-    "document",
-    "queue",
-    "counter_group",
-)
+
+# Allowed values, derived from the canonical Tool enum. They mirror the CHECK
+# constraint on the table (baseline + migration
+# ``20260704_0128_canonical_tool_naming.py``) — a new recentable tool needs a
+# guild migration extending that constraint.
+RECENT_ENTITY_TYPES: tuple[str, ...] = tuple(t.value for t in RECENTABLE_TOOLS)
 
 
 class RecentView(SQLModel, table=True):

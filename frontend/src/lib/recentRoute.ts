@@ -13,6 +13,7 @@ const SEGMENT_BY_TYPE: Record<RecentItemRead["entity_type"], string> = {
   document: "documents",
   queue: "queues",
   counter_group: "counter-groups",
+  calendar_event: "events",
 };
 
 /**
@@ -43,6 +44,7 @@ export function getActiveRecentKey(pathname: string): RecentKey | null {
     { entityType: "document", re: /^\/g\/(\d+)\/documents\/(\d+)/ },
     { entityType: "queue", re: /^\/g\/(\d+)\/queues\/(\d+)/ },
     { entityType: "counter_group", re: /^\/g\/(\d+)\/counter-groups\/(\d+)/ },
+    { entityType: "calendar_event", re: /^\/g\/(\d+)\/events\/(\d+)/ },
   ];
 
   for (const { entityType, re } of patterns) {

@@ -28,7 +28,7 @@ class AdvancedToolBase(SanitizedBaseModel):
 
 class AdvancedToolCreate(AdvancedToolBase):
     # None → guild-wide (admin-only). Set → initiative-scoped (needs
-    # advanced_tool_enabled + the create permission, like other tools).
+    # advanced_tools_enabled + the create permission, like other tools).
     initiative_id: Optional[int] = None
     # Initial sharing for an initiative-scoped tool (ignored for guild-wide ones —
     # those are admin-only and can't hold grants). Defaults to Viewer for all

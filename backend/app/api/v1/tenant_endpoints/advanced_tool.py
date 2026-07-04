@@ -6,7 +6,7 @@ its ``data`` blob is what the service runs. Authorization goes through the share
 ``resource_access`` enforcement path.
 
 Scope: ``initiative_id`` set → an initiative-scoped tool (needs
-``advanced_tool_enabled`` + the create permission, shared via ``resource_grants``).
+``advanced_tools_enabled`` + the create permission, shared via ``resource_grants``).
 ``initiative_id`` NULL → **guild-wide**, which only a guild admin may create, and
 which is admin-only by RLS (no per-user grants).
 """
@@ -81,7 +81,7 @@ async def list_advanced_tools(
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.advanced_tool_enabled:
+        if initiative and not initiative.advanced_tools_enabled:
             return AdvancedToolListResponse(
                 items=[], total_count=0, page=page, page_size=page_size, has_next=False
             )
@@ -95,7 +95,7 @@ async def list_advanced_tools(
                 AdvancedTool.initiative_id.is_(None),
                 AdvancedTool.initiative_id.in_(
                     select(Initiative.id).where(
-                        Initiative.advanced_tool_enabled == True  # noqa: E712
+                        Initiative.advanced_tools_enabled == True  # noqa: E712
                     )
                 ),
             )
@@ -199,7 +199,7 @@ async def create_advanced_tool(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=InitiativeMessages.NOT_FOUND,
             )
-        if not initiative.advanced_tool_enabled:
+        if not initiative.advanced_tools_enabled:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=AdvancedToolMessages.NOT_ENABLED,
@@ -209,7 +209,7 @@ async def create_advanced_tool(
                 session,
                 initiative_id=initiative.id,
                 user=current_user,
-                permission_key=PermissionKey.create_advanced_tool,
+                permission_key=PermissionKey.create_advanced_tools,
             )
             if not has_perm:
                 raise HTTPException(

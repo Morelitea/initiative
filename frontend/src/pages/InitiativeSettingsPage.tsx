@@ -148,21 +148,21 @@ export const InitiativeSettingsPage = () => {
   const handleToggleEvents = (value: boolean) => {
     updateInitiative.mutate({
       initiativeId,
-      data: { events_enabled: value },
+      data: { calendar_events_enabled: value },
     });
   };
 
   const handleToggleAdvancedTool = (value: boolean) => {
     updateInitiative.mutate({
       initiativeId,
-      data: { advanced_tool_enabled: value },
+      data: { advanced_tools_enabled: value },
     });
   };
 
   const handleToggleCounters = (value: boolean) => {
     updateInitiative.mutate({
       initiativeId,
-      data: { counters_enabled: value },
+      data: { counter_groups_enabled: value },
     });
   };
 
@@ -268,11 +268,11 @@ export const InitiativeSettingsPage = () => {
           setColor={setColor}
           queuesEnabled={initiative?.queues_enabled ?? false}
           onToggleQueues={handleToggleQueues}
-          eventsEnabled={initiative?.events_enabled ?? false}
+          eventsEnabled={initiative?.calendar_events_enabled ?? false}
           onToggleEvents={handleToggleEvents}
-          advancedToolEnabled={initiative?.advanced_tool_enabled ?? false}
+          advancedToolEnabled={initiative?.advanced_tools_enabled ?? false}
           onToggleAdvancedTool={handleToggleAdvancedTool}
-          countersEnabled={initiative?.counters_enabled ?? false}
+          countersEnabled={initiative?.counter_groups_enabled ?? false}
           onToggleCounters={handleToggleCounters}
           canManageMembers={canManageMembers}
           isSaving={updateInitiative.isPending}

@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal, Optional
+from enum import Enum
+from typing import Optional
 
 from pydantic import ConfigDict
 
+from app.core.tools import RECENTABLE_TOOLS
 from app.schemas.base import SanitizedBaseModel
 
 
-RecentEntityType = Literal["project", "document", "queue", "counter_group"]
+# Derived from the canonical Tool enum — the recentable tools' string values,
+# as a str enum so FastAPI validates path params and OpenAPI lists the values.
+RecentEntityType = Enum(
+    "RecentEntityType", [(t.value, t.value) for t in RECENTABLE_TOOLS], type=str
+)
 
 
 class RecentViewWrite(SanitizedBaseModel):

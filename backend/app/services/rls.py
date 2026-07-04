@@ -187,7 +187,7 @@ async def check_initiative_permission(
         session: Database session
         initiative_id: ID of the initiative
         user: User to check permissions for
-        permission_key: Permission to check (e.g., PermissionKey.create_docs)
+        permission_key: Permission to check (e.g., PermissionKey.create_documents)
 
     Returns:
         True if user has the permission, False otherwise
@@ -279,28 +279,3 @@ async def override_sharing_initiative_ids(
         )
     )
     return set((await session.exec(stmt)).all())
-
-
-async def has_feature_access(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
-    feature: str,
-) -> bool:
-    """Check if user can see a feature (docs or projects).
-
-    Args:
-        feature: Either "docs" or "projects"
-    """
-    perm_key = (
-        PermissionKey.docs_enabled
-        if feature == "docs"
-        else PermissionKey.projects_enabled
-    )
-    return await check_initiative_permission(
-        session,
-        initiative_id=initiative_id,
-        user=user,
-        permission_key=perm_key,
-    )

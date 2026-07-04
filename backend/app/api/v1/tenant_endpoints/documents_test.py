@@ -258,7 +258,7 @@ async def test_copy_template_with_read_only_access(
 ):
     """A user with only read on a template can still copy it into a new document."""
     template_owner = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    # Reader needs create_docs in the target initiative; PM role grants it by default.
+    # Reader needs create_documents in the target initiative; PM role grants it by default.
     reader = await acting_user(
         guild_role=GuildRole.member,
         guild=template_owner.guild,

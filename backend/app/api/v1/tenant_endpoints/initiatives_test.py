@@ -702,8 +702,8 @@ async def test_initiative_guild_isolation(
 #   1. ADVANCED_TOOL_URL configured
 #   2. Initiative exists in the active guild
 #   3. User is guild admin OR initiative member
-#   4. initiative.advanced_tool_enabled = true
-#   5. User's role grants advanced_tool_enabled (managers bypass)
+#   4. initiative.advanced_tools_enabled = true
+#   5. User's role grants advanced_tools_enabled (managers bypass)
 # ---------------------------------------------------------------------------
 
 
@@ -720,7 +720,7 @@ async def test_advanced_tool_handoff_returns_404_when_url_unset(
 
     admin = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Init", advanced_tool_enabled=True
+        session, admin.guild, admin.user, name="Init", advanced_tools_enabled=True
     )
 
     response = await client.post(
@@ -745,7 +745,7 @@ async def test_advanced_tool_handoff_returns_403_when_master_switch_off(
 
     admin = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Init", advanced_tool_enabled=False
+        session, admin.guild, admin.user, name="Init", advanced_tools_enabled=False
     )
 
     response = await client.post(
@@ -771,7 +771,7 @@ async def test_advanced_tool_handoff_returns_403_for_non_member(
     admin = await acting_user(guild_role=GuildRole.admin)
     outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
     initiative = await create_initiative(
-        session, admin.guild, admin.user, name="Init", advanced_tool_enabled=True
+        session, admin.guild, admin.user, name="Init", advanced_tools_enabled=True
     )
 
     response = await client.post(
@@ -787,7 +787,7 @@ async def test_advanced_tool_handoff_returns_403_when_role_lacks_view_permission
     client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """An initiative member whose role does NOT grant
-    ``advanced_tool_enabled`` must be refused. The default ``member``
+    ``advanced_tools_enabled`` must be refused. The default ``member``
     role is exactly this case — view permission is opt-in per role.
     Without this gate, role-level access control would be a no-op."""
     from app.core.config import settings as app_settings
@@ -799,10 +799,10 @@ async def test_advanced_tool_handoff_returns_403_when_role_lacks_view_permission
     pm = await acting_user(
         guild_role=GuildRole.member, initiative=True, email="pm@example.com"
     )
-    pm.initiative.advanced_tool_enabled = True
+    pm.initiative.advanced_tools_enabled = True
     session.add(pm.initiative)
     await session.commit()
-    # member joins with the default member role (advanced_tool_enabled=False)
+    # member joins with the default member role (advanced_tools_enabled=False)
     member = await acting_user(
         guild_role=GuildRole.member,
         guild=pm.guild,
@@ -835,7 +835,7 @@ async def test_advanced_tool_handoff_succeeds_for_initiative_manager(
 
     pm = await acting_user(guild_role=GuildRole.member, email="pm@example.com")
     initiative = await create_initiative(
-        session, pm.guild, pm.user, name="Init", advanced_tool_enabled=True
+        session, pm.guild, pm.user, name="Init", advanced_tools_enabled=True
     )
 
     response = await client.post(
@@ -890,7 +890,7 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
     pm = await acting_user(
         guild_role=GuildRole.member, initiative=True, email="pm@example.com"
     )
-    pm.initiative.advanced_tool_enabled = True
+    pm.initiative.advanced_tools_enabled = True
     session.add(pm.initiative)
     await session.commit()
 
@@ -908,7 +908,7 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
             select(InitiativeRolePermission).where(
                 InitiativeRolePermission.initiative_role_id == member_role.id,
                 InitiativeRolePermission.permission_key
-                == PermissionKey.advanced_tool_enabled,
+                == PermissionKey.advanced_tools_enabled,
             )
         )
     ).one()
@@ -961,7 +961,7 @@ async def test_advanced_tool_handoff_succeeds_for_guild_admin_non_member(
         guild_role=GuildRole.member, guild=admin.guild, email="pm@example.com"
     )
     initiative = await create_initiative(
-        session, admin.guild, pm.user, name="Init", advanced_tool_enabled=True
+        session, admin.guild, pm.user, name="Init", advanced_tools_enabled=True
     )
     # Admin is intentionally NOT added as an initiative member
 

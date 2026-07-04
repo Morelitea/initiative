@@ -237,7 +237,7 @@ def create_advanced_tool_handoff_token(
         "is_manager": is_manager,
         "scope": scope,
         # Forwarded so the proprietary backend can hide create UI for
-        # members whose role doesn't grant create_advanced_tool. View
+        # members whose role doesn't grant create_advanced_tools. View
         # access is implied by the fact that we issued this token at all.
         "can_create": can_create,
     }

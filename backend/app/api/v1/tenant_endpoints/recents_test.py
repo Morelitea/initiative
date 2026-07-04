@@ -12,6 +12,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
 from app.testing import (
+    create_calendar_event,
     create_guild,
     create_guild_membership,
     create_project,
@@ -216,3 +217,35 @@ async def test_clear_recent_is_guild_addressed(
     r = await client.get("/api/v1/recents/", headers=a.headers)
     assert r.status_code == 200
     assert r.json() == []
+
+
+@pytest.mark.integration
+async def test_record_and_list_recent_calendar_event(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    a = await acting_user(guild_role=GuildRole.member, initiative=True)
+    a.initiative.calendar_events_enabled = True
+    session.add(a.initiative)
+    await session.commit()
+    event = await create_calendar_event(session, a.initiative, a.user, title="E1")
+
+    r = await client.post(a.g(f"/calendar-events/{event.id}/view"), headers=a.headers)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["entity_type"] == "calendar_event"
+    assert body["entity_id"] == event.id
+
+    r = await client.get("/api/v1/recents/", headers=a.headers)
+    assert r.status_code == 200
+    items = r.json()
+    assert any(
+        i["entity_type"] == "calendar_event"
+        and i["entity_id"] == event.id
+        and i["name"] == "E1"
+        for i in items
+    )
+
+    r = await client.delete(a.g(f"/calendar-events/{event.id}/view"), headers=a.headers)
+    assert r.status_code == 204
+    r = await client.get("/api/v1/recents/", headers=a.headers)
+    assert all(i["entity_type"] != "calendar_event" for i in r.json())

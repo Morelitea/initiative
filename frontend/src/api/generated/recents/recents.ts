@@ -20,7 +20,11 @@ import type {
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HTTPValidationError, RecentItemRead } from "../initiativeAPI.schemas";
+import type {
+  HTTPValidationError,
+  RecentEntityType,
+  RecentItemRead,
+} from "../initiativeAPI.schemas";
 
 import { apiMutator } from "../../mutator";
 import type { ErrorType } from "../../mutator";
@@ -161,7 +165,7 @@ export function useListRecentsApiV1RecentsGet<
  */
 export const clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete = (
   guildId: number,
-  entityType: "project" | "document" | "queue" | "counter_group",
+  entityType: RecentEntityType,
   entityId: number,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
@@ -179,22 +183,14 @@ export const getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationO
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
     TError,
-    {
-      guildId: number;
-      entityType: "project" | "document" | "queue" | "counter_group";
-      entityId: number;
-    },
+    { guildId: number; entityType: RecentEntityType; entityId: number },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
   TError,
-  {
-    guildId: number;
-    entityType: "project" | "document" | "queue" | "counter_group";
-    entityId: number;
-  },
+  { guildId: number; entityType: RecentEntityType; entityId: number },
   TContext
 > => {
   const mutationKey = ["clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete"];
@@ -206,11 +202,7 @@ export const getClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDeleteMutationO
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
-    {
-      guildId: number;
-      entityType: "project" | "document" | "queue" | "counter_group";
-      entityId: number;
-    }
+    { guildId: number; entityType: RecentEntityType; entityId: number }
   > = (props) => {
     const { guildId, entityType, entityId } = props ?? {};
 
@@ -243,11 +235,7 @@ export const useClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
       TError,
-      {
-        guildId: number;
-        entityType: "project" | "document" | "queue" | "counter_group";
-        entityId: number;
-      },
+      { guildId: number; entityType: RecentEntityType; entityId: number },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -256,11 +244,7 @@ export const useClearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof clearRecentApiV1GGuildIdRecentsEntityTypeEntityIdDelete>>,
   TError,
-  {
-    guildId: number;
-    entityType: "project" | "document" | "queue" | "counter_group";
-    entityId: number;
-  },
+  { guildId: number; entityType: RecentEntityType; entityId: number },
   TContext
 > => {
   return useMutation(

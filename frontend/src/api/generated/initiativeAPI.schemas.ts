@@ -998,6 +998,18 @@ export interface DocumentFileVersionRead {
  * Member info including their role.
  */
 export interface InitiativeMemberRead {
+  can_view_projects: boolean;
+  can_view_documents: boolean;
+  can_view_queues: boolean;
+  can_view_counter_groups: boolean;
+  can_view_calendar_events: boolean;
+  can_view_advanced_tools: boolean;
+  can_create_projects: boolean;
+  can_create_documents: boolean;
+  can_create_queues: boolean;
+  can_create_counter_groups: boolean;
+  can_create_calendar_events: boolean;
+  can_create_advanced_tools: boolean;
   user: UserPublic;
   role_id: number | null;
   role_name: string | null;
@@ -1006,28 +1018,16 @@ export interface InitiativeMemberRead {
   joined_at: string;
   role: InitiativeRole;
   oidc_managed: boolean;
-  can_view_docs: boolean;
-  can_view_projects: boolean;
-  can_view_queues: boolean;
-  can_view_events: boolean;
-  can_view_advanced_tool: boolean;
-  can_view_counters: boolean;
-  can_create_docs: boolean;
-  can_create_projects: boolean;
-  can_create_queues: boolean;
-  can_create_events: boolean;
-  can_create_advanced_tool: boolean;
-  can_create_counters: boolean;
 }
 
 export interface InitiativeRead {
+  queues_enabled: boolean;
+  counter_groups_enabled: boolean;
+  calendar_events_enabled: boolean;
+  advanced_tools_enabled: boolean;
   name: string;
   description: string | null;
   color: string | null;
-  queues_enabled: boolean;
-  events_enabled: boolean;
-  advanced_tool_enabled: boolean;
-  counters_enabled: boolean;
   id: number;
   guild_id: number;
   is_default: boolean;
@@ -1460,13 +1460,13 @@ export interface ImportResult {
 }
 
 export interface InitiativeCreate {
+  queues_enabled?: boolean;
+  counter_groups_enabled?: boolean;
+  calendar_events_enabled?: boolean;
+  advanced_tools_enabled?: boolean;
   name: string;
   description?: string | null;
   color?: string | null;
-  queues_enabled?: boolean;
-  events_enabled?: boolean;
-  advanced_tool_enabled?: boolean;
-  counters_enabled?: boolean;
 }
 
 /**
@@ -1487,18 +1487,18 @@ export interface InitiativeMemberUpdate {
 export type PermissionKey = (typeof PermissionKey)[keyof typeof PermissionKey];
 
 export const PermissionKey = {
-  docs_enabled: "docs_enabled",
   projects_enabled: "projects_enabled",
-  create_docs: "create_docs",
   create_projects: "create_projects",
+  documents_enabled: "documents_enabled",
+  create_documents: "create_documents",
   queues_enabled: "queues_enabled",
   create_queues: "create_queues",
-  events_enabled: "events_enabled",
-  create_events: "create_events",
-  advanced_tool_enabled: "advanced_tool_enabled",
-  create_advanced_tool: "create_advanced_tool",
-  counters_enabled: "counters_enabled",
-  create_counters: "create_counters",
+  counter_groups_enabled: "counter_groups_enabled",
+  create_counter_groups: "create_counter_groups",
+  calendar_events_enabled: "calendar_events_enabled",
+  create_calendar_events: "create_calendar_events",
+  advanced_tools_enabled: "advanced_tools_enabled",
+  create_advanced_tools: "create_advanced_tools",
 } as const;
 
 /**
@@ -1545,13 +1545,13 @@ export interface InitiativeRoleUpdate {
 }
 
 export interface InitiativeUpdate {
+  queues_enabled?: boolean | null;
+  counter_groups_enabled?: boolean | null;
+  calendar_events_enabled?: boolean | null;
+  advanced_tools_enabled?: boolean | null;
   name?: string | null;
   description?: string | null;
   color?: string | null;
-  queues_enabled?: boolean | null;
-  events_enabled?: boolean | null;
-  advanced_tool_enabled?: boolean | null;
-  counters_enabled?: boolean | null;
   is_archived?: boolean | null;
 }
 
@@ -1631,7 +1631,7 @@ export interface MyInitiativePermissions {
   is_manager: boolean;
   override_share_restrictions: boolean;
   permissions: Partial<Record<PermissionKey, boolean>>;
-  advanced_tool_enabled: boolean;
+  advanced_tools_enabled: boolean;
 }
 
 export interface NotificationCountResponse {
@@ -2376,14 +2376,14 @@ export interface RecentActivityEntry {
   project_name?: string | null;
 }
 
-export type RecentItemReadEntityType =
-  (typeof RecentItemReadEntityType)[keyof typeof RecentItemReadEntityType];
+export type RecentEntityType = (typeof RecentEntityType)[keyof typeof RecentEntityType];
 
-export const RecentItemReadEntityType = {
+export const RecentEntityType = {
   project: "project",
   document: "document",
   queue: "queue",
   counter_group: "counter_group",
+  calendar_event: "calendar_event",
 } as const;
 
 /**
@@ -2393,7 +2393,7 @@ export const RecentItemReadEntityType = {
  * icon and link without an N+1 fetch per entity type.
  */
 export interface RecentItemRead {
-  entity_type: RecentItemReadEntityType;
+  entity_type: RecentEntityType;
   entity_id: number;
   guild_id: number;
   name: string;
@@ -2404,21 +2404,11 @@ export interface RecentItemRead {
   original_filename: string | null;
 }
 
-export type RecentViewWriteEntityType =
-  (typeof RecentViewWriteEntityType)[keyof typeof RecentViewWriteEntityType];
-
-export const RecentViewWriteEntityType = {
-  project: "project",
-  document: "document",
-  queue: "queue",
-  counter_group: "counter_group",
-} as const;
-
 /**
  * Response body for POST .../{id}/view, common across entity types.
  */
 export interface RecentViewWrite {
-  entity_type: RecentViewWriteEntityType;
+  entity_type: RecentEntityType;
   entity_id: number;
   last_viewed_at: string;
 }

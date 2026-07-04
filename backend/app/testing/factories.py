@@ -286,7 +286,7 @@ async def create_initiative(
         "description": "A test initiative",
         "guild_id": guild.id,
         "queues_enabled": True,
-        "counters_enabled": True,
+        "counter_groups_enabled": True,
     }
 
     initiative_data = {**defaults, **overrides}

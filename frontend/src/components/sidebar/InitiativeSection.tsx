@@ -84,10 +84,10 @@ export const InitiativeSection = memo(
     // The sidebar entry is triply-gated:
     //   1. Runtime config must expose an advanced tool (deployment-level).
     //   2. The initiative manager must have enabled it (per-initiative).
-    //   3. The user's role must include the advanced_tool_enabled key
+    //   3. The user's role must include the advanced_tools_enabled key
     //      — non-managers can be denied even when (1) and (2) pass.
     const showAdvancedTool = Boolean(
-      advancedTool && initiative.advanced_tool_enabled && canViewAdvancedTool
+      advancedTool && initiative.advanced_tools_enabled && canViewAdvancedTool
     );
     // Helper to create guild-scoped paths
     const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
