@@ -1,28 +1,47 @@
 import { Link, Navigate, useParams } from "@tanstack/react-router";
 import { Loader2, SearchX, Settings } from "lucide-react";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { type ComponentType, Suspense, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
 import {
-  canCreate,
-  isFeatureEnabled,
+  canCreateTool,
+  isToolVisible,
   useMyInitiativePermissions,
 } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { toolCamelPlural } from "@/lib/tools";
 
 import { DocumentsView } from "./DocumentsPage";
+import { AdvancedToolsView } from "./initiativeTools/advancedTools/AdvancedToolsView";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
 import { EventsView } from "./initiativeTools/events/EventsPage";
 import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { ProjectsView } from "./ProjectsPage";
+
+type ToolViewProps = { fixedInitiativeId: number; canCreate?: boolean };
+
+// Tab display order + each tool's list view. A new tool adds one line here
+// (the drift test asserts every tool has an entry).
+const TOOL_TABS: Array<[Tool, ComponentType<ToolViewProps>]> = [
+  [Tool.document, DocumentsView],
+  [Tool.project, ProjectsView],
+  [Tool.calendar_event, EventsView],
+  [Tool.queue, QueuesView],
+  [Tool.counter_group, CounterGroupsView],
+  [Tool.advanced_tool, AdvancedToolsView],
+];
+
+export const TOOL_TAB_VIEWS: ReadonlyMap<Tool, ComponentType<ToolViewProps>> = new Map(TOOL_TABS);
 
 export const InitiativeDetailPage = () => {
   const { initiativeId: initiativeIdParam, guildId: guildIdParam } = useParams({
@@ -55,31 +74,22 @@ export const InitiativeDetailPage = () => {
   const isInitiativeManager = membership?.is_manager || membership?.role === "project_manager";
   const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);
 
-  // Determine which features are enabled for this user
-  const docsEnabled = isFeatureEnabled(permissions, "docs");
-  const projectsEnabled = isFeatureEnabled(permissions, "projects");
-  const queuesEnabled = isFeatureEnabled(permissions, "queues");
-  const eventsEnabled = isFeatureEnabled(permissions, "events");
-  const countersEnabled = isFeatureEnabled(permissions, "counters");
-  const canCreateDocs = canCreate(permissions, "docs");
-  const canCreateProjects = canCreate(permissions, "projects");
-  const canCreateQueues = canCreate(permissions, "queues");
-  const canCreateEvents = canCreate(permissions, "events");
-  const canCreateCounters = canCreate(permissions, "counters");
+  const { advancedTool } = useAppConfig();
 
-  type TabValue = "documents" | "projects" | "queues" | "calendar" | "counters";
+  // A tool's tab renders when its permission allows viewing it (the backend
+  // already folds in the initiative's master switches). The advanced tool is
+  // additionally gated by the deployment-level runtime config.
+  const availableTabs = useMemo<Tool[]>(
+    () =>
+      TOOL_TABS.map(([tool]) => tool).filter((tool) => {
+        if (!isToolVisible(permissions, tool)) return false;
+        if (tool === Tool.advanced_tool) return Boolean(advancedTool);
+        return true;
+      }),
+    [permissions, advancedTool]
+  );
 
-  const availableTabs = useMemo<TabValue[]>(() => {
-    const tabs: TabValue[] = [];
-    if (docsEnabled) tabs.push("documents");
-    if (projectsEnabled) tabs.push("projects");
-    if (eventsEnabled) tabs.push("calendar");
-    if (queuesEnabled) tabs.push("queues");
-    if (countersEnabled) tabs.push("counters");
-    return tabs;
-  }, [docsEnabled, projectsEnabled, queuesEnabled, eventsEnabled, countersEnabled]);
-
-  const [activeTab, setActiveTab] = useState<TabValue>(availableTabs[0] ?? "documents");
+  const [activeTab, setActiveTab] = useState<Tool>(availableTabs[0] ?? Tool.document);
 
   // Update active tab if current tab becomes unavailable
   useEffect(() => {
@@ -191,71 +201,27 @@ export const InitiativeDetailPage = () => {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tool)}>
         <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsList className="inline-flex w-max">
-            {docsEnabled && <TabsTrigger value="documents">{t("detail.documents")}</TabsTrigger>}
-            {projectsEnabled && <TabsTrigger value="projects">{t("detail.projects")}</TabsTrigger>}
-            {eventsEnabled && <TabsTrigger value="calendar">{t("detail.calendar")}</TabsTrigger>}
-            {queuesEnabled && <TabsTrigger value="queues">{t("detail.queues")}</TabsTrigger>}
-            {countersEnabled && <TabsTrigger value="counters">{t("detail.counters")}</TabsTrigger>}
+            {TOOL_TABS.filter(([tool]) => availableTabs.includes(tool)).map(([tool]) => (
+              <TabsTrigger key={tool} value={tool}>
+                {t(`detail.${toolCamelPlural(tool)}` as never)}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
-        {docsEnabled && (
-          <TabsContent value="documents" className="mt-6">
+        {TOOL_TABS.filter(([tool]) => availableTabs.includes(tool)).map(([tool, View]) => (
+          <TabsContent key={tool} value={tool} className="mt-6">
             <Suspense fallback={tabFallback}>
-              <DocumentsView
-                key={`documents-${initiative.id}`}
+              <View
+                key={`${tool}-${initiative.id}`}
                 fixedInitiativeId={initiative.id}
-                canCreate={canCreateDocs}
+                canCreate={canCreateTool(permissions, tool)}
               />
             </Suspense>
           </TabsContent>
-        )}
-        {projectsEnabled && (
-          <TabsContent value="projects" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <ProjectsView
-                key={`projects-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateProjects}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
-        {eventsEnabled && (
-          <TabsContent value="calendar" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <EventsView
-                key={`calendar-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateEvents}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
-        {queuesEnabled && (
-          <TabsContent value="queues" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <QueuesView
-                key={`queues-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateQueues}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
-        {countersEnabled && (
-          <TabsContent value="counters" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <CounterGroupsView
-                key={`counters-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateCounters}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
+        ))}
       </Tabs>
     </div>
   );

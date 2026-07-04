@@ -14,7 +14,7 @@ interface CounterGroupCardProps {
 }
 
 export const CounterGroupCard = ({ group, initiativeName, className }: CounterGroupCardProps) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const gp = useGuildPath();
 
   return (

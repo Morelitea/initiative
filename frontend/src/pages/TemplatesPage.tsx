@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,7 +37,7 @@ export const TemplatesPage = () => {
     if (hasCapability(user, Capability.dataBypass)) return true;
     if (!initiativesQuery.data) return false;
     return filterVisible(initiativesQuery.data).some(
-      (initiative) => permissionsFor(initiative).canCreateProjects
+      (initiative) => permissionsFor(initiative)[Tool.project].create
     );
   }, [user, initiativesQuery.data, filterVisible, permissionsFor]);
 

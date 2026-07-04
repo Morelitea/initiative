@@ -2,6 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
 import type {
+  InitiativeCreate,
   InitiativeMemberRead,
   InitiativeRead,
   UserPublic,
@@ -104,35 +105,16 @@ export const useInitiativeMembers = (
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-export const useCreateInitiative = (
-  options?: MutationOpts<
-    InitiativeRead,
-    {
-      name: string;
-      description?: string;
-      color?: string;
-      queues_enabled?: boolean;
-      calendar_events_enabled?: boolean;
-      counter_groups_enabled?: boolean;
-      advanced_tools_enabled?: boolean;
-    }
-  >
-) => {
+export const useCreateInitiative = (options?: MutationOpts<InitiativeRead, InitiativeCreate>) => {
   const { t } = useTranslation("initiatives");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (data: {
-      name: string;
-      description?: string;
-      color?: string;
-      queues_enabled?: boolean;
-      calendar_events_enabled?: boolean;
-      counter_groups_enabled?: boolean;
-      advanced_tools_enabled?: boolean;
-    }) => {
+    // The generated InitiativeCreate carries one `{plural}_enabled` field per
+    // toggleable tool — no hand-maintained field list to drift.
+    mutationFn: async (data: InitiativeCreate) => {
       return createInitiativeApiV1GGuildIdInitiativesPost(
         guildId,
         data

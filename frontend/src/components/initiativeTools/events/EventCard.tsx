@@ -65,12 +65,12 @@ const formatDateRange = (startStr: string, endStr: string, allDay: boolean): str
 };
 
 export const EventCard = ({ event, initiativeName, className }: EventCardProps) => {
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const gp = useGuildPath();
 
   return (
     <Link
-      to={gp(`/events/${event.id}`)}
+      to={gp(`/calendar-events/${event.id}`)}
       className={cn(
         "group block w-full overflow-hidden rounded-2xl border bg-card text-card-foreground shadow-sm transition hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-lg",
         className

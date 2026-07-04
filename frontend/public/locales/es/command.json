@@ -9,7 +9,9 @@
     "tasks": "Tareas",
     "documents": "Documentos",
     "queues": "Colas",
-    "counterGroups": "Grupos de contadores"
+    "counterGroups": "Grupos de contadores",
+    "calendarEvents": "Eventos de calendario",
+    "advancedTools": "Herramientas avanzadas"
   },
   "actions": {
     "addTask": "Agregar tarea",

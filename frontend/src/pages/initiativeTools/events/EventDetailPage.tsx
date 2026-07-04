@@ -141,7 +141,7 @@ const rsvpBadgeVariant = (
 };
 
 export function EventDetailPage() {
-  const { t } = useTranslation(["events", "common"]);
+  const { t } = useTranslation(["calendarEvents", "common"]);
   const { eventId } = useParams({ strict: false }) as { eventId: string };
   const parsedId = Number(eventId);
   const navigate = useNavigate();
@@ -164,7 +164,7 @@ export function EventDetailPage() {
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void navigate({ to: gp("/events") });
+      void navigate({ to: gp("/calendar-events") });
     },
   });
 
@@ -201,7 +201,7 @@ export function EventDetailPage() {
 
   if (eventQuery.isError || !event) {
     const status = getHttpStatus(eventQuery.error);
-    const backTo = gp("/events");
+    const backTo = gp("/calendar-events");
     const backLabel = t("backToEvents");
 
     if (status === 403) {
@@ -244,7 +244,7 @@ export function EventDetailPage() {
             )}
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link to={gp("/events")}>{t("title")}</Link>
+                <Link to={gp("/calendar-events")}>{t("title")}</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
@@ -257,7 +257,7 @@ export function EventDetailPage() {
         <div className="flex items-center gap-2">
           {event.all_day && <Badge variant="secondary">{t("allDay")}</Badge>}
           <Button variant="ghost" size="sm" asChild>
-            <Link to={gp(`/events/${event.id}/settings`)}>
+            <Link to={gp(`/calendar-events/${event.id}/settings`)}>
               <Settings className="h-4 w-4" />
             </Link>
           </Button>

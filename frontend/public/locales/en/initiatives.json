@@ -4,7 +4,7 @@
   "newInitiative": "New initiative",
   "selectGuild": "Select a guild",
   "selectGuildDescription": "Switch into a guild to view its initiatives and memberships.",
-  "loading": "Loading initiatives\u2026",
+  "loading": "Loading initiatives…",
   "loadError": "Unable to load initiatives right now.",
   "noDescription": "No description yet.",
   "members": "Members:",
@@ -12,7 +12,7 @@
   "documentsLabel": "Documents:",
   "openInitiative": "Open initiative",
   "noInitiatives": "No initiatives yet",
-  "noInitiativesDescription": "You\u2019re not part of any initiatives in this guild. Check back after an admin invites you or create one if you have permissions.",
+  "noInitiativesDescription": "You’re not part of any initiatives in this guild. Check back after an admin invites you or create one if you have permissions.",
   "createInitiative": "Create initiative",
   "manage": {
     "title": "Initiatives",
@@ -50,7 +50,7 @@
     "descriptionPlaceholder": "Optional summary (Markdown supported)",
     "colorLabel": "Color",
     "colorHint": "This accent appears on projects tied to the initiative.",
-    "creating": "Creating\u2026",
+    "creating": "Creating…",
     "submit": "Create initiative",
     "nameRequired": "Initiative name is required.",
     "created": "Initiative \"{{name}}\" created.",
@@ -58,9 +58,9 @@
   },
   "detail": {
     "loadingInitiative": "Loading initiative...",
-    "backToInitiatives": "\u2190 Back to My Initiatives",
+    "backToInitiatives": "← Back to My Initiatives",
     "notFound": "Initiative not found",
-    "notFoundDescription": "The initiative you\u2019re looking for doesn\u2019t exist or you no longer have access.",
+    "notFoundDescription": "The initiative you’re looking for doesn’t exist or you no longer have access.",
     "noAccess": "You do not have access to any features in this initiative. Contact an initiative manager for assistance.",
     "default": "Default",
     "member_one": "{{count}} member",
@@ -70,18 +70,19 @@
     "documents": "Documents",
     "projects": "Projects",
     "queues": "Queues",
-    "calendar": "Calendar",
-    "counters": "Counters"
+    "calendarEvents": "Calendar",
+    "counterGroups": "Counters",
+    "advancedTools": "Advanced Tools"
   },
   "settings": {
     "title": "Initiative settings",
     "subtitle": "Update details, manage members and roles, and control dangerous actions.",
     "breadcrumbSettings": "Settings",
     "loadingInitiative": "Loading initiative...",
-    "backToInitiatives": "\u2190 Back to My Initiatives",
-    "backToInitiative": "\u2190 Back to initiative",
+    "backToInitiatives": "← Back to My Initiatives",
+    "backToInitiative": "← Back to initiative",
     "notFound": "Initiative not found",
-    "notFoundDescription": "The initiative you\u2019re looking for doesn\u2019t exist or you no longer have access.",
+    "notFoundDescription": "The initiative you’re looking for doesn’t exist or you no longer have access.",
     "permissionRequired": "Permission required",
     "permissionRequiredDescription": "Only guild admins and initiative project managers can manage initiative settings.",
     "detailsTab": "Details",
@@ -180,9 +181,9 @@
       "documents": "Documents",
       "projects": "Projects",
       "queues": "Queues",
-      "events": "Events",
-      "advancedTool": "Advanced Tool",
-      "counters": "Counters"
+      "calendarEvents": "Events",
+      "counterGroups": "Counters",
+      "advancedTools": "Advanced Tool"
     },
     "permissions": {
       "viewDocuments": "View Documents",
@@ -191,23 +192,23 @@
       "createProjects": "Create Projects",
       "viewQueues": "View Queues",
       "createQueues": "Create Queues",
-      "viewEvents": "View Events",
-      "createEvents": "Create Events",
-      "viewAdvancedTool": "Open Advanced Tool",
-      "createAdvancedTool": "Create in Advanced Tool",
-      "viewCounters": "View Counters",
-      "createCounters": "Create Counters"
+      "viewCalendarEvents": "View Events",
+      "createCalendarEvents": "Create Events",
+      "viewAdvancedTools": "Open Advanced Tool",
+      "createAdvancedTools": "Create in Advanced Tool",
+      "viewCounterGroups": "View Counters",
+      "createCounterGroups": "Create Counters"
     }
   },
   "advancedTools": "Advanced Tools",
   "advancedToolsDescription": "Enable optional tools for this initiative.",
   "queuesFeature": "Queues",
   "queuesFeatureDescription": "Organize items by priority, track turn order, and manage who goes next.",
-  "eventsFeature": "Calendar",
-  "eventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking.",
-  "countersFeature": "Counters",
-  "countersFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges.",
-  "advancedToolFeatureDescription": "Embed the {{name}} panel under this initiative.",
+  "calendarEventsFeature": "Calendar",
+  "calendarEventsFeatureDescription": "Schedule and manage calendar events with attendees and RSVP tracking.",
+  "counterGroupsFeature": "Counters",
+  "counterGroupsFeatureDescription": "Track numeric values like HP, scores, or budgets — clamped, stepped, and shown as numbers, bars, or radial gauges.",
+  "advancedToolsFeatureDescription": "Embed the {{name}} panel under this initiative.",
   "advancedTool": {
     "connecting": "Connecting…",
     "handoffFailed": "Couldn’t establish a secure session with the embedded tool.",
@@ -219,5 +220,6 @@
     "openSettings": "Open settings",
     "guildAdminOnlyTitle": "Admins only",
     "guildAdminOnlyDescription": "Only guild admins can manage automations at the guild level."
-  }
+  },
+  "advancedToolsFeature": "Advanced Tools"
 }

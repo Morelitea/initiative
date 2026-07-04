@@ -40,10 +40,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEventsList, useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useGridSelection } from "@/hooks/useGridSelection";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
@@ -108,7 +105,7 @@ type EventsViewProps = {
 };
 
 export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) => {
-  const { t } = useTranslation(["events", "tasks", "common", "access"]);
+  const { t } = useTranslation(["calendarEvents", "tasks", "common", "access"]);
   const router = useRouter();
   const { user } = useAuth();
   const gp = useGuildPath();
@@ -255,7 +252,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const canCreateEvents = useMemo(() => {
     if (canCreate !== undefined) return canCreate;
     if (initiativeId && initiativePermissions) {
-      return canCreatePermission(initiativePermissions, "events");
+      return canCreateTool(initiativePermissions, Tool.calendar_event);
     }
     return false;
   }, [canCreate, initiativeId, initiativePermissions]);
@@ -267,7 +264,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   // event-create and task-edit are judged independently.
   const canEditTasks = useMemo(() => {
     if (initiativeId && initiativePermissions) {
-      return canCreatePermission(initiativePermissions, "projects");
+      return canCreateTool(initiativePermissions, Tool.project);
     }
     return false;
   }, [initiativeId, initiativePermissions]);
@@ -384,7 +381,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       if (searchParams.create) {
         isClosingCreateDialog.current = true;
         void router.navigate({
-          to: gp("/events"),
+          to: gp("/calendar-events"),
           search: { initiativeId: searchParams.initiativeId },
           replace: true,
         });
@@ -393,7 +390,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   };
 
   const handleEventCreated = (event: { id: number }) => {
-    void router.navigate({ to: gp(`/events/${event.id}`) });
+    void router.navigate({ to: gp(`/calendar-events/${event.id}`) });
   };
 
   const handleSlotClick = (date: Date) => {
@@ -406,7 +403,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     const meta = entry.meta as { type: string; taskId?: number; eventId?: number } | undefined;
     if (!meta) return;
     if (meta.type === "event" && meta.eventId) {
-      void router.navigate({ to: gp(`/events/${meta.eventId}`) });
+      void router.navigate({ to: gp(`/calendar-events/${meta.eventId}`) });
     } else if (meta.type === "task" && meta.taskId) {
       void router.navigate({ to: gp(`/tasks/${meta.taskId}`) });
     }
@@ -592,7 +589,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
                 size="sm"
                 onClick={() => setShowEvents(!showEvents)}
               >
-                {t("events:event")}
+                {t("calendarEvents:event")}
               </Button>
               <Button
                 variant={showTasks ? "default" : "outline"}

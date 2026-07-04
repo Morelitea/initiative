@@ -6,7 +6,7 @@ type EventsSearchParams = {
   page?: number;
 };
 
-export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId/events")({
+export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId/calendar-events")({
   validateSearch: (search: Record<string, unknown>): EventsSearchParams => ({
     create: typeof search.create === "string" ? search.create : undefined,
     initiativeId: typeof search.initiativeId === "string" ? search.initiativeId : undefined,

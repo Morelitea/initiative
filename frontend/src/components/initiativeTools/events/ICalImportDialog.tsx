@@ -56,7 +56,7 @@ export const ICalImportDialog = ({
   onOpenChange,
   fixedInitiativeId,
 }: ICalImportDialogProps) => {
-  const { t } = useTranslation(["events", "common"]);
+  const { t } = useTranslation(["calendarEvents", "common"]);
   const { user } = useAuth();
 
   const [step, setStep] = useState<Step>("upload");
@@ -95,7 +95,7 @@ export const ICalImportDialog = ({
     const file = event.target.files?.[0];
     if (!file) return;
     if (file.size > MAX_ICS_SIZE) {
-      toast.error(t("events:import.parseFailed"));
+      toast.error(t("calendarEvents:import.parseFailed"));
       return;
     }
     const reader = new FileReader();
@@ -118,7 +118,7 @@ export const ICalImportDialog = ({
       });
       setParseResult(result);
     } catch {
-      toast.error(t("events:import.parseFailed"));
+      toast.error(t("calendarEvents:import.parseFailed"));
     } finally {
       setIsParsing(false);
     }
@@ -138,7 +138,7 @@ export const ICalImportDialog = ({
       setStep("result");
       void invalidateAllCalendarEvents();
     } catch {
-      toast.error(t("events:import.importError"));
+      toast.error(t("calendarEvents:import.importError"));
     } finally {
       setIsImporting(false);
     }
@@ -148,19 +148,21 @@ export const ICalImportDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t("events:import.title")}</DialogTitle>
-          <DialogDescription>{t("events:import.uploadDescription")}</DialogDescription>
+          <DialogTitle>{t("calendarEvents:import.title")}</DialogTitle>
+          <DialogDescription>{t("calendarEvents:import.uploadDescription")}</DialogDescription>
         </DialogHeader>
 
         {step === "upload" && (
           <div className="space-y-4">
             <div>
-              <Label>{t("events:import.uploadFileLabel")}</Label>
+              <Label>{t("calendarEvents:import.uploadFileLabel")}</Label>
               <div className="mt-2">
                 <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-muted border-dashed p-6 transition-colors hover:bg-accent">
                   <Upload className="mb-2 h-8 w-8 text-muted-foreground" />
                   <span className="text-muted-foreground text-sm">
-                    {isParsing ? t("events:import.parsing") : t("events:import.uploadFileLabel")}
+                    {isParsing
+                      ? t("calendarEvents:import.parsing")
+                      : t("calendarEvents:import.uploadFileLabel")}
                   </span>
                   <input
                     type="file"
@@ -177,12 +179,12 @@ export const ICalImportDialog = ({
                 <div className="flex items-center gap-2">
                   <FileText className="h-4 w-4" />
                   <span className="font-medium">
-                    {t("events:import.foundEvents", { count: parseResult.event_count })}
+                    {t("calendarEvents:import.foundEvents", { count: parseResult.event_count })}
                   </span>
                 </div>
                 {parseResult.has_recurring && (
                   <p className="mt-1 text-muted-foreground text-sm">
-                    {t("events:import.hasRecurring")}
+                    {t("calendarEvents:import.hasRecurring")}
                   </p>
                 )}
                 <ul className="mt-2 max-h-40 space-y-1 overflow-y-auto text-muted-foreground text-sm">
@@ -203,13 +205,13 @@ export const ICalImportDialog = ({
 
             {parseResult && !fixedInitiativeId && (
               <div>
-                <Label>{t("events:import.selectInitiative")}</Label>
+                <Label>{t("calendarEvents:import.selectInitiative")}</Label>
                 <Select
                   value={selectedInitiativeId?.toString() ?? ""}
                   onValueChange={(v) => setSelectedInitiativeId(Number(v))}
                 >
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder={t("events:import.selectInitiative")} />
+                    <SelectValue placeholder={t("calendarEvents:import.selectInitiative")} />
                   </SelectTrigger>
                   <SelectContent>
                     {creatableInitiatives.map((init) => (
@@ -230,7 +232,9 @@ export const ICalImportDialog = ({
                 onClick={handleImport}
                 disabled={!parseResult || !selectedInitiativeId || isImporting}
               >
-                {isImporting ? t("events:import.importing") : t("events:import.importButton")}
+                {isImporting
+                  ? t("calendarEvents:import.importing")
+                  : t("calendarEvents:import.importButton")}
               </Button>
             </div>
           </div>
@@ -249,13 +253,13 @@ export const ICalImportDialog = ({
                 <AlertCircle className="h-8 w-8 text-yellow-500" />
               )}
               <div>
-                <p className="font-medium">{t("events:import.importSuccess")}</p>
+                <p className="font-medium">{t("calendarEvents:import.importSuccess")}</p>
                 <p className="text-muted-foreground text-sm">
-                  {t("events:import.eventsCreated", {
+                  {t("calendarEvents:import.eventsCreated", {
                     count: importResult.events_created,
                   })}
                   {importResult.events_failed > 0 &&
-                    `, ${t("events:import.eventsFailed", { count: importResult.events_failed })}`}
+                    `, ${t("calendarEvents:import.eventsFailed", { count: importResult.events_failed })}`}
                 </p>
               </div>
             </div>

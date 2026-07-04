@@ -46,10 +46,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import {
   useArchivedProjects,
@@ -254,7 +251,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       return [];
     }
     return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).canCreateProjects
+      (initiative) => permissionsFor(initiative)[Tool.project].create
     );
   }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
   const isProjectManager = creatableInitiatives.length > 0;
@@ -297,7 +294,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     }
     // If a specific initiative is filtered, check permissions for that initiative
     if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreatePermission(filteredInitiativePermissions, "projects");
+      return canCreateTool(filteredInitiativePermissions, Tool.project);
     }
     // Fall back to legacy check (user is PM in any initiative)
     return isProjectManager;

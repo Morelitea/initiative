@@ -68,7 +68,7 @@ export const CreateEventDialog = ({
   defaultStartTime,
   onSuccess,
 }: CreateEventDialogProps) => {
-  const { t } = useTranslation(["events", "common"]);
+  const { t } = useTranslation(["calendarEvents", "common"]);
   const { user } = useAuth();
 
   const [title, setTitle] = useState("");

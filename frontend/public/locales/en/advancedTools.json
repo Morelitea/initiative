@@ -1,0 +1,9 @@
+{
+  "title": "Advanced Tools",
+  "loading": "Loading advanced tools…",
+  "loadError": "Failed to load advanced tools.",
+  "noTools": "No advanced tools yet",
+  "noToolsDescription": "This initiative has no advanced tools from {{name}} yet.",
+  "createdExternally": "Advanced tools are created and edited in {{name}}; sharing and deletion are managed here.",
+  "updated": "Updated {{date}}"
+}

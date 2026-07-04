@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils";
 const SWIPE_THRESHOLD_PX = 60;
 
 export function CounterDetailPage() {
-  const { t } = useTranslation(["counters", "common"]);
+  const { t } = useTranslation(["counterGroups", "common"]);
   const navigate = useNavigate();
   const gp = useGuildPath();
   const {

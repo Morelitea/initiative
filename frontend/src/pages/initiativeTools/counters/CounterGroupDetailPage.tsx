@@ -68,7 +68,7 @@ const computeMidpoint = (counters: CounterRead[], targetIndex: number): string =
 };
 
 export function CounterGroupDetailPage() {
-  const { t } = useTranslation(["counters", "common"]);
+  const { t } = useTranslation(["counterGroups", "common"]);
   const router = useRouter();
   const gp = useGuildPath();
   const { guildId, groupId: groupIdParam } = useParams({ strict: false }) as {

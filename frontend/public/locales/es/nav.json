@@ -48,9 +48,9 @@
   "queues": "Colas",
   "allQueues": "Todas las colas",
   "createQueue": "Nueva cola",
-  "events": "Calendario",
-  "allEvents": "Todos los eventos",
-  "createEvent": "Nuevo evento",
+  "calendarEvents": "Calendario",
+  "allCalendarEvents": "Todos los eventos",
+  "createCalendarEvent": "Nuevo evento",
   "bottomNav": {
     "label": "Navegación rápida",
     "menu": "Abrir menú",
@@ -70,8 +70,11 @@
     "finalizing": "Finalizando redirección…",
     "goHome": "Volver al inicio"
   },
-  "counters": "Contadores",
-  "allCounters": "Todos los contadores",
+  "counterGroups": "Contadores",
+  "allCounterGroups": "Todos los contadores",
   "createCounterGroup": "Nuevo grupo de contadores",
+  "advancedTools": "Herramientas avanzadas",
+  "createAdvancedTool": "Nueva herramienta avanzada",
+  "createExternally": "Se crea en {{name}}",
   "adminDashboard": "Panel de administración"
 }
