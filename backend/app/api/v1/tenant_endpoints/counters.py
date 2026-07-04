@@ -232,7 +232,7 @@ async def list_counter_groups(
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.counters_enabled:
+        if initiative and not initiative.counter_groups_enabled:
             return CounterGroupListResponse(
                 items=[],
                 total_count=0,
@@ -244,7 +244,7 @@ async def list_counter_groups(
     else:
         conditions.append(
             CounterGroup.initiative_id.in_(
-                select(Initiative.id).where(Initiative.counters_enabled == True)  # noqa: E712
+                select(Initiative.id).where(Initiative.counter_groups_enabled == True)  # noqa: E712
             )
         )
 
@@ -320,7 +320,7 @@ async def create_counter_group(
     initiative = await _get_initiative_for_counter_group(
         session, group_in.initiative_id
     )
-    if not initiative.counters_enabled:
+    if not initiative.counter_groups_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=CounterMessages.FEATURE_DISABLED,
@@ -330,7 +330,7 @@ async def create_counter_group(
         initiative,
         current_user,
         guild_context,
-        PermissionKey.create_counters,
+        PermissionKey.create_counter_groups,
     )
 
     group = CounterGroup(
@@ -935,7 +935,7 @@ async def websocket_counter_group(
         # Mirror the feature gate enforced on every HTTP endpoint via
         # _get_counter_group_with_access — don't stream events for a group
         # whose initiative has counters disabled.
-        if group.initiative and not group.initiative.counters_enabled:
+        if group.initiative and not group.initiative.counter_groups_enabled:
             logger.warning(f"Counter WS: counters disabled for group {group_id}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return

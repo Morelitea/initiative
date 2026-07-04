@@ -146,11 +146,11 @@ export const isFeatureEnabled = (
 ): boolean => {
   if (!permissions) return false;
   const keyMap: Record<typeof feature, PermissionKey> = {
-    docs: "docs_enabled",
+    docs: "documents_enabled",
     projects: "projects_enabled",
     queues: "queues_enabled",
-    events: "events_enabled",
-    counters: "counters_enabled",
+    events: "calendar_events_enabled",
+    counters: "counter_groups_enabled",
   };
   return permissions.permissions[keyMap[feature]] ?? false;
 };
@@ -163,61 +163,61 @@ export const canCreate = (
 ): boolean => {
   if (!permissions) return false;
   const keyMap: Record<typeof entity, PermissionKey> = {
-    docs: "create_docs",
+    docs: "create_documents",
     projects: "create_projects",
     queues: "create_queues",
-    events: "create_events",
-    counters: "create_counters",
+    events: "create_calendar_events",
+    counters: "create_counter_groups",
   };
   return permissions.permissions[keyMap[entity]] ?? false;
 };
 
 // Permission key labels for display (hardcoded, kept for backward compat)
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
-  docs_enabled: "View Documents",
+  documents_enabled: "View Documents",
   projects_enabled: "View Projects",
-  create_docs: "Create Documents",
+  create_documents: "Create Documents",
   create_projects: "Create Projects",
   queues_enabled: "View Queues",
   create_queues: "Create Queues",
-  events_enabled: "View Events",
-  create_events: "Create Events",
-  advanced_tool_enabled: "View Advanced Tool",
-  create_advanced_tool: "Create in Advanced Tool",
-  counters_enabled: "View Counters",
-  create_counters: "Create Counters",
+  calendar_events_enabled: "View Events",
+  create_calendar_events: "Create Events",
+  advanced_tools_enabled: "View Advanced Tool",
+  create_advanced_tools: "Create in Advanced Tool",
+  counter_groups_enabled: "View Counters",
+  create_counter_groups: "Create Counters",
 };
 
 // i18n-based permission label keys (use with t())
 export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = {
-  docs_enabled: "settings.permissions.viewDocuments",
+  documents_enabled: "settings.permissions.viewDocuments",
   projects_enabled: "settings.permissions.viewProjects",
-  create_docs: "settings.permissions.createDocuments",
+  create_documents: "settings.permissions.createDocuments",
   create_projects: "settings.permissions.createProjects",
   queues_enabled: "settings.permissions.viewQueues",
   create_queues: "settings.permissions.createQueues",
-  events_enabled: "settings.permissions.viewEvents",
-  create_events: "settings.permissions.createEvents",
-  advanced_tool_enabled: "settings.permissions.viewAdvancedTool",
-  create_advanced_tool: "settings.permissions.createAdvancedTool",
-  counters_enabled: "settings.permissions.viewCounters",
-  create_counters: "settings.permissions.createCounters",
+  calendar_events_enabled: "settings.permissions.viewEvents",
+  create_calendar_events: "settings.permissions.createEvents",
+  advanced_tools_enabled: "settings.permissions.viewAdvancedTool",
+  create_advanced_tools: "settings.permissions.createAdvancedTool",
+  counter_groups_enabled: "settings.permissions.viewCounters",
+  create_counter_groups: "settings.permissions.createCounters",
 };
 
 // All permission keys in display order
 export const ALL_PERMISSION_KEYS: PermissionKey[] = [
-  "docs_enabled",
-  "create_docs",
+  "documents_enabled",
+  "create_documents",
   "projects_enabled",
   "create_projects",
   "queues_enabled",
   "create_queues",
-  "events_enabled",
-  "create_events",
-  "advanced_tool_enabled",
-  "create_advanced_tool",
-  "counters_enabled",
-  "create_counters",
+  "calendar_events_enabled",
+  "create_calendar_events",
+  "advanced_tools_enabled",
+  "create_advanced_tools",
+  "counter_groups_enabled",
+  "create_counter_groups",
 ];
 
 // Permission groups for card-based layout
@@ -228,17 +228,23 @@ export type PermissionGroup = {
 
 // Core permissions always visible
 export const CORE_PERMISSION_GROUPS: PermissionGroup[] = [
-  { labelKey: "settings.permissionGroups.documents", keys: ["docs_enabled", "create_docs"] },
+  {
+    labelKey: "settings.permissionGroups.documents",
+    keys: ["documents_enabled", "create_documents"],
+  },
   { labelKey: "settings.permissionGroups.projects", keys: ["projects_enabled", "create_projects"] },
 ];
 
 // Advanced tools permissions shown in accordion
 export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = [
   { labelKey: "settings.permissionGroups.queues", keys: ["queues_enabled", "create_queues"] },
-  { labelKey: "settings.permissionGroups.events", keys: ["events_enabled", "create_events"] },
+  {
+    labelKey: "settings.permissionGroups.events",
+    keys: ["calendar_events_enabled", "create_calendar_events"],
+  },
   {
     labelKey: "settings.permissionGroups.counters",
-    keys: ["counters_enabled", "create_counters"],
+    keys: ["counter_groups_enabled", "create_counter_groups"],
   },
 ];
 
@@ -247,7 +253,7 @@ export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = [
 // configured at runtime — see InitiativeSettingsRolesTab for the gating.
 export const ADVANCED_TOOL_PERMISSION_GROUP: PermissionGroup = {
   labelKey: "settings.permissionGroups.advancedTool",
-  keys: ["advanced_tool_enabled", "create_advanced_tool"],
+  keys: ["advanced_tools_enabled", "create_advanced_tools"],
 };
 
 // All groups combined (for backward compat)

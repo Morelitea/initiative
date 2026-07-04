@@ -4,7 +4,7 @@ Tests cover:
 - Guild-level access checks (is_guild_admin, require_guild_admin)
 - Guild membership lookups (get_guild_membership, require_guild_membership)
 - Initiative manager checks (is_initiative_manager, assert_initiative_manager)
-- Initiative permission checks (check_initiative_permission, has_feature_access)
+- Initiative permission checks (check_initiative_permission)
 """
 
 import pytest
@@ -18,7 +18,6 @@ from app.models.platform.user import UserRole
 from app.services.rls import (
     check_initiative_permission,
     get_guild_membership,
-    has_feature_access,
     is_guild_admin,
     is_initiative_manager,
     assert_initiative_manager,
@@ -241,7 +240,7 @@ async def test_check_initiative_permission_manager_has_all(session: AsyncSession
         session,
         initiative_id=initiative.id,
         user=user,
-        permission_key=PermissionKey.create_docs,
+        permission_key=PermissionKey.create_documents,
     )
 
     assert result is True
@@ -262,12 +261,12 @@ async def test_check_initiative_permission_member_explicit_enabled(
     await create_guild_membership(session, user=member, guild=guild)
     await create_initiative_member(session, initiative, member, role_name="member")
 
-    # The member role has docs_enabled=True and projects_enabled=True by default
+    # The member role has documents_enabled=True and projects_enabled=True by default
     result = await check_initiative_permission(
         session,
         initiative_id=initiative.id,
         user=member,
-        permission_key=PermissionKey.docs_enabled,
+        permission_key=PermissionKey.documents_enabled,
     )
 
     assert result is True
@@ -288,12 +287,12 @@ async def test_check_initiative_permission_member_explicit_disabled(
     await create_guild_membership(session, user=member, guild=guild)
     await create_initiative_member(session, initiative, member, role_name="member")
 
-    # The member role has create_docs=False and create_projects=False by default
+    # The member role has create_documents=False and create_projects=False by default
     result = await check_initiative_permission(
         session,
         initiative_id=initiative.id,
         user=member,
-        permission_key=PermissionKey.create_docs,
+        permission_key=PermissionKey.create_documents,
     )
 
     assert result is False
@@ -344,7 +343,7 @@ async def test_check_initiative_permission_non_member(session: AsyncSession):
         session,
         initiative_id=initiative.id,
         user=outsider,
-        permission_key=PermissionKey.docs_enabled,
+        permission_key=PermissionKey.documents_enabled,
     )
 
     assert result is False
@@ -353,37 +352,3 @@ async def test_check_initiative_permission_non_member(session: AsyncSession):
 # ---------------------------------------------------------------------------
 # Feature access helper (async / service)
 # ---------------------------------------------------------------------------
-
-
-@pytest.mark.service
-async def test_has_feature_access_docs(session: AsyncSession):
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user)
-
-    result = await has_feature_access(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        feature="docs",
-    )
-
-    assert result is True
-
-
-@pytest.mark.service
-async def test_has_feature_access_projects(session: AsyncSession):
-    user = await create_user(session)
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user)
-
-    result = await has_feature_access(
-        session,
-        initiative_id=initiative.id,
-        user=user,
-        feature="projects",
-    )
-
-    assert result is True

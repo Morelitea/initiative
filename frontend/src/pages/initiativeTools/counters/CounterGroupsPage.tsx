@@ -91,7 +91,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   });
   const initiativesQuery = useInitiatives();
   const initiatives = useMemo(
-    () => (initiativesQuery.data ?? []).filter((init) => init.counters_enabled),
+    () => (initiativesQuery.data ?? []).filter((init) => init.counter_groups_enabled),
     [initiativesQuery.data]
   );
   const initiativeNameMap = useMemo(() => {

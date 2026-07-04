@@ -34,7 +34,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
-from app.core.tools import TOOL_TYPES, Tool  # noqa: F401  (Tool re-exported)
+from app.core.tools import Tool  # noqa: F401  (re-exported for grant callers)
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.initiative import InitiativeRoleModel
@@ -45,12 +45,6 @@ class ResourceAccessLevel(str, Enum):
     owner = "owner"
     write = "write"
     read = "read"
-
-
-# A resource_grants row's ``resource_type`` is one of the app-wide tool kinds. The
-# canonical enum lives in ``app.core.tools`` (it's an app-wide concept, not a
-# grants-only one); re-exported here for callers near the grant model.
-RESOURCE_TYPES = TOOL_TYPES
 
 
 class ResourceGrant(SQLModel, table=True):
@@ -93,7 +87,8 @@ class ResourceGrant(SQLModel, table=True):
     # resource's delete path, inert if orphaned.
     # Indexed by the COMPOSITE partial indexes below (ix_resource_grants_resource
     # etc.), owned by migration history — not per-column, so no index=True here.
-    resource_type: str = Field(sa_column=Column(String(length=32), nullable=False))
+    # Typed as the canonical Tool enum (stored as its string value).
+    resource_type: Tool = Field(sa_column=Column(String(length=32), nullable=False))
     resource_id: int = Field(sa_column=Column(Integer, nullable=False))
     user_id: Optional[int] = Field(
         default=None,

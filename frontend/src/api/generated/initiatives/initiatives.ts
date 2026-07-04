@@ -1485,15 +1485,15 @@ export function useGetMyInitiativePermissionsApiV1GGuildIdInitiativesInitiativeI
  *   1. The deployment must have ADVANCED_TOOL_URL configured.
  *   2. The initiative must exist in the active guild.
  *   3. The user must be a guild admin OR an initiative member.
- *   4. The initiative must have advanced_tool_enabled=true.
+ *   4. The initiative must have advanced_tools_enabled=true.
  *   5. The user's initiative role must include the
- *      ``advanced_tool_enabled`` permission key. Guild admins and
+ *      ``advanced_tools_enabled`` permission key. Guild admins and
  *      initiative managers bypass step 5 since they're trusted by
  *      construction.
  *
  * The returned token has audience=initiative:advanced-tool and a 60s
  * expiry. The SPA passes it via postMessage (never URL/query string).
- * The ``can_create`` claim forwards the create_advanced_tool permission
+ * The ``can_create`` claim forwards the create_advanced_tools permission
  * so the proprietary backend can hide create UI for view-only members.
  * @summary Create Advanced Tool Handoff
  */

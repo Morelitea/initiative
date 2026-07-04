@@ -436,7 +436,7 @@ export const DocumentsView = ({
     if (!membership) {
       return true; // Not a member, let the backend handle access control
     }
-    return membership.can_view_docs !== false;
+    return membership.can_view_documents !== false;
   }, [
     lockedInitiativeId,
     filteredInitiativeId,
@@ -549,7 +549,7 @@ export const DocumentsView = ({
       const membership = initiative.members.find((m) => m.user.id === user.id);
       // If not a member, include it (backend will handle access control)
       if (!membership) return true;
-      return membership.can_view_docs !== false;
+      return membership.can_view_documents !== false;
     });
   }, [initiativesQuery.data, user, isGuildAdmin, isGrantGuild]);
   const lockedInitiative = lockedInitiativeId

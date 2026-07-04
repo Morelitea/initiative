@@ -30,14 +30,14 @@ const fullAccess = (
   canViewDocs: true,
   canViewProjects: true,
   canViewQueues: initiative.queues_enabled ?? false,
-  canViewEvents: initiative.events_enabled ?? false,
-  canViewAdvancedTool: initiative.advanced_tool_enabled ?? false,
-  canViewCounters: initiative.counters_enabled ?? false,
+  canViewEvents: initiative.calendar_events_enabled ?? false,
+  canViewAdvancedTool: initiative.advanced_tools_enabled ?? false,
+  canViewCounters: initiative.counter_groups_enabled ?? false,
   canCreateDocs: canCreate,
   canCreateProjects: canCreate,
   canCreateQueues: canCreate && (initiative.queues_enabled ?? false),
-  canCreateEvents: canCreate && (initiative.events_enabled ?? false),
-  canCreateCounters: canCreate && (initiative.counters_enabled ?? false),
+  canCreateEvents: canCreate && (initiative.calendar_events_enabled ?? false),
+  canCreateCounters: canCreate && (initiative.counter_groups_enabled ?? false),
 });
 
 // Bare read of the always-visible sections (docs/projects) for someone with no
@@ -106,17 +106,17 @@ export function useInitiativeAccess() {
       const membership = initiative.members.find((m) => m.user.id === user.id);
       if (!membership) return readOnlyDefault;
       return {
-        canViewDocs: membership.can_view_docs ?? true,
+        canViewDocs: membership.can_view_documents ?? true,
         canViewProjects: membership.can_view_projects ?? true,
         canViewQueues: membership.can_view_queues ?? false,
-        canViewEvents: membership.can_view_events ?? false,
-        canViewAdvancedTool: membership.can_view_advanced_tool ?? false,
-        canViewCounters: membership.can_view_counters ?? false,
-        canCreateDocs: membership.can_create_docs ?? false,
+        canViewEvents: membership.can_view_calendar_events ?? false,
+        canViewAdvancedTool: membership.can_view_advanced_tools ?? false,
+        canViewCounters: membership.can_view_counter_groups ?? false,
+        canCreateDocs: membership.can_create_documents ?? false,
         canCreateProjects: membership.can_create_projects ?? false,
         canCreateQueues: membership.can_create_queues ?? false,
-        canCreateEvents: membership.can_create_events ?? false,
-        canCreateCounters: membership.can_create_counters ?? false,
+        canCreateEvents: membership.can_create_calendar_events ?? false,
+        canCreateCounters: membership.can_create_counter_groups ?? false,
       };
     },
     [user, isGuildAdmin, isGrantGuild, grantReadWrite]

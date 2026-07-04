@@ -59,7 +59,7 @@ async def _dispatch(session: AsyncSession) -> None:
 async def _events_initiative(session: AsyncSession, creator):
     guild = await create_guild(session)
     initiative = await create_initiative(session, guild, creator, name="Reminders")
-    initiative.events_enabled = True
+    initiative.calendar_events_enabled = True
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
@@ -474,7 +474,7 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
         creator = await create_user(session, email=f"organizer-{label}@example.com")
         guild = await create_guild(session, creator=creator)
         initiative = await create_initiative(session, guild, creator, name=label)
-        initiative.events_enabled = True
+        initiative.calendar_events_enabled = True
         session.add(initiative)
         await session.commit()
         await session.refresh(initiative)

@@ -84,7 +84,7 @@ export const ICalImportDialog = ({
     if (!user) return [];
     return (initiativesQuery.data ?? []).filter(
       (init) =>
-        init.events_enabled &&
+        init.calendar_events_enabled &&
         init.members.some((m) => m.user.id === user.id && m.role === "project_manager")
     );
   }, [initiativesQuery.data, user]);

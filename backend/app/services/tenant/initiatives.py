@@ -22,13 +22,6 @@ from app.models.tenant.initiative import (
 from app.models.platform.user import User
 from app.schemas.platform.user import UserInitiativeRole
 
-# Backward compatibility — these security functions moved to rls.py
-from app.services.rls import (  # noqa: F401
-    is_initiative_manager,
-    assert_initiative_manager,
-    check_initiative_permission,
-    has_feature_access,
-)
 
 DEFAULT_INITIATIVE_NAME = "Default Initiative"
 DEFAULT_INITIATIVE_COLOR = "#2563eb"

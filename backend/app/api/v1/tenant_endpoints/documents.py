@@ -191,7 +191,7 @@ async def _require_initiative_access(
         user: User to check
         guild_role: User's guild role (admins bypass checks)
         require_manager: If True, require manager-level role (legacy, use permission_key instead)
-        permission_key: Specific permission to check (e.g., PermissionKey.create_docs)
+        permission_key: Specific permission to check (e.g., PermissionKey.create_documents)
     """
     if rls_service.is_guild_admin(guild_role):
         return
@@ -839,7 +839,7 @@ async def create_document(
         initiative_id=initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        permission_key=PermissionKey.create_docs,
+        permission_key=PermissionKey.create_documents,
     )
     title = document_in.title.strip()
     if not title:
@@ -945,7 +945,7 @@ async def upload_document_file(
         initiative_id=initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        permission_key=PermissionKey.create_docs,
+        permission_key=PermissionKey.create_documents,
     )
     title = title.strip()
     if not title:
@@ -1570,13 +1570,13 @@ async def copy_document(
         initiative_id=payload.target_initiative_id,
         guild_id=guild_context.guild_id,
     )
-    # Also require create_docs permission in target initiative
+    # Also require create_documents permission in target initiative
     await _require_initiative_access(
         session,
         initiative_id=target_initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        permission_key=PermissionKey.create_docs,
+        permission_key=PermissionKey.create_documents,
     )
     title = (payload.title or document.title).strip()
     if not title:

@@ -21,9 +21,9 @@ export function buildInitiativeMember(
     is_manager: false,
     oidc_managed: false,
     joined_at: "2026-01-15T00:00:00.000Z",
-    can_view_docs: true,
+    can_view_documents: true,
     can_view_projects: true,
-    can_create_docs: false,
+    can_create_documents: false,
     can_create_projects: false,
     ...overrides,
   };

@@ -79,7 +79,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.queue: ResourceAccessConfig(
         dac_kind=Tool.queue,
-        feature_attr="queues_enabled",
+        feature_attr=Tool.queue.view_permission,
         feature_disabled_msg=QueueMessages.FEATURE_DISABLED,
         loader=queues_service.get_queue,
         path_param="queue_id",
@@ -87,7 +87,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.counter_group: ResourceAccessConfig(
         dac_kind=Tool.counter_group,
-        feature_attr="counters_enabled",
+        feature_attr=Tool.counter_group.view_permission,
         feature_disabled_msg=CounterMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=CounterMessages.GRANT_CANNOT_MANAGE,
         loader=counters_service.get_counter_group,
@@ -96,7 +96,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
     ),
     Tool.calendar_event: ResourceAccessConfig(
         dac_kind=Tool.calendar_event,
-        feature_attr="events_enabled",
+        feature_attr=Tool.calendar_event.view_permission,
         feature_disabled_msg=CalendarEventMessages.FEATURE_DISABLED,
         grant_cannot_manage_msg=CalendarEventMessages.GRANT_CANNOT_MANAGE_MEMBERS,
         loader=calendar_events_service.get_event,
@@ -108,7 +108,7 @@ RESOURCE_ACCESS: dict[Tool, ResourceAccessConfig] = {
         # Only checked for initiative-scoped rows; a guild-wide advanced tool has
         # no initiative, so authorize() skips the feature gate (it's admin-only
         # by RLS instead).
-        feature_attr="advanced_tool_enabled",
+        feature_attr=Tool.advanced_tool.view_permission,
         feature_disabled_msg=AdvancedToolMessages.NOT_ENABLED,
         grant_cannot_manage_msg=AdvancedToolMessages.GRANT_CANNOT_MANAGE_MEMBERS,
         loader=advanced_tool_service.get_advanced_tool,
