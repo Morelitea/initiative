@@ -17,7 +17,7 @@ from app.testing.factories import (
     create_initiative,
     create_project,
     create_user,
-    get_guild_headers,
+    get_auth_headers,
 )
 
 
@@ -27,7 +27,7 @@ async def _setup_project(session: AsyncSession):
     await create_guild_membership(session, user=user, guild=guild)
     initiative = await create_initiative(session, guild, user, name="Test Initiative")
     project = await create_project(session, initiative, user, name="Test Project")
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     return project, headers
 
 

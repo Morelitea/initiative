@@ -1,28 +1,29 @@
 """Apply a guild-scoped schema change to every guild schema, from a migration.
 
 Under schema-per-guild a guild-scoped table (tasks, projects, documents, …)
-exists once per guild schema — ``guild_1.tasks``, ``guild_2.tasks``, … — plus the
-legacy ``public.tasks`` (until the data conversion drops it). A normal Alembic
-migration runs once against ``public``, so it would only change one of them.
+exists once per guild schema — ``guild_template``, ``guild_1.tasks``,
+``guild_2.tasks``, … A normal Alembic migration runs once against ``public``, so
+it would change none of them.
 
 The forward pattern has two halves, kept in sync:
 
-1. **Existing guilds** — a guild-scoped migration calls
+1. **Existing guilds (and the template)** — a guild-scoped migration calls
    :func:`apply_to_all_guild_schemas` in its ``upgrade()`` (and the reverse in
-   ``downgrade()``). The migration owns the DDL (so the migration stays a
-   self-contained, immutable record of *what* changed); this helper only owns the
-   stable mechanism of *where* it runs.
+   ``downgrade()``); the targets include ``guild_template``. The migration owns
+   the DDL (so the migration stays a self-contained, immutable record of *what*
+   changed); this helper only owns the stable mechanism of *where* it runs.
 
-2. **New guilds** — provisioning builds a fresh guild schema by running
-   ``alembic/guild/guild_schema.sql`` (see ``app.db.schema_provisioning``). After
-   landing a guild-scoped migration, regenerate that artifact
-   (``python scripts/gen_guild_schema.py`` → commit) so guilds created later
-   include the change.
+2. **New guilds** — provisioning reflects the LIVE ``guild_template`` (see
+   ``app.db.guild_ddl`` / ``schema_provisioning.get_provisioning_bundle``), so
+   guilds created later include the change by construction — nothing to
+   regenerate or commit.
 
-The **drift-guard test** (``schema_provisioning_test.test_guild_schema_matches_alembic_public``)
-provisions a fresh schema and diffs it against ``public``: if you applied a delta
-to existing schemas but forgot to regenerate the artifact (or vice-versa), a new
-guild won't match and CI fails. The two halves can't silently diverge.
+The **drift-guard test** (``schema_provisioning_test``) provisions a fresh
+schema and diffs it against ``guild_template`` as a clone-fidelity check.
+
+The legacy ``public`` copies of guild-content tables (pre-squash deployments
+still carry them, frozen) are deliberately NOT a target: nothing reads them, and
+fresh installs don't have them at all (see the 20260626_0125 baseline).
 
 Example migration::
 
@@ -41,15 +42,93 @@ Example migration::
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
-# Guild schemas are named ``guild_<id>`` (see schema_provisioning.guild_schema_name).
-_GUILD_SCHEMA_REGEX = "^guild_[0-9]+$"
+# Guild schemas: every ``guild_<id>`` plus the ``guild_template`` the artifacts
+# also maintain (see schema_provisioning.guild_schema_name / migration 0126).
+_GUILD_SCHEMA_REGEX = "^guild_([0-9]+|template)$"
+
+_DOLLAR_TAG = re.compile(r"\$[A-Za-z_0-9]*\$")
+
+
+def split_sql_statements(sql: str) -> list[str]:
+    """Split an SQL script into single statements for asyncpg's extended
+    (one-statement-per-execute) protocol.
+
+    Handles ``--`` line comments, ``/* … */`` block comments (nested, as
+    Postgres allows), single-quoted strings, and dollar-quoted bodies
+    (``$$ … $$`` / ``$tag$ … $tag$``), so a ``;`` inside any of those does not
+    split. Used by migrations that RUN the committed SQL artifacts
+    (the baseline snapshots; the runtime-rendered guild DDL)."""
+    statements: list[str] = []
+    buf: list[str] = []
+    i, n = 0, len(sql)
+    dollar_tag: str | None = None
+    while i < n:
+        ch = sql[i]
+        if dollar_tag is not None:
+            if sql.startswith(dollar_tag, i):
+                buf.append(dollar_tag)
+                i += len(dollar_tag)
+                dollar_tag = None
+            else:
+                buf.append(ch)
+                i += 1
+            continue
+        if ch == "-" and sql.startswith("--", i):
+            eol = sql.find("\n", i)
+            i = n if eol == -1 else eol + 1  # drop comment, keep statement flow
+            continue
+        if ch == "/" and sql.startswith("/*", i):
+            depth, i = 1, i + 2
+            while i < n and depth:
+                if sql.startswith("/*", i):  # Postgres block comments nest
+                    depth, i = depth + 1, i + 2
+                elif sql.startswith("*/", i):
+                    depth, i = depth - 1, i + 2
+                else:
+                    i += 1
+            continue  # dropped, like line comments
+        if ch == "'":
+            end = i + 1
+            while end < n:
+                if sql[end] == "'":
+                    if end + 1 < n and sql[end + 1] == "'":  # escaped ''
+                        end += 2
+                        continue
+                    break
+                end += 1
+            buf.append(sql[i : end + 1])
+            i = end + 1
+            continue
+        if ch == "$":
+            m = _DOLLAR_TAG.match(sql, i)
+            if m:
+                dollar_tag = m.group(0)
+                buf.append(dollar_tag)
+                i = m.end()
+                continue
+        if ch == ";":
+            stmt = "".join(buf).strip()
+            if stmt:
+                statements.append(stmt)
+            buf = []
+            i += 1
+            continue
+        buf.append(ch)
+        i += 1
+    tail = "".join(buf).strip()
+    if tail:
+        statements.append(tail)
+    return statements
 
 
 def guild_schema_names(connection: Connection) -> list[str]:
-    """Every provisioned guild schema, sorted. For guild-scoped migrations."""
+    """Every provisioned guild schema (``guild_<id>`` and ``guild_template`` if
+    present), sorted. For guild-scoped migrations."""
     rows = connection.execute(
         text("SELECT nspname FROM pg_namespace WHERE nspname ~ :pat ORDER BY nspname"),
         {"pat": _GUILD_SCHEMA_REGEX},
@@ -57,12 +136,33 @@ def guild_schema_names(connection: Connection) -> list[str]:
     return [row[0] for row in rows]
 
 
+def run_for_each_guild_schema(connection: Connection, fn) -> None:
+    """Run a migration-op callback once per guild schema (``guild_template`` +
+    every ``guild_<id>``), with ``search_path`` routed so unqualified names
+    resolve in that schema (shared types fall through to ``public``).
+
+    The callback form of :func:`apply_to_all_guild_schemas`, used by
+    GUILD-SCOPED AUTOGENERATED migrations (``scripts/gen_guild_migration.py``):
+    the generated ``op.*`` calls execute against unqualified table names, so
+    routing the search_path per schema applies them everywhere. Same
+    transaction-local mechanics as the string variant below.
+    """
+    for schema in guild_schema_names(connection):
+        connection.execute(
+            text("SELECT set_config('search_path', :sp, true)"),
+            {"sp": f"{schema}, public"},
+        )
+        fn()
+    connection.execute(text("SELECT set_config('search_path', 'public', true)"))
+
+
 def apply_to_all_guild_schemas(
     connection: Connection,
     *statements: str,
-    include_public: bool = True,
+    include_public: bool = False,
 ) -> None:
-    """Run schema-relative DDL in every guild schema (and ``public`` by default).
+    """Run schema-relative DDL in every guild schema (``guild_template`` +
+    every ``guild_<id>``).
 
     Each statement must be written WITHOUT a schema qualifier — e.g.
     ``ALTER TABLE tasks ADD COLUMN …`` — because it is run once per target schema
@@ -70,9 +170,9 @@ def apply_to_all_guild_schemas(
     that schema, falling through to ``public`` for shared types). Pass several
     statements to apply them as an ordered group per schema.
 
-    ``include_public`` keeps the legacy ``public`` copy in step until the data
-    conversion drops it; pass ``False`` once those copies are gone (and a
-    ``guild_template`` exists, add it to the targets).
+    ``include_public`` is off by default: since the 20260626_0125 squash the
+    legacy public copies are frozen (pre-squash deployments) or absent (fresh
+    installs), so guild-scoped DDL must not target ``public``.
 
     Must run inside a transaction (migrations always do): the per-schema
     ``search_path`` is set with ``is_local=true`` so it's scoped to that
@@ -83,8 +183,8 @@ def apply_to_all_guild_schemas(
     connection). On success we reset to ``public`` for any later statements in
     the same transaction, since Alembic may batch migrations into one.
 
-    Reminder: after using this in a migration, regenerate
-    ``alembic/guild/guild_schema.sql`` so newly provisioned guilds get the change.
+    Newly provisioned guilds pick the change up automatically: provisioning
+    reflects the LIVE ``guild_template`` (``app.db.guild_ddl``).
     """
     targets = (["public"] if include_public else []) + guild_schema_names(connection)
     for schema in targets:

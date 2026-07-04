@@ -7,7 +7,7 @@ declaration we derive:
 
 - ``INITIATIVE_SCOPED_TABLES`` (``app.db.tenancy`` re-exports it and folds it
   into ``GUILD_SCOPED_TABLES``), and
-- ``alembic/guild/guild_rls.sql`` (``scripts/gen_guild_rls.py`` stamps the
+- the rendered RLS DDL (``app.db.guild_ddl`` stamps the
   uniform policy boilerplate around each path).
 
 So a new initiative-scoped table is added in ONE place — add a path here — and
@@ -75,9 +75,13 @@ def via_property(entity_from: str, entity_pred: str, entity_init: str) -> PathBu
     ``entity_from`` is the FROM clause for the entity (e.g. ``documents d``),
     ``entity_pred`` ties the value row to that entity (e.g. ``d.id =
     {t}.document_id``), and ``entity_init`` is the entity's initiative column
-    (e.g. ``d.initiative_id``)."""
+    (e.g. ``d.initiative_id``).
+
+    Every fragment interpolated here is a string literal from the
+    INITIATIVE_PATHS registry in this module — policy DDL rendering, never
+    user input."""
     return lambda t, w: (
-        f"EXISTS (SELECT 1 FROM {entity_from} "
+        f"EXISTS (SELECT 1 FROM {entity_from} "  # noqa: S608
         f"JOIN property_definitions pd ON pd.id = {t}.property_id "
         f"WHERE {entity_pred.format(t=t)} AND {entity_init} = pd.initiative_id "
         f"AND {_access('pd.initiative_id', w)})"
@@ -139,7 +143,7 @@ def document_links_path() -> PathBuilder:
 
 
 # table -> how its rows resolve an initiative for initiative_access(...). THE
-# source of truth: INITIATIVE_SCOPED_TABLES and guild_rls.sql both derive from
+# source of truth: INITIATIVE_SCOPED_TABLES and the rendered RLS DDL (app.db.guild_ddl) both derive from
 # this dict, so a new initiative-scoped table is declared here exactly once.
 INITIATIVE_PATHS: dict[str, PathBuilder] = {
     # Own initiative_id column

@@ -16,70 +16,19 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.tenant.document import (
-    Document,
-    DocumentType,
-)
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.property import (
     DocumentPropertyValue,
     PropertyType,
 )
 from app.testing import (
+    create_document,
     create_guild,
     create_guild_membership,
     create_initiative,
     create_property_definition,
     create_user,
-    get_guild_headers,
 )
-
-
-async def _create_document(
-    session: AsyncSession,
-    *,
-    initiative,
-    owner,
-    title: str = "Doc",
-    guild_id_override: int | None | str = "use_initiative",
-) -> Document:
-    """Create a native document owned by ``owner``.
-
-    ``guild_id_override`` controls the ``Document.guild_id`` column:
-    * ``"use_initiative"`` (default) uses ``initiative.guild_id``
-    * ``None`` leaves the column NULL (global document)
-    * any int explicitly sets the column
-    """
-    if guild_id_override == "use_initiative":
-        doc_guild_id = initiative.guild_id
-    else:
-        doc_guild_id = guild_id_override
-
-    doc = Document(
-        title=title,
-        initiative_id=initiative.id,
-        guild_id=doc_guild_id,
-        created_by_id=owner.id,
-        updated_by_id=owner.id,
-        document_type=DocumentType.native,
-        content={},
-    )
-    session.add(doc)
-    await session.flush()
-
-    perm = ResourceGrant(
-        resource_type="document",
-        resource_id=doc.id,
-        user_id=owner.id,
-        level=ResourceAccessLevel.owner,
-        guild_id=initiative.guild_id,
-        initiative_id=doc.initiative_id,
-    )
-    session.add(perm)
-    await session.commit()
-    await session.refresh(doc)
-    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -89,22 +38,18 @@ async def _create_document(
 
 @pytest.mark.integration
 async def test_put_sets_multiple_property_values(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
 
     text_defn = await create_property_definition(
-        session, initiative, name="Tag", type=PropertyType.text
+        session, a.initiative, name="Tag", type=PropertyType.text
     )
     number_defn = await create_property_definition(
-        session, initiative, name="Count", type=PropertyType.number
+        session, a.initiative, name="Count", type=PropertyType.number
     )
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {
         "values": [
             {"property_id": text_defn.id, "value": "alpha"},
@@ -112,8 +57,8 @@ async def test_put_sets_multiple_property_values(
         ]
     }
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json=payload,
     )
 
@@ -128,30 +73,26 @@ async def test_put_sets_multiple_property_values(
 
 @pytest.mark.integration
 async def test_put_empty_values_clears_existing_values(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
 
     defn = await create_property_definition(
-        session, initiative, name="Tag", type=PropertyType.text
+        session, a.initiative, name="Tag", type=PropertyType.text
     )
 
-    headers = await get_guild_headers(session, guild, user)
     # Populate first
     await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "to be cleared"}]},
     )
 
     # Now clear
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": []},
     )
     assert response.status_code == 200
@@ -171,24 +112,21 @@ async def test_put_empty_values_clears_existing_values(
 
 @pytest.mark.integration
 async def test_put_cross_initiative_definition_rejected(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A definition from initiative B can't be attached to a doc in A."""
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    init_a = a.initiative
+    init_b = await create_initiative(session, a.guild, a.user, name="B")
 
-    init_a = await create_initiative(session, guild, user, name="A")
-    init_b = await create_initiative(session, guild, user, name="B")
-
-    doc = await _create_document(session, initiative=init_a, owner=user)
+    doc = await create_document(session, init_a, a.user)
 
     # Definition lives in initiative B.
     defn_b = await create_property_definition(session, init_b, name="Foreign")
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn_b.id, "value": "x"}]},
     )
     assert response.status_code == 404
@@ -197,25 +135,24 @@ async def test_put_cross_initiative_definition_rejected(
 
 @pytest.mark.integration
 async def test_put_properties_on_foreign_guild_document_returns_404(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    """Document lives in guild B, client sends guild A header — 404."""
-    user = await create_user(session, email="u@example.com")
-    guild_a = await create_guild(session, name="A")
+    """Document lives in guild B, client sends guild A path — 404."""
+    a = await acting_user(guild_role=GuildRole.admin)
+    user = a.user
+    guild_a = a.guild
+
     guild_b = await create_guild(session, name="B")
-    await create_guild_membership(
-        session, user=user, guild=guild_a, role=GuildRole.admin
-    )
     await create_guild_membership(
         session, user=user, guild=guild_b, role=GuildRole.admin
     )
 
     initiative_b = await create_initiative(session, guild_b, user, name="Init B")
-    doc_b = await _create_document(session, initiative=initiative_b, owner=user)
+    doc_b = await create_document(session, initiative_b, user)
 
     response = await client.put(
         f"/api/v1/g/{guild_a.id}/documents/{doc_b.id}/properties",
-        headers=await get_guild_headers(session, guild_a, user),
+        headers=a.headers,
         json={"values": []},
     )
 
@@ -230,21 +167,18 @@ async def test_put_properties_on_foreign_guild_document_returns_404(
 
 @pytest.mark.integration
 async def test_put_text_value_against_number_type_rejected(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
 
     defn = await create_property_definition(
-        session, initiative, name="Count", type=PropertyType.number
+        session, a.initiative, name="Count", type=PropertyType.number
     )
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "not a number"}]},
     )
     assert response.status_code == 400
@@ -253,25 +187,22 @@ async def test_put_text_value_against_number_type_rejected(
 
 @pytest.mark.integration
 async def test_put_select_unknown_option_rejected(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
 
     defn = await create_property_definition(
         session,
-        initiative,
+        a.initiative,
         name="Phase",
         type=PropertyType.select,
         options=[{"value": "draft", "label": "Draft"}],
     )
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "nope"}]},
     )
     assert response.status_code == 400
@@ -280,25 +211,22 @@ async def test_put_select_unknown_option_rejected(
 
 @pytest.mark.integration
 async def test_put_multi_select_unknown_option_rejected(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
 
     defn = await create_property_definition(
         session,
-        initiative,
+        a.initiative,
         name="Tags",
         type=PropertyType.multi_select,
         options=[{"value": "one", "label": "One"}, {"value": "two", "label": "Two"}],
     )
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": ["one", "ghost"]}]},
     )
     assert response.status_code == 400
@@ -307,27 +235,24 @@ async def test_put_multi_select_unknown_option_rejected(
 
 @pytest.mark.integration
 async def test_put_user_reference_non_initiative_member_rejected(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     # outsider IS in the guild but NOT in the initiative.
+    outsider = await create_user(session, email="outsider@example.com")
     await create_guild_membership(
-        session, user=outsider, guild=guild, role=GuildRole.member
+        session, user=outsider, guild=a.guild, role=GuildRole.member
     )
 
-    initiative = await create_initiative(session, guild, user, name="Init")
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    doc = await create_document(session, a.initiative, a.user)
 
     defn = await create_property_definition(
-        session, initiative, name="Owner", type=PropertyType.user_reference
+        session, a.initiative, name="Owner", type=PropertyType.user_reference
     )
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": outsider.id}]},
     )
     assert response.status_code == 400
@@ -336,23 +261,19 @@ async def test_put_user_reference_non_initiative_member_rejected(
 
 @pytest.mark.integration
 async def test_put_url_accepts_valid_url_and_rejects_invalid(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    doc = await create_document(session, a.initiative, a.user)
 
     defn = await create_property_definition(
-        session, initiative, name="Site", type=PropertyType.url
+        session, a.initiative, name="Site", type=PropertyType.url
     )
 
-    headers = await get_guild_headers(session, guild, user)
     # Valid URL
     response = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "https://example.com"}]},
     )
     assert response.status_code == 200
@@ -361,8 +282,8 @@ async def test_put_url_accepts_valid_url_and_rejects_invalid(
 
     # Invalid URL string
     bad = await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "not a url"}]},
     )
     assert bad.status_code == 400
@@ -376,40 +297,32 @@ async def test_put_url_accepts_valid_url_and_rejects_invalid(
 
 @pytest.mark.integration
 async def test_list_documents_property_filter_text_eq(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     defn = await create_property_definition(
-        session, initiative, name="Tag", type=PropertyType.text
+        session, a.initiative, name="Tag", type=PropertyType.text
     )
 
-    doc_match = await _create_document(
-        session, initiative=initiative, owner=user, title="Match"
-    )
-    doc_other = await _create_document(
-        session, initiative=initiative, owner=user, title="Other"
-    )
+    doc_match = await create_document(session, a.initiative, a.user, title="Match")
+    doc_other = await create_document(session, a.initiative, a.user, title="Other")
 
-    headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc_match.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc_match.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "findme"}]},
     )
     await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc_other.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc_other.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "skip"}]},
     )
 
     filt = json.dumps([{"property_id": defn.id, "op": "eq", "value": "findme"}])
     response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters={filt}",
-        headers=headers,
+        a.g(f"/documents/?initiative_id={a.initiative.id}&property_filters={filt}"),
+        headers=a.headers,
     )
     assert response.status_code == 200
     ids = {item["id"] for item in response.json()["items"]}
@@ -419,35 +332,31 @@ async def test_list_documents_property_filter_text_eq(
 
 @pytest.mark.integration
 async def test_list_documents_property_filter_number_eq(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     defn = await create_property_definition(
-        session, initiative, name="Score", type=PropertyType.number
+        session, a.initiative, name="Score", type=PropertyType.number
     )
 
     docs = [
-        await _create_document(session, initiative=initiative, owner=user, title="D1"),
-        await _create_document(session, initiative=initiative, owner=user, title="D2"),
-        await _create_document(session, initiative=initiative, owner=user, title="D3"),
+        await create_document(session, a.initiative, a.user, title="D1"),
+        await create_document(session, a.initiative, a.user, title="D2"),
+        await create_document(session, a.initiative, a.user, title="D3"),
     ]
 
-    headers = await get_guild_headers(session, guild, user)
     for doc, score in zip(docs, [10, 20, 30]):
         await client.put(
-            f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-            headers=headers,
+            a.g(f"/documents/{doc.id}/properties"),
+            headers=a.headers,
             json={"values": [{"property_id": defn.id, "value": score}]},
         )
 
     filt = json.dumps([{"property_id": defn.id, "op": "eq", "value": 20}])
     response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters={filt}",
-        headers=headers,
+        a.g(f"/documents/?initiative_id={a.initiative.id}&property_filters={filt}"),
+        headers=a.headers,
     )
     assert response.status_code == 200
     ids = {item["id"] for item in response.json()["items"]}
@@ -458,17 +367,14 @@ async def test_list_documents_property_filter_number_eq(
 
 @pytest.mark.integration
 async def test_list_documents_property_filter_multi_select_contains(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """multi_select uses JSONB @> (contains) semantics."""
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     defn = await create_property_definition(
         session,
-        initiative,
+        a.initiative,
         name="Labels",
         type=PropertyType.multi_select,
         options=[
@@ -478,29 +384,24 @@ async def test_list_documents_property_filter_multi_select_contains(
         ],
     )
 
-    doc_with_alpha = await _create_document(
-        session, initiative=initiative, owner=user, title="A"
-    )
-    doc_no_alpha = await _create_document(
-        session, initiative=initiative, owner=user, title="N"
-    )
+    doc_with_alpha = await create_document(session, a.initiative, a.user, title="A")
+    doc_no_alpha = await create_document(session, a.initiative, a.user, title="N")
 
-    headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc_with_alpha.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc_with_alpha.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": ["alpha", "beta"]}]},
     )
     await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc_no_alpha.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc_no_alpha.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": ["gamma"]}]},
     )
 
     filt = json.dumps([{"property_id": defn.id, "op": "eq", "value": ["alpha"]}])
     response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters={filt}",
-        headers=headers,
+        a.g(f"/documents/?initiative_id={a.initiative.id}&property_filters={filt}"),
+        headers=a.headers,
     )
     assert response.status_code == 200
     ids = {item["id"] for item in response.json()["items"]}
@@ -510,16 +411,13 @@ async def test_list_documents_property_filter_multi_select_contains(
 
 @pytest.mark.integration
 async def test_list_documents_invalid_property_filters_json_returns_400(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters=not-json",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/documents/?initiative_id={a.initiative.id}&property_filters=not-json"),
+        headers=a.headers,
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "QUERY_INVALID_CONDITIONS"
@@ -527,20 +425,17 @@ async def test_list_documents_invalid_property_filters_json_returns_400(
 
 @pytest.mark.integration
 async def test_list_documents_too_many_property_filters_returns_400(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     # Fabricate 6 predicates (cap is 5); ids don't need to exist.
     filt = json.dumps(
         [{"property_id": i, "op": "eq", "value": "x"} for i in range(1, 7)]
     )
     response = await client.get(
-        f"/api/v1/g/{guild.id}/documents/?initiative_id={initiative.id}&property_filters={filt}",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/documents/?initiative_id={a.initiative.id}&property_filters={filt}"),
+        headers=a.headers,
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "QUERY_INVALID_CONDITIONS"
@@ -553,31 +448,25 @@ async def test_list_documents_too_many_property_filters_returns_400(
 
 @pytest.mark.integration
 async def test_duplicate_document_same_initiative_carries_property_values(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Duplicating a document in place (same initiative) copies its values."""
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    doc = await _create_document(
-        session, initiative=initiative, owner=user, title="Src"
-    )
+    doc = await create_document(session, a.initiative, a.user, title="Src")
     defn = await create_property_definition(
-        session, initiative, name="Tag", type=PropertyType.text
+        session, a.initiative, name="Tag", type=PropertyType.text
     )
 
-    headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "carryover"}]},
     )
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/duplicate",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/duplicate"),
+        headers=a.headers,
         json={"title": "Dup"},
     )
     assert response.status_code == 201
@@ -598,30 +487,27 @@ async def test_duplicate_document_same_initiative_carries_property_values(
 
 @pytest.mark.integration
 async def test_copy_document_cross_initiative_drops_property_values(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Copying a document to a different initiative drops its property values."""
-    user = await create_user(session, email="u@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    init_a = await create_initiative(session, guild, user, name="A")
-    init_b = await create_initiative(session, guild, user, name="B")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    init_a = a.initiative
+    init_b = await create_initiative(session, a.guild, a.user, name="B")
 
-    doc = await _create_document(session, initiative=init_a, owner=user, title="Src")
+    doc = await create_document(session, init_a, a.user, title="Src")
     defn = await create_property_definition(
         session, init_a, name="Tag", type=PropertyType.text
     )
 
-    headers = await get_guild_headers(session, guild, user)
     await client.put(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/properties",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/properties"),
+        headers=a.headers,
         json={"values": [{"property_id": defn.id, "value": "onlyA"}]},
     )
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/documents/{doc.id}/copy",
-        headers=headers,
+        a.g(f"/documents/{doc.id}/copy"),
+        headers=a.headers,
         json={"title": "Copied", "target_initiative_id": init_b.id},
     )
     assert response.status_code == 201

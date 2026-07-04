@@ -62,17 +62,17 @@ async def lifespan(app: FastAPI):
     install_soft_delete_filter()
     await check_pre_baseline_db()
     await run_migrations()
-    # Move any pre-cutover guild data from public into per-guild schemas. Idempotent
-    # — a no-op once converted — so packaged deploys convert themselves on boot.
-    from app.db.guild_conversion import convert_public_to_guild_schemas
-
-    await convert_public_to_guild_schemas()
     # Re-run the idempotent per-guild provisioning for every guild so any
-    # table/column/index/grant added to guild_schema.sql since a guild was
+    # table/column/index/grant the live guild_template gained since a guild was
     # provisioned is back-filled, and any guild left without a schema (e.g. a
-    # crash mid-provision) is healed. One broken guild is logged and skipped.
-    from app.db.schema_provisioning import backfill_guild_schemas
+    # crash mid-provision) is healed. One broken guild is logged and skipped;
+    # guilds stamped with the current artifact version are skipped entirely.
+    from app.db.schema_provisioning import (
+        backfill_guild_schemas,
+        warn_if_privileged_database_url,
+    )
 
+    await warn_if_privileged_database_url()
     backfill = await backfill_guild_schemas()
     if backfill.failed:
         # WARNING so partial failure survives INFO-filtered logs (per-guild
@@ -86,8 +86,9 @@ async def lifespan(app: FastAPI):
         )
     else:
         logger.info(
-            "guild schema back-fill: %d provisioned (of %d)",
+            "guild schema back-fill: %d provisioned, %d up-to-date (of %d)",
             backfill.provisioned,
+            backfill.skipped,
             backfill.total,
         )
     # Relocate any legacy flat local uploads into per-guild dirs (guild_<id>/),
@@ -283,7 +284,7 @@ async def serve_upload_file(
     ).first()
     if exists is None:
         raise HTTPException(status_code=404)
-    await set_rls_context(session, guild_id=int(guild_id), is_superadmin=True)
+    await set_rls_context(session, guild_id=int(guild_id))
     hit = (
         await session.exec(
             text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),

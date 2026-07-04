@@ -8,9 +8,9 @@ Responsibilities:
 * Serialize attached values to the ``PropertySummary`` API shape.
 * Shared helpers for list-endpoint property filter predicates.
 
-The caller owns session lifecycle (commit + reapply_rls_context) — these
-functions only issue the in-transaction INSERT/DELETE statements so the
-endpoint can control when RLS context is re-applied.
+The caller owns session lifecycle (commit) — these functions only issue
+the in-transaction INSERT/DELETE statements; RLS context replays
+automatically on each transaction.
 """
 
 from dataclasses import dataclass
@@ -382,7 +382,7 @@ async def set_document_property_values(
 ) -> None:
     """Replace all property values attached to ``document``.
 
-    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    Caller is responsible for ``session.commit()``.
     """
     await _set_property_values(
         session,
@@ -401,7 +401,7 @@ async def set_task_property_values(
 ) -> None:
     """Replace all property values attached to ``task``.
 
-    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    Caller is responsible for ``session.commit()``.
     """
     await _set_property_values(
         session,
@@ -420,7 +420,7 @@ async def set_event_property_values(
 ) -> None:
     """Replace all property values attached to ``event``.
 
-    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    Caller is responsible for ``session.commit()``.
     """
     await _set_property_values(
         session,

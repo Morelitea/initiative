@@ -57,7 +57,6 @@ from app.db.session import AdminSessionLocal
 from app.services.platform import app_settings as app_settings_service
 from app.services import email as email_service
 from app.services.platform import user_tokens
-from app.services.tenant import initiatives as initiatives_service
 from app.services.platform import guilds as guilds_service
 from app.services.oidc_sync import extract_claim_values, sync_oidc_assignments
 from app.models.platform.user_token import UserTokenPurpose
@@ -224,7 +223,7 @@ async def register_user(
                 # PendingRollbackError and the already-committed user + guild rows
                 # are stranded. Rollback also reverts the seed's SET ROLE (Postgres
                 # SET is transactional) so deprovision can DROP the role; this is an
-                # admin (BYPASSRLS) session, so removing the shared rows isn't filtered.
+                # system-engine session (BYPASSRLS), so removing the shared rows isn't filtered.
                 await session.rollback()
                 with _suppress(Exception):
                     await deprovision_guild(guild_id)
@@ -247,8 +246,6 @@ async def register_user(
         ) from exc
 
     await session.refresh(user)
-
-    await initiatives_service.load_user_initiative_roles(session, [user])
 
     if smtp_configured and not user.email_verified:
         try:

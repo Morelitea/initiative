@@ -91,18 +91,17 @@ class ResourceGrant(SQLModel, table=True):
     )
     # resource_id is polymorphic (keyed by resource_type) — no FK; cleaned up in the
     # resource's delete path, inert if orphaned.
-    resource_type: str = Field(
-        sa_column=Column(String(length=32), nullable=False, index=True)
-    )
-    resource_id: int = Field(sa_column=Column(Integer, nullable=False, index=True))
+    # Indexed by the COMPOSITE partial indexes below (ix_resource_grants_resource
+    # etc.), owned by migration history — not per-column, so no index=True here.
+    resource_type: str = Field(sa_column=Column(String(length=32), nullable=False))
+    resource_id: int = Field(sa_column=Column(Integer, nullable=False))
     user_id: Optional[int] = Field(
         default=None,
         sa_column=Column(
             Integer,
             ForeignKey("users.id", ondelete="CASCADE"),
             nullable=True,
-            index=True,
-        ),
+        ),  # indexed by composite partial ix_resource_grants_user
     )
     role_id: Optional[int] = Field(
         default=None,
@@ -110,8 +109,7 @@ class ResourceGrant(SQLModel, table=True):
             Integer,
             ForeignKey("initiative_roles.id", ondelete="CASCADE"),
             nullable=True,
-            index=True,
-        ),
+        ),  # indexed by composite partial ix_resource_grants_role
     )
     level: ResourceAccessLevel = Field(
         sa_column=Column(String(length=16), nullable=False)

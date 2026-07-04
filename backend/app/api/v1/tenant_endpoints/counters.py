@@ -30,7 +30,7 @@ from app.api.deps import (
 )
 from app.core.config import settings
 from app.core.messages import CounterMessages, InitiativeMessages
-from app.db.session import AsyncSessionLocal, reapply_rls_context
+from app.db.session import AsyncSessionLocal
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
@@ -90,11 +90,10 @@ async def _emit_counter(
     path, where the row is soft-deleted before this runs so a post-commit lookup
     would hit the global ``deleted_at IS NULL`` filter and find nothing, silently
     dropping the ``group_deleted`` event. Otherwise the group's guild is resolved
-    from the (guild-routed) session (``reapply_rls_context`` keeps it valid after
-    a commit). One streaming spine; rooms are guild-namespaced (group ids are
+    from the (guild-routed) session (context replays automatically after a
+    commit). One streaming spine; rooms are guild-namespaced (group ids are
     per-schema)."""
     if guild_id is None:
-        await reapply_rls_context(session)
         guild_id = (
             await session.exec(
                 select(CounterGroup.guild_id).where(CounterGroup.id == group_id)
@@ -368,7 +367,6 @@ async def create_counter_group(
     )
 
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
     return serialize_counter_group(
@@ -408,7 +406,6 @@ async def duplicate_counter_group(
         guild_id=guild_context.guild_id,
     )
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, new_group.id)
     return serialize_counter_group(
@@ -444,7 +441,6 @@ async def update_counter_group(
         group.updated_at = datetime.now(timezone.utc)
         session.add(group)
         await session.commit()
-        await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
@@ -540,7 +536,6 @@ async def add_counter(
     )
     session.add(counter)
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await counters_service.get_counter(
         session, counter.id, populate_existing=True
@@ -633,7 +628,6 @@ async def update_counter(
         counter.updated_at = datetime.now(timezone.utc)
         session.add(counter)
         await session.commit()
-        await reapply_rls_context(session)
 
     hydrated = await counters_service.get_counter(
         session, counter.id, populate_existing=True
@@ -690,7 +684,6 @@ async def _commit_and_broadcast_count(
     counter: Counter,
 ) -> CounterRead:
     await session.commit()
-    await reapply_rls_context(session)
     hydrated = await counters_service.get_counter(
         session, counter.id, populate_existing=True
     )
@@ -782,7 +775,6 @@ async def reset_all_counters(
     )
     await counters_service.reset_all_counters(session, group)
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
@@ -812,7 +804,6 @@ async def sort_counters(
         session, group, field=payload.field, direction=payload.direction
     )
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(

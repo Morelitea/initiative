@@ -5,7 +5,8 @@ Polled by ``background_tasks._loop_worker`` once an hour. Connects via
 schema as a guild admin (``current_guild_role='admin'``) — that admin leg clears
 the ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE guard (and the
 initiative-member policies), since SET ROLE into ``guild_<id>`` drops the
-``app_admin`` BYPASSRLS. See ``_purge_all_guilds``.
+``app_admin`` (BYPASSRLS drops on SET ROLE) and routes into each guild as a
+guild admin. See ``_purge_all_guilds``.
 
 Documents need per-row treatment because their hard-purge has to clean up
 ``Upload`` rows + filesystem blobs (both for ``file``-type docs whose Upload
@@ -95,13 +96,12 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
     guild, so it routes into each guild's schema AS A GUILD ADMIN
     (``current_guild_role='admin'``). That admin leg is what clears both the
     initiative-member policies and the ``soft_delete_admin_purge`` RESTRICTIVE
-    guard on the soft-delete tables — routing into ``guild_<id>`` drops the
-    ``app_admin`` BYPASSRLS, so an admin context (not the retired ``is_superadmin``
-    GUC) is what lets the hard deletes through. Guilds are enumerated on the admin
-    context first; each schema gets its own committed pass. Split out so tests can
-    drive it with the test session.
+    guard on the soft-delete tables — ``SET ROLE`` drops the system engine's
+    BYPASSRLS, so the admin context is what lets the hard deletes through.
+    Guilds are enumerated on the system engine first; each schema gets its
+    own committed pass. Split out so tests can drive it with the test session.
     """
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     guild_ids = list(await session.exec(select(Guild.id).order_by(Guild.id.asc())))
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.

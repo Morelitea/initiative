@@ -21,7 +21,6 @@ from app.core.messages import (
 )
 from app.core.security import create_advanced_tool_handoff_token
 from app.core.config import settings
-from app.db.session import reapply_rls_context
 from app.models.platform.access_grant import AccessLevel
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
@@ -295,7 +294,6 @@ async def create_initiative(
         )
     )
     await session.commit()
-    await reapply_rls_context(session)
     initiative = await _get_initiative_or_404(initiative.id, session, guild_id)
     return serialize_initiative(initiative)
 
@@ -344,7 +342,6 @@ async def update_initiative(
         setattr(initiative, field, value)
     session.add(initiative)
     await session.commit()
-    await reapply_rls_context(session)
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
@@ -578,7 +575,6 @@ async def update_initiative_role(
         )
 
     await session.commit()
-    await reapply_rls_context(session)
     member_count = await initiatives_service.count_role_members(
         session, role_id=role.id
     )
@@ -1004,7 +1000,6 @@ async def add_initiative_member(
         created = True
 
     await session.commit()
-    await reapply_rls_context(session)
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
@@ -1160,7 +1155,6 @@ async def remove_initiative_member(
         )
 
         await session.commit()
-        await reapply_rls_context(session)
         # Removed from the initiative — drop this user's live content streams in
         # the guild immediately (initiative-level access change).
         await stream_authority.revoke_user(guild_context.guild_id, user_id)
@@ -1240,7 +1234,6 @@ async def update_initiative_member(
         membership.role_id = payload.role_id
         session.add(membership)
         await session.commit()
-        await reapply_rls_context(session)
         # Role change may reduce content access — re-check this user's live
         # content streams immediately (initiative-level access change).
         await stream_authority.revoke_user(guild_context.guild_id, user_id)

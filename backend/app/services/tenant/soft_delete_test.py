@@ -237,11 +237,13 @@ async def test_restore_rejects_invalid_new_owner(session: AsyncSession):
 async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
     session: AsyncSession,
 ):
-    """The migration creates a RESTRICTIVE FOR DELETE policy on every
-    soft-delete-capable table that admits only sessions where
-    ``app.current_guild_role`` is ``admin`` (or superadmin). The test
-    fixture connects via the BYPASSRLS admin role so it can't exercise
-    the policy at runtime — verify by inspecting pg_policies instead."""
+    """Every soft-delete-capable table carries a RESTRICTIVE FOR DELETE policy
+    (``soft_delete_admin_purge``) that admits only a routed guild admin
+    (``app.current_guild_role = 'admin'``); a hard delete is a purge. Post-squash
+    these tables (and thus their policies) live in the per-guild schemas, not
+    ``public`` — the canonical copy is the Alembic-maintained ``guild_template``
+    schema (created by migration 20260701_0126). The admin fixture can't
+    exercise the policy at runtime, so we inspect ``pg_policies`` in the template."""
     expected = {
         "projects",
         "tasks",
@@ -257,7 +259,8 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
         text(
             "SELECT tablename, policyname, cmd, permissive "
             "FROM pg_policies "
-            "WHERE policyname LIKE '%_delete_admin_only'"
+            "WHERE schemaname = 'guild_template' "
+            "AND policyname = 'soft_delete_admin_purge'"
         )
     )
     rows = result.all()
@@ -404,7 +407,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     from app.models.platform.guild import GuildRole
     from app.testing.factories import (
         create_guild_membership,
-        get_guild_headers,
+        get_auth_headers,
     )
 
     user = await create_user(session)
@@ -440,8 +443,9 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     )
     await session.commit()
 
-    # Hit the listing endpoint and confirm only the parent appears.
-    headers = await get_guild_headers(session, guild, user)
+    # Hit the listing endpoint and confirm only the parent appears. Guild context
+    # is path-based now (/g/{guild_id}); the headers just carry auth.
+    headers = get_auth_headers(user)
     response = await client.get(f"/api/v1/g/{guild.id}/trash/", headers=headers)
     assert response.status_code == 200, response.text
     body = response.json()

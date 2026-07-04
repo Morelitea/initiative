@@ -11,7 +11,6 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
-from app.db.session import reapply_rls_context
 from app.api.v1.tenant_endpoints.tasks import (
     _get_project_with_access,
     _ensure_can_manage,
@@ -146,7 +145,6 @@ async def create_task_status(
     _ensure_default(statuses)
     session.add(new_status)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(new_status)
     return new_status
 
@@ -198,7 +196,6 @@ async def update_task_status(
         _resequence(statuses)
         _ensure_default(statuses)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(target)
     return target
 
@@ -244,7 +241,6 @@ async def reorder_task_statuses(
     _resequence(combined)
     _ensure_default(combined)
     await session.commit()
-    await reapply_rls_context(session)
     return await task_statuses_service.list_statuses(session, project.id)
 
 

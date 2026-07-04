@@ -205,7 +205,9 @@ async def test_dry_run_reports_but_does_not_write(engine, monkeypatch):
 
 async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
     """guild_settings is guild-scoped, so its live rows live in guild_<id> schemas —
-    the sweep must re-key those, not just the public copy."""
+    the sweep re-keys them there. Post-squash there is no public copy of a guild
+    table in the rotation set: guild data is re-keyed ONLY through its guild schema,
+    never an unrouted public pathway."""
     gid = None
     try:
         async with engine.begin() as conn:
@@ -223,7 +225,7 @@ async def test_rotate_visits_per_guild_schema_settings(engine, monkeypatch):
             )
             await conn.execute(
                 text(
-                    f'INSERT INTO "{schema}".guild_settings '
+                    f'INSERT INTO "{schema}".guild_settings '  # noqa: S608
                     "(guild_id, created_at, updated_at, ai_api_key_encrypted) "
                     "VALUES (:g, now(), now(), :a)"
                 ),

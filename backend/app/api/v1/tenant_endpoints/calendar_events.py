@@ -21,7 +21,7 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.db.session import get_admin_session, reapply_rls_context
+from app.db.session import get_admin_session
 from app.models.tenant.calendar_event import (
     CalendarEvent,
     CalendarEventAttendee,
@@ -437,7 +437,6 @@ async def import_ical_events(
 
     if created > 0:
         await session.commit()
-        await reapply_rls_context(session)
 
     return ICalImportResult(
         events_created=created,
@@ -677,7 +676,6 @@ async def create_calendar_event(
         )
 
     await session.commit()
-    await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)
 
@@ -772,7 +770,6 @@ async def update_calendar_event(
                     )
 
         await session.commit()
-        await reapply_rls_context(session)
 
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)
@@ -862,7 +859,6 @@ async def set_attendees(
         )
 
     await session.commit()
-    await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)
 
@@ -908,7 +904,6 @@ async def update_rsvp(
             )
 
     await session.commit()
-    await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)
 
@@ -936,7 +931,6 @@ async def set_tags(
     )
     await events_service.set_event_tags(session, event, tag_ids, guild_context.guild_id)
     await session.commit()
-    await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)
 
@@ -965,7 +959,6 @@ async def set_documents(
         current_user.id,
     )
     await session.commit()
-    await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)
 
@@ -1001,7 +994,6 @@ async def set_event_properties(
         session, event, payload.values, initiative_id=event.initiative_id
     )
     await session.commit()
-    await reapply_rls_context(session)
     hydrated = await _refetch_event(session, event.id)
     return serialize_calendar_event(hydrated, user_id=current_user.id)
 

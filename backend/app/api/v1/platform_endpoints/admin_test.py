@@ -241,7 +241,7 @@ async def test_admin_delete_rejects_surplus_project_transfers(
     from app.models.tenant.project import Project
     from app.db.session import set_rls_context
 
-    # Verify as a guild admin: initiative_access ignores is_superadmin, so route
+    # Verify as a guild admin: initiative_access honors only the admin leg, so route
     # with the admin role to read the (untouched) bystander project.
     await set_rls_context(session, guild_id=guild.id, guild_role="admin")
     refreshed = (

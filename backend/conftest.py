@@ -28,7 +28,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session, get_session
+from app.db.session import (
+    clear_rls_context,
+    get_admin_session,
+    get_session,
+)
+from app.testing.schema_harness import clear_search_path_pin
+from app.db.tenancy import SHARED_TABLES
 from app.main import app
 
 # --- Per-worker isolation (pytest-xdist) ---------------------------------------
@@ -282,14 +288,19 @@ _provisioned_guild_ids: set[int] = set()
 
 
 @pytest.fixture(autouse=True)
-def _schema_test_harness(engine, monkeypatch):
+async def _schema_test_harness(engine, monkeypatch):
     """Make every test schema-per-guild aware.
 
     - Installs the before_flush router so direct-session (factory) guild-scoped
       writes land in the guild's schema, mirroring what set_rls_context does for
       the request path.
-    - Points the (superuser) provisioning engine at the test DB so create_guild /
-      the guilds endpoint provision schemas/roles on the test database.
+    - Points the provisioning engine at the test DB so create_guild / the guilds
+      endpoint provision schemas/roles on the test database.
+    - Points the system (admin) engine at the test DB **as the real app_admin
+      role**, so maintenance jobs that use ``db_session.admin_engine`` /
+      ``AdminSessionLocal`` directly (secret-key rotation, upload back-fills,
+      workers) run against test data under the real policy-bound role instead
+      of silently hitting the dev database.
     - Wraps ``provision_guild`` (the universal provisioning choke point — factory,
       guild endpoints, backfill, and conversion all route through it) to record
       which guilds got a schema this test, so teardown can skip its cleanup scan
@@ -301,6 +312,25 @@ def _schema_test_harness(engine, monkeypatch):
 
     install_guild_routing()
     monkeypatch.setattr(db_session, "provisioning_engine", engine)
+
+    # The provisioning bundle reflects the LIVE guild_template; reset it per
+    # test so a stale render can't leak across the per-worker test DB lifecycle.
+    schema_provisioning.reset_provisioning_bundle()
+
+    test_admin_engine = create_async_engine(
+        _test_url_for_role("app_admin"), echo=False, pool_pre_ping=True
+    )
+    monkeypatch.setattr(db_session, "admin_engine", test_admin_engine)
+    monkeypatch.setattr(
+        db_session,
+        "AdminSessionLocal",
+        async_sessionmaker(
+            bind=test_admin_engine,
+            autoflush=False,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        ),
+    )
 
     _provisioned_guild_ids.clear()
     _orig_provision_guild = schema_provisioning.provision_guild
@@ -314,6 +344,8 @@ def _schema_test_harness(engine, monkeypatch):
     monkeypatch.setattr(
         schema_provisioning, "provision_guild", _tracking_provision_guild
     )
+    yield
+    await test_admin_engine.dispose()
 
 
 @pytest.fixture(scope="function")
@@ -376,21 +408,10 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
         # external connection does NOT end that connection's transaction, so the
         # test's trailing reads would keep AccessShare locks on the guild-schema
         # tables — which the teardown's DROP SCHEMA (AccessExclusive) would block on.
+        # The rollback also ends any assumed role / search_path routing: context
+        # is transaction-local now, so no committed reset is needed for the
+        # superuser cleanup below to run unrouted.
         await bound_conn.rollback()
-        # Drop any guild/platform role + schema routing the request path's
-        # set_rls_context left on this connection, so the superuser cleanup below
-        # isn't stuck as a non-superuser role (guild_<id> or platform_<tier>).
-        #
-        # This reset must be COMMITTED. A write request commits its `SET ROLE`
-        # as durable session state; the set_config() below runs in an autobegun
-        # transaction that returning the connection to the pool would otherwise
-        # roll back — reverting the role to the request's tier. The cleanup then
-        # reuses this connection and fails, because `session_replication_role`
-        # and TRUNCATE need the superuser. Committing makes the reset stick.
-        await bound_conn.exec_driver_sql(
-            "SELECT set_config('role', 'none', false), set_config('search_path', 'public', false)"
-        )
-        await bound_conn.commit()
 
     # Session is now closed (its rollback released any lock on public.guilds the
     # create-guild endpoint's trailing SELECT left held). Clean up on a fresh
@@ -424,14 +445,19 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                     )
                 ).all()
             ]
-        # Truncate all public tables to reset state — one multi-table TRUNCATE
-        # (a single round-trip) instead of one statement per table.
+        # Truncate the SHARED (public-schema) tables to reset state — one
+        # multi-table TRUNCATE (a single round-trip) instead of one statement
+        # per table. Only shared tables exist in public since the v0.53.5
+        # baseline squash; tenant content lives in the per-test guild schemas
+        # dropped above.
         await conn.execute(text("SET session_replication_role = 'replica'"))
-        all_tables = ", ".join(
-            f'"{table.name}"' for table in SQLModel.metadata.sorted_tables
+        shared_tables = ", ".join(
+            f'"{table.name}"'
+            for table in SQLModel.metadata.sorted_tables
+            if table.name in SHARED_TABLES
         )
         await conn.execute(
-            text(f"TRUNCATE TABLE {all_tables} RESTART IDENTITY CASCADE")
+            text(f"TRUNCATE TABLE {shared_tables} RESTART IDENTITY CASCADE")
         )
         await conn.execute(text("SET session_replication_role = 'origin'"))
 
@@ -446,22 +472,6 @@ async def session(engine) -> AsyncGenerator[AsyncSession, None]:
                 await rconn.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')
 
 
-# GUC + role reset mirroring the production get_session/get_admin_session
-# checkout reset, so each request starts from a clean baseline on the bound
-# request connection (a prior request's assumed role can't bleed in).
-_REQUEST_RESET_SQL = (
-    "SELECT set_config('app.current_user_id', '', false), "
-    "set_config('app.current_guild_id', '', false), "
-    "set_config('app.current_guild_role', '', false), "
-    "set_config('app.is_superadmin', 'false', false), "
-    "set_config('app.pam_guild_id', '', false), "
-    "set_config('app.pam_read', 'false', false), "
-    "set_config('app.pam_write', 'false', false), "
-    "set_config('search_path', 'public', false), "
-    "set_config('role', 'none', false)"
-)
-
-
 @pytest.fixture
 async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     """Async HTTP client whose REQUEST path runs as the REAL ``app_user`` login
@@ -474,7 +484,8 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     for *data setup* (factories commit, so the request connection sees the rows) and
     for the privileged teardown (TRUNCATE / DROP SCHEMA / DROP ROLE).
 
-    ``AdminSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS) session,
+    ``AdminSessionDep`` is overridden to a real ``app_admin`` (BYPASSRLS,
+    grant-bounded) session,
     mirroring the production admin engine, so bootstrapping endpoints (guild
     creation, background-job style ops) keep their intended RLS bypass instead of
     silently leaning on the superuser.
@@ -529,7 +540,14 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     # write on the SAME row, which then blocks until statement_timeout.
     async def override_get_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
-        await req_session.exec(text(_REQUEST_RESET_SQL))
+        # Production gets a FRESH session (empty info) per request; this reused
+        # session must drop the previous request's stored context or the next
+        # transaction would replay it (stale user/guild) — including any
+        # harness pin the before_flush net recorded during the previous
+        # request's tenant writes. The DB side needs no reset:
+        # transaction-local context died with the request's rollback.
+        clear_rls_context(req_session)
+        clear_search_path_pin(req_session)
         try:
             yield req_session
         finally:
@@ -537,7 +555,8 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
     async def override_get_admin_session() -> AsyncGenerator[AsyncSession, None]:
         await _publish_setup_state()
-        await admin_session.exec(text(_REQUEST_RESET_SQL))
+        clear_rls_context(admin_session)
+        clear_search_path_pin(admin_session)
         try:
             yield admin_session
         finally:
@@ -573,12 +592,9 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             with suppress(Exception):
                 await sess.close()
             with suppress(Exception):
+                # Rollback ends the transaction and, with it, any assumed role
+                # (context is transaction-local — no committed reset needed).
                 await conn.rollback()
-                await conn.exec_driver_sql(
-                    "SELECT set_config('role', 'none', false), "
-                    "set_config('search_path', 'public', false)"
-                )
-                await conn.commit()
             with suppress(Exception):
                 await conn.close()
             with suppress(Exception):
@@ -602,61 +618,28 @@ def auth_headers() -> dict[str, str]:
 
 @pytest.fixture
 async def acting_user(session):
-    """Mint an authenticated test identity with a **required platform role** and an
-    **optional guild role** — the single seam for "run this test AS role X".
+    """Mint an authenticated test identity at explicit platform/guild roles —
+    the single seam for "run this test AS role X". Returns an
+    :class:`app.testing.Actor`; see ``app/testing/actor.py`` for the full
+    semantics (role defaults, initiative/project scaffolding, ``a.g()`` URLs).
 
-    The two role dimensions are orthogonal (see the platform-roles design §7):
+        a = await acting_user()                                  # platform owner
+        a = await acting_user("support")                         # tier ceilings
+        a = await acting_user(guild_role=GuildRole.admin,
+                              initiative=True, project=True)     # workspace
+        b = await acting_user(guild_role=GuildRole.member, guild=a.guild,
+                              initiative=a.initiative, initiative_role="member")
+        await client.get(a.g("/projects/"), headers=a.headers)
 
-    * **Platform role — required, defaults to ``owner``.** The platform tier the
-      public/platform request path assumes (``platform_<users.role>`` via
-      ``get_user_session`` -> ``set_rls_context``). Omit for ``owner`` (most
-      privileged, so role-agnostic tests run unblocked); pass a lower tier
-      (``member``/``support``/…) to exercise a public-path ceiling. With the
-      real-role ``client`` fixture, the request runs AS that platform role on a real
-      ``app_user`` connection at the database — RLS enforced, like production.
-
-    * **Guild role — optional, for guild-path testing.** When ``guild_role`` is
-      given, the harness also provisions a guild (or uses ``guild=``) and adds the
-      user as a member with that ``GuildRole``; the request then routes through
-      ``/g/{guild_id}`` and assumes ``guild_<id>`` with ``current_guild_role``.
-
-    Return arity follows the dimensions requested:
-        user, headers          = await acting_user()                       # owner, public path
-        user, headers          = await acting_user("member")               # member, public path
-        user, headers, guild   = await acting_user("member",
-                                                   guild_role=GuildRole.admin)  # + guild admin
-        await client.get(f"/api/v1/g/{guild.id}/projects", headers=headers)
+    With the real-role ``client`` fixture the request runs AS the actor's
+    platform tier (public path) or guild role (``/g/{guild_id}`` path) on a
+    real ``app_user`` connection — RLS enforced, like production.
     """
-    from app.models.platform.guild import GuildRole
-    from app.models.platform.user import UserRole
-    from app.testing import (
-        create_guild,
-        create_guild_membership,
-        create_user,
-        get_auth_headers,
-    )
+    import functools
 
-    async def _make(
-        role: "UserRole | str" = UserRole.owner,
-        *,
-        guild_role: "GuildRole | str | None" = None,
-        guild=None,
-        **overrides: Any,
-    ):
-        if isinstance(role, str):
-            role = UserRole(role)
-        user = await create_user(session, role=role, **overrides)
-        headers = get_auth_headers(user)
-        if guild_role is None:
-            return user, headers
-        if isinstance(guild_role, str):
-            guild_role = GuildRole(guild_role)
-        if guild is None:
-            guild = await create_guild(session)
-        await create_guild_membership(session, user=user, guild=guild, role=guild_role)
-        return user, headers, guild
+    from app.testing.actor import make_actor
 
-    return _make
+    return functools.partial(make_actor, session)
 
 
 def create_test_user_data(**overrides: Any) -> dict[str, Any]:

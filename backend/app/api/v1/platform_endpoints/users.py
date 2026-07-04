@@ -23,7 +23,7 @@ from app.core.user_input_validators import (
     normalize_timezone,
     normalize_week_starts_on,
 )
-from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
+from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole, GuildMembership
 from app.models.tenant.initiative import InitiativeMember
@@ -88,7 +88,10 @@ async def read_users_me(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
-    await initiatives_service.load_user_initiative_roles(session, [current_user])
+    # No initiative_roles enrichment: initiative membership is guild-schema
+    # content, which a platform-path request cannot (and must not) read.
+    # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients
+    # derive per-guild manager state from guild-scoped initiative data.
     return current_user
 
 
@@ -272,7 +275,6 @@ async def create_user(
         role=GuildRole.member,
     )
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -288,6 +290,25 @@ async def update_users_me(
     update_data = user_in.dict(exclude_unset=True)
     if not update_data:
         return current_user
+
+    if (
+        update_data.get("email_task_assignment") is False
+        and current_user.email_task_assignment is not False
+    ):
+        # The digest queue is guild-scoped, so it must be cleared inside each
+        # of the user's guild schemas — before any mutation below, because the
+        # fan-out expunges the identity map (per-schema ids collide). Restore
+        # the platform context and re-fetch the user afterwards; the deletes
+        # ride this request's transaction and commit with it. Skipped when the
+        # preference is already off (nothing can be queued).
+        user_id = current_user.id
+        await notifications_service.clear_task_assignment_queue_across_guilds(
+            session, user_id
+        )
+        await set_rls_context(session, user_id=user_id)
+        current_user = (
+            await session.exec(select(User).where(User.id == user_id))
+        ).one()
 
     new_full_name = update_data.get("full_name")
     if new_full_name is not None:
@@ -389,12 +410,10 @@ async def update_users_me(
         "push_event_reminders",
     ]:
         if field in update_data:
-            new_value = bool(update_data[field])
-            setattr(current_user, field, new_value)
-            if field == "email_task_assignment" and not new_value:
-                await notifications_service.clear_task_assignment_queue_for_user(
-                    session, current_user.id
-                )
+            # email_task_assignment=False also cleared the guild-scoped digest
+            # queue — done up-front (before any mutation) via the cross-guild
+            # fan-out at the top of this handler.
+            setattr(current_user, field, bool(update_data[field]))
     if "color_theme" in update_data:
         current_user.color_theme = update_data["color_theme"]
     if "task_completion_visual_feedback" in update_data:
@@ -419,9 +438,8 @@ async def update_users_me(
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(current_user)
-    await initiatives_service.load_user_initiative_roles(session, [current_user])
+    # Platform path — no initiative_roles enrichment (see read_users_me).
     return current_user
 
 
@@ -506,7 +524,6 @@ async def update_user(
 
     session.add(user)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -554,7 +571,6 @@ async def approve_user(
         user.updated_at = datetime.now(timezone.utc)
         session.add(user)
         await session.commit()
-        await reapply_rls_context(session)
         await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -598,11 +614,11 @@ async def get_my_initiative_members(
     Used by the account-deletion transfer-target picker. ``guild_id`` is
     required: the initiative lives in that guild's schema (ids repeat across
     guild schemas), and the caller has it from the blocker record. We route in
-    as superadmin so the member list is read from the live guild schema (the
+    into the guild schema so the member list is read from the live data (the
     intentional cross-guild visibility the picker needs), not the frozen
     ``public`` backup.
     """
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(

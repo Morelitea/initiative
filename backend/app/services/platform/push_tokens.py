@@ -5,7 +5,6 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import reapply_rls_context
 from app.models.platform.push_token import PushToken
 
 
@@ -45,7 +44,6 @@ async def register_push_token(
     )
     result = await session.exec(stmt)
     await session.commit()
-    await reapply_rls_context(session)
     return result.scalars().one()
 
 

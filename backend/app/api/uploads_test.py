@@ -14,7 +14,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    get_guild_headers,
 )
 
 
@@ -74,7 +73,7 @@ async def test_upload_accessible_with_auth_header(
     )
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     response = await client.get(
         f"/uploads/{guild.id}/test_auth_header.txt", headers=headers
     )
@@ -231,7 +230,7 @@ async def test_upload_guild_member_can_access_file(
     session.add(upload)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     response = await client.get(
         f"/uploads/{guild.id}/test_guild_access.png", headers=headers
     )
@@ -266,7 +265,7 @@ async def test_upload_non_member_cannot_access_file(
         # path is still rejected, since membership is validated per request
         # against the path-addressed guild.
         outsider = await create_user(session)
-        headers = await get_guild_headers(session, guild, outsider)
+        headers = get_auth_headers(outsider)
         response = await client.get(
             f"/uploads/{guild.id}/test_guild_forbidden.png", headers=headers
         )
@@ -293,7 +292,7 @@ async def test_upload_without_db_record_returns_404(
         user = await create_user(session)
         guild = await create_guild(session, creator=user)
         await create_guild_membership(session, user=user, guild=guild)
-        headers = await get_guild_headers(session, guild, user)
+        headers = get_auth_headers(user)
         response = await client.get(
             f"/uploads/{guild.id}/test_orphan_file.txt", headers=headers
         )
@@ -343,18 +342,17 @@ async def test_upload_row_in_guild_schema_is_served(
         params={"fn": "test_guild_schema_row.txt", "gid": guild.id, "uid": user.id},
     )
     await session.commit()
-    # Prove the row is invisible from public.uploads.
-    public_hit = (
-        await session.exec(
-            text("SELECT 1 FROM public.uploads WHERE filename = :fn"),
-            params={"fn": "test_guild_schema_row.txt"},
-        )
-    ).first()
-    assert public_hit is None
+    # Prove the row can't live in public: under schema-per-guild there is no
+    # public.uploads copy at all (uploads is guild-scoped), so the row exists
+    # only in guild_<id>.uploads.
+    public_table = (
+        await session.exec(text("SELECT to_regclass('public.uploads')"))
+    ).scalar()
+    assert public_table is None
 
     response = await client.get(
         f"/uploads/{guild.id}/test_guild_schema_row.txt",
-        headers=await get_guild_headers(session, guild, user),
+        headers=get_auth_headers(user),
     )
     assert response.status_code == 200
     assert response.text == "hello"
@@ -365,7 +363,7 @@ async def test_upload_row_in_guild_schema_is_served(
     outsider = await create_user(session, email="outsider-schema@example.com")
     response = await client.get(
         f"/uploads/{guild.id}/test_guild_schema_row.txt",
-        headers=await get_guild_headers(session, guild, outsider),
+        headers=get_auth_headers(outsider),
     )
     assert response.status_code == 404
 
@@ -411,7 +409,7 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
     await admin.rollback()
 
     # The production pattern (SET ROLE via set_rls_context) succeeds.
-    await set_rls_context(admin, guild_id=guild.id, is_superadmin=True)
+    await set_rls_context(admin, guild_id=guild.id)
     row = (
         await admin.exec(
             text("SELECT filename FROM uploads WHERE filename = 'grant_probe.jpg'")

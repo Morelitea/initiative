@@ -51,3 +51,9 @@ limiter = Limiter(
     default_limits=_default_limits(),
     storage_uri=settings.RATE_LIMIT_STORAGE_URI,
 )
+
+# Master kill-switch for local dev/testing. When RATE_LIMIT_ENABLED is False the
+# limiter short-circuits every check (global default *and* per-route decorators),
+# exactly as the test suite does. Defaults True, so shared/prod deployments are
+# unaffected unless the operator explicitly opts out via env.
+limiter.enabled = settings.RATE_LIMIT_ENABLED

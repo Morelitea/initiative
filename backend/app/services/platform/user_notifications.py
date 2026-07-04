@@ -5,7 +5,6 @@ from sqlalchemy import func, update
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import reapply_rls_context
 from app.models.platform.notification import Notification, NotificationType
 
 
@@ -71,7 +70,6 @@ async def mark_notification_read(
         notification.read_at = datetime.now(timezone.utc)
         session.add(notification)
         await session.commit()
-        await reapply_rls_context(session)
         await session.refresh(notification)
     return notification
 

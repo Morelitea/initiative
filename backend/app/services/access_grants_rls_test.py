@@ -1,6 +1,6 @@
 """DB-level RLS isolation tests for PAM grants.
 
-The test database connects as a BYPASSRLS superuser, so these tests explicitly
+The default test connection would mask RLS, so these tests explicitly
 ``SET ROLE app_user`` (the non-privileged role the app uses at runtime) to make
 RLS + FORCE ROW LEVEL SECURITY actually apply. Without that, the policies would
 silently pass and prove nothing.
@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.pam_context import set_active_grant
+from app.db.schema_provisioning import guild_schema_name
 from app.db.session import set_rls_context
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.document import Document
@@ -234,17 +235,26 @@ async def test_pam_read_grant_does_not_fault_legacy_isolation_tables(
 
 @pytest.mark.integration
 async def test_no_pam_flag_sees_nothing(session: AsyncSession):
+    """An INACTIVE grant (pam_guild_id set, but neither flag) must yield no access.
+
+    Post-squash the guild's ``projects`` live only in ``guild_<id>`` and there is
+    no public copy. ``set_rls_context`` deliberately does NOT route an inactive
+    grant into the guild schema (see the "don't route inactive grants" fix), so
+    the fail-closed guarantee is at the schema/role boundary: the session stays on
+    the public path with no guild role assumed, leaving the guild's schema entirely
+    out of reach. We assert both halves — the context did not route in, and the
+    guild's content is unreachable — so "sees nothing" is proven, not weakened."""
     owner = await create_user(session, email="owner2@example.com", role=UserRole.owner)
     support = await create_user(
         session, email="support2@example.com", role=UserRole.support
     )
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner)
-    proj = await create_project(session, init, owner, name="Gamma")
+    await create_project(session, init, owner, name="Gamma")
 
     try:
         await _set_app_user(session)
-        # Same guild context but NO pam flag — a non-member must see nothing.
+        # Same guild id, but NO pam flag — the grant is inactive.
         await set_rls_context(
             session,
             user_id=support.id,
@@ -252,12 +262,22 @@ async def test_no_pam_flag_sees_nothing(session: AsyncSession):
             pam_read=False,
             pam_write=False,
         )
-        rows = (
+        # An inactive grant is not routed: no guild role is assumed (set_rls_context
+        # resets to the login role) and the guild schema is not on the search_path.
+        current_role = (await session.exec(text("SELECT current_user"))).scalar_one()
+        search_path = (await session.exec(text("SHOW search_path"))).scalar_one()
+        assert guild_schema_name(guild.id) not in current_role
+        assert guild_schema_name(guild.id) not in search_path
+        # Under the real (non-privileged) app_user login role — which holds no
+        # standing access to any guild schema (WITH INHERIT FALSE) — the guild's
+        # content is denied at the catalog/role boundary. There is no public copy
+        # to fall through to either, so the grantee sees nothing.
+        await _set_app_user(session)
+        with pytest.raises(Exception):
             await session.exec(
-                text("SELECT id FROM projects WHERE id = :p"), params={"p": proj.id}
+                text(f'SELECT id FROM "{guild_schema_name(guild.id)}".projects')
             )
-        ).all()
-        assert len(rows) == 0
+        await session.rollback()
     finally:
         await _reset_role(session)
 

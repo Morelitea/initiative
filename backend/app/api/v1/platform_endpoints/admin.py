@@ -65,7 +65,7 @@ async def list_all_users(
 
     Platform-scoped: runs on the role-scoped session (``platform_<tier>``), so the
     cross-user read is authorized by RLS (``users_platform_read``, support+) rather
-    than the BYPASSRLS admin engine. Initiative roles are guild-scoped and
+    than the system admin engine. Initiative roles are guild-scoped and
     deliberately NOT loaded here — a platform user view exposes platform data only.
     """
     from app.services.platform.users import SYSTEM_USER_EMAIL
@@ -225,7 +225,8 @@ async def reactivate_user(
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    await initiatives_service.load_user_initiative_roles(session, [user])
+    # Platform user management stays platform-table-only: initiative
+    # membership is guild-schema content this path cannot read.
     return user
 
 
@@ -308,7 +309,7 @@ async def update_platform_role(
     session.add(user)
     await session.commit()
     await session.refresh(user)
-    await initiatives_service.load_user_initiative_roles(session, [user])
+    # Platform user management stays platform-table-only (see reactivate).
     return user
 
 
@@ -636,10 +637,11 @@ async def admin_delete_initiative(
     ``guild_id`` is REQUIRED: initiatives live in per-guild schemas with
     independent id sequences, so ``initiative_id`` alone is ambiguous across
     guilds. The caller (the blocker-resolution UI) has it from the blocker
-    record. We route into that guild's schema as superadmin so the cascade
-    deletes the real rows, not the frozen ``public`` backup copies.
+    record. We route into that guild's schema as a guild admin (full authority
+    over the guild; clears the purge guard) so the cascade deletes the real
+    rows, not the frozen ``public`` backup copies.
     """
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
 
     initiative = await session.get(Initiative, initiative_id)
     if not initiative:
@@ -728,11 +730,11 @@ async def admin_get_initiative_members(
     """List members of any initiative (platform admin only).
 
     ``guild_id`` is required: initiatives live in per-guild schemas with
-    independent id sequences. We route into that guild's schema as superadmin
-    so the member list comes from the live data, not the frozen ``public``
-    backup.
+    independent id sequences. We route into that guild's schema as a guild
+    admin so the member list comes from the live data, not the frozen
+    ``public`` backup.
     """
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
 
     stmt = select(Initiative).where(Initiative.id == initiative_id)
     result = await session.exec(stmt)
@@ -779,12 +781,12 @@ async def admin_update_initiative_member_role(
     even if they're not a member. Useful for resolving "sole PM" blockers.
 
     ``guild_id`` is required (per-guild schemas; ``initiative_id`` is not unique
-    across guilds). We route into that guild's schema as superadmin.
+    across guilds). We route into that guild's schema as a guild admin.
 
     Restrictions:
     - Cannot demote the last project manager
     """
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id, guild_role="admin")
 
     # Check initiative exists
     stmt = select(Initiative).where(Initiative.id == initiative_id)

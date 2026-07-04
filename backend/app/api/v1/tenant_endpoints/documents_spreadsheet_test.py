@@ -9,18 +9,10 @@ from dataclasses import dataclass
 
 import pytest
 from httpx import AsyncClient
-from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import Guild, GuildRole
 from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
-from app.testing.factories import (
-    create_guild,
-    create_guild_membership,
-    create_initiative,
-    create_user,
-    get_guild_headers,
-)
 
 
 @dataclass
@@ -32,21 +24,18 @@ class _SpreadsheetEnv:
 
 
 @pytest.fixture
-async def env(session: AsyncSession) -> _SpreadsheetEnv:
+async def env(acting_user) -> _SpreadsheetEnv:
     """Shared user / guild / membership / initiative setup for every
     spreadsheet endpoint test. Per-test scope so each gets a fresh
     initiative — the round-trip and PATCH tests don't need to be
     isolated from each other but the validation tests do, and a
     function-scoped fixture is the cheap, consistent default."""
-    user = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     return _SpreadsheetEnv(
-        user=user,
-        guild=guild,
-        initiative=initiative,
-        headers=await get_guild_headers(session, guild, user),
+        user=a.user,
+        guild=a.guild,
+        initiative=a.initiative,
+        headers=a.headers,
     )
 
 

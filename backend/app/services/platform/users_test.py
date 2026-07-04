@@ -585,7 +585,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
     await create_initiative_member(session, initiative=initiative, user=member)
 
     # Sanity: the membership exists in the guild schema before deletion.
-    await set_rls_context(session, guild_id=guild.id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
     before = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -597,7 +597,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild.id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
     after = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -606,6 +606,6 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
     assert after == []
 
     # And the user row itself (shared/public) is anonymized.
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     refreshed = (await session.exec(select(User).where(User.id == member.id))).one()
     assert refreshed.status == UserStatus.anonymized

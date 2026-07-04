@@ -23,13 +23,13 @@ Shared identity and configuration (the list of users, guild memberships, invitat
 
 ## The database connects under least-privilege roles
 
-The running application does **not** connect to the database as an all-powerful superuser for normal work. It uses purpose-built database roles, each with the least privilege it needs:
+The application **never connects to the database as a superuser** — not for requests, not for jobs, not even for migrations. It uses purpose-built database roles, each with the least privilege it needs:
 
 | Role | Used for | Can it bypass security rules? |
 |---|---|---|
 | Application role | Every normal user request | **No** — security rules always apply |
-| System role | Migrations, background jobs, startup tasks | Yes, but never on a user request |
-| Provisioning role | Creating/removing guild spaces, migrations | Privileged setup only |
+| System role | Background jobs, startup tasks | Yes, but never on a user request — and only on the specific tables it has been explicitly granted |
+| Provisioning role | Migrations, creating/removing guild spaces | Structure only — it owns the tables but its own data access still obeys the security rules |
 
 The key point: the role that handles your requests **cannot bypass the security rules**. Each request temporarily assumes the specific guild role it's allowed to, does its work, and resets. There is no standing, all-guilds back door in the request path.
 

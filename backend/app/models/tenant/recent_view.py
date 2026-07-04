@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import Column, DateTime
+from sqlalchemy import Column, DateTime, Text
 from sqlmodel import Field, SQLModel
 
 
@@ -26,7 +26,8 @@ class RecentView(SQLModel, table=True):
     __tablename__ = "recent_views"
 
     user_id: int = Field(foreign_key="users.id", primary_key=True)
-    entity_type: str = Field(primary_key=True, max_length=32)
+    # DDL: unbounded TEXT constrained by ck_recent_views_entity_type, not length
+    entity_type: str = Field(sa_column=Column(Text, primary_key=True, nullable=False))
     entity_id: int = Field(primary_key=True)
     guild_id: Optional[int] = Field(
         default=None, foreign_key="guilds.id", nullable=True

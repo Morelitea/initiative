@@ -75,7 +75,12 @@ async def test_provision_creates_every_guild_scoped_table(engine):
 
 
 async def test_writes_route_to_guild_schema_not_public(engine):
-    """A row inserted under the guild schema lands there, not in public."""
+    """A routed tenant write lands in the guild schema; an UNROUTED one fails.
+
+    Post-squash there is no ``public`` copy of a tenant table, so isolation is the
+    schema boundary itself: the row can only exist in ``guild_<id>``, and a write
+    with the search_path still on ``public`` fails closed (relation does not
+    exist) instead of silently leaking into a shared public copy."""
     gid = _GID_ISOLATION
     schema = guild_schema_name(gid)
     try:
@@ -95,11 +100,25 @@ async def test_writes_route_to_guild_schema_not_public(engine):
             await conn.exec_driver_sql("SET search_path TO public")
 
             in_guild = await conn.scalar(text(f'SELECT count(*) FROM "{schema}".tags'))
-            in_public = await conn.scalar(
-                text("SELECT count(*) FROM public.tags WHERE guild_id = :g"), {"g": gid}
-            )
         assert in_guild == 1, "row should be in the guild schema"
-        assert in_public == 0, "row must NOT leak into public.tags"
+
+        # The tenant table has NO public copy since the v0.53.5 squash — an
+        # unrouted (public search_path) tenant write fails closed rather than
+        # landing in a shared public table.
+        async with engine.connect() as conn:
+            public_tags = await conn.scalar(text("SELECT to_regclass('public.tags')"))
+        assert public_tags is None, "there must be NO public.tags copy post-squash"
+
+        with pytest.raises(ProgrammingError):
+            async with engine.begin() as conn:
+                await conn.exec_driver_sql("SET search_path TO public")
+                await conn.execute(
+                    text(
+                        "INSERT INTO tags (guild_id, name, color, created_at, "
+                        "updated_at) VALUES (:g, :n, '#abcdef80', now(), now())"
+                    ),
+                    {"g": gid, "n": "unrouted-tag"},
+                )
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
@@ -251,12 +270,15 @@ async def test_reprovision_backfills_missing_tables_with_grants(engine):
             recreated = await conn.scalar(
                 text(f"SELECT to_regclass('{schema}.subtasks')")
             )
-            # and the role's grant reaches the back-filled table
+            # and the role's grant reaches the back-filled table. Route the
+            # search_path into the guild schema first: subtasks' initiative-member
+            # RLS policy references tasks/projects/initiative_members unqualified,
+            # and post-squash those live only in the guild schema (no public copy).
+            await conn.exec_driver_sql(f'SET search_path TO "{schema}", public')
             await conn.exec_driver_sql(f'SET ROLE "{role}"')
-            readable = await conn.scalar(
-                text(f'SELECT count(*) FROM "{schema}".subtasks')
-            )
+            readable = await conn.scalar(text("SELECT count(*) FROM subtasks"))
             await conn.exec_driver_sql("RESET ROLE")
+            await conn.exec_driver_sql("SET search_path TO public")
         assert recreated is not None, "subtasks should be back-filled"
         assert readable == 0, "role should be able to read the back-filled table"
     finally:
@@ -300,9 +322,14 @@ async def test_drop_guild_schema_is_safe_when_absent(engine):
         await drop_guild_schema(conn, _GID_DROP_ABSENT)  # must not raise
 
 
-# --- drift guard: the provisioned guild schema must equal Alembic's public ------
+# --- drift guard: the provisioned guild schema must equal guild_template --------
 
 _GID_DRIFT = 990_120
+
+# The Alembic-maintained canonical guild schema (created by migration
+# 20260701_0126 by running guild_schema.sql + guild_rls.sql). Post-squash there
+# are no tenant tables in ``public``, so the drift reference is the template.
+_TEMPLATE_SCHEMA = "guild_template"
 
 
 def _norm_default(d):
@@ -320,13 +347,13 @@ def _norm_constraint(s):
     return re.sub(r"[\s()\[\]]", "", s)
 
 
-async def test_guild_schema_matches_alembic_public(engine):
-    """The schema provisioning builds (by running alembic/guild/guild_schema.sql)
-    must be structurally identical to the tables Alembic builds in ``public`` —
-    same columns/types/nullability/defaults, CHECK/PK/UNIQUE, indexes (incl.
-    opclasses), and intra-schema FK ON DELETE rules. Cross-schema FKs are
-    intentionally absent (soft refs). This fails if the artifact drifts from
-    Alembic; regenerate it with scripts/gen_guild_schema.py."""
+async def test_guild_schema_matches_guild_template(engine):
+    """A provisioned guild schema must be a structurally faithful CLONE of the
+    ``guild_template`` schema it was rendered from (``app.db.guild_ddl`` reflects
+    the live template) — same columns/types/nullability/defaults, CHECK/PK/UNIQUE,
+    indexes (incl. opclasses), and intra-schema FK ON DELETE rules. Cross-schema
+    FKs are intentionally absent (soft refs). This catches any fidelity gap in the
+    live-reflection renderer."""
     schema = guild_schema_name(_GID_DRIFT)
     try:
         async with engine.begin() as conn:
@@ -392,20 +419,44 @@ async def test_guild_schema_matches_alembic_public(engine):
 
             drift = []
             for t in sorted(GUILD_SCOPED_TABLES):
-                if await cols("public", t) != await cols(schema, t):
+                if await cols(_TEMPLATE_SCHEMA, t) != await cols(schema, t):
                     drift.append(f"columns: {t}")
-                if await cons("public", t) != await cons(schema, t):
+                if await cons(_TEMPLATE_SCHEMA, t) != await cons(schema, t):
                     drift.append(f"constraints: {t}")
-                if await intra_fks("public", t) != await intra_fks(schema, t):
+                if await intra_fks(_TEMPLATE_SCHEMA, t) != await intra_fks(schema, t):
                     drift.append(f"foreign keys: {t}")
-                if await idx("public", t) != await idx(schema, t):
+                if await idx(_TEMPLATE_SCHEMA, t) != await idx(schema, t):
                     drift.append(f"indexes: {t}")
-                if await trig("public", t) != await trig(schema, t):
+                if await trig(_TEMPLATE_SCHEMA, t) != await trig(schema, t):
                     drift.append(f"triggers: {t}")
-            assert drift == [], f"guild schema drifted from Alembic's public: {drift}"
+            assert drift == [], f"guild schema drifted from guild_template: {drift}"
     finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, _GID_DRIFT)
+
+
+async def test_public_schema_has_no_tenant_tables(engine):
+    """Squash leak-check: on a fresh database the ``public`` schema must contain
+    NO copy of any guild-scoped (tenant) table. Post-v0.53.5-baseline, tenant
+    content lives ONLY in ``guild_<id>`` (and ``guild_template``); a stray public
+    copy would be a silent cross-tenant leak surface, so this fails closed if one
+    reappears."""
+    async with engine.connect() as conn:
+        leaked = {
+            row[0]
+            for row in (
+                await conn.execute(
+                    text(
+                        "SELECT table_name FROM information_schema.tables "
+                        "WHERE table_schema = 'public' AND table_name = ANY(:t)"
+                    ),
+                    {"t": list(GUILD_SCOPED_TABLES)},
+                )
+            )
+        }
+    assert leaked == set(), (
+        f"public must hold NO tenant tables post-squash; found: {sorted(leaked)}"
+    )
 
 
 # --- back-fill sweep: heal half-states and drift for existing guilds -----------
@@ -436,7 +487,10 @@ async def test_backfill_provisions_a_guild_missing_its_schema(engine):
         # shared test DB, and an unrelated broken guild must not fail this test.
         assert done not in summary.failed_guild_ids
         assert missing not in summary.failed_guild_ids
-        assert summary.provisioned >= 2
+        # `missing` had no schema, so it must have been provisioned; `done` was
+        # provisioned with the current artifacts, so the stamp skips it.
+        assert summary.provisioned >= 1
+        assert summary.skipped >= 1
 
         async with engine.connect() as conn:
             tables = await conn.scalar(
@@ -459,15 +513,23 @@ async def test_backfill_provisions_a_guild_missing_its_schema(engine):
 
 async def test_backfill_repairs_a_dropped_table(engine):
     """A table missing from an already-provisioned schema (drift: a table added to
-    guild_schema.sql after the guild was made) is recreated by the back-fill."""
+    guild_schema.sql after the guild was made) is recreated by the back-fill.
+
+    In that scenario the guild's schema-comment stamp predates the current
+    artifacts, so the sweep re-provisions it (a schema stamped with the CURRENT
+    artifacts is skipped — out-of-band corruption needs FORCE_GUILD_BACKFILL)."""
     gid = _GID_BACKFILL_DRIFT
     schema = guild_schema_name(gid)
     try:
         async with engine.begin() as conn:
             await _insert_public_guild(conn, gid, "backfill-drift")
             await provision_guild_schema(conn, gid)
-            # Simulate a table that didn't exist when the schema was provisioned.
+            # Simulate a table that didn't exist when the schema was provisioned:
+            # the table is absent AND the stamp names the older artifact version.
             await conn.exec_driver_sql(f'DROP TABLE "{schema}".subtasks CASCADE')
+            await conn.exec_driver_sql(
+                f"COMMENT ON SCHEMA \"{schema}\" IS 'provisioned:pre-subtasks'"
+            )
 
         async with engine.connect() as conn:
             gone = await conn.scalar(text(f"SELECT to_regclass('{schema}.subtasks')"))
@@ -556,3 +618,39 @@ async def test_backfill_continues_past_a_failing_guild(engine, monkeypatch):
                 text("DELETE FROM public.guilds WHERE id = ANY(:ids)"),
                 {"ids": [ok_a, ok_b, bad]},
             )
+
+
+async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
+    """The back-fill skip stamp is derived from the RENDERED provisioning bundle
+    (live schema DDL + registry RLS + rendered grant statements) — no manual
+    version bump: a behavioral grants change moves it; a cosmetic rewrite of
+    ``_grant_statements`` does not."""
+    from unittest import mock
+
+    from app.db import schema_provisioning as sp
+
+    sp.reset_provisioning_bundle()
+    baseline = (await sp.get_provisioning_bundle()).stamp
+
+    _original = sp._grant_statements
+
+    def _different_grants(schema: str, role: str, ro_role: str) -> list[str]:
+        return ["GRANT USAGE ON SCHEMA x TO y"]
+
+    def _cosmetic_rewrite(schema: str, role: str, ro_role: str) -> list[str]:
+        # Different source text, byte-identical output.
+        return list(_original(schema, role, ro_role))
+
+    try:
+        with mock.patch.object(sp, "_grant_statements", _different_grants):
+            sp.reset_provisioning_bundle()
+            changed = (await sp.get_provisioning_bundle()).stamp
+        with mock.patch.object(sp, "_grant_statements", _cosmetic_rewrite):
+            sp.reset_provisioning_bundle()
+            cosmetic = (await sp.get_provisioning_bundle()).stamp
+    finally:
+        sp.reset_provisioning_bundle()
+
+    assert changed != baseline, "a behavioral grants change must move the stamp"
+    assert cosmetic == baseline, "a cosmetic rewrite must NOT move the stamp"
+    assert (await sp.get_provisioning_bundle()).stamp == baseline

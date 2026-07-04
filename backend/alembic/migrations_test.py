@@ -44,9 +44,9 @@ BACKEND_DIR = ALEMBIC_SCRIPT_LOCATION.parent
 ALEMBIC_INI_PATH = BACKEND_DIR / "alembic.ini"
 
 # The baseline is the new root: anything before it was squashed into
-# this migration and cannot be reached, so its ``downgrade()`` is a
-# permanent ``NotImplementedError``.
-BASELINE_REVISION = "20260216_0053"
+# this migration (the v0.53.5 snapshot) and cannot be reached, so its
+# ``downgrade()`` is a permanent ``NotImplementedError``.
+BASELINE_REVISION = "20260626_0125"
 
 # Migrations whose ``downgrade()`` intentionally raises
 # ``NotImplementedError`` and which therefore have to be skipped when
@@ -55,19 +55,10 @@ BASELINE_REVISION = "20260216_0053"
 INTENTIONALLY_IRREVERSIBLE = frozenset(
     {
         BASELINE_REVISION,
-        "20260426_0077",  # drop_automation_tables — domain removed from repo
-        # initiative RLS: dropping public.initiative_access would break boot-time
-        # guild provisioning (apply_guild_rls references it) for every guild, so
-        # there is no safe rollback past this point — roll forward only.
-        "20260616_0110",
-        # drop legacy is_initiative_member: reviving a dead, search_path-broken
-        # second access rule has no value — roll forward only.
-        "20260616_0111",
-        # drop legacy per-resource permission tables: their data was consolidated
-        # into resource_grants by 0115's backfill, then the 8 tables were dropped.
-        # Recreating them would mean rebuilding 8 schemas + repopulating from
-        # resource_grants — restore from a backup instead; roll forward only.
-        "20260616_0116",
+        # post_squash_reconcile: folds the (never-shipped) 0126–0130 chain —
+        # legacy healing + policy strips + grant matrices. It reconciles
+        # pre-collapse states that no longer have code paths; roll forward only.
+        "20260702_0126",
     }
 )
 
@@ -231,24 +222,25 @@ def _current_alembic_revision() -> str | None:
     return asyncio.run(_fetch_current_revision_async())
 
 
-async def _table_exists_async(table_name: str) -> bool:
+async def _table_exists_async(table_name: str, schema: str = "public") -> bool:
     conn = await _connect_test_db()
     try:
         return bool(
             await conn.fetchval(
                 "SELECT EXISTS ("
                 "  SELECT 1 FROM information_schema.tables "
-                "  WHERE table_schema = 'public' AND table_name = $1"
+                "  WHERE table_schema = $2 AND table_name = $1"
                 ")",
                 table_name,
+                schema,
             )
         )
     finally:
         await conn.close()
 
 
-def _table_exists(table_name: str) -> bool:
-    return asyncio.run(_table_exists_async(table_name))
+def _table_exists(table_name: str, schema: str = "public") -> bool:
+    return asyncio.run(_table_exists_async(table_name, schema))
 
 
 async def _alembic_version_row_count_async() -> int:
@@ -308,17 +300,19 @@ class TestMigrationsAgainstDatabase:
             "after a successful upgrade"
         )
 
-        # Sanity-check that some core tables actually exist; if any of
-        # these are missing the baseline DDL silently failed.
-        for table in (
-            "users",
-            "guilds",
-            "initiatives",
-            "projects",
-            "tasks",
-            "alembic_version",
-        ):
+        # Sanity-check the squashed layout: shared tables in public, tenant
+        # content in guild_template — and, critically, NOT in public (fresh
+        # installs must never get the pre-squash public copies back).
+        for table in ("users", "guilds", "access_grants", "alembic_version"):
             assert _table_exists(table), f"expected table {table!r} after upgrade head"
+        for table in ("initiatives", "projects", "tasks", "documents"):
+            assert _table_exists(table, schema="guild_template"), (
+                f"expected table {table!r} in guild_template after upgrade head"
+            )
+            assert not _table_exists(table), (
+                f"tenant table {table!r} must not exist in public after the "
+                "baseline squash"
+            )
 
     def test_upgrade_head_is_idempotent(self, fresh_migrations_db: str) -> None:
         """Running ``upgrade head`` twice must not raise. Catches
@@ -382,9 +376,15 @@ class TestMigrationsAgainstDatabase:
         anchor = head
         while anchor in INTENTIONALLY_IRREVERSIBLE:
             parent = script.get_revision(anchor).down_revision
-            assert isinstance(parent, str) and parent, (
-                f"Irreversible revision {anchor!r} needs a single parent to anchor "
-                f"the reversible walk; got down_revision={parent!r}."
+            if parent is None:
+                # Walked off the base: the entire chain is irreversible (e.g.
+                # right after a squash — only the baseline + reconciler exist,
+                # both roll-forward-only). Nothing reversible to round-trip;
+                # TestMostRecentRevision covers the head's own upgrade.
+                pytest.skip("no reversible migration above the irreversible baseline")
+            assert isinstance(parent, str), (
+                f"Irreversible revision {anchor!r} has multiple parents "
+                f"{parent!r}; the round-trip walk only handles linear chains."
             )
             anchor = parent
 

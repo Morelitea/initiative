@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import EmailStr, Field, field_validator, model_validator
+from pydantic import AliasChoices, EmailStr, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Origins used by the Capacitor native mobile app (iOS and Android).
@@ -136,7 +136,7 @@ class Settings(BaseSettings):
     DATABASE_URL_APP: (
         str  # Non-superuser connection for RLS-enforced queries (required)
     )
-    DATABASE_URL_ADMIN: str  # Admin connection with BYPASSRLS for migrations (required)
+    DATABASE_URL_ADMIN: str  # System-engine login (BYPASSRLS, grant-bounded) for jobs/seeding (required)
 
     SECRET_KEY: str
     # Optional: the *previous* SECRET_KEY, set only while rotating the encryption
@@ -379,10 +379,29 @@ class Settings(BaseSettings):
     S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
-    FIRST_SUPERUSER_EMAIL: EmailStr | None = None
-    FIRST_SUPERUSER_PASSWORD: str | None = None
-    FIRST_SUPERUSER_FULL_NAME: str | None = None
+    # First/bootstrap user — becomes the platform `owner` tier (there is no
+    # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
+    # as aliases so existing deployments keep working.
+    FIRST_OWNER_EMAIL: EmailStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FIRST_OWNER_EMAIL", "FIRST_SUPERUSER_EMAIL"),
+    )
+    FIRST_OWNER_PASSWORD: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "FIRST_OWNER_PASSWORD", "FIRST_SUPERUSER_PASSWORD"
+        ),
+    )
+    FIRST_OWNER_FULL_NAME: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "FIRST_OWNER_FULL_NAME", "FIRST_SUPERUSER_FULL_NAME"
+        ),
+    )
     DISABLE_GUILD_CREATION: bool = False
+    # Boot back-fill normally skips guild schemas stamped with the current
+    # provisioning-artifact version; set true to force a full sweep once.
+    FORCE_GUILD_BACKFILL: bool = False
     ENABLE_PUBLIC_REGISTRATION: bool = (
         True  # When False, requires invite code to register
     )
@@ -486,6 +505,14 @@ class Settings(BaseSettings):
     # apply. The test suite sets ``limiter.enabled = False`` so this never
     # throttles the hundreds of rapid requests a test makes from one client IP.
     RATE_LIMIT_DEFAULT: str = "100/minute"
+    # Master on/off switch for ALL rate limiting — the global default *and* every
+    # per-route ``@limiter.limit(...)`` cap (e.g. login's ``5/15minutes``). Leave
+    # True in any shared/production environment; set ``RATE_LIMIT_ENABLED=false``
+    # in a local ``.env`` to stop throttling yourself while testing auth flows.
+    # This is the same lever the test suite pulls (``limiter.enabled = False``),
+    # surfaced as config — NOT a request-time bypass, so there is no hidden
+    # back door for an attacker to hit.
+    RATE_LIMIT_ENABLED: bool = True
     # Storage backend for rate-limit counters. Defaults to in-process memory
     # (``memory://``), which is per-worker — fine for a single process. For a
     # multi-worker / multi-replica deployment that needs a shared, accurate

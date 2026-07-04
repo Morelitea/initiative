@@ -242,21 +242,40 @@ class User(SQLModel, table=True):
 
         return decrypt_field(self.email_encrypted, SALT_EMAIL)
 
-    projects_owned: List["Project"] = Relationship(back_populates="owner")
-    tasks_assigned: List["Task"] = Relationship(
-        back_populates="assignees", link_model=TaskAssignee
+    # Relationships into GUILD-SCOPED tables carry passive_deletes="all": their
+    # rows live in per-guild schemas, so the ORM must never load or cascade
+    # them from the platform context at ``session.delete(user)`` time (the
+    # tables don't exist in ``public``). hard_delete_user cleans them
+    # explicitly, routed into each guild's schema (Phase 1).
+    projects_owned: List["Project"] = Relationship(
+        back_populates="owner",
+        sa_relationship_kwargs={"passive_deletes": "all"},
     )
+    tasks_assigned: List["Task"] = Relationship(
+        back_populates="assignees",
+        link_model=TaskAssignee,
+        sa_relationship_kwargs={"passive_deletes": "all"},
+    )
+    # No delete cascade here (unlike guild_memberships): hard_delete_user
+    # removes the guild-schema rows itself, and SQLAlchemy disallows
+    # passive_deletes="all" together with delete-orphan.
     initiative_memberships: List["InitiativeMember"] = Relationship(
         back_populates="user",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+        sa_relationship_kwargs={"passive_deletes": "all"},
     )
     guild_memberships: List["GuildMembership"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
-    project_orders: List["ProjectOrder"] = Relationship(back_populates="user")
+    project_orders: List["ProjectOrder"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"passive_deletes": "all"},
+    )
     api_keys: List["UserApiKey"] = Relationship(back_populates="user")
-    favorite_projects: List["ProjectFavorite"] = Relationship(back_populates="user")
+    favorite_projects: List["ProjectFavorite"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"passive_deletes": "all"},
+    )
 
 
 from app.models.tenant.project import Project  # noqa: E402  # isort:skip

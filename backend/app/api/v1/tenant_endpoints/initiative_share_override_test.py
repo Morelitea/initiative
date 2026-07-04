@@ -25,14 +25,6 @@ from app.services.permissions import (
     compute_permission,
     request_bypasses_dac,
 )
-from app.testing.factories import (
-    create_guild,
-    create_guild_membership,
-    create_initiative,
-    create_initiative_member,
-    create_user,
-    get_guild_headers,
-)
 
 
 async def _role_by_name(session: AsyncSession, initiative, name: str):
@@ -46,26 +38,28 @@ async def _role_by_name(session: AsyncSession, initiative, name: str):
     ).one()
 
 
-async def _setup(session: AsyncSession):
+async def _setup(session: AsyncSession, acting_user):
     """admin = guild admin + initiative creator (PM); owner = a PM who owns a
     restricted project; pm = a PM whose access we toggle via the override."""
-    admin = await create_user(session, email="admin@example.com")
-    owner = await create_user(session, email="owner@example.com")
-    pm = await create_user(session, email="pm@example.com")
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(
+        guild_role=GuildRole.admin, initiative=True, email="admin@example.com"
     )
-    await create_guild_membership(
-        session, user=owner, guild=guild, role=GuildRole.member
+    initiative = admin.initiative  # admin -> PM
+    owner = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="project_manager",
+        email="owner@example.com",
     )
-    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
-    initiative = await create_initiative(session, guild, admin)  # admin -> PM
-    await create_initiative_member(
-        session, initiative, owner, role_name="project_manager"
+    pm = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="project_manager",
+        email="pm@example.com",
     )
-    await create_initiative_member(session, initiative, pm, role_name="project_manager")
-    return admin, owner, pm, guild, initiative
+    return admin, owner, pm, admin.guild, initiative
 
 
 # ── Enforcement: the gate-4 override leg (unit) ──────────────────────────────
@@ -114,12 +108,12 @@ def test_request_overrides_sharing_bypasses_dac():
 
 @pytest.mark.integration
 async def test_full_access_pm_reaches_restricted_content(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin, owner, pm, guild, initiative = await _setup(session)
-    admin_headers = await get_guild_headers(session, guild, admin)
-    owner_headers = await get_guild_headers(session, guild, owner)
-    pm_headers = await get_guild_headers(session, guild, pm)
+    admin, owner, pm, guild, initiative = await _setup(session, acting_user)
+    admin_headers = admin.headers
+    owner_headers = owner.headers
+    pm_headers = pm.headers
 
     # owner (a PM/manager) creates a RESTRICTED project: grants=[] drops the
     # default all-members Viewer grant, so only the owner can reach it.
@@ -182,10 +176,10 @@ async def test_full_access_pm_reaches_restricted_content(
 
 @pytest.mark.integration
 async def test_only_guild_admin_can_grant_full_access(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    admin, owner, pm, guild, initiative = await _setup(session)
-    pm_headers = await get_guild_headers(session, guild, pm)
+    admin, owner, pm, guild, initiative = await _setup(session, acting_user)
+    pm_headers = pm.headers
     pm_role = await _role_by_name(session, initiative, "project_manager")
 
     # pm is an initiative manager (can edit roles) but NOT a guild admin — it must
@@ -200,9 +194,11 @@ async def test_only_guild_admin_can_grant_full_access(
 
 
 @pytest.mark.integration
-async def test_full_access_only_on_pm_role(client: AsyncClient, session: AsyncSession):
-    admin, owner, pm, guild, initiative = await _setup(session)
-    admin_headers = await get_guild_headers(session, guild, admin)
+async def test_full_access_only_on_pm_role(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    admin, owner, pm, guild, initiative = await _setup(session, acting_user)
+    admin_headers = admin.headers
 
     # The built-in "member" role is ineligible — 422.
     member_role = await _role_by_name(session, initiative, "member")

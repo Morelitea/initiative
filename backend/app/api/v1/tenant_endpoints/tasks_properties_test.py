@@ -30,7 +30,7 @@ from app.testing import (
     create_project,
     create_property_definition,
     create_user,
-    get_guild_headers,
+    get_auth_headers,
 )
 
 
@@ -75,7 +75,7 @@ async def test_put_task_properties_sets_values(
         session, initiative, name="Score", type=PropertyType.number
     )
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     response = await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
@@ -108,7 +108,7 @@ async def test_put_task_properties_empty_clears_existing(
         session, initiative, name="Tag", type=PropertyType.text
     )
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
@@ -150,7 +150,7 @@ async def test_put_task_text_rejects_non_string(
 
     response = await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        headers=get_auth_headers(user),
         json={"values": [{"property_id": defn.id, "value": 12345}]},
     )
     assert response.status_code == 400
@@ -174,7 +174,7 @@ async def test_put_task_number_accepts_numeric_string(
 
     response = await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        headers=get_auth_headers(user),
         json={"values": [{"property_id": defn.id, "value": "3.14"}]},
     )
     assert response.status_code == 200
@@ -196,7 +196,7 @@ async def test_put_task_date_accepts_iso_and_rejects_garbage(
     defn = await create_property_definition(
         session, initiative, name="D", type=PropertyType.date
     )
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
 
     ok = await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
@@ -235,7 +235,7 @@ async def test_put_task_multi_select_unknown_slug_rejected(
 
     response = await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        headers=get_auth_headers(user),
         json={"values": [{"property_id": defn.id, "value": ["a", "ghost"]}]},
     )
     assert response.status_code == 400
@@ -265,7 +265,7 @@ async def test_put_task_user_reference_non_initiative_member_rejected(
 
     response = await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        headers=get_auth_headers(user),
         json={"values": [{"property_id": defn.id, "value": outsider.id}]},
     )
     assert response.status_code == 400
@@ -298,7 +298,7 @@ async def test_put_task_properties_cross_guild_task_returns_404(
     # Send with guild A header — task belongs to guild B.
     response = await client.put(
         f"/api/v1/g/{guild_a.id}/tasks/{task_b.id}/properties",
-        headers=await get_guild_headers(session, guild_a, user),
+        headers=get_auth_headers(user),
         json={"values": []},
     )
     assert response.status_code == 404
@@ -323,7 +323,7 @@ async def test_put_task_cross_initiative_definition_rejected(
 
     response = await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task_a.id}/properties",
-        headers=await get_guild_headers(session, guild, user),
+        headers=get_auth_headers(user),
         json={"values": [{"property_id": defn_b.id, "value": "x"}]},
     )
     assert response.status_code == 404
@@ -354,7 +354,7 @@ async def test_move_task_across_initiatives_drops_property_values(
         session, init_a, name="Tag", type=PropertyType.text
     )
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
@@ -391,7 +391,7 @@ async def test_duplicate_task_same_project_carries_property_values(
         session, initiative, name="Tag", type=PropertyType.text
     )
 
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
     await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task.id}/properties",
         headers=headers,
@@ -433,7 +433,7 @@ async def test_list_tasks_filter_by_property_text_eq(
     defn = await create_property_definition(
         session, initiative, name="Tag", type=PropertyType.text
     )
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
 
     await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task_match.id}/properties",
@@ -487,7 +487,7 @@ async def test_list_tasks_filter_by_property_multi_select(
             {"value": "beta", "label": "Beta"},
         ],
     )
-    headers = await get_guild_headers(session, guild, user)
+    headers = get_auth_headers(user)
 
     await client.put(
         f"/api/v1/g/{guild.id}/tasks/{task_a.id}/properties",

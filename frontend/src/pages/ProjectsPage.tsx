@@ -97,12 +97,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const handleRefresh = useCallback(async () => {
     await invalidateAllProjects();
   }, []);
-  const claimedManagedInitiatives = useMemo(
-    () =>
-      user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
-    [user]
-  );
-  const hasClaimedManagerRole = claimedManagedInitiatives.length > 0;
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -246,11 +240,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
   const projectsQuery = useProjects();
 
-  const initiativesQuery = useInitiatives({
-    // Guild admins / PAM grantees can create across the guild even without a
-    // claimed manager role, so they must fetch initiatives too.
-    enabled: hasClaimedManagerRole || isGuildAdmin || isGrantGuild,
-  });
+  // This is a guild-scoped page and the initiatives list is cheap + cached, so
+  // fetch it unconditionally. Manager state is derived below from the payload
+  // via the shared access helper (permissionsFor(...).canCreateProjects), which
+  // already honors guild-admin / PAM grants — no need to pre-gate on a claimed
+  // manager role from user.initiative_roles (the /users/me object no longer
+  // populates that field: initiative membership is guild-schema content).
+  const initiativesQuery = useInitiatives();
   // Initiatives the user can create projects in — resolved through the shared
   // access helper so guild admins are included regardless of any membership row.
   const creatableInitiatives = useMemo(() => {
