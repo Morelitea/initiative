@@ -273,6 +273,46 @@ export interface AdvancedToolConfig {
   allowed_origins: string[];
 }
 
+export type AdvancedToolCreateData = { [key: string]: unknown };
+
+export type ResourceGrantSchemaLevel =
+  (typeof ResourceGrantSchemaLevel)[keyof typeof ResourceGrantSchemaLevel];
+
+export const ResourceGrantSchemaLevel = {
+  read: "read",
+  write: "write",
+  owner: "owner",
+} as const;
+
+/**
+ * One ``resource_grants`` row — exactly the columns that define a grant: a
+ * ``level`` for a user (``user_id``), an initiative role (``role_id``), or all
+ * initiative members (``all_initiative_members``). Exactly one grantee is set.
+ *
+ * The identical shape both reports a resource's grants (``grants`` is a list of
+ * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
+ * read-only or write-only. The server always preserves the resource's owner
+ * grant. Role display names are resolved client-side from the initiative's roles
+ * by ``role_id``.
+ */
+export interface ResourceGrantSchema {
+  level: ResourceGrantSchemaLevel;
+  user_id?: number | null;
+  role_id?: number | null;
+  all_initiative_members?: boolean;
+}
+
+export interface AdvancedToolCreate {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  data?: AdvancedToolCreateData;
+  initiative_id?: number | null;
+  grants?: ResourceGrantSchema[];
+}
+
 /**
  * Short-lived bootstrap token for the embedded advanced-tool iframe.
  *
@@ -292,6 +332,40 @@ export interface AdvancedToolHandoffResponse {
   iframe_url: string;
   scope: string;
   initiative_id?: number | null;
+}
+
+export type AdvancedToolReadData = { [key: string]: unknown };
+
+export interface AdvancedToolRead {
+  /**
+   * @minLength 1
+   * @maxLength 255
+   */
+  name: string;
+  data: AdvancedToolReadData;
+  id: number;
+  initiative_id: number | null;
+  guild_id: number;
+  created_by_id: number;
+  my_permission_level: string | null;
+  created_at: string;
+  updated_at: string;
+  grants: ResourceGrantSchema[];
+}
+
+export interface AdvancedToolListResponse {
+  items: AdvancedToolRead[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+}
+
+export type AdvancedToolUpdateData = { [key: string]: unknown } | null;
+
+export interface AdvancedToolUpdate {
+  name?: string | null;
+  data?: AdvancedToolUpdateData;
 }
 
 export interface ApiKeyCreateRequest {
@@ -455,33 +529,6 @@ export interface EventRecurrence {
   ends?: string;
   end_after_occurrences?: number | null;
   end_date?: string | null;
-}
-
-export type ResourceGrantSchemaLevel =
-  (typeof ResourceGrantSchemaLevel)[keyof typeof ResourceGrantSchemaLevel];
-
-export const ResourceGrantSchemaLevel = {
-  read: "read",
-  write: "write",
-  owner: "owner",
-} as const;
-
-/**
- * One ``resource_grants`` row — exactly the columns that define a grant: a
- * ``level`` for a user (``user_id``), an initiative role (``role_id``), or all
- * initiative members (``all_initiative_members``). Exactly one grantee is set.
- *
- * The identical shape both reports a resource's grants (``grants`` is a list of
- * these) and replaces them (the ``PUT /{id}/grants`` body) — no field is
- * read-only or write-only. The server always preserves the resource's owner
- * grant. Role display names are resolved client-side from the initiative's roles
- * by ``role_id``.
- */
-export interface ResourceGrantSchema {
-  level: ResourceGrantSchemaLevel;
-  user_id?: number | null;
-  role_id?: number | null;
-  all_initiative_members?: boolean;
 }
 
 export interface CalendarEventCreate {
@@ -2393,6 +2440,7 @@ export const Tool = {
   queue: "queue",
   counter_group: "counter_group",
   calendar_event: "calendar_event",
+  advanced_tool: "advanced_tool",
 } as const;
 
 /**
@@ -3072,6 +3120,7 @@ export const TrashItemEntityType = {
   calendar_event: "calendar_event",
   counter_group: "counter_group",
   counter: "counter",
+  advanced_tool: "advanced_tool",
 } as const;
 
 export interface TrashItem {
@@ -3832,6 +3881,19 @@ export type ListCalendarEventsApiV1GGuildIdCalendarEventsGetParams = {
   /**
    * @minimum 1
    * @maximum 200
+   */
+  page_size?: number;
+};
+
+export type ListAdvancedToolsApiV1GGuildIdAdvancedToolsGetParams = {
+  initiative_id?: number | null;
+  /**
+   * @minimum 1
+   */
+  page?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
    */
   page_size?: number;
 };

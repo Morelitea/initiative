@@ -29,8 +29,10 @@ from sqlmodel import select
 
 from app.db.session import AdminSessionLocal, set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
+from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
+from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document
 from app.models.platform.guild import Guild
 from app.models.tenant.initiative import Initiative
@@ -49,8 +51,11 @@ PURGE_POLL_SECONDS = 3600
 
 # Top-of-cascade models, in dependency order. We iterate top-down so an
 # Initiative whose retention has elapsed takes its Project / Document /
-# Queue / CalendarEvent descendants with it via hard_purge_entity, leaving
-# the per-entity passes empty for those rows.
+# Queue / CalendarEvent / CounterGroup descendants with it via hard_purge_entity,
+# leaving the per-entity passes empty for those rows. Must cover every
+# soft-deletable model, else an independently-trashed row of a missing type never
+# auto-purges — ``test_purge_top_down_covers_all_soft_delete_models`` enforces
+# ``set(_PURGE_TOP_DOWN) == set(SOFT_DELETE_MODELS)``.
 _PURGE_TOP_DOWN = (
     Initiative,
     Project,
@@ -61,6 +66,9 @@ _PURGE_TOP_DOWN = (
     Comment,
     Tag,
     CalendarEvent,
+    CounterGroup,
+    Counter,
+    AdvancedTool,
 )
 
 

@@ -37,6 +37,7 @@
     "queue_item": "Warteschlangen-Eintrag",
     "calendar_event": "Kalendertermin",
     "counter_group": "Zählergruppe",
-    "counter": "Zähler"
+    "counter": "Zähler",
+    "advanced_tool": "Erweitertes Tool"
   }
 }
