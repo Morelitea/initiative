@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.1] - 2026-07-04
+
 ### Added
 
 - Calendar events now appear in the recent-items tabs bar, like projects, documents, queues, and counter groups.
