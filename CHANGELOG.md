@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-07-03
+
 ### Changed
 
 - **The app no longer needs a Postgres superuser — and there is no superadmin.** Fresh docker-compose installs create a least-privilege `app_provisioner` role (migrations + guild provisioning only) at first database init — in superuser context, where Postgres 15/16's privilege model requires role bootstrap to live — and point `DATABASE_URL` at it from the start. Existing deployments run `backend/scripts/create-provisioner.sql` once and switch `DATABASE_URL`; staying on a superuser keeps working but logs a boot warning. The internal superadmin flag is gone: the system database role follows PostgreSQL's standard trusted-batch model (bounded by explicit per-table grants — new tables give it nothing by default), background jobs and maintenance sweeps route into each guild under that guild's own scoped role, and the request-path role holds only the minimal shared-table access the sign-in and account-security flows use. The whole posture (role attributes, per-table access, row security) is verified by automated tests on every CI run. `FIRST_SUPERUSER_*` settings are renamed `FIRST_OWNER_*` (old names still accepted).
