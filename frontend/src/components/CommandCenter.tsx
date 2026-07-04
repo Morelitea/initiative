@@ -4,8 +4,6 @@ import {
   CalendarDays,
   CheckSquare,
   FilePlus,
-  GalleryHorizontalEnd,
-  Gauge,
   ListTodo,
   PenLine,
   Plus,
@@ -18,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { getOpenCreateDocumentWizard } from "@/components/documents/CreateDocumentWizard";
 import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import {
@@ -43,6 +42,7 @@ import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
+import { TOOL_BY_ID, TOOLS } from "@/lib/tools/registry";
 
 // Module-level callback so other components can open the command center
 let openCommandCenter: (() => void) | null = null;
@@ -53,7 +53,7 @@ export function getOpenCommandCenter() {
 export function CommandCenter() {
   const [open, setOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const { t } = useTranslation(["command", "common"]);
+  const { t } = useTranslation(["command", "common", "nav"]);
   const router = useRouter();
   const { user } = useAuth();
   const { activeGuild, activeGuildId } = useGuilds();
@@ -223,6 +223,17 @@ export function CommandCenter() {
     void router.navigate({ to: path });
   };
 
+  // Open a tool's create dialog "from anywhere" by navigating to its list route
+  // with ?create=true (the dialog carries an initiative picker). Guild-gated.
+  const handleCreate = (route: string) => {
+    setOpen(false);
+    void router.navigate({ to: getGuildPath(route), search: { create: "true" } });
+  };
+
+  // Single-sourced tool icons so the palette can never drift from the sidebar.
+  const QueueIcon = TOOL_BY_ID[Tool.queue].icon;
+  const CounterIcon = TOOL_BY_ID[Tool.counter_group].icon;
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen} filter={commandFilter}>
       <CommandInput
@@ -257,6 +268,20 @@ export function CommandCenter() {
             <FilePlus className="text-muted-foreground" />
             <span>{t("actions.addDocument")}</span>
           </CommandItem>
+          {/* Create-from-anywhere for tools whose dialog carries an initiative
+              picker (project/queue/counter group). Reuses the sidebar's create
+              labels; guild-gated because it navigates to a guild-scoped route. */}
+          {activeGuildId &&
+            TOOLS.filter((tool) => tool.nav?.navCreateGlobal).map((tool) => (
+              <CommandItem
+                key={`action-create-${tool.id}`}
+                value={`action-create-${tool.id}`}
+                onSelect={() => handleCreate(tool.nav!.listRoute)}
+              >
+                <Plus className="text-muted-foreground" />
+                <span>{t(`nav:${tool.nav!.createLabelKey}` as never)}</span>
+              </CommandItem>
+            ))}
         </CommandGroup>
 
         {/* Suggested — mixed recents across projects/documents/queues/counter
@@ -368,7 +393,7 @@ export function CommandCenter() {
                 )
               }
             >
-              <GalleryHorizontalEnd className="text-muted-foreground" />
+              <QueueIcon className="text-muted-foreground" />
               <span>{queue.name}</span>
             </CommandItem>
           ))}
@@ -389,7 +414,7 @@ export function CommandCenter() {
                 )
               }
             >
-              <Gauge className="text-muted-foreground" />
+              <CounterIcon className="text-muted-foreground" />
               <span>{group.name}</span>
             </CommandItem>
           ))}

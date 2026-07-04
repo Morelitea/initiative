@@ -3,58 +3,14 @@ import { useCallback } from "react";
 import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-
-/** What an initiative's sidebar/sections expose to the current user. */
-export interface InitiativeSectionPermissions {
-  canViewDocs: boolean;
-  canViewProjects: boolean;
-  canViewQueues: boolean;
-  canViewEvents: boolean;
-  canViewAdvancedTool: boolean;
-  canViewCounters: boolean;
-  canCreateDocs: boolean;
-  canCreateProjects: boolean;
-  canCreateQueues: boolean;
-  canCreateEvents: boolean;
-  canCreateCounters: boolean;
-}
+import {
+  fullToolAccess,
+  membershipToolAccess,
+  readOnlyToolAccess,
+  type ToolAccessMap,
+} from "@/lib/tools/registry";
 
 const byName = (a: InitiativeRead, b: InitiativeRead) => a.name.localeCompare(b.name);
-
-// Full visibility into every section (gated by the initiative's feature
-// flags); `canCreate` toggles the create affordances.
-const fullAccess = (
-  initiative: InitiativeRead,
-  canCreate: boolean
-): InitiativeSectionPermissions => ({
-  canViewDocs: true,
-  canViewProjects: true,
-  canViewQueues: initiative.queues_enabled ?? false,
-  canViewEvents: initiative.events_enabled ?? false,
-  canViewAdvancedTool: initiative.advanced_tool_enabled ?? false,
-  canViewCounters: initiative.counters_enabled ?? false,
-  canCreateDocs: canCreate,
-  canCreateProjects: canCreate,
-  canCreateQueues: canCreate && (initiative.queues_enabled ?? false),
-  canCreateEvents: canCreate && (initiative.events_enabled ?? false),
-  canCreateCounters: canCreate && (initiative.counters_enabled ?? false),
-});
-
-// Bare read of the always-visible sections (docs/projects) for someone with no
-// membership and no grant — mirrors the historical non-member default.
-const readOnlyDefault: InitiativeSectionPermissions = {
-  canViewDocs: true,
-  canViewProjects: true,
-  canViewQueues: false,
-  canViewEvents: false,
-  canViewAdvancedTool: false,
-  canViewCounters: false,
-  canCreateDocs: false,
-  canCreateProjects: false,
-  canCreateQueues: false,
-  canCreateEvents: false,
-  canCreateCounters: false,
-};
 
 /**
  * Centralizes "what initiatives can the current user see, and what can they do
@@ -97,27 +53,19 @@ export function useInitiativeAccess() {
     [user, seesAllInitiatives]
   );
 
-  /** Effective per-section permissions for one initiative. */
+  /**
+   * Effective per-tool access for one initiative, keyed by `Tool` id. Derived
+   * from the tool registry so every tool is covered by construction (and a new
+   * tool can't be silently omitted here the way it used to be).
+   */
   const permissionsFor = useCallback(
-    (initiative: InitiativeRead): InitiativeSectionPermissions => {
-      if (!user) return readOnlyDefault;
-      if (isGuildAdmin) return fullAccess(initiative, true);
-      if (isGrantGuild) return fullAccess(initiative, grantReadWrite);
+    (initiative: InitiativeRead): ToolAccessMap => {
+      if (!user) return readOnlyToolAccess();
+      if (isGuildAdmin) return fullToolAccess(initiative, true);
+      if (isGrantGuild) return fullToolAccess(initiative, grantReadWrite);
       const membership = initiative.members.find((m) => m.user.id === user.id);
-      if (!membership) return readOnlyDefault;
-      return {
-        canViewDocs: membership.can_view_docs ?? true,
-        canViewProjects: membership.can_view_projects ?? true,
-        canViewQueues: membership.can_view_queues ?? false,
-        canViewEvents: membership.can_view_events ?? false,
-        canViewAdvancedTool: membership.can_view_advanced_tool ?? false,
-        canViewCounters: membership.can_view_counters ?? false,
-        canCreateDocs: membership.can_create_docs ?? false,
-        canCreateProjects: membership.can_create_projects ?? false,
-        canCreateQueues: membership.can_create_queues ?? false,
-        canCreateEvents: membership.can_create_events ?? false,
-        canCreateCounters: membership.can_create_counters ?? false,
-      };
+      if (!membership) return readOnlyToolAccess();
+      return membershipToolAccess(membership);
     },
     [user, isGuildAdmin, isGrantGuild, grantReadWrite]
   );

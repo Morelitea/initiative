@@ -1,19 +1,17 @@
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { type InitiativeEnableFlag, TOGGLEABLE_TOOLS } from "@/lib/tools/registry";
 
 export interface AdvancedToolsSectionProps {
-  eventsEnabled: boolean;
-  queuesEnabled: boolean;
-  countersEnabled: boolean;
-  advancedToolEnabled: boolean;
-  onToggleEvents: (value: boolean) => void;
-  onToggleQueues: (value: boolean) => void;
-  onToggleCounters: (value: boolean) => void;
-  onToggleAdvancedTool: (value: boolean) => void;
+  /** Current on/off state, keyed by the initiative feature flag. */
+  enabled: Partial<Record<InitiativeEnableFlag, boolean>>;
+  /** Called with the flag + its new value when a toggle changes. */
+  onToggle: (flag: InitiativeEnableFlag, value: boolean) => void;
   canManage: boolean;
   isSaving: boolean;
   /** "card" wraps the rows in a Card with title+description (settings page). "plain" returns just the rows (for use inside an Accordion). */
@@ -49,14 +47,8 @@ const AdvancedToolToggle = ({
 );
 
 export const AdvancedToolsSection = ({
-  eventsEnabled,
-  queuesEnabled,
-  countersEnabled,
-  advancedToolEnabled,
-  onToggleEvents,
-  onToggleQueues,
-  onToggleCounters,
-  onToggleAdvancedTool,
+  enabled,
+  onToggle,
   canManage,
   isSaving,
   layout = "card",
@@ -68,40 +60,31 @@ export const AdvancedToolsSection = ({
 
   const rows = (
     <div className="space-y-3">
-      <AdvancedToolToggle
-        id={`${idPrefix}-events-toggle`}
-        title={t("eventsFeature")}
-        description={t("eventsFeatureDescription")}
-        checked={eventsEnabled}
-        onCheckedChange={onToggleEvents}
-        disabled={disabled}
-      />
-      <AdvancedToolToggle
-        id={`${idPrefix}-queues-toggle`}
-        title={t("queuesFeature")}
-        description={t("queuesFeatureDescription")}
-        checked={queuesEnabled}
-        onCheckedChange={onToggleQueues}
-        disabled={disabled}
-      />
-      <AdvancedToolToggle
-        id={`${idPrefix}-counters-toggle`}
-        title={t("countersFeature")}
-        description={t("countersFeatureDescription")}
-        checked={countersEnabled}
-        onCheckedChange={onToggleCounters}
-        disabled={disabled}
-      />
-      {advancedTool && (
-        <AdvancedToolToggle
-          id={`${idPrefix}-advanced-tool-toggle`}
-          title={advancedTool.name}
-          description={t("advancedToolFeatureDescription", { name: advancedTool.name })}
-          checked={advancedToolEnabled}
-          onCheckedChange={onToggleAdvancedTool}
-          disabled={disabled}
-        />
-      )}
+      {TOGGLEABLE_TOOLS.map((tool) => {
+        const flag = tool.enableFlag as InitiativeEnableFlag;
+        const toggle = tool.settingsToggle;
+        if (!toggle) return null;
+        // The advanced tool row only appears when the deployment configures one
+        // at runtime, and it borrows that deployment's display name.
+        const isAdvancedTool = tool.id === Tool.advanced_tool;
+        if (isAdvancedTool && !advancedTool) return null;
+        const title =
+          isAdvancedTool && advancedTool ? advancedTool.name : t(toggle.titleKey as never);
+        const description = isAdvancedTool
+          ? t(toggle.descriptionKey as never, { name: advancedTool?.name ?? "" })
+          : t(toggle.descriptionKey as never);
+        return (
+          <AdvancedToolToggle
+            key={tool.id}
+            id={`${idPrefix}-${tool.id}-toggle`}
+            title={title}
+            description={description}
+            checked={enabled[flag] ?? false}
+            onCheckedChange={(value) => onToggle(flag, value)}
+            disabled={disabled}
+          />
+        );
+      })}
     </div>
   );
 

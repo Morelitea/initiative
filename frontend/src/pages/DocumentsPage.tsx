@@ -383,7 +383,7 @@ export const DocumentsView = ({
       return [];
     }
     return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).canCreateDocs
+      (initiative) => permissionsFor(initiative)[Tool.document].create
     );
   }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
 

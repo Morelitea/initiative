@@ -31,6 +31,7 @@ import { useDeleteInitiative, useInitiatives, useUpdateInitiative } from "@/hook
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import type { InitiativeEnableFlag } from "@/lib/tools/registry";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -138,32 +139,8 @@ export const InitiativeSettingsPage = () => {
     });
   };
 
-  const handleToggleQueues = (value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { queues_enabled: value },
-    });
-  };
-
-  const handleToggleEvents = (value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { events_enabled: value },
-    });
-  };
-
-  const handleToggleAdvancedTool = (value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { advanced_tool_enabled: value },
-    });
-  };
-
-  const handleToggleCounters = (value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { counters_enabled: value },
-    });
+  const handleToggleFeature = (flag: InitiativeEnableFlag, value: boolean) => {
+    updateInitiative.mutate({ initiativeId, data: { [flag]: value } });
   };
 
   const handleDeleteInitiative = () => {
@@ -266,14 +243,13 @@ export const InitiativeSettingsPage = () => {
           setDescription={setDescription}
           color={color}
           setColor={setColor}
-          queuesEnabled={initiative?.queues_enabled ?? false}
-          onToggleQueues={handleToggleQueues}
-          eventsEnabled={initiative?.events_enabled ?? false}
-          onToggleEvents={handleToggleEvents}
-          advancedToolEnabled={initiative?.advanced_tool_enabled ?? false}
-          onToggleAdvancedTool={handleToggleAdvancedTool}
-          countersEnabled={initiative?.counters_enabled ?? false}
-          onToggleCounters={handleToggleCounters}
+          featuresEnabled={{
+            queues_enabled: initiative?.queues_enabled ?? false,
+            events_enabled: initiative?.events_enabled ?? false,
+            counters_enabled: initiative?.counters_enabled ?? false,
+            advanced_tool_enabled: initiative?.advanced_tool_enabled ?? false,
+          }}
+          onToggleFeature={handleToggleFeature}
           canManageMembers={canManageMembers}
           isSaving={updateInitiative.isPending}
           onSaveDetails={handleSaveDetails}

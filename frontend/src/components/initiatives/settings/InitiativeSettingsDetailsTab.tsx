@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TabsContent } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import type { InitiativeEnableFlag } from "@/lib/tools/registry";
 
 interface InitiativeSettingsDetailsTabProps {
   name: string;
@@ -18,14 +19,9 @@ interface InitiativeSettingsDetailsTabProps {
   setDescription: (value: string) => void;
   color: string;
   setColor: (value: string) => void;
-  queuesEnabled: boolean;
-  onToggleQueues: (value: boolean) => void;
-  eventsEnabled: boolean;
-  onToggleEvents: (value: boolean) => void;
-  advancedToolEnabled: boolean;
-  onToggleAdvancedTool: (value: boolean) => void;
-  countersEnabled: boolean;
-  onToggleCounters: (value: boolean) => void;
+  /** Feature-toggle state + change handler (see AdvancedToolsSection). */
+  featuresEnabled: Partial<Record<InitiativeEnableFlag, boolean>>;
+  onToggleFeature: (flag: InitiativeEnableFlag, value: boolean) => void;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -38,14 +34,8 @@ export const InitiativeSettingsDetailsTab = ({
   setDescription,
   color,
   setColor,
-  queuesEnabled,
-  onToggleQueues,
-  eventsEnabled,
-  onToggleEvents,
-  advancedToolEnabled,
-  onToggleAdvancedTool,
-  countersEnabled,
-  onToggleCounters,
+  featuresEnabled,
+  onToggleFeature,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -115,14 +105,8 @@ export const InitiativeSettingsDetailsTab = ({
         layout="card"
         canManage={canManageMembers}
         isSaving={isSaving}
-        eventsEnabled={eventsEnabled}
-        onToggleEvents={onToggleEvents}
-        queuesEnabled={queuesEnabled}
-        onToggleQueues={onToggleQueues}
-        countersEnabled={countersEnabled}
-        onToggleCounters={onToggleCounters}
-        advancedToolEnabled={advancedToolEnabled}
-        onToggleAdvancedTool={onToggleAdvancedTool}
+        enabled={featuresEnabled}
+        onToggle={onToggleFeature}
         idPrefix="settings"
       />
     </TabsContent>

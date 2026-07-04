@@ -1,8 +1,8 @@
-import { GalleryHorizontalEnd, Gauge } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
 import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
+import { toolIcon } from "@/lib/tools/registry";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
  * - Projects show the emoji icon set on the project itself.
  * - Documents resolve to the same icon + color used in document lists
  *   (via ``getDocumentIcon`` / ``getDocumentIconColor``).
- * - Queues use ``GalleryHorizontalEnd``; counter groups use ``Gauge``.
+ * - Everything else uses the shared tool-registry icon (queues, counters, …),
+ *   so it can never drift from the icon shown elsewhere for that tool.
  */
 export function renderRecentIcon(item: RecentItemRead): ReactNode {
   switch (item.entity_type) {
@@ -28,11 +29,9 @@ export function renderRecentIcon(item: RecentItemRead): ReactNode {
       );
       return <Icon className={cn("h-4 w-4", color)} />;
     }
-    case "queue":
-      return <GalleryHorizontalEnd className="h-4 w-4 text-muted-foreground" />;
-    case "counter_group":
-      return <Gauge className="h-4 w-4 text-muted-foreground" />;
-    default:
-      return null;
+    default: {
+      const Icon = toolIcon(item.entity_type);
+      return Icon ? <Icon className="h-4 w-4 text-muted-foreground" /> : null;
+    }
   }
 }

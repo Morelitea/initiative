@@ -254,7 +254,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       return [];
     }
     return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).canCreateProjects
+      (initiative) => permissionsFor(initiative)[Tool.project].create
     );
   }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
   const isProjectManager = creatableInitiatives.length > 0;

@@ -45,6 +45,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import type { InitiativeEnableFlag } from "@/lib/tools/registry";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -100,10 +101,11 @@ export const InitiativesPage = () => {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_INITIATIVE_COLOR);
-  const [queuesEnabled, setQueuesEnabled] = useState(false);
-  const [eventsEnabled, setEventsEnabled] = useState(false);
-  const [countersEnabled, setCountersEnabled] = useState(false);
-  const [advancedToolEnabled, setAdvancedToolEnabled] = useState(false);
+  const [featuresEnabled, setFeaturesEnabled] = useState<
+    Partial<Record<InitiativeEnableFlag, boolean>>
+  >({});
+  const handleToggleFeature = (flag: InitiativeEnableFlag, value: boolean) =>
+    setFeaturesEnabled((prev) => ({ ...prev, [flag]: value }));
   const lastConsumedParams = useRef<string>("");
 
   // Check for query params to open create dialog (consume once)
@@ -131,10 +133,7 @@ export const InitiativesPage = () => {
         name: trimmedName,
         description: newDescription.trim() || undefined,
         color: newColor,
-        queues_enabled: queuesEnabled,
-        events_enabled: eventsEnabled,
-        counters_enabled: countersEnabled,
-        advanced_tool_enabled: advancedToolEnabled,
+        ...featuresEnabled,
       },
       {
         onSuccess: () => {
@@ -142,10 +141,7 @@ export const InitiativesPage = () => {
           setNewName("");
           setNewDescription("");
           setNewColor(DEFAULT_INITIATIVE_COLOR);
-          setQueuesEnabled(false);
-          setEventsEnabled(false);
-          setCountersEnabled(false);
-          setAdvancedToolEnabled(false);
+          setFeaturesEnabled({});
         },
       }
     );
@@ -317,14 +313,8 @@ export const InitiativesPage = () => {
                         layout="plain"
                         canManage={!createInitiative.isPending}
                         isSaving={createInitiative.isPending}
-                        eventsEnabled={eventsEnabled}
-                        onToggleEvents={setEventsEnabled}
-                        queuesEnabled={queuesEnabled}
-                        onToggleQueues={setQueuesEnabled}
-                        countersEnabled={countersEnabled}
-                        onToggleCounters={setCountersEnabled}
-                        advancedToolEnabled={advancedToolEnabled}
-                        onToggleAdvancedTool={setAdvancedToolEnabled}
+                        enabled={featuresEnabled}
+                        onToggle={handleToggleFeature}
                         idPrefix="create"
                       />
                     </AccordionContent>

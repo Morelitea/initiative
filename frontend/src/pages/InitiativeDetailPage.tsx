@@ -1,8 +1,9 @@
 import { Link, Navigate, useParams } from "@tanstack/react-router";
 import { Loader2, SearchX, Settings } from "lucide-react";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { type ComponentType, Suspense, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Markdown } from "@/components/Markdown";
 import { StatusMessage } from "@/components/StatusMessage";
 import { Badge } from "@/components/ui/badge";
@@ -10,19 +11,33 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
-import {
-  canCreate,
-  isFeatureEnabled,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { TOOL_BY_ID, type ToolDef } from "@/lib/tools/registry";
 
 import { DocumentsView } from "./DocumentsPage";
 import { CounterGroupsView } from "./initiativeTools/counters/CounterGroupsPage";
 import { EventsView } from "./initiativeTools/events/EventsPage";
 import { QueuesView } from "./initiativeTools/queues/QueuesPage";
 import { ProjectsView } from "./ProjectsPage";
+
+interface ToolViewProps {
+  fixedInitiativeId: number;
+  canCreate: boolean;
+}
+
+// The initiative detail tabs, derived from the tool registry: one tab per tool
+// with an in-initiative list view. Visibility and the create affordance both
+// read straight from the user's resolved permission keys on the registry entry,
+// so a new tool is a single entry here instead of five parallel edits.
+const INITIATIVE_TABS: { tool: ToolDef; labelKey: string; View: ComponentType<ToolViewProps> }[] = [
+  { tool: TOOL_BY_ID[Tool.document], labelKey: "detail.documents", View: DocumentsView },
+  { tool: TOOL_BY_ID[Tool.project], labelKey: "detail.projects", View: ProjectsView },
+  { tool: TOOL_BY_ID[Tool.calendar_event], labelKey: "detail.calendar", View: EventsView },
+  { tool: TOOL_BY_ID[Tool.queue], labelKey: "detail.queues", View: QueuesView },
+  { tool: TOOL_BY_ID[Tool.counter_group], labelKey: "detail.counters", View: CounterGroupsView },
+];
 
 export const InitiativeDetailPage = () => {
   const { initiativeId: initiativeIdParam, guildId: guildIdParam } = useParams({
@@ -55,31 +70,17 @@ export const InitiativeDetailPage = () => {
   const isInitiativeManager = membership?.is_manager || membership?.role === "project_manager";
   const canManageInitiative = Boolean(isGuildAdmin || isInitiativeManager);
 
-  // Determine which features are enabled for this user
-  const docsEnabled = isFeatureEnabled(permissions, "docs");
-  const projectsEnabled = isFeatureEnabled(permissions, "projects");
-  const queuesEnabled = isFeatureEnabled(permissions, "queues");
-  const eventsEnabled = isFeatureEnabled(permissions, "events");
-  const countersEnabled = isFeatureEnabled(permissions, "counters");
-  const canCreateDocs = canCreate(permissions, "docs");
-  const canCreateProjects = canCreate(permissions, "projects");
-  const canCreateQueues = canCreate(permissions, "queues");
-  const canCreateEvents = canCreate(permissions, "events");
-  const canCreateCounters = canCreate(permissions, "counters");
+  // Per-tool visibility/creation read straight from the resolved permission keys
+  // — the registry entry names both, so no per-tool derivation is needed here.
+  const perm = permissions?.permissions;
+  const visibleTabs = INITIATIVE_TABS.filter((tab) => perm?.[tab.tool.perm.view]);
 
-  type TabValue = "documents" | "projects" | "queues" | "calendar" | "counters";
+  const availableTabs = useMemo<Tool[]>(
+    () => INITIATIVE_TABS.filter((tab) => perm?.[tab.tool.perm.view]).map((tab) => tab.tool.id),
+    [perm]
+  );
 
-  const availableTabs = useMemo<TabValue[]>(() => {
-    const tabs: TabValue[] = [];
-    if (docsEnabled) tabs.push("documents");
-    if (projectsEnabled) tabs.push("projects");
-    if (eventsEnabled) tabs.push("calendar");
-    if (queuesEnabled) tabs.push("queues");
-    if (countersEnabled) tabs.push("counters");
-    return tabs;
-  }, [docsEnabled, projectsEnabled, queuesEnabled, eventsEnabled, countersEnabled]);
-
-  const [activeTab, setActiveTab] = useState<TabValue>(availableTabs[0] ?? "documents");
+  const [activeTab, setActiveTab] = useState<Tool>(availableTabs[0] ?? Tool.document);
 
   // Update active tab if current tab becomes unavailable
   useEffect(() => {
@@ -191,71 +192,30 @@ export const InitiativeDetailPage = () => {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tool)}>
         <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsList className="inline-flex w-max">
-            {docsEnabled && <TabsTrigger value="documents">{t("detail.documents")}</TabsTrigger>}
-            {projectsEnabled && <TabsTrigger value="projects">{t("detail.projects")}</TabsTrigger>}
-            {eventsEnabled && <TabsTrigger value="calendar">{t("detail.calendar")}</TabsTrigger>}
-            {queuesEnabled && <TabsTrigger value="queues">{t("detail.queues")}</TabsTrigger>}
-            {countersEnabled && <TabsTrigger value="counters">{t("detail.counters")}</TabsTrigger>}
+            {visibleTabs.map((tab) => (
+              <TabsTrigger key={tab.tool.id} value={tab.tool.id}>
+                {t(tab.labelKey as never)}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
-        {docsEnabled && (
-          <TabsContent value="documents" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <DocumentsView
-                key={`documents-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateDocs}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
-        {projectsEnabled && (
-          <TabsContent value="projects" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <ProjectsView
-                key={`projects-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateProjects}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
-        {eventsEnabled && (
-          <TabsContent value="calendar" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <EventsView
-                key={`calendar-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateEvents}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
-        {queuesEnabled && (
-          <TabsContent value="queues" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <QueuesView
-                key={`queues-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateQueues}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
-        {countersEnabled && (
-          <TabsContent value="counters" className="mt-6">
-            <Suspense fallback={tabFallback}>
-              <CounterGroupsView
-                key={`counters-${initiative.id}`}
-                fixedInitiativeId={initiative.id}
-                canCreate={canCreateCounters}
-              />
-            </Suspense>
-          </TabsContent>
-        )}
+        {visibleTabs.map((tab) => {
+          const View = tab.View;
+          return (
+            <TabsContent key={tab.tool.id} value={tab.tool.id} className="mt-6">
+              <Suspense fallback={tabFallback}>
+                <View
+                  key={`${tab.tool.id}-${initiative.id}`}
+                  fixedInitiativeId={initiative.id}
+                  canCreate={perm?.[tab.tool.perm.create] ?? false}
+                />
+              </Suspense>
+            </TabsContent>
+          );
+        })}
       </Tabs>
     </div>
   );
