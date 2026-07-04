@@ -1,0 +1,9 @@
+{
+  "title": "Outils avancés",
+  "loading": "Chargement des outils avancés…",
+  "loadError": "Impossible de charger les outils avancés.",
+  "noTools": "Pas encore d'outils avancés",
+  "noToolsDescription": "Cette initiative n'a pas encore d'outils avancés provenant de {{name}}.",
+  "createdExternally": "Les outils avancés sont créés et modifiés dans {{name}} ; le partage et la suppression sont gérés ici.",
+  "updated": "Mis à jour le {{date}}"
+}

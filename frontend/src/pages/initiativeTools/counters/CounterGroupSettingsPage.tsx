@@ -38,7 +38,7 @@ import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 
 export function CounterGroupSettingsPage() {
-  const { t } = useTranslation(["counters", "common", "access"]);
+  const { t } = useTranslation(["counterGroups", "common", "access"]);
   const { groupId } = useParams({ strict: false }) as { groupId?: string };
   const parsedId = groupId ? Number(groupId) : Number.NaN;
   const router = useRouter();

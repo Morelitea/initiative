@@ -92,7 +92,7 @@ export const useCreateCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, CalendarEventCreate>
 ) => {
   const guildId = useActiveGuildId();
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -120,7 +120,7 @@ export const useUpdateCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, CalendarEventUpdate>
 ) => {
   const guildId = useActiveGuildId();
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -154,7 +154,7 @@ export const useRescheduleCalendarEvent = (
   options?: MutationOpts<CalendarEventRead, { eventId: number; data: CalendarEventUpdate }>
 ) => {
   const guildId = useActiveGuildId();
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -180,7 +180,7 @@ export const useRescheduleCalendarEvent = (
 
 export const useDeleteCalendarEvent = (options?: MutationOpts<void, number>) => {
   const guildId = useActiveGuildId();
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -207,7 +207,7 @@ export const useSetEventAttendees = (
   options?: MutationOpts<CalendarEventRead, number[]>
 ) => {
   const guildId = useActiveGuildId();
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -237,7 +237,7 @@ export const useUpdateEventRSVP = (
   options?: MutationOpts<CalendarEventRead, CalendarEventRSVPUpdate>
 ) => {
   const guildId = useActiveGuildId();
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -267,7 +267,7 @@ export const useSetEventTags = (
   options?: MutationOpts<CalendarEventRead, number[]>
 ) => {
   const guildId = useActiveGuildId();
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -297,7 +297,7 @@ export const useSetEventDocuments = (
   options?: MutationOpts<CalendarEventRead, number[]>
 ) => {
   const guildId = useActiveGuildId();
-  const { t } = useTranslation("events");
+  const { t } = useTranslation("calendarEvents");
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
@@ -346,7 +346,7 @@ export const useSetCalendarEventGrants = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "events:error"));
+      toast.error(getErrorMessage(args[0], "calendarEvents:error"));
       onError?.(...args);
     },
     onSettled,

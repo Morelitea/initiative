@@ -9,7 +9,9 @@
     "tasks": "Tâches",
     "documents": "Documents",
     "queues": "Files",
-    "counterGroups": "Groupes de compteurs"
+    "counterGroups": "Groupes de compteurs",
+    "calendarEvents": "Événements de calendrier",
+    "advancedTools": "Outils avancés"
   },
   "actions": {
     "addTask": "Ajouter une tâche",

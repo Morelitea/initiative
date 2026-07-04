@@ -129,7 +129,7 @@ export const useCounterGroup = (groupId: number | null, options?: QueryOpts<Coun
 export const useCreateCounterGroup = (
   options?: MutationOpts<CounterGroupRead, CounterGroupCreate>
 ) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -155,7 +155,7 @@ export const useUpdateCounterGroup = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, CounterGroupUpdate>
 ) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -183,7 +183,7 @@ export const useDuplicateCounterGroup = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, CounterGroupDuplicateRequest>
 ) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -207,7 +207,7 @@ export const useDuplicateCounterGroup = (
 };
 
 export const useDeleteCounterGroup = (options?: MutationOpts<void, number>) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -235,7 +235,7 @@ export const useAddCounter = (
   groupId: number,
   options?: MutationOpts<CounterRead, CounterCreate>
 ) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -271,7 +271,7 @@ export const useUpdateCounter = (
   groupId: number,
   options?: MutationOpts<CounterRead, UpdateCounterInput>
 ) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate, ...rest } = options ?? {};
@@ -315,7 +315,7 @@ export const useUpdateCounter = (
 };
 
 export const useDeleteCounter = (groupId: number, options?: MutationOpts<void, number>) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -365,7 +365,7 @@ export const useSetCount = (
   groupId: number,
   options?: MutationOpts<CounterRead, SetCountInput>
 ) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -407,7 +407,7 @@ const makeValueOpHook = (
 ) => {
   return (groupId: number, options?: MutationOpts<CounterRead, number>) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { t } = useTranslation("counters");
+    const { t } = useTranslation("counterGroups");
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const guildId = useActiveGuildId();
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -464,7 +464,7 @@ export const useResetAllCounters = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, void>
 ) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -525,7 +525,7 @@ export const useSortCounters = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, CounterSortRequest>
 ) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -592,7 +592,7 @@ const STEP_DEBOUNCE_MS = 300;
  * Server-side rate limiting is the control for that.
  */
 export const useSteppedCount = (groupId: number) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -778,7 +778,7 @@ export const useSetCounterGroupGrants = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(getErrorMessage(args[0], "counters:error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       onError?.(...args);
     },
     onSettled,

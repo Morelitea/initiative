@@ -9,7 +9,9 @@
     "tasks": "Tasks",
     "documents": "Documents",
     "queues": "Queues",
-    "counterGroups": "Counter Groups"
+    "counterGroups": "Counter Groups",
+    "calendarEvents": "Calendar Events",
+    "advancedTools": "Advanced Tools"
   },
   "actions": {
     "addTask": "Add Task",

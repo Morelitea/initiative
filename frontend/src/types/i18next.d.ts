@@ -1,15 +1,16 @@
 import "i18next";
 
 import type access from "../../public/locales/en/access.json";
+import type advancedTools from "../../public/locales/en/advancedTools.json";
 import type auth from "../../public/locales/en/auth.json";
+import type calendarEvents from "../../public/locales/en/calendarEvents.json";
 import type command from "../../public/locales/en/command.json";
 import type common from "../../public/locales/en/common.json";
-import type counters from "../../public/locales/en/counters.json";
+import type counterGroups from "../../public/locales/en/counterGroups.json";
 import type dashboard from "../../public/locales/en/dashboard.json";
 import type dates from "../../public/locales/en/dates.json";
 import type documents from "../../public/locales/en/documents.json";
 import type errors from "../../public/locales/en/errors.json";
-import type events from "../../public/locales/en/events.json";
 import type guilds from "../../public/locales/en/guilds.json";
 import type importNs from "../../public/locales/en/import.json";
 import type initiatives from "../../public/locales/en/initiatives.json";
@@ -33,15 +34,16 @@ declare module "i18next" {
     returnObjects: false;
     resources: {
       access: typeof access;
+      advancedTools: typeof advancedTools;
       auth: typeof auth;
       command: typeof command;
       common: typeof common;
-      counters: typeof counters;
+      counterGroups: typeof counterGroups;
       dashboard: typeof dashboard;
       dates: typeof dates;
       documents: typeof documents;
       errors: typeof errors;
-      events: typeof events;
+      calendarEvents: typeof calendarEvents;
       guilds: typeof guilds;
       import: typeof importNs;
       initiatives: typeof initiatives;

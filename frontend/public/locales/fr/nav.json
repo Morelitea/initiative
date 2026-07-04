@@ -48,9 +48,9 @@
   "queues": "Files",
   "allQueues": "Toutes les files",
   "createQueue": "Nouvelle file",
-  "events": "Calendrier",
-  "allEvents": "Tous les événements",
-  "createEvent": "Nouvel événement",
+  "calendarEvents": "Calendrier",
+  "allCalendarEvents": "Tous les événements",
+  "createCalendarEvent": "Nouvel événement",
   "bottomNav": {
     "label": "Navigation rapide",
     "menu": "Ouvrir le menu",
@@ -70,8 +70,11 @@
     "finalizing": "Finalisation de la redirection…",
     "goHome": "Retourner à l'accueil"
   },
-  "counters": "Compteurs",
-  "allCounters": "Tous les compteurs",
+  "counterGroups": "Compteurs",
+  "allCounterGroups": "Tous les compteurs",
   "createCounterGroup": "Nouveau groupe de compteurs",
+  "advancedTools": "Outils avancés",
+  "createAdvancedTool": "Nouvel outil avancé",
+  "createExternally": "Créé dans {{name}}",
   "adminDashboard": "Tableau de bord admin"
 }

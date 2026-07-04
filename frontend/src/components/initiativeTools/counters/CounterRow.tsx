@@ -57,7 +57,7 @@ export const CounterRow = ({
   onEdit,
   onDelete,
 }: CounterRowProps) => {
-  const { t } = useTranslation("counters");
+  const { t } = useTranslation("counterGroups");
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: counter.id.toString(),
     disabled: !canWrite,

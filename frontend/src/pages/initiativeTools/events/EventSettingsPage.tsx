@@ -60,7 +60,7 @@ import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 
 export function EventSettingsPage() {
-  const { t } = useTranslation(["events", "common", "access"]);
+  const { t } = useTranslation(["calendarEvents", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
   const { eventId: eventIdParam } = useParams({ strict: false });
@@ -233,7 +233,7 @@ export function EventSettingsPage() {
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void router.navigate({ to: gp("/events") });
+      void router.navigate({ to: gp("/calendar-events") });
     },
   });
 
@@ -273,7 +273,7 @@ export function EventSettingsPage() {
       <div className="p-8 text-center">
         <p className="text-muted-foreground">{t("notFound")}</p>
         <Button variant="link" asChild className="mt-2">
-          <Link to={gp("/events")}>{t("backToEvents")}</Link>
+          <Link to={gp("/calendar-events")}>{t("backToEvents")}</Link>
         </Button>
       </div>
     );
@@ -285,13 +285,13 @@ export function EventSettingsPage() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={gp("/events")}>{t("title")}</Link>
+              <Link to={gp("/calendar-events")}>{t("title")}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={gp(`/events/${eventId}`)}>{event.title}</Link>
+              <Link to={gp(`/calendar-events/${eventId}`)}>{event.title}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

@@ -36,10 +36,7 @@ import {
 } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -383,7 +380,7 @@ export const DocumentsView = ({
       return [];
     }
     return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).canCreateDocs
+      (initiative) => permissionsFor(initiative)[Tool.document].create
     );
   }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
 
@@ -454,7 +451,7 @@ export const DocumentsView = ({
     }
     // If a specific initiative is filtered, check permissions for that initiative
     if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreatePermission(filteredInitiativePermissions, "docs");
+      return canCreateTool(filteredInitiativePermissions, Tool.document);
     }
     // Fall back to legacy check (user is PM in any initiative)
     if (lockedInitiativeId) {

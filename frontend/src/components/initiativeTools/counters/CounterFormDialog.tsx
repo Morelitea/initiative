@@ -46,7 +46,7 @@ export const CounterFormDialog = ({
   counter,
   defaultPosition,
 }: CounterFormDialogProps) => {
-  const { t } = useTranslation(["counters", "common"]);
+  const { t } = useTranslation(["counterGroups", "common"]);
   const isEdit = !!counter;
 
   const [name, setName] = useState("");

@@ -1,0 +1,9 @@
+{
+  "title": "Herramientas avanzadas",
+  "loading": "Cargando herramientas avanzadas…",
+  "loadError": "No se pudieron cargar las herramientas avanzadas.",
+  "noTools": "Aún no hay herramientas avanzadas",
+  "noToolsDescription": "Esta iniciativa aún no tiene herramientas avanzadas de {{name}}.",
+  "createdExternally": "Las herramientas avanzadas se crean y editan en {{name}}; el acceso compartido y la eliminación se gestionan aquí.",
+  "updated": "Actualizado {{date}}"
+}

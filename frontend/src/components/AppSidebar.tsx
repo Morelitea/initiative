@@ -14,6 +14,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { GuildSidebar } from "@/components/guilds/GuildSidebar";
 import { HomeSidebarContent } from "@/components/sidebar/HomeSidebarContent";
 import { InitiativeSection } from "@/components/sidebar/InitiativeSection";
@@ -415,33 +416,25 @@ export const AppSidebar = () => {
                             ) : (
                               <div className="space-y-1">
                                 {visibleInitiatives.map((initiative) => {
-                                  const permissions = getUserPermissions(initiative);
+                                  const projects = projectsByInitiative.get(initiative.id) ?? [];
                                   return (
                                     <InitiativeSection
                                       key={initiative.id}
                                       initiative={initiative}
-                                      projects={projectsByInitiative.get(initiative.id) ?? []}
-                                      documentCount={
-                                        documentCountsByInitiative.get(initiative.id) ?? 0
-                                      }
+                                      projects={projects}
                                       canManageInitiative={canManageInitiative(initiative)}
                                       activeProjectId={activeProjectId}
                                       userId={user?.id}
-                                      canViewDocs={permissions.canViewDocs}
-                                      canViewProjects={permissions.canViewProjects}
-                                      canViewQueues={permissions.canViewQueues}
-                                      canViewEvents={permissions.canViewEvents}
-                                      canViewAdvancedTool={permissions.canViewAdvancedTool}
-                                      canViewCounters={permissions.canViewCounters}
-                                      canCreateDocs={permissions.canCreateDocs}
-                                      canCreateProjects={permissions.canCreateProjects}
-                                      canCreateQueues={permissions.canCreateQueues}
-                                      canCreateEvents={permissions.canCreateEvents}
-                                      canCreateCounters={permissions.canCreateCounters}
-                                      queueCount={queueCountsByInitiative.get(initiative.id) ?? 0}
-                                      counterGroupCount={
-                                        counterGroupCountsByInitiative.get(initiative.id) ?? 0
-                                      }
+                                      access={getUserPermissions(initiative)}
+                                      counts={{
+                                        [Tool.project]: projects.length,
+                                        [Tool.document]:
+                                          documentCountsByInitiative.get(initiative.id) ?? 0,
+                                        [Tool.queue]:
+                                          queueCountsByInitiative.get(initiative.id) ?? 0,
+                                        [Tool.counter_group]:
+                                          counterGroupCountsByInitiative.get(initiative.id) ?? 0,
+                                      }}
                                       activeGuildId={activeGuildId}
                                       collapseKey={initiativeCollapseKey}
                                     />

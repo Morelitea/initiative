@@ -46,7 +46,7 @@ export const CreateCounterGroupDialog = ({
   defaultInitiativeId,
   onSuccess,
 }: CreateCounterGroupDialogProps) => {
-  const { t } = useTranslation(["counters", "common"]);
+  const { t } = useTranslation(["counterGroups", "common"]);
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");

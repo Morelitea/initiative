@@ -13,6 +13,18 @@ import {
   purgeTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdPurgeDelete,
   restoreTrashEntityApiV1GGuildIdTrashEntityTypeEntityIdRestorePost,
 } from "@/api/generated/trash/trash";
+import {
+  invalidateAllAdvancedTools,
+  invalidateAllCalendarEvents,
+  invalidateAllComments,
+  invalidateAllCounterGroups,
+  invalidateAllDocuments,
+  invalidateAllInitiatives,
+  invalidateAllProjects,
+  invalidateAllQueues,
+  invalidateAllTags,
+  invalidateAllTasks,
+} from "@/api/query-keys";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -48,22 +60,24 @@ export const useGuildTrashList = (options?: QueryOpts<TrashListResponse>) => {
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
-// Maps entity_type -> the cache prefix(es) that should be invalidated when a
-// row is restored, so the row reappears in active lists across the app
-// without requiring an explicit reload.
-const ENTITY_INVALIDATION_PREFIXES: Record<TrashItemEntityType, string[]> = {
-  project: ["projects"],
-  task: ["tasks"],
-  document: ["documents"],
-  comment: ["comments"],
-  initiative: ["initiatives"],
-  tag: ["tags"],
-  queue: ["queues"],
-  queue_item: ["queues"],
-  calendar_event: ["calendar-events", "calendarEvents"],
-  counter_group: ["counter-groups"],
-  counter: ["counter-groups"],
-  advanced_tool: ["advanced-tools"],
+// Maps entity_type -> the shared cache invalidator to run when a row is
+// restored, so the row reappears in active lists across the app without an
+// explicit reload. Uses the query-keys helpers (predicate-matched against the
+// real Orval URL keys — bare string prefixes matched nothing). Child entities
+// (task, comment, queue_item, counter) invalidate their parent tool's caches.
+const ENTITY_INVALIDATORS: Record<TrashItemEntityType, () => unknown> = {
+  project: invalidateAllProjects,
+  task: invalidateAllTasks,
+  document: invalidateAllDocuments,
+  comment: invalidateAllComments,
+  initiative: invalidateAllInitiatives,
+  tag: invalidateAllTags,
+  queue: invalidateAllQueues,
+  queue_item: invalidateAllQueues,
+  calendar_event: invalidateAllCalendarEvents,
+  counter_group: invalidateAllCounterGroups,
+  counter: invalidateAllCounterGroups,
+  advanced_tool: invalidateAllAdvancedTools,
 };
 
 export type RestoreTrashVars = {
@@ -126,9 +140,7 @@ export const useRestoreTrashEntity = (
         queryKey: getListGuildTrashApiV1GGuildIdTrashGetQueryKey(variables.guildId),
       });
       if ("restored" in data) {
-        for (const prefix of ENTITY_INVALIDATION_PREFIXES[variables.entityType] ?? []) {
-          void queryClient.invalidateQueries({ queryKey: [prefix] });
-        }
+        void ENTITY_INVALIDATORS[variables.entityType]?.();
       }
       onSuccess?.(...args);
     },

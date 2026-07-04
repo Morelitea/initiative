@@ -1,5 +1,6 @@
-import type { RecentItemRead } from "@/api/generated/initiativeAPI.schemas";
+import type { RecentItemRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { guildPath } from "@/lib/guildUrl";
+import { RECENTABLE_TOOLS, toolRouteSegment } from "@/lib/tools";
 
 export type RecentKey = {
   entityType: RecentItemRead["entity_type"];
@@ -8,16 +9,9 @@ export type RecentKey = {
   guildId: number;
 };
 
-const SEGMENT_BY_TYPE: Record<RecentItemRead["entity_type"], string> = {
-  project: "projects",
-  document: "documents",
-  queue: "queues",
-  counter_group: "counter-groups",
-  calendar_event: "events",
-};
-
 /**
- * Return the guild-scoped detail-page route for a recent item.
+ * Return the guild-scoped detail-page route for a recent item — the tool's
+ * registry route segment plus the entity id.
  *
  * The tabs bar is cross-guild: each tab links into the entity's OWN guild
  * (``item.guild_id``), never the guild the viewer happens to be in —
@@ -26,40 +20,32 @@ const SEGMENT_BY_TYPE: Record<RecentItemRead["entity_type"], string> = {
  * Navigating the link enters that guild via the /g/$guildId layout.
  */
 export function recentRoute(item: RecentItemRead): string {
-  const segment = SEGMENT_BY_TYPE[item.entity_type];
+  const segment = toolRouteSegment(item.entity_type as Tool);
   return guildPath(item.guild_id, `/${segment}/${item.entity_id}`);
 }
 
 /**
  * Parse the current location pathname into a ``RecentKey`` so the tabs bar
  * can highlight the active tab. Returns null when no entity detail page is
- * open.
+ * open. One pattern per recentable tool, derived from its route segment.
  */
 export function getActiveRecentKey(pathname: string): RecentKey | null {
-  const patterns: Array<{
-    entityType: RecentItemRead["entity_type"];
-    re: RegExp;
-  }> = [
-    { entityType: "project", re: /^\/g\/(\d+)\/projects\/(\d+)/ },
-    { entityType: "document", re: /^\/g\/(\d+)\/documents\/(\d+)/ },
-    { entityType: "queue", re: /^\/g\/(\d+)\/queues\/(\d+)/ },
-    { entityType: "counter_group", re: /^\/g\/(\d+)\/counter-groups\/(\d+)/ },
-    { entityType: "calendar_event", re: /^\/g\/(\d+)\/events\/(\d+)/ },
-  ];
-
-  for (const { entityType, re } of patterns) {
+  for (const tool of RECENTABLE_TOOLS) {
+    const re = new RegExp(`^/g/(\\d+)/${toolRouteSegment(tool)}/(\\d+)`);
     const m = pathname.match(re);
     if (m) {
-      return { entityType, entityId: Number(m[2]), guildId: Number(m[1]) };
+      return {
+        entityType: tool as RecentKey["entityType"],
+        entityId: Number(m[2]),
+        guildId: Number(m[1]),
+      };
     }
   }
   return null;
 }
 
 /**
- * True when ``activeKey`` (parsed from the URL) refers to ``item``.
- *
- * Entity ids are only unique within a guild, so the guild must match too —
+ * Whether a recent item IS the active detail page. Matches on guild too —
  * otherwise a guild-A document tab would light up while viewing guild B's
  * document that happens to share the id.
  */

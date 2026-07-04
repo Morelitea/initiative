@@ -17,10 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 
@@ -32,7 +29,7 @@ type CountersViewProps = {
 };
 
 export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersViewProps) => {
-  const { t } = useTranslation(["counters", "common", "access"]);
+  const { t } = useTranslation(["counterGroups", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
   const { activeGuildId } = useGuilds();
@@ -103,7 +100,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const canCreateGroups = useMemo(() => {
     if (canCreate !== undefined) return canCreate;
     if (effectiveInitiativeId && initiativePerms) {
-      return canCreatePermission(initiativePerms, "counters");
+      return canCreateTool(initiativePerms, Tool.counter_group);
     }
     return initiatives.length > 0;
   }, [canCreate, effectiveInitiativeId, initiativePerms, initiatives.length]);

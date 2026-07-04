@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import type { FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { AdvancedToolsSection } from "@/components/initiatives/AdvancedToolsToggles";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,14 +19,9 @@ interface InitiativeSettingsDetailsTabProps {
   setDescription: (value: string) => void;
   color: string;
   setColor: (value: string) => void;
-  queuesEnabled: boolean;
-  onToggleQueues: (value: boolean) => void;
-  eventsEnabled: boolean;
-  onToggleEvents: (value: boolean) => void;
-  advancedToolEnabled: boolean;
-  onToggleAdvancedTool: (value: boolean) => void;
-  countersEnabled: boolean;
-  onToggleCounters: (value: boolean) => void;
+  /** Master-switch value per toggleable tool. */
+  toolSwitches: Partial<Record<Tool, boolean>>;
+  onToggleTool: (tool: Tool, value: boolean) => void;
   canManageMembers: boolean;
   isSaving: boolean;
   onSaveDetails: (event: FormEvent<HTMLFormElement>) => void;
@@ -38,14 +34,8 @@ export const InitiativeSettingsDetailsTab = ({
   setDescription,
   color,
   setColor,
-  queuesEnabled,
-  onToggleQueues,
-  eventsEnabled,
-  onToggleEvents,
-  advancedToolEnabled,
-  onToggleAdvancedTool,
-  countersEnabled,
-  onToggleCounters,
+  toolSwitches,
+  onToggleTool,
   canManageMembers,
   isSaving,
   onSaveDetails,
@@ -115,14 +105,8 @@ export const InitiativeSettingsDetailsTab = ({
         layout="card"
         canManage={canManageMembers}
         isSaving={isSaving}
-        eventsEnabled={eventsEnabled}
-        onToggleEvents={onToggleEvents}
-        queuesEnabled={queuesEnabled}
-        onToggleQueues={onToggleQueues}
-        countersEnabled={countersEnabled}
-        onToggleCounters={onToggleCounters}
-        advancedToolEnabled={advancedToolEnabled}
-        onToggleAdvancedTool={onToggleAdvancedTool}
+        values={toolSwitches}
+        onToggle={onToggleTool}
         idPrefix="settings"
       />
     </TabsContent>
