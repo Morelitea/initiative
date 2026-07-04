@@ -20,7 +20,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.services.tenant import documents as documents_service
-from app.services.tenant import initiatives as initiatives_service
+from app.services import rls as rls_service
 from app.services import notifications
 from app.services import permissions as permissions_service
 from app.services.mention_parser import (
@@ -539,7 +539,7 @@ async def delete_comment(
     is_guild_admin = guild_role == GuildRole.admin
     is_initiative_manager = False
     if not is_author and not is_guild_admin and initiative_id is not None:
-        is_initiative_manager = await initiatives_service.is_initiative_manager(
+        is_initiative_manager = await rls_service.is_initiative_manager(
             session,
             initiative_id=initiative_id,
             user=user,

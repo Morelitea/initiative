@@ -37,6 +37,7 @@
     "queue_item": "Elemento de cola",
     "calendar_event": "Evento de calendario",
     "counter_group": "Grupo de contadores",
-    "counter": "Contador"
+    "counter": "Contador",
+    "advanced_tool": "Herramienta avanzada"
   }
 }

@@ -39,7 +39,7 @@ export const CountersFilterBar = ({
   filtersOpen,
   onFiltersOpenChange,
 }: CountersFilterBarProps) => {
-  const { t } = useTranslation(["counters", "common"]);
+  const { t } = useTranslation(["counterGroups", "common"]);
 
   return (
     <Collapsible open={filtersOpen} onOpenChange={onFiltersOpenChange} className="space-y-2">

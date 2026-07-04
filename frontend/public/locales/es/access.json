@@ -101,6 +101,8 @@
     "resource_counter_group_one": "grupo de contadores",
     "resource_counter_group_other": "grupos de contadores",
     "resource_calendar_event_one": "evento",
-    "resource_calendar_event_other": "eventos"
+    "resource_calendar_event_other": "eventos",
+    "resource_advanced_tool_one": "herramienta avanzada",
+    "resource_advanced_tool_other": "herramientas avanzadas"
   }
 }

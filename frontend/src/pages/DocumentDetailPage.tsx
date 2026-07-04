@@ -415,13 +415,13 @@ export const DocumentDetailPage = () => {
     if (!document?.initiative || !user) {
       return false;
     }
-    // Check if user has create_docs permission via their role
+    // Check if user has create_documents permission via their role
     const membership = document.initiative.members?.find((m) => m.user?.id === user.id);
     if (!membership) {
       return false;
     }
-    // can_create_docs is populated from the initiative membership role
-    return membership.can_create_docs ?? false;
+    // can_create_documents is populated from the initiative membership role
+    return membership.can_create_documents ?? false;
   }, [document?.initiative, user]);
 
   // Wikilink navigation handler

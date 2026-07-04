@@ -36,10 +36,7 @@ import {
 } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useTags } from "@/hooks/useTags";
 import { useViewPreference } from "@/hooks/useViewPreference";
@@ -103,15 +100,20 @@ export const DocumentsView = ({
   const prevGuildIdRef = useRef<number | null>(activeGuildId);
   const isClosingCreateDialog = useRef(false);
 
-  // Check for query params to filter by initiative (consume once)
+  // Sync the initiative filter to the URL's ?initiativeId. A specific id filters
+  // to it; clearing the param — e.g. clicking "All Documents" from an
+  // initiative-scoped view — resets to ALL. Tracking lastConsumedParams lets the
+  // filter dropdown override the selection without the URL re-pinning it, while
+  // still resetting on real navigation. Without the reset the filter stayed
+  // pinned to the initiative we arrived from, so All Documents showed only that
+  // initiative's docs until a manual refresh.
   useEffect(() => {
+    if (lockedInitiativeId) return;
     const urlInitiativeId = searchParams.initiativeId;
     const paramKey = urlInitiativeId || "";
-
-    if (urlInitiativeId && !lockedInitiativeId && paramKey !== lastConsumedParams.current) {
-      lastConsumedParams.current = paramKey;
-      setInitiativeFilter(urlInitiativeId);
-    }
+    if (paramKey === lastConsumedParams.current) return;
+    lastConsumedParams.current = paramKey;
+    setInitiativeFilter(urlInitiativeId || INITIATIVE_FILTER_ALL);
   }, [searchParams, lockedInitiativeId]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(getDefaultDocumentFiltersVisibility);
@@ -383,7 +385,7 @@ export const DocumentsView = ({
       return [];
     }
     return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).canCreateDocs
+      (initiative) => permissionsFor(initiative)[Tool.document].create
     );
   }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
 
@@ -436,7 +438,7 @@ export const DocumentsView = ({
     if (!membership) {
       return true; // Not a member, let the backend handle access control
     }
-    return membership.can_view_docs !== false;
+    return membership.can_view_documents !== false;
   }, [
     lockedInitiativeId,
     filteredInitiativeId,
@@ -454,7 +456,7 @@ export const DocumentsView = ({
     }
     // If a specific initiative is filtered, check permissions for that initiative
     if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreatePermission(filteredInitiativePermissions, "docs");
+      return canCreateTool(filteredInitiativePermissions, Tool.document);
     }
     // Fall back to legacy check (user is PM in any initiative)
     if (lockedInitiativeId) {
@@ -549,7 +551,7 @@ export const DocumentsView = ({
       const membership = initiative.members.find((m) => m.user.id === user.id);
       // If not a member, include it (backend will handle access control)
       if (!membership) return true;
-      return membership.can_view_docs !== false;
+      return membership.can_view_documents !== false;
     });
   }, [initiativesQuery.data, user, isGuildAdmin, isGrantGuild]);
   const lockedInitiative = lockedInitiativeId

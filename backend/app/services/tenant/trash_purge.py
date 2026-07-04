@@ -29,8 +29,10 @@ from sqlmodel import select
 
 from app.db.session import AdminSessionLocal, set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
+from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
+from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document
 from app.models.platform.guild import Guild
 from app.models.tenant.initiative import Initiative
@@ -38,6 +40,10 @@ from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
+from app.services.tenant.advanced_tool_notify import (
+    drain_purged_advanced_tools,
+    notify_purged_advanced_tools,
+)
 from app.services.tenant.soft_delete import hard_purge_entity
 
 
@@ -49,8 +55,11 @@ PURGE_POLL_SECONDS = 3600
 
 # Top-of-cascade models, in dependency order. We iterate top-down so an
 # Initiative whose retention has elapsed takes its Project / Document /
-# Queue / CalendarEvent descendants with it via hard_purge_entity, leaving
-# the per-entity passes empty for those rows.
+# Queue / CalendarEvent / CounterGroup descendants with it via hard_purge_entity,
+# leaving the per-entity passes empty for those rows. Must cover every
+# soft-deletable model, else an independently-trashed row of a missing type never
+# auto-purges — ``test_purge_top_down_covers_all_soft_delete_models`` enforces
+# ``set(_PURGE_TOP_DOWN) == set(SOFT_DELETE_MODELS)``.
 _PURGE_TOP_DOWN = (
     Initiative,
     Project,
@@ -61,6 +70,9 @@ _PURGE_TOP_DOWN = (
     Comment,
     Tag,
     CalendarEvent,
+    CounterGroup,
+    Counter,
+    AdvancedTool,
 )
 
 
@@ -109,6 +121,10 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
         await _run_purge_pass(session, now=now)
         await session.commit()
+        # Post-commit: tell the advanced tool's backend about hard-purged
+        # tools so their scheduling mirrors are deleted too. Best-effort —
+        # a failure logs and the next mirror sync hides the orphan anyway.
+        await notify_purged_advanced_tools(drain_purged_advanced_tools(session))
 
 
 async def process_trash_purges() -> None:

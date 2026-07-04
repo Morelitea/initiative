@@ -103,7 +103,7 @@ const notificationLink = (notification: NotificationRead): string | null => {
     case "event_rsvp":
     case "event_reminder": {
       const eventId = Number(data.event_id);
-      return Number.isFinite(eventId) ? `/events/${eventId}` : null;
+      return Number.isFinite(eventId) ? `/calendar-events/${eventId}` : null;
     }
     default:
       return null;

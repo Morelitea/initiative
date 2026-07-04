@@ -4,8 +4,6 @@ import {
   CalendarDays,
   CheckSquare,
   FilePlus,
-  GalleryHorizontalEnd,
-  Gauge,
   ListTodo,
   PenLine,
   Plus,
@@ -29,20 +27,17 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { useAuth } from "@/hooks/useAuth";
-import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useDocumentsList } from "@/hooks/useDocuments";
 import { useGuilds } from "@/hooks/useGuilds";
-import { useProjects } from "@/hooks/useProjects";
-import { useQueuesList } from "@/hooks/useQueues";
 import { useRecents } from "@/hooks/useRecents";
 import { useTasks } from "@/hooks/useTasks";
-import { getDocumentIcon, getDocumentIconColor } from "@/lib/fileUtils";
 import { commandFilter } from "@/lib/fuzzyMatch";
 import { guildPath, useGuildPath } from "@/lib/guildUrl";
 import { canAccessAdminDashboard, canManagePlatformConfig } from "@/lib/permissions";
 import { renderRecentIcon } from "@/lib/recentIcon";
 import { recentRoute } from "@/lib/recentRoute";
+import { PALETTE_TOOLS, TOOL_PALETTE } from "@/lib/toolPalette";
+import { TOOL_REGISTRY } from "@/lib/tools";
 
 // Module-level callback so other components can open the command center
 let openCommandCenter: (() => void) | null = null;
@@ -108,21 +103,6 @@ export function CommandCenter() {
 
   // Data hooks — all use existing cached data except tasks which fetches when dialog opens
   const recentQuery = useRecents({ staleTime: 30_000 });
-  const projectsQuery = useProjects(undefined, { staleTime: 60_000 });
-  const queuesQuery = useQueuesList({ page_size: 100 }, { staleTime: 60_000 });
-  const counterGroupsQuery = useCounterGroupsList({ page_size: 100 }, { staleTime: 60_000 });
-  // Documents mirror the task behaviour: default to the 25 most recently
-  // updated (the backend's default sort when ``sort_by`` is omitted), and
-  // swap to a server-side title search once the input has ≥2 characters.
-  // ``!!user`` matches the tasks guard — defends against a brief unauth state
-  // (e.g. token expiry mid-session) firing a 401-bound request.
-  const documentsQuery = useDocumentsList(
-    {
-      page_size: 25,
-      ...(isSearching ? { search: effectiveSearch } : {}),
-    },
-    { enabled: open && !!user, staleTime: 60_000 }
-  );
   // Two modes for the tasks query:
   //  - Idle: surface tasks the user is actively working on (assigned to them,
   //    not done, most recently updated). The default backend sort
@@ -154,10 +134,6 @@ export function CommandCenter() {
   // Suggested = mixed-type recent items, ordered by ``last_viewed_at`` desc
   // (same payload that backs the layout tabs bar).
   const recentItems = recentQuery.data ?? [];
-  const projects = projectsQuery.data?.items ?? [];
-  const documents = documentsQuery.data?.items ?? [];
-  const queues = queuesQuery.data?.items ?? [];
-  const counterGroups = counterGroupsQuery.data?.items ?? [];
   const tasks = tasksQuery.data?.items ?? [];
 
   const isGuildAdmin = activeGuild?.role === "admin";
@@ -169,7 +145,7 @@ export function CommandCenter() {
     const items = [
       { label: t("pages.myTasks"), path: "/", icon: CheckSquare },
       { label: t("pages.tasksICreated"), path: "/created-tasks", icon: PenLine },
-      { label: t("pages.myCalendar"), path: "/my-calendar", icon: CalendarDays },
+      { label: t("pages.myCalendar"), path: "/my-calendar-events", icon: CalendarDays },
       { label: t("pages.myProjects"), path: "/my-projects", icon: ListTodo },
       { label: t("pages.myDocuments"), path: "/my-documents", icon: ScrollText },
       { label: t("pages.myStats"), path: "/user-stats", icon: BarChart3 },
@@ -291,109 +267,17 @@ export function CommandCenter() {
           ))}
         </CommandGroup>
 
-        {/* Projects */}
-        <CommandGroup heading={t("groups.projects")}>
-          {projects.map((project) => (
-            <CommandItem
-              key={`project-${project.id}`}
-              value={`project-${project.id}-${project.name}`}
-              keywords={[
-                project.description ?? "",
-                project.initiative?.name ?? "",
-                ...(project.tags?.map((tag) => tag.name) ?? []),
-              ]}
-              onSelect={() =>
-                handleSelect(
-                  activeGuildId
-                    ? guildPath(activeGuildId, `/projects/${project.id}`)
-                    : `/projects/${project.id}`
-                )
-              }
-            >
-              {project.icon ? (
-                <span className="text-base leading-none">{project.icon}</span>
-              ) : (
-                <ListTodo className="text-muted-foreground" />
-              )}
-              <span>{project.name}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-
-        {/* Documents */}
-        <CommandGroup heading={t("groups.documents")}>
-          {documents.map((doc) => {
-            const DocIcon = getDocumentIcon(
-              doc.document_type,
-              doc.file_content_type,
-              doc.original_filename
-            );
-            const docIconColor = getDocumentIconColor(
-              doc.document_type,
-              doc.file_content_type,
-              doc.original_filename
-            );
-            return (
-              <CommandItem
-                key={`document-${doc.id}`}
-                value={`document-${doc.id}-${doc.title}`}
-                keywords={[doc.initiative?.name ?? "", ...(doc.tags?.map((tag) => tag.name) ?? [])]}
-                onSelect={() =>
-                  handleSelect(
-                    activeGuildId
-                      ? guildPath(activeGuildId, `/documents/${doc.id}`)
-                      : `/documents/${doc.id}`
-                  )
-                }
-              >
-                <DocIcon className={docIconColor} />
-                <span>{doc.title}</span>
-              </CommandItem>
-            );
-          })}
-        </CommandGroup>
-
-        {/* Queues */}
-        <CommandGroup heading={t("groups.queues")}>
-          {queues.map((queue) => (
-            <CommandItem
-              key={`queue-${queue.id}`}
-              value={`queue-${queue.id}-${queue.name}`}
-              keywords={[queue.description ?? ""]}
-              onSelect={() =>
-                handleSelect(
-                  activeGuildId
-                    ? guildPath(activeGuildId, `/queues/${queue.id}`)
-                    : `/queues/${queue.id}`
-                )
-              }
-            >
-              <GalleryHorizontalEnd className="text-muted-foreground" />
-              <span>{queue.name}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-
-        {/* Counter Groups */}
-        <CommandGroup heading={t("groups.counterGroups")}>
-          {counterGroups.map((group) => (
-            <CommandItem
-              key={`counter-group-${group.id}`}
-              value={`counter-group-${group.id}-${group.name}`}
-              keywords={[group.description ?? ""]}
-              onSelect={() =>
-                handleSelect(
-                  activeGuildId
-                    ? guildPath(activeGuildId, `/counter-groups/${group.id}`)
-                    : `/counter-groups/${group.id}`
-                )
-              }
-            >
-              <Gauge className="text-muted-foreground" />
-              <span>{group.name}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
+        {/* One group per palette-enabled tool (registry-driven) */}
+        {PALETTE_TOOLS.map((tool) => (
+          <ToolPaletteGroup
+            key={tool}
+            tool={tool}
+            enabled={open && !!user}
+            search={isSearching ? effectiveSearch : undefined}
+            activeGuildId={activeGuildId}
+            onSelect={handleSelect}
+          />
+        ))}
 
         {/* Tasks */}
         <CommandGroup heading={t("groups.tasks")}>
@@ -422,5 +306,45 @@ export function CommandCenter() {
         </CommandGroup>
       </CommandList>
     </CommandDialog>
+  );
+}
+
+/**
+ * One command-palette group for one tool — its own component so each tool's
+ * palette source hook runs at a stable component boundary. Renders nothing
+ * when the tool's heading resolves to null (e.g. no advanced-tool runtime
+ * config).
+ */
+function ToolPaletteGroup({
+  tool,
+  enabled,
+  search,
+  activeGuildId,
+  onSelect,
+}: {
+  tool: (typeof PALETTE_TOOLS)[number];
+  enabled: boolean;
+  search?: string;
+  activeGuildId: number | null;
+  onSelect: (path: string) => void;
+}) {
+  const heading = TOOL_PALETTE[tool].useHeading();
+  const items = TOOL_PALETTE[tool].useItems({ enabled, search });
+  if (heading === null) return null;
+  const Icon = TOOL_REGISTRY[tool].icon;
+  return (
+    <CommandGroup heading={heading}>
+      {items.map((item) => (
+        <CommandItem
+          key={`${tool}-${item.id}`}
+          value={`${tool}-${item.id}-${item.label}`}
+          keywords={item.keywords}
+          onSelect={() => onSelect(activeGuildId ? guildPath(activeGuildId, item.path) : item.path)}
+        >
+          {item.icon ?? <Icon className="text-muted-foreground" />}
+          <span>{item.label}</span>
+        </CommandItem>
+      ))}
+    </CommandGroup>
   );
 }

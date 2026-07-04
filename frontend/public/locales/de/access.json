@@ -101,6 +101,8 @@
     "resource_counter_group_one": "Zählergruppe",
     "resource_counter_group_other": "Zählergruppen",
     "resource_calendar_event_one": "Termin",
-    "resource_calendar_event_other": "Termine"
+    "resource_calendar_event_other": "Termine",
+    "resource_advanced_tool_one": "erweitertes Tool",
+    "resource_advanced_tool_other": "erweiterte Tools"
   }
 }

@@ -3,7 +3,7 @@ import { Loader2, Plus } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeCreate, InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllInitiatives } from "@/api/query-keys";
 import { AdvancedToolsSection } from "@/components/initiatives/AdvancedToolsToggles";
 import { Markdown } from "@/components/Markdown";
@@ -45,6 +45,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
 import { InitiativeColorDot } from "@/lib/initiativeColors";
+import { TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -100,10 +101,8 @@ export const InitiativesPage = () => {
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newColor, setNewColor] = useState(DEFAULT_INITIATIVE_COLOR);
-  const [queuesEnabled, setQueuesEnabled] = useState(false);
-  const [eventsEnabled, setEventsEnabled] = useState(false);
-  const [countersEnabled, setCountersEnabled] = useState(false);
-  const [advancedToolEnabled, setAdvancedToolEnabled] = useState(false);
+  // Master-switch state per toggleable tool for the create dialog.
+  const [toolSwitches, setToolSwitches] = useState<Partial<Record<Tool, boolean>>>({});
   const lastConsumedParams = useRef<string>("");
 
   // Check for query params to open create dialog (consume once)
@@ -131,10 +130,10 @@ export const InitiativesPage = () => {
         name: trimmedName,
         description: newDescription.trim() || undefined,
         color: newColor,
-        queues_enabled: queuesEnabled,
-        events_enabled: eventsEnabled,
-        counters_enabled: countersEnabled,
-        advanced_tool_enabled: advancedToolEnabled,
+        // One `{plural}_enabled` field per toggleable tool, derived.
+        ...(Object.fromEntries(
+          TOGGLEABLE_TOOLS.map((tool) => [toolViewPermission(tool), toolSwitches[tool] ?? false])
+        ) as Partial<InitiativeCreate>),
       },
       {
         onSuccess: () => {
@@ -142,10 +141,7 @@ export const InitiativesPage = () => {
           setNewName("");
           setNewDescription("");
           setNewColor(DEFAULT_INITIATIVE_COLOR);
-          setQueuesEnabled(false);
-          setEventsEnabled(false);
-          setCountersEnabled(false);
-          setAdvancedToolEnabled(false);
+          setToolSwitches({});
         },
       }
     );
@@ -317,14 +313,10 @@ export const InitiativesPage = () => {
                         layout="plain"
                         canManage={!createInitiative.isPending}
                         isSaving={createInitiative.isPending}
-                        eventsEnabled={eventsEnabled}
-                        onToggleEvents={setEventsEnabled}
-                        queuesEnabled={queuesEnabled}
-                        onToggleQueues={setQueuesEnabled}
-                        countersEnabled={countersEnabled}
-                        onToggleCounters={setCountersEnabled}
-                        advancedToolEnabled={advancedToolEnabled}
-                        onToggleAdvancedTool={setAdvancedToolEnabled}
+                        values={toolSwitches}
+                        onToggle={(tool, value) =>
+                          setToolSwitches((prev) => ({ ...prev, [tool]: value }))
+                        }
                         idPrefix="create"
                       />
                     </AccordionContent>

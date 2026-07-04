@@ -8,16 +8,16 @@ queues, and counter groups.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Iterable, Literal, Sequence
+from typing import Iterable, Sequence
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.recent_view import RecentView
+from app.schemas.tenant.recent_view import RecentEntityType
 
-
-RecentEntityType = Literal["project", "document", "queue", "counter_group"]
+__all__ = ["RecentEntityType"]  # re-export for existing importers
 
 # Per-user cap on entries kept/displayed, across all entity types. The user's
 # ``recent_tabs_limit`` (Interface settings) drives the actual value; these

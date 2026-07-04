@@ -20,10 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/useAuth";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useQueuesList } from "@/hooks/useQueues";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -156,7 +153,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   const canCreateQueues = useMemo(() => {
     if (canCreate !== undefined) return canCreate;
     if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreatePermission(filteredInitiativePermissions, "queues");
+      return canCreateTool(filteredInitiativePermissions, Tool.queue);
     }
     if (lockedInitiativeId) {
       return creatableInitiatives.some((initiative) => initiative.id === lockedInitiativeId);

@@ -441,6 +441,17 @@ class Settings(BaseSettings):
     ADVANCED_TOOL_NAME: str | None = None
     ADVANCED_TOOL_URL: str | None = None
 
+    # Server-to-server link to the advanced tool's own backend. When a
+    # guild HARD-purges an advanced tool (manual trash purge or the
+    # retention worker), we notify that backend so its scheduling mirror
+    # is deleted too — a purge must not leave a live schedule pointing at
+    # nothing. ``ADVANCED_TOOL_BACKEND_URL`` is the service's API base
+    # (e.g. http://auto:9002/api/v1); ``ADVANCED_TOOL_PURGE_SECRET`` signs
+    # the notification (HMAC-SHA256, same envelope as webhook dispatch).
+    # Either unset -> notifications are skipped silently (default OSS image).
+    ADVANCED_TOOL_BACKEND_URL: str | None = None
+    ADVANCED_TOOL_PURGE_SECRET: str | None = None
+
     # Optional captcha gate on the public registration endpoint to push
     # back on bot signups. ``CAPTCHA_PROVIDER`` selects the vendor —
     # ``"hcaptcha"`` / ``"turnstile"`` / ``"recaptcha"`` — and the SPA

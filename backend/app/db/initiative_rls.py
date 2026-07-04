@@ -22,6 +22,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from app.core.tools import RECENTABLE_TOOLS
+
 # The request-GUC user id, NULLIF-guarded so an unset/PAM context yields NULL
 # (no membership) rather than faulting the cast for every row.
 _UID = "(NULLIF(current_setting('app.current_user_id'::text, true), ''::text))::integer"
@@ -102,15 +104,11 @@ def comments_path() -> PathBuilder:
 
 # recent_views is polymorphic over (entity_type, entity_id). Every entity it can
 # point at is an initiative-scoped table with a direct initiative_id, so the path
-# is a per-type EXISTS join. Keyed by the entity_type string the app stores; a
-# test (test_recent_views_path_covers_entity_types) asserts this stays in sync
-# with app.models.recent_view.RECENT_ENTITY_TYPES.
-RECENT_ENTITY_TABLES: dict[str, str] = {
-    "project": "projects",
-    "document": "documents",
-    "queue": "queues",
-    "counter_group": "counter_groups",
-}
+# is a per-type EXISTS join. Derived from the canonical Tool enum: entity_type is
+# the tool's string value, its table is the pluralized stem. (RECENTABLE_TOOLS
+# excludes the advanced tool — recents never point at one, and CHECK-constraint
+# enforcement on the table matches.)
+RECENT_ENTITY_TABLES: dict[str, str] = {t.value: t.plural for t in RECENTABLE_TOOLS}
 
 
 def recent_views_path() -> PathBuilder:
@@ -154,6 +152,11 @@ INITIATIVE_PATHS: dict[str, PathBuilder] = {
     "calendar_events": direct(),
     "property_definitions": direct(),
     "resource_grants": direct(),
+    # Advanced tools: initiative_id is NULLABLE — a NULL row is guild-wide, and
+    # initiative_access(NULL, …) resolves to the admin/PAM legs only (the function
+    # is STABLE, not STRICT), so direct() gives admin-only for guild-wide rows and
+    # normal membership for initiative-scoped ones.
+    "advanced_tools": direct(),
     # One hop -> projects
     "tasks": via("projects", "project_id"),
     "task_statuses": via("projects", "project_id"),

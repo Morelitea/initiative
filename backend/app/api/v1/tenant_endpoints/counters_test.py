@@ -113,7 +113,7 @@ async def test_feature_disabled_blocks_creation(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     a = await acting_user(guild_role=GuildRole.admin, initiative=True)
-    a.initiative.counters_enabled = False
+    a.initiative.counter_groups_enabled = False
     await session.commit()
 
     response = await client.post(

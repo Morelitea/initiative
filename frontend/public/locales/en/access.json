@@ -101,6 +101,8 @@
     "resource_counter_group_one": "counter group",
     "resource_counter_group_other": "counter groups",
     "resource_calendar_event_one": "event",
-    "resource_calendar_event_other": "events"
+    "resource_calendar_event_other": "events",
+    "resource_advanced_tool_one": "advanced tool",
+    "resource_advanced_tool_other": "advanced tools"
   }
 }

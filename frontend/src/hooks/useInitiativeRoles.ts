@@ -8,6 +8,7 @@ import type {
   MyInitiativePermissions,
   PermissionKey,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import {
   createInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesPost,
   deleteInitiativeRoleApiV1GGuildIdInitiativesInitiativeIdRolesRoleIdDelete,
@@ -21,6 +22,15 @@ import { invalidateInitiativeRoles, invalidateMyPermissions } from "@/api/query-
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import {
+  TOGGLEABLE_TOOLS,
+  TOOL_REGISTRY,
+  TOOLS,
+  toolCamelPlural,
+  toolCreatePermission,
+  toolPascalSingular,
+  toolViewPermission,
+} from "@/lib/tools";
 
 export const useInitiativeRoles = (initiativeId: number | null) => {
   const guildId = useActiveGuildId();
@@ -136,89 +146,42 @@ export const hasPermission = (
   return permissions.permissions[key] ?? false;
 };
 
-// Helper to check if a feature is enabled for the user.
+// Helper to check if a tool is visible to the user.
 // Reads the permission value directly — the backend already accounts for
-// initiative-level flags and manager status, so we must not short-circuit
-// on is_manager here.
-export const isFeatureEnabled = (
+// initiative-level master switches and manager status, so we must not
+// short-circuit on is_manager here.
+export const isToolVisible = (
   permissions: MyInitiativePermissions | undefined,
-  feature: "docs" | "projects" | "queues" | "events" | "counters"
+  tool: Tool
 ): boolean => {
   if (!permissions) return false;
-  const keyMap: Record<typeof feature, PermissionKey> = {
-    docs: "docs_enabled",
-    projects: "projects_enabled",
-    queues: "queues_enabled",
-    events: "events_enabled",
-    counters: "counters_enabled",
-  };
-  return permissions.permissions[keyMap[feature]] ?? false;
+  return permissions.permissions[toolViewPermission(tool)] ?? false;
 };
 
-// Helper to check if user can create (docs, projects, queues, or events).
-// Same as isFeatureEnabled — reads backend value directly.
-export const canCreate = (
+// Helper to check if the user can create a tool's content.
+// Same as isToolVisible — reads the backend value directly.
+export const canCreateTool = (
   permissions: MyInitiativePermissions | undefined,
-  entity: "docs" | "projects" | "queues" | "events" | "counters"
+  tool: Tool
 ): boolean => {
   if (!permissions) return false;
-  const keyMap: Record<typeof entity, PermissionKey> = {
-    docs: "create_docs",
-    projects: "create_projects",
-    queues: "create_queues",
-    events: "create_events",
-    counters: "create_counters",
-  };
-  return permissions.permissions[keyMap[entity]] ?? false;
+  return permissions.permissions[toolCreatePermission(tool)] ?? false;
 };
 
-// Permission key labels for display (hardcoded, kept for backward compat)
-export const PERMISSION_LABELS: Record<PermissionKey, string> = {
-  docs_enabled: "View Documents",
-  projects_enabled: "View Projects",
-  create_docs: "Create Documents",
-  create_projects: "Create Projects",
-  queues_enabled: "View Queues",
-  create_queues: "Create Queues",
-  events_enabled: "View Events",
-  create_events: "Create Events",
-  advanced_tool_enabled: "View Advanced Tool",
-  create_advanced_tool: "Create in Advanced Tool",
-  counters_enabled: "View Counters",
-  create_counters: "Create Counters",
-};
+// i18n-based permission label keys (use with t()) — one view/create pair per
+// tool, derived: settings.permissions.view{PascalPlural} / create{PascalPlural}.
+export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = Object.fromEntries(
+  TOOLS.flatMap((tool) => [
+    [toolViewPermission(tool), `settings.permissions.view${toolPascalSingular(tool)}s`],
+    [toolCreatePermission(tool), `settings.permissions.create${toolPascalSingular(tool)}s`],
+  ])
+) as Record<PermissionKey, string>;
 
-// i18n-based permission label keys (use with t())
-export const PERMISSION_LABEL_KEYS: Record<PermissionKey, string> = {
-  docs_enabled: "settings.permissions.viewDocuments",
-  projects_enabled: "settings.permissions.viewProjects",
-  create_docs: "settings.permissions.createDocuments",
-  create_projects: "settings.permissions.createProjects",
-  queues_enabled: "settings.permissions.viewQueues",
-  create_queues: "settings.permissions.createQueues",
-  events_enabled: "settings.permissions.viewEvents",
-  create_events: "settings.permissions.createEvents",
-  advanced_tool_enabled: "settings.permissions.viewAdvancedTool",
-  create_advanced_tool: "settings.permissions.createAdvancedTool",
-  counters_enabled: "settings.permissions.viewCounters",
-  create_counters: "settings.permissions.createCounters",
-};
-
-// All permission keys in display order
-export const ALL_PERMISSION_KEYS: PermissionKey[] = [
-  "docs_enabled",
-  "create_docs",
-  "projects_enabled",
-  "create_projects",
-  "queues_enabled",
-  "create_queues",
-  "events_enabled",
-  "create_events",
-  "advanced_tool_enabled",
-  "create_advanced_tool",
-  "counters_enabled",
-  "create_counters",
-];
+// All permission keys in display order (view before create, per tool)
+export const ALL_PERMISSION_KEYS: PermissionKey[] = TOOLS.flatMap((tool) => [
+  toolViewPermission(tool),
+  toolCreatePermission(tool),
+]);
 
 // Permission groups for card-based layout
 export type PermissionGroup = {
@@ -226,29 +189,28 @@ export type PermissionGroup = {
   keys: PermissionKey[];
 };
 
-// Core permissions always visible
-export const CORE_PERMISSION_GROUPS: PermissionGroup[] = [
-  { labelKey: "settings.permissionGroups.documents", keys: ["docs_enabled", "create_docs"] },
-  { labelKey: "settings.permissionGroups.projects", keys: ["projects_enabled", "create_projects"] },
-];
+const toolPermissionGroup = (tool: Tool): PermissionGroup => ({
+  labelKey: `settings.permissionGroups.${toolCamelPlural(tool)}`,
+  keys: [toolViewPermission(tool), toolCreatePermission(tool)],
+});
 
-// Advanced tools permissions shown in accordion
-export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = [
-  { labelKey: "settings.permissionGroups.queues", keys: ["queues_enabled", "create_queues"] },
-  { labelKey: "settings.permissionGroups.events", keys: ["events_enabled", "create_events"] },
-  {
-    labelKey: "settings.permissionGroups.counters",
-    keys: ["counters_enabled", "create_counters"],
-  },
-];
+// Core (always-on) tools' permissions, always visible
+export const CORE_PERMISSION_GROUPS: PermissionGroup[] = TOOLS.filter(
+  (tool) => TOOL_REGISTRY[tool].core
+).map(toolPermissionGroup);
+
+// Opt-in tools' permissions shown in accordion (the advanced tool is broken
+// out separately because its whole group is runtime-config-gated)
+export const ADVANCED_PERMISSION_GROUPS: PermissionGroup[] = TOGGLEABLE_TOOLS.filter(
+  (tool) => tool !== Tool.advanced_tool
+).map(toolPermissionGroup);
 
 // Permission group for the optional embedded advanced tool. Only included
 // in the role-permissions UI when the deployment has an advanced tool URL
 // configured at runtime — see InitiativeSettingsRolesTab for the gating.
-export const ADVANCED_TOOL_PERMISSION_GROUP: PermissionGroup = {
-  labelKey: "settings.permissionGroups.advancedTool",
-  keys: ["advanced_tool_enabled", "create_advanced_tool"],
-};
+export const ADVANCED_TOOL_PERMISSION_GROUP: PermissionGroup = toolPermissionGroup(
+  Tool.advanced_tool
+);
 
 // All groups combined (for backward compat)
 export const PERMISSION_GROUPS: PermissionGroup[] = [

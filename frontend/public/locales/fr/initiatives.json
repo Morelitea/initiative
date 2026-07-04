@@ -70,8 +70,9 @@
     "documents": "Documents",
     "projects": "Projets",
     "queues": "Files",
-    "calendar": "Calendrier",
-    "counters": "Compteurs"
+    "calendarEvents": "Calendrier",
+    "counterGroups": "Compteurs",
+    "advancedTools": "Outils avancés"
   },
   "settings": {
     "title": "Paramètres de l'initiative",
@@ -180,9 +181,9 @@
       "documents": "Documents",
       "projects": "Projets",
       "queues": "Files",
-      "events": "Événements",
-      "advancedTool": "Outil avancé",
-      "counters": "Compteurs"
+      "calendarEvents": "Événements",
+      "counterGroups": "Compteurs",
+      "advancedTools": "Outil avancé"
     },
     "permissions": {
       "viewDocuments": "Voir les documents",
@@ -191,21 +192,21 @@
       "createProjects": "Créer des projets",
       "viewQueues": "Voir les files",
       "createQueues": "Créer des files",
-      "viewEvents": "Voir les événements",
-      "createEvents": "Créer des événements",
-      "viewAdvancedTool": "Ouvrir l’outil avancé",
-      "createAdvancedTool": "Créer dans l’outil avancé",
-      "viewCounters": "Voir les compteurs",
-      "createCounters": "Créer des compteurs"
+      "viewCalendarEvents": "Voir les événements",
+      "createCalendarEvents": "Créer des événements",
+      "viewAdvancedTools": "Ouvrir l’outil avancé",
+      "createAdvancedTools": "Créer dans l’outil avancé",
+      "viewCounterGroups": "Voir les compteurs",
+      "createCounterGroups": "Créer des compteurs"
     }
   },
   "advancedTools": "Outils avancés",
   "advancedToolsDescription": "Activez des outils optionnels pour cette initiative.",
   "queuesFeature": "Files",
   "queuesFeatureDescription": "Organisez les éléments par priorité, suivez l'ordre de passage et gérez qui passe ensuite.",
-  "eventsFeature": "Calendrier",
-  "eventsFeatureDescription": "Planifiez et gérez des événements de calendrier avec des participants et le suivi des RSVP.",
-  "advancedToolFeatureDescription": "Intégrez le panneau {{name}} à cette initiative.",
+  "calendarEventsFeature": "Calendrier",
+  "calendarEventsFeatureDescription": "Planifiez et gérez des événements de calendrier avec des participants et le suivi des RSVP.",
+  "advancedToolsFeatureDescription": "Intégrez le panneau {{name}} à cette initiative.",
   "advancedTool": {
     "connecting": "Connexion…",
     "handoffFailed": "Impossible d’établir une session sécurisée avec l’outil intégré.",
@@ -218,6 +219,7 @@
     "guildAdminOnlyTitle": "Réservé aux administrateurs",
     "guildAdminOnlyDescription": "Seuls les administrateurs du guild peuvent gérer les automatisations à l’échelle du guild."
   },
-  "countersFeature": "Compteurs",
-  "countersFeatureDescription": "Suivez des valeurs numériques comme les PV, scores ou budgets — bornées, incrémentées par pas et affichées en chiffres, barres ou jauges radiales."
+  "counterGroupsFeature": "Compteurs",
+  "counterGroupsFeatureDescription": "Suivez des valeurs numériques comme les PV, scores ou budgets — bornées, incrémentées par pas et affichées en chiffres, barres ou jauges radiales.",
+  "advancedToolsFeature": "Outils avancés"
 }

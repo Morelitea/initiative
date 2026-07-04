@@ -52,11 +52,13 @@ from app.models.platform.auto_delegation_jti import AutoDelegationJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
+from app.models.tenant.advanced_tool import AdvancedTool
 
 __all__ = [
     "User",
     "AccessGrant",
     "ResourceGrant",
+    "AdvancedTool",
     "Project",
     "Task",
     "TaskAssignee",

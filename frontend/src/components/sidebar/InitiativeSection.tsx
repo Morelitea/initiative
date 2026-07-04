@@ -1,20 +1,10 @@
 import { Link } from "@tanstack/react-router";
-import {
-  CalendarDays,
-  CircleChevronRight,
-  GalleryHorizontalEnd,
-  Gauge,
-  ListTodo,
-  MoreVertical,
-  Plus,
-  ScrollText,
-  Settings,
-  Sparkles,
-} from "lucide-react";
+import { CircleChevronRight, MoreVertical, Plus, Settings } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { InitiativeRead, ProjectRead } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
@@ -26,30 +16,28 @@ import {
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import type { InitiativeToolAccess } from "@/hooks/useInitiativeAccess";
 import { guildPath } from "@/lib/guildUrl";
 import { getItem, setItem } from "@/lib/storage";
+import {
+  SIDEBAR_TOOLS,
+  TOOL_REGISTRY,
+  toolCreateLabelKey,
+  toolListRoute,
+  toolNavLabelKey,
+} from "@/lib/tools";
 import { cn } from "@/lib/utils";
 
 export interface InitiativeSectionProps {
   initiative: InitiativeRead;
   projects: ProjectRead[];
-  documentCount: number;
   canManageInitiative: boolean;
   activeProjectId: number | null;
   userId: number | undefined;
-  canViewDocs: boolean;
-  canViewProjects: boolean;
-  canViewQueues: boolean;
-  canViewEvents: boolean;
-  canViewAdvancedTool: boolean;
-  canViewCounters: boolean;
-  canCreateDocs: boolean;
-  canCreateProjects: boolean;
-  canCreateQueues: boolean;
-  canCreateEvents: boolean;
-  canCreateCounters: boolean;
-  queueCount: number;
-  counterGroupCount: number;
+  /** Per-tool view/create access, from useInitiativeAccess().permissionsFor. */
+  access: InitiativeToolAccess;
+  /** Per-tool sidebar counts — only read for tools with sidebarCount. */
+  counts: Partial<Record<Tool, number>>;
   activeGuildId: number | null;
   /** Changing this value re-syncs the open/closed state from storage. */
   collapseKey?: number;
@@ -59,36 +47,16 @@ export const InitiativeSection = memo(
   ({
     initiative,
     projects,
-    documentCount,
     canManageInitiative,
     activeProjectId,
     userId,
-    canViewDocs,
-    canViewProjects,
-    canViewQueues,
-    canViewEvents,
-    canViewAdvancedTool,
-    canViewCounters,
-    canCreateDocs,
-    canCreateProjects,
-    canCreateQueues,
-    canCreateEvents,
-    canCreateCounters,
-    queueCount,
-    counterGroupCount,
+    access,
+    counts,
     activeGuildId,
     collapseKey,
   }: InitiativeSectionProps) => {
     const { t } = useTranslation("nav");
     const { advancedTool } = useAppConfig();
-    // The sidebar entry is triply-gated:
-    //   1. Runtime config must expose an advanced tool (deployment-level).
-    //   2. The initiative manager must have enabled it (per-initiative).
-    //   3. The user's role must include the advanced_tool_enabled key
-    //      — non-managers can be denied even when (1) and (2) pass.
-    const showAdvancedTool = Boolean(
-      advancedTool && initiative.advanced_tool_enabled && canViewAdvancedTool
-    );
     // Helper to create guild-scoped paths
     const gp = (path: string) => (activeGuildId ? guildPath(activeGuildId, path) : path);
     // Pure DAC: check if user has write access to a specific project
@@ -97,6 +65,30 @@ export const InitiativeSection = memo(
       const level = project.my_permission_level;
       return level === "owner" || level === "write";
     };
+
+    /** Whether a tool's row renders at all. `access[tool].view` already folds
+     * in the initiative's master switch and the member's role permission; the
+     * advanced tool is additionally gated by the deployment-level runtime
+     * config (no integration configured → no row anywhere). */
+    const showTool = (tool: Tool): boolean => {
+      if (!access[tool].view) return false;
+      if (tool === Tool.advanced_tool) return Boolean(advancedTool);
+      return true;
+    };
+
+    /** Row target: every tool lists at its own route except the advanced
+     * tool, which is one embedded page per initiative. */
+    const toolLink = (tool: Tool) =>
+      tool === Tool.advanced_tool
+        ? { to: gp(`/initiatives/${initiative.id}/advanced-tool`), search: undefined }
+        : { to: gp(toolListRoute(tool)), search: { initiativeId: String(initiative.id) } };
+
+    /** The advanced tool renders under the deployment's own name for it. */
+    const toolLabel = (tool: Tool): string =>
+      tool === Tool.advanced_tool && advancedTool?.name
+        ? advancedTool.name
+        : t(toolNavLabelKey(tool));
+
     // Load initial state from storage, default to true if not found
     const [isOpen, setIsOpen] = useState(() => {
       try {
@@ -204,50 +196,19 @@ export const InitiativeSection = memo(
                       {t("initiativeSettings")}
                     </Link>
                   </DropdownMenuItem>
-                  {canCreateDocs && (
-                    <DropdownMenuItem asChild>
+                  {SIDEBAR_TOOLS.filter(
+                    (tool) => TOOL_REGISTRY[tool].inAppCreate && access[tool].create
+                  ).map((tool) => (
+                    <DropdownMenuItem key={tool} asChild>
                       <Link
-                        to={gp("/documents")}
+                        to={gp(toolListRoute(tool))}
                         search={{ create: "true", initiativeId: String(initiative.id) }}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        {t("createDocument")}
+                        {t(toolCreateLabelKey(tool))}
                       </Link>
                     </DropdownMenuItem>
-                  )}
-                  {canCreateProjects && (
-                    <DropdownMenuItem asChild>
-                      <Link
-                        to={gp("/projects")}
-                        search={{ create: "true", initiativeId: String(initiative.id) }}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        {t("createProject")}
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-                  {canCreateQueues && (
-                    <DropdownMenuItem asChild>
-                      <Link
-                        to={gp("/queues")}
-                        search={{ create: "true", initiativeId: String(initiative.id) }}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        {t("createQueue")}
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
-                  {canCreateEvents && (
-                    <DropdownMenuItem asChild>
-                      <Link
-                        to={gp("/events")}
-                        search={{ create: "true", initiativeId: String(initiative.id) }}
-                      >
-                        <Plus className="mr-2 h-4 w-4" />
-                        {t("createEvent")}
-                      </Link>
-                    </DropdownMenuItem>
-                  )}
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
             </>
@@ -260,229 +221,84 @@ export const InitiativeSection = memo(
             forceMount
           >
             <SidebarMenu>
-              {/* Advanced Tool Link — pinned to the top of the initiative
-                  so it's the first thing a user sees when the integration
-                  is on. */}
-              {showAdvancedTool && advancedTool && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                    <Link
-                      to={gp(`/initiatives/${initiative.id}/advanced-tool`)}
-                      className="flex items-center gap-2"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      <span className="min-w-0 flex-1 truncate">{advancedTool.name}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-
-              {/* Events Link */}
-              {canViewEvents && (
-                <SidebarMenuItem>
-                  <div className="group/events flex w-full min-w-0 items-center gap-1">
-                    <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                      <Link
-                        to={gp("/events")}
-                        search={{ initiativeId: String(initiative.id) }}
-                        className="flex items-center gap-2"
-                      >
-                        <CalendarDays className="h-4 w-4" />
-                        <span>{t("events")}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {canCreateEvents && (
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/events:opacity-100 lg:flex"
-                            asChild
-                          >
-                            <Link
-                              to={gp("/events")}
-                              search={{ create: "true", initiativeId: String(initiative.id) }}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>{t("createEvent")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </SidebarMenuItem>
-              )}
-
-              {/* Documents Link */}
-              {canViewDocs && (
-                <SidebarMenuItem>
-                  <div className="group/documents flex w-full min-w-0 items-center gap-1">
-                    <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                      <Link
-                        to={gp("/documents")}
-                        search={{ initiativeId: String(initiative.id) }}
-                        className="flex items-center gap-2"
-                      >
-                        <ScrollText className="h-4 w-4" />
-                        <span>{t("documents")}</span>
-                        <span className="text-muted-foreground text-xs">{documentCount}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {canCreateDocs && (
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/documents:opacity-100 lg:flex"
-                            asChild
-                          >
-                            <Link
-                              to={gp("/documents")}
-                              search={{ create: "true", initiativeId: String(initiative.id) }}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>{t("createDocument")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </SidebarMenuItem>
-              )}
-
-              {/* Queues Link */}
-              {canViewQueues && (
-                <SidebarMenuItem>
-                  <div className="group/queues flex w-full min-w-0 items-center gap-1">
-                    <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                      <Link
-                        to={gp("/queues")}
-                        search={{ initiativeId: String(initiative.id) }}
-                        className="flex items-center gap-2"
-                      >
-                        <GalleryHorizontalEnd className="h-4 w-4" />
-                        <span>{t("queues")}</span>
-                        <span className="text-muted-foreground text-xs">{queueCount}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {canCreateQueues && (
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/queues:opacity-100 lg:flex"
-                            asChild
-                          >
-                            <Link
-                              to={gp("/queues")}
-                              search={{ create: "true", initiativeId: String(initiative.id) }}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>{t("createQueue")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </SidebarMenuItem>
-              )}
-
-              {/* Counter Groups Link */}
-              {canViewCounters && (
-                <SidebarMenuItem>
-                  <div className="group/counters flex w-full min-w-0 items-center gap-1">
-                    <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                      <Link
-                        to={gp("/counter-groups")}
-                        search={{ initiativeId: String(initiative.id) }}
-                        className="flex items-center gap-2"
-                      >
-                        <Gauge className="h-4 w-4" />
-                        <span>{t("counters")}</span>
-                        <span className="text-muted-foreground text-xs">{counterGroupCount}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {canCreateCounters && (
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/counters:opacity-100 lg:flex"
-                            asChild
-                          >
-                            <Link
-                              to={gp("/counter-groups")}
-                              search={{ create: "true", initiativeId: String(initiative.id) }}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>{t("createCounterGroup")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </SidebarMenuItem>
-              )}
-
-              {/* Projects Link */}
-              {canViewProjects && (
-                <SidebarMenuItem>
-                  <div className="group/projects flex w-full min-w-0 items-center gap-1">
-                    <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
-                      <Link
-                        to={gp("/projects")}
-                        search={{ initiativeId: String(initiative.id) }}
-                        className="flex items-center gap-2"
-                      >
-                        <ListTodo className="h-4 w-4" />
-                        <span>{t("projects")}</span>
-                        <span className="text-muted-foreground text-xs">{projects.length}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {canCreateProjects && (
-                      <Tooltip delayDuration={300}>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/projects:opacity-100 lg:flex"
-                            asChild
-                          >
-                            <Link
-                              to={gp("/projects")}
-                              search={{ create: "true", initiativeId: String(initiative.id) }}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                          <p>{t("createProject")}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    )}
-                  </div>
-                </SidebarMenuItem>
-              )}
+              {/* One row per tool, in SIDEBAR_TOOLS order (advanced tool
+                  pinned to the top so it's the first thing a user sees when
+                  the integration is on; projects last so the project list
+                  expands directly beneath their row). */}
+              {SIDEBAR_TOOLS.filter(showTool).map((tool) => {
+                const def = TOOL_REGISTRY[tool];
+                const Icon = def.icon;
+                const link = toolLink(tool);
+                return (
+                  <SidebarMenuItem key={tool}>
+                    <div className="group/tool flex w-full min-w-0 items-center gap-1">
+                      <SidebarMenuButton asChild size="sm" className="min-w-0 flex-1">
+                        <Link
+                          to={link.to}
+                          search={link.search}
+                          className="flex min-w-0 items-center gap-2"
+                        >
+                          <Icon className="h-4 w-4" />
+                          <span className="min-w-0 flex-1 truncate">{toolLabel(tool)}</span>
+                          {def.sidebarCount && (
+                            <span className="text-muted-foreground text-xs">
+                              {counts[tool] ?? 0}
+                            </span>
+                          )}
+                        </Link>
+                      </SidebarMenuButton>
+                      {access[tool].create &&
+                        (def.inAppCreate ? (
+                          <Tooltip delayDuration={300}>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="hidden h-6 w-6 shrink-0 opacity-0 transition-opacity group-hover/tool:opacity-100 lg:flex"
+                                asChild
+                              >
+                                <Link
+                                  to={gp(toolListRoute(tool))}
+                                  search={{ create: "true", initiativeId: String(initiative.id) }}
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Link>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>{t(toolCreateLabelKey(tool))}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          /* Clearly-marked placeholder: this tool's content is
+                             authored in the external service, so the + explains
+                             where instead of opening a dialog. */
+                          <Tooltip delayDuration={300}>
+                            <TooltipTrigger asChild>
+                              <span className="hidden shrink-0 opacity-0 transition-opacity group-hover/tool:opacity-100 lg:flex">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  disabled
+                                  aria-label={t("createExternally", { name: toolLabel(tool) })}
+                                  className="h-6 w-6"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>{t("createExternally", { name: toolLabel(tool) })}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ))}
+                    </div>
+                  </SidebarMenuItem>
+                );
+              })}
 
               {/* Projects List */}
-              {canViewProjects &&
+              {access[Tool.project].view &&
                 projects.map((project) => (
                   <SidebarMenuItem key={project.id}>
                     <div className="group/project flex w-full min-w-0 items-center gap-1">

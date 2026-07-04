@@ -37,7 +37,7 @@ async def _notifications_for(
 
 async def _enable_events(session: AsyncSession, initiative):
     """Toggle the events feature flag on and persist it."""
-    initiative.events_enabled = True
+    initiative.calendar_events_enabled = True
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)

@@ -20,9 +20,9 @@ export const initiativeHandlers = [
       role_display_name: "Project Manager",
       is_manager: true,
       permissions: {
-        docs_enabled: true,
+        documents_enabled: true,
         projects_enabled: true,
-        create_docs: true,
+        create_documents: true,
         create_projects: true,
       },
     });

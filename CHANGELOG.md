@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.1] - 2026-07-04
+
+### Added
+
+- Calendar events now appear in the recent-items tabs bar, like projects, documents, queues, and counter groups.
+- Calendar events and the advanced tool now appear in the command palette (⌘K) — events are searchable like other tools; the advanced tool gets one jump entry per enabled initiative.
+- Initiative pages have an advanced-tools tab listing the initiative's advanced tools, with the standard Select → Edit access bulk-sharing flow (creation still happens in the connected automation service, and the UI says so).
+- Counter groups can now be created from the mobile initiative menu, matching the other tools.
+- Hard-purging an advanced tool (manual trash purge or the retention worker) now notifies the connected automation backend so its scheduling mirror is deleted too — including tools swept away by an initiative purge. Configured via `ADVANCED_TOOL_BACKEND_URL` + `ADVANCED_TOOL_PURGE_SECRET` (HMAC-signed, best-effort; unset on the default OSS image). Soft delete and archive stay pull-based — the automation side discovers them by syncing.
+
+### Changed
+
+- **Canonical tool naming across the API (breaking, pre-v1).** Every per-tool name now derives from one canonical tool enum: initiative master switches (`events_enabled` → `calendar_events_enabled`, `counters_enabled` → `counter_groups_enabled`, `advanced_tool_enabled` → `advanced_tools_enabled`), role permission keys (`docs_enabled`/`create_docs` → `documents_enabled`/`create_documents`, `create_events` → `create_calendar_events`, `create_counters` → `create_counter_groups`, `create_advanced_tool` → `create_advanced_tools`), and the per-member permission flags (`can_view_docs` → `can_view_documents`, `can_view_events` → `can_view_calendar_events`, `can_view_counters` → `can_view_counter_groups`, `can_view_advanced_tool` → `can_view_advanced_tools`, plus the matching `can_create_*`). A guild migration renames the columns and rewrites stored permission keys; no compatibility shims. The advanced-tool embed handoff now reads `advanced_tools_enabled` and the `create_advanced_tools` claim — external embed backends must follow the rename.
+- Permission keys, initiative switch fields, membership permission flags, and recents entity types are now all derived from the tool enum in code (with CI drift tests), so adding a tool wires every backend surface automatically.
+- The frontend now defines each tool in ONE registry (`src/lib/tools.ts`) — an icon plus capability flags — and derives everything else from it (routes, i18n keys, permission keys, sidebar rows, command-palette groups, initiative tabs, recents, trash invalidation), with drift tests that fail naming exactly which surface a new tool is missing. Route URLs renamed to the canonical stems: `/events` → `/calendar-events` and `/my-calendar` → `/my-calendar-events` (no redirects, pre-v1).
+
+### Fixed
+
+- Trashed counter groups and counters now auto-purge after their retention window, like every other trashed item — previously they lingered in the database indefinitely once past retention.
+- Restoring an item from the trash now refreshes the relevant list pages immediately — the restore invalidation used cache keys that didn't match the app's real query keys, so restored items only reappeared after a manual reload.
+- The calendar event attendee picker no longer comes up empty. It now lists the initiative members who can access the event.
+- Clearing the initiative filter (e.g. clicking "All Documents") now resets to every document without a manual refresh.
+- Break-glass / PAM access now shows the granted guild in the switcher immediately, instead of requiring a page reload before the guild becomes reachable.
+
 ## [0.54.0] - 2026-07-03
 
 ### Changed

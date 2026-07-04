@@ -39,7 +39,7 @@ export const EventsFilterBar = ({
   filtersOpen,
   onFiltersOpenChange,
 }: EventsFilterBarProps) => {
-  const { t } = useTranslation(["events", "common"]);
+  const { t } = useTranslation(["calendarEvents", "common"]);
 
   return (
     <Collapsible open={filtersOpen} onOpenChange={onFiltersOpenChange} className="space-y-2">

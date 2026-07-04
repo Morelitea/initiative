@@ -1,0 +1,134 @@
+import { ExternalLink, Loader2, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllAdvancedTools } from "@/api/query-keys";
+import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
+import { SelectableGridItem } from "@/components/access/SelectableGridItem";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAdvancedToolsList } from "@/hooks/useAdvancedTools";
+import { useAppConfig } from "@/hooks/useAppConfig";
+import { useGridSelection } from "@/hooks/useGridSelection";
+
+type AdvancedToolsViewProps = {
+  /** Initiative whose advanced tools to list (this view is initiative-scoped;
+   * guild-wide tools are managed from guild settings instead). */
+  fixedInitiativeId: number;
+  /** Whether the user may author new tools — surfaces the external-authoring
+   * note, since creation happens in the connected automation service. */
+  canCreate?: boolean;
+};
+
+/**
+ * Lists an initiative's advanced tools with the standard Select → Edit access
+ * bulk-sharing flow. There is deliberately no create dialog: tool content is
+ * authored in the external automation service (rows sync into the
+ * advanced_tools table), so the create affordance is an explanatory note.
+ */
+export const AdvancedToolsView = ({ fixedInitiativeId, canCreate }: AdvancedToolsViewProps) => {
+  const { t } = useTranslation(["advancedTools", "access"]);
+  const { advancedTool } = useAppConfig();
+  const serviceName = advancedTool?.name ?? t("title");
+
+  const toolsQuery = useAdvancedToolsList({
+    initiative_id: fixedInitiativeId,
+    page: 1,
+    page_size: 50,
+  });
+  const tools = toolsQuery.data?.items ?? [];
+
+  const selection = useGridSelection<(typeof tools)[number]>();
+  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+
+  return (
+    <div className="space-y-6">
+      {canCreate && (
+        <p className="flex items-center gap-2 text-muted-foreground text-sm">
+          <ExternalLink className="h-4 w-4" />
+          {t("createdExternally", { name: serviceName })}
+        </p>
+      )}
+
+      {toolsQuery.isLoading ? (
+        <div className="flex items-center gap-2 text-muted-foreground text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {t("loading")}
+        </div>
+      ) : toolsQuery.isError ? (
+        <p className="text-destructive text-sm">{t("loadError")}</p>
+      ) : tools.length > 0 ? (
+        <>
+          {selection.active ? (
+            <BulkAccessBar
+              count={selection.selectedItems.length}
+              canManage={canManageSharing(selection.selectedItems)}
+              onEditAccess={() => setBulkAccessOpen(true)}
+              onExit={selection.exit}
+            />
+          ) : (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={selection.enter}>
+                {t("access:bulkBar.select")}
+              </Button>
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {tools.map((tool) => (
+              <SelectableGridItem
+                key={tool.id}
+                active={selection.active}
+                selected={selection.selectedIds.has(tool.id)}
+                onToggle={() => selection.toggle(tool)}
+                label={tool.name}
+              >
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <Sparkles className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0 truncate">{tool.name}</span>
+                    </CardTitle>
+                    <CardDescription>
+                      {t("updated", {
+                        date: new Date(tool.updated_at).toLocaleDateString(),
+                      })}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </SelectableGridItem>
+            ))}
+          </div>
+        </>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("noTools")}</CardTitle>
+            <CardDescription>{t("noToolsDescription", { name: serviceName })}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground text-sm">
+              {t("createdExternally", { name: serviceName })}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <BulkEditAccessDialog
+        open={bulkAccessOpen}
+        onOpenChange={setBulkAccessOpen}
+        // This view is initiative-scoped, so every listed row carries this
+        // initiative's id (guild-wide rows have NULL and are not listed here —
+        // the backend rejects sharing them anyway).
+        items={selection.selectedItems.map((item) => ({
+          ...item,
+          initiative_id: item.initiative_id ?? fixedInitiativeId,
+        }))}
+        resourceType={Tool.advanced_tool}
+        invalidate={invalidateAllAdvancedTools}
+        onSuccess={selection.exit}
+      />
+    </div>
+  );
+};

@@ -40,7 +40,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
-import { useInitiativeMembers } from "@/hooks/useInitiatives";
+import { useInitiative } from "@/hooks/useInitiatives";
 import type { DialogProps } from "@/types/dialog";
 
 import {
@@ -68,7 +68,7 @@ export const CreateEventDialog = ({
   defaultStartTime,
   onSuccess,
 }: CreateEventDialogProps) => {
-  const { t } = useTranslation(["events", "common"]);
+  const { t } = useTranslation(["calendarEvents", "common"]);
   const { user } = useAuth();
 
   const [title, setTitle] = useState("");
@@ -87,8 +87,32 @@ export const CreateEventDialog = ({
     { all_initiative_members: true, level: "read" },
   ]);
 
-  // Fetch initiative members for attendee picker
-  const { data: members } = useInitiativeMembers(initiativeId);
+  // Attendee candidates: initiative members who can access this event via its
+  // grants — mirrors how task assignees are derived from a project's grants
+  // (ProjectDetailPage.userOptions), but scoped to the initiative's members
+  // rather than all guild users. Any grant level qualifies (attending only needs
+  // view access, unlike a task assignee who needs write). The initiative is read
+  // via get_initiative (the same source ShareControl uses), which honors the
+  // guild-admin override — so the picker is no longer empty for a non-member
+  // admin, and the default all-members grant surfaces the whole initiative.
+  const { data: initiative } = useInitiative(initiativeId);
+  const members = useMemo(() => {
+    const initiativeMembers = initiative?.members ?? [];
+    if (grants.some((g) => g.all_initiative_members)) {
+      return initiativeMembers.map((m) => m.user);
+    }
+    const grantedUserIds = new Set(
+      grants.filter((g) => g.user_id != null).map((g) => g.user_id as number)
+    );
+    const grantedRoleIds = new Set(
+      grants.filter((g) => g.role_id != null).map((g) => g.role_id as number)
+    );
+    return initiativeMembers
+      .filter(
+        (m) => grantedUserIds.has(m.user.id) || (m.role_id != null && grantedRoleIds.has(m.role_id))
+      )
+      .map((m) => m.user);
+  }, [initiative?.members, grants]);
 
   const memberItems = useMemo(() => {
     return (members ?? [])
