@@ -312,7 +312,12 @@ async def test_scoped_read_write_grant_edits_suspended_guild(
 
 
 async def _invite_for(session: AsyncSession, guild: Guild, code: str) -> GuildInvite:
-    invite = GuildInvite(code=code, guild_id=guild.id, max_uses=5)
+    invite = GuildInvite(
+        code=code,
+        guild_id=guild.id,
+        created_by_user_id=guild.created_by_user_id,
+        max_uses=5,
+    )
     session.add(invite)
     await session.commit()
     return invite
