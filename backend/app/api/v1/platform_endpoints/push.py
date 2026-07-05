@@ -48,5 +48,7 @@ async def unregister_push_token(
     This endpoint removes a push token from the database. The device will
     no longer receive push notifications.
     """
-    await push_tokens.delete_push_token(session, push_token=request.push_token)
+    await push_tokens.delete_push_token(
+        session, user_id=current_user.id, push_token=request.push_token
+    )
     return PushTokenResponse(status="unregistered")

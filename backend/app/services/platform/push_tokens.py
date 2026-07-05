@@ -67,13 +67,19 @@ async def get_push_tokens_for_user(
 async def delete_push_token(
     session: AsyncSession,
     *,
+    user_id: int,
     push_token: str,
 ) -> bool:
-    """Remove a push token (on unregister or invalid token error).
+    """Remove one of ``user_id``'s push tokens (on unregister or invalid
+    token error). Scoped to the owner so a leaked token value can't be used
+    to silence another user's devices.
 
     Returns True if a token was deleted, False otherwise.
     """
-    stmt = delete(PushToken).where(PushToken.push_token == push_token)
+    stmt = delete(PushToken).where(
+        PushToken.user_id == user_id,
+        PushToken.push_token == push_token,
+    )
     result = await session.exec(stmt)
     await session.commit()
     return result.rowcount > 0  # type: ignore

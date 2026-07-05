@@ -25,6 +25,7 @@ async def _seed_notification(session: AsyncSession, user_id: int) -> int:
         data={"task_title": "Ship it"},
     )
     await session.commit()
+    assert notification.id is not None
     return notification.id
 
 
