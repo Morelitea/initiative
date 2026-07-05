@@ -178,7 +178,10 @@ async def load_authorized(
 ) -> Any:
     """Load by id (RLS scopes to the guild) → 404 if absent, then authorize."""
     cfg = RESOURCE_ACCESS[kind]
-    assert cfg.loader is not None, f"RESOURCE_ACCESS[{kind}] has no loader"
+    if cfg.loader is None:
+        # Config bug, not a request error: this entry is feature-gate only and
+        # can't be loaded by id. Fail loudly rather than call None.
+        raise RuntimeError(f"RESOURCE_ACCESS[{kind}] has no loader")
     row = await cfg.loader(session, resource_id)
     if row is None:
         raise HTTPException(
