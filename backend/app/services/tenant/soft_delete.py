@@ -324,6 +324,7 @@ async def hard_purge_entity(
     removed.
     """
     from app.services.tenant.advanced_tool_notify import queue_purged_advanced_tool
+    from app.services.tenant.documents import unresolve_wikilinks_to_document
     from app.services.attachments import purge_document_uploads
 
     descendants = await _gather_descendants(session, entity)
@@ -332,6 +333,12 @@ async def hard_purge_entity(
     doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:
         await purge_document_uploads(session, doomed_documents)
+        # Wikilinks in surviving documents that point at a doomed one must be
+        # unresolved (documentId → null) before the row disappears, or they'd
+        # dangle forever. Runs before the DELETEs — the document_links rows
+        # are still present to find the linking documents.
+        for doc in doomed_documents:
+            await unresolve_wikilinks_to_document(session, deleted_document_id=doc.id)
 
     # A hard purge must also delete the advanced tool's scheduling mirror on
     # the external backend (soft delete/archive need no push — the mirror sees

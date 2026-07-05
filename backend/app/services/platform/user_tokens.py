@@ -115,6 +115,25 @@ async def purge_expired_tokens(session: AsyncSession) -> None:
     await session.commit()
 
 
+# ``user_tokens`` is a shared/public table the system engine holds DELETE on
+# (see app/db/system_grants.py), so the sweep runs on AdminSessionLocal with
+# no guild routing.
+TOKEN_PURGE_POLL_SECONDS = 3600
+
+
+async def process_expired_token_purge() -> None:
+    """Hourly background sweep: delete expired ``user_tokens`` rows.
+
+    Covers all purposes — consumed/expired password-reset and email-verify
+    tokens as well as device tokens past their sliding-window cap. Without
+    it, expired rows accumulate forever.
+    """
+    from app.db.session import AdminSessionLocal
+
+    async with AdminSessionLocal() as session:
+        await purge_expired_tokens(session)
+
+
 # Device token functions
 
 

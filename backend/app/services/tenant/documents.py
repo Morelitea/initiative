@@ -709,18 +709,23 @@ async def unresolve_wikilinks_to_document(
     *,
     deleted_document_id: int,
 ) -> None:
-    """Unresolve all wikilinks pointing to a document that is being deleted.
+    """Unresolve all wikilinks pointing to a document that is being hard-purged.
 
-    This updates the content of all documents that link to the deleted document,
+    This updates the content of all documents that link to the purged document,
     setting the wikilink's documentId to null so they appear as unresolved.
     Also removes the corresponding document_links entries and invalidates
     any in-memory collaboration rooms.
 
-    Should be called before deleting a document.
+    Called by ``hard_purge_entity`` before the DELETEs are issued (the
+    ``document_links`` rows must still exist to find the linking documents).
+    Soft-deleted linking documents are included — a trashed document restored
+    after the purge must not come back with a dangling wikilink.
     """
+    from app.db.soft_delete_filter import select_including_deleted
+
     # Find all documents that link to this document
     stmt = (
-        select(Document)
+        select_including_deleted(Document)
         .join(DocumentLink, DocumentLink.source_document_id == Document.id)
         .where(DocumentLink.target_document_id == deleted_document_id)
     )
