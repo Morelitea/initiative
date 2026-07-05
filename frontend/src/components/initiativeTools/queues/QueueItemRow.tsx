@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 interface QueueItemRowProps {
@@ -101,9 +102,7 @@ export const QueueItemRow = ({
 
         {/* User name */}
         {item.user && (
-          <p className="mt-0.5 text-muted-foreground text-xs">
-            {item.user.full_name || item.user.email}
-          </p>
+          <p className="mt-0.5 text-muted-foreground text-xs">{getUserDisplayName(item.user)}</p>
         )}
 
         {/* Tags */}

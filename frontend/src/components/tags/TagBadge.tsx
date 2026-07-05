@@ -3,31 +3,8 @@ import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { getContrastingTextColor } from "@/lib/counter-color";
 import { cn } from "@/lib/utils";
-
-/**
- * Calculate relative luminance from a hex color.
- * Returns a value between 0 (darkest) and 1 (lightest).
- */
-function getLuminance(hex: string): number {
-  const rgb = hex
-    .replace("#", "")
-    .match(/.{2}/g)
-    ?.map((c) => {
-      const value = parseInt(c, 16) / 255;
-      return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
-    });
-
-  if (!rgb || rgb.length < 3) return 0;
-  return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
-}
-
-/**
- * Get contrasting text color (black or white) based on background luminance.
- */
-function getContrastColor(bgColor: string): string {
-  return getLuminance(bgColor) > 0.4 ? "#000000" : "#FFFFFF";
-}
 
 interface TagBadgeProps {
   tag: TagSummary;
@@ -47,7 +24,7 @@ function truncateSegment(segment: string, maxLength: number): string {
 
 export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }: TagBadgeProps) {
   const { t } = useTranslation("tags");
-  const textColor = getContrastColor(tag.color);
+  const textColor = getContrastingTextColor(tag.color) ?? "#FFFFFF";
   const isClickable = !!onClick || !!to;
 
   // Truncate each segment individually (e.g., "long-name/a" -> "long-na.../a")

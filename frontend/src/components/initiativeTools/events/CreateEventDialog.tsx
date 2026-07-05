@@ -41,6 +41,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useCreateCalendarEvent } from "@/hooks/useCalendarEvents";
 import { useInitiative } from "@/hooks/useInitiatives";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogProps } from "@/types/dialog";
 
 import {
@@ -119,14 +120,14 @@ export const CreateEventDialog = ({
       .filter((m) => !attendeeIds.includes(m.id))
       .map((m) => ({
         value: String(m.id),
-        label: m.full_name || m.email,
+        label: getUserDisplayName(m),
       }));
   }, [members, attendeeIds]);
 
   const attendeeNames = useMemo(() => {
     const map = new Map<number, string>();
     for (const m of members ?? []) {
-      map.set(m.id, m.full_name || m.email);
+      map.set(m.id, getUserDisplayName(m));
     }
     return map;
   }, [members]);

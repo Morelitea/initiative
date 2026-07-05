@@ -115,6 +115,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 export const DocumentDetailPage = () => {
@@ -176,7 +177,7 @@ export const DocumentDetailPage = () => {
   // change every parent render and broadcast spurious presence
   // updates.
   const spreadsheetCurrentUser = useMemo(
-    () => (user ? { id: user.id, name: user.full_name || user.email || "Anonymous" } : null),
+    () => (user ? { id: user.id, name: getUserDisplayName(user) } : null),
     [user]
   );
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
@@ -1398,11 +1399,7 @@ export const DocumentDetailPage = () => {
                     awareness={
                       collaborationEnabled && collaboration.isReady ? whiteboardAwareness : null
                     }
-                    currentUser={
-                      user
-                        ? { id: user.id, name: user.full_name || user.email || "Anonymous" }
-                        : null
-                    }
+                    currentUser={user ? { id: user.id, name: getUserDisplayName(user) } : null}
                     className={cn(isFullscreen && "h-full min-h-0 flex-1")}
                   />
                 ) : (

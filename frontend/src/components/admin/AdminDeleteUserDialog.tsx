@@ -35,6 +35,7 @@ import {
 } from "@/hooks/useAdmin";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**
@@ -349,7 +350,7 @@ export function AdminDeleteUserDialog({
   const canConfirm =
     confirmationText === confirmationRequired && (action !== "hard_delete" || agreedToConsequences);
 
-  const displayName = targetUser.full_name || targetUser.email;
+  const displayName = getUserDisplayName(targetUser);
 
   // Helper to format member for combobox display
   const formatMemberLabel = (member: { full_name?: string | null; email: string }) => {
