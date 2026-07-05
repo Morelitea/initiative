@@ -235,6 +235,54 @@ async def test_redeem_invite_blocked_when_full(session: AsyncSession):
         )
 
 
+@pytest.mark.integration
+@pytest.mark.service
+async def test_concurrent_joins_cannot_exceed_user_cap(session: AsyncSession, engine):
+    """Concurrent joins racing for the last seat can't overshoot the cap.
+
+    Six users try to join a guild with ``max_users=1`` at the same instant, each
+    on its OWN connection/transaction (real concurrency, not one shared session).
+    The per-guild advisory lock in ``_assert_member_capacity`` serializes the
+    count-then-insert, so exactly one joiner wins the seat and the other five get
+    ``GuildCapacityError`` — the guild never exceeds its cap. Without the lock,
+    several would each read the pre-insert count of 0 and all commit (the TOCTOU
+    race this guards against).
+    """
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    # Room for exactly one member, and none yet.
+    guild = await create_guild(session, max_users=1)
+    joiners = [
+        await create_user(session, email=f"race-joiner-{i}@example.com")
+        for i in range(6)
+    ]
+    # Commit so the independent worker connections below can see the guild + users.
+    await session.commit()
+
+    maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def try_join(user_id: int) -> bool:
+        """Attempt one join on a fresh connection; True if it claimed the seat."""
+        async with maker() as worker:
+            try:
+                await guild_service.ensure_membership(
+                    worker, guild_id=guild.id, user_id=user_id, role=GuildRole.member
+                )
+                await worker.commit()
+                return True
+            except guild_service.GuildCapacityError:
+                await worker.rollback()
+                return False
+
+    results = await asyncio.gather(*(try_join(u.id) for u in joiners))
+
+    # Exactly one winner, and the guild sits at — never above — its cap.
+    assert sum(results) == 1
+    assert await guild_service.count_members(session, guild_id=guild.id) == 1
+
+
 @pytest.mark.unit
 @pytest.mark.service
 async def test_ensure_membership_force_role_updates(session: AsyncSession):
