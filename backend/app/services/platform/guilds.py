@@ -109,17 +109,35 @@ async def ensure_membership(
     return membership
 
 
+# Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII
+# tag ("USER") so the two-int key (namespace, guild_id) can't collide with the
+# storage-quota ("STOR") or (user_id, guild_id) advisory locks used elsewhere.
+_MEMBER_CAP_LOCK_NAMESPACE = 0x55534552  # 1431193938
+
+
 async def _assert_member_capacity(session: AsyncSession, *, guild_id: int) -> None:
     """Raise ``GuildCapacityError`` if the guild is at its ``max_users`` cap.
 
-    A ``NULL`` cap means unlimited and short-circuits before counting. The
-    caller's session must be able to see the guild's ``guild_memberships`` rows
-    (system engine, or an RLS context routed to this guild) — the same
+    A ``NULL`` cap means unlimited and short-circuits before any lock or count.
+    The caller's session must be able to see the guild's ``guild_memberships``
+    rows (system engine, or an RLS context routed to this guild) — the same
     precondition ``count_members`` documents.
+
+    Must run in the SAME transaction that then inserts the membership and
+    commits. When a cap is set it takes a transaction-scoped advisory lock keyed
+    on the guild before counting, so the count check and the insert that follows
+    cannot interleave with a concurrent join — without it, two joins to a
+    near-full guild could each read the pre-insert count and collectively exceed
+    the cap (a TOCTOU race). The lock releases on commit/rollback and only
+    serializes joins to the SAME guild (mirrors ``enforce_storage_quota``).
     """
     guild = await get_guild(session, guild_id=guild_id)
     if guild.max_users is None:
         return
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
+        params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
+    )
     if await count_members(session, guild_id=guild_id) >= guild.max_users:
         raise GuildCapacityError(GuildMessages.GUILD_USER_LIMIT_REACHED)
 
