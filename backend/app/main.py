@@ -218,8 +218,19 @@ async def insufficient_privilege_handler(
     the resolver uses; deliberately no status-specific detail (a member of a
     read-only-suspended guild learns nothing about why). Everything else
     re-raises to the default 500 path.
+
+    Always logged server-side: 42501 is expected only on the read-only-role
+    write paths, so any other occurrence (a missing SET ROLE, a revoked table
+    grant, a misconfigured login role) must be findable in the logs — the
+    client body is deliberately too generic to debug from.
     """
     if _dbapi_sqlstate(exc) == _INSUFFICIENT_PRIVILEGE_SQLSTATE:
+        logger.warning(
+            "insufficient_privilege mapped to 403: %s %s orig=%s",
+            request.method,
+            request.url.path,
+            getattr(exc, "orig", exc),
+        )
         return JSONResponse(
             status_code=status.HTTP_403_FORBIDDEN,
             content={"detail": GuildMessages.GUILD_ACCESS_DENIED},
