@@ -9,7 +9,7 @@ import pytest
 
 from app.models.platform.guild import GuildRole
 from app.models.tenant.task import TaskStatusCategory
-from app.services import stats_service
+from app.services.tenant import stats_service
 from app.testing import (
     create_guild,
     create_guild_membership,

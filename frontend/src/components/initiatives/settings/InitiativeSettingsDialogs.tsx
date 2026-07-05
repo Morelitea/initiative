@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { useCreateRole, useDeleteRole, useUpdateRole } from "@/hooks/useInitiativeRoles";
 import { useRemoveInitiativeMember } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 interface InitiativeSettingsDialogsProps {
   initiativeId: number;
@@ -315,7 +316,7 @@ export const InitiativeSettingsDialogs = ({
                   i18nKey="settings.removeMemberDescription"
                   ns="initiatives"
                   values={{
-                    name: memberToRemove?.user.full_name || memberToRemove?.user.email,
+                    name: getUserDisplayName(memberToRemove?.user),
                   }}
                   components={{ bold: <strong /> }}
                 />

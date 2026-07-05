@@ -35,6 +35,7 @@ from app.api.v1.tenant_endpoints import (
 from app.api.v1.platform_endpoints import (
     access_grants,
     admin,
+    ai_settings as platform_ai_settings,
     auth,
     config,
     guilds,
@@ -68,7 +69,7 @@ api_router.include_router(
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
 api_router.include_router(
-    ai_settings.platform_router, prefix="/settings", tags=["ai-settings"]
+    platform_ai_settings.platform_router, prefix="/settings", tags=["ai-settings"]
 )
 # Notifications are user-scoped (cross-guild) — not under /g.
 api_router.include_router(

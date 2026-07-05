@@ -3,7 +3,7 @@
 import pytest
 from fastapi import UploadFile
 
-from app.services.attachments import (
+from app.services.tenant.attachments import (
     FileTooLargeError,
     read_upload_bounded,
 )

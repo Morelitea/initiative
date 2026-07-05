@@ -31,6 +31,7 @@ import {
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 interface RemoveGuildMemberDialogProps {
   open: boolean;
@@ -263,7 +264,7 @@ export const RemoveGuildMemberDialog = ({
                           <SelectContent>
                             {candidates.map((member) => (
                               <SelectItem key={member.id} value={member.id.toString()}>
-                                {member.full_name || member.email}
+                                {getUserDisplayName(member)}
                               </SelectItem>
                             ))}
                           </SelectContent>

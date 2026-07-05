@@ -55,7 +55,7 @@ history/
 
 Frontend TypeScript types and React Query hooks in `frontend/src/api/generated/` are auto-generated from the backend's OpenAPI spec using Orval. **Do not hand-edit these files.**
 
-- `frontend/src/types/api.ts` re-exports all generated types and adds backward-compatible aliases (e.g., `Task = TaskListRead`).
+- Import types directly from `@/api/generated/initiativeAPI.schemas` (there is no re-export barrel).
 - Generated files are committed to the repo so the frontend builds without a running backend.
 
 **After changing backend schemas** (`backend/app/schemas/`), regenerate:

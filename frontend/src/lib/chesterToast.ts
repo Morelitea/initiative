@@ -6,9 +6,9 @@ import proudSvg from "@/assets/chester/proud.svg";
 import talkingSvg from "@/assets/chester/talking.svg";
 import thinkingSvg from "@/assets/chester/thinking.svg";
 
-export type ChesterToastType = "default" | "success" | "error" | "warning" | "info" | "loading";
+type ChesterToastType = "default" | "success" | "error" | "warning" | "info" | "loading";
 
-export type ChesterToastPosition =
+type ChesterToastPosition =
   | "top-left"
   | "top-center"
   | "top-right"
@@ -25,7 +25,7 @@ const VARIANT_BY_TYPE: Record<ChesterToastType, string> = {
   loading: talkingSvg,
 };
 
-export interface ChesterToastOptions {
+interface ChesterToastOptions {
   /** Custom dismissal handle. Sonner uses string|number; we accept both. */
   id?: string | number;
   /** ms to auto-dismiss; pass `Infinity` to keep open until dismissed. */

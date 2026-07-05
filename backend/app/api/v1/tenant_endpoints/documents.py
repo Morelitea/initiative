@@ -82,7 +82,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
-from app.services import attachments as attachments_service
+from app.services.tenant import attachments as attachments_service
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.core.tools import Tool
@@ -95,7 +95,7 @@ from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
-from app.services.collaboration import collaboration_manager
+from app.services.tenant.collaboration import collaboration_manager
 
 logger = logging.getLogger(__name__)
 
@@ -272,11 +272,6 @@ def _require_document_access(
         manage_access=manage_access,
         guild_role=guild_role,
     )
-
-
-def _get_document_permission(document: Document, user_id: int) -> ResourceGrant | None:
-    """Get a user's permission grant for a document from the loaded grants."""
-    return _grant_for_user(document, user_id)
 
 
 def _file_download_response(

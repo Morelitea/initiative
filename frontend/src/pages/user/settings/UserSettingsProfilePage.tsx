@@ -17,6 +17,7 @@ import { getErrorMessage } from "@/lib/errorMessage";
 import { getInitials } from "@/lib/initials";
 import { PASSWORD_MIN_LENGTH, validatePasswordLocal } from "@/lib/passwordPolicy";
 import { TIMEZONE_OPTIONS } from "@/lib/timezones";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 const dataUrl = (value?: string | null) => {
   if (!value) {
@@ -120,7 +121,7 @@ export const UserSettingsProfilePage = ({ user, refreshUser }: UserSettingsProfi
           <AvatarFallback userId={user.id}>{initials}</AvatarFallback>
         </Avatar>
         <div>
-          <p className="font-semibold text-lg">{user.full_name || user.email}</p>
+          <p className="font-semibold text-lg">{getUserDisplayName(user)}</p>
           <p className="text-muted-foreground text-sm">{t("profile.subtitle")}</p>
         </div>
       </div>

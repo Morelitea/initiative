@@ -30,7 +30,7 @@ from app.schemas.platform.admin import (
 from app.core.encryption import hash_email
 from app.core.messages import AdminMessages, SettingsMessages
 from app.services.platform import user_tokens
-from app.services import csv_export
+from app.services.platform import csv_export
 from app.services import email as email_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.tenant import initiatives as initiatives_service

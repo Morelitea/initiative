@@ -11,7 +11,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
-from app.services import attachments as attachments_service
+from app.services.tenant import attachments as attachments_service
 from app.models.tenant.document import (
     Document,
     DocumentFileVersion,

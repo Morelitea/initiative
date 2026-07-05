@@ -54,17 +54,6 @@ class InitiativeUpdate(_InitiativeToolSwitchesPatch):
 
 
 # Role schemas
-class InitiativeRolePermissionRead(SanitizedBaseModel):
-    """Permission entry for a role."""
-
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    permission_key: PermissionKey
-    enabled: bool
-
-
 class InitiativeRoleRead(SanitizedBaseModel):
     """Role definition with permissions."""
 
@@ -148,13 +137,6 @@ class MyInitiativePermissions(SanitizedBaseModel):
 
 
 # Member schemas - updated to work with role_id
-class InitiativeMemberBase(SanitizedBaseModel):
-    user_id: int
-    role_id: Optional[int] = None
-    # Keep legacy role field for backward compatibility
-    role: InitiativeRole = InitiativeRole.member
-
-
 class InitiativeMemberAdd(SanitizedBaseModel):
     """Add a member to an initiative."""
 

@@ -117,9 +117,7 @@ async def test_initiative_scope_clause_legs(session: AsyncSession):
 
     async def scoped_ids(user) -> list[int]:
         stmt = select(Initiative.id).where(
-            membership_service.initiative_scope_clause(
-                user.id, Initiative.id, Initiative.guild_id
-            )
+            membership_service.initiative_scope_clause(user.id, Initiative.id)
         )
         return list((await session.exec(stmt)).all())
 
@@ -143,9 +141,7 @@ async def test_initiative_scope_clause_pam_leg(session: AsyncSession):
 
     def stmt():
         return select(Initiative.id).where(
-            membership_service.initiative_scope_clause(
-                outsider.id, Initiative.id, Initiative.guild_id
-            )
+            membership_service.initiative_scope_clause(outsider.id, Initiative.id)
         )
 
     # Routed as a read PAM grantee for this guild (sets pam_read + routes into the

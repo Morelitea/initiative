@@ -58,6 +58,7 @@ import {
 import { useInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 export function EventSettingsPage() {
   const { t } = useTranslation(["calendarEvents", "common", "access"]);
@@ -118,19 +119,19 @@ export function EventSettingsPage() {
       .filter((m) => !attendeeIds.includes(m.id))
       .map((m) => ({
         value: String(m.id),
-        label: m.full_name || m.email,
+        label: getUserDisplayName(m),
       }));
   }, [members, attendeeIds]);
 
   const attendeeNames = useMemo(() => {
     const map = new Map<number, string>();
     for (const m of members ?? []) {
-      map.set(m.id, m.full_name || m.email);
+      map.set(m.id, getUserDisplayName(m));
     }
     // Also include names from event attendees in case members haven't loaded
     for (const a of event?.attendees ?? []) {
       if (a.user && !map.has(a.user_id)) {
-        map.set(a.user_id, a.user.full_name || a.user.email);
+        map.set(a.user_id, getUserDisplayName(a.user));
       }
     }
     return map;

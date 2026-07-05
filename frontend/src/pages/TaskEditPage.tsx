@@ -384,7 +384,7 @@ export const TaskEditPage = () => {
     if (!project) {
       return users.map((user) => ({
         id: user.id,
-        label: user.full_name ?? user.email,
+        label: getUserDisplayName(user),
         avatarUrl: user.avatar_url,
         avatarBase64: user.avatar_base64,
       }));
@@ -427,7 +427,7 @@ export const TaskEditPage = () => {
       .filter((user) => allowed.has(user.id))
       .map((user) => ({
         id: user.id,
-        label: user.full_name ?? user.email,
+        label: getUserDisplayName(user),
         avatarUrl: user.avatar_url,
         avatarBase64: user.avatar_base64,
       }));

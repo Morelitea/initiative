@@ -7,7 +7,7 @@ from app.models.tenant.project import Project
 from app.models.tenant.task import Task, TaskAssignee, TaskStatus, Subtask
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
-from app.models.platform.api_key import AdminApiKey
+from app.models.platform.api_key import UserApiKey
 from app.models.tenant.project_activity import ProjectFavorite
 from app.models.tenant.recent_view import RecentView
 from app.models.tenant.comment import Comment
@@ -71,7 +71,7 @@ __all__ = [
     "GuildSetting",
     "Initiative",
     "InitiativeMember",
-    "AdminApiKey",
+    "UserApiKey",
     "ProjectFavorite",
     "RecentView",
     "Comment",

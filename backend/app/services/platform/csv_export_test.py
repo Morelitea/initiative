@@ -14,7 +14,7 @@ import io
 
 import pytest
 
-from app.services import csv_export
+from app.services.platform import csv_export
 
 
 def _parse(body: bytes) -> list[list[str]]:

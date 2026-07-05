@@ -78,7 +78,7 @@ from app.services.realtime import broadcast_event
 from app.services.tenant import webhook_dispatcher
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
-from app.services.recurrence import get_next_due_date
+from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
 from app.services.tenant import properties as properties_service

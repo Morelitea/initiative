@@ -30,14 +30,6 @@ SYSTEM_USER_EMAIL = "deleted-user@system.internal"
 SYSTEM_USER_FULL_NAME = "[Deleted User]"
 
 
-class DeletionBlocker(Exception):
-    """Raised when account deletion is blocked."""
-
-    def __init__(self, blockers: List[str]):
-        self.blockers = blockers
-        super().__init__(", ".join(blockers))
-
-
 async def get_or_create_system_user(session: AsyncSession) -> User:
     """Get or create the system user for deleted user content."""
     stmt = select(User).where(User.email_hash == hash_email(SYSTEM_USER_EMAIL))
