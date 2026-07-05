@@ -31,10 +31,9 @@ class AuthMessages:
 
 
 class GuildMessages:
-    # Legacy code for "no guild context". Guild is now resolved from the
-    # ``/g/{guild_id}`` path and a missing/forbidden guild returns 403
-    # GUILD_ACCESS_DENIED; kept for the frontend error map's back-compat.
-    NO_GUILD_MEMBERSHIP = "NO_GUILD_MEMBERSHIP"
+    # The frontend error map still carries NO_GUILD_MEMBERSHIP for servers
+    # that predate path-based guild resolution; the backend itself only
+    # raises GUILD_ACCESS_DENIED.
     GUILD_ACCESS_DENIED = "GUILD_ACCESS_DENIED"
     GUILD_PERMISSION_REQUIRED = "GUILD_PERMISSION_REQUIRED"
     GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"

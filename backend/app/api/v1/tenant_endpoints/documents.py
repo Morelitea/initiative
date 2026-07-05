@@ -274,11 +274,6 @@ def _require_document_access(
     )
 
 
-def _get_document_permission(document: Document, user_id: int) -> ResourceGrant | None:
-    """Get a user's permission grant for a document from the loaded grants."""
-    return _grant_for_user(document, user_id)
-
-
 def _file_download_response(
     *,
     guild_id: int,

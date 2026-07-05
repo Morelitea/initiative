@@ -45,7 +45,3 @@ class UserApiKey(SQLModel, table=True):
 
 
 from app.models.platform.user import User  # noqa: E402
-
-
-# Backwards compatibility alias
-AdminApiKey = UserApiKey

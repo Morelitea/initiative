@@ -13,10 +13,9 @@ gets a 422 instead of writing an unbounded blob:
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
 
 from app.models.platform.user_view_preference import (
     MAX_SCOPE_KEY_LENGTH,
@@ -35,14 +34,6 @@ def _validate_value_size(value: Any) -> Any:
             f"value exceeds {MAX_VALUE_JSON_BYTES} bytes when serialized as JSON"
         )
     return value
-
-
-class UserViewPreferenceRead(SanitizedBaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    scope_key: str
-    value: Any
-    updated_at: datetime
 
 
 class UserViewPreferenceWrite(SanitizedBaseModel):

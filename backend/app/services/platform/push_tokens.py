@@ -79,25 +79,6 @@ async def delete_push_token(
     return result.rowcount > 0  # type: ignore
 
 
-async def delete_push_token_by_id(
-    session: AsyncSession,
-    *,
-    token_id: int,
-    user_id: int,
-) -> bool:
-    """Delete a push token by ID (must belong to the user).
-
-    Returns True if a token was deleted, False otherwise.
-    """
-    stmt = delete(PushToken).where(
-        PushToken.id == token_id,
-        PushToken.user_id == user_id,
-    )
-    result = await session.exec(stmt)
-    await session.commit()
-    return result.rowcount > 0  # type: ignore
-
-
 async def update_last_used(
     session: AsyncSession,
     *,
@@ -112,21 +93,3 @@ async def update_last_used(
         token.last_used_at = datetime.now(timezone.utc)
         session.add(token)
         await session.commit()
-
-
-async def delete_tokens_by_device_token_id(
-    session: AsyncSession,
-    *,
-    device_token_id: int,
-) -> int:
-    """Delete all push tokens associated with a device token.
-
-    This is useful when a device token is revoked - we should also remove
-    all push tokens for that device.
-
-    Returns the number of tokens deleted.
-    """
-    stmt = delete(PushToken).where(PushToken.device_token_id == device_token_id)
-    result = await session.exec(stmt)
-    await session.commit()
-    return result.rowcount  # type: ignore

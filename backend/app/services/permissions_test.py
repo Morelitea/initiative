@@ -9,7 +9,6 @@ Uses SimpleNamespace mocks to simulate eagerly-loaded ORM objects.
 """
 
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 from fastapi import HTTPException
@@ -365,64 +364,52 @@ def test_compute_document_permission_no_access():
 
 
 # ---------------------------------------------------------------------------
-# require_document_access (patches _get_loaded_document_permissions to avoid
-# SQLAlchemy inspect on SimpleNamespace)
+# require_document_access
 # ---------------------------------------------------------------------------
-
-
-# require_document_access now reads grants directly; the old document-permission
-# loader was removed. These contexts patch a still-present, uninvolved helper so
-# the (now no-op) `with patch(...)` blocks keep working without restructuring.
-_PATCH_TARGET = "app.services.permissions._get_user_role_ids"
 
 
 @pytest.mark.unit
 def test_require_document_access_read_allowed():
     doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.read)
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=[]):
-        require_document_access(doc, user, access="read")  # should not raise
+    require_document_access(doc, user, access="read")  # should not raise
 
 
 @pytest.mark.unit
 def test_require_document_access_write_denied():
     doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.read)
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=[]):
-        with pytest.raises(HTTPException) as exc_info:
-            require_document_access(doc, user, access="write")
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.detail == DocumentMessages.WRITE_ACCESS_REQUIRED
+    with pytest.raises(HTTPException) as exc_info:
+        require_document_access(doc, user, access="write")
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == DocumentMessages.WRITE_ACCESS_REQUIRED
 
 
 @pytest.mark.unit
 def test_require_document_access_no_access():
     doc = _make_document()  # no permissions for user
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=[]):
-        with pytest.raises(HTTPException) as exc_info:
-            require_document_access(doc, user, access="read")
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.detail == DocumentMessages.NO_ACCESS
+    with pytest.raises(HTTPException) as exc_info:
+        require_document_access(doc, user, access="read")
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == DocumentMessages.NO_ACCESS
 
 
 @pytest.mark.unit
 def test_require_document_access_owner_required():
     doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.write)
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=[]):
-        with pytest.raises(HTTPException) as exc_info:
-            require_document_access(doc, user, require_owner=True)
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.detail == DocumentMessages.OWNER_REQUIRED
+    with pytest.raises(HTTPException) as exc_info:
+        require_document_access(doc, user, require_owner=True)
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == DocumentMessages.OWNER_REQUIRED
 
 
 @pytest.mark.unit
 def test_require_document_access_owner_passes():
     doc = _make_document(user_id=1, user_level=DocumentPermissionLevel.owner)
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=[]):
-        require_document_access(doc, user, require_owner=True)  # should not raise
+    require_document_access(doc, user, require_owner=True)  # should not raise
 
 
 # ---------------------------------------------------------------------------
@@ -522,10 +509,9 @@ def test_guild_admin_bypasses_initiative_scope_via_param():
         user_id=1, user_level=DocumentPermissionLevel.read, member=False
     )
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=[]):
-        require_document_access(
-            doc, user, access="read", guild_role="admin"
-        )  # should not raise
+    require_document_access(
+        doc, user, access="read", guild_role="admin"
+    )  # should not raise
 
 
 @pytest.mark.unit
@@ -538,8 +524,7 @@ def test_guild_admin_bypasses_initiative_scope_via_role_context():
     user = _make_user(user_id=1)
     try:
         set_active_role(7, "admin")
-        with patch(_PATCH_TARGET, return_value=[]):
-            require_document_access(doc, user, access="read")  # should not raise
+        require_document_access(doc, user, access="read")  # should not raise
     finally:
         set_active_role(None, None)
 
@@ -587,9 +572,8 @@ def test_data_bypass_no_longer_bypasses_initiative_scope():
     ``test_pam_grant_bypasses_initiative_scope``)."""
     doc = _make_document(user_id=1, member=False)
     user = _make_user(user_id=1, role=UserRole.owner)
-    with patch(_PATCH_TARGET, return_value=[]):
-        with pytest.raises(HTTPException) as exc_info:
-            require_document_access(doc, user, access="read")
+    with pytest.raises(HTTPException) as exc_info:
+        require_document_access(doc, user, access="read")
     assert exc_info.value.status_code == 403
 
 
@@ -612,7 +596,6 @@ def test_membership_without_permission_row_still_denied():
     """The gate is an AND-layer: membership alone grants nothing."""
     doc = _make_document(memberships=[SimpleNamespace(user_id=1, role_id=None)])
     user = _make_user(user_id=1)
-    with patch(_PATCH_TARGET, return_value=[]):
-        with pytest.raises(HTTPException) as exc_info:
-            require_document_access(doc, user, access="read")
+    with pytest.raises(HTTPException) as exc_info:
+        require_document_access(doc, user, access="read")
     assert exc_info.value.status_code == 403
