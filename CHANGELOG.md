@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Permanently purging a document (manual trash purge or the retention worker) now unresolves wikilinks pointing at it in every other document — including trashed ones — instead of leaving links that reference a document that no longer exists.
 - Expired sign-in and verification tokens are now cleaned up automatically by an hourly background sweep; previously expired rows accumulated indefinitely.
 - Deleted (anonymized) users now display consistently as "Deleted user" everywhere; several screens previously showed a raw email or "Anonymous".
+- Anonymizing a user now scrubs their display name out of content that embedded it as text — @-mentions in comments, mention nodes in documents, and pending assignment-digest emails — instead of leaving the name readable after the account was "forgotten".
+- Hard-deleting an already-anonymized user now removes their guild-scoped data (task assignments, sharing grants, authored-content reassignment, …). Anonymizing drops guild memberships, and the deletion sweep only visited membership guilds, so it silently skipped everything.
 
 ## [0.54.1] - 2026-07-04
 
