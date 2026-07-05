@@ -11,7 +11,13 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
-from app.models.platform.guild import Guild, GuildInvite, GuildMembership, GuildRole
+from app.models.platform.guild import (
+    Guild,
+    GuildInvite,
+    GuildMembership,
+    GuildRole,
+    GuildStatus,
+)
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
 
@@ -259,6 +265,16 @@ async def list_memberships(
 
     out: list[tuple[Guild, GuildMembership, int | None, int]] = []
     for guild, membership in pairs:
+        # A suspended guild disappears from its members' guild list; guild
+        # ADMINS keep the entry so they can still reach the settings surface
+        # (billing / data ownership / danger zone stay theirs under any
+        # status). No status is serialized either way — the row is simply
+        # absent for members.
+        if (
+            guild.status == GuildStatus.suspended.value
+            and membership.role != GuildRole.admin
+        ):
+            continue
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         row = (
             await session.exec(
@@ -555,6 +571,12 @@ async def redeem_invite_for_user(
         raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
     if not invite_is_active(invite):
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
+    # A non-active guild is frozen: no new members while read_only or
+    # suspended. Reported as an ordinary expired invite — the guild's
+    # lifecycle status is deliberately not disclosed.
+    target_guild = await get_guild(session, guild_id=invite.guild_id)
+    if target_guild.status != GuildStatus.active.value:
+        raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
 
     # Email binding. ``invitee_email`` is advisory-when-absent: an invite with no
     # bound address (``invitee_email_encrypted`` is NULL) is a shareable link and
@@ -589,6 +611,10 @@ async def describe_invite_code(
     if not invite:
         return None, None, False, GuildMessages.INVITE_NOT_FOUND
     guild = await get_guild(session, guild_id=invite.guild_id)
+    # A non-active guild accepts no new members; report the invite as plain
+    # expired (never the guild's lifecycle status).
+    if guild.status != GuildStatus.active.value:
+        return invite, guild, False, GuildMessages.INVITE_EXPIRED
     if invite_is_active(invite):
         return invite, guild, True, None
 

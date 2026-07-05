@@ -416,3 +416,61 @@ async def test_app_admin_needs_set_role_for_guild_schema(session, role_session):
         )
     ).first()
     assert row is not None
+
+
+@pytest.mark.integration
+async def test_upload_suspended_guild_member_404_grant_still_served(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """A member of a SUSPENDED guild can no longer fetch its uploads (404, the
+    route's fail-closed shape), while a live PAM grant still serves — the
+    uploads path mirrors the resolver's member-only status gate."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.models.platform.access_grant import AccessGrant
+    from app.models.platform.guild import GuildStatus
+    from app.models.tenant.upload import Upload
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    await create_guild_membership(session, user=user, guild=guild)
+    _stage_upload(guild.id, "suspended_guild.txt")
+    session.add(
+        Upload(
+            filename="suspended_guild.txt",
+            guild_id=guild.id,
+            uploader_user_id=user.id,
+            size_bytes=5,
+        )
+    )
+    guild.status = GuildStatus.suspended.value
+    await session.commit()
+
+    resp = await client.get(
+        f"/uploads/{guild.id}/suspended_guild.txt", headers=get_auth_headers(user)
+    )
+    assert resp.status_code == 404, "member must not read a suspended guild's blobs"
+
+    # A scoped PAM read grantee is unaffected (PAM overrides suspension).
+    grantee = await create_user(session, role="support")
+    now = datetime.now(timezone.utc)
+    session.add(
+        AccessGrant(
+            user_id=grantee.id,
+            guild_id=guild.id,
+            access_level="read",
+            status="approved",
+            reason="ticket",
+            requested_duration_minutes=60,
+            requested_by_id=grantee.id,
+            approved_by_id=user.id,
+            decided_at=now,
+            expires_at=now + timedelta(hours=1),
+        )
+    )
+    await session.commit()
+
+    resp = await client.get(
+        f"/uploads/{guild.id}/suspended_guild.txt", headers=get_auth_headers(grantee)
+    )
+    assert resp.status_code == 200, resp.text

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Platform admins can now set a per-guild user limit from the admin dashboard's Guilds tab (default unlimited). Each guild shows its current headcount against the cap (e.g. `3/unlimited` or `3/10`), and the limit is editable inline. When a guild is at its limit, joining via an invite, signing up with an invite, or a guild admin creating a member is refused; existing members are never removed, and lowering a cap below the current headcount only blocks new joins. SSO/OIDC auto-provisioning is exempt.
+- Guilds now carry an operator-set lifecycle status (`active` / `read_only` / `suspended`) for billing/moderation holds — backend enforcement only in this release (no management UI yet). Under `read_only`, members keep reading content but writes are denied at the database role level; under `suspended`, members lose all access and the guild disappears from their guild list, while guild **admins** keep the guild listed and retain full settings access (billing, data ownership, danger zone). New members can't join a non-active guild. Trash auto-purge pauses for non-active guilds so a hold never keeps destroying data. Time-bound PAM/break-glass access grants deliberately override the status, so operators can always reach a guild they suspended. The status is reversible, never touches stored data, and is not disclosed to members.
 
 ## [0.54.2] - 2026-07-04
 

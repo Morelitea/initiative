@@ -12,6 +12,27 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.guild_setting import GuildSetting
 
 
+class GuildStatus(str, Enum):
+    """Operator-set lifecycle status of a guild (platform `guilds.manage`).
+
+    - ``active``: normal operation.
+    - ``read_only``: members keep read access to content but writes are denied
+      at the Postgres role level (routed into ``guild_<id>_ro``).
+    - ``suspended``: soft delete — members lose all content access and the
+      guild vanishes from their guild list. Guild admins keep the settings
+      surface (billing / data ownership / danger zone) under every status.
+
+    PAM/break-glass grants deliberately override all of this: a grantee
+    behaves exactly as against an active guild (the resolver's grant branch
+    never consults the status), so suspending a guild can never lock the
+    platform operators out. The status is not serialized to guild members.
+    """
+
+    active = "active"
+    read_only = "read_only"
+    suspended = "suspended"
+
+
 class Guild(SQLModel, table=True):
     __tablename__ = "guilds"
     __allow_unmapped__ = True
@@ -39,6 +60,18 @@ class Guild(SQLModel, table=True):
     # Max number of members allowed in this guild. NULL = unlimited (default).
     max_users: Optional[int] = Field(
         default=None, sa_column=Column(Integer, nullable=True)
+    )
+    # Lifecycle status (see GuildStatus). Stored as a plain string with a CHECK
+    # constraint (the access_grants pattern) rather than a Postgres enum.
+    status: str = Field(
+        default=GuildStatus.active.value,
+        sa_column=Column(
+            String(16), nullable=False, server_default=GuildStatus.active.value
+        ),
+    )
+    # When the status last changed; NULL until the first operator change.
+    status_changed_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
 
     members: List["GuildMembership"] = Relationship(

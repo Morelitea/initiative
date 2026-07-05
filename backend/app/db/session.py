@@ -137,6 +137,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     pam_read = bool(params.get("pam_read"))
     pam_write = bool(params.get("pam_write"))
     platform_role = params.get("platform_role")
+    read_only = bool(params.get("read_only"))
 
     # Route guild-scoped tables to the active guild's schema AND assume that
     # guild's role. The login role has no standing access to any guild schema
@@ -166,10 +167,17 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         )
     else:
         sp = f"{guild_schema_name(route_guild)}, public"
-        # A pure read grant (read, not write, no full membership) assumes the
-        # read-only role so writes to the schema are denied at the role level.
+        # Assume the SELECT-only guild_<id>_ro role — writes to the schema are
+        # denied at the role level — for either:
+        # - a pure read grant (read, not write, no full membership), or
+        # - a real member of a guild in ``read_only`` status (the membership
+        #   GUCs stay set so the member/admin RLS legs read normally).
         read_only_grant = guild_id is None and pam_read and not pam_write
-        name_fn = guild_readonly_role_name if read_only_grant else guild_role_name
+        name_fn = (
+            guild_readonly_role_name
+            if (read_only_grant or read_only)
+            else guild_role_name
+        )
         role_target = name_fn(route_guild)
 
     return {
@@ -225,6 +233,7 @@ async def set_rls_context(
     pam_read: bool = False,
     pam_write: bool = False,
     platform_role: Optional[str] = None,
+    read_only: bool = False,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -246,6 +255,13 @@ async def set_rls_context(
     ``current_guild_id`` as proof of membership, so a grantee must leave it
     unset and be scoped via ``pam_guild_id`` instead. A grantee gets scoped,
     time-bound access to one guild; there is no all-guild bypass.
+
+    ``read_only`` routes a REAL MEMBER into the SELECT-only ``guild_<id>_ro``
+    role while keeping the full membership GUCs — used when the guild is in
+    ``read_only`` lifecycle status, so content writes die at the Postgres role
+    level while reads (and the member/admin RLS legs) behave normally. It is
+    independent of the PAM read-grant routing, which derives the same role
+    from ``pam_read``/``pam_write``.
 
     ``platform_role`` is the caller's platform tier (``users.role``). When the
     request carries no guild context (and no active PAM grant), the public/platform
@@ -277,6 +293,7 @@ async def set_rls_context(
         "pam_read": pam_read,
         "pam_write": pam_write,
         "platform_role": platform_role,
+        "read_only": read_only,
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 

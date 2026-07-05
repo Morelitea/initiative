@@ -16,10 +16,12 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_upload_user
 from app.api.v1.api import api_router
+from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
@@ -187,6 +189,44 @@ async def validation_exception_handler(
     )
 
 
+_INSUFFICIENT_PRIVILEGE_SQLSTATE = "42501"
+
+
+def _dbapi_sqlstate(exc: DBAPIError) -> str | None:
+    """Best-effort SQLSTATE off a wrapped DBAPI error (asyncpg adapter nests
+    the real exception one level down as ``orig.__cause__``)."""
+    orig = getattr(exc, "orig", None)
+    for candidate in (orig, getattr(orig, "__cause__", None)):
+        code = getattr(candidate, "sqlstate", None) or getattr(
+            candidate, "pgcode", None
+        )
+        if code:
+            return code
+    return None
+
+
+@app.exception_handler(DBAPIError)
+async def insufficient_privilege_handler(
+    request: Request, exc: DBAPIError
+) -> JSONResponse:
+    """Map Postgres ``insufficient_privilege`` (42501) to a generic 403.
+
+    Denials enforced at the role layer — e.g. a write attempted while routed
+    into the SELECT-only ``guild_<id>_ro`` role (PAM read grants, guilds in
+    ``read_only`` status) — surface as asyncpg errors, not app-layer checks.
+    They ARE authorization denials, so answer 403 with the same generic code
+    the resolver uses; deliberately no status-specific detail (a member of a
+    read-only-suspended guild learns nothing about why). Everything else
+    re-raises to the default 500 path.
+    """
+    if _dbapi_sqlstate(exc) == _INSUFFICIENT_PRIVILEGE_SQLSTATE:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": GuildMessages.GUILD_ACCESS_DENIED},
+        )
+    raise exc
+
+
 # Computed once — Settings are fixed for the process lifetime (pentest MED-001).
 _CONTENT_SECURITY_POLICY = settings.content_security_policy
 
@@ -257,6 +297,7 @@ async def serve_upload_file(
     # is never read.
     from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
+    from app.models.platform.guild import GuildStatus
     from app.services.platform import access_grants as access_grants_service
     from app.services.platform import guilds as guilds_service
 
@@ -268,6 +309,14 @@ async def serve_upload_file(
             session, user_id=current_user.id, guild_id=guild_id
         )
         if grant is None:
+            raise HTTPException(status_code=404)
+    else:
+        # A suspended guild is unreadable to its members (mirrors the resolver
+        # gate in deps._load_guild_context; this route resolves access inline).
+        # The grant branch above deliberately skips the status — PAM overrides
+        # suspension. read_only needs nothing here: serving a file is a read.
+        guild = await guilds_service.get_guild(session, guild_id=guild_id)
+        if guild.status == GuildStatus.suspended.value:
             raise HTTPException(status_code=404)
 
     # The admin login role has NO table grants on a guild schema, so SET ROLE

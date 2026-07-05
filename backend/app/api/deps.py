@@ -23,7 +23,7 @@ from app.core.security import (
 from app.db.session import get_session, set_rls_context
 from app.models.platform.access_grant import AccessGrant, AccessLevel
 from app.models.platform.api_key import UserApiKey
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
 from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.token import TokenPayload
 from app.services.platform import access_grants as access_grants_service
@@ -312,6 +312,11 @@ class GuildContext:
     # + guild-admin RLS context), unlike a regular PAM grant which stays scoped
     # to content read/write. Still grant-gated: no live grant, no reach.
     break_glass: bool = False
+    # True when the guild is in ``read_only`` status and access is via real
+    # membership: the session is routed into the SELECT-only ``guild_<id>_ro``
+    # Postgres role so content writes are denied at the role level. Never set
+    # on the grant branches — PAM/break-glass override the guild status.
+    content_read_only: bool = False
 
     @property
     def guild_id(self) -> int:
@@ -420,7 +425,22 @@ async def _load_guild_context(
             guild=guild, membership=synthetic, grant=grant, break_glass=break_glass
         )
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    return GuildContext(guild=guild, membership=membership)
+    # Guild lifecycle status gates REAL MEMBERS ONLY — the grant branch above
+    # deliberately never consults it (PAM/break-glass behave exactly as against
+    # an active guild, so suspending a guild can never lock operators out).
+    # This resolver is the one layer where a grantee is still distinguishable
+    # from a member: at the DB layer break-glass is byte-identical to a real
+    # guild admin, so the status check cannot live in RLS. ``suspended`` fails
+    # closed with the generic access-denied code (the status is not disclosed
+    # to members); ``read_only`` keeps membership but routes the session into
+    # the SELECT-only guild role (see _apply_guild_session_context).
+    if guild.status == GuildStatus.suspended.value:
+        raise GuildAccessError()
+    return GuildContext(
+        guild=guild,
+        membership=membership,
+        content_read_only=(guild.status == GuildStatus.read_only.value),
+    )
 
 
 async def get_guild_membership(
@@ -554,6 +574,11 @@ async def _apply_guild_session_context(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role.value,
+        # Guild in read_only status: keep the full membership GUCs (so the
+        # initiative-member and admin RLS legs evaluate normally) but assume
+        # the SELECT-only guild_<id>_ro Postgres role — content writes are
+        # denied by Postgres, not app code.
+        read_only=guild_context.content_read_only,
     )
     # Precompute the initiatives where this member holds "Full access" so the
     # sync DAC checks can apply the gate-4 override without an async query. Runs

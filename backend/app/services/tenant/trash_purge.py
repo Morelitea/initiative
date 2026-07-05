@@ -34,7 +34,7 @@ from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document
-from app.models.platform.guild import Guild
+from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
@@ -114,7 +114,17 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
     own committed pass. Split out so tests can drive it with the test session.
     """
     await set_rls_context(session)
-    guild_ids = list(await session.exec(select(Guild.id).order_by(Guild.id.asc())))
+    # Only ACTIVE guilds are purged. A read_only or suspended guild is frozen —
+    # a nonpayment/moderation hold must not keep destroying trashed data while
+    # it is unresolved (data ownership / legal). Retention resumes (with the
+    # original purge_at stamps) when the guild returns to active.
+    guild_ids = list(
+        await session.exec(
+            select(Guild.id)
+            .where(Guild.status == GuildStatus.active.value)
+            .order_by(Guild.id.asc())
+        )
+    )
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
