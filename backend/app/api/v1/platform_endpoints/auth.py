@@ -177,6 +177,10 @@ async def register_user(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
                 ) from exc
+            except guilds_service.GuildCapacityError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+                ) from exc
             # Joining an existing (already-provisioned) guild — just record membership.
             await guilds_service.ensure_membership(
                 session,

@@ -34,6 +34,7 @@
   "GUILD_MEMBERSHIP_CREATE_FAILED": "Gildenmitgliedschaft konnte nicht erstellt werden",
   "GUILD_PROVISION_FAILED": "Gildenspeicher konnte nicht bereitgestellt werden",
   "GUILD_MEMBERSHIP_MISSING": "Gildenmitgliedschaft fehlt",
+  "GUILD_USER_LIMIT_REACHED": "Diese Gilde hat ihr Benutzerlimit erreicht. Bitte einen Plattform-Administrator, es zu erhöhen.",
   "CANNOT_CHANGE_OWN_ROLE": "Du kannst deine eigene Gildenrolle nicht ändern",
   "USER_NOT_FOUND_IN_GUILD": "Benutzer in der Gilde nicht gefunden",
   "CANNOT_DEMOTE_LAST_ADMIN": "Der letzte Gildenadministrator kann nicht herabgestuft werden",

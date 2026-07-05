@@ -11,6 +11,7 @@ import { usePlatformGuilds, useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 // Storage caps are entered in binary GB (GiB) so a value round-trips cleanly
 // with `formatBytes` (which is also 1024-based).
@@ -90,6 +91,90 @@ const GuildStorageCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   );
 };
 
+/** Parse the user-limit input into the value to send, or flag an invalid entry. */
+const parseUserLimitInput = (raw: string): { limit: number | null; invalid: boolean } => {
+  const trimmed = raw.trim();
+  if (trimmed === "") return { limit: null, invalid: false }; // blank = unlimited
+  const n = Number(trimmed);
+  // A member cap must be a whole number >= 1 (a guild always has its creator).
+  if (!Number.isInteger(n) || n < 1) return { limit: null, invalid: true };
+  return { limit: n, invalid: false };
+};
+
+/** Render a stored user cap back into a tidy input string ("" = unlimited). */
+const userLimitToInput = (limit: number | null): string => (limit == null ? "" : String(limit));
+
+/**
+ * The "Users" cell: current member count over an inline-editable cap, rendering
+ * the `3/unlimited` (or `3/10`) display the operator reads at a glance. The cap
+ * input auto-saves on blur (and Enter); blank means unlimited and a bad entry
+ * reverts. When a guild is over its cap (e.g. the cap was lowered below the
+ * current headcount) the count is flagged — existing members are never removed,
+ * only new joins are blocked.
+ */
+const GuildUserLimitCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+  const { t } = useTranslation("settings");
+  const stored = guild.max_users ?? null;
+  const [draft, setDraft] = useState(() => userLimitToInput(stored));
+
+  const update = useUpdateGuildStorage({
+    onSuccess: (row) => {
+      setDraft(userLimitToInput(row.max_users ?? null));
+      toast.success(t("guilds.usersSaved", { name: row.name }));
+    },
+    onError: (err) => {
+      setDraft(userLimitToInput(stored)); // revert to the last persisted value
+      toast.error(getErrorMessage(err, "settings:guilds.usersSaveError"));
+    },
+  });
+
+  const commit = () => {
+    const { limit, invalid } = parseUserLimitInput(draft);
+    if (invalid) {
+      setDraft(userLimitToInput(stored));
+      return;
+    }
+    if (limit === stored) {
+      setDraft(userLimitToInput(stored)); // normalize formatting (e.g. "10 " -> "10")
+      return;
+    }
+    update.mutate({ guildId: guild.id, data: { max_users: limit } });
+  };
+
+  const overLimit = stored != null && guild.member_count > stored;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className={cn(
+          "tabular-nums",
+          overLimit ? "font-medium text-destructive" : "text-muted-foreground"
+        )}
+        title={overLimit ? t("guilds.overLimitHint", { name: guild.name }) : undefined}
+      >
+        {guild.member_count}
+      </span>
+      <span className="text-muted-foreground">/</span>
+      <Input
+        type="number"
+        min={1}
+        step={1}
+        inputMode="numeric"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+        placeholder={t("guilds.unlimitedPlaceholder")}
+        aria-label={t("guilds.userLimitInputLabel", { name: guild.name })}
+        disabled={update.isPending}
+        className="w-28"
+      />
+    </div>
+  );
+};
+
 export const AdminDashboardGuildsPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
@@ -112,10 +197,8 @@ export const AdminDashboardGuildsPage = () => {
     },
     {
       accessorKey: "member_count",
-      header: t("guilds.columns.members"),
-      cell: ({ row }) => (
-        <span className="text-muted-foreground tabular-nums">{row.original.member_count}</span>
-      ),
+      header: t("guilds.columns.users"),
+      cell: ({ row }) => <GuildUserLimitCell guild={row.original} />,
     },
     {
       id: "storage",

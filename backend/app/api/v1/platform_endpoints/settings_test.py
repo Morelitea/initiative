@@ -308,6 +308,215 @@ async def test_update_guild_storage_sets_and_clears_limit(
 
 
 @pytest.mark.integration
+async def test_list_guild_storage_returns_max_users(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """The Guilds tab reports each guild's user cap (null = unlimited) alongside
+    its member count, for the ``3/unlimited`` display."""
+    owner = await create_user(
+        session, email="owner-gusers-list@example.com", role=UserRole.owner
+    )
+    capped = await create_guild(
+        session, creator=owner, name="Seat-Capped Guild", max_users=10
+    )
+    await create_guild_membership(
+        session, user=owner, guild=capped, role=GuildRole.admin
+    )
+    await create_guild(session, creator=owner, name="Open Guild")
+
+    resp = await client.get("/api/v1/settings/guilds", headers=get_auth_headers(owner))
+    assert resp.status_code == 200
+    rows = {row["name"]: row for row in resp.json()}
+
+    assert rows["Seat-Capped Guild"]["max_users"] == 10
+    assert rows["Seat-Capped Guild"]["member_count"] == 1
+    assert rows["Open Guild"]["max_users"] is None
+    assert rows["Open Guild"]["member_count"] == 0
+
+
+@pytest.mark.integration
+async def test_update_guild_users_sets_and_clears_limit(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An operator can cap a guild's users and later switch it back to unlimited."""
+    owner = await create_user(
+        session, email="owner-gusers-upd@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    headers = get_auth_headers(owner)
+
+    set_resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 25},
+        headers=headers,
+    )
+    assert set_resp.status_code == 200
+    assert set_resp.json()["max_users"] == 25
+
+    clear_resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": None},
+        headers=headers,
+    )
+    assert clear_resp.status_code == 200
+    assert clear_resp.json()["max_users"] is None
+
+
+@pytest.mark.integration
+async def test_update_guild_caps_are_independent(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A PATCH touching only one cap leaves the other untouched (the endpoint
+    keys off ``model_fields_set``)."""
+    owner = await create_user(
+        session, email="owner-gcaps-indep@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(
+        session, creator=owner, max_storage_bytes=2048, max_users=5
+    )
+    headers = get_auth_headers(owner)
+
+    # Update only the user cap: storage must survive.
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 9},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["max_users"] == 9
+    assert resp.json()["max_storage_bytes"] == 2048
+
+    # Update only storage: the user cap must survive.
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_storage_bytes": 4096},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["max_storage_bytes"] == 4096
+    assert resp.json()["max_users"] == 9
+
+
+@pytest.mark.integration
+async def test_update_guild_users_rejects_zero(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A cap of 0 is nonsensical (a guild always has at least its creator) and is
+    rejected by validation (``ge=1``)."""
+    owner = await create_user(
+        session, email="owner-gusers-zero@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 0},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.integration
+async def test_lowering_cap_below_count_keeps_members_and_blocks_join(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Lowering the cap under the current headcount is allowed: it never removes
+    existing members, it only blocks the next join. End-to-end across the
+    settings PATCH and invite-accept endpoints."""
+    from app.services.platform import guilds as guild_service
+
+    owner = await create_user(
+        session, email="owner-lower@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    other = await create_user(session, email="lower-other@example.com")
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=owner.id, role=GuildRole.admin
+    )
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=other.id, role=GuildRole.member
+    )
+    invitee = await create_user(session, email="lower-invitee@example.com")
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=owner.id, max_uses=5
+    )
+    await session.commit()
+    headers = get_auth_headers(owner)
+
+    # Cap 1 is below the current 2 members — accepted, and both members stay.
+    patch = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 1},
+        headers=headers,
+    )
+    assert patch.status_code == 200
+    assert patch.json()["max_users"] == 1
+    assert patch.json()["member_count"] == 2
+
+    # But the guild is now over its cap, so a new join is refused.
+    accept = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(invitee),
+        json={"code": invite.code},
+    )
+    assert accept.status_code == 403
+    assert accept.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+
+@pytest.mark.integration
+async def test_raising_cap_reopens_joins(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A full guild blocks joins; raising the cap lets the same invite through."""
+    from app.services.platform import guilds as guild_service
+
+    owner = await create_user(
+        session, email="owner-raise@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, max_users=1)
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=owner.id, role=GuildRole.admin
+    )
+    invitee = await create_user(session, email="raise-invitee@example.com")
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=owner.id, max_uses=5
+    )
+    await session.commit()
+    headers = get_auth_headers(owner)
+
+    # Full (1/1) — the invite is refused, and it is NOT consumed (the cap check
+    # runs before the invite's use count is incremented).
+    blocked = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(invitee),
+        json={"code": invite.code},
+    )
+    assert blocked.status_code == 403
+
+    # Raise the cap, then the very same invite succeeds.
+    patch = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 5},
+        headers=headers,
+    )
+    assert patch.status_code == 200
+
+    accepted = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(invitee),
+        json={"code": invite.code},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["max_users"] == 5
+
+
+@pytest.mark.integration
 async def test_update_guild_storage_rejects_negative_limit(
     client: AsyncClient,
     session: AsyncSession,

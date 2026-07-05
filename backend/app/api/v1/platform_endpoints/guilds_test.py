@@ -597,6 +597,36 @@ async def test_accept_invite(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
+async def test_accept_invite_blocked_when_guild_full(
+    client: AsyncClient, session: AsyncSession
+):
+    """Accepting an invite into a guild at its user cap returns 403."""
+    from app.services.platform import guilds as guild_service
+
+    creator = await create_user(session, email="full-creator@example.com")
+    seat_holder = await create_user(session, email="full-seat@example.com")
+    invitee = await create_user(session, email="full-invitee@example.com")
+    guild = await create_guild(session, name="Full Guild", max_users=1)
+
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
+    )
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=creator.id, max_uses=5
+    )
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(invitee),
+        json={"code": invite.code},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+
+@pytest.mark.integration
 async def test_accept_invalid_invite_fails(client: AsyncClient, session: AsyncSession):
     """Test that accepting invalid invite fails."""
     user = await create_user(session, email="test@example.com")

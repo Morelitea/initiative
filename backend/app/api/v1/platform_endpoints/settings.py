@@ -274,6 +274,7 @@ async def list_platform_guild_storage(
             name=g.name,
             member_count=counts.get(g.id, 0),
             max_storage_bytes=g.max_storage_bytes,
+            max_users=g.max_users,
         )
         for g in guilds
     ]
@@ -286,19 +287,24 @@ async def update_platform_guild_storage(
     session: AdminSessionDep,
     _admin: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
-    """Set a guild's storage cap (bytes; ``null`` = unlimited). Admin/owner.
+    """Set a guild's storage and/or member caps (``null`` = unlimited). Admin/owner.
 
-    Writes only ``public.guilds.max_storage_bytes`` — a shared column — so no
-    guild-schema routing is needed. The cap is enforced on every upload by
-    ``enforce_storage_quota``; lowering it below current usage simply blocks
-    further uploads, it does not delete existing blobs.
+    Writes only shared ``public.guilds`` columns (``max_storage_bytes`` /
+    ``max_users``) — no guild-schema routing needed. ``model_fields_set`` tells an
+    omitted field (leave untouched) from one sent as ``null`` (reset to
+    unlimited), so a PATCH may carry either cap or both. Lowering a cap below the
+    current usage/headcount simply blocks further uploads / new joins; it never
+    removes existing blobs or members.
     """
+    provided = payload.model_fields_set
     try:
         guild = await guilds_service.update_guild(
             session,
             guild_id=guild_id,
             max_storage_bytes=payload.max_storage_bytes,
-            max_storage_bytes_provided=True,
+            max_storage_bytes_provided="max_storage_bytes" in provided,
+            max_users=payload.max_users,
+            max_users_provided="max_users" in provided,
         )
     except ValueError as exc:
         # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
@@ -318,6 +324,7 @@ async def update_platform_guild_storage(
         name=guild.name,
         member_count=member_count,
         max_storage_bytes=guild.max_storage_bytes,
+        max_users=guild.max_users,
     )
 
 

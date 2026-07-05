@@ -758,21 +758,26 @@
     }
   },
   "guilds": {
-    "title": "Límites de almacenamiento por gremio",
-    "description": "Establece el almacenamiento total máximo que cada gremio puede usar para los archivos subidos. Bajar un límite por debajo del uso actual bloquea las nuevas subidas, pero nunca elimina los archivos existentes.",
-    "adminOnly": "Necesitas el rol de propietario de la plataforma para gestionar los límites de almacenamiento de los gremios.",
+    "title": "Límites por gremio",
+    "description": "Establece límites por gremio para el almacenamiento y el número de usuarios. Bajar un límite por debajo del uso actual bloquea las nuevas subidas o miembros, pero nunca elimina los archivos ni los miembros existentes.",
+    "adminOnly": "Necesitas el rol de propietario de la plataforma para gestionar los límites de los gremios.",
     "loading": "Cargando gremios…",
     "loadError": "No se pudieron cargar los gremios. Inténtalo de nuevo.",
     "filterByName": "Filtrar gremios por nombre",
     "unlimitedPlaceholder": "Ilimitado",
-    "helpText": "Los límites están en GB y se guardan automáticamente. Deja un campo en blanco para almacenamiento ilimitado.",
+    "helpText": "Los límites de almacenamiento están en GB; los límites de usuarios son un recuento de miembros. Ambos se guardan automáticamente: deja un campo en blanco para ilimitado.",
     "limitInputLabel": "Límite de almacenamiento para {{name}} en GB",
+    "userLimitInputLabel": "Límite de usuarios para {{name}}",
+    "overLimitHint": "{{name}} tiene más miembros de los que permite su límite actual.",
     "saved": "Límite de almacenamiento actualizado para {{name}}.",
     "saveError": "No se pudo actualizar el límite de almacenamiento. Inténtalo de nuevo.",
+    "usersSaved": "Límite de usuarios actualizado para {{name}}.",
+    "usersSaveError": "No se pudo actualizar el límite de usuarios. Inténtalo de nuevo.",
     "columns": {
       "id": "ID",
       "guild": "Gremio",
       "members": "Miembros",
+      "users": "Usuarios",
       "storageLimit": "Límite de almacenamiento"
     }
   }

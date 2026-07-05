@@ -1161,3 +1161,63 @@ async def test_create_user_happy_path_creates_member(
     body = response.json()
     assert body["full_name"] == "New Member"
     assert body["role"] == UserRole.member.value
+
+
+@pytest.mark.integration
+async def test_create_user_blocked_when_guild_full(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild admin creating a member into a full guild is refused (403)."""
+    guild = await create_guild(session, max_users=1)
+    admin = await create_user(session, email="cap-admin@example.com")
+    # The admin's own membership fills the single seat (count 1 == cap).
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/users/",
+        headers=get_auth_headers(admin),
+        json={
+            "email": "capped-newuser@example.com",
+            "full_name": "Should Not Be Created",
+            "password": "testpassword123",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+    # The rejected account must not have been persisted.
+    leaked = (
+        await session.exec(
+            select(User).where(
+                User.email_hash == hash_email("capped-newuser@example.com")
+            )
+        )
+    ).one_or_none()
+    assert leaked is None
+
+
+@pytest.mark.integration
+async def test_create_user_allowed_under_user_cap(
+    client: AsyncClient, session: AsyncSession
+):
+    """Under the cap, admin-create still succeeds and the count grows."""
+    guild = await create_guild(session, max_users=5)
+    admin = await create_user(session, email="under-admin@example.com")
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/users/",
+        headers=get_auth_headers(admin),
+        json={
+            "email": "under-newuser@example.com",
+            "full_name": "Second Seat",
+            "password": "testpassword123",
+        },
+    )
+
+    assert response.status_code == 201, response.text

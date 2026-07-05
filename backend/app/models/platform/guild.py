@@ -36,6 +36,10 @@ class Guild(SQLModel, table=True):
     max_storage_bytes: Optional[int] = Field(
         default=None, sa_column=Column(BigInteger, nullable=True)
     )
+    # Max number of members allowed in this guild. NULL = unlimited (default).
+    max_users: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
 
     members: List["GuildMembership"] = Relationship(
         back_populates="guild",

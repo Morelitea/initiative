@@ -32,6 +32,7 @@
   "GUILD_MEMBERSHIP_CREATE_FAILED": "No se pudo crear la membresía del gremio",
   "GUILD_PROVISION_FAILED": "No se pudo aprovisionar el almacenamiento del gremio",
   "GUILD_MEMBERSHIP_MISSING": "Falta la membresía del gremio",
+  "GUILD_USER_LIMIT_REACHED": "Este gremio ha alcanzado su límite de usuarios. Pide a un administrador de la plataforma que lo aumente.",
   "CANNOT_CHANGE_OWN_ROLE": "No puedes cambiar tu propio rol de gremio",
   "USER_NOT_FOUND_IN_GUILD": "Usuario no encontrado en el gremio",
   "CANNOT_DEMOTE_LAST_ADMIN": "No se puede degradar al último administrador del gremio",
