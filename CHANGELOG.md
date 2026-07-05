@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Permanently purging a document (manual trash purge or the retention worker) now unresolves wikilinks pointing at it in every other document — including trashed ones — instead of leaving links that reference a document that no longer exists.
+- Expired sign-in and verification tokens are now cleaned up automatically by an hourly background sweep; previously expired rows accumulated indefinitely.
+- Deleted (anonymized) users now display consistently as "Deleted user" everywhere; several screens previously showed a raw email or "Anonymous".
+
 ## [0.54.1] - 2026-07-04
 
 ### Added
