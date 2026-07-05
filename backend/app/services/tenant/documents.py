@@ -31,8 +31,8 @@ from app.models.tenant.tag import DocumentTag
 from app.models.tenant.project import Project
 from app.core.config import settings
 from app.core.messages import DocumentMessages
-from app.services import attachments as attachments_service
-from app.services.collaboration import collaboration_manager
+from app.services.tenant import attachments as attachments_service
+from app.services.tenant.collaboration import collaboration_manager
 
 
 def _empty_paragraph() -> dict[str, Any]:

@@ -32,7 +32,7 @@ from app.schemas.platform.access_grant import (
 )
 from app.services import email as email_service
 from app.services.platform import guilds as guilds_service
-from app.services import push_notifications
+from app.services.platform import push_notifications
 from app.services.platform import user_notifications
 
 logger = logging.getLogger(__name__)

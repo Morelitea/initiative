@@ -26,7 +26,7 @@ from app.models.platform.user import User
 from app.models.platform.notification import NotificationType
 from app.services import email as email_service
 from app.services.platform import user_notifications
-from app.services import push_notifications
+from app.services.platform import push_notifications
 
 logger = logging.getLogger(__name__)
 

@@ -41,7 +41,7 @@ from app.models.tenant.document import Document
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.platform.user import User
-from app.services.collaboration import (
+from app.services.tenant.collaboration import (
     CollaboratorInfo,
     collaboration_manager,
 )

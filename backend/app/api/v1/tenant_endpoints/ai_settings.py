@@ -1,9 +1,12 @@
-"""AI Settings API endpoints.
+"""Guild- and user-level AI settings endpoints.
 
-Provides hierarchical AI settings management:
-- Platform level: Platform admins only
-- Guild level: Guild admins
-- User level: Any authenticated user (if allowed)
+The guild and user legs of the hierarchical AI-settings cascade, mounted
+under ``/g/{guild_id}/settings``:
+- Guild level: guild admins
+- User level: any authenticated user (if allowed)
+
+The platform leg (app-wide, owner-only) lives in
+``platform_endpoints/ai_settings.py`` and is mounted top-level.
 """
 
 from typing import Annotated
@@ -13,12 +16,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.api.deps import (
     GuildContext,
     RLSSessionDep,
-    UserSessionDep,
     get_current_active_user,
     get_guild_membership,
     require_guild_roles,
 )
-from app.api.v1.platform_endpoints.admin import ConfigManageDep
 from app.models.platform.guild import GuildRole
 from app.core.capabilities import Capability, user_has_capability
 from app.models.platform.user import User
@@ -29,8 +30,6 @@ from app.schemas.ai_settings import (
     AITestConnectionResponse,
     GuildAISettingsResponse,
     GuildAISettingsUpdate,
-    PlatformAISettingsResponse,
-    PlatformAISettingsUpdate,
     ResolvedAISettingsResponse,
     UserAISettingsResponse,
     UserAISettingsUpdate,
@@ -38,43 +37,11 @@ from app.schemas.ai_settings import (
 from app.services import ai_settings as ai_settings_service
 
 router = APIRouter()
-# Platform-level AI config (app-wide, owner-only via ConfigManage) is NOT
-# guild-scoped — mounted top-level. The guild/user AI endpoints below stay on
-# ``router`` under /g/{guild_id}.
-platform_router = APIRouter()
 
 GuildAdminContext = Annotated[
     GuildContext, Depends(require_guild_roles(GuildRole.admin))
 ]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
-
-
-# Platform-level endpoints (platform admin only)
-@platform_router.get("/ai/platform", response_model=PlatformAISettingsResponse)
-async def get_platform_ai_settings(
-    session: UserSessionDep,
-    _admin: ConfigManageDep,
-) -> PlatformAISettingsResponse:
-    """Get platform-level AI settings (``config.manage`` — owner only, owner-scoped)."""
-    return await ai_settings_service.get_platform_ai_settings(session)
-
-
-@platform_router.put("/ai/platform", response_model=PlatformAISettingsResponse)
-async def update_platform_ai_settings(
-    payload: PlatformAISettingsUpdate,
-    session: UserSessionDep,
-    _admin: ConfigManageDep,
-) -> PlatformAISettingsResponse:
-    """Update platform-level AI settings (``config.manage`` — owner only).
-
-    Owner-scoped session: ``app_settings`` is owner-only after Phase 2 (GRANT + RLS),
-    so this write runs as ``platform_owner`` rather than the bare login role.
-    """
-    data = payload.model_dump(exclude_unset=True)
-    api_key_provided = "api_key" in data
-    return await ai_settings_service.update_platform_ai_settings(
-        session, payload, api_key_provided=api_key_provided
-    )
 
 
 # Guild-level endpoints (guild admin only)

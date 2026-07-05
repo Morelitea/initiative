@@ -325,7 +325,7 @@ async def hard_purge_entity(
     """
     from app.services.tenant.advanced_tool_notify import queue_purged_advanced_tool
     from app.services.tenant.documents import unresolve_wikilinks_to_document
-    from app.services.attachments import purge_document_uploads
+    from app.services.tenant.attachments import purge_document_uploads
 
     descendants = await _gather_descendants(session, entity)
     all_doomed: list[SoftDeleteMixin] = [entity, *descendants]

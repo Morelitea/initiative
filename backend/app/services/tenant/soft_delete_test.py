@@ -334,7 +334,7 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     into the pattern without escaping, leaking blobs on disk."""
     from sqlmodel import select
 
-    from app.services.attachments import purge_document_uploads
+    from app.services.tenant.attachments import purge_document_uploads
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -461,7 +461,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
     from sqlmodel import select
 
     from app.models.tenant.document import DocumentFileVersion
-    from app.services.attachments import purge_document_uploads
+    from app.services.tenant.attachments import purge_document_uploads
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)

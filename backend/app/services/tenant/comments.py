@@ -23,7 +23,7 @@ from app.services.tenant import documents as documents_service
 from app.services import rls as rls_service
 from app.services import notifications
 from app.services import permissions as permissions_service
-from app.services.mention_parser import (
+from app.services.tenant.mention_parser import (
     extract_mentioned_user_ids,
     extract_mentioned_task_ids,
 )

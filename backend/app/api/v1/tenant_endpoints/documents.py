@@ -82,7 +82,7 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
-from app.services import attachments as attachments_service
+from app.services.tenant import attachments as attachments_service
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.core.tools import Tool
@@ -95,7 +95,7 @@ from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
-from app.services.collaboration import collaboration_manager
+from app.services.tenant.collaboration import collaboration_manager
 
 logger = logging.getLogger(__name__)
 
