@@ -749,21 +749,26 @@
     }
   },
   "guilds": {
-    "title": "Guild storage limits",
-    "description": "Set the maximum total storage each guild may use for uploaded files. Lowering a limit below current usage blocks new uploads but never deletes existing files.",
-    "adminOnly": "You need the platform owner role to manage guild storage limits.",
+    "title": "Guild limits",
+    "description": "Set per-guild caps on storage and on the number of users. Lowering a limit below current usage blocks new uploads or members, but never removes existing files or members.",
+    "adminOnly": "You need the platform owner role to manage guild limits.",
     "loading": "Loading guilds…",
     "loadError": "Could not load guilds. Please try again.",
     "filterByName": "Filter guilds by name",
     "unlimitedPlaceholder": "Unlimited",
-    "helpText": "Limits are in GB and save automatically. Leave a field blank for unlimited storage.",
+    "helpText": "Storage limits are in GB; user limits are a member count. Both save automatically — leave a field blank for unlimited.",
     "limitInputLabel": "Storage limit for {{name}} in GB",
+    "userLimitInputLabel": "User limit for {{name}}",
+    "overLimitHint": "{{name}} has more members than its current limit allows.",
     "saved": "Updated storage limit for {{name}}.",
     "saveError": "Could not update the storage limit. Please try again.",
+    "usersSaved": "Updated user limit for {{name}}.",
+    "usersSaveError": "Could not update the user limit. Please try again.",
     "columns": {
       "id": "ID",
       "guild": "Guild",
       "members": "Members",
+      "users": "Users",
       "storageLimit": "Storage limit"
     }
   },

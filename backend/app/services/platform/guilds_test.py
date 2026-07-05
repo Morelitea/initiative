@@ -157,6 +157,86 @@ async def test_ensure_membership_returns_existing(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_ensure_membership_enforces_max_users(session: AsyncSession):
+    """A guild at its ``max_users`` cap rejects a new member."""
+    guild = await create_guild(session, max_users=1)
+    first = await create_user(session, email="cap-first@example.com")
+    second = await create_user(session, email="cap-second@example.com")
+
+    # Fills the single seat.
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+    )
+
+    with pytest.raises(guild_service.GuildCapacityError):
+        await guild_service.ensure_membership(
+            session, guild_id=guild.id, user_id=second.id, role=GuildRole.member
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_ensure_membership_allows_up_to_max_users(session: AsyncSession):
+    """Members join freely until the cap is reached; existing members re-joining
+    (idempotent no-op) never trip the check."""
+    guild = await create_guild(session, max_users=2)
+    first = await create_user(session, email="within-first@example.com")
+    second = await create_user(session, email="within-second@example.com")
+
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+    )
+    # Re-ensuring an existing member is a no-op even though the guild is not yet
+    # full — the cap check only runs on a genuine insert.
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+    )
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=second.id, role=GuildRole.member
+    )
+
+    assert await guild_service.count_members(session, guild_id=guild.id) == 2
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_ensure_membership_unlimited_by_default(session: AsyncSession):
+    """With no cap (NULL = the default) membership growth is unbounded."""
+    guild = await create_guild(session)  # max_users defaults to None
+    for i in range(3):
+        user = await create_user(session, email=f"unlimited-{i}@example.com")
+        await guild_service.ensure_membership(
+            session, guild_id=guild.id, user_id=user.id, role=GuildRole.member
+        )
+
+    assert await guild_service.count_members(session, guild_id=guild.id) == 3
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_invite_blocked_when_full(session: AsyncSession):
+    """Invite redemption honours the cap: a full guild raises GuildCapacityError
+    (which the endpoint surfaces as 403)."""
+    guild = await create_guild(session, max_users=1)
+    creator = await create_user(session, email="full-creator@example.com")
+    seat_holder = await create_user(session, email="full-seat@example.com")
+    invitee = await create_user(session, email="full-invitee@example.com")
+
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
+    )
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=creator.id, max_uses=5
+    )
+
+    with pytest.raises(guild_service.GuildCapacityError):
+        await guild_service.redeem_invite_for_user(
+            session, code=invite.code, user=invitee
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.service
 async def test_ensure_membership_force_role_updates(session: AsyncSession):
     """Test that force_role updates an existing membership's role."""
     user = await create_user(session)

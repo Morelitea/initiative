@@ -23,6 +23,10 @@ class GuildInviteError(Exception):
     """Raised when an invite cannot be redeemed."""
 
 
+class GuildCapacityError(Exception):
+    """Raised when adding a member would exceed the guild's ``max_users`` cap."""
+
+
 async def get_primary_guild(session: AsyncSession) -> Guild:
     result = await session.exec(select(Guild).order_by(Guild.id.asc()))
     guild = result.first()
@@ -87,6 +91,11 @@ async def ensure_membership(
             session.add(membership)
             await session.flush()
         return membership
+    # New member: enforce the per-guild cap. Only reached on a genuine insert
+    # (re-joins / role updates return above), so an existing member is never
+    # blocked. SSO/OIDC provisioning uses a separate insert path
+    # (oidc_sync._create_guild_membership) and is intentionally exempt.
+    await _assert_member_capacity(session, guild_id=guild_id)
     next_position = await _next_membership_position(session, user_id=user_id)
     membership = GuildMembership(
         guild_id=guild_id,
@@ -98,6 +107,21 @@ async def ensure_membership(
     session.add(membership)
     await session.flush()
     return membership
+
+
+async def _assert_member_capacity(session: AsyncSession, *, guild_id: int) -> None:
+    """Raise ``GuildCapacityError`` if the guild is at its ``max_users`` cap.
+
+    A ``NULL`` cap means unlimited and short-circuits before counting. The
+    caller's session must be able to see the guild's ``guild_memberships`` rows
+    (system engine, or an RLS context routed to this guild) — the same
+    precondition ``count_members`` documents.
+    """
+    guild = await get_guild(session, guild_id=guild_id)
+    if guild.max_users is None:
+        return
+    if await count_members(session, guild_id=guild_id) >= guild.max_users:
+        raise GuildCapacityError(GuildMessages.GUILD_USER_LIMIT_REACHED)
 
 
 async def _next_membership_position(session: AsyncSession, *, user_id: int) -> int:
@@ -340,6 +364,8 @@ async def update_guild(
     retention_days_provided: bool = False,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
+    max_users: int | None = None,
+    max_users_provided: bool = False,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -356,6 +382,9 @@ async def update_guild(
         updated = True
     if max_storage_bytes_provided and guild.max_storage_bytes != max_storage_bytes:
         guild.max_storage_bytes = max_storage_bytes
+        updated = True
+    if max_users_provided and guild.max_users != max_users:
+        guild.max_users = max_users
         updated = True
     if updated:
         guild.updated_at = datetime.now(timezone.utc)

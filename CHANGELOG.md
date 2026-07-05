@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Platform admins can now set a per-guild user limit from the admin dashboard's Guilds tab (default unlimited). Each guild shows its current headcount against the cap (e.g. `3/unlimited` or `3/10`), and the limit is editable inline. When a guild is at its limit, joining via an invite, signing up with an invite, or a guild admin creating a member is refused; existing members are never removed, and lowering a cap below the current headcount only blocks new joins. SSO/OIDC auto-provisioning is exempt.
+
 ## [0.54.2] - 2026-07-04
 
 ### Fixed

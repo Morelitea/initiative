@@ -1309,6 +1309,7 @@ export interface GuildRead {
   updated_at: string;
   retention_days: number | null;
   max_storage_bytes: number | null;
+  max_users: number | null;
   member_count: number;
 }
 
@@ -1791,17 +1792,20 @@ export interface PlatformGuildStorageRead {
   name: string;
   member_count: number;
   max_storage_bytes: number | null;
+  max_users: number | null;
 }
 
 /**
- * Set a guild's storage cap from the platform Guilds tab.
+ * Set a guild's storage and/or member caps from the platform Guilds tab.
  *
- * Single-field body, so (unlike :class:`GuildUpdate`'s omit-to-skip sentinel)
- * the value always represents the new state: send a byte count to cap the
- * guild, or ``null`` to switch it back to unlimited.
+ * Both fields use omit-to-skip sentinel semantics (the endpoint inspects
+ * ``model_fields_set``): omit a field to leave it untouched, send ``null`` to
+ * reset that cap to unlimited, or send a number to set it. A PATCH may carry
+ * either field or both.
  */
 export interface PlatformGuildStorageUpdate {
   max_storage_bytes?: number | null;
+  max_users?: number | null;
 }
 
 /**

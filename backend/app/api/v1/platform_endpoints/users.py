@@ -268,12 +268,17 @@ async def create_user(
     session.add(user)
     await session.flush()
     # Platform role and guild role are independent - new users join as guild members
-    await guilds_service.ensure_membership(
-        session,
-        guild_id=guild_id,
-        user_id=user.id,
-        role=GuildRole.member,
-    )
+    try:
+        await guilds_service.ensure_membership(
+            session,
+            guild_id=guild_id,
+            user_id=user.id,
+            role=GuildRole.member,
+        )
+    except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     await session.commit()
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])

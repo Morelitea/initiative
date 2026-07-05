@@ -69,6 +69,39 @@ async def test_register_first_user(client: AsyncClient):
 
 @pytest.mark.integration
 @pytest.mark.auth
+async def test_register_with_invite_blocked_when_guild_full(
+    client: AsyncClient, session: AsyncSession
+):
+    """Signing up via an invite into a guild at its user cap is refused (403).
+
+    End-to-end: a brand-new account is created and then its invite redemption
+    trips the cap, so the whole registration is rejected."""
+    from app.services.platform import guilds as guild_service
+    from app.testing.factories import create_guild
+
+    guild = await create_guild(session, name="Full Guild", max_users=1)
+    seat = await create_user(session, email="reg-seat@example.com")
+    await guild_service.ensure_membership(session, guild_id=guild.id, user_id=seat.id)
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=seat.id, max_uses=5
+    )
+    await session.commit()
+
+    response = await client.post(
+        f"/api/v1/auth/register?invite_code={invite.code}",
+        json={
+            "email": "reg-newuser@example.com",
+            "full_name": "New User",
+            "password": "password1234",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
 async def test_register_duplicate_email(client: AsyncClient, session: AsyncSession):
     """Test that registration fails for duplicate email."""
     await create_user(session, email="existing@example.com")
