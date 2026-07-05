@@ -37,7 +37,6 @@ def _model_diffs(sync_conn, guild_autogen: bool) -> list:
         opts={
             "compare_type": True,
             "include_object": make_include_object(guild_autogen),
-            "target_metadata": SQLModel.metadata,
         },
     )
     return compare_metadata(ctx, SQLModel.metadata)
@@ -54,8 +53,10 @@ async def test_models_match_guild_template(engine):
     ``python scripts/gen_guild_migration.py "desc"``."""
     async with engine.connect() as conn:
         # Mirror env.py's guild mode: guild_template first on the search_path
-        # becomes the default schema the (schema-less) metadata compares against.
-        await conn.execute(text("SET search_path TO guild_template, public"))
+        # becomes the default schema the (schema-less) metadata compares
+        # against. SET LOCAL, so it dies with this transaction instead of
+        # riding the pooled connection into another test.
+        await conn.execute(text("SET LOCAL search_path TO guild_template, public"))
         diffs = await conn.run_sync(_model_diffs, True)
     assert not diffs, (
         "SQLModel models have drifted from guild_template — generate the guild "
