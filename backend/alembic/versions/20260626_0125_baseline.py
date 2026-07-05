@@ -113,8 +113,7 @@ def _executor_holds_bypassrls(connection) -> bool:
     are the database bootstrap's responsibility, never this migration's."""
     result = connection.execute(
         text(
-            "SELECT rolsuper OR rolbypassrls FROM pg_roles"
-            " WHERE rolname = current_user"
+            "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
         )
     )
     row = result.fetchone()
