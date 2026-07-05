@@ -22,12 +22,11 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
-from app.core.capabilities import Capability, roles_with_capability
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import User
 from app.models.platform.notification import NotificationType
 from app.services import email as email_service
 from app.services.platform import user_notifications
-from app.services import push_notifications
+from app.services.platform import push_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -317,25 +316,6 @@ async def notify_project_added(
             )
         except Exception as exc:
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
-    await session.commit()
-
-
-async def notify_admins_pending_user(session: AsyncSession, pending_user: User) -> None:
-    manager_roles = list(roles_with_capability(Capability.USERS_MANAGE))
-    stmt = select(User).where(
-        User.role.in_(manager_roles), User.status == UserStatus.active
-    )
-    result = await session.exec(stmt)
-    admins = result.scalars().all()
-    if not admins:
-        return
-    for admin in admins:
-        await user_notifications.create_notification(
-            session,
-            user_id=admin.id,
-            notification_type=NotificationType.user_pending_approval,
-            data={"user_id": pending_user.id, "email": pending_user.email},
-        )
     await session.commit()
 
 

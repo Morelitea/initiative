@@ -26,6 +26,7 @@ import { useCreateQueueItem } from "@/hooks/useQueues";
 import { useTasks } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogProps } from "@/types/dialog";
 
 type AddQueueItemDialogProps = DialogProps & {
@@ -75,7 +76,7 @@ export const AddQueueItemDialog = ({
     () =>
       (membersQuery.data ?? []).map((member) => ({
         value: String(member.id),
-        label: member.full_name || member.email,
+        label: getUserDisplayName(member),
       })),
     [membersQuery.data]
   );

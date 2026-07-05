@@ -55,8 +55,8 @@ from app.services.platform import guilds as guilds_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform import users as users_service
 from app.services.platform import api_keys as api_keys_service
-from app.services import csv_export
-from app.services import stats_service
+from app.services.platform import csv_export
+from app.services.tenant import stats_service
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
 

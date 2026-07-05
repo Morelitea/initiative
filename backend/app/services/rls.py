@@ -220,38 +220,6 @@ def _role_grants(
     return DEFAULT_PERMISSION_VALUES.get(permission_key, False)
 
 
-async def accessible_initiative_ids(
-    session: AsyncSession,
-    *,
-    user: User,
-    permission_key: PermissionKey,
-) -> set[int]:
-    """Initiative ids (in the routed guild schema) where the user's initiative
-    role grants ``permission_key`` — the bulk form of
-    :func:`check_initiative_permission`, for scoping tool *lists* to the SAME
-    role-permission the frontend reflects.
-
-    One query over the user's memberships (bounded by how many initiatives they're
-    in), so it stays cheap at scale; the per-row decision reuses ``_role_grants``.
-    Guild-admin / PAM are handled separately by the caller (they see everything);
-    this is purely the membership-role tier.
-    """
-    from sqlalchemy.orm import selectinload
-    from sqlmodel import select
-
-    stmt = (
-        select(InitiativeMember)
-        .options(
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            )
-        )
-        .where(InitiativeMember.user_id == user.id)
-    )
-    rows = (await session.exec(stmt)).all()
-    return {m.initiative_id for m in rows if _role_grants(m.role_ref, permission_key)}
-
-
 async def override_sharing_initiative_ids(
     session: AsyncSession,
     *,

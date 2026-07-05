@@ -237,7 +237,9 @@ async def send_push_to_user(
     # Delete invalid tokens
     for invalid_token in tokens_to_delete:
         logger.info(f"Deleting invalid push token: {invalid_token[:20]}...")
-        await push_tokens.delete_push_token(session, push_token=invalid_token)
+        await push_tokens.delete_push_token(
+            session, user_id=user_id, push_token=invalid_token
+        )
 
     logger.info(
         f"Sent push notification to {successful}/{len(tokens)} devices "

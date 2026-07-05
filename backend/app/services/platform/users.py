@@ -30,14 +30,6 @@ SYSTEM_USER_EMAIL = "deleted-user@system.internal"
 SYSTEM_USER_FULL_NAME = "[Deleted User]"
 
 
-class DeletionBlocker(Exception):
-    """Raised when account deletion is blocked."""
-
-    def __init__(self, blockers: List[str]):
-        self.blockers = blockers
-        super().__init__(", ".join(blockers))
-
-
 async def get_or_create_system_user(session: AsyncSession) -> User:
     """Get or create the system user for deleted user content."""
     stmt = select(User).where(User.email_hash == hash_email(SYSTEM_USER_EMAIL))
@@ -569,6 +561,11 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     render the placeholder "Deleted user #{id}" wherever the original
     user was referenced.
 
+    The display name is also scrubbed out of content that embedded it as
+    literal text — @-mention markup in comments, Lexical mention nodes in
+    documents, digest-row name snapshots — in EVERY guild schema (not just
+    current memberships: content survives leaving a guild).
+
     All of this happens inside a single transaction with one commit at
     the end, so a "right to be forgotten" request never ends up in a
     half-applied state — either every change lands or none do.
@@ -576,7 +573,19 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     This is irreversible — there is no undo.
     """
     import secrets
+    from app.models.platform.guild import Guild
     from app.models.platform.push_token import PushToken
+    from app.services.tenant.mention_parser import anonymize_user_mentions
+
+    # Mention scrub first — it routes per guild and expunges between guilds,
+    # so it must run before the ``user`` row below is loaded and mutated.
+    all_guild_ids = list((await session.exec(select(Guild.id))).all())
+    for gid in all_guild_ids:
+        session.expunge_all()
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await anonymize_user_mentions(session, user_id=user_id)
+    session.expunge_all()
+    await set_rls_context(session)
 
     user = await _drop_user_memberships(session, user_id)
 
@@ -946,6 +955,7 @@ async def hard_delete_user(
             (composite key, since project ids repeat across per-guild schemas)
     """
     from app.services.tenant import initiatives as initiatives_service
+    from app.services.tenant.mention_parser import anonymize_user_mentions
     from app.models.tenant.queue import QueueItem
     from app.models.platform.push_token import PushToken
     from app.models.tenant.calendar_event import CalendarEventAttendee
@@ -960,17 +970,14 @@ async def hard_delete_user(
     system_user = await get_or_create_system_user(session)
     system_user_id = system_user.id
 
-    # ``guild_memberships`` is shared/public, so enumerate the user's guilds on
-    # the default context.
-    guild_ids = list(
-        (
-            await session.exec(
-                select(GuildMembership.guild_id).where(
-                    GuildMembership.user_id == user_id
-                )
-            )
-        ).all()
-    )
+    # Sweep EVERY guild schema, not just current memberships. An anonymized
+    # user has no membership rows left (anonymize drops them), and even an
+    # active user's authored content survives leaving a guild — enumerating
+    # memberships here silently skipped all of it (issue #794). Owned projects
+    # can only exist in membership guilds (leave/deactivate/anonymize all
+    # force a transfer first), so the transfer check below never fires for
+    # guilds the user isn't in.
+    guild_ids = list((await session.exec(select(Guild.id))).all())
 
     # Phase 1 — guild-scoped cleanup, ROUTED INTO EACH GUILD'S SCHEMA. Every
     # statement below targets a guild-scoped table whose live rows live in
@@ -1006,6 +1013,12 @@ async def hard_delete_user(
         # Reassign authored content (documents, comments, uploads, queues, …)
         # to the system user so it survives the deletion.
         await reassign_user_content(session, user_id, system_user_id)
+
+        # Scrub the display name out of content that embedded it as literal
+        # text (@-mentions in comments, document mention nodes, digest name
+        # snapshots). Already done if the user was anonymized first; direct
+        # hard deletes need it here, before the row disappears.
+        await anonymize_user_mentions(session, user_id=user_id)
 
         # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
         await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))

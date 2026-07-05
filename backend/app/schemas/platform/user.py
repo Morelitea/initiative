@@ -194,10 +194,6 @@ class UserRead(UserBase):
         return sorted(c.value for c in capabilities_for(self.role))
 
 
-class UserInDB(UserRead):
-    hashed_password: str
-
-
 class UserInitiativeRole(SanitizedBaseModel):
     initiative_id: int
     initiative_name: str

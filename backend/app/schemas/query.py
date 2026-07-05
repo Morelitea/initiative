@@ -3,14 +3,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Generic, Literal, TypeVar
-
-from pydantic import Field
+from typing import Any, Literal
 
 from app.schemas.base import SanitizedBaseModel
-
-
-MAX_PAGE_SIZE = 100
 
 
 class FilterOp(str, Enum):
@@ -94,20 +89,3 @@ class FilterGroup(SanitizedBaseModel):
 class SortField(SanitizedBaseModel):
     field: str
     dir: SortDir = SortDir.asc
-
-
-class PaginationParams(SanitizedBaseModel):
-    page: int = Field(default=1, ge=1)
-    page_size: int = Field(default=20, ge=0, le=MAX_PAGE_SIZE)
-
-
-T = TypeVar("T")
-
-
-class PaginatedResponse(SanitizedBaseModel, Generic[T]):
-    items: list[T]
-    total_count: int
-    page: int
-    page_size: int
-    has_next: bool
-    has_prev: bool

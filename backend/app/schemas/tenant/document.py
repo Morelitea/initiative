@@ -7,7 +7,7 @@ from pydantic import ConfigDict, Field
 
 from app.schemas.base import SanitizedBaseModel
 
-from app.models.tenant.document import DocumentPermissionLevel, DocumentType
+from app.models.tenant.document import DocumentType
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead, serialize_initiative
 from app.schemas.tenant.property import PropertySummary
@@ -64,55 +64,6 @@ class DocumentDuplicateRequest(SanitizedBaseModel):
 class DocumentCopyRequest(SanitizedBaseModel):
     target_initiative_id: int
     title: Optional[str] = None
-
-
-class DocumentRolePermissionCreate(SanitizedBaseModel):
-    initiative_role_id: int
-    level: DocumentPermissionLevel = DocumentPermissionLevel.read
-
-
-class DocumentRolePermissionUpdate(SanitizedBaseModel):
-    level: DocumentPermissionLevel
-
-
-class DocumentRolePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    initiative_role_id: int
-    role_name: str = ""
-    role_display_name: str = ""
-    level: DocumentPermissionLevel
-    created_at: datetime
-
-
-class DocumentPermissionCreate(SanitizedBaseModel):
-    user_id: int
-    level: DocumentPermissionLevel = DocumentPermissionLevel.write
-
-
-class DocumentPermissionBulkCreate(SanitizedBaseModel):
-    user_ids: List[int]
-    level: DocumentPermissionLevel = DocumentPermissionLevel.read
-
-
-class DocumentPermissionBulkDelete(SanitizedBaseModel):
-    user_ids: List[int]
-
-
-class DocumentPermissionUpdate(SanitizedBaseModel):
-    level: DocumentPermissionLevel
-
-
-class DocumentPermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    user_id: int
-    level: DocumentPermissionLevel
-    created_at: datetime
 
 
 class DocumentAutocomplete(SanitizedBaseModel):

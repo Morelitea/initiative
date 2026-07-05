@@ -59,53 +59,6 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 PermLevel = TypeVar("PermLevel", bound=Enum)
 
 
-def _get_user_role_ids(
-    memberships: list[Any] | None,
-    user_id: int,
-) -> set[int]:
-    """Extract the set of role IDs a user holds in an initiative's memberships."""
-    if not memberships:
-        return set()
-    return {
-        m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None
-    }
-
-
-def role_permission_level(
-    role_permissions: list[Any] | None,
-    memberships: list[Any] | None,
-    user_id: int,
-    level_order: dict[PermLevel, int],
-) -> PermLevel | None:
-    """Get the highest role-based permission level for a user.
-
-    Works with both ProjectPermissionLevel and DocumentPermissionLevel enums.
-
-    Args:
-        role_permissions: The role-based grant records (rows with an
-            ``initiative_role_id`` and ``level``).
-        memberships: The initiative memberships (Initiative.memberships).
-        user_id: The user to check.
-        level_order: Mapping from permission level enum to numeric rank
-            (e.g. {read: 0, write: 1, owner: 2}).
-
-    Returns:
-        The highest matching permission level, or None.
-    """
-    if not role_permissions:
-        return None
-    user_role_ids = _get_user_role_ids(memberships, user_id)
-    if not user_role_ids:
-        return None
-
-    best: PermLevel | None = None
-    for rp in role_permissions:
-        if rp.initiative_role_id in user_role_ids:
-            if best is None or level_order.get(rp.level, 0) > level_order.get(best, 0):
-                best = rp.level
-    return best
-
-
 def effective_permission_level(
     user_level: PermLevel | None,
     role_level: PermLevel | None,

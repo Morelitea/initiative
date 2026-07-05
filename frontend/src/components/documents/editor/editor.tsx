@@ -52,6 +52,7 @@ import { validateUrl } from "@/components/ui/editor/utils/url";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { getUserColorHsl } from "@/lib/userColor";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 import type { CollaborationProvider } from "@/lib/yjs/CollaborationProvider";
 
@@ -109,7 +110,7 @@ export function Editor({
 }: EditorProps) {
   const { user } = useAuth();
   const userColor = useRef(user ? getUserColorHsl(user.id) : "hsl(0, 0%, 70%)");
-  const userName = user?.full_name || user?.email || "Anonymous";
+  const userName = getUserDisplayName(user, "Anonymous");
   const cursorsContainerRef = useRef<HTMLDivElement>(null!);
 
   const useCollaborativeMode = Boolean(collaborative && providerFactory);

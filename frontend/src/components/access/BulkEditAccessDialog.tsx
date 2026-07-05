@@ -44,6 +44,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
@@ -154,7 +155,7 @@ export function BulkEditAccessDialog({
         if (!map.has(member.user.id)) {
           map.set(member.user.id, {
             id: member.user.id,
-            name: member.user.full_name || member.user.email,
+            name: getUserDisplayName(member.user),
             email: member.user.email,
           });
         }

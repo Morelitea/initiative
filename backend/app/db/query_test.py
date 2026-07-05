@@ -815,25 +815,6 @@ class TestClampPage:
 class TestSchemas:
     """Tests for query schema validation."""
 
-    def test_pagination_params_defaults(self):
-        from app.schemas.query import PaginationParams
-
-        params = PaginationParams()
-        assert params.page == 1
-        assert params.page_size == 20
-
-    def test_pagination_params_validation(self):
-        from app.schemas.query import PaginationParams
-
-        with pytest.raises(Exception):
-            PaginationParams(page=0)  # ge=1
-
-    def test_pagination_params_max_page_size(self):
-        from app.schemas.query import PaginationParams
-
-        with pytest.raises(Exception):
-            PaginationParams(page_size=101)  # le=100
-
     def test_filter_condition_defaults(self):
         cond = FilterCondition(field="name", value="test")
         assert cond.op == FilterOp.eq

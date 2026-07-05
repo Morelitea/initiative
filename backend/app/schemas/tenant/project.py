@@ -7,7 +7,6 @@ from pydantic import ConfigDict, Field
 
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
-from app.models.tenant.project import ProjectPermissionLevel
 from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.tenant.initiative import InitiativeRead
 from app.schemas.tenant.document import ProjectDocumentSummary
@@ -46,57 +45,6 @@ class ProjectUpdate(SanitizedBaseModel):
 
 class ProjectDuplicateRequest(SanitizedBaseModel):
     name: Optional[str] = None
-
-
-class ProjectRolePermissionCreate(SanitizedBaseModel):
-    initiative_role_id: int
-    level: ProjectPermissionLevel = ProjectPermissionLevel.read
-
-
-class ProjectRolePermissionUpdate(SanitizedBaseModel):
-    level: ProjectPermissionLevel
-
-
-class ProjectRolePermissionRead(SanitizedBaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    initiative_role_id: int
-    role_name: str = ""
-    role_display_name: str = ""
-    level: ProjectPermissionLevel
-    created_at: datetime
-
-
-class ProjectPermissionBase(SanitizedBaseModel):
-    user_id: int
-    level: ProjectPermissionLevel = ProjectPermissionLevel.write
-
-
-class ProjectPermissionCreate(ProjectPermissionBase):
-    pass
-
-
-class ProjectPermissionBulkCreate(SanitizedBaseModel):
-    user_ids: List[int]
-    level: ProjectPermissionLevel = ProjectPermissionLevel.read
-
-
-class ProjectPermissionBulkDelete(SanitizedBaseModel):
-    user_ids: List[int]
-
-
-class ProjectPermissionUpdate(SanitizedBaseModel):
-    level: ProjectPermissionLevel
-
-
-class ProjectPermissionRead(ProjectPermissionBase):
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    created_at: datetime
 
 
 class ProjectTaskSummary(SanitizedBaseModel):

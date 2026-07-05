@@ -69,7 +69,6 @@ def guild_member_clause(
 def initiative_scope_clause(
     user_id: int,
     initiative_id_col: ColumnElement[int] | int,
-    guild_id_col: ColumnElement[int] | int | None = None,
     *,
     need_write: bool = False,
 ) -> ColumnElement[bool]:
@@ -81,8 +80,7 @@ def initiative_scope_clause(
 
     Because the function reads ``app.current_guild_role`` / ``app.pam_*`` from the
     session GUCs, the guild-admin and PAM legs come "for free" on any routed
-    session (``RLSSessionDep`` or a per-guild ``set_rls_context``); ``guild_id_col``
-    is accepted for call-site compatibility but no longer needed. ``need_write``
+    session (``RLSSessionDep`` or a per-guild ``set_rls_context``). ``need_write``
     selects the read vs. write PAM leg.
     """
     return func.initiative_access(initiative_id_col, user_id, need_write)

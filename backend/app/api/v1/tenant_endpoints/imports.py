@@ -28,7 +28,7 @@ from app.schemas.tenant.import_data import (
     ImportResult,
 )
 from app.core.messages import ImportMessages
-from app.services import import_service
+from app.services.tenant import import_service
 from app.services import permissions as permissions_service
 from app.services.tenant import task_statuses as task_statuses_service
 

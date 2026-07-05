@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 
 import type { iconsData } from "./icons-data";
 
-export type IconData = (typeof iconsData)[number];
+type IconData = (typeof iconsData)[number];
 
 interface IconPickerProps
   extends Omit<React.ComponentPropsWithoutRef<typeof PopoverTrigger>, "onSelect" | "onOpenChange"> {
