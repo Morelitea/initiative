@@ -758,21 +758,26 @@
     }
   },
   "guilds": {
-    "title": "Limites de stockage par groupe",
-    "description": "Définissez le stockage total maximal que chaque groupe peut utiliser pour les fichiers téléversés. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements, mais ne supprime jamais les fichiers existants.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites de stockage des groupes.",
+    "title": "Limites par groupe",
+    "description": "Définissez des limites par groupe pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des groupes.",
     "loading": "Chargement des groupes…",
     "loadError": "Impossible de charger les groupes. Veuillez réessayer.",
     "filterByName": "Filtrer les groupes par nom",
     "unlimitedPlaceholder": "Illimité",
-    "helpText": "Les limites sont en Go et sont enregistrées automatiquement. Laissez un champ vide pour un stockage illimité.",
+    "helpText": "Les limites de stockage sont en Go ; les limites d'utilisateurs correspondent à un nombre de membres. Les deux sont enregistrées automatiquement — laissez un champ vide pour illimité.",
     "limitInputLabel": "Limite de stockage pour {{name}} en Go",
+    "userLimitInputLabel": "Limite d'utilisateurs pour {{name}}",
+    "overLimitHint": "{{name}} compte plus de membres que sa limite actuelle ne l'autorise.",
     "saved": "Limite de stockage mise à jour pour {{name}}.",
     "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
+    "usersSaved": "Limite d'utilisateurs mise à jour pour {{name}}.",
+    "usersSaveError": "Impossible de mettre à jour la limite d'utilisateurs. Veuillez réessayer.",
     "columns": {
       "id": "ID",
       "guild": "Groupe",
       "members": "Membres",
+      "users": "Utilisateurs",
       "storageLimit": "Limite de stockage"
     }
   }

@@ -32,6 +32,7 @@
   "GUILD_MEMBERSHIP_CREATE_FAILED": "Échec de la création de l'appartenance au groupe",
   "GUILD_PROVISION_FAILED": "Échec de l'approvisionnement du stockage du groupe",
   "GUILD_MEMBERSHIP_MISSING": "Appartenance au groupe manquante",
+  "GUILD_USER_LIMIT_REACHED": "Ce groupe a atteint sa limite d'utilisateurs. Demandez à un administrateur de la plateforme de l'augmenter.",
   "CANNOT_CHANGE_OWN_ROLE": "Impossible de modifier votre propre rôle dans le groupe",
   "USER_NOT_FOUND_IN_GUILD": "Utilisateur introuvable dans le groupe",
   "CANNOT_DEMOTE_LAST_ADMIN": "Impossible de rétrograder le dernier administrateur du groupe",
