@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.2] - 2026-07-04
+
 ### Fixed
 
 - Permanently purging a document (manual trash purge or the retention worker) now unresolves wikilinks pointing at it in every other document — including trashed ones — instead of leaving links that reference a document that no longer exists.
