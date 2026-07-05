@@ -177,7 +177,7 @@ async def recent_comments(
     if task_ids:
         task_result = await session.exec(select(Task).where(Task.id.in_(task_ids)))
         for task in task_result.all():
-            tasks_by_id[task.id] = task
+            tasks_by_id[task.id] = task  # ty: ignore[invalid-assignment] — persisted row, id is set
 
         project_ids = {t.project_id for t in tasks_by_id.values()}
         if project_ids:
@@ -185,14 +185,14 @@ async def recent_comments(
                 select(Project).where(Project.id.in_(project_ids))
             )
             for proj in proj_result.all():
-                projects_by_id[proj.id] = proj
+                projects_by_id[proj.id] = proj  # ty: ignore[invalid-assignment] — persisted row, id is set
 
     if doc_ids:
         doc_result = await session.exec(
             select(Document).where(Document.id.in_(doc_ids))
         )
         for doc in doc_result.all():
-            docs_by_id[doc.id] = doc
+            docs_by_id[doc.id] = doc  # ty: ignore[invalid-assignment] — persisted row, id is set
 
     entries: List[RecentActivityEntry] = []
     for comment in comments:

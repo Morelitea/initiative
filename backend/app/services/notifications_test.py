@@ -95,44 +95,69 @@ async def _reminders_for(session: AsyncSession, user_id: int) -> list[Notificati
     return list(result.all())
 
 
+def _unsaved_event(
+    *, title: str, start_at: datetime, end_at: datetime, all_day: bool
+) -> CalendarEvent:
+    """In-memory event for the pure-unit formatting tests (never persisted)."""
+    return CalendarEvent(
+        guild_id=1,
+        initiative_id=1,
+        created_by_id=1,
+        title=title,
+        start_at=start_at,
+        end_at=end_at,
+        all_day=all_day,
+    )
+
+
+def _unsaved_user(tz: str) -> User:
+    """In-memory recipient for the pure-unit formatting tests (never persisted)."""
+    return User(
+        email_hash="x",
+        email_encrypted="x",
+        hashed_password="x",
+        timezone=tz,
+    )
+
+
 @pytest.mark.unit
 def test_format_event_when_localizes_to_recipient_timezone():
     """A timed event renders in the recipient's IANA timezone with its abbrev."""
-    event = CalendarEvent(
+    event = _unsaved_event(
         title="Sync",
         start_at=datetime(2026, 7, 1, 21, 30, tzinfo=timezone.utc),
         end_at=datetime(2026, 7, 1, 22, 30, tzinfo=timezone.utc),
         all_day=False,
     )
-    la = User(timezone="America/Los_Angeles")
+    la = _unsaved_user("America/Los_Angeles")
     assert _format_event_when(event, la) == "Wed, Jul 1, 2026 at 2:30 PM PDT"
 
-    utc_user = User(timezone="UTC")
+    utc_user = _unsaved_user("UTC")
     assert _format_event_when(event, utc_user) == "Wed, Jul 1, 2026 at 9:30 PM UTC"
 
 
 @pytest.mark.unit
 def test_format_event_when_all_day_omits_time_and_zone():
     """All-day events show just the date, regardless of recipient timezone."""
-    event = CalendarEvent(
+    event = _unsaved_event(
         title="Holiday",
         start_at=datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc),
         end_at=datetime(2026, 7, 1, 23, 59, tzinfo=timezone.utc),
         all_day=True,
     )
-    assert _format_event_when(event, User(timezone="Asia/Tokyo")) == "Wed, Jul 1, 2026"
+    assert _format_event_when(event, _unsaved_user("Asia/Tokyo")) == "Wed, Jul 1, 2026"
 
 
 @pytest.mark.unit
 def test_format_event_when_falls_back_on_bad_timezone():
     """An unrecognized timezone string falls back to UTC instead of raising."""
-    event = CalendarEvent(
+    event = _unsaved_event(
         title="Sync",
         start_at=datetime(2026, 7, 1, 21, 30, tzinfo=timezone.utc),
         end_at=datetime(2026, 7, 1, 22, 30, tzinfo=timezone.utc),
         all_day=False,
     )
-    assert _format_event_when(event, User(timezone="Not/AZone")) == (
+    assert _format_event_when(event, _unsaved_user("Not/AZone")) == (
         "Wed, Jul 1, 2026 at 9:30 PM UTC"
     )
 

@@ -222,7 +222,7 @@ def _build_tables(sync_conn) -> list[str]:
                 t.constraints.discard(con)
         for col in t.columns:
             if hasattr(col.type, "create_type"):
-                col.type.create_type = False
+                col.type.create_type = False  # ty: ignore[invalid-assignment]
         out.append(
             str(
                 CreateTable(

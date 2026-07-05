@@ -24,7 +24,7 @@ from app.services.platform import app_settings as app_settings_service
 try:  # premailer inlines our <style> rules so they survive Gmail/Outlook stripping <style>
     from premailer import transform as _premailer_transform
 except Exception:  # pragma: no cover - optional dependency guard
-    _premailer_transform = None
+    _premailer_transform = None  # ty: ignore[invalid-assignment]
 
 logger = logging.getLogger(__name__)
 

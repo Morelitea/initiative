@@ -133,5 +133,5 @@ async def clone_statuses(
         )
         session.add(clone)
         await session.flush()
-        mapping[source_status.id] = clone.id
+        mapping[source_status.id] = clone.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     return mapping
