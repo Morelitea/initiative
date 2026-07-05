@@ -24,7 +24,9 @@ function truncateSegment(segment: string, maxLength: number): string {
 
 export function TagBadge({ tag, to, onClick, onRemove, size = "sm", className }: TagBadgeProps) {
   const { t } = useTranslation("tags");
-  const textColor = getContrastingTextColor(tag.color) ?? "#FFFFFF";
+  // Tags render pure black (not the slate the counter tiles use) on light
+  // tag colors — the saturated user-picked backgrounds need the extra contrast.
+  const textColor = getContrastingTextColor(tag.color) === "#0F172A" ? "#000000" : "#FFFFFF";
   const isClickable = !!onClick || !!to;
 
   // Truncate each segment individually (e.g., "long-name/a" -> "long-na.../a")
