@@ -177,7 +177,7 @@ export const DocumentDetailPage = () => {
   // change every parent render and broadcast spurious presence
   // updates.
   const spreadsheetCurrentUser = useMemo(
-    () => (user ? { id: user.id, name: getUserDisplayName(user) } : null),
+    () => (user ? { id: user.id, name: getUserDisplayName(user, "Anonymous") } : null),
     [user]
   );
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
@@ -1399,7 +1399,9 @@ export const DocumentDetailPage = () => {
                     awareness={
                       collaborationEnabled && collaboration.isReady ? whiteboardAwareness : null
                     }
-                    currentUser={user ? { id: user.id, name: getUserDisplayName(user) } : null}
+                    currentUser={
+                      user ? { id: user.id, name: getUserDisplayName(user, "Anonymous") } : null
+                    }
                     className={cn(isFullscreen && "h-full min-h-0 flex-1")}
                   />
                 ) : (
