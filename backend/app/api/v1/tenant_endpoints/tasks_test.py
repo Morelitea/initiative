@@ -936,7 +936,7 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
     # Simulate the user completing the task at ~9pm Los Angeles on the
     # same Sunday (2026-05-03). In UTC that's 04:00 Monday 2026-05-04.
     completion_now = datetime(2026, 5, 4, 4, 0, 0, tzinfo=timezone.utc)
-    task.task_status_id = done_status.id
+    task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = done_status
 
     advanced = await _advance_recurrence_if_needed(
@@ -1033,7 +1033,7 @@ async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
     # Mar 9 at 02:30 PDT, which is a valid local time and matches
     # the user's "every day at 2:30 AM" intent.
     completion_now = datetime(2026, 3, 8, 18, 0, 0, tzinfo=timezone.utc)
-    task.task_status_id = done_status.id
+    task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = done_status
 
     advanced = await _advance_recurrence_if_needed(

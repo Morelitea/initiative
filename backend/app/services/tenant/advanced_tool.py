@@ -10,7 +10,7 @@ legs, which is the intended admin-only behavior.
 
 from __future__ import annotations
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 

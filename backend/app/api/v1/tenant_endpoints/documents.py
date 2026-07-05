@@ -1189,7 +1189,7 @@ async def upload_document_version(
     document.file_content_type = mime_type
     document.file_size = len(contents)
     document.original_filename = file.filename
-    document.updated_by_id = current_user.id
+    document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     document.updated_at = datetime.now(timezone.utc)
     if mime_type and mime_type.startswith("image/"):
         document.featured_image_url = file_url
@@ -1310,7 +1310,7 @@ async def delete_document_version(
             document.file_content_type = promoted.file_content_type
             document.file_size = promoted.file_size
             document.original_filename = promoted.original_filename
-            document.updated_by_id = current_user.id
+            document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             document.updated_at = datetime.now(timezone.utc)
             # Keep featured image coherent when it referenced the deleted blob.
             if document.featured_image_url == deleted_url:
@@ -1459,7 +1459,7 @@ async def update_document(
 
     if updated:
         document.updated_at = datetime.now(timezone.utc)
-        document.updated_by_id = current_user.id
+        document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         session.add(document)
         # Sync wikilinks if content was updated
         if content_updated:

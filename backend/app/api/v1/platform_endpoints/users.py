@@ -287,7 +287,7 @@ async def update_users_me(
     response: Response,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
-    update_data = user_in.dict(exclude_unset=True)
+    update_data = user_in.model_dump(exclude_unset=True)
     if not update_data:
         return current_user
 
@@ -473,7 +473,7 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
-    update_data = user_in.dict(exclude_unset=True)
+    update_data = user_in.model_dump(exclude_unset=True)
     # Platform role changes are not allowed via this endpoint - use /admin/users/{id}/platform-role
     if "role" in update_data:
         raise HTTPException(

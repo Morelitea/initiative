@@ -18,6 +18,7 @@ pytestmark = pytest.mark.integration
 async def _enable_advanced_tool(session: AsyncSession, initiative) -> None:
     await route_session_to_guild(session, initiative.guild_id)
     init = await session.get(Initiative, initiative.id)
+    assert init is not None
     init.advanced_tools_enabled = True
     session.add(init)
     await session.commit()

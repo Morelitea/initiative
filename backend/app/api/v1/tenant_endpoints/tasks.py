@@ -424,7 +424,7 @@ async def _rebalance_if_needed(
         if task.position != new_position:
             task.position = new_position
             session.add(task)
-            changed[task.id] = new_position
+            changed[task.id] = new_position  # ty: ignore[invalid-assignment] — persisted row, id is set
     return changed
 
 
@@ -1524,7 +1524,7 @@ async def create_task(
             session, project.id
         )
 
-    task_data = task_in.dict(exclude={"assignee_ids", "task_status_id"})
+    task_data = task_in.model_dump(exclude={"assignee_ids", "task_status_id"})
 
     # Serialize recurrence to JSON if present
     if task_data.get("recurrence") is not None:
@@ -1624,7 +1624,7 @@ async def update_task(
         access="write",
     )
 
-    update_data = task_in.dict(exclude_unset=True)
+    update_data = task_in.model_dump(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
@@ -1640,7 +1640,7 @@ async def update_task(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=TaskMessages.STATUS_NOT_FOUND,
             )
-        task.task_status_id = selected_status.id
+        task.task_status_id = selected_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         task.task_status = selected_status
 
     for field, value in update_data.items():
@@ -1751,8 +1751,8 @@ async def move_task(
     now = datetime.now(timezone.utc)
     source_project_id = task.project_id
     source_initiative_id = task.project.initiative_id if task.project else None
-    task.project_id = target_project.id
-    task.task_status_id = default_status.id
+    task.project_id = target_project.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+    task.task_status_id = default_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = default_status
     task.position = 0
     task.updated_at = now
@@ -2036,7 +2036,7 @@ async def reorder_tasks(
                         detail=TaskMessages.STATUS_NOT_FOUND,
                     )
                 status_cache[item.task_status_id] = status_obj
-            task.task_status_id = status_obj.id
+            task.task_status_id = status_obj.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             task.task_status = status_obj
 
         task.position = item.position

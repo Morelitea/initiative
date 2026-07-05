@@ -149,14 +149,13 @@ jobs:
           uv run ruff format --check app
 
       - name: Type-check with ty
-        # Scoped gate: only ty's `invalid-return-type` rule is enforced (every
-        # other rule is ignored), mirroring the old Pyright `reportReturnType`
-        # gate — fails on return-type regressions without drowning in the
-        # SQLModel/ORM-expression false positives ty reports by default.
+        # Full default rule set; the only exclusions are the SQLModel/ORM
+        # false-positive rules disabled in backend/pyproject.toml
+        # ([tool.ty.rules]), which is the single source of truth for the gate.
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          uv run ty check app --ignore all --error invalid-return-type
+          uv run ty check app
 
 
       - name: Start PgBouncer (transaction mode)

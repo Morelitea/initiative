@@ -298,7 +298,8 @@ async def duplicate_document(
         new_to_source = {new: old for old, new in replacements.items()}
         if featured_image_url and featured_image_url != source.featured_image_url:
             new_urls.append(featured_image_url)
-            new_to_source[featured_image_url] = source.featured_image_url
+            if source.featured_image_url:
+                new_to_source[featured_image_url] = source.featured_image_url
         source_meta = await attachments_service.get_upload_metadata_for_urls(
             session, list(new_to_source.values())
         )

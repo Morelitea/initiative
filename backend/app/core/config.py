@@ -641,7 +641,9 @@ class Settings(BaseSettings):
 # Use caching to avoid re-reading the env file over and over
 # (FastAPI startup imports Config many times).
 def get_settings() -> Settings:
-    return Settings()
+    # Required fields (DATABASE_URL_*, SECRET_KEY) are loaded from the
+    # environment by pydantic-settings, which ty can't see.
+    return Settings()  # ty: ignore[missing-argument]
 
 
 settings = get_settings()

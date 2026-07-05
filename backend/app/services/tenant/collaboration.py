@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional, Set
 
 from fastapi import WebSocket
 from pycrdt import Doc
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.models.tenant.document import Document

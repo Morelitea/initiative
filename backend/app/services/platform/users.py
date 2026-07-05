@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
+
+if TYPE_CHECKING:
+    from app.schemas.platform.user import ProjectBasic, UserPublic
 
 from sqlalchemy import func, update
 from sqlmodel import select, delete
@@ -344,7 +347,7 @@ async def fetch_pm_candidates(
     *,
     initiative_id: int,
     excluded_user_id: int,
-) -> List["UserPublic"]:  # noqa: F821 — forward ref to avoid circular import
+) -> List["UserPublic"]:
     """Active project-manager candidates for ``initiative_id``, with
     ``excluded_user_id`` filtered out.
 
@@ -384,7 +387,7 @@ async def check_deletion_eligibility(
     user_id: int,
     *,
     admin_context: bool = False,
-) -> tuple[bool, List[str], List[str], List["ProjectBasic"]]:  # noqa: F821
+) -> tuple[bool, List[str], List[str], List["ProjectBasic"]]:
     """
     Check if user can be deleted.
     Returns: (can_delete, blockers, warnings, owned_projects)

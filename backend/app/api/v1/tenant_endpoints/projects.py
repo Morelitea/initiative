@@ -1513,9 +1513,7 @@ async def project_activity_feed(
             )
         )
     next_page = page + 1 if has_next else None
-    return ProjectActivityResponse(
-        items=entries, next_page=next_page, project_id=project.id
-    )
+    return ProjectActivityResponse(items=entries, next_page=next_page)
 
 
 @router.get("/{project_id}", response_model=ProjectRead)
@@ -1556,7 +1554,7 @@ async def update_project(
     )
     _ensure_not_archived(project)
 
-    update_data = project_in.dict(exclude_unset=True)
+    update_data = project_in.model_dump(exclude_unset=True)
     pinned_sentinel = object()
     pinned_value = update_data.pop("pinned", pinned_sentinel)
     if pinned_value is not pinned_sentinel:

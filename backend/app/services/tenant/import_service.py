@@ -7,7 +7,7 @@ import re
 from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.task import Task, TaskPriority, Subtask
 from app.schemas.tenant.import_data import (

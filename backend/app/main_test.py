@@ -86,7 +86,7 @@ async def _hsts_for(app_url: str) -> str | None:
     """
     hsts_value = (
         "max-age=63072000; includeSubDomains"
-        if Settings(APP_URL=app_url).app_url_is_https
+        if Settings(APP_URL=app_url).app_url_is_https  # ty: ignore[missing-argument]
         else None
     )
     probe = FastAPI()
@@ -174,7 +174,7 @@ def test_docs_routes_return_404_when_disabled() -> None:
     a custom route, registered only when enabled), and with docs disabled that
     route is never added, so ``openapi_url`` is ``None`` too.
     """
-    cfg = Settings(ENABLE_API_DOCS=False)
+    cfg = Settings(ENABLE_API_DOCS=False)  # ty: ignore[missing-argument]
     disabled = FastAPI(
         docs_url=None,
         openapi_url=(f"{cfg.API_V1_STR}/openapi.json" if cfg.ENABLE_API_DOCS else None),
