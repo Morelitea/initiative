@@ -72,6 +72,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # registry is read pre-routing at login.
         "auth_providers",  # login provider registry (operator-global or guild-scoped)
         "federated_identities",  # (provider, subject) -> user links
+        "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)

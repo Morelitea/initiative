@@ -82,6 +82,9 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # identity linking — resolved/created at login (pre-auth, by subject); link/
     # unlink go through the system engine (linking is an account-takeover surface)
     "federated_identities": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # session/refresh store — validated pre-auth by refresh-token hash (user
+    # unknown), so all session ops run on the system engine; request path revoked
+    "auth_sessions": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
     "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
@@ -113,6 +116,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # own-row identity links are read on the authenticated (platform_<tier>)
     # path, not the bare pre-routing role
     "federated_identities": None,
+    # sessions are system-engine-only; the bare login role never touches them
+    "auth_sessions": None,
     "notifications": None,
     "oidc_claim_mappings": None,
     "push_tokens": None,
