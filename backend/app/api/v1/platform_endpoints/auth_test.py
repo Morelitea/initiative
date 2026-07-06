@@ -1332,3 +1332,126 @@ async def test_register_rolls_back_when_guild_seed_fails(
     assert users == [], "user row must be rolled back when guild seeding fails"
     guilds = (await session.exec(select(Guild))).all()
     assert guilds == [], "guild row must be rolled back when guild seeding fails"
+
+
+# --- New login model: refresh issuance + rotation ------------------------
+
+
+async def _make_login_user(
+    session: AsyncSession,
+    email: str = "refresh@example.com",
+    password: str = "testpassword123",
+) -> tuple[User, str]:
+    user = User(
+        email_hash=hash_email(email),
+        email_encrypted=encrypt_field(email, SALT_EMAIL),
+        full_name="Refresh User",
+        hashed_password=get_password_hash(password),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+    return user, password
+
+
+async def _login(client: AsyncClient, email: str, password: str):
+    return await client.post(
+        "/api/v1/auth/token", data={"username": email, "password": password}
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_sets_refresh_cookie(client: AsyncClient, session: AsyncSession):
+    """Login additively issues a rotating refresh cookie (the legacy session
+    cookie is still set too — this is additive-first)."""
+    _, password = await _make_login_user(session, "cookie@example.com")
+    resp = await _login(client, "cookie@example.com", password)
+
+    assert resp.status_code == 200
+    assert resp.cookies.get("refresh_token")
+    assert resp.cookies.get("session_token")  # legacy cookie unchanged
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_refresh_rotates_and_new_token_authenticates(
+    client: AsyncClient, session: AsyncSession
+):
+    """The refresh cookie rotates into a fresh access token that authenticates."""
+    _, password = await _make_login_user(session, "rot@example.com")
+    await _login(client, "rot@example.com", password)
+
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 200
+    access_token = resp.json()["access_token"]
+    assert resp.cookies.get("refresh_token")  # a new (rotated) refresh was set
+
+    me = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["email"] == "rot@example.com"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_refresh_without_cookie_returns_401(client: AsyncClient):
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "NOT_AUTHENTICATED"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_refresh_with_invalid_cookie_returns_401(client: AsyncClient):
+    client.cookies.set("refresh_token", "not-a-real-token", path="/api/v1/auth")
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "INVALID_REFRESH_TOKEN"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_reused_refresh_token_returns_401(
+    client: AsyncClient, session: AsyncSession
+):
+    """Endpoint-level theft detection: replaying a spent refresh token is 401
+    (and the service revokes the chain — covered in the service tests)."""
+    _, password = await _make_login_user(session, "reuse@example.com")
+    login = await _login(client, "reuse@example.com", password)
+    first_refresh = login.cookies.get("refresh_token")
+
+    # Spend it once (jar rotates to the new token).
+    ok = await client.post("/api/v1/auth/refresh")
+    assert ok.status_code == 200
+
+    # Replay the original (now spent) token.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", first_refresh, path="/api/v1/auth")
+    replay = await client.post("/api/v1/auth/refresh")
+    assert replay.status_code == 401
+    assert replay.json()["detail"] == "INVALID_REFRESH_TOKEN"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_revokes_refresh_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """Logout revokes the refresh session, so a captured refresh token can't
+    rotate afterward — closing the gap where token_version only killed the
+    access side."""
+    _, password = await _make_login_user(session, "lo@example.com")
+    login = await _login(client, "lo@example.com", password)
+    captured = login.cookies.get("refresh_token")
+
+    logout = await client.post("/api/v1/auth/logout")
+    assert logout.status_code == 204
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", captured, path="/api/v1/auth")
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 401
