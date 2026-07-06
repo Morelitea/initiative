@@ -151,9 +151,19 @@ def decode_session_token(token: str) -> dict[str, Any]:
             issuer=AUTH_TOKEN_ISSUER,
             options={"require": ["exp", "sub", "ver", "aud", "iss"]},
         )
-    except jwt.PyJWTError:
-        # Legacy fallback: no aud/iss. A token bearing any aud (upload/handoff,
-        # or a malformed new token) fails here too and the error propagates.
+    except (
+        jwt.InvalidAudienceError,
+        jwt.InvalidIssuerError,
+        jwt.MissingRequiredClaimError,
+    ):
+        # These three mean "not a new-model token" — absent/foreign aud or iss,
+        # or missing the new claims — so fall back to the legacy scheme. A
+        # genuinely expired/forged/malformed JWT raises a *different* PyJWTError
+        # (ExpiredSignature/InvalidSignature/Decode) that is NOT caught here, so
+        # it propagates with its true type instead of being masked by the
+        # legacy decode's audience error — keeping cutover-window logs honest.
+        # A legacy token bearing any aud (upload/handoff) still fails the legacy
+        # decode below and is rejected.
         return jwt.decode(
             token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
         )

@@ -443,6 +443,9 @@ def test_decode_session_token_rejects_handoff_token():
 
 @pytest.mark.unit
 def test_decode_session_token_rejects_expired_new_token():
+    """An expired NEW token must surface its true ``ExpiredSignatureError`` from
+    the first decode — not be masked by the legacy fallback's audience error —
+    so cutover-window logs stay honest."""
     token, _ = mint_access_token(
         user_id=7,
         token_version=0,
@@ -451,7 +454,18 @@ def test_decode_session_token_rejects_expired_new_token():
         satisfied_providers=[],
         expires_in=timedelta(seconds=-1),
     )
-    with pytest.raises(jwt.PyJWTError):
+    with pytest.raises(jwt.ExpiredSignatureError):
+        decode_session_token(token)
+
+
+@pytest.mark.unit
+def test_decode_session_token_rejects_expired_legacy_token():
+    """An expired LEGACY token also surfaces ``ExpiredSignatureError`` (via the
+    fallback decode), not a misleading audience error."""
+    token = create_access_token(
+        subject="7", token_version=0, expires_delta=timedelta(seconds=-1)
+    )
+    with pytest.raises(jwt.ExpiredSignatureError):
         decode_session_token(token)
 
 
