@@ -32,6 +32,7 @@
   "CANNOT_CHANGE_OWN_ROLE": "Cannot change your own guild role",
   "USER_NOT_FOUND_IN_GUILD": "User not found in guild",
   "CANNOT_DEMOTE_LAST_ADMIN": "Cannot demote the last guild admin",
+  "GUILD_ROLE_NOT_ASSIGNABLE": "That guild role can't be assigned.",
   "NOT_GUILD_MEMBER": "Not a member of this guild",
   "CANNOT_LEAVE_LAST_ADMIN": "Cannot leave guild: you are the last admin. Promote another user to admin first.",
   "CANNOT_LEAVE_SOLE_PM": "Cannot leave guild: you are the sole project manager. Promote another member first.",

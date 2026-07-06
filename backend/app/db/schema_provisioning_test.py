@@ -16,6 +16,7 @@ from app.db.schema_provisioning import (
     SUPPORT_WRITE_PROTECTED_TABLES,
     backfill_guild_schemas,
     drop_guild_schema,
+    guild_readonly_role_name,
     guild_role_name,
     guild_schema_name,
     guild_support_role_name,
@@ -191,9 +192,13 @@ async def test_guild_role_is_scoped_to_its_own_schema(engine):
 
 
 async def test_drop_guild_schema_removes_role(engine):
-    """Tearing down a guild drops its roles too, not just the schema."""
+    """Tearing down a guild drops ALL its roles too, not just the schema."""
     gid = _GID_ROLE_DROP
-    roles = (guild_role_name(gid), guild_support_role_name(gid))
+    roles = (
+        guild_role_name(gid),
+        guild_readonly_role_name(gid),
+        guild_support_role_name(gid),
+    )
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
@@ -213,8 +218,8 @@ async def test_drop_guild_schema_removes_role(engine):
                 )
                 for r in roles
             ]
-        assert before == [1, 1], "roles should exist after provisioning"
-        assert after == [None, None], "roles should be gone after drop"
+        assert before == [1, 1, 1], "all three roles should exist after provisioning"
+        assert after == [None, None, None], "all three roles should be gone after drop"
     finally:
         # Defensive: ensure no leftover role/schema if an assertion failed early.
         async with engine.begin() as conn:
