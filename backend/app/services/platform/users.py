@@ -564,6 +564,45 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> None:
     await session.commit()
 
 
+async def _scrub_invites_addressed_to(
+    session: AsyncSession, *, email_hash: str
+) -> None:
+    """Erase a user's email from any guild invite addressed to them.
+
+    ``GuildInvite.invitee_email_encrypted`` holds the invited person's address
+    as *reversible* Fernet ciphertext, so a lingering (unexpired or already
+    consumed) invite is a recoverable PII trace that survives user erasure —
+    the one gap that otherwise makes anonymize/hard-delete not airtight.
+
+    Fernet output is non-deterministic (the same address encrypts differently
+    every time), so there is no indexed equality lookup: we load every bound
+    invite and compare the decrypted address the same way redemption does
+    (via ``hash_email``, matching the ``users.email_hash`` normalization).
+
+    A match is NULLed (removing the PII) *and* neutralised (``max_uses = 0``, so
+    ``invite_is_active`` returns False). Nulling alone is not enough: an invite
+    with no bound address is treated as an open shareable link, so a
+    still-active single-recipient invite would degrade into one anyone with the
+    code could redeem. The system engine (``app_admin``) holds UPDATE but
+    deliberately not DELETE on ``guild_invites`` (row removal rides the guild
+    FK cascade — see ``SHARED_TABLE_SYSTEM_GRANTS``), so this scrubs the row in
+    place rather than deleting it.
+    """
+    from app.models.platform.guild import GuildInvite
+
+    bound_invites = (
+        await session.exec(
+            select(GuildInvite).where(GuildInvite.invitee_email_encrypted.is_not(None))
+        )
+    ).all()
+    for invite in bound_invites:
+        bound_email = invite.invitee_email  # decrypts invitee_email_encrypted
+        if bound_email and hash_email(bound_email) == email_hash:
+            invite.invitee_email_encrypted = None
+            invite.max_uses = 0
+            session.add(invite)
+
+
 async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     """Soft-delete (anonymize) a user account.
 
@@ -603,6 +642,10 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     await set_rls_context(session)
 
     user = await _drop_user_memberships(session, user_id)
+
+    # Capture the real email hash before it's overwritten with the sentinel
+    # below — it's how we find guild invites bound to this person's address.
+    original_email_hash = user.email_hash
 
     user.status = UserStatus.anonymized
     user.token_version += 1
@@ -657,6 +700,13 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
     await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
     await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
+
+    # Scrub the user's address out of any guild invite bound to it. Without
+    # this, an unexpired/lingering invite keeps a recoverable copy of the very
+    # email this erasure was meant to remove. Runs in the same public,
+    # ``app_admin`` context as the auth-artifact deletes above.
+    if original_email_hash:
+        await _scrub_invites_addressed_to(session, email_hash=original_email_hash)
 
     # Single commit: membership removal + PII wipe + auth-artifact
     # revocation either all succeed or all roll back together.
@@ -1107,6 +1157,14 @@ async def hard_delete_user(
     # GuildMemberships cascade-delete via the User relationship. InitiativeMembers
     # were already removed per guild above.
     user = (await session.exec(select(User).where(User.id == user_id))).one()
+
+    # Scrub the user's address out of any guild invite bound to it before the
+    # row goes — a bound invite otherwise keeps a recoverable copy of the email
+    # (the ``created_by_user_id`` NULLing above only covers invites this user
+    # *sent*, not ones addressed *to* them).
+    if user.email_hash:
+        await _scrub_invites_addressed_to(session, email_hash=user.email_hash)
+
     await session.delete(user)
 
     await session.commit()

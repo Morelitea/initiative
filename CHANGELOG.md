@@ -9,13 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Platform admins can now set a per-guild user limit from the admin dashboard's Guilds tab (default unlimited). Each guild shows its current headcount against the cap (e.g. `3/unlimited` or `3/10`), and the limit is editable inline. When a guild is at its limit, joining via an invite, signing up with an invite, or a guild admin creating a member is refused; existing members are never removed, and lowering a cap below the current headcount only blocks new joins. SSO/OIDC auto-provisioning is exempt.
-- Platform admins can now set a per-guild lifecycle status (`active` / `read_only` / `suspended`) from the admin dashboard's Guilds tab, for billing/moderation holds — with a confirmation prompt before suspending. Under `read_only`, members keep reading content but writes are denied at the database role level; under `suspended`, members lose all access and the guild disappears from their guild list, while guild **admins** keep the guild listed and retain full settings access (billing, data ownership, danger zone). New members can't join a non-active guild. Trash auto-purge pauses for non-active guilds so a hold never keeps destroying data. Time-bound PAM/break-glass access grants deliberately override the status, so operators can always reach a guild they suspended. Guild admins see a notice in guild settings pointing them to the platform operator, and operators acting through an access grant see the status in their temporary-access banner — but ordinary members are never told. The status is reversible and never touches stored data.
-- Time-bound support/moderator access grants now act as a first-class, **database-enforced** `support` guild role instead of masquerading as a member. A read grant is read-only; a read_write grant can edit content and guild settings but is hard-blocked at the Postgres role level from managing guild/initiative membership, roles, or sharing permissions (a dedicated per-guild `support` role, not app-layer checks alone). Break-glass admin access is unchanged — full guild admin for its window. `support` is never an assignable stored membership role.
+- Platform admins can set a per-guild user limit (default unlimited) from the admin dashboard's Guilds tab; at the cap, new joins/invites are refused while existing members stay, and SSO auto-provisioning is exempt.
+- Platform admins can set a per-guild lifecycle status (`active` / `read_only` / `suspended`) for billing/moderation holds — `read_only` blocks writes, `suspended` hides the guild from members while its admins keep full settings access. Non-active guilds pause trash auto-purge and block new joins; operators can still reach them via a break-glass grant. Reversible, never touches stored data.
+- Time-bound support/moderator access grants now act as a database-enforced `support` guild role: read grants are read-only, read_write grants can edit content/settings but are blocked from managing membership, roles, or sharing. Break-glass admin access is unchanged.
 
 ### Changed
 
-- Operator guild deletion is now scoped to resolving a user-deletion blocker: the platform "delete this guild" action (offered when deleting a user who is a guild's sole admin) only deletes a guild that user actually solely admins, instead of accepting any guild id. Guild admins can always delete their own guild as before; operators reach a live guild's deletion through its own danger zone via a break-glass grant.
+- Operator "delete this guild" (offered when deleting a guild's sole admin) is now scoped to that user's solely-admined guild instead of accepting any guild id; guild admins still delete their own guild as before.
+
+### Fixed
+
+- Anonymizing or deleting a user now scrubs their email out of any guild invite addressed to them (invite addresses are stored reversibly encrypted, so a lingering invite kept a recoverable copy); the invite is neutralized so this can't turn it into an open shareable link.
 
 ## [0.54.2] - 2026-07-04
 
