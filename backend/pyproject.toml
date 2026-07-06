@@ -11,7 +11,11 @@ dependencies = [
     "sqlalchemy>=2.0.49,<3",
     "greenlet>=3.0",                     # SQLAlchemy async; its own marker skips macOS arm64, so require explicitly
     "asyncpg>=0.31.0,<0.32",
-    "PyJWT>=2.12.1,<3",
+    # >=2.13.0: fixes the 2026 PyJWKClient cluster (CVE-2026-48522 JWKS-URI SSRF,
+    # 48523 alg-allowlist bypass with a PyJWK key, 48524 unbounded JWKS fetch).
+    # We verify OIDC id_tokens with jwt.decode + PyJWKClient, so this is a security
+    # floor, not a preference — an older install is exploitable.
+    "PyJWT>=2.13.0,<3",
     "argon2-cffi>=25.1.0,<26",
     "bcrypt==5.0.0",
     "pydantic-settings>=2.14.2,<3",
