@@ -1411,6 +1411,13 @@ async def test_refresh_with_invalid_cookie_returns_401(client: AsyncClient):
     resp = await client.post("/api/v1/auth/refresh")
     assert resp.status_code == 401
     assert resp.json()["detail"] == "INVALID_REFRESH_TOKEN"
+    # The rejection must actually clear the stale cookie so the browser stops
+    # resending it — the delete header has to ride on the returned response, not
+    # a raised exception (FastAPI drops the injected response's cookies on raise).
+    set_cookies = resp.headers.get_list("set-cookie")
+    assert any("refresh_token=" in c and "Max-Age=0" in c for c in set_cookies), (
+        set_cookies
+    )
 
 
 @pytest.mark.integration

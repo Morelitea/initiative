@@ -11,7 +11,7 @@ from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -124,6 +124,24 @@ def _clear_refresh_cookie(response: Response) -> None:
         secure=settings.cookie_secure,
         samesite="lax",
     )
+
+
+def _refresh_rejected(detail: str) -> JSONResponse:
+    """A 401 for a failed refresh that also clears the stale auth cookies.
+
+    The clearing must ride on the *returned* response: mutating the injected
+    ``Response`` and then ``raise``-ing an ``HTTPException`` drops the Set-Cookie
+    headers (FastAPI builds a fresh response for the exception), so the browser
+    would keep resending a dead refresh token. Returning the response directly is
+    the only way the delete-cookie headers reach the client."""
+    response = JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": detail},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    _clear_refresh_cookie(response)
+    response.delete_cookie(key=settings.COOKIE_NAME, path="/")
+    return response
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -389,16 +407,25 @@ async def login_access_token(
     # cookie above is untouched, so existing clients are unaffected; the refresh
     # cookie only matters once a client calls /auth/refresh. Session writes run
     # on the system engine (auth_sessions is app_admin-only).
-    issued = await session_service.create_session(
-        admin_session,
-        user_id=user.id,
-        amr=["pwd"],
-        satisfied_providers=[],
-        user_agent=request.headers.get("user-agent"),
-        ip=_client_ip(request),
-    )
-    await admin_session.commit()
-    _set_refresh_cookie(response, issued.refresh_token)
+    #
+    # Best-effort: this is additive and not yet load-bearing, so a transient DB
+    # error establishing the session must NOT turn a successful password auth
+    # into a 500 (same rule as the hash-upgrade above) — legacy clients that
+    # never touch the refresh cookie would otherwise be broken by it.
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user.id,
+            amr=["pwd"],
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=_client_ip(request),
+        )
+        await admin_session.commit()
+        _set_refresh_cookie(response, issued.refresh_token)
+    except Exception:
+        await admin_session.rollback()
+        logger.exception("Failed to establish refresh session for user %s", user.id)
 
     return Token(access_token=access_token)
 
@@ -409,7 +436,7 @@ async def refresh_access_token(
     request: Request,
     response: Response,
     admin_session: AdminSessionDep,
-) -> Token:
+) -> Token | JSONResponse:
     """Rotate the refresh cookie → a fresh short-lived access token + new refresh.
 
     Single-use rotation with theft detection lives in the session service; this
@@ -441,13 +468,7 @@ async def refresh_access_token(
     if not result.ok:
         if result.outcome is RefreshOutcome.REUSED:
             logger.warning("Refresh token replay detected; revoked session chain")
-        _clear_refresh_cookie(response)
-        response.delete_cookie(key=settings.COOKIE_NAME, path="/")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_REFRESH_TOKEN,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
     issued = result.issued
     user = await admin_session.get(User, issued.session.user_id)
@@ -456,13 +477,7 @@ async def refresh_access_token(
         # the fresh session too rather than hand back a usable token.
         await session_service.revoke_chain(admin_session, session_id=issued.session.id)
         await admin_session.commit()
-        _clear_refresh_cookie(response)
-        response.delete_cookie(key=settings.COOKIE_NAME, path="/")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=AuthMessages.INVALID_REFRESH_TOKEN,
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
 
     access_token, access_max_age = mint_access_token(
         user_id=user.id,
