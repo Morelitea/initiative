@@ -17,6 +17,7 @@ from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.security import (
     AutoDelegationVerificationError,
     UploadTokenError,
+    decode_session_token,
     verify_auto_delegation_token,
     verify_upload_token,
 )
@@ -208,9 +209,7 @@ async def get_current_user(
     # 401 interceptor depends on this to auto-redirect to /welcome when
     # the access token expires.
     try:
-        payload = jwt.decode(
-            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
-        )
+        payload = decode_session_token(token)
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError as exc:
         raise HTTPException(
@@ -817,9 +816,7 @@ async def get_upload_user(
     # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
     # so the SPA can auto-redirect to /welcome when the session lapses.
     try:
-        payload = jwt.decode(
-            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
-        )
+        payload = decode_session_token(token)
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError:
         raise HTTPException(

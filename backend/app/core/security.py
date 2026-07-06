@@ -123,6 +123,52 @@ def mint_access_token(
     return token, int(ttl.total_seconds())
 
 
+def decode_session_token(token: str) -> dict[str, Any]:
+    """Decode a session credential, accepting BOTH schemes during the
+    dual-verify cutover window (history/auth-detailed-design.md §3.1):
+
+    - the **new-model access token** — ``aud=initiative:access`` /
+      ``iss=initiative``, additionally carrying ``sid``/``amr``/``sat``.
+    - the **legacy session JWT** — no ``aud``/``iss``.
+
+    Both carry ``sub`` + ``ver`` (the caller checks ``ver`` against
+    ``users.token_version``). Raises :class:`jwt.PyJWTError` for anything else,
+    which every call site already maps to 401. Crucially this keeps the session
+    path refusing **scoped** tokens: an upload/handoff token carries a *foreign*
+    ``aud`` that fails the new decode (wrong audience) AND the legacy decode
+    (which rejects any token bearing an ``aud``), so neither is honored as a
+    session. Bad signature / expiry / missing claims raise as before.
+
+    New scheme is tried first, so once issuance flips it's the single-decode
+    fast path; during the window a legacy token pays one extra HMAC verify.
+    """
+    try:
+        return jwt.decode(
+            token,
+            settings.jwt_signing_key,
+            algorithms=[settings.ALGORITHM],
+            audience=AUTH_ACCESS_AUDIENCE,
+            issuer=AUTH_TOKEN_ISSUER,
+            options={"require": ["exp", "sub", "ver", "aud", "iss"]},
+        )
+    except (
+        jwt.InvalidAudienceError,
+        jwt.InvalidIssuerError,
+        jwt.MissingRequiredClaimError,
+    ):
+        # These three mean "not a new-model token" — absent/foreign aud or iss,
+        # or missing the new claims — so fall back to the legacy scheme. A
+        # genuinely expired/forged/malformed JWT raises a *different* PyJWTError
+        # (ExpiredSignature/InvalidSignature/Decode) that is NOT caught here, so
+        # it propagates with its true type instead of being masked by the
+        # legacy decode's audience error — keeping cutover-window logs honest.
+        # A legacy token bearing any aud (upload/handoff) still fails the legacy
+        # decode below and is rejected.
+        return jwt.decode(
+            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
+        )
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # Scoped upload tokens
 #

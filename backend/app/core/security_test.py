@@ -28,8 +28,10 @@ from app.core.security import (
     UPLOAD_TOKEN_LIFETIME,
     UPLOAD_TOKEN_SCOPE,
     UploadTokenError,
+    create_access_token,
     create_advanced_tool_handoff_token,
     create_upload_token,
+    decode_session_token,
     mint_access_token,
     verify_upload_token,
 )
@@ -384,3 +386,90 @@ def test_mint_access_token_is_verifiable_with_expected_audience():
         options={"require": ["exp", "iat", "sub", "sid", "aud", "iss"]},
     )
     assert payload["sub"] == "5"
+
+
+# ── Dual-verify decode (accepts new + legacy, rejects scoped) ───────────────
+
+
+@pytest.mark.unit
+def test_decode_session_token_accepts_new_access_token():
+    token, _ = mint_access_token(
+        user_id=7,
+        token_version=2,
+        session_id=uuid.uuid4(),
+        amr=["pwd"],
+        satisfied_providers=[3],
+    )
+    payload = decode_session_token(token)
+    assert payload["sub"] == "7"
+    assert payload["ver"] == 2
+    assert payload["aud"] == AUTH_ACCESS_AUDIENCE
+    assert payload["sat"] == [3]
+
+
+@pytest.mark.unit
+def test_decode_session_token_accepts_legacy_token():
+    """The legacy session JWT (no aud/iss) must keep validating across the
+    cutover window."""
+    token = create_access_token(subject="7", token_version=2)
+    payload = decode_session_token(token)
+    assert payload["sub"] == "7"
+    assert payload["ver"] == 2
+    assert "aud" not in payload
+
+
+@pytest.mark.unit
+def test_decode_session_token_rejects_scoped_upload_token():
+    """A scoped upload token carries a foreign aud — it must NOT be honored as
+    a session credential on either decode path (the key security property)."""
+    upload, _ = create_upload_token(user_id=7)
+    with pytest.raises(jwt.PyJWTError):
+        decode_session_token(upload)
+
+
+@pytest.mark.unit
+def test_decode_session_token_rejects_handoff_token():
+    handoff, _ = create_advanced_tool_handoff_token(
+        user_id=7,
+        guild_id=1,
+        guild_role="admin",
+        is_manager=True,
+        can_create=True,
+        scope="guild",
+    )
+    with pytest.raises(jwt.PyJWTError):
+        decode_session_token(handoff)
+
+
+@pytest.mark.unit
+def test_decode_session_token_rejects_expired_new_token():
+    """An expired NEW token must surface its true ``ExpiredSignatureError`` from
+    the first decode — not be masked by the legacy fallback's audience error —
+    so cutover-window logs stay honest."""
+    token, _ = mint_access_token(
+        user_id=7,
+        token_version=0,
+        session_id=uuid.uuid4(),
+        amr=["pwd"],
+        satisfied_providers=[],
+        expires_in=timedelta(seconds=-1),
+    )
+    with pytest.raises(jwt.ExpiredSignatureError):
+        decode_session_token(token)
+
+
+@pytest.mark.unit
+def test_decode_session_token_rejects_expired_legacy_token():
+    """An expired LEGACY token also surfaces ``ExpiredSignatureError`` (via the
+    fallback decode), not a misleading audience error."""
+    token = create_access_token(
+        subject="7", token_version=0, expires_delta=timedelta(seconds=-1)
+    )
+    with pytest.raises(jwt.ExpiredSignatureError):
+        decode_session_token(token)
+
+
+@pytest.mark.unit
+def test_decode_session_token_rejects_garbage():
+    with pytest.raises(jwt.PyJWTError):
+        decode_session_token("not.a.jwt")

@@ -36,6 +36,7 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
+    get_new_access_token,
 )
 from app.testing.schema_harness import route_session_to_guild
 
@@ -66,5 +67,6 @@ __all__ = [
     "create_user",
     "get_auth_headers",
     "get_auth_token",
+    "get_new_access_token",
     "route_session_to_guild",
 ]

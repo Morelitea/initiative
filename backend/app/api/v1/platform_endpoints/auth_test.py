@@ -16,9 +16,18 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import (
+    create_access_token,
+    create_upload_token,
+    get_password_hash,
+)
 from app.models.platform.user import User, UserStatus
-from app.testing.factories import create_user, get_auth_headers, get_auth_token
+from app.testing.factories import (
+    create_user,
+    get_auth_headers,
+    get_auth_token,
+    get_new_access_token,
+)
 
 
 @pytest.mark.integration
@@ -591,6 +600,62 @@ async def test_stale_token_version_returns_401(
     response = await client.get(
         "/api/v1/users/me",
         headers={"Authorization": f"Bearer {stale_token}"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_new_access_token_authenticates(
+    client: AsyncClient, session: AsyncSession
+):
+    """Dual-verify: a new-model access token (aud initiative:access) is accepted
+    on the session path alongside legacy JWTs — the accept-before-issue half of
+    the cutover."""
+    user = await create_user(session)
+    token = get_new_access_token(user)
+
+    response = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["id"] == user.id
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_new_access_token_stale_version_returns_401(
+    client: AsyncClient, session: AsyncSession
+):
+    """The new token still carries ``ver``, so a token_version bump (logout /
+    password change) revokes it exactly like a legacy token."""
+    user = await create_user(session)
+    token = get_new_access_token(user)
+    user.token_version += 1
+    session.add(user)
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_scoped_upload_token_rejected_on_session_path(
+    client: AsyncClient, session: AsyncSession
+):
+    """Security regression: a scoped upload token carries a different aud and
+    must never be honored as a session credential — dual-verify preserves this."""
+    user = await create_user(session)
+    upload_token, _ = create_upload_token(user_id=user.id)
+
+    response = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {upload_token}"},
     )
     assert response.status_code == 401
 
