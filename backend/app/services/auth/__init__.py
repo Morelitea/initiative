@@ -6,7 +6,8 @@ per-provider implementations slot in alongside it in later slices.
 
 from app.services.auth.sessions import (
     IssuedSession,
-    RefreshError,
+    RefreshOutcome,
+    RotationResult,
     create_session,
     revoke_all_for_user,
     revoke_chain,
@@ -16,7 +17,8 @@ from app.services.auth.sessions import (
 
 __all__ = [
     "IssuedSession",
-    "RefreshError",
+    "RefreshOutcome",
+    "RotationResult",
     "create_session",
     "rotate_session",
     "revoke_session",

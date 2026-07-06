@@ -24,6 +24,7 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 
 from sqlalchemy import text
 from sqlmodel import select
@@ -34,7 +35,8 @@ from app.models.platform.auth_session import AuthSession
 
 __all__ = [
     "IssuedSession",
-    "RefreshError",
+    "RefreshOutcome",
+    "RotationResult",
     "create_session",
     "rotate_session",
     "revoke_session",
@@ -77,17 +79,34 @@ class IssuedSession:
     refresh_token: str
 
 
-class RefreshError(Exception):
-    """A presented refresh token could not be rotated. ``code`` is machine-
-    readable so the endpoint maps it to an HTTP status + localized message."""
+class RefreshOutcome(str, Enum):
+    """The result of a rotation attempt. The string values double as machine-
+    readable codes the endpoint maps to an HTTP status + localized message."""
 
+    ROTATED = "rotated"
     UNKNOWN = "unknown_refresh_token"
     EXPIRED = "refresh_token_expired"
     REUSED = "refresh_token_reused"
 
-    def __init__(self, code: str):
-        self.code = code
-        super().__init__(code)
+
+@dataclass(frozen=True)
+class RotationResult:
+    """Outcome of :func:`rotate_session`.
+
+    ``rotate_session`` **returns** this rather than raising, deliberately: on
+    ``REUSED`` it has written a theft-revocation to the caller's session, and an
+    exception there would let a conventional ``try/commit … except/rollback``
+    handler silently discard that security response. Returning keeps the outcome
+    on the caller's normal control flow — a single commit persists whichever
+    write happened (the rotation on ``ROTATED``, the chain kill on ``REUSED``).
+    """
+
+    outcome: RefreshOutcome
+    issued: IssuedSession | None = None  # present iff ``outcome is ROTATED``
+
+    @property
+    def ok(self) -> bool:
+        return self.outcome is RefreshOutcome.ROTATED
 
 
 # Revoke every session in a token's rotation chain, in both directions, given any
@@ -166,18 +185,22 @@ async def rotate_session(
     device_name: str | None = None,
     refresh_ttl: timedelta | None = None,
     now: datetime | None = None,
-) -> IssuedSession:
+) -> RotationResult:
     """Single-use rotate: spend the presented refresh token, mint its successor.
 
     Carries ``amr``/``satisfied_providers`` (and device metadata) forward from the
     parent unless overridden — a step-up rotation passes the widened set.
 
-    Raises :class:`RefreshError`:
-    - ``UNKNOWN`` — no session matches the token.
-    - ``EXPIRED`` — the refresh window has lapsed (benign; log back in).
-    - ``REUSED`` — the token was already spent ⇒ **theft**. The whole chain has
-      been revoked on ``session``; the caller **must commit that** (do not roll
-      back) before surfacing the 401, or the theft response is lost.
+    **Returns** a :class:`RotationResult` (never raises for a bad token) —
+    ``ROTATED`` carries the new :class:`IssuedSession`; ``UNKNOWN``/``EXPIRED``/
+    ``REUSED`` are rejections. On ``REUSED`` the whole chain has been revoked on
+    ``session`` (theft response). Returning rather than raising is the point: the
+    caller commits on its normal path, so one commit durably persists whichever
+    write occurred and a rollback-on-exception handler can't drop the chain kill.
+
+    **Caller contract:** commit ``session`` before acting on the outcome —
+    ``rotate → commit → branch`` — so both the rotation and the theft-revocation
+    are persisted regardless of how the request ends.
     """
     issued = now or _now()
     ttl = refresh_ttl or timedelta(days=settings.AUTH_REFRESH_TTL_DAYS)
@@ -189,15 +212,15 @@ async def rotate_session(
         )
     ).one_or_none()
     if row is None:
-        raise RefreshError(RefreshError.UNKNOWN)
+        return RotationResult(RefreshOutcome.UNKNOWN)
 
     # Already spent (rotated or explicitly revoked) ⇒ replay of a dead token.
     if row.revoked_at is not None:
         await revoke_chain(session, session_id=row.id, now=issued)
-        raise RefreshError(RefreshError.REUSED)
+        return RotationResult(RefreshOutcome.REUSED)
 
     if row.expires_at <= issued:
-        raise RefreshError(RefreshError.EXPIRED)
+        return RotationResult(RefreshOutcome.EXPIRED)
 
     # Atomic single-use claim: only one caller can flip revoked_at NULL→now, so
     # two concurrent refreshes with the same token can't both mint a child.
@@ -213,7 +236,7 @@ async def rotate_session(
     if claimed is None:
         # Lost the race to a concurrent rotation — same danger as a replay.
         await revoke_chain(session, session_id=row.id, now=issued)
-        raise RefreshError(RefreshError.REUSED)
+        return RotationResult(RefreshOutcome.REUSED)
     # Keep the in-session parent honest (the raw UPDATE bypassed the ORM).
     await session.refresh(row)
 
@@ -236,7 +259,10 @@ async def rotate_session(
     )
     session.add(child)
     await session.flush()
-    return IssuedSession(session=child, refresh_token=raw)
+    return RotationResult(
+        RefreshOutcome.ROTATED,
+        issued=IssuedSession(session=child, refresh_token=raw),
+    )
 
 
 async def revoke_session(
