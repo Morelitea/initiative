@@ -37,6 +37,7 @@ _RLS_SHARED_TABLES = {
     "access_grants",
     "app_settings",
     "auth_providers",
+    "auth_sessions",
     "federated_identities",
     "guild_invites",
     "guild_memberships",
