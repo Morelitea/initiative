@@ -2,6 +2,7 @@ import base64
 from datetime import datetime, timezone
 import hashlib
 import hmac
+import ipaddress
 import logging
 import secrets
 import time
@@ -10,7 +11,7 @@ from urllib.parse import urlencode, urlsplit
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
@@ -20,7 +21,7 @@ from app.api.deps import SessionDep, get_current_active_user, get_current_user_o
 from app.db.session import get_admin_session
 from app.core.config import settings
 from sqlmodel.ext.asyncio.session import AsyncSession
-from app.core.rate_limit import limiter
+from app.core.rate_limit import get_real_client_ip, limiter
 from app.core.encryption import (
     decrypt_field,
     encrypt_field,
@@ -35,6 +36,7 @@ from app.core.security import (
     create_access_token,
     create_upload_token,
     get_password_hash,
+    mint_access_token,
     password_needs_rehash,
     verify_password,
 )
@@ -54,6 +56,8 @@ from app.schemas.platform.auth import (
 )
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
+from app.services.auth import sessions as session_service
+from app.services.auth.sessions import RefreshOutcome
 from app.services.platform import app_settings as app_settings_service
 from app.services import email as email_service
 from app.services.platform import user_tokens
@@ -68,6 +72,76 @@ STATE_TTL_SECONDS = 600
 _OIDC_METADATA_TTL_SECONDS = 300  # 5 minutes
 _oidc_metadata_cache: dict[str, tuple[dict[str, Any], float]] = {}
 logger = logging.getLogger(__name__)
+
+# The refresh cookie is scoped to the auth routes so it never rides along on
+# ordinary API requests — it is only presented to /auth/refresh and /auth/logout.
+REFRESH_COOKIE_PATH = f"{settings.API_V1_STR}/auth"
+
+
+def _client_ip(request: Request) -> str | None:
+    """The client IP as a value the INET ``auth_sessions.ip`` column accepts, or
+    ``None`` when it isn't a parseable address (e.g. the ``testclient`` peer).
+    Guards the login/refresh path from faulting on a non-IP host string."""
+    try:
+        ipaddress.ip_address(get_real_client_ip(request))
+    except ValueError:
+        return None
+    return get_real_client_ip(request)
+
+
+def _set_session_cookie(response: Response, token: str, *, max_age: int) -> None:
+    """Set the session-auth cookie (read by ``get_current_user``). During the
+    cutover this holds a legacy JWT at login and a new-model access token after
+    the first refresh — the verifier accepts either."""
+    response.set_cookie(
+        key=settings.COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        max_age=max_age,
+        path="/",
+    )
+
+
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    response.set_cookie(
+        key=settings.REFRESH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        max_age=settings.AUTH_REFRESH_TTL_DAYS * 86400,
+        path=REFRESH_COOKIE_PATH,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.REFRESH_COOKIE_NAME,
+        path=REFRESH_COOKIE_PATH,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+    )
+
+
+def _refresh_rejected(detail: str) -> JSONResponse:
+    """A 401 for a failed refresh that also clears the stale auth cookies.
+
+    The clearing must ride on the *returned* response: mutating the injected
+    ``Response`` and then ``raise``-ing an ``HTTPException`` drops the Set-Cookie
+    headers (FastAPI builds a fresh response for the exception), so the browser
+    would keep resending a dead refresh token. Returning the response directly is
+    the only way the delete-cookie headers reach the client."""
+    response = JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": detail},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    _clear_refresh_cookie(response)
+    response.delete_cookie(key=settings.COOKIE_NAME, path="/")
+    return response
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -285,6 +359,7 @@ async def login_access_token(
     request: Request,
     response: Response,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Token:
     normalized_email = form_data.username.lower().strip()
@@ -323,15 +398,96 @@ async def login_access_token(
     access_token = create_access_token(
         subject=str(user.id), token_version=user.token_version
     )
-    response.set_cookie(
-        key=settings.COOKIE_NAME,
-        value=access_token,
-        httponly=True,
-        samesite="lax",
-        secure=settings.cookie_secure,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        path="/",
+    _set_session_cookie(
+        response, access_token, max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
+
+    # Additively establish a server-side session + rotating refresh cookie (the
+    # new login model, history/auth-detailed-design.md §3). The legacy session
+    # cookie above is untouched, so existing clients are unaffected; the refresh
+    # cookie only matters once a client calls /auth/refresh. Session writes run
+    # on the system engine (auth_sessions is app_admin-only).
+    #
+    # Best-effort: this is additive and not yet load-bearing, so a transient DB
+    # error establishing the session must NOT turn a successful password auth
+    # into a 500 (same rule as the hash-upgrade above) — legacy clients that
+    # never touch the refresh cookie would otherwise be broken by it.
+    try:
+        issued = await session_service.create_session(
+            admin_session,
+            user_id=user.id,
+            amr=["pwd"],
+            satisfied_providers=[],
+            user_agent=request.headers.get("user-agent"),
+            ip=_client_ip(request),
+        )
+        await admin_session.commit()
+        _set_refresh_cookie(response, issued.refresh_token)
+    except Exception:
+        await admin_session.rollback()
+        logger.exception("Failed to establish refresh session for user %s", user.id)
+
+    return Token(access_token=access_token)
+
+
+@router.post("/refresh", response_model=Token)
+@limiter.limit("60/minute")
+async def refresh_access_token(
+    request: Request,
+    response: Response,
+    admin_session: AdminSessionDep,
+) -> Token | JSONResponse:
+    """Rotate the refresh cookie → a fresh short-lived access token + new refresh.
+
+    Single-use rotation with theft detection lives in the session service; this
+    endpoint is the ``rotate → commit → branch`` caller (see
+    ``services.auth.sessions``). Reuse of a spent token revokes the whole chain,
+    but the client is always told the same generic thing — never that a replay
+    was detected. Runs on the system engine: validation is a pre-auth lookup by
+    refresh-token hash.
+    """
+    raw = request.cookies.get(settings.REFRESH_COOKIE_NAME)
+    if not raw:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=AuthMessages.NOT_AUTHENTICATED,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    result = await session_service.rotate_session(
+        admin_session,
+        raw_refresh_token=raw,
+        user_agent=request.headers.get("user-agent"),
+        ip=_client_ip(request),
+    )
+    # Commit BEFORE branching: one commit persists the rotation (ROTATED) or the
+    # theft-revocation (REUSED), so a rejection can't leave the chain kill
+    # uncommitted (see RotationResult).
+    await admin_session.commit()
+
+    if not result.ok:
+        if result.outcome is RefreshOutcome.REUSED:
+            logger.warning("Refresh token replay detected; revoked session chain")
+        return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
+
+    issued = result.issued
+    user = await admin_session.get(User, issued.session.user_id)
+    if user is None or user.status != UserStatus.active:
+        # The account was deactivated/removed after the session was minted — kill
+        # the fresh session too rather than hand back a usable token.
+        await session_service.revoke_chain(admin_session, session_id=issued.session.id)
+        await admin_session.commit()
+        return _refresh_rejected(AuthMessages.INVALID_REFRESH_TOKEN)
+
+    access_token, access_max_age = mint_access_token(
+        user_id=user.id,
+        token_version=user.token_version,
+        session_id=issued.session.id,
+        amr=issued.session.amr,
+        satisfied_providers=issued.session.satisfied_providers,
+    )
+    _set_session_cookie(response, access_token, max_age=access_max_age)
+    _set_refresh_cookie(response, issued.refresh_token)
     return Token(access_token=access_token)
 
 
@@ -340,6 +496,7 @@ async def logout(
     request: Request,
     response: Response,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User | None, Depends(get_current_user_optional)] = None,
 ) -> None:
     # Note: `session` and `get_current_user_optional` must resolve to the
@@ -352,6 +509,9 @@ async def logout(
     # a cached cookie could keep authenticating until natural expiry.
     # In tests it worked by accident because conftest aliases both deps
     # to the same fixture session.
+    # (``admin_session`` is a SEPARATE, deliberate session used only to revoke
+    # auth_sessions — which the request-path role can't touch — never for the
+    # token_version bump above.)
     if current_user is not None:
         current_user.token_version += 1
         auth_header = request.headers.get("Authorization", "")
@@ -365,6 +525,14 @@ async def logout(
                 session.add(device_token)
         session.add(current_user)
         await session.commit()
+        # Kill the refresh side too: the token_version bump invalidates
+        # outstanding *access* tokens, but a leaked refresh token would otherwise
+        # keep rotating (and mint tokens at the new version). "Logout = sign out
+        # everywhere", matching the global token_version bump.
+        await session_service.revoke_all_for_user(
+            admin_session, user_id=current_user.id
+        )
+        await admin_session.commit()
     response.delete_cookie(
         key=settings.COOKIE_NAME,
         path="/",
@@ -372,6 +540,7 @@ async def logout(
         secure=settings.cookie_secure,
         samesite="lax",
     )
+    _clear_refresh_cookie(response)
 
 
 @router.post("/upload-token", response_model=UploadTokenResponse)
@@ -1007,7 +1176,10 @@ async def request_password_reset(
 @router.post("/password/reset", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
 async def reset_password(
-    request: Request, payload: PasswordResetSubmit, session: SessionDep
+    request: Request,
+    payload: PasswordResetSubmit,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
     # Run the policy first so an invalid candidate doesn't burn the
     # reset token; ``consume_token`` is one-shot.
@@ -1030,9 +1202,11 @@ async def reset_password(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
     user.hashed_password = get_password_hash(payload.password)
-    # Bump token_version and revoke active device tokens so a stale
-    # JWT/device token can't survive the reset.
-    await user_tokens.revoke_user_sessions(session, user=user)
+    # Bump token_version and revoke device tokens / API keys / refresh sessions
+    # so no stale credential (JWT, device token, or captured refresh) survives.
+    await user_tokens.revoke_user_sessions(
+        session, user=user, admin_session=admin_session
+    )
     if not user.email_verified:
         user.email_verified = True
     user.updated_at = datetime.now(timezone.utc)

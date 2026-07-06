@@ -13,6 +13,7 @@
   "NOT_AUTHENTICATED": "Not authenticated",
   "INVALID_DEVICE_TOKEN": "Invalid device token",
   "COULD_NOT_VALIDATE_CREDENTIALS": "Could not validate credentials",
+  "INVALID_REFRESH_TOKEN": "Your session has expired. Please sign in again.",
   "INVALID_TOKEN_PAYLOAD": "Invalid token payload",
   "USER_NOT_FOUND": "User not found",
   "INSUFFICIENT_PRIVILEGES": "Insufficient privileges",

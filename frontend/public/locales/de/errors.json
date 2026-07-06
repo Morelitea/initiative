@@ -19,6 +19,7 @@
   "NOT_AUTHENTICATED": "Nicht authentifiziert",
   "INVALID_DEVICE_TOKEN": "Ungültiges Geräte-Token",
   "COULD_NOT_VALIDATE_CREDENTIALS": "Anmeldedaten konnten nicht validiert werden",
+  "INVALID_REFRESH_TOKEN": "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
   "INVALID_TOKEN_PAYLOAD": "Ungültige Token-Nutzlast",
   "USER_NOT_FOUND": "Benutzer nicht gefunden",
   "INSUFFICIENT_PRIVILEGES": "Unzureichende Berechtigungen",

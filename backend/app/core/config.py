@@ -153,6 +153,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     ALGORITHM: str = "HS256"
     COOKIE_NAME: str = "session_token"
+    # New login model: the rotating refresh token rides in its own HttpOnly
+    # cookie, path-scoped to the auth routes (sent only on refresh/logout, never
+    # on ordinary API calls — smaller exposure than the session cookie).
+    REFRESH_COOKIE_NAME: str = "refresh_token"
 
     # New login model (auth rewrite, Phase 0 — history/auth-detailed-design.md §3).
     # The access token is short-lived + stateless: verified locally with no

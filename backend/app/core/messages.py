@@ -24,6 +24,9 @@ class AuthMessages:
     USER_NOT_FOUND = "USER_NOT_FOUND"
     INSUFFICIENT_PRIVILEGES = "INSUFFICIENT_PRIVILEGES"
     INVALID_TOKEN = "INVALID_TOKEN"
+    # Generic refresh rejection: unknown / expired / reused all map here so the
+    # client learns only "re-authenticate", never that a replay was detected.
+    INVALID_REFRESH_TOKEN = "INVALID_REFRESH_TOKEN"
     INVALID_OR_EXPIRED_TOKEN = "INVALID_OR_EXPIRED_TOKEN"
     SMTP_NOT_CONFIGURED = "SMTP_NOT_CONFIGURED"
     CAPTCHA_REQUIRED = "CAPTCHA_REQUIRED"
