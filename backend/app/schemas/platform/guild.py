@@ -7,7 +7,7 @@ from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildRole, GuildStatus
 from app.schemas.platform.user import GuildRemovalProjectInfo
 
 
@@ -109,19 +109,25 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     max_storage_bytes: Optional[int] = None
     # Max number of members for this guild. None means "unlimited".
     max_users: Optional[int] = None
+    # Operator-set lifecycle status (active / read_only / suspended). Surfaced
+    # only to platform operators here — never to guild members (GuildRead omits it).
+    status: GuildStatus = GuildStatus.active
+    status_changed_at: Optional[datetime] = None
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
-    """Set a guild's storage and/or member caps from the platform Guilds tab.
+    """Set a guild's storage caps and/or lifecycle status from the Guilds tab.
 
-    Both fields use omit-to-skip sentinel semantics (the endpoint inspects
+    The cap fields use omit-to-skip sentinel semantics (the endpoint inspects
     ``model_fields_set``): omit a field to leave it untouched, send ``null`` to
-    reset that cap to unlimited, or send a number to set it. A PATCH may carry
-    either field or both.
+    reset that cap to unlimited, or send a number to set it. ``status`` is
+    omit-to-skip too (a lifecycle status is never null), validated against
+    :class:`GuildStatus`. A PATCH may carry any subset.
     """
 
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
     max_users: Optional[int] = Field(default=None, ge=1)
+    status: Optional[GuildStatus] = None
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

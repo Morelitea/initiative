@@ -1,4 +1,5 @@
 import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildUser } from "@/__tests__/factories";
@@ -19,6 +20,8 @@ const guildsData = [
     member_count: 3,
     max_storage_bytes: 10 * GIB,
     max_users: 10,
+    status: "active",
+    status_changed_at: null,
   },
   {
     id: 8,
@@ -26,6 +29,8 @@ const guildsData = [
     member_count: 0,
     max_storage_bytes: null,
     max_users: null,
+    status: "active",
+    status_changed_at: null,
   },
   {
     id: 9,
@@ -33,6 +38,8 @@ const guildsData = [
     member_count: 12,
     max_storage_bytes: null,
     max_users: 10,
+    status: "suspended",
+    status_changed_at: "2026-07-05T00:00:00Z",
   },
 ];
 
@@ -180,6 +187,43 @@ describe("AdminDashboardGuildsPage", () => {
         await screen.findByTitle("Full Guild has more members than its current limit allows.")
       ).toHaveTextContent("12");
       expect(userLimitInput("Full Guild").value).toBe("10");
+    });
+  });
+
+  describe("lifecycle status", () => {
+    const statusControl = (guildName: string) => screen.getByLabelText(`Status for ${guildName}`);
+
+    it("shows each guild's current status", async () => {
+      renderPage();
+
+      expect(await screen.findByText("Capped Guild")).toBeInTheDocument();
+      expect(statusControl("Capped Guild")).toHaveTextContent("Active");
+      expect(statusControl("Full Guild")).toHaveTextContent("Suspended");
+    });
+
+    it("applies a non-suspend change immediately (no confirm)", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(statusControl("Capped Guild"));
+      await user.click(await screen.findByRole("option", { name: "Read-only" }));
+
+      expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { status: "read_only" } });
+    });
+
+    it("gates suspend behind a confirm dialog", async () => {
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(statusControl("Capped Guild"));
+      await user.click(await screen.findByRole("option", { name: "Suspended" }));
+
+      // Not applied yet — the confirm dialog is shown first.
+      expect(mutate).not.toHaveBeenCalled();
+      expect(await screen.findByText("Suspend Capped Guild?")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Suspend guild" }));
+      expect(mutate).toHaveBeenCalledWith({ guildId: 7, data: { status: "suspended" } });
     });
   });
 });

@@ -773,12 +773,26 @@
     "saveError": "Das Speicherlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
     "usersSaved": "Benutzerlimit für {{name}} aktualisiert.",
     "usersSaveError": "Das Benutzerlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "statusInputLabel": "Status für {{name}}",
+    "statusSaved": "Status für {{name}} aktualisiert.",
+    "statusSaveError": "Der Gildenstatus konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "status": {
+      "active": "Aktiv",
+      "read_only": "Schreibgeschützt",
+      "suspended": "Gesperrt"
+    },
+    "suspendConfirm": {
+      "title": "{{name}} sperren?",
+      "description": "Mitglieder verlieren jeglichen Zugriff und die Gilde verschwindet aus ihrer Liste. Es wird nichts gelöscht und du kannst sie jederzeit reaktivieren; Betreiber behalten den Zugriff über eine Break-Glass-Berechtigung.",
+      "confirm": "Gilde sperren"
+    },
     "columns": {
       "id": "ID",
       "guild": "Gilde",
       "members": "Mitglieder",
       "users": "Benutzer",
-      "storageLimit": "Speicherlimit"
+      "storageLimit": "Speicherlimit",
+      "status": "Status"
     }
   }
 }

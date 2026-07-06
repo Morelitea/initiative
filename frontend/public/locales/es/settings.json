@@ -773,12 +773,26 @@
     "saveError": "No se pudo actualizar el límite de almacenamiento. Inténtalo de nuevo.",
     "usersSaved": "Límite de usuarios actualizado para {{name}}.",
     "usersSaveError": "No se pudo actualizar el límite de usuarios. Inténtalo de nuevo.",
+    "statusInputLabel": "Estado de {{name}}",
+    "statusSaved": "Estado de {{name}} actualizado.",
+    "statusSaveError": "No se pudo actualizar el estado del gremio. Inténtalo de nuevo.",
+    "status": {
+      "active": "Activo",
+      "read_only": "Solo lectura",
+      "suspended": "Suspendido"
+    },
+    "suspendConfirm": {
+      "title": "¿Suspender {{name}}?",
+      "description": "Los miembros pierden todo el acceso y el gremio desaparece de su lista. No se elimina nada y puedes reactivarlo en cualquier momento; los operadores conservan el acceso mediante una concesión break-glass.",
+      "confirm": "Suspender gremio"
+    },
     "columns": {
       "id": "ID",
       "guild": "Gremio",
       "members": "Miembros",
       "users": "Usuarios",
-      "storageLimit": "Límite de almacenamiento"
+      "storageLimit": "Límite de almacenamiento",
+      "status": "Estado"
     }
   }
 }

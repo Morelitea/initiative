@@ -1137,14 +1137,16 @@ export function useListPlatformGuildStorageApiV1SettingsGuildsGet<
 }
 
 /**
- * Set a guild's storage and/or member caps (``null`` = unlimited). Admin/owner.
+ * Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
  *
  * Writes only shared ``public.guilds`` columns (``max_storage_bytes`` /
- * ``max_users``) — no guild-schema routing needed. ``model_fields_set`` tells an
- * omitted field (leave untouched) from one sent as ``null`` (reset to
- * unlimited), so a PATCH may carry either cap or both. Lowering a cap below the
- * current usage/headcount simply blocks further uploads / new joins; it never
- * removes existing blobs or members.
+ * ``max_users`` / ``status``) — no guild-schema routing needed.
+ * ``model_fields_set`` tells an omitted cap (leave untouched) from one sent as
+ * ``null`` (reset to unlimited). ``status`` (active / read_only / suspended) is
+ * a moderation action: it downgrades or cuts off member access on the request
+ * path (see ``_load_guild_context``) but never touches stored data, and PAM /
+ * break-glass grants override it so operators can't lock themselves out.
+ * Lowering a cap below current usage just blocks further uploads / new joins.
  * @summary Update Platform Guild Storage
  */
 export const updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch = (

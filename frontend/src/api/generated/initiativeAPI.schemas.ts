@@ -1366,6 +1366,29 @@ export interface GuildRemovalRequest {
   project_deletions?: number[];
 }
 
+/**
+ * Operator-set lifecycle status of a guild (platform `guilds.manage`).
+ *
+ * - ``active``: normal operation.
+ * - ``read_only``: members keep read access to content but writes are denied
+ *   at the Postgres role level (routed into ``guild_<id>_ro``).
+ * - ``suspended``: soft delete — members lose all content access and the
+ *   guild vanishes from their guild list. Guild admins keep the settings
+ *   surface (billing / data ownership / danger zone) under every status.
+ *
+ * PAM/break-glass grants deliberately override all of this: a grantee
+ * behaves exactly as against an active guild (the resolver's grant branch
+ * never consults the status), so suspending a guild can never lock the
+ * platform operators out. The status is not serialized to guild members.
+ */
+export type GuildStatus = (typeof GuildStatus)[keyof typeof GuildStatus];
+
+export const GuildStatus = {
+  active: "active",
+  read_only: "read_only",
+  suspended: "suspended",
+} as const;
+
 export interface GuildSummary {
   id: number;
   name: string;
@@ -1794,19 +1817,23 @@ export interface PlatformGuildStorageRead {
   member_count: number;
   max_storage_bytes: number | null;
   max_users: number | null;
+  status: GuildStatus;
+  status_changed_at: string | null;
 }
 
 /**
- * Set a guild's storage and/or member caps from the platform Guilds tab.
+ * Set a guild's storage caps and/or lifecycle status from the Guilds tab.
  *
- * Both fields use omit-to-skip sentinel semantics (the endpoint inspects
+ * The cap fields use omit-to-skip sentinel semantics (the endpoint inspects
  * ``model_fields_set``): omit a field to leave it untouched, send ``null`` to
- * reset that cap to unlimited, or send a number to set it. A PATCH may carry
- * either field or both.
+ * reset that cap to unlimited, or send a number to set it. ``status`` is
+ * omit-to-skip too (a lifecycle status is never null), validated against
+ * :class:`GuildStatus`. A PATCH may carry any subset.
  */
 export interface PlatformGuildStorageUpdate {
   max_storage_bytes?: number | null;
   max_users?: number | null;
+  status?: GuildStatus | null;
 }
 
 /**

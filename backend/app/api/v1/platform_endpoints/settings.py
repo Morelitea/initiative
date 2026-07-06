@@ -38,6 +38,7 @@ from app.schemas.platform.settings import (
     OIDCSettingsResponse,
     OIDCSettingsUpdate,
 )
+from app.models.platform.guild import GuildStatus
 from app.schemas.platform.guild import (
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
@@ -275,6 +276,8 @@ async def list_platform_guild_storage(
             member_count=counts.get(g.id, 0),
             max_storage_bytes=g.max_storage_bytes,
             max_users=g.max_users,
+            status=GuildStatus(g.status),
+            status_changed_at=g.status_changed_at,
         )
         for g in guilds
     ]
@@ -287,14 +290,16 @@ async def update_platform_guild_storage(
     session: AdminSessionDep,
     _admin: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
-    """Set a guild's storage and/or member caps (``null`` = unlimited). Admin/owner.
+    """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
 
     Writes only shared ``public.guilds`` columns (``max_storage_bytes`` /
-    ``max_users``) — no guild-schema routing needed. ``model_fields_set`` tells an
-    omitted field (leave untouched) from one sent as ``null`` (reset to
-    unlimited), so a PATCH may carry either cap or both. Lowering a cap below the
-    current usage/headcount simply blocks further uploads / new joins; it never
-    removes existing blobs or members.
+    ``max_users`` / ``status``) — no guild-schema routing needed.
+    ``model_fields_set`` tells an omitted cap (leave untouched) from one sent as
+    ``null`` (reset to unlimited). ``status`` (active / read_only / suspended) is
+    a moderation action: it downgrades or cuts off member access on the request
+    path (see ``_load_guild_context``) but never touches stored data, and PAM /
+    break-glass grants override it so operators can't lock themselves out.
+    Lowering a cap below current usage just blocks further uploads / new joins.
     """
     provided = payload.model_fields_set
     try:
@@ -306,6 +311,17 @@ async def update_platform_guild_storage(
             max_users=payload.max_users,
             max_users_provided="max_users" in provided,
         )
+        if payload.status is not None and guild.status != payload.status.value:
+            logger.info(
+                "guild %s status %s -> %s by user %s",
+                guild_id,
+                guild.status,
+                payload.status.value,
+                _admin.id,
+            )
+            guild = await guilds_service.set_guild_status(
+                session, guild_id=guild_id, status=payload.status
+            )
     except ValueError as exc:
         # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
         # is gone. Letting it own the existence check (rather than a separate
@@ -325,6 +341,8 @@ async def update_platform_guild_storage(
         member_count=member_count,
         max_storage_bytes=guild.max_storage_bytes,
         max_users=guild.max_users,
+        status=GuildStatus(guild.status),
+        status_changed_at=guild.status_changed_at,
     )
 
 

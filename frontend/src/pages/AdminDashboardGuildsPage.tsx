@@ -3,9 +3,18 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
+import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { usePlatformGuilds, useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
@@ -175,6 +184,82 @@ const GuildUserLimitCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   );
 };
 
+// Ordered least → most restrictive for the dropdown.
+const GUILD_STATUS_ORDER: GuildStatus[] = [
+  GuildStatus.active,
+  GuildStatus.read_only,
+  GuildStatus.suspended,
+];
+
+/**
+ * Lifecycle-status control for one guild. Changing to `suspended` (a soft
+ * delete — members lose all access) is gated behind a confirm dialog; the
+ * lighter transitions apply immediately. The change saves via the same
+ * platform-guilds mutation and the list invalidates on success, so the Select
+ * reflects the persisted status.
+ */
+const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+  const { t } = useTranslation(["settings", "common"]);
+  const [pendingSuspend, setPendingSuspend] = useState(false);
+
+  const update = useUpdateGuildStorage({
+    onSuccess: (row) => {
+      toast.success(t("guilds.statusSaved", { name: row.name }));
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:guilds.statusSaveError"));
+    },
+  });
+
+  const apply = (status: GuildStatus) => {
+    update.mutate({ guildId: guild.id, data: { status } });
+  };
+
+  const handleChange = (value: string) => {
+    const next = value as GuildStatus;
+    if (next === guild.status) return;
+    if (next === GuildStatus.suspended) {
+      setPendingSuspend(true); // confirm the soft delete first
+      return;
+    }
+    apply(next);
+  };
+
+  return (
+    <>
+      <Select value={guild.status} onValueChange={handleChange} disabled={update.isPending}>
+        <SelectTrigger
+          className="w-36"
+          aria-label={t("guilds.statusInputLabel", { name: guild.name })}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {GUILD_STATUS_ORDER.map((status) => (
+            <SelectItem key={status} value={status}>
+              {t(`guilds.status.${status}`)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <ConfirmDialog
+        open={pendingSuspend}
+        onOpenChange={setPendingSuspend}
+        title={t("guilds.suspendConfirm.title", { name: guild.name })}
+        description={t("guilds.suspendConfirm.description")}
+        confirmLabel={t("guilds.suspendConfirm.confirm")}
+        cancelLabel={t("common:cancel")}
+        destructive
+        isLoading={update.isPending}
+        onConfirm={() => {
+          apply(GuildStatus.suspended);
+          setPendingSuspend(false);
+        }}
+      />
+    </>
+  );
+};
+
 export const AdminDashboardGuildsPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
@@ -205,6 +290,12 @@ export const AdminDashboardGuildsPage = () => {
       header: t("guilds.columns.storageLimit"),
       enableSorting: false,
       cell: ({ row }) => <GuildStorageCell guild={row.original} />,
+    },
+    {
+      id: "status",
+      header: t("guilds.columns.status"),
+      enableSorting: false,
+      cell: ({ row }) => <GuildStatusCell guild={row.original} />,
     },
   ];
 
