@@ -255,6 +255,8 @@
   "expiresInMinutes": "expires in {{minutes}}m",
   "grantBanner": {
     "readOnly": "You have temporary read-only access to {{guild}}.",
-    "readWrite": "You have temporary access to {{guild}}."
+    "readWrite": "You have temporary access to {{guild}}.",
+    "guildReadOnly": "This guild is read-only",
+    "guildSuspended": "This guild is suspended"
   }
 }

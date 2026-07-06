@@ -255,6 +255,8 @@
   "expiresInMinutes": "caduca en {{minutes}} min",
   "grantBanner": {
     "readOnly": "Tienes acceso temporal de solo lectura a {{guild}}.",
-    "readWrite": "Tienes acceso temporal a {{guild}}."
+    "readWrite": "Tienes acceso temporal a {{guild}}.",
+    "guildReadOnly": "Este gremio es de solo lectura",
+    "guildSuspended": "Este gremio está suspendido"
   }
 }

@@ -2,6 +2,7 @@ import { Outlet, useLocation, useParams, useRouter } from "@tanstack/react-route
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
@@ -110,11 +111,34 @@ export const GuildSettingsLayout = () => {
     availableTabs[0]?.value ??
     "guild";
 
+  // A read-only or suspended guild shows the admin a prominent notice pointing
+  // them to the platform operator (the status reaches admins only — see the
+  // backend GuildRead serialization). Static keys per status so the strict i18n
+  // typing stays happy (a `${status}` template would include `active`).
+  const statusNotice =
+    activeGuild?.status === "suspended"
+      ? {
+          label: t("guildLayout.restricted.suspended.label"),
+          message: t("guildLayout.restricted.suspended.message"),
+        }
+      : activeGuild?.status === "read_only"
+        ? {
+            label: t("guildLayout.restricted.read_only.label"),
+            message: t("guildLayout.restricted.read_only.message"),
+          }
+        : null;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-semibold text-3xl tracking-tight">{t("guildLayout.title")}</h1>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-semibold text-3xl tracking-tight">{t("guildLayout.title")}</h1>
+          {statusNotice && <Badge variant="destructive">{statusNotice.label}</Badge>}
+        </div>
         <p className="text-muted-foreground">{t("guildLayout.subtitle")}</p>
+        {statusNotice && (
+          <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>
+        )}
       </div>
       <Tabs
         value={activeTab}

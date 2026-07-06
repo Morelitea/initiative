@@ -435,6 +435,29 @@ async def update_guild(
     return guild
 
 
+async def set_guild_status(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    status: GuildStatus,
+) -> Guild:
+    """Set a guild's lifecycle status (operator moderation action).
+
+    Kept separate from ``update_guild`` so only the platform-operator endpoint
+    reaches it — a guild's own admins must never flip their guild's status. On a
+    real transition it stamps ``status_changed_at``; a no-op change is left
+    untouched. Enforcement of the status lives in the request path
+    (``_load_guild_context`` + session routing), not here.
+    """
+    guild = await get_guild(session, guild_id=guild_id)
+    if guild.status != status.value:
+        guild.status = status.value
+        guild.status_changed_at = datetime.now(timezone.utc)
+        session.add(guild)
+        await session.flush()
+    return guild
+
+
 async def get_guild_retention_days(session: AsyncSession, guild_id: int) -> int | None:
     """Return the per-guild trash retention period in days, or None for
     "never auto-purge".

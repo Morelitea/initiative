@@ -19,6 +19,16 @@
     "title": "Paramètres du groupe",
     "subtitle": "Gérez les membres de l'espace de travail et les détails du groupe.",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
+    "restricted": {
+      "read_only": {
+        "label": "Lecture seule",
+        "message": "Ce groupe est en lecture seule. Contactez votre administrateur de plateforme pour rétablir l'accès complet."
+      },
+      "suspended": {
+        "label": "Suspendu",
+        "message": "Ce groupe est suspendu et les membres n'y ont pas accès. Contactez votre administrateur de plateforme."
+      }
+    },
     "tabs": {
       "guild": "Groupe",
       "ai": "IA",
@@ -773,12 +783,26 @@
     "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
     "usersSaved": "Limite d'utilisateurs mise à jour pour {{name}}.",
     "usersSaveError": "Impossible de mettre à jour la limite d'utilisateurs. Veuillez réessayer.",
+    "statusInputLabel": "Statut de {{name}}",
+    "statusSaved": "Statut de {{name}} mis à jour.",
+    "statusSaveError": "Impossible de mettre à jour le statut du groupe. Veuillez réessayer.",
+    "status": {
+      "active": "Actif",
+      "read_only": "Lecture seule",
+      "suspended": "Suspendu"
+    },
+    "suspendConfirm": {
+      "title": "Suspendre {{name}} ?",
+      "description": "Les membres perdent tout accès et le groupe disparaît de leur liste. Rien n'est supprimé et vous pouvez le réactiver à tout moment ; les opérateurs conservent l'accès via une autorisation break-glass.",
+      "confirm": "Suspendre le groupe"
+    },
     "columns": {
       "id": "ID",
       "guild": "Groupe",
       "members": "Membres",
       "users": "Utilisateurs",
-      "storageLimit": "Limite de stockage"
+      "storageLimit": "Limite de stockage",
+      "status": "Statut"
     }
   }
 }

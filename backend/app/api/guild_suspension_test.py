@@ -117,8 +117,8 @@ async def test_suspended_guild_hidden_from_members_listed_for_admins(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The guild list drops a suspended guild for members but keeps it for
-    guild admins (they need to navigate to settings). No status field is
-    serialized either way."""
+    guild admins. The status is serialized to the admin (for their settings-page
+    chip) but never to a member — members don't even see the row here."""
     admin = await acting_user(guild_role=GuildRole.admin)
     member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
     await _set_status(session, admin.guild, GuildStatus.suspended)
@@ -131,7 +131,30 @@ async def test_suspended_guild_hidden_from_members_listed_for_admins(
     assert resp.status_code == 200
     listed = [g for g in resp.json() if g["id"] == admin.guild.id]
     assert listed, "admin must still see the suspended guild"
-    assert "status" not in listed[0], "lifecycle status must not be serialized"
+    assert listed[0]["status"] == "suspended", "admin sees the lifecycle status"
+
+
+async def test_read_only_status_visible_to_admin_not_member(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """For a read_only guild (listed for everyone), the status reaches the guild
+    admin but is null for a plain member — the hold isn't disclosed to members."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+    await _set_status(session, admin.guild, GuildStatus.read_only)
+
+    admin_row = [
+        g
+        for g in (await client.get("/api/v1/guilds/", headers=admin.headers)).json()
+        if g["id"] == admin.guild.id
+    ][0]
+    member_row = [
+        g
+        for g in (await client.get("/api/v1/guilds/", headers=member.headers)).json()
+        if g["id"] == admin.guild.id
+    ][0]
+    assert admin_row["status"] == "read_only"
+    assert member_row["status"] is None
 
 
 async def test_establish_guild_access_refuses_suspended(

@@ -13,7 +13,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
@@ -398,6 +398,141 @@ async def test_update_guild_caps_are_independent(
     assert resp.status_code == 200
     assert resp.json()["max_storage_bytes"] == 4096
     assert resp.json()["max_users"] == 9
+
+
+# --- Guild lifecycle status (platform settings → Guilds tab) ---------------
+
+
+@pytest.mark.integration
+async def test_list_guild_storage_includes_status(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """The Guilds tab surfaces each guild's lifecycle status (default active)."""
+    owner = await create_user(
+        session, email="owner-gstatus-list@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, name="Status Guild")
+
+    resp = await client.get("/api/v1/settings/guilds", headers=get_auth_headers(owner))
+    assert resp.status_code == 200
+    row = {r["name"]: r for r in resp.json()}["Status Guild"]
+    assert row["id"] == guild.id
+    assert row["status"] == GuildStatus.active.value
+    assert row["status_changed_at"] is None
+
+
+@pytest.mark.integration
+async def test_operator_sets_and_clears_guild_status(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An operator can suspend a guild and reactivate it; a real transition
+    stamps status_changed_at."""
+    owner = await create_user(
+        session, email="owner-gstatus-upd@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    headers = get_auth_headers(owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "suspended"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "suspended"
+    assert resp.json()["status_changed_at"] is not None
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "read_only"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "read_only"
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "active"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "active"
+
+
+@pytest.mark.integration
+async def test_guild_status_rejects_unknown_value(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An unknown status value is a 422 (validated against GuildStatus)."""
+    owner = await create_user(
+        session, email="owner-gstatus-bad@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "deleted"},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.integration
+async def test_status_and_caps_are_independent(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Status and caps use omit-to-skip: touching one leaves the other alone."""
+    owner = await create_user(
+        session, email="owner-gstatus-indep@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, max_users=5)
+    headers = get_auth_headers(owner)
+
+    # Set only status: the cap survives.
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "read_only"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "read_only"
+    assert resp.json()["max_users"] == 5
+
+    # Set only a cap: the status survives.
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 9},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["max_users"] == 9
+    assert resp.json()["status"] == "read_only"
+
+
+@pytest.mark.integration
+async def test_non_privileged_user_cannot_set_guild_status(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Setting status requires guilds.manage (admin/owner) — a plain member 403s."""
+    member = await create_user(
+        session, email="member-gstatus@example.com", role=UserRole.member
+    )
+    owner = await create_user(
+        session, email="owner-gstatus-gate@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "suspended"},
+        headers=get_auth_headers(member),
+    )
+    assert resp.status_code == 403
 
 
 @pytest.mark.integration

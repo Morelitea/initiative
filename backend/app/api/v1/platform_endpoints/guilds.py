@@ -14,7 +14,7 @@ from app.core.messages import AdvancedToolMessages, GuildMessages
 from app.core.security import create_advanced_tool_handoff_token, verify_password
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
-from app.models.platform.guild import GuildRole, GuildMembership, Guild
+from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
 from app.models.platform.user import User
 from app.schemas.platform.guild import (
     GuildCreate,
@@ -64,6 +64,11 @@ def _serialize_guild(
         member_count=member_count,
         max_storage_bytes=guild.max_storage_bytes,
         max_users=guild.max_users,
+        # Only guild admins learn the lifecycle status (for the settings-page
+        # chip); members get None so a moderation hold isn't disclosed to them.
+        status=(
+            GuildStatus(guild.status) if membership.role == GuildRole.admin else None
+        ),
     )
 
 

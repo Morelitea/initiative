@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import ConfigDict, Field, computed_field
 
 from app.models.platform.access_grant import AccessGrantStatus, AccessLevel
+from app.models.platform.guild import GuildStatus
 from app.schemas.base import SanitizedBaseModel
 
 
@@ -68,6 +69,10 @@ class AccessGrantRead(SanitizedBaseModel):
     user_email: Optional[str] = None
     user_full_name: Optional[str] = None
     guild_name: Optional[str] = None
+    # The grant's guild lifecycle status, so an operator holding the grant sees
+    # a suspended / read-only guild they're acting in (surfaced in the access
+    # banner). Operators get this context — unlike a plain guild member.
+    guild_status: Optional[GuildStatus] = None
     approved_by_email: Optional[str] = None
 
     @computed_field(return_type=bool)  # type: ignore[misc]

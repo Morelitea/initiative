@@ -19,6 +19,16 @@
     "title": "Guild settings",
     "subtitle": "Manage workspace membership and guild details.",
     "permissionDenied": "You need additional permissions to view this page.",
+    "restricted": {
+      "read_only": {
+        "label": "Read-only",
+        "message": "This guild is read-only. Contact your platform administrator to restore full access."
+      },
+      "suspended": {
+        "label": "Suspended",
+        "message": "This guild is suspended and members can't access it. Contact your platform administrator."
+      }
+    },
     "tabs": {
       "guild": "Guild",
       "ai": "AI",
@@ -764,12 +774,26 @@
     "saveError": "Could not update the storage limit. Please try again.",
     "usersSaved": "Updated user limit for {{name}}.",
     "usersSaveError": "Could not update the user limit. Please try again.",
+    "statusInputLabel": "Status for {{name}}",
+    "statusSaved": "Updated status for {{name}}.",
+    "statusSaveError": "Could not update the guild status. Please try again.",
+    "status": {
+      "active": "Active",
+      "read_only": "Read-only",
+      "suspended": "Suspended"
+    },
+    "suspendConfirm": {
+      "title": "Suspend {{name}}?",
+      "description": "Members lose all access and the guild disappears from their list. Nothing is deleted and you can reactivate it anytime; operators keep access via a break-glass grant.",
+      "confirm": "Suspend guild"
+    },
     "columns": {
       "id": "ID",
       "guild": "Guild",
       "members": "Members",
       "users": "Users",
-      "storageLimit": "Storage limit"
+      "storageLimit": "Storage limit",
+      "status": "Status"
     }
   },
   "adminDashboard": {
