@@ -95,7 +95,11 @@ def verify_id_token(
 
     Raises :class:`ValueError` (not :class:`IdTokenVerificationError`) for a
     caller misconfiguration — an empty or non-asymmetric algorithm allowlist, or
-    an empty nonce — because those are programming errors, not attacker input.
+    an empty issuer, audience, or nonce — because those are programming errors,
+    not attacker input. (PyJWT already fails *closed* on an empty issuer/audience,
+    rejecting every token; the guard just surfaces the misconfiguration explicitly
+    instead of presenting as "all logins fail", and keeps the trust anchors
+    uniformly non-empty alongside the nonce.)
     """
     requested = tuple(algorithms)
     if not requested:
@@ -105,6 +109,13 @@ def verify_id_token(
         # Refuse to even run with a symmetric / ``none`` alg in the allowlist —
         # that would reopen the confusion/strip bypass this module exists to shut.
         raise ValueError(f"id_token algorithms must be asymmetric; refused {illegal}")
+    # All three trust anchors must be present — an empty one is a caller bug, not
+    # attacker input. Guarded uniformly (PyJWT already rejects on empty iss/aud,
+    # but silently, so make it explicit).
+    if not issuer:
+        raise ValueError("an issuer is required to verify an id_token")
+    if not audience:
+        raise ValueError("an audience is required to verify an id_token")
     if not nonce:
         raise ValueError("a nonce is required to verify an id_token")
 

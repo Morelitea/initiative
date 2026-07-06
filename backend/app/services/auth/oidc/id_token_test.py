@@ -64,6 +64,19 @@ RSA_PRIV, RSA_PUB = _rsa_keypair()
 EC_PRIV, EC_PUB = _ec_keypair()
 
 
+def _rsa_pyjwk() -> jwt.PyJWK:
+    """A ``PyJWK`` for ``RSA_PUB`` — the key type the production ``PyJWKClient``
+    path hands to the verifier, and the type CVE-2026-48523 (alg-allowlist bypass
+    with a PyJWK key, fixed in PyJWT 2.13.0) concerned."""
+    from jwt.algorithms import RSAAlgorithm
+
+    pub_obj = serialization.load_pem_public_key(RSA_PUB.encode())
+    data = json.loads(RSAAlgorithm.to_jwk(pub_obj))
+    data["alg"] = "RS256"
+    data.setdefault("use", "sig")
+    return jwt.PyJWK.from_dict(data)
+
+
 def _claims(**overrides) -> dict:
     now = datetime.now(timezone.utc)
     base = {
@@ -137,6 +150,31 @@ def test_multi_aud_with_correct_azp_accepted():
     token = _encode(_claims(aud=[AUDIENCE, "other-app"], azp=AUDIENCE))
     claims = _verify(token)
     assert claims["azp"] == AUDIENCE
+
+
+def test_accepts_pyjwk_signing_key():
+    """Production key type: PyJWKClient resolves a ``PyJWK``, not a PEM. Verify
+    the verifier accepts it and returns the claims."""
+    claims = _verify(_encode(_claims()), signing_key=_rsa_pyjwk())
+    assert claims["sub"] == "user-1"
+
+
+def test_pyjwk_signing_key_still_rejects_alg_confusion():
+    """Even when the key is a ``PyJWK`` bound to RS256 (the CVE-2026-48523 shape),
+    an HS256-forged token is rejected by our allowlist — the header alg is checked
+    against the allowlist regardless of the key object's bound alg."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    claims = {
+        "iss": ISSUER,
+        "sub": "user-1",
+        "aud": AUDIENCE,
+        "exp": now + 300,
+        "iat": now,
+        "nonce": NONCE,
+    }
+    forged = _forge_hs256(claims, RSA_PUB)
+    with pytest.raises(IdTokenVerificationError):
+        _verify(forged, signing_key=_rsa_pyjwk())
 
 
 # --- signature / algorithm attacks -----------------------------------------
@@ -263,6 +301,16 @@ def test_symmetric_algorithm_in_allowlist_refused():
 def test_none_algorithm_in_allowlist_refused():
     with pytest.raises(ValueError):
         _verify(_encode(_claims()), algorithms=["none"])
+
+
+def test_empty_issuer_is_value_error():
+    with pytest.raises(ValueError):
+        _verify(_encode(_claims()), issuer="")
+
+
+def test_empty_audience_is_value_error():
+    with pytest.raises(ValueError):
+        _verify(_encode(_claims()), audience="")
 
 
 def test_empty_nonce_is_value_error():
