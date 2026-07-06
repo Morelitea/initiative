@@ -79,6 +79,10 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     # carries NO permissive RLS policy, so the request path can't read guild-scoped
     # provider config (no cross-tenant metadata leak).
     "auth_providers": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # provider client secret — read/written only by the system engine (provider
+    # CRUD via AdminSessionDep + config.manage); the request path has no grant, so
+    # a secret can't be exfiltrated by an over-broad authenticated-path query
+    "auth_provider_secrets": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # identity linking — resolved/created at login (pre-auth, by subject); link/
     # unlink go through the system engine (linking is an account-takeover surface)
     "federated_identities": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
@@ -113,6 +117,8 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     # provider reads for the login page go via the system engine (AdminSessionDep),
     # not the bare login role — so guild-scoped provider config never leaks here
     "auth_providers": None,
+    # client secrets are system-engine-only; no request role ever reads them
+    "auth_provider_secrets": None,
     # own-row identity links are read on the authenticated (platform_<tier>)
     # path, not the bare pre-routing role
     "federated_identities": None,

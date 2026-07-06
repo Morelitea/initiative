@@ -71,6 +71,7 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # Auth/login foundation — one user's identities span guilds; provider
         # registry is read pre-routing at login.
         "auth_providers",  # login provider registry (operator-global or guild-scoped)
+        "auth_provider_secrets",  # provider client secret; app_admin-only companion
         "federated_identities",  # (provider, subject) -> user links
         "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
         # Platform-wide

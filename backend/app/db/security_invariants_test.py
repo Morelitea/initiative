@@ -36,6 +36,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 _RLS_SHARED_TABLES = {
     "access_grants",
     "app_settings",
+    "auth_provider_secrets",
     "auth_providers",
     "auth_sessions",
     "federated_identities",
