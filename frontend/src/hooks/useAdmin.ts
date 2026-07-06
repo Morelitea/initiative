@@ -145,14 +145,19 @@ export const useAdminPromoteGuildMember = (
   });
 };
 
-/** Delete a guild (admin only). */
-export const useAdminDeleteGuild = (options?: MutationOpts<void, number>) => {
+/** Delete a guild that blocks a user's deletion (operator blocker resolution).
+ * The guild must be one `blockedUserId` is the sole admin of. */
+export const useAdminDeleteGuild = (
+  options?: MutationOpts<void, { guildId: number; blockedUserId: number }>
+) => {
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
   return useMutation({
     ...rest,
-    mutationFn: async (guildId: number) => {
-      await adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId);
+    mutationFn: async ({ guildId, blockedUserId }: { guildId: number; blockedUserId: number }) => {
+      await adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId, {
+        blocked_user_id: blockedUserId,
+      });
     },
     onSuccess: (...args) => {
       void invalidateAdminUsers();

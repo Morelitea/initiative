@@ -270,6 +270,10 @@ class AdminMessages:
     USER_CANNOT_BE_DELETED = "ADMIN_USER_CANNOT_BE_DELETED"
     PROJECT_TRANSFERS_REQUIRED = "ADMIN_PROJECT_TRANSFERS_REQUIRED"
     GUILD_NOT_FOUND = "ADMIN_GUILD_NOT_FOUND"
+    # Operator guild deletion is scoped to resolving a user-deletion blocker:
+    # the guild must be one the named user is the SOLE admin of. Any other guild
+    # is refused (operators reach a live guild only via a break-glass grant).
+    GUILD_NOT_A_DELETION_BLOCKER = "ADMIN_GUILD_NOT_A_DELETION_BLOCKER"
     USER_NOT_IN_GUILD = "ADMIN_USER_NOT_IN_GUILD"
     CANNOT_DEMOTE_LAST_GUILD_ADMIN = "ADMIN_CANNOT_DEMOTE_LAST_GUILD_ADMIN"
     INITIATIVE_NOT_FOUND = "ADMIN_INITIATIVE_NOT_FOUND"

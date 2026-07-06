@@ -69,7 +69,19 @@ async def is_last_admin_of_guild(
         session: Database session
         guild_id: Guild ID to check
         user_id: User ID to check
-        for_update: If True, lock rows to prevent race conditions during demotion
+        for_update: If True, lock the existing admin membership rows so a
+            concurrent demotion/removal of a *current* admin can't race this
+            check within the same transaction.
+
+    Concurrency caveat: ``for_update`` locks only the admin rows that already
+    exist. It does NOT prevent a concurrent transaction from INSERTing a
+    brand-new admin membership (a phantom — Postgres row locks aren't predicate
+    locks outside SERIALIZABLE). So a caller relying on a True result to gate a
+    follow-up mutation has a narrow window where a second admin could appear
+    just after the check. Harmless for the current callers (demote-last-admin
+    guards, and the blocker-scoped guild delete, which cascades that new row
+    away anyway); a caller needing a hard guarantee should take a per-guild
+    advisory lock that all admin-mutation paths also honor.
     """
     # Check if user is an admin of this guild
     if for_update:

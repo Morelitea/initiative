@@ -191,6 +191,7 @@
   "ADMIN_USER_CANNOT_BE_DELETED": "El usuario no puede ser eliminado",
   "ADMIN_PROJECT_TRANSFERS_REQUIRED": "Se requieren transferencias de proyecto para la eliminación definitiva cuando el usuario es propietario de proyectos",
   "ADMIN_GUILD_NOT_FOUND": "Gremio no encontrado",
+  "ADMIN_GUILD_NOT_A_DELETION_BLOCKER": "Este gremio solo se puede eliminar aquí si el usuario es su único administrador. Actualiza e inténtalo de nuevo.",
   "ADMIN_USER_NOT_IN_GUILD": "Usuario no encontrado en el gremio",
   "ADMIN_CANNOT_DEMOTE_LAST_GUILD_ADMIN": "No se puede degradar al último administrador del gremio",
   "ADMIN_INITIATIVE_NOT_FOUND": "Iniciativa no encontrada",

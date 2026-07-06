@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Platform admins can now set a per-guild lifecycle status (`active` / `read_only` / `suspended`) from the admin dashboard's Guilds tab, for billing/moderation holds — with a confirmation prompt before suspending. Under `read_only`, members keep reading content but writes are denied at the database role level; under `suspended`, members lose all access and the guild disappears from their guild list, while guild **admins** keep the guild listed and retain full settings access (billing, data ownership, danger zone). New members can't join a non-active guild. Trash auto-purge pauses for non-active guilds so a hold never keeps destroying data. Time-bound PAM/break-glass access grants deliberately override the status, so operators can always reach a guild they suspended. Guild admins see a notice in guild settings pointing them to the platform operator, and operators acting through an access grant see the status in their temporary-access banner — but ordinary members are never told. The status is reversible and never touches stored data.
 - Time-bound support/moderator access grants now act as a first-class, **database-enforced** `support` guild role instead of masquerading as a member. A read grant is read-only; a read_write grant can edit content and guild settings but is hard-blocked at the Postgres role level from managing guild/initiative membership, roles, or sharing permissions (a dedicated per-guild `support` role, not app-layer checks alone). Break-glass admin access is unchanged — full guild admin for its window. `support` is never an assignable stored membership role.
 
+### Changed
+
+- Operator guild deletion is now scoped to resolving a user-deletion blocker: the platform "delete this guild" action (offered when deleting a user who is a guild's sole admin) only deletes a guild that user actually solely admins, instead of accepting any guild id. Guild admins can always delete their own guild as before; operators reach a live guild's deletion through its own danger zone via a break-glass grant.
+
 ## [0.54.2] - 2026-07-04
 
 ### Fixed

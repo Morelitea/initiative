@@ -576,12 +576,39 @@ async def admin_delete_guild(
     guild_id: int,
     session: AdminSessionDep,
     _current_user: GuildsManageDep,
+    blocked_user_id: Annotated[
+        int,
+        Query(
+            description=(
+                "The user being deleted, for whom this guild must be a "
+                "last-admin blocker. The delete is refused otherwise."
+            )
+        ),
+    ],
 ) -> Response:
-    """Delete a guild (platform admin only).
+    """Delete a guild that blocks a user's deletion (platform operator).
 
-    This allows platform admins to delete any guild, even if they're not a member.
-    All initiatives, projects, tasks, and memberships within the guild will be deleted.
+    Scoped to blocker resolution — NOT a general "delete any guild" tool: the
+    guild must be one ``blocked_user_id`` is the SOLE admin of (so deleting that
+    user would orphan it). Any other guild is refused; an operator reaches a live
+    guild's own deletion only by breaking glass into its danger zone. This
+    endpoint backs the "delete the blocking guild" option in the user-deletion
+    dialog, gated on ``guilds.manage``.
     """
+    if not await users_service.is_last_admin_of_guild(
+        session, guild_id, blocked_user_id, for_update=True
+    ):
+        # Either the user isn't the guild's sole admin (not a real blocker), or
+        # the guild doesn't exist / they aren't in it — all refused identically.
+        # ``for_update`` narrows the race against a concurrent demotion of an
+        # existing admin; it can't lock a not-yet-existing row, so a brand-new
+        # concurrent admin INSERT is a theoretical window (see the service
+        # docstring) — negligible here, and the cascade removes that row anyway.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AdminMessages.GUILD_NOT_A_DELETION_BLOCKER,
+        )
+
     stmt = select(Guild).where(Guild.id == guild_id)
     result = await session.exec(stmt)
     guild = result.one_or_none()

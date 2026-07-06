@@ -320,7 +320,9 @@ export function AdminDeleteUserDialog({
 
   const handleDeleteGuild = (guildId: number) => {
     setIsResolvingBlocker(true);
-    deleteGuild.mutate(guildId);
+    // The guild is a blocker because targetUser is its sole admin — the backend
+    // re-verifies that before deleting (scoped to blocker resolution).
+    deleteGuild.mutate({ guildId, blockedUserId: targetUser.id });
   };
 
   const handleDeleteInitiative = (initiativeId: number, guildId: number) => {

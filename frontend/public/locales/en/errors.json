@@ -193,6 +193,7 @@
   "ADMIN_USER_CANNOT_BE_DELETED": "User cannot be deleted",
   "ADMIN_PROJECT_TRANSFERS_REQUIRED": "Project transfers required for hard delete when user owns projects",
   "ADMIN_GUILD_NOT_FOUND": "Guild not found",
+  "ADMIN_GUILD_NOT_A_DELETION_BLOCKER": "This guild can only be deleted here if the user is its sole admin. Refresh and try again.",
   "ADMIN_USER_NOT_IN_GUILD": "User not found in guild",
   "ADMIN_CANNOT_DEMOTE_LAST_GUILD_ADMIN": "Cannot demote the last guild admin",
   "ADMIN_INITIATIVE_NOT_FOUND": "Initiative not found",
