@@ -530,6 +530,14 @@ async def update_guild_membership(
             detail=GuildMessages.CANNOT_CHANGE_OWN_ROLE,
         )
 
+    # 'support' is a synthesized PAM identity, never a stored membership role
+    # (the guild_role enum has only admin/member) — reject before it hits the DB.
+    if payload.role == GuildRole.support:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+        )
+
     target_membership = await guilds_service.get_membership(
         session, guild_id=guild_id, user_id=user_id, for_update=True
     )

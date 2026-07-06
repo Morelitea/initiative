@@ -13,10 +13,12 @@ from sqlalchemy.exc import ProgrammingError
 
 import app.db.schema_provisioning as schema_provisioning
 from app.db.schema_provisioning import (
+    SUPPORT_WRITE_PROTECTED_TABLES,
     backfill_guild_schemas,
     drop_guild_schema,
     guild_role_name,
     guild_schema_name,
+    guild_support_role_name,
     provision_guild_schema,
 )
 from app.db.tenancy import GUILD_SCOPED_TABLES
@@ -34,6 +36,7 @@ _GID_ROLE_WRITE = 990_107
 _GID_BACKFILL = 990_108
 _GID_REPROVISION = 990_109
 _GID_DROP_ABSENT = 990_110
+_GID_SUPPORT = 990_120
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -188,26 +191,65 @@ async def test_guild_role_is_scoped_to_its_own_schema(engine):
 
 
 async def test_drop_guild_schema_removes_role(engine):
-    """Tearing down a guild drops its role too, not just the schema."""
+    """Tearing down a guild drops its roles too, not just the schema."""
     gid = _GID_ROLE_DROP
-    role = guild_role_name(gid)
+    roles = (guild_role_name(gid), guild_support_role_name(gid))
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         async with engine.connect() as conn:
-            before = await conn.scalar(
-                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}
-            )
+            before = [
+                await conn.scalar(
+                    text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": r}
+                )
+                for r in roles
+            ]
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
         async with engine.connect() as conn:
-            after = await conn.scalar(
-                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}
-            )
-        assert before == 1, "role should exist after provisioning"
-        assert after is None, "role should be gone after drop"
+            after = [
+                await conn.scalar(
+                    text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": r}
+                )
+                for r in roles
+            ]
+        assert before == [1, 1], "roles should exist after provisioning"
+        assert after == [None, None], "roles should be gone after drop"
     finally:
         # Defensive: ensure no leftover role/schema if an assertion failed early.
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_support_role_write_capped_on_protected_tables(engine):
+    """The restricted ``support`` role reads everything and writes content, but
+    the structural / permission tables are SELECT-only — the DB-enforced
+    'no member/permission management' line, checked via has_table_privilege."""
+    gid = _GID_SUPPORT
+    schema = guild_schema_name(gid)
+    support = guild_support_role_name(gid)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+
+            async def priv(table: str, verb: str) -> bool:
+                return await conn.scalar(
+                    text("SELECT has_table_privilege(:r, :t, :p)"),
+                    {"r": support, "t": f"{schema}.{table}", "p": verb},
+                )
+
+            # Protected tables: readable, but no writes.
+            for table in SUPPORT_WRITE_PROTECTED_TABLES:
+                assert await priv(table, "SELECT") is True, f"{table} SELECT"
+                for verb in ("INSERT", "UPDATE", "DELETE"):
+                    assert await priv(table, verb) is False, f"{table} {verb}"
+
+            # Content + guild settings: full DML (settings write is the carve-out).
+            for table in ("tasks", "guild_settings"):
+                for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                    assert await priv(table, verb) is True, f"{table} {verb}"
+    finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
 
@@ -634,12 +676,16 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
 
     _original = sp._grant_statements
 
-    def _different_grants(schema: str, role: str, ro_role: str) -> list[str]:
+    def _different_grants(
+        schema: str, role: str, ro_role: str, support_role: str
+    ) -> list[str]:
         return ["GRANT USAGE ON SCHEMA x TO y"]
 
-    def _cosmetic_rewrite(schema: str, role: str, ro_role: str) -> list[str]:
+    def _cosmetic_rewrite(
+        schema: str, role: str, ro_role: str, support_role: str
+    ) -> list[str]:
         # Different source text, byte-identical output.
-        return list(_original(schema, role, ro_role))
+        return list(_original(schema, role, ro_role, support_role))
 
     try:
         with mock.patch.object(sp, "_grant_statements", _different_grants):

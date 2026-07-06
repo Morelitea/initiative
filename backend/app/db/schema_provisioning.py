@@ -70,6 +70,31 @@ def guild_readonly_role_name(guild_id: int) -> str:
     return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_ro"
 
 
+def guild_support_role_name(guild_id: int) -> str:
+    """Restricted read_write role for a guild, e.g. ``guild_42_support``.
+
+    Assumed by a scoped read_write PAM grant (the ``support`` guild identity): it
+    can SELECT everything and edit content, but the structural / permission tables
+    in ``SUPPORT_WRITE_PROTECTED_TABLES`` are SELECT-only, so a support grantee
+    cannot manage who is in the guild or who can see what. Break-glass (full
+    admin) uses the full ``guild_<id>`` role instead; a read grant uses ``_ro``.
+    """
+    return f"{settings.GUILD_ROLE_PREFIX}guild_{int(guild_id)}_support"
+
+
+# Structural / permission tables the restricted ``support`` role may READ but never
+# WRITE — the DB-enforced "no member/permission management" line. Coarse by design
+# (table/verb, not row-level): the finer "edit-existing vs authoring" nuance stays in
+# the pam_write RLS leg. Kept in lockstep with the guild schema by
+# ``support_role_test`` (a renamed/added structural table must be reconsidered here).
+SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
+    "initiative_members",
+    "initiative_roles",
+    "initiative_role_permissions",
+    "resource_grants",
+)
+
+
 # The platform privilege ladder, least -> most. Positional mapping from
 # ``users.role`` (an enum with these exact values). The migration creates one
 # ``platform_<tier>`` NOLOGIN role per entry plus a shared ``platform_base``
@@ -128,7 +153,12 @@ async def get_provisioning_bundle() -> ProvisioningBundle:
         digest.update(rls_ddl.encode())
         digest.update(
             "\n".join(
-                _grant_statements("__stamp__", "__stamp_role__", "__stamp_ro__")
+                _grant_statements(
+                    "__stamp__",
+                    "__stamp_role__",
+                    "__stamp_ro__",
+                    "__stamp_support__",
+                )
             ).encode()
         )
         _bundle = ProvisioningBundle(
@@ -182,9 +212,11 @@ async def apply_guild_rls(conn: AsyncConnection, schema: str) -> None:
     )
 
 
-def _grant_statements(schema: str, role: str, ro_role: str) -> list[str]:
-    """Fail-closed grants tying a guild ``role`` (read/write) and ``ro_role``
-    (read-only) to its ``schema``.
+def _grant_statements(
+    schema: str, role: str, ro_role: str, support_role: str
+) -> list[str]:
+    """Fail-closed grants tying a guild's ``role`` (read/write), ``ro_role``
+    (read-only) and ``support_role`` (restricted read/write) to its ``schema``.
 
     NOTE: the provisioning-bundle stamp hashes this function's RENDERED
     output, so changing WHAT it grants invalidates every guild's stamp and
@@ -192,12 +224,15 @@ def _grant_statements(schema: str, role: str, ro_role: str) -> list[str]:
     cosmetic edits here don't.
 
     Each role inherits shared/public access from ``app_guild_base``. The login
-    roles are granted membership in both ``WITH INHERIT FALSE`` — they can
-    ``SET ROLE`` into either but hold no standing access to the schema, so a
+    roles are granted membership in all three ``WITH INHERIT FALSE`` — they can
+    ``SET ROLE`` into any but hold no standing access to the schema, so a
     guild's data is reachable only by assuming one of its roles. The read-only
     role (assumed by PAM read grants) gets SELECT only, so a write is denied.
+    The support role (scoped read_write grants) gets DML on content but is
+    revoked write on the structural/permission tables — the DB-enforced
+    "no member/permission management" line.
     """
-    return [
+    stmts = [
         # Full role: DML on its schema.
         f'GRANT USAGE ON SCHEMA "{schema}" TO "{role}"',
         f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" '
@@ -216,7 +251,29 @@ def _grant_statements(schema: str, role: str, ro_role: str) -> list[str]:
         f'GRANT SELECT ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{ro_role}"',
         f'GRANT app_guild_base TO "{ro_role}"',
         f'GRANT "{ro_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" WITH INHERIT FALSE',
+        # Support role: read_write on content, but SELECT-only on the structural /
+        # permission tables. Grant broadly (incl. default privileges for future
+        # content tables) then REVOKE write on the protected set — coarse by design.
+        f'GRANT USAGE ON SCHEMA "{schema}" TO "{support_role}"',
+        f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" '
+        f'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{support_role}"',
+        f'ALTER DEFAULT PRIVILEGES IN SCHEMA "{schema}" '
+        f'GRANT USAGE ON SEQUENCES TO "{support_role}"',
+        f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA "{schema}" '
+        f'TO "{support_role}"',
+        f'GRANT USAGE ON ALL SEQUENCES IN SCHEMA "{schema}" TO "{support_role}"',
+        f'GRANT app_guild_base TO "{support_role}"',
+        f'GRANT "{support_role}" TO "{APP_LOGIN_ROLE}", "{ADMIN_LOGIN_ROLE}" '
+        f"WITH INHERIT FALSE",
     ]
+    # Hard-cap the support role: SELECT stays, writes are revoked on the structural /
+    # permission tables (these exist in every schema, so the REVOKE always applies).
+    for table in SUPPORT_WRITE_PROTECTED_TABLES:
+        stmts.append(
+            f'REVOKE INSERT, UPDATE, DELETE ON "{schema}"."{table}" '
+            f'FROM "{support_role}"'
+        )
+    return stmts
 
 
 async def _exec_batch(conn: AsyncConnection, statements: list[str]) -> None:
@@ -254,11 +311,13 @@ async def provision_guild_schema(conn: AsyncConnection, guild_id: int) -> str:
     schema = guild_schema_name(guild_id)
     role = guild_role_name(guild_id)
     ro_role = guild_readonly_role_name(guild_id)
+    support_role = guild_support_role_name(guild_id)
     await conn.exec_driver_sql(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
     await _ensure_role(conn, role)
     await _ensure_role(conn, ro_role)
+    await _ensure_role(conn, support_role)
     await apply_guild_schema(conn, schema)  # canonical Alembic-owned table DDL
-    await _exec_batch(conn, _grant_statements(schema, role, ro_role))
+    await _exec_batch(conn, _grant_statements(schema, role, ro_role, support_role))
     await apply_guild_rls(conn, schema)  # initiative-level RLS policies
     # Stamp the artifacts' version so the boot back-fill can skip this guild
     # until they change (constant hex literal, safe to inline).
@@ -278,7 +337,11 @@ async def drop_guild_schema(conn: AsyncConnection, guild_id: int) -> None:
     await conn.exec_driver_sql("SET lock_timeout = '10s'")
     await conn.exec_driver_sql(f'DROP SCHEMA IF EXISTS "{schema}" CASCADE')
     provisioning_login = make_url(settings.DATABASE_URL).username
-    for role in (guild_role_name(guild_id), guild_readonly_role_name(guild_id)):
+    for role in (
+        guild_role_name(guild_id),
+        guild_readonly_role_name(guild_id),
+        guild_support_role_name(guild_id),
+    ):
         if await _role_exists(conn, role):
             # DROP OWNED requires the role's PRIVILEGES, not just ADMIN OPTION
             # on it (PG16+ separates the two). The provisioning login

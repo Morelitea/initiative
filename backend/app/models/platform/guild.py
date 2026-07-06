@@ -88,6 +88,15 @@ class Guild(SQLModel, table=True):
 class GuildRole(str, Enum):
     admin = "admin"
     member = "member"
+    # A time-bound PAM/support access grantee acting inside a guild they are
+    # NOT a member of. Synthesized for the request only — never a persisted
+    # ``guild_memberships`` row (the Postgres ``guild_role`` enum has only
+    # admin/member, and the member-role endpoints reject assigning it). Unlike
+    # ``admin``, ``support`` is bound by its grant's read/write level: it can
+    # always reach the guild settings surface, with writes allowed only under a
+    # ``read_write`` grant (enforced at the Postgres role level — a read grant
+    # assumes ``guild_<id>_ro``). Break-glass grantees are ``admin``, not this.
+    support = "support"
 
 
 class GuildMembership(SQLModel, table=True):

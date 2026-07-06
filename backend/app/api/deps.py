@@ -414,12 +414,18 @@ async def _load_guild_context(
             pam_write=is_read_write,
         )
         guild = await guilds_service.get_guild(session, guild_id=guild_id)
-        # Break-glass acts as a guild admin; a scoped grantee gets a member-role
-        # stand-in so ``.role`` is valid without conferring admin guards.
+        # Break-glass acts as a full guild admin; a scoped grantee gets the
+        # ``support`` role — a first-class identity for PAM access rather than a
+        # ``member`` masquerade. ``support`` clears no admin guard (it is not
+        # ``admin``) but does open the guild settings surface (bound by the
+        # grant's read/write level at the Postgres role layer). The role is
+        # in-memory only; it never reaches ``set_rls_context`` (the ``is_pam``
+        # branch passes ``guild_role=None``), so the ``guild_role`` GUC and DB
+        # enum stay admin/member.
         synthetic = GuildMembership(
             guild_id=guild_id,
             user_id=current_user.id,
-            role=GuildRole.admin if break_glass else GuildRole.member,
+            role=GuildRole.admin if break_glass else GuildRole.support,
         )
         return GuildContext(
             guild=guild, membership=synthetic, grant=grant, break_glass=break_glass
