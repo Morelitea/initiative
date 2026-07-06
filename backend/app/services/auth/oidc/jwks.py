@@ -19,6 +19,7 @@ See the auth design doc for the rationale.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from collections.abc import Callable
@@ -71,6 +72,7 @@ class JwksResolver:
         self._max_bytes = max_response_bytes
         self._client_factory = client_factory or self._default_client_factory
         self._cache: dict[str, _CachedKeySet] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
 
     def _default_client_factory(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=self._timeout)
@@ -92,11 +94,11 @@ class JwksResolver:
 
         key_set = await self._get_key_set(jwks_uri)
         key = _select_key(key_set, kid)
-        if key is None and self._may_refetch(jwks_uri):
-            # kid absent from the cached set — keys may have rotated. One
-            # rate-limited refetch, then give up (bounds outbound fetches).
-            key_set = await self._fetch_and_cache(jwks_uri)
-            key = _select_key(key_set, kid)
+        if key is None and kid is not None:
+            # A specific kid isn't in the cached set — keys may have rotated. One
+            # rate-limited refetch, then give up. (A no-kid token that didn't
+            # resolve is ambiguous, not stale, so refetching wouldn't help.)
+            key = _select_key(await self._refetch(jwks_uri), kid)
         if key is None:
             raise JwksResolutionError(
                 f"no signing key for kid={kid!r} in JWKS at {jwks_uri}"
@@ -105,16 +107,27 @@ class JwksResolver:
 
     async def _get_key_set(self, jwks_uri: str) -> jwt.PyJWKSet:
         cached = self._cache.get(jwks_uri)
-        if cached is not None:
-            if (time.monotonic() - cached.fetched_at) < self._cache_ttl:
+        if cached is not None and self._fresh(cached):
+            return cached.key_set
+        async with self._lock_for(jwks_uri):
+            # Double-check: another coroutine may have fetched while we waited, so
+            # concurrent cold-cache callers make a single outbound fetch.
+            cached = self._cache.get(jwks_uri)
+            if cached is not None and self._fresh(cached):
                 return cached.key_set
-        return await self._fetch_and_cache(jwks_uri)
+            return await self._fetch_and_cache(jwks_uri)
 
-    def _may_refetch(self, jwks_uri: str) -> bool:
-        cached = self._cache.get(jwks_uri)
-        if cached is None:
-            return True
-        return (time.monotonic() - cached.fetched_at) >= self._min_refetch_interval
+    async def _refetch(self, jwks_uri: str) -> jwt.PyJWKSet:
+        """Lock-guarded, rate-limited refetch for a rotated ``kid``. Returns the
+        current cached set unchanged when a refetch isn't due yet (or another
+        coroutine just refreshed it)."""
+        async with self._lock_for(jwks_uri):
+            cached = self._cache.get(jwks_uri)
+            if cached is not None:
+                age = time.monotonic() - cached.fetched_at
+                if age < self._min_refetch_interval:
+                    return cached.key_set
+            return await self._fetch_and_cache(jwks_uri)
 
     async def _fetch_and_cache(self, jwks_uri: str) -> jwt.PyJWKSet:
         key_set = await self._fetch(jwks_uri)
@@ -122,6 +135,17 @@ class JwksResolver:
             key_set=key_set, fetched_at=time.monotonic()
         )
         return key_set
+
+    def _fresh(self, cached: _CachedKeySet) -> bool:
+        return (time.monotonic() - cached.fetched_at) < self._cache_ttl
+
+    def _lock_for(self, jwks_uri: str) -> asyncio.Lock:
+        # setdefault is atomic under the GIL, so concurrent callers converge on a
+        # single lock per URI (a briefly-created extra Lock is harmless).
+        lock = self._locks.get(jwks_uri)
+        if lock is None:
+            lock = self._locks.setdefault(jwks_uri, asyncio.Lock())
+        return lock
 
     async def _fetch(self, jwks_uri: str) -> jwt.PyJWKSet:
         _require_https(jwks_uri)

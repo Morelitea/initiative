@@ -9,6 +9,7 @@ two halves fit.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime, timedelta, timezone
 
@@ -144,6 +145,20 @@ async def test_no_kid_with_multiple_keys_is_ambiguous():
         await resolver.resolve_signing_key(token, jwks_uri=JWKS_URI)
 
 
+async def test_no_kid_ambiguous_does_not_refetch():
+    """An unresolved no-kid token is ambiguous, not stale — no refetch, even
+    when the rate limit would allow one."""
+    endpoint = _Endpoint(
+        _json_response(_jwks(_jwk(RSA1, kid="k1"), _jwk(RSA2, kid="k2")))
+    )
+    resolver = JwksResolver(
+        client_factory=endpoint.factory(), min_refetch_interval_seconds=0
+    )
+    with pytest.raises(JwksResolutionError):
+        await resolver.resolve_signing_key(_sign(RSA1, kid=None), jwks_uri=JWKS_URI)
+    assert endpoint.calls == 1  # the initial fetch only, no spurious refetch
+
+
 async def test_unknown_kid_raises():
     endpoint = _Endpoint(_json_response(_jwks(_jwk(RSA1, kid="k1"))))
     resolver = JwksResolver(client_factory=endpoint.factory())
@@ -187,6 +202,20 @@ async def test_key_set_is_cached_within_ttl():
     await resolver.resolve_signing_key(token, jwks_uri=JWKS_URI)
     await resolver.resolve_signing_key(token, jwks_uri=JWKS_URI)
     assert endpoint.calls == 1  # second resolve served from cache
+
+
+async def test_concurrent_cold_resolves_make_one_fetch():
+    """A burst of concurrent resolves against a cold cache collapses to a single
+    outbound fetch (per-URI lock + double-check), not one per caller."""
+    endpoint = _Endpoint(_json_response(_jwks(_jwk(RSA1, kid="k1"))))
+    resolver = JwksResolver(client_factory=endpoint.factory())
+    token = _sign(RSA1, kid="k1")
+
+    keys = await asyncio.gather(
+        *(resolver.resolve_signing_key(token, jwks_uri=JWKS_URI) for _ in range(8))
+    )
+    assert all(k.key_id == "k1" for k in keys)
+    assert endpoint.calls == 1
 
 
 async def test_unknown_kid_triggers_one_refetch_when_allowed():
