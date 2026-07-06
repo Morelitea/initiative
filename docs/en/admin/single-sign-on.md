@@ -42,6 +42,53 @@ Copy these into your identity provider's app/client configuration.
     Save as `en/images/admin/oidc-settings.png`, then use:
     `![OIDC single sign-on settings](../images/admin/oidc-settings.png)`
 
+## Provider-specific setup
+
+Initiative works with **any** standards-compliant OIDC provider — you point it at your own identity provider, and Initiative signs people in against it. In every case the result is the same three values to paste into **Settings → Platform → Auth** — an **Issuer**, a **Client ID**, and a **Client secret** — plus registering the callback URLs Initiative shows you. Use the scopes from the table above.
+
+Here are quickstarts for the providers self-hosters reach for most.
+
+=== "Pocket ID"
+
+    A lightweight, passkey-only provider — a popular pairing with Initiative.
+
+    1. In Pocket ID, go to **OIDC Clients → Add client** and name it "Initiative".
+    2. Set the **Callback URL** to the **Authorization callback** shown on Initiative's Auth page.
+    3. Save, then copy the generated **Client ID** and **Client secret**.
+    4. In Initiative, set **Issuer** to your Pocket ID address (e.g. `https://id.example.com`) and paste the Client ID and secret.
+
+    Because Pocket ID has no passwords, everyone signs in with a passkey — your Initiative sign-ins inherit that automatically. To sort people into guilds, enable groups in Pocket ID and set the **Claim path** to `groups`.
+
+=== "Authentik"
+
+    1. Create a **Provider → OAuth2/OpenID**; set the **Redirect URI** to Initiative's Authorization callback and note the generated **Client ID** and **Client secret**.
+    2. Create an **Application** and bind the provider to it.
+    3. In Initiative, set **Issuer** to `https://authentik.example.com/application/o/<application-slug>/` and paste the Client ID and secret.
+    4. For group mapping, add the `groups` scope to the provider and set Initiative's **Claim path** to `groups`.
+
+=== "Authelia"
+
+    Authelia's OIDC is configured in its YAML, not a UI.
+
+    1. Under `identity_providers.oidc.clients`, add a client with a `client_id`, a **hashed** `client_secret`, `redirect_uris` (Initiative's Authorization callback), and `scopes: [openid, profile, email, groups]`.
+    2. Restart Authelia to apply.
+    3. In Initiative, set **Issuer** to your Authelia address (e.g. `https://auth.example.com`), and paste the Client ID and the **plaintext** secret.
+
+=== "Keycloak"
+
+    1. In your realm, create a **Client** (OpenID Connect) with **Client authentication** on, and set a **Valid redirect URI** to Initiative's Authorization callback.
+    2. From the client's **Credentials** tab copy the **Client secret**; the **Client ID** is the client name.
+    3. In Initiative, set **Issuer** to `https://keycloak.example.com/realms/<realm>` and paste the Client ID and secret.
+    4. For roles, add a **groups** (or roles) mapper to the client and set Initiative's **Claim path** to `groups` (or `realm_access.roles`).
+
+=== "Entra / Google / Okta"
+
+    Hosted providers work the same way — register an app, add Initiative's callback URL, and copy the Issuer, Client ID, and secret.
+
+    - **Microsoft Entra ID** issuer: `https://login.microsoftonline.com/<tenant-id>/v2.0`
+    - **Google** issuer: `https://accounts.google.com`
+    - **Okta** issuer: `https://<your-org>.okta.com`
+
 ## Mapping provider groups to guilds and roles
 
 This is the powerful part. You can have Initiative read a **claim** from the sign-in token (for example, the user's groups or roles at your provider) and automatically place them into guilds and initiatives.
