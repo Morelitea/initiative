@@ -1,30 +1,21 @@
-"""Secure verification of an OpenID Connect ``id_token``.
+"""Verify an OpenID Connect ``id_token``.
 
-The crown jewel of the OIDC relying-party flow: a bug here is an authentication
-bypass. It is deliberately a **pure, network-free** function of the raw token
-plus its trust parameters — the caller resolves the signing key beforehand (in
-production from the provider's JWKS via ``PyJWKClient``; in tests from a local
-keypair) — so the verification logic can be exercised adversarially in isolation.
+A pure, network-free function of the raw token and its trust parameters — the
+caller resolves the signing key first (production: the provider's JWKS; tests: a
+local keypair) — so it can be tested in isolation.
 
-Built on PyJWT ``>=2.13.0`` rather than Authlib (history/auth-detailed-design.md
-§10a). The industry's 2026 CVE wave showed the dangerous class here is the
-id_token **fail-open** — an unrecognized ``alg`` silently accepted, RS/HS
-algorithm confusion, or a stripped ``alg:none`` signature. That is a *usage*
-property, so it is enforced HERE, in our code, never delegated to a library
-default:
+Verification is strict, and the rules are enforced here rather than left to
+library defaults:
 
-* **asymmetric-only algorithm allowlist** — HMAC and ``none`` are structurally
-  unrepresentable, so an attacker can neither re-sign the token with the
-  (public) signing key as an HMAC secret nor strip the signature;
-* **required registered claims** — ``iss``/``sub``/``aud``/``exp``/``iat`` must
-  be present (a missing ``exp`` can never yield a non-expiring token);
+* **asymmetric-only algorithm allowlist** (``RS*``/``PS*``/``ES*``/``EdDSA``);
+  HMAC and ``none`` are not accepted;
+* **required registered claims** ``iss``/``sub``/``aud``/``exp``/``iat``;
 * **audience + issuer** bound to the configured provider;
-* **``azp`` enforced** when the token is issued to multiple audiences;
-* **constant-time ``nonce`` match** — binds the token to *this* login attempt
-  (replay / token-injection defense).
+* **``azp`` checked** for multi-audience tokens;
+* **constant-time ``nonce`` match**.
 
-Any failure raises :class:`IdTokenVerificationError` — the verifier is
-fail-closed, so an unforeseen error rejects the token rather than admitting it.
+Any failure raises :class:`IdTokenVerificationError` — fail-closed. Built on
+PyJWT; see the auth design doc for the rationale.
 """
 
 from __future__ import annotations
@@ -35,12 +26,8 @@ from typing import Any
 
 import jwt
 
-# Asymmetric signature algorithms only. HMAC (``HS*``) and ``none`` are
-# deliberately absent: allowing an ``HS*`` alg alongside a public verification
-# key is the classic algorithm-confusion bypass (the attacker signs with the
-# known public key as the HMAC secret), and ``none`` strips the signature
-# entirely. Keeping the set asymmetric-only makes both *unrepresentable* rather
-# than merely discouraged — a caller cannot re-enable them by accident.
+# Asymmetric signature algorithms only. HMAC (``HS*``) and ``none`` are excluded
+# by construction so they can't be selected — not merely discouraged.
 _ASYMMETRIC_ALGORITHMS: frozenset[str] = frozenset(
     {
         "RS256",
@@ -95,23 +82,17 @@ def verify_id_token(
 
     Raises :class:`ValueError` (not :class:`IdTokenVerificationError`) for a
     caller misconfiguration — an empty or non-asymmetric algorithm allowlist, or
-    an empty issuer, audience, or nonce — because those are programming errors,
-    not attacker input. (PyJWT already fails *closed* on an empty issuer/audience,
-    rejecting every token; the guard just surfaces the misconfiguration explicitly
-    instead of presenting as "all logins fail", and keeps the trust anchors
-    uniformly non-empty alongside the nonce.)
+    an empty issuer, audience, or nonce — since those are programming errors.
     """
     requested = tuple(algorithms)
     if not requested:
         raise ValueError("id_token algorithms allowlist must be non-empty")
     illegal = sorted(a for a in requested if a not in _ASYMMETRIC_ALGORITHMS)
     if illegal:
-        # Refuse to even run with a symmetric / ``none`` alg in the allowlist —
-        # that would reopen the confusion/strip bypass this module exists to shut.
+        # The allowlist is asymmetric by contract — refuse a symmetric/``none`` alg.
         raise ValueError(f"id_token algorithms must be asymmetric; refused {illegal}")
-    # All three trust anchors must be present — an empty one is a caller bug, not
-    # attacker input. Guarded uniformly (PyJWT already rejects on empty iss/aud,
-    # but silently, so make it explicit).
+    # All three trust anchors must be non-empty (PyJWT rejects empty iss/aud too,
+    # but silently — surface it as an explicit caller error).
     if not issuer:
         raise ValueError("an issuer is required to verify an id_token")
     if not audience:
@@ -136,9 +117,7 @@ def verify_id_token(
             },
         )
     except jwt.PyJWTError as exc:
-        # Fail-closed: any PyJWT failure — bad signature, disallowed alg /
-        # ``alg:none``, wrong aud/iss, expired, missing required claim, malformed
-        # token, unusable key — rejects the token.
+        # Fail-closed: any PyJWT failure rejects the token.
         raise IdTokenVerificationError(f"id_token rejected: {exc}") from exc
 
     _verify_nonce(claims, nonce)
