@@ -19,6 +19,16 @@
     "title": "Gilden-Einstellungen",
     "subtitle": "Verwalte die Mitgliedschaft im Arbeitsbereich und die Gilden-Details.",
     "permissionDenied": "Du benötigst zusätzliche Berechtigungen, um diese Seite anzuzeigen.",
+    "restricted": {
+      "read_only": {
+        "label": "Schreibgeschützt",
+        "message": "Diese Gilde ist schreibgeschützt. Wende dich an deinen Plattform-Administrator, um den vollen Zugriff wiederherzustellen."
+      },
+      "suspended": {
+        "label": "Gesperrt",
+        "message": "Diese Gilde ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an deinen Plattform-Administrator."
+      }
+    },
     "tabs": {
       "guild": "Gilde",
       "ai": "KI",

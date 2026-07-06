@@ -35,6 +35,11 @@ class GuildRead(GuildBase):
     max_storage_bytes: Optional[int] = None
     max_users: Optional[int] = None
     member_count: int = 0
+    # Lifecycle status, surfaced to guild ADMINS only (so their settings page can
+    # show a "contact your operator" chip). ``None`` for non-admin members — the
+    # moderation hold is never disclosed to them (suspended guilds are also
+    # filtered from their guild list entirely).
+    status: Optional[GuildStatus] = None
 
 
 class GuildInviteCreate(SanitizedBaseModel):

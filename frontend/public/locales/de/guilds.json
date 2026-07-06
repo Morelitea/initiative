@@ -255,6 +255,8 @@
   "expiresInMinutes": "läuft in {{minutes}} Min. ab",
   "grantBanner": {
     "readOnly": "Du hast temporären schreibgeschützten Zugriff auf {{guild}}.",
-    "readWrite": "Du hast temporären Zugriff auf {{guild}}."
+    "readWrite": "Du hast temporären Zugriff auf {{guild}}.",
+    "guildReadOnly": "Diese Gilde ist schreibgeschützt",
+    "guildSuspended": "Diese Gilde ist gesperrt"
   }
 }

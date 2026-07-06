@@ -19,6 +19,16 @@
     "title": "Configuración del gremio",
     "subtitle": "Administra la membresía del espacio de trabajo y los detalles del gremio.",
     "permissionDenied": "Necesitas permisos adicionales para ver esta página.",
+    "restricted": {
+      "read_only": {
+        "label": "Solo lectura",
+        "message": "Este gremio es de solo lectura. Contacta con el administrador de la plataforma para restaurar el acceso completo."
+      },
+      "suspended": {
+        "label": "Suspendido",
+        "message": "Este gremio está suspendido y los miembros no pueden acceder. Contacta con el administrador de la plataforma."
+      }
+    },
     "tabs": {
       "guild": "Gremio",
       "ai": "IA",

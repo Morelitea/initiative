@@ -23,6 +23,7 @@ from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
+from app.models.platform.guild import GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.access_grant import (
@@ -605,6 +606,7 @@ async def to_read(
         guild = guilds.get(g.guild_id)
         if guild is not None:
             read.guild_name = guild.name
+            read.guild_status = GuildStatus(guild.status)
         if g.approved_by_id is not None:
             approver = users.get(g.approved_by_id)
             if approver is not None:

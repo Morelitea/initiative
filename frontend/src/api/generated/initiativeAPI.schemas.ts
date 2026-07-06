@@ -86,6 +86,29 @@ export const AccessGrantStatus = {
   expired: "expired",
 } as const;
 
+/**
+ * Operator-set lifecycle status of a guild (platform `guilds.manage`).
+ *
+ * - ``active``: normal operation.
+ * - ``read_only``: members keep read access to content but writes are denied
+ *   at the Postgres role level (routed into ``guild_<id>_ro``).
+ * - ``suspended``: soft delete — members lose all content access and the
+ *   guild vanishes from their guild list. Guild admins keep the settings
+ *   surface (billing / data ownership / danger zone) under every status.
+ *
+ * PAM/break-glass grants deliberately override all of this: a grantee
+ * behaves exactly as against an active guild (the resolver's grant branch
+ * never consults the status), so suspending a guild can never lock the
+ * platform operators out. The status is not serialized to guild members.
+ */
+export type GuildStatus = (typeof GuildStatus)[keyof typeof GuildStatus];
+
+export const GuildStatus = {
+  active: "active",
+  read_only: "read_only",
+  suspended: "suspended",
+} as const;
+
 export interface AccessGrantRead {
   id: number;
   user_id: number;
@@ -104,6 +127,7 @@ export interface AccessGrantRead {
   user_email: string | null;
   user_full_name: string | null;
   guild_name: string | null;
+  guild_status: GuildStatus | null;
   approved_by_email: string | null;
   /** Whether this grant currently confers access (approved, unexpired). */
   readonly is_live: boolean;
@@ -1312,6 +1336,7 @@ export interface GuildRead {
   max_storage_bytes: number | null;
   max_users: number | null;
   member_count: number;
+  status: GuildStatus | null;
 }
 
 /**
@@ -1365,29 +1390,6 @@ export interface GuildRemovalRequest {
   project_transfers?: GuildRemovalRequestProjectTransfers;
   project_deletions?: number[];
 }
-
-/**
- * Operator-set lifecycle status of a guild (platform `guilds.manage`).
- *
- * - ``active``: normal operation.
- * - ``read_only``: members keep read access to content but writes are denied
- *   at the Postgres role level (routed into ``guild_<id>_ro``).
- * - ``suspended``: soft delete — members lose all content access and the
- *   guild vanishes from their guild list. Guild admins keep the settings
- *   surface (billing / data ownership / danger zone) under every status.
- *
- * PAM/break-glass grants deliberately override all of this: a grantee
- * behaves exactly as against an active guild (the resolver's grant branch
- * never consults the status), so suspending a guild can never lock the
- * platform operators out. The status is not serialized to guild members.
- */
-export type GuildStatus = (typeof GuildStatus)[keyof typeof GuildStatus];
-
-export const GuildStatus = {
-  active: "active",
-  read_only: "read_only",
-  suspended: "suspended",
-} as const;
 
 export interface GuildSummary {
   id: number;

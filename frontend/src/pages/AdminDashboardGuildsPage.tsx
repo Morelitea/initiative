@@ -209,6 +209,9 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
     onError: (err) => {
       toast.error(getErrorMessage(err, "settings:guilds.statusSaveError"));
     },
+    // Close the confirm dialog only once the mutation settles, so its in-flight
+    // state is actually observable (the dialog shows "please wait" while saving).
+    onSettled: () => setPendingSuspend(false),
   });
 
   const apply = (status: GuildStatus) => {
@@ -251,10 +254,7 @@ const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
         cancelLabel={t("common:cancel")}
         destructive
         isLoading={update.isPending}
-        onConfirm={() => {
-          apply(GuildStatus.suspended);
-          setPendingSuspend(false);
-        }}
+        onConfirm={() => apply(GuildStatus.suspended)}
       />
     </>
   );

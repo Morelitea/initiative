@@ -19,6 +19,16 @@
     "title": "Paramètres du groupe",
     "subtitle": "Gérez les membres de l'espace de travail et les détails du groupe.",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
+    "restricted": {
+      "read_only": {
+        "label": "Lecture seule",
+        "message": "Ce groupe est en lecture seule. Contactez votre administrateur de plateforme pour rétablir l'accès complet."
+      },
+      "suspended": {
+        "label": "Suspendu",
+        "message": "Ce groupe est suspendu et les membres n'y ont pas accès. Contactez votre administrateur de plateforme."
+      }
+    },
     "tabs": {
       "guild": "Groupe",
       "ai": "IA",

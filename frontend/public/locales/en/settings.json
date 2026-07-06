@@ -19,6 +19,16 @@
     "title": "Guild settings",
     "subtitle": "Manage workspace membership and guild details.",
     "permissionDenied": "You need additional permissions to view this page.",
+    "restricted": {
+      "read_only": {
+        "label": "Read-only",
+        "message": "This guild is read-only. Contact your platform administrator to restore full access."
+      },
+      "suspended": {
+        "label": "Suspended",
+        "message": "This guild is suspended and members can't access it. Contact your platform administrator."
+      }
+    },
     "tabs": {
       "guild": "Guild",
       "ai": "AI",
