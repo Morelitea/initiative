@@ -68,6 +68,10 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # Consumed pre-membership / pre-routing
         "guild_invites",  # looked up by token before the user is a member
         "oidc_claim_mappings",  # SSO auto-join rules, read across all guilds at login
+        # Auth/login foundation — one user's identities span guilds; provider
+        # registry is read pre-routing at login.
+        "auth_providers",  # login provider registry (operator-global or guild-scoped)
+        "federated_identities",  # (provider, subject) -> user links
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)

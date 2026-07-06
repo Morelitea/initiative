@@ -73,6 +73,15 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "app_settings": frozenset({"SELECT", "INSERT", "UPDATE"}),
     # OIDC sync reads mappings; the settings endpoints manage them
     "oidc_claim_mappings": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # login provider registry (successor to app_settings.oidc_*): fully managed
+    # on the system engine — login reads + provider CRUD via AdminSessionDep with
+    # capability/ownership checks (as access_grants). Like oidc_claim_mappings, it
+    # carries NO permissive RLS policy, so the request path can't read guild-scoped
+    # provider config (no cross-tenant metadata leak).
+    "auth_providers": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
+    # identity linking — resolved/created at login (pre-auth, by subject); link/
+    # unlink go through the system engine (linking is an account-takeover surface)
+    "federated_identities": frozenset({"SELECT", "INSERT", "UPDATE", "DELETE"}),
     # personal UI state — the system engine has no business here
     "user_view_preferences": None,
     "notifications": frozenset({"SELECT", "INSERT", "DELETE"}),
@@ -98,6 +107,12 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "guild_invites": frozenset({"SELECT"}),
     "guild_memberships": frozenset({"SELECT"}),
     "access_grants": frozenset({"SELECT"}),
+    # provider reads for the login page go via the system engine (AdminSessionDep),
+    # not the bare login role — so guild-scoped provider config never leaks here
+    "auth_providers": None,
+    # own-row identity links are read on the authenticated (platform_<tier>)
+    # path, not the bare pre-routing role
+    "federated_identities": None,
     "notifications": None,
     "oidc_claim_mappings": None,
     "push_tokens": None,
