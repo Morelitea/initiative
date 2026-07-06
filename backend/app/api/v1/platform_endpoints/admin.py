@@ -600,6 +600,10 @@ async def admin_delete_guild(
     ):
         # Either the user isn't the guild's sole admin (not a real blocker), or
         # the guild doesn't exist / they aren't in it — all refused identically.
+        # ``for_update`` narrows the race against a concurrent demotion of an
+        # existing admin; it can't lock a not-yet-existing row, so a brand-new
+        # concurrent admin INSERT is a theoretical window (see the service
+        # docstring) — negligible here, and the cascade removes that row anyway.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AdminMessages.GUILD_NOT_A_DELETION_BLOCKER,
