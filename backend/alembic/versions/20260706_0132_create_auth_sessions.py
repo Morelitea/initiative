@@ -17,6 +17,7 @@ the request path can't touch sessions (esp. the refresh-token hash) at all.
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 from app.core.config import settings
 
@@ -61,11 +62,18 @@ def upgrade() -> None:
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("user_agent", sa.Text(), nullable=True),
-        sa.Column("ip", sa.Text(), nullable=True),
+        sa.Column("ip", postgresql.INET(), nullable=True),
         sa.Column("device_name", sa.Text(), nullable=True),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.UniqueConstraint(
             "refresh_token_hash", name="uq_auth_sessions_refresh_token_hash"
+        ),
+        # A session can't be its own rotation parent (a self-loop would hang the
+        # theft-detection chain walk); longer cycles can't form as the chain is
+        # strictly backward in time.
+        sa.CheckConstraint(
+            "parent_id IS NULL OR parent_id <> id",
+            name="ck_auth_sessions_parent_not_self",
         ),
     )
     op.create_index("ix_auth_sessions_user_id", "auth_sessions", ["user_id"])

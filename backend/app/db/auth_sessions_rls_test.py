@@ -10,6 +10,7 @@ non-superuser role so RLS + table GRANTs are enforced like the request path.
 """
 
 import hashlib
+import uuid
 
 import pytest
 from sqlalchemy import text
@@ -67,3 +68,24 @@ async def test_auth_sessions_unreadable_on_request_path(session):
         async with session.begin_nested():
             await session.exec(text("SELECT id FROM auth_sessions"))
     await _reset(session)
+
+
+async def test_session_cannot_be_its_own_rotation_parent(session):
+    """ck_auth_sessions_parent_not_self: a row whose parent_id equals its own id
+    is rejected — a self-loop would hang the theft-detection chain walk."""
+    u1 = await create_user(session)
+    sid = uuid.uuid4()
+    with pytest.raises(DBAPIError):
+        async with session.begin_nested():
+            await session.exec(
+                text(
+                    "INSERT INTO auth_sessions "
+                    "(id, user_id, refresh_token_hash, parent_id, expires_at, created_at) "
+                    "VALUES (:sid, :u, :h, :sid, now() + interval '1 day', now())"
+                ),
+                params={
+                    "sid": sid,
+                    "u": u1.id,
+                    "h": hashlib.sha256(b"self-parent").digest(),
+                },
+            )

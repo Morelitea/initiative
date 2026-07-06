@@ -4,6 +4,7 @@ from typing import Optional
 
 from sqlalchemy import (
     ARRAY,
+    CheckConstraint,
     Column,
     DateTime,
     Integer,
@@ -13,6 +14,7 @@ from sqlalchemy import (
     Uuid,
     text,
 )
+from sqlalchemy.dialects.postgresql import INET
 from sqlmodel import Field, Index, SQLModel
 
 
@@ -38,6 +40,14 @@ class AuthSession(SQLModel, table=True):
     __table_args__ = (
         UniqueConstraint(
             "refresh_token_hash", name="uq_auth_sessions_refresh_token_hash"
+        ),
+        # A row can't be its own rotation parent — a self-loop would hang the
+        # theft-detection chain walk. Longer cycles can't form: the chain is
+        # strictly backward in time (a new row's fresh uuid can't already be a
+        # parent_id), so direct self-reference is the only reachable loop.
+        CheckConstraint(
+            "parent_id IS NULL OR parent_id <> id",
+            name="ck_auth_sessions_parent_not_self",
         ),
         Index("ix_auth_sessions_user_id", "user_id"),
         # Supports the background expiry sweep (GC of past-expiry sessions).
@@ -94,7 +104,9 @@ class AuthSession(SQLModel, table=True):
     user_agent: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
-    ip: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    # INET (not text): canonical normalisation + subnet queries; NULL when unknown.
+    # Rejects a raw X-Forwarded-For list, forcing the service to store one client IP.
+    ip: Optional[str] = Field(default=None, sa_column=Column(INET, nullable=True))
     device_name: Optional[str] = Field(
         default=None, sa_column=Column(Text, nullable=True)
     )
