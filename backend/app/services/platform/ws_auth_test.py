@@ -12,7 +12,7 @@ from app.core.security import create_access_token
 from app.models.platform.user import UserStatus
 from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
-from app.testing import create_user, get_auth_token
+from app.testing import create_user, get_auth_token, get_new_access_token
 
 pytestmark = pytest.mark.asyncio
 
@@ -25,6 +25,30 @@ async def test_valid_token_authenticates(session: AsyncSession):
 
     assert result is not None
     assert result.id == user.id
+
+
+async def test_new_access_token_authenticates(session: AsyncSession):
+    """Dual-verify: the WS path accepts the new-model access token too, so
+    realtime sockets stay in lockstep with the HTTP path."""
+    user = await create_user(session)
+    token = get_new_access_token(user)
+
+    result = await authenticate_ws_token(token, session)
+
+    assert result is not None
+    assert result.id == user.id
+
+
+async def test_new_access_token_stale_version_rejected(session: AsyncSession):
+    """The new token's ``ver`` is enforced on the WS path as well."""
+    user = await create_user(session)
+    token = get_new_access_token(user)
+    user.token_version += 1
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    assert await authenticate_ws_token(token, session) is None
 
 
 async def test_token_version_bump_revokes_token(session: AsyncSession):
