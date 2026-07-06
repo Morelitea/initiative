@@ -74,6 +74,11 @@ _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     ("users", "ai_api_key_encrypted", SALT_AI_API_KEY),
     ("users", "oidc_refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
     ("app_settings", "oidc_client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
+    # Successor home for the OIDC client secret (same salt → ciphertext moves
+    # verbatim). Both rows are rotated during the transition; app_settings is
+    # dropped in Phase 4. Currently always NULL until the OidcProvider phase
+    # backfills it — rotating a NULL column is a harmless no-op.
+    ("auth_provider_secrets", "client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     ("app_settings", "ai_api_key_encrypted", SALT_AI_API_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
