@@ -1,0 +1,53 @@
+from datetime import datetime, timezone
+from typing import Optional
+
+from sqlalchemy import Boolean, Column, DateTime, Integer, Text, UniqueConstraint, text
+from sqlmodel import Field, SQLModel
+
+
+class FederatedIdentity(SQLModel, table=True):
+    """A link between one global Initiative user and one external identity.
+
+    Identity is keyed on ``(provider_id, subject)`` — the IdP ``sub`` — never on
+    email, so trusting multiple providers can't collide into account takeover.
+    One user may have many linked identities (a work SSO, a personal passkey
+    provider, …); the user row stays Initiative's system of record.
+
+    Own-row RLS: a user sees/manages only their own links on the request path —
+    there is **no** admin-read-all policy. Cross-user identity management (support)
+    runs on the system engine (``app_admin``), never a platform-tier request role,
+    so a support UI must not assume request-path access here. The IdP refresh token
+    (for group re-sync) is *not* stored here yet — it arrives, encrypted, with the
+    OIDC-login phase.
+    """
+
+    __tablename__ = "federated_identities"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider_id", "subject", name="uq_federated_identities_provider_subject"
+        ),
+    )
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+
+    # FKs declared in the migration (both ON DELETE CASCADE).
+    user_id: int = Field(sa_column=Column(Integer, nullable=False, index=True))
+    provider_id: int = Field(sa_column=Column(Integer, nullable=False, index=True))
+
+    # The IdP-asserted subject identifier — the stable join key.
+    subject: str = Field(sa_column=Column(Text, nullable=False))
+
+    # Whether the IdP asserted a verified email at link time (a snapshot used for
+    # the linking-safety check, not a join key). The email itself is not stored
+    # here — identity is resolved by (provider, subject).
+    email_verified: bool = Field(
+        sa_column=Column(Boolean, nullable=False, server_default=text("false"))
+    )
+
+    created_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc),
+        sa_column=Column(DateTime(timezone=True), nullable=False),
+    )
+    last_login_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
