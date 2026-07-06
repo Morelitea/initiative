@@ -191,6 +191,7 @@
   "ADMIN_USER_CANNOT_BE_DELETED": "L'utilisateur ne peut pas être supprimé",
   "ADMIN_PROJECT_TRANSFERS_REQUIRED": "Des transferts de projets sont requis pour la suppression définitive lorsque l'utilisateur possède des projets",
   "ADMIN_GUILD_NOT_FOUND": "Groupe introuvable",
+  "ADMIN_GUILD_NOT_A_DELETION_BLOCKER": "Ce groupe ne peut être supprimé ici que si l'utilisateur en est le seul administrateur. Actualisez et réessayez.",
   "ADMIN_USER_NOT_IN_GUILD": "Utilisateur introuvable dans le groupe",
   "ADMIN_CANNOT_DEMOTE_LAST_GUILD_ADMIN": "Impossible de rétrograder le dernier administrateur du groupe",
   "ADMIN_INITIATIVE_NOT_FOUND": "Initiative introuvable",

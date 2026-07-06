@@ -22,6 +22,7 @@ import type {
 
 import type {
   AccountDeletionResponse,
+  AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams,
   AdminDeleteInitiativeApiV1AdminInitiativesInitiativeIdDeleteParams,
   AdminDeletionEligibilityResponse,
   AdminGetInitiativeMembersApiV1AdminInitiativesInitiativeIdMembersGetParams,
@@ -1070,19 +1071,24 @@ export const useDeleteUserApiV1AdminUsersUserIdDelete = <
   return useMutation(getDeleteUserApiV1AdminUsersUserIdDeleteMutationOptions(options), queryClient);
 };
 /**
- * Delete a guild (platform admin only).
+ * Delete a guild that blocks a user's deletion (platform operator).
  *
- * This allows platform admins to delete any guild, even if they're not a member.
- * All initiatives, projects, tasks, and memberships within the guild will be deleted.
+ * Scoped to blocker resolution — NOT a general "delete any guild" tool: the
+ * guild must be one ``blocked_user_id`` is the SOLE admin of (so deleting that
+ * user would orphan it). Any other guild is refused; an operator reaches a live
+ * guild's own deletion only by breaking glass into its danger zone. This
+ * endpoint backs the "delete the blocking guild" option in the user-deletion
+ * dialog, gated on ``guilds.manage``.
  * @summary Admin Delete Guild
  */
 export const adminDeleteGuildApiV1AdminGuildsGuildIdDelete = (
   guildId: number,
+  params: AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams,
   options?: SecondParameter<typeof apiMutator>,
   signal?: AbortSignal
 ) => {
   return apiMutator<void>(
-    { url: `/api/v1/admin/guilds/${guildId}`, method: "DELETE", signal },
+    { url: `/api/v1/admin/guilds/${guildId}`, method: "DELETE", params, signal },
     options
   );
 };
@@ -1094,14 +1100,14 @@ export const getAdminDeleteGuildApiV1AdminGuildsGuildIdDeleteMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof adminDeleteGuildApiV1AdminGuildsGuildIdDelete>>,
     TError,
-    { guildId: number },
+    { guildId: number; params: AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams },
     TContext
   >;
   request?: SecondParameter<typeof apiMutator>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof adminDeleteGuildApiV1AdminGuildsGuildIdDelete>>,
   TError,
-  { guildId: number },
+  { guildId: number; params: AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams },
   TContext
 > => {
   const mutationKey = ["adminDeleteGuildApiV1AdminGuildsGuildIdDelete"];
@@ -1113,11 +1119,11 @@ export const getAdminDeleteGuildApiV1AdminGuildsGuildIdDeleteMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof adminDeleteGuildApiV1AdminGuildsGuildIdDelete>>,
-    { guildId: number }
+    { guildId: number; params: AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams }
   > = (props) => {
-    const { guildId } = props ?? {};
+    const { guildId, params } = props ?? {};
 
-    return adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId, requestOptions);
+    return adminDeleteGuildApiV1AdminGuildsGuildIdDelete(guildId, params, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
@@ -1141,7 +1147,7 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
     mutation?: UseMutationOptions<
       Awaited<ReturnType<typeof adminDeleteGuildApiV1AdminGuildsGuildIdDelete>>,
       TError,
-      { guildId: number },
+      { guildId: number; params: AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams },
       TContext
     >;
     request?: SecondParameter<typeof apiMutator>;
@@ -1150,7 +1156,7 @@ export const useAdminDeleteGuildApiV1AdminGuildsGuildIdDelete = <
 ): UseMutationResult<
   Awaited<ReturnType<typeof adminDeleteGuildApiV1AdminGuildsGuildIdDelete>>,
   TError,
-  { guildId: number },
+  { guildId: number; params: AdminDeleteGuildApiV1AdminGuildsGuildIdDeleteParams },
   TContext
 > => {
   return useMutation(

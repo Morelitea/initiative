@@ -193,6 +193,7 @@
   "ADMIN_USER_CANNOT_BE_DELETED": "Der Benutzer kann nicht gelöscht werden",
   "ADMIN_PROJECT_TRANSFERS_REQUIRED": "Projektübertragungen sind für eine endgültige Löschung erforderlich, wenn der Benutzer Projekte besitzt",
   "ADMIN_GUILD_NOT_FOUND": "Gilde nicht gefunden",
+  "ADMIN_GUILD_NOT_A_DELETION_BLOCKER": "Diese Gilde kann hier nur gelöscht werden, wenn der Benutzer ihr einziger Administrator ist. Aktualisiere und versuche es erneut.",
   "ADMIN_USER_NOT_IN_GUILD": "Benutzer in der Gilde nicht gefunden",
   "ADMIN_CANNOT_DEMOTE_LAST_GUILD_ADMIN": "Der letzte Gildenadministrator kann nicht herabgestuft werden",
   "ADMIN_INITIATIVE_NOT_FOUND": "Initiative nicht gefunden",
