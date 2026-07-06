@@ -1161,7 +1161,10 @@ async def request_password_reset(
 @router.post("/password/reset", response_model=VerificationSendResponse)
 @limiter.limit("5/15minutes")
 async def reset_password(
-    request: Request, payload: PasswordResetSubmit, session: SessionDep
+    request: Request,
+    payload: PasswordResetSubmit,
+    session: SessionDep,
+    admin_session: AdminSessionDep,
 ) -> VerificationSendResponse:
     # Run the policy first so an invalid candidate doesn't burn the
     # reset token; ``consume_token`` is one-shot.
@@ -1184,9 +1187,11 @@ async def reset_password(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
     user.hashed_password = get_password_hash(payload.password)
-    # Bump token_version and revoke active device tokens so a stale
-    # JWT/device token can't survive the reset.
-    await user_tokens.revoke_user_sessions(session, user=user)
+    # Bump token_version and revoke device tokens / API keys / refresh sessions
+    # so no stale credential (JWT, device token, or captured refresh) survives.
+    await user_tokens.revoke_user_sessions(
+        session, user=user, admin_session=admin_session
+    )
     if not user.email_verified:
         user.email_verified = True
     user.updated_at = datetime.now(timezone.utc)

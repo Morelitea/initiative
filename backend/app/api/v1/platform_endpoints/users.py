@@ -289,6 +289,7 @@ async def create_user(
 async def update_users_me(
     user_in: UserSelfUpdate,
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     response: Response,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
@@ -339,9 +340,11 @@ async def update_users_me(
                 )
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
-        # Bump token_version and revoke active device tokens + API keys so a
-        # stale JWT/device token/API key can't survive the password change.
-        await user_tokens_service.revoke_user_sessions(session, user=current_user)
+        # Bump token_version and revoke device tokens + API keys + refresh
+        # sessions so no stale credential can survive the password change.
+        await user_tokens_service.revoke_user_sessions(
+            session, user=current_user, admin_session=admin_session
+        )
         # ...but keep THIS session alive. The version bump above invalidates the
         # caller's own token too, so re-issue the session cookie with the new
         # version: every *other* session/device still dies, while the user who
@@ -453,6 +456,7 @@ async def update_user(
     user_id: int,
     user_in: UserUpdate,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
@@ -489,10 +493,12 @@ async def update_user(
         await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
         # Resetting a compromised account must invalidate the attacker's
-        # outstanding sessions: bump token_version (kills unexpired JWTs)
-        # and revoke active device tokens, mirroring the self-service and
-        # forgot-password reset paths.
-        await user_tokens_service.revoke_user_sessions(session, user=user)
+        # outstanding sessions: bump token_version (kills unexpired JWTs) and
+        # revoke device tokens / API keys / refresh sessions, mirroring the
+        # self-service and forgot-password reset paths.
+        await user_tokens_service.revoke_user_sessions(
+            session, user=user, admin_session=admin_session
+        )
     if "avatar_base64" in update_data:
         user.avatar_base64 = update_data.pop("avatar_base64")
         if user.avatar_base64:

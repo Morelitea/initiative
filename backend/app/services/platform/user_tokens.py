@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.user import User
 from app.models.platform.user_token import UserToken, UserTokenPurpose
+from app.services.auth import sessions as session_service
 from app.services.platform import api_keys as api_keys_service
 
 
@@ -256,18 +257,30 @@ async def revoke_user_sessions(
     session: AsyncSession,
     *,
     user: User,
+    admin_session: AsyncSession,
 ) -> None:
     """Invalidate every outstanding session for ``user`` after a credential
     change.
 
     Bumps ``token_version`` (which the JWT/WS authenticators compare against,
     invalidating any still-unexpired access token), bulk-revokes the user's
-    active ``device_auth`` tokens, and deactivates their API keys (a leaked PAT
-    must not survive a compromise response). Shared by the self-service password
-    change, the forgot-password reset, and the admin password reset so the
-    three paths can't drift. Does not commit — the caller owns the transaction
-    and is responsible for ``session.add(user)``/``commit``.
+    active ``device_auth`` tokens, deactivates their API keys (a leaked PAT must
+    not survive a compromise response), and revokes their rotating **refresh
+    sessions** — without which a captured refresh token would keep minting valid
+    access tokens *at the new ``token_version``* right past the reset. Shared by
+    the self-service password change, the forgot-password reset, and the admin
+    password reset so the three paths can't drift.
+
+    Two sessions by design: the caller's ``session`` carries the request-path
+    writes (``token_version``, device tokens, API keys) and the caller commits
+    it; ``admin_session`` is the system engine, the only role that may touch the
+    ``app_admin``-only ``auth_sessions`` table. The refresh-session revocation is
+    committed here (on ``admin_session``) so it can't be forgotten by a caller —
+    revoking sessions ahead of a password write that later fails just logs the
+    user out, which is the fail-safe direction.
     """
     user.token_version += 1
     await revoke_active_device_tokens(session, user_id=user.id)
     await api_keys_service.deactivate_user_api_keys(session, user_id=user.id)
+    await session_service.revoke_all_for_user(admin_session, user_id=user.id)
+    await admin_session.commit()

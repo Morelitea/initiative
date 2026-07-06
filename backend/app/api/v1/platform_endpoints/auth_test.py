@@ -1455,3 +1455,28 @@ async def test_logout_revokes_refresh_session(
     client.cookies.set("refresh_token", captured, path="/api/v1/auth")
     resp = await client.post("/api/v1/auth/refresh")
     assert resp.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_password_change_revokes_refresh_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """A credential change must invalidate refresh sessions too — otherwise a
+    captured refresh token keeps minting valid access tokens (at the new
+    token_version) right past the password change."""
+    _, password = await _make_login_user(session, "pwchange@example.com")
+    login = await _login(client, "pwchange@example.com", password)
+    captured = login.cookies.get("refresh_token")
+
+    change = await client.patch(
+        "/api/v1/users/me",
+        json={"password": "newpassword456", "current_password": password},
+    )
+    assert change.status_code == 200
+
+    # The refresh token captured before the change can no longer rotate.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", captured, path="/api/v1/auth")
+    replay = await client.post("/api/v1/auth/refresh")
+    assert replay.status_code == 401
