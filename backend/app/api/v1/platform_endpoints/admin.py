@@ -28,7 +28,7 @@ from app.schemas.platform.admin import (
     InitiativeBlockerInfo,
 )
 from app.core.encryption import hash_email
-from app.core.messages import AdminMessages, SettingsMessages
+from app.core.messages import AdminMessages, GuildMessages, SettingsMessages
 from app.services.platform import user_tokens
 from app.services.platform import csv_export
 from app.services import email as email_service
@@ -682,6 +682,14 @@ async def admin_update_guild_member_role(
     Restrictions:
     - Cannot demote the last guild admin
     """
+    # 'support' is a synthesized PAM identity, never a stored membership role
+    # (the guild_role enum has only admin/member) — reject before it hits the DB.
+    if payload.role == GuildRole.support:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
+        )
+
     # Check guild exists
     stmt = select(Guild).where(Guild.id == guild_id)
     result = await session.exec(stmt)

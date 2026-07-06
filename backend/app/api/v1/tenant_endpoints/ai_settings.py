@@ -38,8 +38,12 @@ from app.services import ai_settings as ai_settings_service
 
 router = APIRouter()
 
-GuildAdminContext = Annotated[
-    GuildContext, Depends(require_guild_roles(GuildRole.admin))
+# The guild settings surface: real guild admins OR a ``support`` (scoped PAM)
+# grantee. Reads work for any support grant; writes are denied at the Postgres
+# role level for a read grant (it assumes ``guild_<id>_ro``), so the read/write
+# split is DB-enforced and needs no app-layer grant check here.
+GuildSettingsContext = Annotated[
+    GuildContext, Depends(require_guild_roles(GuildRole.admin, GuildRole.support))
 ]
 GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 
@@ -48,9 +52,9 @@ GuildContextDep = Annotated[GuildContext, Depends(get_guild_membership)]
 @router.get("/ai/guild", response_model=GuildAISettingsResponse)
 async def get_guild_ai_settings(
     session: RLSSessionDep,
-    guild_ctx: GuildAdminContext,
+    guild_ctx: GuildSettingsContext,
 ) -> GuildAISettingsResponse:
-    """Get guild-level AI settings. Guild admin only."""
+    """Get guild-level AI settings. Guild admin, or a support grantee."""
     return await ai_settings_service.get_guild_ai_settings(session, guild_ctx.guild_id)
 
 
@@ -58,9 +62,11 @@ async def get_guild_ai_settings(
 async def update_guild_ai_settings(
     payload: GuildAISettingsUpdate,
     session: RLSSessionDep,
-    guild_ctx: GuildAdminContext,
+    guild_ctx: GuildSettingsContext,
 ) -> GuildAISettingsResponse:
-    """Update guild-level AI settings. Guild admin only."""
+    """Update guild-level AI settings. Guild admin, or a support grantee whose
+    grant is ``read_write`` — a read grant is routed into the SELECT-only
+    ``guild_<id>_ro`` role, so the write is denied at the database layer."""
     try:
         data = payload.model_dump(exclude_unset=True)
         api_key_provided = "api_key" in data

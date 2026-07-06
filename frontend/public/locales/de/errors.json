@@ -38,6 +38,7 @@
   "CANNOT_CHANGE_OWN_ROLE": "Du kannst deine eigene Gildenrolle nicht ändern",
   "USER_NOT_FOUND_IN_GUILD": "Benutzer in der Gilde nicht gefunden",
   "CANNOT_DEMOTE_LAST_ADMIN": "Der letzte Gildenadministrator kann nicht herabgestuft werden",
+  "GUILD_ROLE_NOT_ASSIGNABLE": "Diese Gildenrolle kann nicht zugewiesen werden.",
   "NOT_GUILD_MEMBER": "Kein Mitglied dieser Gilde",
   "CANNOT_LEAVE_LAST_ADMIN": "Du kannst die Gilde nicht verlassen: Du bist der letzte Administrator. Befördere zuerst einen anderen Benutzer zum Administrator.",
   "CANNOT_LEAVE_SOLE_PM": "Du kannst die Gilde nicht verlassen: Du bist der einzige Projektmanager. Befördere zuerst ein anderes Mitglied.",

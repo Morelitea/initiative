@@ -211,6 +211,7 @@ export type GuildRole = (typeof GuildRole)[keyof typeof GuildRole];
 export const GuildRole = {
   admin: "admin",
   member: "member",
+  support: "support",
 } as const;
 
 /**

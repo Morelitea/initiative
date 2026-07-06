@@ -36,6 +36,7 @@
   "CANNOT_CHANGE_OWN_ROLE": "Impossible de modifier votre propre rôle dans le groupe",
   "USER_NOT_FOUND_IN_GUILD": "Utilisateur introuvable dans le groupe",
   "CANNOT_DEMOTE_LAST_ADMIN": "Impossible de rétrograder le dernier administrateur du groupe",
+  "GUILD_ROLE_NOT_ASSIGNABLE": "Ce rôle de groupe ne peut pas être attribué.",
   "NOT_GUILD_MEMBER": "Pas membre de ce groupe",
   "CANNOT_LEAVE_LAST_ADMIN": "Impossible de quitter le groupe : vous êtes le dernier administrateur. Promouvez d'abord un autre utilisateur en administrateur.",
   "CANNOT_LEAVE_SOLE_PM": "Impossible de quitter le groupe : vous êtes le seul chef de projet. Promouvez d'abord un autre membre.",

@@ -150,6 +150,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         guild_readonly_role_name,
         guild_role_name,
         guild_schema_name,
+        guild_support_role_name,
         platform_role_name,
     )
 
@@ -167,17 +168,21 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         )
     else:
         sp = f"{guild_schema_name(route_guild)}, public"
-        # Assume the SELECT-only guild_<id>_ro role — writes to the schema are
-        # denied at the role level — for either:
-        # - a pure read grant (read, not write, no full membership), or
-        # - a real member of a guild in ``read_only`` status (the membership
-        #   GUCs stay set so the member/admin RLS legs read normally).
+        # Pick the guild role by how access was granted:
+        # - read grant, or a read_only-status member (guild_id set + read_only):
+        #   the SELECT-only guild_<id>_ro role — writes denied at the role level.
+        # - scoped read_write grant (no membership, pam_write): the restricted
+        #   guild_<id>_support role — content DML but no writes to the structural
+        #   / permission tables (the ``support`` identity).
+        # - otherwise (real membership, break-glass): the full guild_<id> role.
         read_only_grant = guild_id is None and pam_read and not pam_write
-        name_fn = (
-            guild_readonly_role_name
-            if (read_only_grant or read_only)
-            else guild_role_name
-        )
+        support_grant = guild_id is None and pam_write
+        if read_only_grant or read_only:
+            name_fn = guild_readonly_role_name
+        elif support_grant:
+            name_fn = guild_support_role_name
+        else:
+            name_fn = guild_role_name
         role_target = name_fn(route_guild)
 
     return {

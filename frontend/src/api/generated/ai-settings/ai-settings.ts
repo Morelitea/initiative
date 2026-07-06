@@ -283,7 +283,7 @@ export const useUpdatePlatformAiSettingsApiV1SettingsAiPlatformPut = <
   );
 };
 /**
- * Get guild-level AI settings. Guild admin only.
+ * Get guild-level AI settings. Guild admin, or a support grantee.
  * @summary Get Guild Ai Settings
  */
 export const getGuildAiSettingsApiV1GGuildIdSettingsAiGuildGet = (
@@ -446,7 +446,9 @@ export function useGetGuildAiSettingsApiV1GGuildIdSettingsAiGuildGet<
 }
 
 /**
- * Update guild-level AI settings. Guild admin only.
+ * Update guild-level AI settings. Guild admin, or a support grantee whose
+ * grant is ``read_write`` — a read grant is routed into the SELECT-only
+ * ``guild_<id>_ro`` role, so the write is denied at the database layer.
  * @summary Update Guild Ai Settings
  */
 export const updateGuildAiSettingsApiV1GGuildIdSettingsAiGuildPut = (

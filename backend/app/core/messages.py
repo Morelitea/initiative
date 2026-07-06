@@ -46,6 +46,9 @@ class GuildMessages:
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
     GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
     CANNOT_CHANGE_OWN_ROLE = "CANNOT_CHANGE_OWN_ROLE"
+    # 'support' is synthesized for PAM grantees only; it is never a stored
+    # guild-membership role, so it cannot be assigned via the role endpoints.
+    GUILD_ROLE_NOT_ASSIGNABLE = "GUILD_ROLE_NOT_ASSIGNABLE"
     USER_NOT_FOUND_IN_GUILD = "USER_NOT_FOUND_IN_GUILD"
     CANNOT_DEMOTE_LAST_ADMIN = "CANNOT_DEMOTE_LAST_ADMIN"
     NOT_GUILD_MEMBER = "NOT_GUILD_MEMBER"
