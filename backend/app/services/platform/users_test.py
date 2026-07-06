@@ -457,6 +457,10 @@ async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
     ).one()
     assert scrubbed.invitee_email_encrypted is None
     assert scrubbed.invitee_email is None
+    # ...and it's neutralised so nulling the bound address can't leave it as an
+    # open shareable link.
+    assert scrubbed.max_uses == 0
+    assert guild_service.invite_is_active(scrubbed) is False
 
 
 @pytest.mark.unit
