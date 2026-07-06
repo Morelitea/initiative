@@ -108,6 +108,20 @@ async def lifespan(app: FastAPI):
     await maybe_rotate_at_startup()
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
+    # Migrate the single platform OIDC config into the provider registry +
+    # identity links (operator-global; idempotent, self-healing). Runs after
+    # ensure_defaults so the settings singleton exists. Additive — the legacy
+    # app_settings.oidc_* / users.oidc_sub stay as the fallback path.
+    from app.services.auth.oidc_backfill import backfill_oidc_identity
+
+    oidc = await backfill_oidc_identity()
+    if oidc.provider_created or oidc.identities_linked:
+        logger.info(
+            "OIDC identity back-fill: provider %s, %d identities linked (of %d)",
+            "created" if oidc.provider_created else "existing",
+            oidc.identities_linked,
+            oidc.oidc_users,
+        )
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
     try:
