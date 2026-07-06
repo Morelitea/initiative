@@ -10,8 +10,14 @@ from __future__ import annotations
 import pytest
 from sqlmodel import select
 
+from app.core.encryption import (
+    SALT_OIDC_CLIENT_SECRET,
+    decrypt_field,
+    encrypt_field,
+)
 from app.models.platform.app_setting import AppSetting
 from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.auth_provider_secret import AuthProviderSecret
 from app.models.platform.federated_identity import FederatedIdentity
 from app.services.auth.oidc_backfill import backfill_oidc_identity
 from app.testing import create_user
@@ -19,7 +25,13 @@ from app.testing import create_user
 pytestmark = [pytest.mark.integration, pytest.mark.database]
 
 
-async def _configure_oidc(session, *, enabled: bool = True, issuer: str | None = None):
+async def _configure_oidc(
+    session,
+    *,
+    enabled: bool = True,
+    issuer: str | None = None,
+    client_secret_ciphertext: str | None = None,
+):
     row = (await session.exec(select(AppSetting))).first()
     if row is None:
         row = AppSetting()
@@ -30,6 +42,7 @@ async def _configure_oidc(session, *, enabled: bool = True, issuer: str | None =
     row.oidc_provider_name = "Okta"
     row.oidc_scopes = ["openid", "email"]
     row.oidc_role_claim_path = "roles"
+    row.oidc_client_secret_encrypted = client_secret_ciphertext
     await session.commit()
     return row
 
@@ -69,15 +82,18 @@ async def test_backfill_creates_operator_global_provider_and_links(session):
 
 
 async def test_backfill_is_idempotent(session):
-    await _configure_oidc(session)
+    ciphertext = encrypt_field("s3cr3t-value", SALT_OIDC_CLIENT_SECRET)
+    await _configure_oidc(session, client_secret_ciphertext=ciphertext)
     await create_user(session, oidc_sub="sub-1")
 
     first = await backfill_oidc_identity()
     second = await backfill_oidc_identity()
 
     assert first.provider_created is True
+    assert first.secret_migrated is True
     assert second.provider_created is False
     assert second.identities_linked == 0  # already linked → ON CONFLICT DO NOTHING
+    assert second.secret_migrated is False  # secret already present → no re-copy
 
     providers = (
         await session.exec(select(AuthProvider).where(AuthProvider.slug == "oidc"))
@@ -85,6 +101,49 @@ async def test_backfill_is_idempotent(session):
     assert len(providers) == 1
     links = (await session.exec(select(FederatedIdentity))).all()
     assert len(links) == 1
+    # Exactly one secret row, ciphertext unchanged across the re-run.
+    secrets = (await session.exec(select(AuthProviderSecret))).all()
+    assert len(secrets) == 1
+    assert secrets[0].client_secret_encrypted == ciphertext
+
+
+async def test_backfill_migrates_client_secret_verbatim(session):
+    """The client secret lands in the app_admin-only companion, ciphertext moved
+    as-is (same Fernet salt) and still decrypting to the original plaintext."""
+    ciphertext = encrypt_field("s3cr3t-value", SALT_OIDC_CLIENT_SECRET)
+    await _configure_oidc(session, client_secret_ciphertext=ciphertext)
+
+    summary = await backfill_oidc_identity()
+    assert summary.secret_migrated is True
+
+    provider = (
+        await session.exec(select(AuthProvider).where(AuthProvider.slug == "oidc"))
+    ).one()
+    secret = (
+        await session.exec(
+            select(AuthProviderSecret).where(
+                AuthProviderSecret.provider_id == provider.id
+            )
+        )
+    ).one()
+    # Verbatim: the exact ciphertext string, no decrypt/re-encrypt round trip.
+    assert secret.client_secret_encrypted == ciphertext
+    # And it still decrypts to the original plaintext under the shared salt.
+    assert (
+        decrypt_field(secret.client_secret_encrypted, SALT_OIDC_CLIENT_SECRET)
+        == "s3cr3t-value"
+    )
+
+
+async def test_backfill_no_secret_row_when_no_client_secret(session):
+    """A public / PKCE-only provider (no configured secret) gets a provider row
+    but no secret row — the read path treats a missing row as 'no secret'."""
+    await _configure_oidc(session, client_secret_ciphertext=None)
+
+    summary = await backfill_oidc_identity()
+    assert summary.provider_created is True
+    assert summary.secret_migrated is False
+    assert (await session.exec(select(AuthProviderSecret))).all() == []
 
 
 async def test_backfill_disabled_oidc_still_migrates_config(session):

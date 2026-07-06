@@ -13,6 +13,13 @@ The migrated provider is deliberately **operator-global** (``guild_id IS NULL``)
 — today's OIDC is platform-level and must stay that way. ``app_settings.oidc_*``
 and ``users.oidc_sub`` are left intact as the fallback; they are dropped only in
 Phase 4 after the new path is proven.
+
+The client secret rides along into the app_admin-only ``auth_provider_secrets``
+companion (migration 0133): both columns use the same Fernet salt
+(``SALT_OIDC_CLIENT_SECRET``), so the ciphertext moves **verbatim** — no
+decrypt/re-encrypt. Like the provider row it is **create-once** (``ON CONFLICT
+DO NOTHING``); a later secret rotation in ``app_settings`` is reconciled at
+cutover, not re-copied every boot.
 """
 
 from __future__ import annotations
@@ -42,6 +49,7 @@ class OidcBackfillSummary:
     provider_created: bool = False
     identities_linked: int = 0
     oidc_users: int = 0
+    secret_migrated: bool = False
     skipped_reason: str | None = None
 
 
@@ -116,6 +124,29 @@ async def _run(session) -> OidcBackfillSummary:
         params={"pid": provider.id},
     )
     inserted = result.rowcount
+
+    # 3. Migrate the client secret verbatim into the app_admin-only companion
+    #    (auth_provider_secrets, migration 0133). Same Fernet salt on both
+    #    columns, so the ciphertext moves as-is. Guarded on a secret actually
+    #    being set — a public / PKCE-only provider gets no secret row. Create-once
+    #    (ON CONFLICT DO NOTHING): idempotent, self-healing, and concurrency-safe;
+    #    a rotated secret is reconciled at cutover, not re-copied here.
+    secret_migrated = False
+    if settings_row.oidc_client_secret_encrypted:
+        secret_result = await session.exec(
+            text(
+                "INSERT INTO auth_provider_secrets "
+                "(provider_id, client_secret_encrypted, created_at, updated_at) "
+                "VALUES (:pid, :ct, now(), now()) "
+                "ON CONFLICT (provider_id) DO NOTHING"
+            ),
+            params={
+                "pid": provider.id,
+                "ct": settings_row.oidc_client_secret_encrypted,
+            },
+        )
+        secret_migrated = bool(secret_result.rowcount)
+
     await session.commit()
 
     # Row-count sanity: every oidc user should now be linked (freshly inserted or
@@ -139,4 +170,5 @@ async def _run(session) -> OidcBackfillSummary:
         provider_created=provider_created,
         identities_linked=inserted,
         oidc_users=oidc_users,
+        secret_migrated=secret_migrated,
     )
