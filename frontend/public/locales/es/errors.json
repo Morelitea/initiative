@@ -19,6 +19,7 @@
   "NOT_AUTHENTICATED": "No autenticado",
   "INVALID_DEVICE_TOKEN": "Token de dispositivo no válido",
   "COULD_NOT_VALIDATE_CREDENTIALS": "No se pudieron validar las credenciales",
+  "INVALID_REFRESH_TOKEN": "Tu sesión ha expirado. Por favor, inicia sesión de nuevo.",
   "INVALID_TOKEN_PAYLOAD": "Contenido del token no válido",
   "USER_NOT_FOUND": "Usuario no encontrado",
   "INSUFFICIENT_PRIVILEGES": "Privilegios insuficientes",

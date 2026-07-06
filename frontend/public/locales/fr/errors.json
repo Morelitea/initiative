@@ -19,6 +19,7 @@
   "NOT_AUTHENTICATED": "Non authentifié",
   "INVALID_DEVICE_TOKEN": "Jeton d'appareil invalide",
   "COULD_NOT_VALIDATE_CREDENTIALS": "Impossible de valider les identifiants",
+  "INVALID_REFRESH_TOKEN": "Votre session a expiré. Veuillez vous reconnecter.",
   "INVALID_TOKEN_PAYLOAD": "Charge utile du jeton invalide",
   "USER_NOT_FOUND": "Utilisateur introuvable",
   "INSUFFICIENT_PRIVILEGES": "Privilèges insuffisants",
