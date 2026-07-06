@@ -13,9 +13,12 @@ class FederatedIdentity(SQLModel, table=True):
     One user may have many linked identities (a work SSO, a personal passkey
     provider, …); the user row stays Initiative's system of record.
 
-    Own-row RLS: a user sees/manages only their own links; platform admins/owners
-    manage all (for support). The IdP refresh token (for group re-sync) is *not*
-    stored here yet — it arrives, encrypted, with the OIDC-login phase.
+    Own-row RLS: a user sees/manages only their own links on the request path —
+    there is **no** admin-read-all policy. Cross-user identity management (support)
+    runs on the system engine (``app_admin``), never a platform-tier request role,
+    so a support UI must not assume request-path access here. The IdP refresh token
+    (for group re-sync) is *not* stored here yet — it arrives, encrypted, with the
+    OIDC-login phase.
     """
 
     __tablename__ = "federated_identities"

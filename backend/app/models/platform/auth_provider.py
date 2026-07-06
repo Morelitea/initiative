@@ -116,5 +116,12 @@ class AuthProvider(SQLModel, table=True):
     )
     updated_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
-        sa_column=Column(DateTime(timezone=True), nullable=False),
+        # onupdate (Python-side, no DDL) so provider CRUD in Phase 1 bumps this
+        # automatically — the codebase otherwise sets updated_at in the service,
+        # which a future endpoint could forget.
+        sa_column=Column(
+            DateTime(timezone=True),
+            nullable=False,
+            onupdate=lambda: datetime.now(timezone.utc),
+        ),
     )
