@@ -115,12 +115,14 @@ async def lifespan(app: FastAPI):
     from app.services.auth.oidc_backfill import backfill_oidc_identity
 
     oidc = await backfill_oidc_identity()
-    if oidc.provider_created or oidc.identities_linked:
+    if oidc.provider_created or oidc.identities_linked or oidc.secret_migrated:
         logger.info(
-            "OIDC identity back-fill: provider %s, %d identities linked (of %d)",
+            "OIDC identity back-fill: provider %s, %d identities linked (of %d), "
+            "secret %s",
             "created" if oidc.provider_created else "existing",
             oidc.identities_linked,
             oidc.oidc_users,
+            "migrated" if oidc.secret_migrated else "unchanged",
         )
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
