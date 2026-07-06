@@ -154,6 +154,16 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     COOKIE_NAME: str = "session_token"
 
+    # New login model (auth rewrite, Phase 0 — history/auth-detailed-design.md §3).
+    # The access token is short-lived + stateless: verified locally with no
+    # per-request DB read (the 10k+ win), so a leak is stale within one TTL. The
+    # refresh token is long, opaque, rotating, and revocable via ``auth_sessions``.
+    # These are deliberately separate from the legacy ``ACCESS_TOKEN_EXPIRE_MINUTES``
+    # (the current long-lived session JWT) — the two models coexist during the
+    # dual-verify cutover window.
+    AUTH_ACCESS_TTL_MINUTES: int = 15
+    AUTH_REFRESH_TTL_DAYS: int = 30
+
     @field_validator("SECRET_KEY")
     @classmethod
     def _validate_secret_key(cls, value: str) -> str:

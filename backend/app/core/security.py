@@ -69,6 +69,61 @@ def create_access_token(
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# New login model — stateless access token (auth rewrite, Phase 0)
+#
+# A short-lived JWT that names both the user AND the server-side session
+# (``auth_sessions.id``) that backs it, plus the auth methods/providers that
+# session satisfied. It is verified locally (no per-request DB hit — the 10k+
+# win) and made revocable by its paired refresh token, whose rotation lives in
+# ``app.services.auth.sessions``. Its distinct ``aud`` keeps it from being
+# confused with the legacy session JWT, the upload token, or the handoff token
+# during the dual-verify cutover window (verification lands with the endpoint).
+# ──────────────────────────────────────────────────────────────────────────
+
+# Audience/issuer that mark a token as a new-model access credential. The
+# session-JWT verification path (added with ``/auth/refresh``) MUST check both,
+# and the upload/handoff paths already reject anything carrying this audience.
+AUTH_ACCESS_AUDIENCE = "initiative:access"
+AUTH_TOKEN_ISSUER = "initiative"
+
+
+def mint_access_token(
+    *,
+    user_id: int,
+    token_version: int,
+    session_id: uuid.UUID,
+    amr: list[str],
+    satisfied_providers: list[int],
+    expires_in: timedelta | None = None,
+    now: datetime | None = None,
+) -> tuple[str, int]:
+    """Mint a short-lived, stateless access token for one session.
+
+    Claims (history/auth-detailed-design.md §3.1): ``sub`` (user id), ``sid``
+    (the ``auth_sessions`` row), ``ver`` (``users.token_version`` — coarse "sign
+    out everywhere"), ``amr`` (auth methods satisfied), ``sat`` (satisfied-auth
+    provider ids → the per-guild auth-policy gate), plus ``iss``/``aud``/
+    ``iat``/``exp``. Returns ``(token, expires_in_seconds)`` so the caller can
+    schedule a refresh before it lapses.
+    """
+    issued = now or datetime.now(timezone.utc)
+    ttl = expires_in or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
+    payload: dict[str, Any] = {
+        "sub": str(user_id),
+        "sid": str(session_id),
+        "ver": token_version,
+        "amr": amr,
+        "sat": satisfied_providers,
+        "iss": AUTH_TOKEN_ISSUER,
+        "aud": AUTH_ACCESS_AUDIENCE,
+        "iat": int(issued.timestamp()),
+        "exp": issued + ttl,
+    }
+    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
+    return token, int(ttl.total_seconds())
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Scoped upload tokens
 #
 # Native (Capacitor) WebViews can't attach an Authorization header or send the

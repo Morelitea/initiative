@@ -8,6 +8,7 @@ The HTTP-level gating is covered separately in the endpoint tests.
 from __future__ import annotations
 
 import time
+import uuid
 
 import jwt
 import pytest
@@ -17,15 +18,19 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from datetime import timedelta
 
 from app.core import security
+from app.core.config import settings
 from app.core.security import (
     ADVANCED_TOOL_AUDIENCE,
     ADVANCED_TOOL_HANDOFF_LIFETIME,
+    AUTH_ACCESS_AUDIENCE,
+    AUTH_TOKEN_ISSUER,
     UPLOAD_TOKEN_AUDIENCE,
     UPLOAD_TOKEN_LIFETIME,
     UPLOAD_TOKEN_SCOPE,
     UploadTokenError,
     create_advanced_tool_handoff_token,
     create_upload_token,
+    mint_access_token,
     verify_upload_token,
 )
 
@@ -309,3 +314,73 @@ def test_verify_upload_token_rejects_wrong_audience():
     )
     with pytest.raises(UploadTokenError):
         verify_upload_token(handoff)
+
+
+# ── New-model access token (auth rewrite, Phase 0) ─────────────────────────
+
+
+@pytest.mark.unit
+def test_mint_access_token_carries_session_claims():
+    """The access token names the user, the backing session, and the auth
+    context (amr/sat) that the guild-policy gate reads locally."""
+    sid = uuid.uuid4()
+    token, seconds = mint_access_token(
+        user_id=42,
+        token_version=3,
+        session_id=sid,
+        amr=["pwd", "otp"],
+        satisfied_providers=[7, 9],
+    )
+
+    assert isinstance(token, str) and token.count(".") == 2
+    assert seconds == settings.AUTH_ACCESS_TTL_MINUTES * 60
+
+    payload = _decode_unverified(token)
+    assert payload["sub"] == "42"
+    assert payload["sid"] == str(sid)
+    assert payload["ver"] == 3
+    assert payload["amr"] == ["pwd", "otp"]
+    assert payload["sat"] == [7, 9]
+    assert payload["iss"] == AUTH_TOKEN_ISSUER
+    assert payload["aud"] == AUTH_ACCESS_AUDIENCE
+
+
+@pytest.mark.unit
+def test_mint_access_token_exp_matches_advertised_seconds():
+    """``exp`` must equal ``iat`` + the returned seconds — the SPA schedules its
+    refresh off that number, so drift would refresh late (or never)."""
+    sid = uuid.uuid4()
+    token, seconds = mint_access_token(
+        user_id=1,
+        token_version=0,
+        session_id=sid,
+        amr=["pwd"],
+        satisfied_providers=[],
+    )
+
+    payload = _decode_unverified(token)
+    assert payload["exp"] - payload["iat"] == seconds
+
+
+@pytest.mark.unit
+def test_mint_access_token_is_verifiable_with_expected_audience():
+    """A round-trip decode with the audience the verification path will require
+    must succeed — signature + aud + iss all line up."""
+    sid = uuid.uuid4()
+    token, _ = mint_access_token(
+        user_id=5,
+        token_version=1,
+        session_id=sid,
+        amr=["pwd"],
+        satisfied_providers=[],
+    )
+
+    payload = jwt.decode(
+        token,
+        settings.jwt_signing_key,
+        algorithms=[settings.ALGORITHM],
+        audience=AUTH_ACCESS_AUDIENCE,
+        issuer=AUTH_TOKEN_ISSUER,
+        options={"require": ["exp", "iat", "sub", "sid", "aud", "iss"]},
+    )
+    assert payload["sub"] == "5"
