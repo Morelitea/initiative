@@ -15,7 +15,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.models.platform.guild import GuildRole
-from app.models.platform.user import User, UserRole
+from app.models.platform.user import User, UserRole, UserStatus
 
 from app.testing.factories import (
     create_guild,
@@ -145,6 +145,41 @@ async def test_update_user_by_id_as_admin(client: AsyncClient, session: AsyncSes
     assert response.status_code == 200
     data = response.json()
     assert data["full_name"] == "New Name"
+
+
+@pytest.mark.integration
+async def test_update_user_cannot_change_status(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild admin must not be able to deactivate/anonymize a co-member by
+    mass-assigning ``status`` through the generic PATCH edit endpoint. Status
+    changes belong to the dedicated deactivate/approve flow; here they are
+    rejected outright (like platform ``role``), and the target is untouched."""
+    guild = await create_guild(session)
+    admin = await create_user(session, email="admin@example.com")
+    member = await create_user(session, email="member@example.com")
+
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+    await create_guild_membership(
+        session, user=member, guild=guild, role=GuildRole.member
+    )
+
+    headers = get_auth_headers(admin)
+
+    response = await client.patch(
+        f"/api/v1/g/{guild.id}/users/{member.id}",
+        headers=headers,
+        json={"status": UserStatus.deactivated.value},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "USER_STATUS_WRONG_ENDPOINT"
+
+    # The member's status is unchanged — the attempt was rejected, not applied.
+    await session.refresh(member)
+    assert member.status == UserStatus.active
 
 
 @pytest.mark.integration

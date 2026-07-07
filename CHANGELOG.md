@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Block guild admins from changing a user's account `status` through the generic `PATCH /g/{guild_id}/users/{user_id}` edit endpoint. The handler already rejected platform `role` changes there, but `status` fell through to the field-assignment loop, so a guild admin could deactivate or anonymize any co-member — including the last platform admin — bypassing the dedicated deactivate/reactivate flow and its guards (last-admin protection, ownership transfer, confirmation). Status changes now return HTTP 400 and must go through the delete/approve endpoints.
+
 ## [0.54.2] - 2026-07-04
 
 ### Fixed

@@ -480,6 +480,18 @@ async def update_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=UserMessages.PLATFORM_ROLE_WRONG_ENDPOINT,
         )
+    # Account status is not settable via this generic edit endpoint. Otherwise a
+    # guild admin could deactivate/anonymize any co-member (including the last
+    # platform admin) by mass-assigning ``status`` through the setattr loop
+    # below, bypassing the dedicated deactivate/reactivate flow and its guards
+    # (last-admin protection, ownership transfer, confirmation). Status changes
+    # must go through the delete/approve endpoints — same rationale as the
+    # platform-role guard above.
+    if "status" in update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=UserMessages.STATUS_WRONG_ENDPOINT,
+        )
     if password := update_data.pop("password", None):
         await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
