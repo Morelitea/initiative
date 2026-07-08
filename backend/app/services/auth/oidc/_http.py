@@ -50,20 +50,26 @@ async def fetch_json(
     """
     require_https(url)
     factory = client_factory or (lambda: httpx.AsyncClient(timeout=timeout_seconds))
+    body = bytearray()
+    # The cap is flagged and raised AFTER the stream context exits: raising inside
+    # it would leave our exception exposed to replacement by a teardown error from
+    # the abandoned body (the transport may fault when we stop reading mid-stream).
+    over_cap = False
     try:
         async with factory() as client:
             async with client.stream("GET", url) as resp:
                 resp.raise_for_status()
-                body = bytearray()
                 async for chunk in resp.aiter_bytes():
                     body.extend(chunk)
                     if len(body) > max_response_bytes:
-                        raise OidcHttpError(
-                            f"response from {url} exceeds the "
-                            f"{max_response_bytes}-byte cap"
-                        )
+                        over_cap = True
+                        break
     except httpx.HTTPError as exc:
         raise OidcHttpError(f"fetch failed for {url}: {exc}") from exc
+    if over_cap:
+        raise OidcHttpError(
+            f"response from {url} exceeds the {max_response_bytes}-byte cap"
+        )
     try:
         return json.loads(body)
     except ValueError as exc:

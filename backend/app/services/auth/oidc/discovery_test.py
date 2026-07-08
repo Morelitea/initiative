@@ -172,6 +172,16 @@ async def test_http_error_raises_discovery_error():
         await discovery.fetch(ISSUER)
 
 
+async def test_response_size_cap_passes_through():
+    """The per-instance size cap reaches the shared fetch, and the cap error
+    surfaces as itself (not masked into a generic fetch failure)."""
+    endpoint = _Endpoint(_json(_doc(padding="x" * 5000)))
+    discovery = OidcDiscovery(client_factory=endpoint.factory(), max_response_bytes=256)
+
+    with pytest.raises(DiscoveryError, match="byte cap"):
+        await discovery.fetch(ISSUER)
+
+
 # --- caching ----------------------------------------------------------------
 
 

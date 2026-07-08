@@ -22,6 +22,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.services.auth.oidc._http import (
+    DEFAULT_HTTP_TIMEOUT_SECONDS,
+    DEFAULT_MAX_RESPONSE_BYTES,
     ClientFactory,
     OidcHttpError,
     fetch_json,
@@ -67,9 +69,13 @@ class OidcDiscovery:
         self,
         *,
         cache_ttl_seconds: float = DEFAULT_CACHE_TTL_SECONDS,
+        http_timeout_seconds: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
+        max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
         client_factory: ClientFactory | None = None,
     ) -> None:
         self._cache_ttl = cache_ttl_seconds
+        self._timeout = http_timeout_seconds
+        self._max_bytes = max_response_bytes
         self._client_factory = client_factory
         self._cache: dict[str, _CachedMetadata] = {}
         self._locks: dict[str, asyncio.Lock] = {}
@@ -94,7 +100,12 @@ class OidcDiscovery:
     async def _fetch(self, base_issuer: str) -> OidcMetadata:
         url = f"{base_issuer}{_WELL_KNOWN_SUFFIX}"
         try:
-            document = await fetch_json(url, client_factory=self._client_factory)
+            document = await fetch_json(
+                url,
+                client_factory=self._client_factory,
+                timeout_seconds=self._timeout,
+                max_response_bytes=self._max_bytes,
+            )
         except OidcHttpError as exc:
             raise DiscoveryError(f"discovery fetch failed: {exc}") from exc
         return _parse_metadata(document, expected_issuer=base_issuer)
