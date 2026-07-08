@@ -266,7 +266,8 @@ async def test_response_size_cap_enforced():
     resolver = JwksResolver(client_factory=endpoint.factory(), max_response_bytes=256)
     token = _sign(RSA1, kid="k1")
 
-    with pytest.raises(JwksResolutionError):
+    # The cap error surfaces as itself, not masked into a generic fetch failure.
+    with pytest.raises(JwksResolutionError, match="byte cap"):
         await resolver.resolve_signing_key(token, jwks_uri=JWKS_URI)
 
 
