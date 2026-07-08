@@ -20,22 +20,21 @@ See the auth design doc for the rationale.
 from __future__ import annotations
 
 import asyncio
-import json
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
-from urllib.parse import urlsplit
 
-import httpx
 import jwt
+
+from app.services.auth.oidc._http import (
+    DEFAULT_HTTP_TIMEOUT_SECONDS,
+    DEFAULT_MAX_RESPONSE_BYTES,
+    ClientFactory,
+    OidcHttpError,
+    fetch_json,
+)
 
 DEFAULT_CACHE_TTL_SECONDS: float = 300.0
 DEFAULT_MIN_REFETCH_INTERVAL_SECONDS: float = 10.0
-DEFAULT_HTTP_TIMEOUT_SECONDS: float = 10.0
-# A JWKS is a few KiB; 512 KiB is generous headroom.
-DEFAULT_MAX_RESPONSE_BYTES: int = 512 * 1024
-
-ClientFactory = Callable[[], httpx.AsyncClient]
 
 
 class JwksResolutionError(Exception):
@@ -70,12 +69,9 @@ class JwksResolver:
         self._min_refetch_interval = min_refetch_interval_seconds
         self._timeout = http_timeout_seconds
         self._max_bytes = max_response_bytes
-        self._client_factory = client_factory or self._default_client_factory
+        self._client_factory = client_factory  # None → fetch_json builds a default
         self._cache: dict[str, _CachedKeySet] = {}
         self._locks: dict[str, asyncio.Lock] = {}
-
-    def _default_client_factory(self) -> httpx.AsyncClient:
-        return httpx.AsyncClient(timeout=self._timeout)
 
     async def resolve_signing_key(self, raw_token: str, *, jwks_uri: str) -> jwt.PyJWK:
         """Return the ``PyJWK`` for ``raw_token``'s ``kid`` from the JWKS at
@@ -148,35 +144,18 @@ class JwksResolver:
         return lock
 
     async def _fetch(self, jwks_uri: str) -> jwt.PyJWKSet:
-        _require_https(jwks_uri)
         try:
-            async with self._client_factory() as client:
-                async with client.stream("GET", jwks_uri) as resp:
-                    resp.raise_for_status()
-                    body = bytearray()
-                    async for chunk in resp.aiter_bytes():
-                        body.extend(chunk)
-                        if len(body) > self._max_bytes:
-                            raise JwksResolutionError(
-                                f"JWKS at {jwks_uri} exceeds the "
-                                f"{self._max_bytes}-byte cap"
-                            )
-        except httpx.HTTPError as exc:
+            data = await fetch_json(
+                jwks_uri,
+                client_factory=self._client_factory,
+                timeout_seconds=self._timeout,
+                max_response_bytes=self._max_bytes,
+            )
+            return jwt.PyJWKSet.from_dict(data)
+        except (OidcHttpError, jwt.PyJWTError) as exc:
             raise JwksResolutionError(
-                f"JWKS fetch failed for {jwks_uri}: {exc}"
+                f"could not load JWKS at {jwks_uri}: {exc}"
             ) from exc
-        try:
-            return jwt.PyJWKSet.from_dict(json.loads(body))
-        except (ValueError, jwt.PyJWTError) as exc:
-            raise JwksResolutionError(f"invalid JWKS at {jwks_uri}: {exc}") from exc
-
-
-def _require_https(jwks_uri: str) -> None:
-    # urlsplit lowercases the scheme, so ``HTTP`` etc. are covered; a missing host
-    # (``https://``) is refused too.
-    parts = urlsplit(jwks_uri)
-    if parts.scheme != "https" or not parts.netloc:
-        raise JwksResolutionError(f"refusing non-https JWKS URI: {jwks_uri!r}")
 
 
 def _select_key(key_set: jwt.PyJWKSet, kid: str | None) -> jwt.PyJWK | None:
