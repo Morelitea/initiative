@@ -20,7 +20,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildMessages
+from app.core.messages import GuildMessages, ProjectMessages
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildInvite, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
@@ -195,8 +195,8 @@ async def test_read_only_member_reads_but_writes_denied_at_role_level(
     assert resp.status_code == 200
     assert any(i["id"] == a.initiative.id for i in resp.json())
 
-    # Writes: refused. The detail is the ordinary write-denied code — the
-    # lifecycle status itself is not disclosed.
+    # Writes: refused with the ordinary write-denied code (NOT a
+    # status-specific one — the lifecycle status is not disclosed to members).
     resp = await client.post(
         a.g("/tasks/"),
         headers=a.headers,
@@ -207,6 +207,7 @@ async def test_read_only_member_reads_but_writes_denied_at_role_level(
         },
     )
     assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
 
 
 async def test_read_only_guild_admin_writes_denied_too(
@@ -233,11 +234,13 @@ async def test_read_only_guild_admin_writes_denied_too(
         },
     )
     assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
 
     resp = await client.patch(
         a.g(f"/tasks/{task.id}"), headers=a.headers, json={"title": "after"}
     )
     assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
 
 
 async def test_read_only_establishes_content_read_only_context(

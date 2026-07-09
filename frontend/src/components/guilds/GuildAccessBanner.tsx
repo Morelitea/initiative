@@ -1,4 +1,4 @@
-import { Clock } from "lucide-react";
+import { Clock, Lock } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useGuilds } from "@/hooks/useGuilds";
@@ -24,9 +24,12 @@ export const GuildAccessBanner = () => {
     // say so plainly. The banner discloses the effect, not the reason — the
     // lifecycle status itself only reaches guild admins (settings page).
     if (activeGuild?.content_read_only) {
+      // A Lock icon, not the Clock the PAM-grant banner uses below: a frozen
+      // guild is read-only, not time-limited, so it must not read as "your
+      // access expires soon".
       return (
         <div className="flex items-center gap-2 border-amber-500/30 border-b bg-amber-500/10 px-4 py-2 text-amber-700 text-sm dark:text-amber-300">
-          <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Lock className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{t("readOnlyBanner.message", { guild: activeGuild.name })}</span>
         </div>
       );
