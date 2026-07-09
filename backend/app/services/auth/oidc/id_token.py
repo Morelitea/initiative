@@ -28,7 +28,7 @@ import jwt
 
 # Asymmetric signature algorithms only. HMAC (``HS*``) and ``none`` are excluded
 # by construction so they can't be selected — not merely discouraged.
-_ASYMMETRIC_ALGORITHMS: frozenset[str] = frozenset(
+ASYMMETRIC_ALGORITHMS: frozenset[str] = frozenset(
     {
         "RS256",
         "RS384",
@@ -87,7 +87,7 @@ def verify_id_token(
     requested = tuple(algorithms)
     if not requested:
         raise ValueError("id_token algorithms allowlist must be non-empty")
-    illegal = sorted(a for a in requested if a not in _ASYMMETRIC_ALGORITHMS)
+    illegal = sorted(a for a in requested if a not in ASYMMETRIC_ALGORITHMS)
     if illegal:
         # The allowlist is asymmetric by contract — refuse a symmetric/``none`` alg.
         raise ValueError(f"id_token algorithms must be asymmetric; refused {illegal}")
