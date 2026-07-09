@@ -20,6 +20,7 @@ from app.models.platform.guild import (
 )
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
+from app.services.platform import billing_ping
 
 DEFAULT_INVITE_EXPIRATION_DAYS = 7
 INVITE_CODE_BYTES = 16
@@ -112,6 +113,10 @@ async def ensure_membership(
     )
     session.add(membership)
     await session.flush()
+    # Event-driven seats (billing plan D5): nudge billing to recompute this
+    # guild's caps from the authoritative headcount. No-op unless a hosted
+    # deployment configured the outbound billing settings.
+    billing_ping.notify_membership_changed(guild_id)
     return membership
 
 
@@ -671,4 +676,10 @@ async def remove_user_from_guild(
         GuildMembership.guild_id == guild_id,
         GuildMembership.user_id == user_id,
     )
-    await session.exec(stmt)
+    result = await session.exec(stmt)
+    # Only a real removal is a membership change — mirror the insert side,
+    # which pings only on a genuine insert (a no-op remove of a non-member
+    # must not nudge billing). Billing decides what to do with shrinkage; the
+    # ping only triggers a recompute from the committed headcount (plan D5).
+    if result.rowcount:
+        billing_ping.notify_membership_changed(guild_id)

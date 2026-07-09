@@ -2,7 +2,10 @@
 
 ``apply_guild_tier`` writes the tier label and billing-computed caps onto
 ``public.guilds``; ``guild_member_count`` reads one guild's headcount. Tier
-definitions live in the billing service's own database.
+definitions live in the billing service's own database — no pricing data,
+tier matrix, or plan math may ever live in this repository, and the FOSS app
+enforces only the numeric caps and status it is handed (``tier_name`` is
+display/audit metadata, never an enforcement input).
 
 Requests carry an HMAC over ``METHOD\\nPATH\\nTIMESTAMP\\nsha256(body)``
 (bounded recency window) plus an RS256 service JWT whose ``jti`` is redeemed
@@ -32,20 +35,22 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.messages import BillingMessages
-from app.models.platform.billing import BillingEventLog, BillingJti
+from app.models.platform.billing import (
+    BillingEventLog,
+    BillingJti,
+    BillingOp,
+    BillingSource,
+)
 from app.models.platform.guild import Guild, GuildMembership, GuildStatus
 from app.schemas.platform.billing import BillingGuildTierApply, BillingGuildTierRead
 
 logger = logging.getLogger(__name__)
 
-# The op recorded in billing_event_log for the tier write. The headcount read
-# mutates nothing and therefore claims no event.
-GUILD_TIER_OP = "guild_tier"
-
 
 class BillingEnvelopeError(Exception):
     """The request failed envelope verification. ``code`` is the
-    BillingMessages constant the endpoint surfaces as a 403."""
+    BillingMessages constant the endpoint surfaces as a 403 (or 503 for
+    ``NOT_CONFIGURED``)."""
 
     def __init__(self, code: str) -> None:
         super().__init__(code)
@@ -60,12 +65,33 @@ class BillingGuildNotFoundError(Exception):
     """The envelope's guild does not exist."""
 
 
+class BillingSourceRestrictionError(Exception):
+    """The payload's ``source`` may not perform this write against the
+    guild's current state (e.g. support_manual lowering the storage cap).
+    ``code`` is the BillingMessages constant the endpoint surfaces as 422."""
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
 @dataclass(frozen=True)
 class BillingClaims:
     """Validated identity of a billing service call."""
 
     jti: str
     expires_at: datetime
+
+
+def billing_inbound_enabled() -> bool:
+    """True when the inbound billing endpoints are configured to run.
+
+    The single source of truth for "billing writes can happen": both the
+    signing key and the HMAC secret must be present. Unset — the self-host
+    default — means the endpoints 503 and nothing ever reaches the
+    ``billing_*`` tables, so the janitor can skip its sweep entirely.
+    """
+    return bool(settings.BILLING_PUBLIC_KEY_PEM and settings.BILLING_HMAC_SECRET)
 
 
 def verify_billing_envelope(
@@ -81,7 +107,7 @@ def verify_billing_envelope(
     the RS256 JWT. The one-shot ``jti`` redemption is not done here — it is
     a DB write and belongs inside the endpoint's transaction.
     """
-    if not settings.BILLING_PUBLIC_KEY_PEM or not settings.BILLING_HMAC_SECRET:
+    if not billing_inbound_enabled():
         raise BillingEnvelopeError(BillingMessages.NOT_CONFIGURED)
 
     ts_header = headers.get("X-Billing-Timestamp")
@@ -187,15 +213,32 @@ async def apply_guild_tier(
     """Apply a tier-metadata write, exactly once per ``event_id``.
 
     Sequence: existence check (404 before consuming the event id), then the
-    ``billing_event_log`` claim (a unique-violation means a prior delivery
-    already applied this event, so the values are left untouched), then the
-    UPDATE with ``model_fields_set`` sentinel semantics (omit = leave,
-    null = unlimited).
+    source/state restriction (a refused write consumes nothing — the whole
+    transaction rolls back), then the ``billing_event_log`` claim (a
+    unique-violation means a prior delivery already applied this event, so
+    the values are left untouched), then the UPDATE with
+    ``model_fields_set`` sentinel semantics (omit = leave, null = unlimited).
     """
     provided = payload.model_fields_set
     row = await _select_tier_row(session, payload.guild_id)
     if row is None:
         raise BillingGuildNotFoundError(payload.guild_id)
+
+    # support_manual may only RAISE the storage cap. The payload validator
+    # already forbids it every other field; the lower-vs-raise half needs the
+    # current value, so it lives here, against the row read in the same
+    # transaction. NULL = unlimited, so any finite value under a NULL cap is
+    # a lowering too. Equal-to-current is allowed (idempotent re-apply).
+    if (
+        payload.source is BillingSource.support_manual
+        and "max_storage_bytes" in provided
+        and payload.max_storage_bytes is not None
+        and (
+            row.max_storage_bytes is None
+            or payload.max_storage_bytes < row.max_storage_bytes
+        )
+    ):
+        raise BillingSourceRestrictionError(BillingMessages.SUPPORT_CANNOT_LOWER)
 
     # Plain INSERT in a savepoint rather than ON CONFLICT DO NOTHING: the
     # billing role holds no SELECT on this table (append-only), and under RLS
@@ -205,8 +248,8 @@ async def apply_guild_tier(
     claim = insert(BillingEventLog.__table__).values(
         event_id=payload.event_id,
         guild_id=payload.guild_id,
-        op=GUILD_TIER_OP,
-        source=payload.source,
+        op=BillingOp.guild_tier.value,
+        source=payload.source.value,
         actor=payload.actor,
         applied_at=datetime.now(timezone.utc),
     )
@@ -231,7 +274,7 @@ async def apply_guild_tier(
                 payload.guild_id,
                 row.status,
                 payload.status.value,
-                payload.source,
+                payload.source.value,
                 payload.actor,
                 payload.event_id,
             )

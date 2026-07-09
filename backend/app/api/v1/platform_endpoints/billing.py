@@ -27,6 +27,7 @@ from app.services.platform.billing import (
     BillingEnvelopeError,
     BillingGuildNotFoundError,
     BillingReplayError,
+    BillingSourceRestrictionError,
 )
 
 router = APIRouter(include_in_schema=False)
@@ -57,8 +58,15 @@ async def _verify_and_parse(request: Request, model):
             body=body,
         )
     except BillingEnvelopeError as exc:
+        # Billing absent is the self-host default, not a caller fault: 503
+        # (fail closed, retryable) rather than 403.
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=exc.code
+            status_code=(
+                status.HTTP_503_SERVICE_UNAVAILABLE
+                if exc.code == BillingMessages.NOT_CONFIGURED
+                else status.HTTP_403_FORBIDDEN
+            ),
+            detail=exc.code,
         ) from exc
     try:
         payload = model.model_validate_json(body)
@@ -97,6 +105,16 @@ async def apply_guild_tier(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=BillingMessages.GUILD_NOT_FOUND,
+        ) from exc
+    except BillingSourceRestrictionError as exc:
+        # The restriction is checked before the event-log claim, so the
+        # rollback leaves neither the event id nor the jti consumed. Unlike
+        # the 404 (a transient "guild not yet created"), this is a
+        # deterministic reject: the fix is a corrected payload, not a retry
+        # of the same body — that corrected write (even reusing the event id)
+        # then applies.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
         ) from exc
     await session.commit()
     return result

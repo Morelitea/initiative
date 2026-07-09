@@ -12,7 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Platform admins can set a per-guild user limit (default unlimited) from the admin dashboard's Guilds tab; at the cap, new joins/invites are refused while existing members stay, and SSO auto-provisioning is exempt.
 - Platform admins can set a per-guild lifecycle status (`active` / `read_only` / `suspended`) for billing/moderation holds — `read_only` blocks writes, `suspended` hides the guild from members while its admins keep full settings access. Non-active guilds pause trash auto-purge and block new joins; operators can still reach them via a break-glass grant. Reversible, never touches stored data.
 - Time-bound support/moderator access grants now act as a database-enforced `support` guild role: read grants are read-only, read_write grants can edit content/settings but are blocked from managing membership, roles, or sharing. Break-glass admin access is unchanged.
-- Optional integration endpoints for an external billing service (`POST /api/v1/billing/guild-tier`, `POST /api/v1/billing/headcount`): signed service-to-service requests can set a guild's tier label, storage/member caps, and lifecycle status, and read member counts, under a dedicated database role limited to exactly those columns and the one guild named per request. Disabled unless `BILLING_PUBLIC_KEY_PEM` and `BILLING_HMAC_SECRET` are configured — self-hosted installs are unaffected.
 
 ### Changed
 

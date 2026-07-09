@@ -31,7 +31,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import config as config_module
-from app.models.platform.billing import BillingEventLog
+from app.models.platform.billing import BillingEventLog, BillingJti
+from app.services.platform.billing_jti_janitor import purge_expired_billing_jtis
 from app.testing import create_guild, create_guild_membership, create_user
 
 pytestmark = pytest.mark.integration
@@ -131,7 +132,9 @@ async def test_unconfigured_boundary_refuses_everything(
     monkeypatch.setattr(config_module.settings, "BILLING_PUBLIC_KEY_PEM", None)
     guild = await create_guild(session)
     response = await _post(client, "guild-tier", _tier_payload(guild.id))
-    assert response.status_code == 403
+    # 503, not 403: billing absent is the self-host default, not a caller
+    # fault (see billing_foss_test.py for the full unconfigured surface).
+    assert response.status_code == 503
     assert response.json()["detail"] == "BILLING_NOT_CONFIGURED"
 
 
@@ -221,6 +224,39 @@ async def test_oversized_jti_rejected(client: AsyncClient, session: AsyncSession
     verification, not surface as a database error at redemption."""
     guild = await create_guild(session)
     token = _mint_token(jti="x" * 65)
+    response = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
+    assert response.status_code == 403
+    assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
+
+
+async def test_purged_jti_still_unreplayable(
+    client: AsyncClient, session: AsyncSession
+):
+    """The janitor prunes a redeemed jti only after its JWT ``exp`` — at
+    which point the JWT layer rejects any replay of that token anyway, so
+    purging never re-opens a replay window."""
+    guild = await create_guild(session)
+    jti = "billing-purged-jti"
+    token = _mint_token(jti=jti, expires_in=-30)  # exp already in the past
+
+    # Simulate the long-ago redemption whose row the janitor prunes.
+    now = datetime.now(timezone.utc)
+    session.add(
+        BillingJti(
+            jti=jti,
+            redeemed_at=now - timedelta(minutes=10),
+            expires_at=now - timedelta(seconds=30),
+        )
+    )
+    await session.commit()
+
+    assert await purge_expired_billing_jtis(session) >= 1
+    remaining = (
+        await session.exec(select(BillingJti).where(BillingJti.jti == jti))
+    ).one_or_none()
+    assert remaining is None
+
+    # Fresh HMAC, purged blocklist row — the token's own exp still refuses it.
     response = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
     assert response.status_code == 403
     assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
@@ -335,7 +371,9 @@ async def test_status_change_stamps_status_changed_at(
 async def test_support_source_may_only_raise_storage(
     client: AsyncClient, session: AsyncSession
 ):
-    guild = await create_guild(session)
+    # Start from a finite cap: support can only RAISE, and a fresh guild is
+    # NULL = unlimited (nothing to raise — see the cannot-lower test below).
+    guild = await create_guild(session, max_storage_bytes=1024)
 
     allowed = await _post(
         client,
@@ -367,6 +405,75 @@ async def test_support_source_may_only_raise_storage(
     )
     assert anonymous.status_code == 422
     assert anonymous.json()["detail"] == "BILLING_ACTOR_REQUIRED"
+
+
+async def test_support_source_cannot_lower_storage(
+    client: AsyncClient, session: AsyncSession
+):
+    """support_manual may only RAISE the storage cap: lowering a finite cap,
+    or capping an unlimited (NULL) guild, is refused — and the refused write
+    consumes neither its event id nor its jti (a corrected retry works)."""
+    guild = await create_guild(session)
+
+    # Guild starts unlimited (NULL): any finite support cap is a lowering.
+    cap_unlimited = await _post(
+        client,
+        "guild-tier",
+        _tier_payload(
+            guild.id,
+            source="support_manual",
+            actor="support:42",
+            max_storage_bytes=10_000,
+        ),
+    )
+    assert cap_unlimited.status_code == 422
+    assert cap_unlimited.json()["detail"] == "BILLING_SUPPORT_CANNOT_LOWER"
+
+    # Give the guild a finite cap via the automated path.
+    setup = await _post(
+        client, "guild-tier", _tier_payload(guild.id, max_storage_bytes=4096)
+    )
+    assert setup.status_code == 200
+
+    lowered = await _post(
+        client,
+        "guild-tier",
+        _tier_payload(
+            guild.id,
+            source="support_manual",
+            actor="support:42",
+            event_id="evt-support-lower",
+            max_storage_bytes=1024,
+        ),
+    )
+    assert lowered.status_code == 422
+    assert lowered.json()["detail"] == "BILLING_SUPPORT_CANNOT_LOWER"
+
+    await session.refresh(guild)
+    assert guild.max_storage_bytes == 4096  # untouched
+
+    # Equal-to-current is an idempotent re-apply, and the refused event id
+    # above was NOT consumed — reusing it now succeeds.
+    equal = await _post(
+        client,
+        "guild-tier",
+        _tier_payload(
+            guild.id,
+            source="support_manual",
+            actor="support:42",
+            event_id="evt-support-lower",
+            max_storage_bytes=4096,
+        ),
+    )
+    assert equal.status_code == 200, equal.text
+    assert equal.json()["applied"] is True
+
+    # paddle_webhook (the automated recompute path) may lower freely.
+    automated = await _post(
+        client, "guild-tier", _tier_payload(guild.id, max_storage_bytes=512)
+    )
+    assert automated.status_code == 200
+    assert automated.json()["max_storage_bytes"] == 512
 
 
 async def test_unknown_guild_404_does_not_consume_event_id(

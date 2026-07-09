@@ -509,6 +509,13 @@ class Settings(BaseSettings):
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
 
+    # --- Billing (hosted deployments only; default OFF) -------------------
+    # Billing is an optional EXTERNAL service. Every BILLING_* setting below
+    # is unset on a self-hosted install, and with them unset the app behaves
+    # exactly as if billing did not exist: the /billing endpoints answer 503,
+    # the membership ping is a no-op, and guild caps/status are governed
+    # solely by what the operator sets (PATCH /settings/guilds/{id}).
+    #
     # Inbound calls from the billing service (initiative-billing). Requests
     # carry an RS256 service JWT (verified against this public key) plus an
     # HMAC-SHA256 over METHOD\nPATH\nTIMESTAMP\nsha256(body) keyed by the
@@ -520,6 +527,10 @@ class Settings(BaseSettings):
     BILLING_ISSUER: str = "initiative-billing"
     # Max |now - signed timestamp| accepted, in seconds. Never 0.
     BILLING_REPLAY_WINDOW_SECONDS: int = Field(default=300, ge=1)
+    # Outbound base URL of the billing service, for the fire-and-forget
+    # membership-change ping (guild id + event id only — no member data).
+    # The ping is dispatched only when this AND BILLING_HMAC_SECRET are set.
+    BILLING_SERVICE_URL: str | None = None
 
     # Local-dev escape hatch for the webhook SSRF guard. When TRUE, the
     # dispatcher accepts ``http://`` and private/loopback/link-local

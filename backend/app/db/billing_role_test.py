@@ -98,6 +98,11 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     await _denied(s, "SELECT id FROM users")
     await _denied(s, "DELETE FROM guilds WHERE id = 999999")
     await _denied(s, "INSERT INTO guilds (name) VALUES ('forged')")
+    # Beyond guilds/guild_memberships, the shared schema is a void: identity,
+    # config, and the PAM trail are all out of reach.
+    await _denied(s, "SELECT id FROM access_grants")
+    await _denied(s, "SELECT id FROM app_settings")
+    await _denied(s, "SELECT id FROM guild_invites")
 
     # --- Append-only evidence: INSERT is the only verb ----------------------
     await _denied(s, "SELECT event_id FROM billing_event_log")
@@ -140,7 +145,7 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
 async def test_unpinned_billing_guc_sees_nothing(session, role_session, guilds):
     """Fail-closed: with the billing role assumed but NO guild pinned (an
     impossible state for the endpoints, which derive the GUC from the
-    verified body), every row is invisible."""
+    verified body), every statement touches zero rows."""
     guild_a, _ = guilds
     s = await role_session("app_user")
     await set_billing_context(s, guild_id=guild_a.id)
@@ -148,3 +153,55 @@ async def test_unpinned_billing_guc_sees_nothing(session, role_session, guilds):
     await s.execute(text("SELECT set_config('app.billing_guild_id', '', true)"))
     visible = (await s.execute(text("SELECT id FROM guilds"))).all()
     assert visible == []
+
+    unpinned_update = await s.execute(
+        text("UPDATE guilds SET tier_name = 'nowhere' WHERE id = :gid"),
+        {"gid": guild_a.id},
+    )
+    assert unpinned_update.rowcount == 0
+
+    unpinned_count = (
+        await s.execute(text("SELECT count(guild_id) FROM guild_memberships"))
+    ).scalar_one()
+    assert unpinned_count == 0
+    await s.rollback()
+
+
+async def test_billing_role_attributes_are_least_privilege(session):
+    """The auditor-facing role facts: NOLOGIN, no superuser/BYPASSRLS/
+    CREATEROLE, and the login role's membership is INHERIT FALSE — the
+    boundary is reachable only via an explicit SET ROLE, never ambiently."""
+    from app.db.schema_provisioning import billing_role_name
+
+    role = billing_role_name()
+    attrs = (
+        await session.execute(
+            text(
+                "SELECT rolcanlogin, rolsuper, rolbypassrls, rolcreaterole "
+                "FROM pg_roles WHERE rolname = :r"
+            ),
+            {"r": role},
+        )
+    ).one()
+    assert attrs.rolcanlogin is False
+    assert attrs.rolsuper is False
+    assert attrs.rolbypassrls is False
+    assert attrs.rolcreaterole is False
+
+    membership = (
+        await session.execute(
+            text(
+                "SELECT m.inherit_option, m.admin_option "
+                "FROM pg_auth_members m "
+                "JOIN pg_roles granted ON granted.oid = m.roleid "
+                "JOIN pg_roles member ON member.oid = m.member "
+                "WHERE granted.rolname = :r AND member.rolname = 'app_user'"
+            ),
+            {"r": role},
+        )
+    ).one()
+    assert membership.inherit_option is False, (
+        "app_user must hold the billing role WITH INHERIT FALSE — "
+        "SET ROLE only, no standing access"
+    )
+    assert membership.admin_option is False

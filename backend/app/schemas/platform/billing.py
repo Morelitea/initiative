@@ -7,17 +7,14 @@ excluded from the OpenAPI schema.
 
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import Field, model_validator
 
 from app.core.messages import BillingMessages
+from app.models.platform.billing import BillingSource
 from app.models.platform.guild import GuildStatus
 from app.schemas.base import SanitizedBaseModel
-
-# Who initiated the write, recorded verbatim in billing_event_log.
-# support_manual is the human support path: storage cap only, actor required.
-BillingSource = Literal["paddle_webhook", "platinum_invoice", "support_manual"]
 
 
 class BillingGuildTierApply(SanitizedBaseModel):
@@ -51,8 +48,10 @@ class BillingGuildTierApply(SanitizedBaseModel):
     @model_validator(mode="after")
     def _support_source_is_storage_only(self) -> "BillingGuildTierApply":
         """support_manual may only change the storage cap, and must name an
-        actor; other fields require paddle_webhook or platinum_invoice."""
-        if self.source == "support_manual":
+        actor; other fields require paddle_webhook or platinum_invoice.
+        (The cannot-lower rule for the storage cap needs the current DB value
+        and lives in the service — see ``apply_guild_tier``.)"""
+        if self.source is BillingSource.support_manual:
             if not self.actor:
                 raise ValueError(BillingMessages.ACTOR_REQUIRED)
             forbidden = {"tier_name", "max_users", "status"}
