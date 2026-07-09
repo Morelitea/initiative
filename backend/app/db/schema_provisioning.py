@@ -519,6 +519,44 @@ _EFFECTIVE_BYPASS_SQL = (
 )
 
 
+def _bypassrls_exit_message(admin_login: str, heal_attempted: bool) -> str:
+    """The boot-stopping message for a policy-bound system engine.
+
+    ``heal_attempted`` distinguishes "this process may not repair the role"
+    from "an in-place repair ran without error yet the re-check still sees no
+    bypass" — the operator must know a repair already happened, or the
+    instruction to run the same ALTER reads as the whole fix when something
+    deeper (e.g. a pooler authenticating the admin URL as a different role)
+    is eating it.
+    """
+    if heal_attempted:
+        attempted = (
+            "An automatic repair (ALTER ROLE … WITH BYPASSRLS via DATABASE_URL)\n"
+            "already ran without error, but a fresh DATABASE_URL_ADMIN\n"
+            "connection still reports no bypass — the URL is likely reaching a\n"
+            "different role than it names (e.g. through a connection pooler).\n"
+            "Verify which role the connection really lands on:\n\n"
+            "  SELECT current_user, rolbypassrls FROM pg_roles\n"
+            "   WHERE rolname = current_user;\n\n"
+            "and repair that role as a Postgres superuser:\n"
+        )
+    else:
+        attempted = "Repair it as a Postgres superuser:\n"
+    return (
+        f"\n{'=' * 70}\n"
+        f"DATABASE_URL_ADMIN connects as {admin_login!r}, which does not hold\n"
+        "the BYPASSRLS attribute. This login is the app's system engine\n"
+        "(startup seeding, background jobs); policy-bound, it reads every\n"
+        "shared table as empty and boot fails with a row-level security\n"
+        "error. Roles are cluster state — restoring a database from a dump\n"
+        "does not restore them.\n\n"
+        f"{attempted}\n"
+        f'  ALTER ROLE "{admin_login}" WITH BYPASSRLS;\n\n'
+        "then restart the app.\n"
+        f"{'=' * 70}"
+    )
+
+
 async def ensure_system_engine_bypassrls() -> None:
     """Verify the system engine (``DATABASE_URL_ADMIN``) actually bypasses RLS,
     re-asserting the attribute when the provisioning login lawfully can.
@@ -583,17 +621,12 @@ async def ensure_system_engine_bypassrls() -> None:
                 admin_login,
             )
             return
+        logger.error(
+            "Re-asserted BYPASSRLS on %r via DATABASE_URL, but a fresh "
+            "DATABASE_URL_ADMIN connection still reports no bypass.",
+            admin_login,
+        )
 
     raise SystemExit(
-        f"\n{'=' * 70}\n"
-        f"DATABASE_URL_ADMIN connects as {admin_login!r}, which does not hold\n"
-        "the BYPASSRLS attribute. This login is the app's system engine\n"
-        "(startup seeding, background jobs); policy-bound, it reads every\n"
-        "shared table as empty and boot fails with a row-level security\n"
-        "error. Roles are cluster state — restoring a database from a dump\n"
-        "does not restore them.\n\n"
-        "Repair it as a Postgres superuser:\n\n"
-        f'  ALTER ROLE "{admin_login}" WITH BYPASSRLS;\n\n'
-        "then restart the app.\n"
-        f"{'=' * 70}"
+        _bypassrls_exit_message(admin_login, heal_attempted=bool(can_heal))
     )

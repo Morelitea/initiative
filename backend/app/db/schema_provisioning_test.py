@@ -798,6 +798,8 @@ async def test_system_engine_check_fails_closed_when_it_cannot_heal(
             await schema_provisioning.ensure_system_engine_bypassrls()
         assert "ALTER ROLE" in str(excinfo.value)
         assert role in str(excinfo.value)
+        # No repair was possible here, so the message must not claim one ran.
+        assert "already ran" not in str(excinfo.value)
         async with engine.connect() as conn:
             still_bound = (
                 await conn.execute(
@@ -809,3 +811,20 @@ async def test_system_engine_check_fails_closed_when_it_cannot_heal(
     finally:
         await bound_engine.dispose()
         await _drop_login(engine, role)
+
+
+def test_bypassrls_exit_message_distinguishes_attempted_repair():
+    """The heal-attempted variant must say a repair already ran (so the
+    operator doesn't re-run an ALTER that silently changed nothing) and point
+    at role-resolution debugging; the plain variant must not claim one ran."""
+    plain = schema_provisioning._bypassrls_exit_message(
+        "app_admin", heal_attempted=False
+    )
+    attempted = schema_provisioning._bypassrls_exit_message(
+        "app_admin", heal_attempted=True
+    )
+    for message in (plain, attempted):
+        assert 'ALTER ROLE "app_admin" WITH BYPASSRLS;' in message
+    assert "already ran" not in plain
+    assert "already ran" in attempted
+    assert "current_user" in attempted  # the which-role-am-I diagnostic query
