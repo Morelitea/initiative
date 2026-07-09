@@ -61,7 +61,7 @@ const sanitizeStoredPrefs = (raw: unknown): StoredPrefs => {
 const priorityOrder: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 export const MyCalendarPage = () => {
-  const { t } = useTranslation(["tasks", "events", "common"]);
+  const { t } = useTranslation(["tasks", "calendarEvents", "common"]);
   const { guilds } = useGuilds();
   const { user } = useAuth();
   const gp = useGuildPath();
@@ -186,7 +186,7 @@ export const MyCalendarPage = () => {
     if (meta.type === "task" && meta.taskId) {
       void navigate({ to: scopedPath(`/tasks/${meta.taskId}`) });
     } else if (meta.type === "event" && meta.eventId) {
-      void navigate({ to: scopedPath(`/events/${meta.eventId}`) });
+      void navigate({ to: scopedPath(`/calendar-events/${meta.eventId}`) });
     }
   };
 
@@ -220,7 +220,7 @@ export const MyCalendarPage = () => {
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
-      toast.error(t("events:export.exportError"));
+      toast.error(t("calendarEvents:export.exportError"));
     }
   }, [table.guildFilters, t]);
 
@@ -234,7 +234,7 @@ export const MyCalendarPage = () => {
           </div>
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-1.5 h-4 w-4" />
-            {t("events:export.exportIcs")}
+            {t("calendarEvents:export.exportIcs")}
           </Button>
         </div>
 

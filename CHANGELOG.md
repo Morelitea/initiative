@@ -7,6 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Platform admins can set a per-guild user limit (default unlimited) from the admin dashboard's Guilds tab; at the cap, new joins/invites are refused while existing members stay, and SSO auto-provisioning is exempt.
+- Platform admins can set a per-guild lifecycle status (`active` / `read_only` / `suspended`) for billing/moderation holds — `read_only` blocks writes, `suspended` hides the guild from members while its admins keep full settings access. Non-active guilds pause trash auto-purge and block new joins; operators can still reach them via a break-glass grant. Reversible, never touches stored data.
+- Time-bound support/moderator access grants now act as a database-enforced `support` guild role: read grants are read-only, read_write grants can edit content/settings but are blocked from managing membership, roles, or sharing. Break-glass admin access is unchanged.
+
+### Changed
+
+- Operator "delete this guild" (offered when deleting a guild's sole admin) is now scoped to that user's solely-admined guild instead of accepting any guild id; guild admins still delete their own guild as before.
+
+### Deprecated
+
+- Running migrations as a Postgres superuser (a superuser or `BYPASSRLS` role in `DATABASE_URL`) is deprecated and a future release will refuse to start with it. Affected deployments now get a prominent migration banner in the startup log on every boot: run `backend/scripts/create-provisioner.sql` once and point `DATABASE_URL` at the least-privilege `app_provisioner` role (fresh docker-compose installs already use it; `DATABASE_URL_APP`/`DATABASE_URL_ADMIN` are unaffected).
+
+### Fixed
+
+- Anonymizing or deleting a user now scrubs their email out of any guild invite addressed to them (invite addresses are stored reversibly encrypted, so a lingering invite kept a recoverable copy); the invite is neutralized so this can't turn it into an open shareable link.
+- Startup no longer fails with `new row violates row-level security policy for table "guilds"` when the system-engine login (`DATABASE_URL_ADMIN`) has lost its `BYPASSRLS` attribute — typically after restoring a database from a dump, which recreates no roles (#835). Boot now verifies the attribute right after migrations, restores it automatically when `DATABASE_URL` is privileged enough, and otherwise stops with the exact `ALTER ROLE` command to run instead of the opaque seeding error.
+
+## [0.54.2] - 2026-07-04
+
+### Fixed
+
+- **Notifications work again.** The 0.54.0 least-privilege database refactor revoked the bare login role's access to the `notifications` and `push_tokens` tables, but the notification and push-token endpoints still ran on that role — every request failed, so the bell showed no notifications (the backlog looked cleared; it was never deleted and reappears with this fix), nothing could be marked read, and mobile push registration failed. These endpoints now run on the authenticated platform path like the rest of the API, and unregistering a push token is scoped to the calling user's own tokens.
+- Permanently purging a document (manual trash purge or the retention worker) now unresolves wikilinks pointing at it in every other document — including trashed ones — instead of leaving links that reference a document that no longer exists.
+- Expired sign-in and verification tokens are now cleaned up automatically by an hourly background sweep; previously expired rows accumulated indefinitely.
+- Deleted (anonymized) users now display consistently as "Deleted user" everywhere; several screens previously showed a raw email or "Anonymous".
+- Anonymizing a user now scrubs their display name out of content that embedded it as text — @-mentions in comments, mention nodes in documents, and pending assignment-digest emails — instead of leaving the name readable after the account was "forgotten".
+- Hard-deleting an already-anonymized user now removes their guild-scoped data (task assignments, sharing grants, authored-content reassignment, …). Anonymizing drops guild memberships, and the deletion sweep only visited membership guilds, so it silently skipped everything.
+
+## [0.54.1] - 2026-07-04
+
+### Added
+
+- Calendar events now appear in the recent-items tabs bar, like projects, documents, queues, and counter groups.
+- Calendar events and the advanced tool now appear in the command palette (⌘K) — events are searchable like other tools; the advanced tool gets one jump entry per enabled initiative.
+- Initiative pages have an advanced-tools tab listing the initiative's advanced tools, with the standard Select → Edit access bulk-sharing flow (creation still happens in the connected automation service, and the UI says so).
+- Counter groups can now be created from the mobile initiative menu, matching the other tools.
+- Hard-purging an advanced tool (manual trash purge or the retention worker) now notifies the connected automation backend so its scheduling mirror is deleted too — including tools swept away by an initiative purge. Configured via `ADVANCED_TOOL_BACKEND_URL` + `ADVANCED_TOOL_PURGE_SECRET` (HMAC-signed, best-effort; unset on the default OSS image). Soft delete and archive stay pull-based — the automation side discovers them by syncing.
+
+### Changed
+
+- **Canonical tool naming across the API (breaking, pre-v1).** Every per-tool name now derives from one canonical tool enum: initiative master switches (`events_enabled` → `calendar_events_enabled`, `counters_enabled` → `counter_groups_enabled`, `advanced_tool_enabled` → `advanced_tools_enabled`), role permission keys (`docs_enabled`/`create_docs` → `documents_enabled`/`create_documents`, `create_events` → `create_calendar_events`, `create_counters` → `create_counter_groups`, `create_advanced_tool` → `create_advanced_tools`), and the per-member permission flags (`can_view_docs` → `can_view_documents`, `can_view_events` → `can_view_calendar_events`, `can_view_counters` → `can_view_counter_groups`, `can_view_advanced_tool` → `can_view_advanced_tools`, plus the matching `can_create_*`). A guild migration renames the columns and rewrites stored permission keys; no compatibility shims. The advanced-tool embed handoff now reads `advanced_tools_enabled` and the `create_advanced_tools` claim — external embed backends must follow the rename.
+- Permission keys, initiative switch fields, membership permission flags, and recents entity types are now all derived from the tool enum in code (with CI drift tests), so adding a tool wires every backend surface automatically.
+- The frontend now defines each tool in ONE registry (`src/lib/tools.ts`) — an icon plus capability flags — and derives everything else from it (routes, i18n keys, permission keys, sidebar rows, command-palette groups, initiative tabs, recents, trash invalidation), with drift tests that fail naming exactly which surface a new tool is missing. Route URLs renamed to the canonical stems: `/events` → `/calendar-events` and `/my-calendar` → `/my-calendar-events` (no redirects, pre-v1).
+
+### Fixed
+
+- Trashed counter groups and counters now auto-purge after their retention window, like every other trashed item — previously they lingered in the database indefinitely once past retention.
+- Restoring an item from the trash now refreshes the relevant list pages immediately — the restore invalidation used cache keys that didn't match the app's real query keys, so restored items only reappeared after a manual reload.
+- The calendar event attendee picker no longer comes up empty. It now lists the initiative members who can access the event.
+- Clearing the initiative filter (e.g. clicking "All Documents") now resets to every document without a manual refresh.
+- Break-glass / PAM access now shows the granted guild in the switcher immediately, instead of requiring a page reload before the guild becomes reachable.
+
+## [0.54.0] - 2026-07-03
+
+### Changed
+
+- **The app no longer needs a Postgres superuser — and there is no superadmin.** Fresh docker-compose installs create a least-privilege `app_provisioner` role (migrations + guild provisioning only) at first database init — in superuser context, where Postgres 15/16's privilege model requires role bootstrap to live — and point `DATABASE_URL` at it from the start. Existing deployments run `backend/scripts/create-provisioner.sql` once and switch `DATABASE_URL`; staying on a superuser keeps working but logs a boot warning. The internal superadmin flag is gone: the system database role follows PostgreSQL's standard trusted-batch model (bounded by explicit per-table grants — new tables give it nothing by default), background jobs and maintenance sweeps route into each guild under that guild's own scoped role, and the request-path role holds only the minimal shared-table access the sign-in and account-security flows use. The whole posture (role attributes, per-table access, row security) is verified by automated tests on every CI run. `FIRST_SUPERUSER_*` settings are renamed `FIRST_OWNER_*` (old names still accepted).
+- **Per-request database context is now transaction-scoped.** The assumed role and tenancy variables die with each transaction and are re-applied automatically at the start of the next one, eliminating the stale-context-on-pooled-connection bug class and making transaction-mode connection poolers (PgBouncer ≥ 1.21) safe in front of the app — backend CI now runs the whole suite through one to keep it that way. Authorization snapshots held past a freshness bound now fail closed instead of executing on revoked access.
+- **Database migration history squashed to a v0.53.5 baseline.** Fresh installs build the shared schema from a single baseline plus a `guild_template` schema, and never create the legacy public copies of guild content (tasks, projects, documents, …) — guild data lives only in per-guild schemas; existing deployments keep their frozen legacy copies untouched. Platform endpoints (`/users/me`, login/registration, platform admin) no longer read guild content — `initiative_roles` is populated only by guild-scoped endpoints. Guild-schema migrations are now autogenerated against a live template (`scripts/gen_guild_migration.py`) instead of hand-written, removing a class of drift.
+- Faster boots on large installs: guild schemas already built by the current version are skipped by the startup sweep (set `FORCE_GUILD_BACKFILL=true` for a one-off full sweep).
+- **Upgrade note:** deployments running a version older than **v0.53.2** must upgrade to any v0.53.x release and boot it once before upgrading to this version. The app refuses to start (with instructions) if the database is older.
+
+### Removed
+
+- Support for in-place upgrades from versions older than v0.30.0 (the `upgrade-to-baseline.sql` helper is gone; it remains available in older release tags). Upgrades from v0.30.0+ still step through a v0.53.x release as before.
+- The one-time schema-per-guild startup data conversion (every deployment that can cross the v0.53.x floor has already converted).
+
+## [0.53.5] - 2026-07-01
+
+### Added
+
+- **Bulk-edit access on projects, queues, counter groups, and calendar events.** Like documents, these now have a **Select** mode: pick several items, then **Edit access** to share them with people, roles, or all initiative members — in one step. The same tabbed dialog everywhere (People / Roles / All members, Viewer/Editor), and it only touches items you own or can edit. For calendar events, Select lives in the calendar's **list** view.
+
+### Fixed
+
+- **Documents shared with "all initiative members" now show on the project they're attached to.** The project view filtered attached documents with its own check that only understood per-person and per-role sharing, so a document shared with everyone in the initiative disappeared for members without a personal grant. It now defers to the standard document access rules (which also covers guild admins and Full-access roles).
+- Chester toasts no longer overlay the bottom navigation pill and are limited to showing 2 at a time.
+
+## [0.53.4] - 2026-06-27
+
+### Added
+
+- **Floating pill bottom navigation.** On phones the top toolbar (menu, search, recents) is replaced by a floating pill at the bottom of the screen with menu (showing your unread-notification count), search, and home buttons. A separate **add** button — shown on every screen size — opens the right "create" dialog for wherever you are (new task in a project, new project in the project list, new document, queue, queue item, counter, counter group, or calendar event), and expands to Add Task / Add Document everywhere else. It hides automatically when you can't create anything in the current view, and replaces the old bottom-right add buttons.
+
+## [0.53.3] - 2026-06-27
+
+### Added
+
+- **Bulk-share documents with all initiative members.** The documents' bulk **Edit access** dialog has a new **All members** tab that shares — or removes sharing for — every selected document with everyone in its initiative in one step, at Viewer or Editor.
+
 ## [0.53.2] - 2026-06-27
 
 ### Added

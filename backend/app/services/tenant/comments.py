@@ -15,15 +15,15 @@ from app.core.pam_context import grant_satisfies
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildRole
-from app.models.tenant.initiative import Initiative, InitiativeMember
+from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.task import Task
 from app.models.platform.user import User
 from app.services.tenant import documents as documents_service
-from app.services.tenant import initiatives as initiatives_service
+from app.services import rls as rls_service
 from app.services import notifications
 from app.services import permissions as permissions_service
-from app.services.mention_parser import (
+from app.services.tenant.mention_parser import (
     extract_mentioned_user_ids,
     extract_mentioned_task_ids,
 )
@@ -75,21 +75,6 @@ async def _get_task_context(
         return None
     task, project, initiative = row
     return _TaskContext(task=task, project=project, initiative=initiative)
-
-
-async def _is_initiative_member(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user_id: int,
-) -> bool:
-    stmt = select(InitiativeMember).where(
-        InitiativeMember.initiative_id == initiative_id,
-        InitiativeMember.user_id == user_id,
-    )
-    result = await session.exec(stmt)
-    membership = result.one_or_none()
-    return membership is not None
 
 
 async def _has_project_permission(
@@ -539,7 +524,7 @@ async def delete_comment(
     is_guild_admin = guild_role == GuildRole.admin
     is_initiative_manager = False
     if not is_author and not is_guild_admin and initiative_id is not None:
-        is_initiative_manager = await initiatives_service.is_initiative_manager(
+        is_initiative_manager = await rls_service.is_initiative_manager(
             session,
             initiative_id=initiative_id,
             user=user,

@@ -27,6 +27,7 @@ import { useProperties } from "@/hooks/useProperties";
 import { getFileTypeLabel } from "@/lib/fileUtils";
 import { useGuildPath } from "@/lib/guildUrl";
 import { dateSortingFn } from "@/lib/sorting";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 // Cell component that uses guild-scoped URLs
 const DocumentTitleCell = ({ document }: { document: DocumentSummary }) => {
@@ -192,7 +193,7 @@ export const DocumentsListView = ({
           const ownerMember = row.original.initiative?.members?.find(
             (m) => m.user.id === ownerGrant.user_id
           );
-          const ownerName = ownerMember?.user?.full_name || ownerMember?.user?.email;
+          const ownerName = ownerMember?.user ? getUserDisplayName(ownerMember.user) : undefined;
           return (
             <span>{ownerName || t("documents:bulk.userFallback", { id: ownerGrant.user_id })}</span>
           );

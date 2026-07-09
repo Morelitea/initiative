@@ -12,6 +12,27 @@ if TYPE_CHECKING:  # pragma: no cover
     from app.models.tenant.guild_setting import GuildSetting
 
 
+class GuildStatus(str, Enum):
+    """Operator-set lifecycle status of a guild (platform `guilds.manage`).
+
+    - ``active``: normal operation.
+    - ``read_only``: members keep read access to content but writes are denied
+      at the Postgres role level (routed into ``guild_<id>_ro``).
+    - ``suspended``: soft delete — members lose all content access and the
+      guild vanishes from their guild list. Guild admins keep the settings
+      surface (billing / data ownership / danger zone) under every status.
+
+    PAM/break-glass grants deliberately override all of this: a grantee
+    behaves exactly as against an active guild (the resolver's grant branch
+    never consults the status), so suspending a guild can never lock the
+    platform operators out. The status is not serialized to guild members.
+    """
+
+    active = "active"
+    read_only = "read_only"
+    suspended = "suspended"
+
+
 class Guild(SQLModel, table=True):
     __tablename__ = "guilds"
     __allow_unmapped__ = True
@@ -36,6 +57,29 @@ class Guild(SQLModel, table=True):
     max_storage_bytes: Optional[int] = Field(
         default=None, sa_column=Column(BigInteger, nullable=True)
     )
+    # Max number of members allowed in this guild. NULL = unlimited (default).
+    max_users: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    # Display/audit label of the paid tier (NULL = none). CONTRACT: never an
+    # enforcement input — enforcement reads only max_storage_bytes / max_users
+    # / status, so the FOSS app enforces numbers, not plans. A test pins
+    # tier_name to the billing surface (billing_foss_test.py).
+    tier_name: Optional[str] = Field(
+        default=None, sa_column=Column(String(64), nullable=True)
+    )
+    # Lifecycle status (see GuildStatus). Stored as a plain string with a CHECK
+    # constraint (the access_grants pattern) rather than a Postgres enum.
+    status: str = Field(
+        default=GuildStatus.active.value,
+        sa_column=Column(
+            String(16), nullable=False, server_default=GuildStatus.active.value
+        ),
+    )
+    # When the status last changed; NULL until the first operator change.
+    status_changed_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
 
     members: List["GuildMembership"] = Relationship(
         back_populates="guild",
@@ -51,6 +95,15 @@ class Guild(SQLModel, table=True):
 class GuildRole(str, Enum):
     admin = "admin"
     member = "member"
+    # A time-bound PAM/support access grantee acting inside a guild they are
+    # NOT a member of. Synthesized for the request only — never a persisted
+    # ``guild_memberships`` row (the Postgres ``guild_role`` enum has only
+    # admin/member, and the member-role endpoints reject assigning it). Unlike
+    # ``admin``, ``support`` is bound by its grant's read/write level: it can
+    # always reach the guild settings surface, with writes allowed only under a
+    # ``read_write`` grant (enforced at the Postgres role level — a read grant
+    # assumes ``guild_<id>_ro``). Break-glass grantees are ``admin``, not this.
+    support = "support"
 
 
 class GuildMembership(SQLModel, table=True):

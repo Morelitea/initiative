@@ -157,6 +157,134 @@ async def test_ensure_membership_returns_existing(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_ensure_membership_enforces_max_users(session: AsyncSession):
+    """A guild at its ``max_users`` cap rejects a new member."""
+    guild = await create_guild(session, max_users=1)
+    first = await create_user(session, email="cap-first@example.com")
+    second = await create_user(session, email="cap-second@example.com")
+
+    # Fills the single seat.
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+    )
+
+    with pytest.raises(guild_service.GuildCapacityError):
+        await guild_service.ensure_membership(
+            session, guild_id=guild.id, user_id=second.id, role=GuildRole.member
+        )
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_ensure_membership_allows_up_to_max_users(session: AsyncSession):
+    """Members join freely until the cap is reached; existing members re-joining
+    (idempotent no-op) never trip the check."""
+    guild = await create_guild(session, max_users=2)
+    first = await create_user(session, email="within-first@example.com")
+    second = await create_user(session, email="within-second@example.com")
+
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+    )
+    # Re-ensuring an existing member is a no-op even though the guild is not yet
+    # full — the cap check only runs on a genuine insert.
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=first.id, role=GuildRole.member
+    )
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=second.id, role=GuildRole.member
+    )
+
+    assert await guild_service.count_members(session, guild_id=guild.id) == 2
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_ensure_membership_unlimited_by_default(session: AsyncSession):
+    """With no cap (NULL = the default) membership growth is unbounded."""
+    guild = await create_guild(session)  # max_users defaults to None
+    for i in range(3):
+        user = await create_user(session, email=f"unlimited-{i}@example.com")
+        await guild_service.ensure_membership(
+            session, guild_id=guild.id, user_id=user.id, role=GuildRole.member
+        )
+
+    assert await guild_service.count_members(session, guild_id=guild.id) == 3
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_redeem_invite_blocked_when_full(session: AsyncSession):
+    """Invite redemption honours the cap: a full guild raises GuildCapacityError
+    (which the endpoint surfaces as 403)."""
+    guild = await create_guild(session, max_users=1)
+    creator = await create_user(session, email="full-creator@example.com")
+    seat_holder = await create_user(session, email="full-seat@example.com")
+    invitee = await create_user(session, email="full-invitee@example.com")
+
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
+    )
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=creator.id, max_uses=5
+    )
+
+    with pytest.raises(guild_service.GuildCapacityError):
+        await guild_service.redeem_invite_for_user(
+            session, code=invite.code, user=invitee
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_concurrent_joins_cannot_exceed_user_cap(session: AsyncSession, engine):
+    """Concurrent joins racing for the last seat can't overshoot the cap.
+
+    Six users try to join a guild with ``max_users=1`` at the same instant, each
+    on its OWN connection/transaction (real concurrency, not one shared session).
+    The per-guild advisory lock in ``_assert_member_capacity`` serializes the
+    count-then-insert, so exactly one joiner wins the seat and the other five get
+    ``GuildCapacityError`` — the guild never exceeds its cap. Without the lock,
+    several would each read the pre-insert count of 0 and all commit (the TOCTOU
+    race this guards against).
+    """
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    # Room for exactly one member, and none yet.
+    guild = await create_guild(session, max_users=1)
+    joiners = [
+        await create_user(session, email=f"race-joiner-{i}@example.com")
+        for i in range(6)
+    ]
+    # Commit so the independent worker connections below can see the guild + users.
+    await session.commit()
+
+    maker = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def try_join(user_id: int) -> bool:
+        """Attempt one join on a fresh connection; True if it claimed the seat."""
+        async with maker() as worker:
+            try:
+                await guild_service.ensure_membership(
+                    worker, guild_id=guild.id, user_id=user_id, role=GuildRole.member
+                )
+                await worker.commit()
+                return True
+            except guild_service.GuildCapacityError:
+                await worker.rollback()
+                return False
+
+    results = await asyncio.gather(*(try_join(u.id) for u in joiners))
+
+    # Exactly one winner, and the guild sits at — never above — its cap.
+    assert sum(results) == 1
+    assert await guild_service.count_members(session, guild_id=guild.id) == 1
+
+
+@pytest.mark.unit
+@pytest.mark.service
 async def test_ensure_membership_force_role_updates(session: AsyncSession):
     """Test that force_role updates an existing membership's role."""
     user = await create_user(session)
@@ -542,10 +670,14 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     auto-purge for guilds that opted out.
     """
     from app.models.tenant.guild_setting import GuildSetting
+    from app.testing import route_session_to_guild
 
     # 1. No guild_settings row at all -> default 90.
     user = await create_user(session)
     guild = await create_guild(session)  # bare factory, no settings row
+    # guild_settings is guild-scoped: its rows live only in guild_<id> post-squash,
+    # so route the session there before reading it (production callers route too).
+    await route_session_to_guild(session, guild.id)
     await session.exec(
         # double-check no setting row exists (factory shouldn't create one)
         select(GuildSetting).where(GuildSetting.guild_id == guild.id)
@@ -556,12 +688,14 @@ async def test_get_guild_retention_days_distinguishes_never_from_missing(
     setting = GuildSetting(guild_id=guild.id, retention_days=30)
     session.add(setting)
     await session.commit()
+    await route_session_to_guild(session, guild.id)
     assert (await guild_service.get_guild_retention_days(session, guild.id)) == 30
 
     # 3. Row exists with retention_days = NULL -> None ("never").
     setting.retention_days = None
     session.add(setting)
     await session.commit()
+    await route_session_to_guild(session, guild.id)
     assert (await guild_service.get_guild_retention_days(session, guild.id)) is None
 
     # Suppress unused-name warning if linters complain about the user

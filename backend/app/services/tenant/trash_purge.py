@@ -5,7 +5,8 @@ Polled by ``background_tasks._loop_worker`` once an hour. Connects via
 schema as a guild admin (``current_guild_role='admin'``) — that admin leg clears
 the ``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE guard (and the
 initiative-member policies), since SET ROLE into ``guild_<id>`` drops the
-``app_admin`` BYPASSRLS. See ``_purge_all_guilds``.
+``app_admin`` (BYPASSRLS drops on SET ROLE) and routes into each guild as a
+guild admin. See ``_purge_all_guilds``.
 
 Documents need per-row treatment because their hard-purge has to clean up
 ``Upload`` rows + filesystem blobs (both for ``file``-type docs whose Upload
@@ -28,15 +29,21 @@ from sqlmodel import select
 
 from app.db.session import AdminSessionLocal, set_rls_context
 from app.db.soft_delete_filter import select_including_deleted
+from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
+from app.models.tenant.counter import Counter, CounterGroup
 from app.models.tenant.document import Document
-from app.models.platform.guild import Guild
+from app.models.platform.guild import Guild, GuildStatus
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project
 from app.models.tenant.queue import Queue, QueueItem
 from app.models.tenant.tag import Tag
 from app.models.tenant.task import Task
+from app.services.tenant.advanced_tool_notify import (
+    drain_purged_advanced_tools,
+    notify_purged_advanced_tools,
+)
 from app.services.tenant.soft_delete import hard_purge_entity
 
 
@@ -48,8 +55,11 @@ PURGE_POLL_SECONDS = 3600
 
 # Top-of-cascade models, in dependency order. We iterate top-down so an
 # Initiative whose retention has elapsed takes its Project / Document /
-# Queue / CalendarEvent descendants with it via hard_purge_entity, leaving
-# the per-entity passes empty for those rows.
+# Queue / CalendarEvent / CounterGroup descendants with it via hard_purge_entity,
+# leaving the per-entity passes empty for those rows. Must cover every
+# soft-deletable model, else an independently-trashed row of a missing type never
+# auto-purges — ``test_purge_top_down_covers_all_soft_delete_models`` enforces
+# ``set(_PURGE_TOP_DOWN) == set(SOFT_DELETE_MODELS)``.
 _PURGE_TOP_DOWN = (
     Initiative,
     Project,
@@ -60,6 +70,9 @@ _PURGE_TOP_DOWN = (
     Comment,
     Tag,
     CalendarEvent,
+    CounterGroup,
+    Counter,
+    AdvancedTool,
 )
 
 
@@ -95,20 +108,33 @@ async def _purge_all_guilds(session, *, now: datetime) -> None:
     guild, so it routes into each guild's schema AS A GUILD ADMIN
     (``current_guild_role='admin'``). That admin leg is what clears both the
     initiative-member policies and the ``soft_delete_admin_purge`` RESTRICTIVE
-    guard on the soft-delete tables — routing into ``guild_<id>`` drops the
-    ``app_admin`` BYPASSRLS, so an admin context (not the retired ``is_superadmin``
-    GUC) is what lets the hard deletes through. Guilds are enumerated on the admin
-    context first; each schema gets its own committed pass. Split out so tests can
-    drive it with the test session.
+    guard on the soft-delete tables — ``SET ROLE`` drops the system engine's
+    BYPASSRLS, so the admin context is what lets the hard deletes through.
+    Guilds are enumerated on the system engine first; each schema gets its
+    own committed pass. Split out so tests can drive it with the test session.
     """
-    await set_rls_context(session, is_superadmin=True)
-    guild_ids = list(await session.exec(select(Guild.id).order_by(Guild.id.asc())))
+    await set_rls_context(session)
+    # Only ACTIVE guilds are purged. A read_only or suspended guild is frozen —
+    # a nonpayment/moderation hold must not keep destroying trashed data while
+    # it is unresolved (data ownership / legal). Retention resumes (with the
+    # original purge_at stamps) when the guild returns to active.
+    guild_ids = list(
+        await session.exec(
+            select(Guild.id)
+            .where(Guild.status == GuildStatus.active.value)
+            .order_by(Guild.id.asc())
+        )
+    )
     for guild_id in guild_ids:
         # ids collide across schemas, so clear the identity map between guilds.
         session.expunge_all()
         await set_rls_context(session, guild_id=guild_id, guild_role="admin")
         await _run_purge_pass(session, now=now)
         await session.commit()
+        # Post-commit: tell the advanced tool's backend about hard-purged
+        # tools so their scheduling mirrors are deleted too. Best-effort —
+        # a failure logs and the next mirror sync hides the orphan anyway.
+        await notify_purged_advanced_tools(drain_purged_advanced_tools(session))
 
 
 async def process_trash_purges() -> None:

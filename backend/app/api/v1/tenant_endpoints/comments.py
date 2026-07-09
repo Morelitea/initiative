@@ -12,7 +12,6 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.pam_context import has_active_grant
-from app.db.session import reapply_rls_context
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
 from app.models.tenant.initiative import Initiative, InitiativeMember
@@ -45,11 +44,10 @@ async def _broadcast_comment(session, guild_id: int, comment, action: str) -> No
     A comment hangs off a task (→ project → initiative) or a document
     (→ initiative); the parent is resolved within the guild-routed session, so
     the ``(guild_id, initiative_id)`` room is guild-safe (initiative ids are
-    per-guild-schema). ``reapply_rls_context`` keeps the lookup under the guild
-    context after the commit. The client refetches through the RLS + DAC gated
+    per-guild-schema). The automatic context replay keeps the lookup under the
+    guild context after the commit. The client refetches through the RLS + DAC gated
     REST path — the bus carries ids only.
     """
-    await reapply_rls_context(session)
     ids: dict = {
         "comment_id": comment.id,
         "task_id": comment.task_id,
@@ -109,7 +107,6 @@ async def create_comment(
         ) from exc
 
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
     await _broadcast_comment(session, guild_context.guild_id, comment, "created")
@@ -180,7 +177,7 @@ async def recent_comments(
     if task_ids:
         task_result = await session.exec(select(Task).where(Task.id.in_(task_ids)))
         for task in task_result.all():
-            tasks_by_id[task.id] = task
+            tasks_by_id[task.id] = task  # ty: ignore[invalid-assignment] — persisted row, id is set
 
         project_ids = {t.project_id for t in tasks_by_id.values()}
         if project_ids:
@@ -188,14 +185,14 @@ async def recent_comments(
                 select(Project).where(Project.id.in_(project_ids))
             )
             for proj in proj_result.all():
-                projects_by_id[proj.id] = proj
+                projects_by_id[proj.id] = proj  # ty: ignore[invalid-assignment] — persisted row, id is set
 
     if doc_ids:
         doc_result = await session.exec(
             select(Document).where(Document.id.in_(doc_ids))
         )
         for doc in doc_result.all():
-            docs_by_id[doc.id] = doc
+            docs_by_id[doc.id] = doc  # ty: ignore[invalid-assignment] — persisted row, id is set
 
     entries: List[RecentActivityEntry] = []
     for comment in comments:
@@ -283,7 +280,6 @@ async def update_comment(
     # CommentValidationError from service indicates data integrity issues (500).
 
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(comment)
     response = CommentRead.model_validate(comment)
     await _broadcast_comment(session, guild_context.guild_id, comment, "updated")

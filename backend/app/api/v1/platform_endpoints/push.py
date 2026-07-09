@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from app.api.deps import SessionDep, get_current_active_user
+from app.api.deps import UserSessionDep, get_current_active_user
 from app.models.platform.user import User
 from app.schemas.platform.push import (
     PushTokenRegisterRequest,
@@ -18,7 +18,7 @@ CurrentUser = Annotated[User, Depends(get_current_active_user)]
 
 @router.post("/register", response_model=PushTokenResponse)
 async def register_push_token(
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: CurrentUser,
     request: PushTokenRegisterRequest,
 ) -> PushTokenResponse:
@@ -39,7 +39,7 @@ async def register_push_token(
 
 @router.delete("/unregister", response_model=PushTokenResponse)
 async def unregister_push_token(
-    session: SessionDep,
+    session: UserSessionDep,
     current_user: CurrentUser,
     request: PushTokenUnregisterRequest,
 ) -> PushTokenResponse:
@@ -48,5 +48,7 @@ async def unregister_push_token(
     This endpoint removes a push token from the database. The device will
     no longer receive push notifications.
     """
-    await push_tokens.delete_push_token(session, push_token=request.push_token)
+    await push_tokens.delete_push_token(
+        session, user_id=current_user.id, push_token=request.push_token
+    )
     return PushTokenResponse(status="unregistered")

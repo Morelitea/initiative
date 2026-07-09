@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.db.schema_provisioning import PLATFORM_TIERS, platform_role_name
-from app.db.session import reapply_rls_context, set_rls_context
+from app.db.session import set_rls_context
 
 
 async def _reset_role(session) -> None:
@@ -89,11 +89,12 @@ async def test_no_tier_stays_on_login_role(session):
     await _reset_role(session)
 
 
-async def test_reapply_preserves_platform_role(session):
-    """reapply_rls_context (used after a commit swaps connections) re-asserts the
-    platform role, so post-commit queries stay role-scoped."""
+async def test_commit_preserves_platform_role(session):
+    """The after_begin replay re-asserts the platform role on the transaction
+    after a commit, so post-commit queries stay role-scoped with no manual
+    reapply."""
     await set_rls_context(session, user_id=1, platform_role="support")
-    await reapply_rls_context(session)
+    await session.commit()
     current = (await session.exec(text("SELECT current_user"))).scalar_one()
     assert current == platform_role_name("support")
     await _reset_role(session)
@@ -109,11 +110,12 @@ async def test_invalid_platform_role_rejected(session):
 
 
 async def test_acting_user_defaults_to_owner(client, acting_user):
-    """The harness mints an owner by default and the request path serves it."""
-    user, headers = await acting_user()
-    assert user.role.value == "owner"
+    """The harness mints an owner by default (no guild_role) and the request path
+    serves it."""
+    a = await acting_user()
+    assert a.user.role.value == "owner"
     # A personal-mode (UserSessionDep) endpoint runs AS platform_owner end to end.
-    resp = await client.get("/api/v1/guilds/", headers=headers)
+    resp = await client.get("/api/v1/guilds/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -121,9 +123,9 @@ async def test_acting_user_defaults_to_owner(client, acting_user):
 async def test_acting_user_emulates_each_tier(client, acting_user, tier):
     """Any tier can be emulated; the public path serves all of them (Phase 1 keeps
     RLS unchanged, so every tier runs a personal-mode request like today)."""
-    user, headers = await acting_user(tier)
-    assert user.role.value == tier
-    resp = await client.get("/api/v1/guilds/", headers=headers)
+    a = await acting_user(tier)
+    assert a.user.role.value == tier
+    resp = await client.get("/api/v1/guilds/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -131,10 +133,11 @@ async def test_acting_user_emulates_each_tier(client, acting_user, tier):
 async def test_acting_user_optional_guild_role(client, acting_user, g_role):
     """The optional guild dimension: the harness provisions a guild + membership,
     and the guild-path request routes through guild_<id>, authorized by it. The
-    platform tier (member) and the guild role are orthogonal."""
-    user, headers, guild = await acting_user("member", guild_role=g_role)
-    assert user.role.value == "member"
-    resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    platform tier (member) and the guild role are orthogonal — pass the tier
+    explicitly since a guild_role actor defaults to platform member."""
+    a = await acting_user("member", guild_role=g_role)
+    assert a.user.role.value == "member"
+    resp = await client.get(f"/api/v1/g/{a.guild.id}/initiatives/", headers=a.headers)
     assert resp.status_code == 200
 
 
@@ -147,12 +150,14 @@ async def test_platform_and_guild_roles_coexist(client, acting_user):
 
     SET ROLE is single-valued per statement, so the two never conflict and neither
     costs the other. Uses a non-bypass platform tier (member) so the guild request
-    is governed purely by the guild role, not data.bypass / is_superadmin.
+    is governed purely by the guild role, not data.bypass or any bypass flag.
     """
-    user, headers, guild = await acting_user("member", guild_role="admin")
+    a = await acting_user("member", guild_role="admin")
 
-    public_resp = await client.get("/api/v1/guilds/", headers=headers)
+    public_resp = await client.get("/api/v1/guilds/", headers=a.headers)
     assert public_resp.status_code == 200  # ran as platform_member
 
-    guild_resp = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    guild_resp = await client.get(
+        f"/api/v1/g/{a.guild.id}/initiatives/", headers=a.headers
+    )
     assert guild_resp.status_code == 200  # ran as guild_<id> (admin), same identity

@@ -8,17 +8,16 @@ queues, and counter groups.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Iterable, Literal, Sequence
+from typing import Iterable, Sequence
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import reapply_rls_context
 from app.models.tenant.recent_view import RecentView
+from app.schemas.tenant.recent_view import RecentEntityType
 
-
-RecentEntityType = Literal["project", "document", "queue", "counter_group"]
+__all__ = ["RecentEntityType"]  # re-export for existing importers
 
 # Per-user cap on entries kept/displayed, across all entity types. The user's
 # ``recent_tabs_limit`` (Interface settings) drives the actual value; these
@@ -82,7 +81,6 @@ async def record_view(
     )
     await session.exec(stmt)
     await session.commit()
-    await reapply_rls_context(session)
 
     fetch = select(RecentView).where(
         RecentView.user_id == user_id,
@@ -103,7 +101,6 @@ async def record_view(
         for row in stale:
             await session.delete(row)
         await session.commit()
-        await reapply_rls_context(session)
 
     return record
 
@@ -125,7 +122,6 @@ async def clear_view(
     if record is not None:
         await session.delete(record)
         await session.commit()
-        await reapply_rls_context(session)
 
 
 async def list_recent_views(

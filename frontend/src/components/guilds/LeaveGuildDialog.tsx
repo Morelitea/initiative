@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { useGuilds } from "@/hooks/useGuilds";
 import { toast } from "@/lib/chesterToast";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogProps } from "@/types/dialog";
 
 interface LeaveGuildDialogProps extends DialogProps {
@@ -261,7 +262,7 @@ export const LeaveGuildDialog = ({ guild, open, onOpenChange }: LeaveGuildDialog
                           <SelectContent>
                             {candidates.map((member) => (
                               <SelectItem key={member.id} value={member.id.toString()}>
-                                {member.full_name || member.email}
+                                {getUserDisplayName(member)}
                               </SelectItem>
                             ))}
                           </SelectContent>

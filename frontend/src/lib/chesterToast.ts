@@ -6,9 +6,9 @@ import proudSvg from "@/assets/chester/proud.svg";
 import talkingSvg from "@/assets/chester/talking.svg";
 import thinkingSvg from "@/assets/chester/thinking.svg";
 
-export type ChesterToastType = "default" | "success" | "error" | "warning" | "info" | "loading";
+type ChesterToastType = "default" | "success" | "error" | "warning" | "info" | "loading";
 
-export type ChesterToastPosition =
+type ChesterToastPosition =
   | "top-left"
   | "top-center"
   | "top-right"
@@ -25,7 +25,7 @@ const VARIANT_BY_TYPE: Record<ChesterToastType, string> = {
   loading: talkingSvg,
 };
 
-export interface ChesterToastOptions {
+interface ChesterToastOptions {
   /** Custom dismissal handle. Sonner uses string|number; we accept both. */
   id?: string | number;
   /** ms to auto-dismiss; pass `Infinity` to keep open until dismissed. */
@@ -70,6 +70,10 @@ const buildInput = (
     robotVariant: opts?.robotVariant ?? VARIANT_BY_TYPE[type],
     position: opts?.position ?? "bottom-center",
     typeSpeed: opts?.typeSpeed ?? 20,
+    // Cap how many toasts are visible at once; the rest queue and appear as
+    // slots free up (robot-toast reads this per call, falling back to its
+    // unlimited default otherwise).
+    limit: 2,
   };
   if (opts?.duration !== undefined) {
     input.autoClose = Number.isFinite(opts.duration) ? opts.duration : false;

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
+
+if TYPE_CHECKING:
+    from app.schemas.platform.user import ProjectBasic, UserPublic
 
 from sqlalchemy import func, update
 from sqlmodel import select, delete
@@ -28,14 +31,6 @@ from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 
 SYSTEM_USER_EMAIL = "deleted-user@system.internal"
 SYSTEM_USER_FULL_NAME = "[Deleted User]"
-
-
-class DeletionBlocker(Exception):
-    """Raised when account deletion is blocked."""
-
-    def __init__(self, blockers: List[str]):
-        self.blockers = blockers
-        super().__init__(", ".join(blockers))
 
 
 async def get_or_create_system_user(session: AsyncSession) -> User:
@@ -74,7 +69,19 @@ async def is_last_admin_of_guild(
         session: Database session
         guild_id: Guild ID to check
         user_id: User ID to check
-        for_update: If True, lock rows to prevent race conditions during demotion
+        for_update: If True, lock the existing admin membership rows so a
+            concurrent demotion/removal of a *current* admin can't race this
+            check within the same transaction.
+
+    Concurrency caveat: ``for_update`` locks only the admin rows that already
+    exist. It does NOT prevent a concurrent transaction from INSERTing a
+    brand-new admin membership (a phantom — Postgres row locks aren't predicate
+    locks outside SERIALIZABLE). So a caller relying on a True result to gate a
+    follow-up mutation has a narrow window where a second admin could appear
+    just after the check. Harmless for the current callers (demote-last-admin
+    guards, and the blocker-scoped guild delete, which cascades that new row
+    away anyway); a caller needing a hard guarantee should take a per-guild
+    advisory lock that all admin-mutation paths also honor.
     """
     # Check if user is an admin of this guild
     if for_update:
@@ -315,7 +322,7 @@ async def get_initiative_blocker_details(
     # Reset to the public baseline so callers' subsequent reads aren't trapped
     # in the last guild's schema.
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     return blockers
 
 
@@ -352,7 +359,7 @@ async def fetch_pm_candidates(
     *,
     initiative_id: int,
     excluded_user_id: int,
-) -> List["UserPublic"]:  # noqa: F821 — forward ref to avoid circular import
+) -> List["UserPublic"]:
     """Active project-manager candidates for ``initiative_id``, with
     ``excluded_user_id`` filtered out.
 
@@ -392,7 +399,7 @@ async def check_deletion_eligibility(
     user_id: int,
     *,
     admin_context: bool = False,
-) -> tuple[bool, List[str], List[str], List["ProjectBasic"]]:  # noqa: F821
+) -> tuple[bool, List[str], List[str], List["ProjectBasic"]]:
     """
     Check if user can be deleted.
     Returns: (can_delete, blockers, warnings, owned_projects)
@@ -451,7 +458,7 @@ async def check_deletion_eligibility(
             for p in await get_owned_projects(session, user_id)
         )
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
 
     if sole_pm_initiatives:
         for initiative in sole_pm_initiatives:
@@ -526,7 +533,7 @@ async def _drop_user_memberships(session: AsyncSession, user_id: int) -> User:
     # Back to the public, login-role baseline for the shared-table work: the
     # membership rows themselves and the caller's PII/status writes.
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     memberships = (
         await session.exec(
             select(GuildMembership).where(GuildMembership.user_id == user_id)
@@ -557,6 +564,45 @@ async def deactivate_user(session: AsyncSession, user_id: int) -> None:
     await session.commit()
 
 
+async def _scrub_invites_addressed_to(
+    session: AsyncSession, *, email_hash: str
+) -> None:
+    """Erase a user's email from any guild invite addressed to them.
+
+    ``GuildInvite.invitee_email_encrypted`` holds the invited person's address
+    as *reversible* Fernet ciphertext, so a lingering (unexpired or already
+    consumed) invite is a recoverable PII trace that survives user erasure —
+    the one gap that otherwise makes anonymize/hard-delete not airtight.
+
+    Fernet output is non-deterministic (the same address encrypts differently
+    every time), so there is no indexed equality lookup: we load every bound
+    invite and compare the decrypted address the same way redemption does
+    (via ``hash_email``, matching the ``users.email_hash`` normalization).
+
+    A match is NULLed (removing the PII) *and* neutralised (``max_uses = 0``, so
+    ``invite_is_active`` returns False). Nulling alone is not enough: an invite
+    with no bound address is treated as an open shareable link, so a
+    still-active single-recipient invite would degrade into one anyone with the
+    code could redeem. The system engine (``app_admin``) holds UPDATE but
+    deliberately not DELETE on ``guild_invites`` (row removal rides the guild
+    FK cascade — see ``SHARED_TABLE_SYSTEM_GRANTS``), so this scrubs the row in
+    place rather than deleting it.
+    """
+    from app.models.platform.guild import GuildInvite
+
+    bound_invites = (
+        await session.exec(
+            select(GuildInvite).where(GuildInvite.invitee_email_encrypted.is_not(None))
+        )
+    ).all()
+    for invite in bound_invites:
+        bound_email = invite.invitee_email  # decrypts invitee_email_encrypted
+        if bound_email and hash_email(bound_email) == email_hash:
+            invite.invitee_email_encrypted = None
+            invite.max_uses = 0
+            session.add(invite)
+
+
 async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     """Soft-delete (anonymize) a user account.
 
@@ -569,6 +615,11 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     render the placeholder "Deleted user #{id}" wherever the original
     user was referenced.
 
+    The display name is also scrubbed out of content that embedded it as
+    literal text — @-mention markup in comments, Lexical mention nodes in
+    documents, digest-row name snapshots — in EVERY guild schema (not just
+    current memberships: content survives leaving a guild).
+
     All of this happens inside a single transaction with one commit at
     the end, so a "right to be forgotten" request never ends up in a
     half-applied state — either every change lands or none do.
@@ -576,9 +627,25 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     This is irreversible — there is no undo.
     """
     import secrets
+    from app.models.platform.guild import Guild
     from app.models.platform.push_token import PushToken
+    from app.services.tenant.mention_parser import anonymize_user_mentions
+
+    # Mention scrub first — it routes per guild and expunges between guilds,
+    # so it must run before the ``user`` row below is loaded and mutated.
+    all_guild_ids = list((await session.exec(select(Guild.id))).all())
+    for gid in all_guild_ids:
+        session.expunge_all()
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
+        await anonymize_user_mentions(session, user_id=user_id)
+    session.expunge_all()
+    await set_rls_context(session)
 
     user = await _drop_user_memberships(session, user_id)
+
+    # Capture the real email hash before it's overwritten with the sentinel
+    # below — it's how we find guild invites bound to this person's address.
+    original_email_hash = user.email_hash
 
     user.status = UserStatus.anonymized
     user.token_version += 1
@@ -633,6 +700,13 @@ async def soft_delete_user(session: AsyncSession, user_id: int) -> None:
     await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
     await session.exec(delete(UserToken).where(UserToken.user_id == user_id))
     await session.exec(delete(PushToken).where(PushToken.user_id == user_id))
+
+    # Scrub the user's address out of any guild invite bound to it. Without
+    # this, an unexpired/lingering invite keeps a recoverable copy of the very
+    # email this erasure was meant to remove. Runs in the same public,
+    # ``app_admin`` context as the auth-artifact deletes above.
+    if original_email_hash:
+        await _scrub_invites_addressed_to(session, email_hash=original_email_hash)
 
     # Single commit: membership removal + PII wipe + auth-artifact
     # revocation either all succeed or all roll back together.
@@ -753,7 +827,7 @@ async def transfer_owned_projects(
                 session, project.id, project_transfers[key]
             )
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
 
 
 async def reassign_user_content(
@@ -946,6 +1020,7 @@ async def hard_delete_user(
             (composite key, since project ids repeat across per-guild schemas)
     """
     from app.services.tenant import initiatives as initiatives_service
+    from app.services.tenant.mention_parser import anonymize_user_mentions
     from app.models.tenant.queue import QueueItem
     from app.models.platform.push_token import PushToken
     from app.models.tenant.calendar_event import CalendarEventAttendee
@@ -960,17 +1035,14 @@ async def hard_delete_user(
     system_user = await get_or_create_system_user(session)
     system_user_id = system_user.id
 
-    # ``guild_memberships`` is shared/public, so enumerate the user's guilds on
-    # the default context.
-    guild_ids = list(
-        (
-            await session.exec(
-                select(GuildMembership.guild_id).where(
-                    GuildMembership.user_id == user_id
-                )
-            )
-        ).all()
-    )
+    # Sweep EVERY guild schema, not just current memberships. An anonymized
+    # user has no membership rows left (anonymize drops them), and even an
+    # active user's authored content survives leaving a guild — enumerating
+    # memberships here silently skipped all of it (issue #794). Owned projects
+    # can only exist in membership guilds (leave/deactivate/anonymize all
+    # force a transfer first), so the transfer check below never fires for
+    # guilds the user isn't in.
+    guild_ids = list((await session.exec(select(Guild.id))).all())
 
     # Phase 1 — guild-scoped cleanup, ROUTED INTO EACH GUILD'S SCHEMA. Every
     # statement below targets a guild-scoped table whose live rows live in
@@ -1006,6 +1078,12 @@ async def hard_delete_user(
         # Reassign authored content (documents, comments, uploads, queues, …)
         # to the system user so it survives the deletion.
         await reassign_user_content(session, user_id, system_user_id)
+
+        # Scrub the display name out of content that embedded it as literal
+        # text (@-mentions in comments, document mention nodes, digest name
+        # snapshots). Already done if the user was anonymized first; direct
+        # hard deletes need it here, before the row disappears.
+        await anonymize_user_mentions(session, user_id=user_id)
 
         # Per-user guild-scoped rows with no ON DELETE CASCADE: delete or NULL.
         await session.exec(delete(ProjectOrder).where(ProjectOrder.user_id == user_id))
@@ -1054,10 +1132,10 @@ async def hard_delete_user(
         await session.flush()
 
     # Phase 2 — shared/public cleanup. Reset to the public, login-role baseline
-    # (BYPASSRLS) so these shared-table writes aren't trapped in the last guild's
-    # schema/role.
+    # so these shared-table writes aren't trapped in the last guild's
+    # schema/role (restoring the system engine's BYPASSRLS).
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
 
     await session.exec(delete(Notification).where(Notification.user_id == user_id))
     await session.exec(delete(UserApiKey).where(UserApiKey.user_id == user_id))
@@ -1079,6 +1157,14 @@ async def hard_delete_user(
     # GuildMemberships cascade-delete via the User relationship. InitiativeMembers
     # were already removed per guild above.
     user = (await session.exec(select(User).where(User.id == user_id))).one()
+
+    # Scrub the user's address out of any guild invite bound to it before the
+    # row goes — a bound invite otherwise keeps a recoverable copy of the email
+    # (the ``created_by_user_id`` NULLing above only covers invites this user
+    # *sent*, not ones addressed *to* them).
+    if user.email_hash:
+        await _scrub_invites_addressed_to(session, email_hash=user.email_hash)
+
     await session.delete(user)
 
     await session.commit()

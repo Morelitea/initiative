@@ -8,9 +8,9 @@ Responsibilities:
 * Serialize attached values to the ``PropertySummary`` API shape.
 * Shared helpers for list-endpoint property filter predicates.
 
-The caller owns session lifecycle (commit + reapply_rls_context) — these
-functions only issue the in-transaction INSERT/DELETE statements so the
-endpoint can control when RLS context is re-applied.
+The caller owns session lifecycle (commit) — these functions only issue
+the in-transaction INSERT/DELETE statements; RLS context replays
+automatically on each transaction.
 """
 
 from dataclasses import dataclass
@@ -21,7 +21,6 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set
 from fastapi import HTTPException, status
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 from sqlalchemy import func, true
-from sqlalchemy.orm import selectinload
 from sqlmodel import SQLModel, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -382,7 +381,7 @@ async def set_document_property_values(
 ) -> None:
     """Replace all property values attached to ``document``.
 
-    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    Caller is responsible for ``session.commit()``.
     """
     await _set_property_values(
         session,
@@ -401,7 +400,7 @@ async def set_task_property_values(
 ) -> None:
     """Replace all property values attached to ``task``.
 
-    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    Caller is responsible for ``session.commit()``.
     """
     await _set_property_values(
         session,
@@ -420,7 +419,7 @@ async def set_event_property_values(
 ) -> None:
     """Replace all property values attached to ``event``.
 
-    Caller is responsible for ``session.commit()`` + ``reapply_rls_context``.
+    Caller is responsible for ``session.commit()``.
     """
     await _set_property_values(
         session,
@@ -492,52 +491,6 @@ def summaries_from_rows(rows: Iterable[Any]) -> List[PropertySummary]:
     return summaries
 
 
-async def _serialize_values(
-    session: AsyncSession,
-    *,
-    entity_kind: str,
-    entity_id: int,
-) -> List[PropertySummary]:
-    binding = _binding_for(entity_kind)
-    value_model = binding.model
-    fk_column = binding.fk_column
-
-    stmt = (
-        select(value_model)
-        .where(fk_column == entity_id)
-        .options(
-            selectinload(value_model.property_definition),
-            selectinload(value_model.value_user),
-        )
-    )
-    result = await session.exec(stmt)
-    rows = result.all()
-    return summaries_from_rows(rows)
-
-
-async def serialize_document_properties(
-    session: AsyncSession,
-    document: Document,
-) -> List[PropertySummary]:
-    return await _serialize_values(
-        session, entity_kind="document", entity_id=document.id
-    )
-
-
-async def serialize_task_properties(
-    session: AsyncSession,
-    task: Task,
-) -> List[PropertySummary]:
-    return await _serialize_values(session, entity_kind="task", entity_id=task.id)
-
-
-async def serialize_event_properties(
-    session: AsyncSession,
-    event: CalendarEvent,
-) -> List[PropertySummary]:
-    return await _serialize_values(session, entity_kind="event", entity_id=event.id)
-
-
 async def count_orphaned_values(
     session: AsyncSession,
     defn_id: int,
@@ -578,20 +531,6 @@ async def count_orphaned_values(
         count += (await session.exec(stmt_json)).one()
 
     return count
-
-
-async def any_values_exist_for_definition(
-    session: AsyncSession,
-    defn_id: int,
-) -> bool:
-    """Return True if any entity currently has this property set."""
-    for binding in BINDINGS.values():
-        value_model = binding.model
-        stmt = select(value_model).where(value_model.property_id == defn_id).limit(1)
-        result = await session.exec(stmt)
-        if result.first() is not None:
-            return True
-    return False
 
 
 def typed_column_for_property(

@@ -26,7 +26,7 @@ export const HomeSidebarContent = () => {
   const navItems = [
     { to: "/", label: t("myTasks"), icon: SquareCheckBig, exact: true },
     { to: "/created-tasks", label: t("tasksICreated"), icon: PenLine },
-    { to: "/my-calendar", label: t("myCalendar"), icon: CalendarDays },
+    { to: "/my-calendar-events", label: t("myCalendar"), icon: CalendarDays },
     { to: "/my-projects", label: t("myProjects"), icon: ListTodo },
     { to: "/my-documents", label: t("myDocuments"), icon: ScrollText },
     { to: "/user-stats", label: t("myStats"), icon: ChartColumn },

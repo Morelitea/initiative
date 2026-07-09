@@ -16,9 +16,18 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import (
+    create_access_token,
+    create_upload_token,
+    get_password_hash,
+)
 from app.models.platform.user import User, UserStatus
-from app.testing.factories import create_user, get_auth_headers, get_auth_token
+from app.testing.factories import (
+    create_user,
+    get_auth_headers,
+    get_auth_token,
+    get_new_access_token,
+)
 
 
 @pytest.mark.integration
@@ -65,6 +74,39 @@ async def test_register_first_user(client: AsyncClient):
     assert data["full_name"] == "First User"
     assert data["status"] == "active"
     assert data["role"] == "owner"  # First user bootstraps as owner
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_register_with_invite_blocked_when_guild_full(
+    client: AsyncClient, session: AsyncSession
+):
+    """Signing up via an invite into a guild at its user cap is refused (403).
+
+    End-to-end: a brand-new account is created and then its invite redemption
+    trips the cap, so the whole registration is rejected."""
+    from app.services.platform import guilds as guild_service
+    from app.testing.factories import create_guild
+
+    guild = await create_guild(session, name="Full Guild", max_users=1)
+    seat = await create_user(session, email="reg-seat@example.com")
+    await guild_service.ensure_membership(session, guild_id=guild.id, user_id=seat.id)
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=seat.id, max_uses=5
+    )
+    await session.commit()
+
+    response = await client.post(
+        f"/api/v1/auth/register?invite_code={invite.code}",
+        json={
+            "email": "reg-newuser@example.com",
+            "full_name": "New User",
+            "password": "password1234",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
 
 
 @pytest.mark.integration
@@ -558,6 +600,62 @@ async def test_stale_token_version_returns_401(
     response = await client.get(
         "/api/v1/users/me",
         headers={"Authorization": f"Bearer {stale_token}"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_new_access_token_authenticates(
+    client: AsyncClient, session: AsyncSession
+):
+    """Dual-verify: a new-model access token (aud initiative:access) is accepted
+    on the session path alongside legacy JWTs — the accept-before-issue half of
+    the cutover."""
+    user = await create_user(session)
+    token = get_new_access_token(user)
+
+    response = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["id"] == user.id
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_new_access_token_stale_version_returns_401(
+    client: AsyncClient, session: AsyncSession
+):
+    """The new token still carries ``ver``, so a token_version bump (logout /
+    password change) revokes it exactly like a legacy token."""
+    user = await create_user(session)
+    token = get_new_access_token(user)
+    user.token_version += 1
+    session.add(user)
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_scoped_upload_token_rejected_on_session_path(
+    client: AsyncClient, session: AsyncSession
+):
+    """Security regression: a scoped upload token carries a different aud and
+    must never be honored as a session credential — dual-verify preserves this."""
+    user = await create_user(session)
+    upload_token, _ = create_upload_token(user_id=user.id)
+
+    response = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {upload_token}"},
     )
     assert response.status_code == 401
 
@@ -1234,3 +1332,158 @@ async def test_register_rolls_back_when_guild_seed_fails(
     assert users == [], "user row must be rolled back when guild seeding fails"
     guilds = (await session.exec(select(Guild))).all()
     assert guilds == [], "guild row must be rolled back when guild seeding fails"
+
+
+# --- New login model: refresh issuance + rotation ------------------------
+
+
+async def _make_login_user(
+    session: AsyncSession,
+    email: str = "refresh@example.com",
+    password: str = "testpassword123",
+) -> tuple[User, str]:
+    user = User(
+        email_hash=hash_email(email),
+        email_encrypted=encrypt_field(email, SALT_EMAIL),
+        full_name="Refresh User",
+        hashed_password=get_password_hash(password),
+        status=UserStatus.active,
+        email_verified=True,
+    )
+    session.add(user)
+    await session.commit()
+    return user, password
+
+
+async def _login(client: AsyncClient, email: str, password: str):
+    return await client.post(
+        "/api/v1/auth/token", data={"username": email, "password": password}
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_login_sets_refresh_cookie(client: AsyncClient, session: AsyncSession):
+    """Login additively issues a rotating refresh cookie (the legacy session
+    cookie is still set too — this is additive-first)."""
+    _, password = await _make_login_user(session, "cookie@example.com")
+    resp = await _login(client, "cookie@example.com", password)
+
+    assert resp.status_code == 200
+    assert resp.cookies.get("refresh_token")
+    assert resp.cookies.get("session_token")  # legacy cookie unchanged
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_refresh_rotates_and_new_token_authenticates(
+    client: AsyncClient, session: AsyncSession
+):
+    """The refresh cookie rotates into a fresh access token that authenticates."""
+    _, password = await _make_login_user(session, "rot@example.com")
+    await _login(client, "rot@example.com", password)
+
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 200
+    access_token = resp.json()["access_token"]
+    assert resp.cookies.get("refresh_token")  # a new (rotated) refresh was set
+
+    me = await client.get(
+        "/api/v1/users/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert me.status_code == 200
+    assert me.json()["email"] == "rot@example.com"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_refresh_without_cookie_returns_401(client: AsyncClient):
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "NOT_AUTHENTICATED"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_refresh_with_invalid_cookie_returns_401(client: AsyncClient):
+    client.cookies.set("refresh_token", "not-a-real-token", path="/api/v1/auth")
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "INVALID_REFRESH_TOKEN"
+    # The rejection must actually clear the stale cookie so the browser stops
+    # resending it — the delete header has to ride on the returned response, not
+    # a raised exception (FastAPI drops the injected response's cookies on raise).
+    set_cookies = resp.headers.get_list("set-cookie")
+    assert any("refresh_token=" in c and "Max-Age=0" in c for c in set_cookies), (
+        set_cookies
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_reused_refresh_token_returns_401(
+    client: AsyncClient, session: AsyncSession
+):
+    """Endpoint-level theft detection: replaying a spent refresh token is 401
+    (and the service revokes the chain — covered in the service tests)."""
+    _, password = await _make_login_user(session, "reuse@example.com")
+    login = await _login(client, "reuse@example.com", password)
+    first_refresh = login.cookies.get("refresh_token")
+
+    # Spend it once (jar rotates to the new token).
+    ok = await client.post("/api/v1/auth/refresh")
+    assert ok.status_code == 200
+
+    # Replay the original (now spent) token.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", first_refresh, path="/api/v1/auth")
+    replay = await client.post("/api/v1/auth/refresh")
+    assert replay.status_code == 401
+    assert replay.json()["detail"] == "INVALID_REFRESH_TOKEN"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_logout_revokes_refresh_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """Logout revokes the refresh session, so a captured refresh token can't
+    rotate afterward — closing the gap where token_version only killed the
+    access side."""
+    _, password = await _make_login_user(session, "lo@example.com")
+    login = await _login(client, "lo@example.com", password)
+    captured = login.cookies.get("refresh_token")
+
+    logout = await client.post("/api/v1/auth/logout")
+    assert logout.status_code == 204
+
+    client.cookies.clear()
+    client.cookies.set("refresh_token", captured, path="/api/v1/auth")
+    resp = await client.post("/api/v1/auth/refresh")
+    assert resp.status_code == 401
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_password_change_revokes_refresh_session(
+    client: AsyncClient, session: AsyncSession
+):
+    """A credential change must invalidate refresh sessions too — otherwise a
+    captured refresh token keeps minting valid access tokens (at the new
+    token_version) right past the password change."""
+    _, password = await _make_login_user(session, "pwchange@example.com")
+    login = await _login(client, "pwchange@example.com", password)
+    captured = login.cookies.get("refresh_token")
+
+    change = await client.patch(
+        "/api/v1/users/me",
+        json={"password": "newpassword456", "current_password": password},
+    )
+    assert change.status_code == 200
+
+    # The refresh token captured before the change can no longer rotate.
+    client.cookies.clear()
+    client.cookies.set("refresh_token", captured, path="/api/v1/auth")
+    replay = await client.post("/api/v1/auth/refresh")
+    assert replay.status_code == 401

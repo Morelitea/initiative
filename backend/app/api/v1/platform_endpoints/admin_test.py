@@ -241,7 +241,7 @@ async def test_admin_delete_rejects_surplus_project_transfers(
     from app.models.tenant.project import Project
     from app.db.session import set_rls_context
 
-    # Verify as a guild admin: initiative_access ignores is_superadmin, so route
+    # Verify as a guild admin: initiative_access honors only the admin leg, so route
     # with the admin role to read the (untouched) bystander project.
     await set_rls_context(session, guild_id=guild.id, guild_role="admin")
     refreshed = (
@@ -360,3 +360,88 @@ async def test_demote_admin_uses_for_update_path_without_postgres_error(
 
     refreshed = (await session.exec(select(User).where(User.id == target.id))).one()
     assert refreshed.role == UserRole.member
+
+
+@pytest.mark.integration
+async def test_admin_delete_guild_requires_sole_admin_blocker(
+    client: AsyncClient, session: AsyncSession
+):
+    """Operator guild deletion is scoped to blocker resolution: it succeeds only
+    when the named user is the guild's SOLE admin (deleting them would orphan
+    it). A guild with another admin is not a blocker → refused."""
+    from sqlmodel import select
+
+    from app.core.messages import AdminMessages
+    from app.models.platform.guild import Guild, GuildRole
+    from app.testing.factories import create_guild, create_guild_membership
+
+    operator = await create_user(
+        session, email="op-del-guild@example.com", role=UserRole.owner
+    )
+    target = await create_user(session, email="sole-admin@example.com")
+    guild = await create_guild(session, creator=target)
+    await create_guild_membership(
+        session, user=target, guild=guild, role=GuildRole.admin
+    )
+
+    # Another admin exists → the guild is NOT orphaned by deleting target → 403.
+    coadmin = await create_user(session, email="co-admin@example.com")
+    await create_guild_membership(
+        session, user=coadmin, guild=guild, role=GuildRole.admin
+    )
+    resp = await client.delete(
+        f"/api/v1/admin/guilds/{guild.id}?blocked_user_id={target.id}",
+        headers=get_auth_headers(operator),
+    )
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == AdminMessages.GUILD_NOT_A_DELETION_BLOCKER
+    still_there = (
+        await session.exec(select(Guild).where(Guild.id == guild.id))
+    ).one_or_none()
+    assert still_there is not None, "a non-blocker guild must not be deleted"
+
+
+@pytest.mark.integration
+async def test_admin_delete_guild_deletes_genuine_blocker(
+    client: AsyncClient, session: AsyncSession
+):
+    """When the user is the guild's sole admin, the operator can delete it to
+    resolve the user-deletion blocker."""
+    from sqlmodel import select
+
+    from app.models.platform.guild import Guild, GuildRole
+    from app.testing.factories import create_guild, create_guild_membership
+
+    operator = await create_user(
+        session, email="op-del-guild2@example.com", role=UserRole.owner
+    )
+    target = await create_user(session, email="sole-admin2@example.com")
+    guild = await create_guild(session, creator=target)
+    await create_guild_membership(
+        session, user=target, guild=guild, role=GuildRole.admin
+    )
+
+    resp = await client.delete(
+        f"/api/v1/admin/guilds/{guild.id}?blocked_user_id={target.id}",
+        headers=get_auth_headers(operator),
+    )
+    assert resp.status_code == 204, resp.text
+    gone = (await session.exec(select(Guild).where(Guild.id == guild.id))).one_or_none()
+    assert gone is None, "the sole-admin blocker guild should be deleted"
+
+
+@pytest.mark.integration
+async def test_admin_delete_guild_requires_blocked_user_id(
+    client: AsyncClient, session: AsyncSession
+):
+    """The blocked_user_id query param is required — no bare 'delete any guild'."""
+    from app.testing.factories import create_guild
+
+    operator = await create_user(
+        session, email="op-del-guild3@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=operator)
+    resp = await client.delete(
+        f"/api/v1/admin/guilds/{guild.id}", headers=get_auth_headers(operator)
+    )
+    assert resp.status_code == 422

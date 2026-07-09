@@ -3,10 +3,6 @@
 Two guarantees, mirroring how ``tenancy_test.py`` keeps the table classification
 honest:
 
-- **Currency** (no DB): the committed ``guild_rls.sql`` equals
-  ``gen_guild_rls.generate()`` — so the generated policies can't drift from the
-  registry. (CI also regenerates + diffs; this catches it locally and in the
-  main suite.)
 - **Presence** (DB): in a freshly provisioned guild schema, every
   ``INITIATIVE_SCOPED_TABLES`` table actually has ``FORCE`` RLS + all four
   ``initiative_member_*`` policies, and no ``GUILD_LEVEL_TABLES`` table does.
@@ -17,14 +13,12 @@ import pytest
 from sqlalchemy import text
 
 from app.db.schema_provisioning import (
-    GUILD_RLS_SQL_PATH,
     drop_guild_schema,
     guild_schema_name,
     provision_guild_schema,
 )
 from app.db.soft_delete_filter import SOFT_DELETE_TABLES
 from app.db.tenancy import GUILD_LEVEL_TABLES, INITIATIVE_SCOPED_TABLES
-from scripts.gen_guild_rls import generate
 
 _EXPECTED_POLICIES = {
     "initiative_member_select",
@@ -43,16 +37,6 @@ _GID_PURGE = 990_202
 # the schema boundary, initiative is the gate, so this is not a membership scope.
 _PURGE_GUARD_TABLES = frozenset(SOFT_DELETE_TABLES)
 _GUILD_LEVEL_PURGE = frozenset(SOFT_DELETE_TABLES) - INITIATIVE_SCOPED_TABLES
-
-
-def test_guild_rls_sql_is_current():
-    """The committed SQL must match the generator output exactly."""
-    expected = generate()
-    actual = GUILD_RLS_SQL_PATH.read_text()
-    assert actual == expected, (
-        "alembic/guild/guild_rls.sql is out of date with scripts/gen_guild_rls.py. "
-        "Run 'python scripts/gen_guild_rls.py' in backend/ and commit the result."
-    )
 
 
 @pytest.mark.database

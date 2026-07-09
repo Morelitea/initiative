@@ -1,57 +1,59 @@
 from datetime import datetime
 from typing import Dict, List, Optional, TYPE_CHECKING
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, create_model
 
+from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.schemas.base import RichTextStr, SanitizedBaseModel
 
 from app.models.tenant.initiative import InitiativeRole, PermissionKey
 from app.schemas.platform.user import UserPublic
 
 if TYPE_CHECKING:  # pragma: no cover
-    from app.models.tenant.initiative import Initiative, InitiativeRoleModel
+    from app.models.tenant.initiative import (
+        Initiative,
+        InitiativeMember,
+        InitiativeRoleModel,
+    )
 
 
 HEX_COLOR_PATTERN = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
 
 
-class InitiativeBase(SanitizedBaseModel):
+# Derived bases: one `{tool.plural}_enabled` master-switch field per
+# toggleable Tool. A new Tool member grows these schemas automatically (the
+# SQLModel column itself is still declared on the Initiative model — real DDL
+# stays explicit, pinned by its migration and the drift test).
+_InitiativeToolSwitches = create_model(
+    "_InitiativeToolSwitches",
+    __base__=SanitizedBaseModel,
+    **{t.view_permission: (bool, False) for t in TOGGLEABLE_TOOLS},
+)
+_InitiativeToolSwitchesPatch = create_model(
+    "_InitiativeToolSwitchesPatch",
+    __base__=SanitizedBaseModel,
+    **{t.view_permission: (Optional[bool], None) for t in TOGGLEABLE_TOOLS},
+)
+
+
+class InitiativeBase(_InitiativeToolSwitches):
     name: str
     description: Optional[RichTextStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
-    queues_enabled: bool = False
-    events_enabled: bool = False
-    advanced_tool_enabled: bool = False
-    counters_enabled: bool = False
 
 
 class InitiativeCreate(InitiativeBase):
     pass
 
 
-class InitiativeUpdate(SanitizedBaseModel):
+class InitiativeUpdate(_InitiativeToolSwitchesPatch):
     name: Optional[str] = None
     description: Optional[RichTextStr] = None
     color: Optional[str] = Field(default=None, pattern=HEX_COLOR_PATTERN)
-    queues_enabled: Optional[bool] = None
-    events_enabled: Optional[bool] = None
-    advanced_tool_enabled: Optional[bool] = None
-    counters_enabled: Optional[bool] = None
     is_archived: Optional[bool] = None
 
 
 # Role schemas
-class InitiativeRolePermissionRead(SanitizedBaseModel):
-    """Permission entry for a role."""
-
-    model_config = ConfigDict(
-        from_attributes=True, json_schema_serialization_defaults_required=True
-    )
-
-    permission_key: PermissionKey
-    enabled: bool
-
-
 class InitiativeRoleRead(SanitizedBaseModel):
     """Role definition with permissions."""
 
@@ -131,17 +133,10 @@ class MyInitiativePermissions(SanitizedBaseModel):
     # Flat initiative-level master switch for the optional embedded
     # advanced tool. Mirrored here so the proprietary embed backend can
     # gate access in a single permissions call.
-    advanced_tool_enabled: bool = False
+    advanced_tools_enabled: bool = False
 
 
 # Member schemas - updated to work with role_id
-class InitiativeMemberBase(SanitizedBaseModel):
-    user_id: int
-    role_id: Optional[int] = None
-    # Keep legacy role field for backward compatibility
-    role: InitiativeRole = InitiativeRole.member
-
-
 class InitiativeMemberAdd(SanitizedBaseModel):
     """Add a member to an initiative."""
 
@@ -155,7 +150,17 @@ class InitiativeMemberUpdate(SanitizedBaseModel):
     role_id: int
 
 
-class InitiativeMemberRead(SanitizedBaseModel):
+# Derived: one `can_view_{tool.plural}` / `can_create_{tool.plural}` pair per
+# Tool, for UI filtering. View defaults True only for core tools.
+_MemberToolFlags = create_model(
+    "_MemberToolFlags",
+    __base__=SanitizedBaseModel,
+    **{t.member_view_field: (bool, t in CORE_TOOLS) for t in Tool},
+    **{t.member_create_field: (bool, False) for t in Tool},
+)
+
+
+class InitiativeMemberRead(_MemberToolFlags):
     """Member info including their role."""
 
     model_config = ConfigDict(
@@ -171,19 +176,6 @@ class InitiativeMemberRead(SanitizedBaseModel):
     # Legacy field for backward compatibility
     role: InitiativeRole = InitiativeRole.member
     oidc_managed: bool = False
-    # Permission flags for UI filtering
-    can_view_docs: bool = True
-    can_view_projects: bool = True
-    can_view_queues: bool = False
-    can_view_events: bool = False
-    can_view_advanced_tool: bool = False
-    can_view_counters: bool = False
-    can_create_docs: bool = False
-    can_create_projects: bool = False
-    can_create_queues: bool = False
-    can_create_events: bool = False
-    can_create_advanced_tool: bool = False
-    can_create_counters: bool = False
 
 
 class InitiativeRead(InitiativeBase):
@@ -221,13 +213,42 @@ def serialize_role(
     )
 
 
+def member_tool_flags(
+    initiative: "Initiative", membership: "InitiativeMember"
+) -> dict[str, bool]:
+    """Effective per-tool view/create flags for one membership.
+
+    Derived per Tool from one rule instead of a hand-rolled branch per tool:
+    defaults (view core tools only) → manager gets everything → otherwise the
+    role's `{plural}_enabled` / `create_{plural}` permissions → the
+    initiative's master switch force-disables toggleable tools it turned off.
+    """
+    role_ref = getattr(membership, "role_ref", None)
+    is_manager = role_ref.is_manager if role_ref else False
+    flags = {
+        **{t.member_view_field: t in CORE_TOOLS for t in Tool},
+        **{t.member_create_field: False for t in Tool},
+    }
+    if is_manager:
+        flags = {name: True for name in flags}
+    elif role_ref:
+        # getattr to avoid lazy loading
+        role_permissions = getattr(role_ref, "permissions", None) or []
+        enabled_by_key = {p.permission_key: p.enabled for p in role_permissions}
+        for t in Tool:
+            view = enabled_by_key.get(PermissionKey(t.view_permission))
+            if view is not None:
+                flags[t.member_view_field] = view
+            if enabled_by_key.get(PermissionKey(t.create_permission)):
+                flags[t.member_create_field] = True
+    for t in TOGGLEABLE_TOOLS:
+        if not getattr(initiative, t.view_permission, False):
+            flags[t.member_view_field] = False
+            flags[t.member_create_field] = False
+    return flags
+
+
 def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
-    initiative_queues_enabled = getattr(initiative, "queues_enabled", False)
-    initiative_events_enabled = getattr(initiative, "events_enabled", False)
-    initiative_advanced_tool_enabled = getattr(
-        initiative, "advanced_tool_enabled", False
-    )
-    initiative_counters_enabled = getattr(initiative, "counters_enabled", False)
     members: List[InitiativeMemberRead] = []
     for membership in getattr(initiative, "memberships", []) or []:
         if membership.user is None:
@@ -235,95 +256,6 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         # Get role info from role_ref if available
         role_ref = getattr(membership, "role_ref", None)
         role_name = role_ref.name if role_ref else None
-        role_display_name = role_ref.display_name if role_ref else None
-        is_manager = role_ref.is_manager if role_ref else False
-
-        # Compute permissions from role
-        can_view_docs = True
-        can_view_projects = True
-        can_view_queues = False
-        can_view_events = False
-        can_view_advanced_tool = False
-        can_view_counters = False
-        can_create_docs = False
-        can_create_projects = False
-        can_create_queues = False
-        can_create_events = False
-        can_create_advanced_tool = False
-        can_create_counters = False
-        if is_manager:
-            # Managers have all permissions
-            can_create_docs = True
-            can_create_projects = True
-            can_view_queues = True
-            can_create_queues = True
-            can_view_events = True
-            can_create_events = True
-            can_view_advanced_tool = True
-            can_create_advanced_tool = True
-            can_view_counters = True
-            can_create_counters = True
-        elif role_ref:
-            # Check role permissions (use getattr to avoid lazy loading)
-            role_permissions = getattr(role_ref, "permissions", None) or []
-            for perm in role_permissions:
-                if perm.permission_key == PermissionKey.docs_enabled:
-                    can_view_docs = perm.enabled
-                elif perm.permission_key == PermissionKey.projects_enabled:
-                    can_view_projects = perm.enabled
-                elif perm.permission_key == PermissionKey.queues_enabled:
-                    can_view_queues = perm.enabled
-                elif perm.permission_key == PermissionKey.create_docs and perm.enabled:
-                    can_create_docs = True
-                elif (
-                    perm.permission_key == PermissionKey.create_projects
-                    and perm.enabled
-                ):
-                    can_create_projects = True
-                elif (
-                    perm.permission_key == PermissionKey.create_queues and perm.enabled
-                ):
-                    can_create_queues = True
-                elif perm.permission_key == PermissionKey.events_enabled:
-                    can_view_events = perm.enabled
-                elif (
-                    perm.permission_key == PermissionKey.create_events and perm.enabled
-                ):
-                    can_create_events = True
-                elif perm.permission_key == PermissionKey.advanced_tool_enabled:
-                    can_view_advanced_tool = perm.enabled
-                elif (
-                    perm.permission_key == PermissionKey.create_advanced_tool
-                    and perm.enabled
-                ):
-                    can_create_advanced_tool = True
-                elif perm.permission_key == PermissionKey.counters_enabled:
-                    can_view_counters = perm.enabled
-                elif (
-                    perm.permission_key == PermissionKey.create_counters
-                    and perm.enabled
-                ):
-                    can_create_counters = True
-
-        # Initiative-level master switch overrides role-level queue permissions
-        if not initiative_queues_enabled:
-            can_view_queues = False
-            can_create_queues = False
-
-        # Initiative-level master switch overrides role-level event permissions
-        if not initiative_events_enabled:
-            can_view_events = False
-            can_create_events = False
-
-        # Initiative-level master switch overrides role-level advanced tool perms
-        if not initiative_advanced_tool_enabled:
-            can_view_advanced_tool = False
-            can_create_advanced_tool = False
-
-        # Initiative-level master switch overrides role-level counter perms
-        if not initiative_counters_enabled:
-            can_view_counters = False
-            can_create_counters = False
 
         # Determine legacy role for backward compatibility
         legacy_role = (
@@ -337,23 +269,12 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
                 user=UserPublic.model_validate(membership.user),
                 role_id=membership.role_id,
                 role_name=role_name,
-                role_display_name=role_display_name,
-                is_manager=is_manager,
+                role_display_name=role_ref.display_name if role_ref else None,
+                is_manager=role_ref.is_manager if role_ref else False,
                 joined_at=membership.joined_at,
                 role=legacy_role,
                 oidc_managed=membership.oidc_managed,
-                can_view_docs=can_view_docs,
-                can_view_projects=can_view_projects,
-                can_view_queues=can_view_queues,
-                can_view_events=can_view_events,
-                can_view_advanced_tool=can_view_advanced_tool,
-                can_view_counters=can_view_counters,
-                can_create_docs=can_create_docs,
-                can_create_projects=can_create_projects,
-                can_create_queues=can_create_queues,
-                can_create_events=can_create_events,
-                can_create_advanced_tool=can_create_advanced_tool,
-                can_create_counters=can_create_counters,
+                **member_tool_flags(initiative, membership),
             )
         )
     return InitiativeRead(
@@ -364,11 +285,11 @@ def serialize_initiative(initiative: "Initiative") -> InitiativeRead:
         color=initiative.color,
         is_default=initiative.is_default,
         is_archived=getattr(initiative, "is_archived", False),
-        queues_enabled=initiative_queues_enabled,
-        events_enabled=initiative_events_enabled,
-        advanced_tool_enabled=initiative_advanced_tool_enabled,
-        counters_enabled=initiative_counters_enabled,
         created_at=initiative.created_at,
         updated_at=initiative.updated_at,
         members=members,
+        **{
+            t.view_permission: getattr(initiative, t.view_permission, False)
+            for t in TOGGLEABLE_TOOLS
+        },
     )

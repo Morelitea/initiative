@@ -22,7 +22,7 @@ import { useGuildPath } from "@/lib/guildUrl";
  *      `advanced_tool` block (otherwise the route renders an empty state).
  *   2. Backend handoff already verifies: AUTOMATIONS_URL configured,
  *      initiative exists in active guild, user is guild admin or initiative
- *      member, advanced_tool_enabled=true.
+ *      member, advanced_tools_enabled=true.
  *   3. The handoff token is delivered to the iframe via postMessage *only*
  *      to the iframe's expected origin. We never put it in the URL.
  *   4. Inbound postMessage handlers verify event.origin against the same
@@ -241,7 +241,7 @@ export const AdvancedToolPage = () => {
     );
   }
 
-  if (!initiative.advanced_tool_enabled) {
+  if (!initiative.advanced_tools_enabled) {
     return (
       <Card>
         <CardHeader>

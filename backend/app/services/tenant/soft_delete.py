@@ -13,9 +13,10 @@ resubmits with ``new_owner_id=N`` which the service re-validates and applies
 before completing the restore.
 
 Hard-purge is admin-only at the DB layer on EVERY soft-delete table: the
-``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE policy (generated into
-``guild_rls.sql`` from the SoftDeleteMixin subclasses) admits only a routed guild
-admin, so a non-admin DELETE is refused by Postgres, not just by app code. The two
+``soft_delete_admin_purge`` RESTRICTIVE FOR DELETE policy (rendered by
+``app.db.guild_ddl`` from the SoftDeleteMixin subclasses) admits only a routed
+guild admin, so a non-admin DELETE is refused by Postgres, not just by app code.
+The two
 guild-level soft-delete tables (initiatives, tags) have RLS enabled solely to host
 that guard — not a membership gate (initiative is the gate; guilds gate at the
 schema). For Documents (and Initiatives whose cascade includes Documents), upload
@@ -32,6 +33,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.soft_delete_filter import select_including_deleted
 from app.models.tenant._mixins import SoftDeleteMixin
+from app.models.tenant.advanced_tool import AdvancedTool
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.document import Document
@@ -309,7 +311,7 @@ async def hard_purge_entity(
 
     The caller's ``session`` must be able to clear the RESTRICTIVE FOR DELETE
     policies on these tables — either a routed **guild-admin** RLS session (the
-    interactive purge endpoint) or a BYPASSRLS ``app_admin`` session (the
+    interactive purge endpoint) or a guild-admin-routed ``app_admin`` session (the
     background auto-purge worker, which has no guild context). The caller is also
     responsible for locking the target against a concurrent restore and for
     committing.
@@ -321,7 +323,9 @@ async def hard_purge_entity(
     disk and ``Upload`` rows pinned only by the doomed documents are also
     removed.
     """
-    from app.services.attachments import purge_document_uploads
+    from app.services.tenant.advanced_tool_notify import queue_purged_advanced_tool
+    from app.services.tenant.documents import unresolve_wikilinks_to_document
+    from app.services.tenant.attachments import purge_document_uploads
 
     descendants = await _gather_descendants(session, entity)
     all_doomed: list[SoftDeleteMixin] = [entity, *descendants]
@@ -329,6 +333,32 @@ async def hard_purge_entity(
     doomed_documents = [d for d in all_doomed if isinstance(d, Document)]
     if doomed_documents:
         await purge_document_uploads(session, doomed_documents)
+        # Wikilinks in surviving documents that point at a doomed one must be
+        # unresolved (documentId → null) before the row disappears, or they'd
+        # dangle forever. Runs before the DELETEs — the document_links rows
+        # are still present to find the linking documents.
+        for doc in doomed_documents:
+            await unresolve_wikilinks_to_document(session, deleted_document_id=doc.id)
+
+    # A hard purge must also delete the advanced tool's scheduling mirror on
+    # the external backend (soft delete/archive need no push — the mirror sees
+    # our 404 on sync). Queue the pairs now, notify AFTER the caller commits.
+    # Initiative purges need explicit enumeration: advanced_tools hangs off
+    # the DB-level ON DELETE CASCADE, not the CASCADE_CHILDREN walk, so the
+    # doomed rows never appear in ``all_doomed``.
+    doomed_tools: list[AdvancedTool] = [
+        d for d in all_doomed if isinstance(d, AdvancedTool)
+    ]
+    doomed_initiatives = [d for d in all_doomed if isinstance(d, Initiative)]
+    for initiative in doomed_initiatives:
+        cascade_stmt = select_including_deleted(AdvancedTool).where(
+            AdvancedTool.initiative_id == initiative.id
+        )
+        doomed_tools.extend((await session.exec(cascade_stmt)).all())
+    for tool in doomed_tools:
+        queue_purged_advanced_tool(
+            session, guild_id=tool.guild_id, advanced_tool_id=tool.id
+        )
 
     # Reverse so we delete leaves before parents — needed because most FKs
     # in this codebase don't use DB-level ON DELETE CASCADE.

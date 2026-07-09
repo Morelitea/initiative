@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class CalendarEvent(SoftDeleteMixin, table=True):
     """Initiative-scoped calendar event (Google Calendar-like).
 
-    Access today: initiative members (events_enabled) read, the create_events role
+    Access today: initiative members (calendar_events_enabled) read, the create_calendar_events role
     permission writes. Per-event DAC arrives with the resource_grants repoint.
     """
 

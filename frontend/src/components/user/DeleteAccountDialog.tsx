@@ -28,6 +28,7 @@ import { useMyDeletionEligibility } from "@/hooks/useAdmin";
 import { useDeleteOwnAccount } from "@/hooks/useUsers";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogWithSuccessProps } from "@/types/dialog";
 
 /**
@@ -415,7 +416,7 @@ export function DeleteAccountDialog({
                     <SelectContent>
                       {initiativeMembers[project.initiative_id]?.map((member) => (
                         <SelectItem key={member.id} value={member.id.toString()}>
-                          {member.full_name || member.email}
+                          {getUserDisplayName(member)}
                         </SelectItem>
                       ))}
                     </SelectContent>

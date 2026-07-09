@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useGuildPath } from "@/lib/guildUrl";
 import { getInitials } from "@/lib/initials";
 import { resolveUploadUrl } from "@/lib/uploadUrl";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 interface RecentCommentsListProps {
   comments: RecentActivityEntry[];
@@ -86,7 +87,7 @@ export function RecentCommentsList({ comments, isLoading }: RecentCommentsListPr
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="truncate font-medium text-sm">
-                        {entry.author?.full_name ?? entry.author?.email ?? "Unknown"}
+                        {getUserDisplayName(entry.author, "Unknown")}
                       </span>
                       <span className="shrink-0 text-muted-foreground text-xs">
                         {formatDistanceToNow(parseISO(entry.created_at), { addSuffix: true })}

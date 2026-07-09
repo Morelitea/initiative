@@ -115,6 +115,7 @@ import { InitiativeColorDot } from "@/lib/initiativeColors";
 import { findNewMentions } from "@/lib/mentionUtils";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 import { resolveHeaderlessApiUrl, resolveUploadUrl } from "@/lib/uploadUrl";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 export const DocumentDetailPage = () => {
@@ -176,7 +177,7 @@ export const DocumentDetailPage = () => {
   // change every parent render and broadcast spurious presence
   // updates.
   const spreadsheetCurrentUser = useMemo(
-    () => (user ? { id: user.id, name: user.full_name || user.email || "Anonymous" } : null),
+    () => (user ? { id: user.id, name: getUserDisplayName(user, "Anonymous") } : null),
     [user]
   );
   const [autosaveEnabled, setAutosaveEnabled] = useState(true);
@@ -415,13 +416,13 @@ export const DocumentDetailPage = () => {
     if (!document?.initiative || !user) {
       return false;
     }
-    // Check if user has create_docs permission via their role
+    // Check if user has create_documents permission via their role
     const membership = document.initiative.members?.find((m) => m.user?.id === user.id);
     if (!membership) {
       return false;
     }
-    // can_create_docs is populated from the initiative membership role
-    return membership.can_create_docs ?? false;
+    // can_create_documents is populated from the initiative membership role
+    return membership.can_create_documents ?? false;
   }, [document?.initiative, user]);
 
   // Wikilink navigation handler
@@ -1399,9 +1400,7 @@ export const DocumentDetailPage = () => {
                       collaborationEnabled && collaboration.isReady ? whiteboardAwareness : null
                     }
                     currentUser={
-                      user
-                        ? { id: user.id, name: user.full_name || user.email || "Anonymous" }
-                        : null
+                      user ? { id: user.id, name: getUserDisplayName(user, "Anonymous") } : null
                     }
                     className={cn(isFullscreen && "h-full min-h-0 flex-1")}
                   />

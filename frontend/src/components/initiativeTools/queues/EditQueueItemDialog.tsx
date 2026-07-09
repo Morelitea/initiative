@@ -33,6 +33,7 @@ import {
 import { useTasks } from "@/hooks/useTasks";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import type { DialogProps } from "@/types/dialog";
 
 type EditQueueItemDialogProps = DialogProps & {
@@ -91,7 +92,7 @@ export const EditQueueItemDialog = ({
     () =>
       (membersQuery.data ?? []).map((member) => ({
         value: String(member.id),
-        label: member.full_name || member.email,
+        label: getUserDisplayName(member),
       })),
     [membersQuery.data]
   );

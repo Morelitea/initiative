@@ -16,10 +16,12 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
+from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_upload_user
 from app.api.v1.api import api_router
+from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.version import __version__
@@ -62,17 +64,22 @@ async def lifespan(app: FastAPI):
     install_soft_delete_filter()
     await check_pre_baseline_db()
     await run_migrations()
-    # Move any pre-cutover guild data from public into per-guild schemas. Idempotent
-    # — a no-op once converted — so packaged deploys convert themselves on boot.
-    from app.db.guild_conversion import convert_public_to_guild_schemas
-
-    await convert_public_to_guild_schemas()
     # Re-run the idempotent per-guild provisioning for every guild so any
-    # table/column/index/grant added to guild_schema.sql since a guild was
+    # table/column/index/grant the live guild_template gained since a guild was
     # provisioned is back-filled, and any guild left without a schema (e.g. a
-    # crash mid-provision) is healed. One broken guild is logged and skipped.
-    from app.db.schema_provisioning import backfill_guild_schemas
+    # crash mid-provision) is healed. One broken guild is logged and skipped;
+    # guilds stamped with the current artifact version are skipped entirely.
+    from app.db.schema_provisioning import (
+        backfill_guild_schemas,
+        ensure_system_engine_bypassrls,
+        warn_if_privileged_database_url,
+    )
 
+    # Before anything touches the system engine: a policy-bound admin login
+    # (restored database, hand-created role) reads shared tables as empty and
+    # the seeding below would die with an opaque RLS violation (issue #835).
+    await ensure_system_engine_bypassrls()
+    await warn_if_privileged_database_url()
     backfill = await backfill_guild_schemas()
     if backfill.failed:
         # WARNING so partial failure survives INFO-filtered logs (per-guild
@@ -86,8 +93,9 @@ async def lifespan(app: FastAPI):
         )
     else:
         logger.info(
-            "guild schema back-fill: %d provisioned (of %d)",
+            "guild schema back-fill: %d provisioned, %d up-to-date (of %d)",
             backfill.provisioned,
+            backfill.skipped,
             backfill.total,
         )
     # Relocate any legacy flat local uploads into per-guild dirs (guild_<id>/),
@@ -110,6 +118,22 @@ async def lifespan(app: FastAPI):
         from app.services import storage_config
 
         await storage_config.refresh_storage_config(session)
+    # Migrate the single platform OIDC config into the provider registry +
+    # identity links (operator-global; idempotent, self-healing). Runs after
+    # ensure_defaults so the settings singleton exists. Additive — the legacy
+    # app_settings.oidc_* / users.oidc_sub stay as the fallback path.
+    from app.services.auth.oidc_backfill import backfill_oidc_identity
+
+    oidc = await backfill_oidc_identity()
+    if oidc.provider_created or oidc.identities_linked or oidc.secret_migrated:
+        logger.info(
+            "OIDC identity back-fill: provider %s, %d identities linked (of %d), "
+            "secret %s",
+            "created" if oidc.provider_created else "existing",
+            oidc.identities_linked,
+            oidc.oidc_users,
+            "migrated" if oidc.secret_migrated else "unchanged",
+        )
     app.state.notification_tasks = background_tasks_service.start_background_tasks()
 
     try:
@@ -191,6 +215,55 @@ async def validation_exception_handler(
     )
 
 
+_INSUFFICIENT_PRIVILEGE_SQLSTATE = "42501"
+
+
+def _dbapi_sqlstate(exc: DBAPIError) -> str | None:
+    """Best-effort SQLSTATE off a wrapped DBAPI error (asyncpg adapter nests
+    the real exception one level down as ``orig.__cause__``)."""
+    orig = getattr(exc, "orig", None)
+    for candidate in (orig, getattr(orig, "__cause__", None)):
+        code = getattr(candidate, "sqlstate", None) or getattr(
+            candidate, "pgcode", None
+        )
+        if code:
+            return code
+    return None
+
+
+@app.exception_handler(DBAPIError)
+async def insufficient_privilege_handler(
+    request: Request, exc: DBAPIError
+) -> JSONResponse:
+    """Map Postgres ``insufficient_privilege`` (42501) to a generic 403.
+
+    Denials enforced at the role layer — e.g. a write attempted while routed
+    into the SELECT-only ``guild_<id>_ro`` role (PAM read grants, guilds in
+    ``read_only`` status) — surface as asyncpg errors, not app-layer checks.
+    They ARE authorization denials, so answer 403 with the same generic code
+    the resolver uses; deliberately no status-specific detail (a member of a
+    read-only-suspended guild learns nothing about why). Everything else
+    re-raises to the default 500 path.
+
+    Always logged server-side: 42501 is expected only on the read-only-role
+    write paths, so any other occurrence (a missing SET ROLE, a revoked table
+    grant, a misconfigured login role) must be findable in the logs — the
+    client body is deliberately too generic to debug from.
+    """
+    if _dbapi_sqlstate(exc) == _INSUFFICIENT_PRIVILEGE_SQLSTATE:
+        logger.warning(
+            "insufficient_privilege mapped to 403: %s %s orig=%s",
+            request.method,
+            request.url.path,
+            getattr(exc, "orig", exc),
+        )
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": GuildMessages.GUILD_ACCESS_DENIED},
+        )
+    raise exc
+
+
 # Computed once — Settings are fixed for the process lifetime (pentest MED-001).
 _CONTENT_SECURITY_POLICY = settings.content_security_policy
 
@@ -261,6 +334,7 @@ async def serve_upload_file(
     # is never read.
     from app.db.session import set_rls_context
     from app.db.schema_provisioning import guild_schema_name
+    from app.models.platform.guild import GuildStatus
     from app.services.platform import access_grants as access_grants_service
     from app.services.platform import guilds as guilds_service
 
@@ -272,6 +346,14 @@ async def serve_upload_file(
             session, user_id=current_user.id, guild_id=guild_id
         )
         if grant is None:
+            raise HTTPException(status_code=404)
+    else:
+        # A suspended guild is unreadable to its members (mirrors the resolver
+        # gate in deps._load_guild_context; this route resolves access inline).
+        # The grant branch above deliberately skips the status — PAM overrides
+        # suspension. read_only needs nothing here: serving a file is a read.
+        guild = await guilds_service.get_guild(session, guild_id=guild_id)
+        if guild.status == GuildStatus.suspended.value:
             raise HTTPException(status_code=404)
 
     # The admin login role has NO table grants on a guild schema, so SET ROLE
@@ -288,7 +370,7 @@ async def serve_upload_file(
     ).first()
     if exists is None:
         raise HTTPException(status_code=404)
-    await set_rls_context(session, guild_id=int(guild_id), is_superadmin=True)
+    await set_rls_context(session, guild_id=int(guild_id))
     hit = (
         await session.exec(
             text("SELECT 1 FROM uploads WHERE filename = :fn LIMIT 1"),
@@ -425,7 +507,7 @@ def custom_openapi() -> dict:
 # without the ``_inject_query_schemas`` upgrades, which then leaks into the frontend
 # type generation (conditions/sorting collapse back to ``string``). The SPA catch-all
 # registered later is ``include_in_schema=False``, so the spec is already complete here.
-app.openapi = custom_openapi
+app.openapi = custom_openapi  # ty: ignore[invalid-assignment]
 
 if settings.ENABLE_MCP:
     # Build the route-backed MCP server from the fully-routed app and mount it at

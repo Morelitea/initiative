@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { CalendarDays, Loader2, Plus, Table2 } from "lucide-react";
+import { CalendarDays, Loader2, Table2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,7 +14,6 @@ import {
 } from "@/components/calendar";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { buildPropertyColumns, propertyColumnIds } from "@/components/properties/propertyColumns";
-import { getOpenCreateTaskWizard } from "@/components/tasks/CreateTaskWizard";
 import { GlobalTaskFilters } from "@/components/tasks/GlobalTaskFilters";
 import { globalTaskColumns } from "@/components/tasks/globalTaskColumns";
 import { Button } from "@/components/ui/button";
@@ -137,10 +136,6 @@ export const MyTasksPage = () => {
             <p className="text-muted-foreground">{t("myTasks.subtitle")}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => getOpenCreateTaskWizard()?.()}>
-              <Plus className="mr-1 h-4 w-4" />
-              {t("myTasks.addTask")}
-            </Button>
             <div className="flex items-center gap-1 rounded-lg border p-1">
               <Button
                 variant={viewMode === "table" ? "default" : "ghost"}

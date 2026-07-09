@@ -28,6 +28,8 @@ from app.api.deps import (
     get_current_active_user,
     get_guild_membership,
 )
+from app.core.tools import Tool
+from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.counter import CounterGroup
 from app.models.tenant.document import Document
 from app.models.platform.guild import GuildMembership, GuildRole
@@ -125,6 +127,21 @@ async def _enrich_recent_rows(
         )
         result = await session.exec(stmt)
         counter_group_map = {g.id: g for g in result.all()}
+
+    event_map: Dict[int, CalendarEvent] = {}
+    if event_ids := ids_by_type.get("calendar_event"):
+        stmt = (
+            select(CalendarEvent)
+            .where(CalendarEvent.id.in_(event_ids))
+            .options(
+                selectinload(CalendarEvent.grants).selectinload(ResourceGrant.role),
+                selectinload(CalendarEvent.initiative).selectinload(
+                    Initiative.memberships
+                ),
+            )
+        )
+        result = await session.exec(stmt)
+        event_map = {e.id: e for e in result.all()}
 
     guild_role = GuildRole.admin if is_guild_admin else None
 
@@ -225,6 +242,31 @@ async def _enrich_recent_rows(
                     entity_id=group.id,
                     guild_id=group.guild_id,
                     name=group.name,
+                    last_viewed_at=row.last_viewed_at,
+                )
+            )
+        elif row.entity_type == "calendar_event":
+            event = event_map.get(row.entity_id)
+            if event is None:
+                continue
+            if not is_guild_admin:
+                try:
+                    permissions_service.require_access(
+                        permissions_service.DAC_RESOURCES[Tool.calendar_event],
+                        event,
+                        current_user,
+                        access="read",
+                    )
+                except HTTPException:
+                    # Permission denied — drop the row but let unexpected
+                    # errors bubble up.
+                    continue
+            items.append(
+                RecentItemRead.model_construct(
+                    entity_type="calendar_event",
+                    entity_id=event.id,
+                    guild_id=event.guild_id,
+                    name=event.title,
                     last_viewed_at=row.last_viewed_at,
                 )
             )

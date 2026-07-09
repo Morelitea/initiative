@@ -7,7 +7,7 @@ from pydantic import ConfigDict, EmailStr, Field
 
 from app.schemas.base import RawTextStr, RichTextStr, SanitizedBaseModel
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildRole, GuildStatus
 from app.schemas.platform.user import GuildRemovalProjectInfo
 
 
@@ -33,7 +33,18 @@ class GuildRead(GuildBase):
     updated_at: datetime
     retention_days: Optional[int] = None
     max_storage_bytes: Optional[int] = None
+    max_users: Optional[int] = None
     member_count: int = 0
+    # Display/audit label of the paid tier (NULL = none / self-hosted). Shown by
+    # the plan panel only when a billing portal is configured; it is DISPLAY
+    # metadata and is never read in an enforcement path (billing_foss_test
+    # scans for that). Enforcement reads max_storage_bytes / max_users / status.
+    tier_name: Optional[str] = None
+    # Lifecycle status, surfaced to guild ADMINS only (so their settings page can
+    # show a "contact your operator" chip). ``None`` for non-admin members — the
+    # moderation hold is never disclosed to them (suspended guilds are also
+    # filtered from their guild list entirely).
+    status: Optional[GuildStatus] = None
 
 
 class GuildInviteCreate(SanitizedBaseModel):
@@ -106,17 +117,27 @@ class PlatformGuildStorageRead(SanitizedBaseModel):
     member_count: int = 0
     # Max total stored blob bytes for this guild. None means "unlimited".
     max_storage_bytes: Optional[int] = None
+    # Max number of members for this guild. None means "unlimited".
+    max_users: Optional[int] = None
+    # Operator-set lifecycle status (active / read_only / suspended). Surfaced
+    # only to platform operators here — never to guild members (GuildRead omits it).
+    status: GuildStatus = GuildStatus.active
+    status_changed_at: Optional[datetime] = None
 
 
 class PlatformGuildStorageUpdate(SanitizedBaseModel):
-    """Set a guild's storage cap from the platform Guilds tab.
+    """Set a guild's storage caps and/or lifecycle status from the Guilds tab.
 
-    Single-field body, so (unlike :class:`GuildUpdate`'s omit-to-skip sentinel)
-    the value always represents the new state: send a byte count to cap the
-    guild, or ``null`` to switch it back to unlimited.
+    The cap fields use omit-to-skip sentinel semantics (the endpoint inspects
+    ``model_fields_set``): omit a field to leave it untouched, send ``null`` to
+    reset that cap to unlimited, or send a number to set it. ``status`` is
+    omit-to-skip too (a lifecycle status is never null), validated against
+    :class:`GuildStatus`. A PATCH may carry any subset.
     """
 
     max_storage_bytes: Optional[int] = Field(default=None, ge=0)
+    max_users: Optional[int] = Field(default=None, ge=1)
+    status: Optional[GuildStatus] = None
 
 
 class GuildDeletionRequest(SanitizedBaseModel):

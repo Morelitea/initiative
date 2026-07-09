@@ -14,7 +14,6 @@ from app.api.deps import (
     get_guild_membership,
 )
 from app.core.messages import TagMessages
-from app.db.session import reapply_rls_context
 from app.models.tenant.tag import Tag, TaskTag, ProjectTag, DocumentTag
 from app.models.tenant.task import Task
 from app.models.tenant.project import Project
@@ -104,7 +103,6 @@ async def create_tag(
     )
     session.add(tag)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(tag)
     return tag
 
@@ -147,7 +145,6 @@ async def update_tag(
     tag.updated_at = datetime.now(timezone.utc)
     session.add(tag)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(tag)
     return tag
 

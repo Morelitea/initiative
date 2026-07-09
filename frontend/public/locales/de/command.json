@@ -9,7 +9,9 @@
     "tasks": "Aufgaben",
     "documents": "Dokumente",
     "queues": "Abläufe (Queues)",
-    "counterGroups": "Zähler"
+    "counterGroups": "Zähler",
+    "calendarEvents": "Kalenderereignisse",
+    "advancedTools": "Erweiterte Tools"
   },
   "actions": {
     "addTask": "Aufgabe hinzufügen",

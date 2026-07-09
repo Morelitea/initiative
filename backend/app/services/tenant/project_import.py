@@ -23,11 +23,10 @@ from datetime import date, datetime
 from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
 from app.core.messages import ProjectExportMessages
-from app.db.session import reapply_rls_context
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
@@ -141,7 +140,7 @@ async def import_project(
         )
         session.add(status_row)
         await session.flush()
-        status_name_to_id[s.name] = status_row.id
+        status_name_to_id[s.name] = status_row.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         if s.is_default and default_status_id is None:
             default_status_id = status_row.id
     if default_status_id is None:
@@ -186,7 +185,7 @@ async def import_project(
             and match_existing.type == pd.type
             and _options_compatible(pd.type, match_existing.options, pd.options)
         ):
-            prop_key_to_id[(pd.name, pd.type)] = match_existing.id
+            prop_key_to_id[(pd.name, pd.type)] = match_existing.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             property_match_count += 1
             continue
         # Name collision with a different type *or* an incompatible
@@ -211,7 +210,7 @@ async def import_project(
         )
         session.add(new_def)
         await session.flush()
-        prop_key_to_id[(pd.name, pd.type)] = new_def.id
+        prop_key_to_id[(pd.name, pd.type)] = new_def.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         # Track for subsequent collision-renames within this import
         existing_props[target_name] = new_def
         property_create_count += 1
@@ -236,7 +235,6 @@ async def import_project(
         assignee_match_count += matched
 
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(project)
 
     return ProjectImportResult(
@@ -366,7 +364,7 @@ async def _load_initiative_member_emails(
         .where(InitiativeMember.initiative_id == initiative_id)
     )
     users = (await session.exec(stmt)).all()
-    return {user.email: user.id for user in users if user.email}
+    return {user.email: user.id for user in users if user.email}  # ty: ignore[invalid-return-type] — persisted rows, ids are set
 
 
 async def _load_initiative_properties(

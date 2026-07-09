@@ -237,11 +237,13 @@ async def test_restore_rejects_invalid_new_owner(session: AsyncSession):
 async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
     session: AsyncSession,
 ):
-    """The migration creates a RESTRICTIVE FOR DELETE policy on every
-    soft-delete-capable table that admits only sessions where
-    ``app.current_guild_role`` is ``admin`` (or superadmin). The test
-    fixture connects via the BYPASSRLS admin role so it can't exercise
-    the policy at runtime — verify by inspecting pg_policies instead."""
+    """Every soft-delete-capable table carries a RESTRICTIVE FOR DELETE policy
+    (``soft_delete_admin_purge``) that admits only a routed guild admin
+    (``app.current_guild_role = 'admin'``); a hard delete is a purge. Post-squash
+    these tables (and thus their policies) live in the per-guild schemas, not
+    ``public`` — the canonical copy is the Alembic-maintained ``guild_template``
+    schema (created by migration 20260701_0126). The admin fixture can't
+    exercise the policy at runtime, so we inspect ``pg_policies`` in the template."""
     expected = {
         "projects",
         "tasks",
@@ -257,7 +259,8 @@ async def test_restrictive_delete_policy_exists_on_each_soft_delete_table(
         text(
             "SELECT tablename, policyname, cmd, permissive "
             "FROM pg_policies "
-            "WHERE policyname LIKE '%_delete_admin_only'"
+            "WHERE schemaname = 'guild_template' "
+            "AND policyname = 'soft_delete_admin_purge'"
         )
     )
     rows = result.all()
@@ -331,7 +334,7 @@ async def test_purge_document_uploads_escapes_like_wildcards(session: AsyncSessi
     into the pattern without escaping, leaking blobs on disk."""
     from sqlmodel import select
 
-    from app.services.attachments import purge_document_uploads
+    from app.services.tenant.attachments import purge_document_uploads
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -404,7 +407,7 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     from app.models.platform.guild import GuildRole
     from app.testing.factories import (
         create_guild_membership,
-        get_guild_headers,
+        get_auth_headers,
     )
 
     user = await create_user(session)
@@ -440,8 +443,9 @@ async def test_trash_listing_dedupes_nested_comment_replies(
     )
     await session.commit()
 
-    # Hit the listing endpoint and confirm only the parent appears.
-    headers = await get_guild_headers(session, guild, user)
+    # Hit the listing endpoint and confirm only the parent appears. Guild context
+    # is path-based now (/g/{guild_id}); the headers just carry auth.
+    headers = get_auth_headers(user)
     response = await client.get(f"/api/v1/g/{guild.id}/trash/", headers=headers)
     assert response.status_code == 200, response.text
     body = response.json()
@@ -457,7 +461,7 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
     from sqlmodel import select
 
     from app.models.tenant.document import DocumentFileVersion
-    from app.services.attachments import purge_document_uploads
+    from app.services.tenant.attachments import purge_document_uploads
 
     user = await create_user(session)
     guild = await create_guild(session, creator=user)
@@ -526,3 +530,135 @@ async def test_purge_document_uploads_removes_all_version_blobs(session: AsyncSe
         )
     ).all()
     assert remaining == []
+
+
+# ---------------------------------------------------------------------------
+# Wikilink unresolution at hard purge
+# ---------------------------------------------------------------------------
+
+
+def _wikilink_content(target_document_id: int) -> dict:
+    return {
+        "root": {
+            "type": "root",
+            "children": [
+                {
+                    "type": "paragraph",
+                    "children": [
+                        {
+                            "type": "wikilink",
+                            "documentId": target_document_id,
+                            "children": [],
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+
+
+async def test_hard_purge_unresolves_wikilinks_in_linking_documents(
+    session: AsyncSession,
+):
+    """Purging a document rewrites wikilinks pointing at it in surviving
+    documents (documentId -> null, yjs_state cleared) and removes the
+    document_links rows, so nothing dangles after the row is gone."""
+    from sqlmodel import select
+
+    from app.models.tenant.document import DocumentLink
+    from app.services.tenant.soft_delete import hard_purge_entity
+    from app.testing.factories import create_document
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    target = await create_document(session, initiative, user, title="Target")
+    linking = await create_document(
+        session,
+        initiative,
+        user,
+        title="Linking",
+        content=_wikilink_content(target.id),
+        yjs_state=b"stale-collab-state",
+    )
+    session.add(
+        DocumentLink(
+            source_document_id=linking.id,
+            target_document_id=target.id,
+            guild_id=guild.id,
+        )
+    )
+    await session.commit()
+
+    await soft_delete_entity(
+        session, target, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    await hard_purge_entity(session, target)
+    await session.commit()
+
+    refreshed = (
+        await session.exec(select(Document).where(Document.id == linking.id))
+    ).one()
+    wikilink_node = refreshed.content["root"]["children"][0]["children"][0]
+    assert wikilink_node["type"] == "wikilink"
+    assert wikilink_node["documentId"] is None
+    assert refreshed.yjs_state is None
+
+    links = (
+        await session.exec(
+            select(DocumentLink).where(DocumentLink.target_document_id == target.id)
+        )
+    ).all()
+    assert links == []
+
+
+async def test_hard_purge_unresolves_wikilinks_in_trashed_linking_documents(
+    session: AsyncSession,
+):
+    """A linking document sitting in the trash gets its wikilinks unresolved
+    too — restoring it after the purge must not bring back a dangling link."""
+    from app.models.tenant.document import DocumentLink
+    from app.services.tenant.soft_delete import hard_purge_entity
+    from app.testing.factories import create_document
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+    target = await create_document(session, initiative, user, title="Target")
+    linking = await create_document(
+        session,
+        initiative,
+        user,
+        title="Trashed Linking",
+        content=_wikilink_content(target.id),
+    )
+    session.add(
+        DocumentLink(
+            source_document_id=linking.id,
+            target_document_id=target.id,
+            guild_id=guild.id,
+        )
+    )
+    await session.commit()
+
+    # Both documents go to the trash; only the target is purged.
+    await soft_delete_entity(
+        session, linking, deleted_by_user_id=user.id, retention_days=30
+    )
+    await soft_delete_entity(
+        session, target, deleted_by_user_id=user.id, retention_days=30
+    )
+    await session.commit()
+
+    await hard_purge_entity(session, target)
+    await session.commit()
+
+    refreshed = (
+        await session.exec(
+            select_including_deleted(Document).where(Document.id == linking.id)
+        )
+    ).one()
+    wikilink_node = refreshed.content["root"]["children"][0]["children"][0]
+    assert wikilink_node["documentId"] is None

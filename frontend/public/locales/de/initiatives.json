@@ -58,7 +58,7 @@
   },
   "detail": {
     "loadingInitiative": "Initiative wird geladen...",
-    "backToInitiatives": "\u2190 Zurück zu 'Meine Initiativen'",
+    "backToInitiatives": "← Zurück zu 'Meine Initiativen'",
     "notFound": "Initiative nicht gefunden",
     "notFoundDescription": "Die gesuchte Initiative existiert nicht oder du hast keinen Zugriff mehr darauf.",
     "noAccess": "Du hast auf keine Funktionen in dieser Initiative Zugriff. Wende dich an einen Initiative-Manager, um Hilfe zu erhalten.",
@@ -70,8 +70,9 @@
     "documents": "Dokumente",
     "projects": "Projekte",
     "queues": "Abläufe (Queues)",
-    "calendar": "Kalender",
-    "counters": "Zähler"
+    "calendarEvents": "Kalender",
+    "counterGroups": "Zähler",
+    "advancedTools": "Erweiterte Tools"
   },
   "settings": {
     "title": "Initiative-Einstellungen",
@@ -180,9 +181,9 @@
       "documents": "Dokumente",
       "projects": "Projekte",
       "queues": "Abläufe (Queues)",
-      "events": "Termine",
-      "advancedTool": "Erweitertes Tool",
-      "counters": "Zähler"
+      "calendarEvents": "Termine",
+      "counterGroups": "Zähler",
+      "advancedTools": "Erweitertes Tool"
     },
     "permissions": {
       "viewDocuments": "Dokumente anzeigen",
@@ -191,23 +192,23 @@
       "createProjects": "Projekte erstellen",
       "viewQueues": "Abläufe (Queues) anzeigen",
       "createQueues": "Abläufe (Queues) erstellen",
-      "viewEvents": "Termine anzeigen",
-      "createEvents": "Termine erstellen",
-      "viewAdvancedTool": "Erweitertes Tool öffnen",
-      "createAdvancedTool": "Im erweiterten Tool erstellen",
-      "viewCounters": "Zähler anzeigen",
-      "createCounters": "Zähler erstellen"
+      "viewCalendarEvents": "Termine anzeigen",
+      "createCalendarEvents": "Termine erstellen",
+      "viewAdvancedTools": "Erweitertes Tool öffnen",
+      "createAdvancedTools": "Im erweiterten Tool erstellen",
+      "viewCounterGroups": "Zähler anzeigen",
+      "createCounterGroups": "Zähler erstellen"
     }
   },
   "advancedTools": "Erweiterte Tools",
   "advancedToolsDescription": "Aktiviere optionale Tools für diese Initiative.",
   "queuesFeature": "Abläufe (Queues)",
   "queuesFeatureDescription": "Organisiere Elemente nach Priorität, verfolge die Reihenfolge und verwalte, wer als Nächstes dran ist.",
-  "eventsFeature": "Kalender",
-  "eventsFeatureDescription": "Plane und verwalte Kalendertermine mit Teilnehmern und RSVP-Verfolgung.",
-  "countersFeature": "Zähler",
-  "countersFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)",
-  "advancedToolFeatureDescription": "Bette das {{name}}-Panel unter dieser Initiative ein.",
+  "calendarEventsFeature": "Kalender",
+  "calendarEventsFeatureDescription": "Plane und verwalte Kalendertermine mit Teilnehmern und RSVP-Verfolgung.",
+  "counterGroupsFeature": "Zähler",
+  "counterGroupsFeatureDescription": "Zählergruppen bündeln zusammengehörige Werte (wie HP, Scores oder Budgets), die du flexibel begrenzen oder stufenweise anpassen kannst – visuell dargestellt als Zahlen, Balken oder Kreis (Uhr)",
+  "advancedToolsFeatureDescription": "Bette das {{name}}-Panel unter dieser Initiative ein.",
   "advancedTool": {
     "connecting": "Wird verbunden…",
     "handoffFailed": "Es konnte keine sichere Sitzung mit dem eingebetteten Tool hergestellt werden.",
@@ -219,5 +220,6 @@
     "openSettings": "Einstellungen öffnen",
     "guildAdminOnlyTitle": "Nur Administratoren",
     "guildAdminOnlyDescription": "Nur Gilden-Administratoren können Automatisierungen auf Gildenebene verwalten."
-  }
+  },
+  "advancedToolsFeature": "Erweiterte Tools"
 }

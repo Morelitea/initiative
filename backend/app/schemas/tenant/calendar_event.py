@@ -22,10 +22,6 @@ if TYPE_CHECKING:  # pragma: no cover
 # ---------------------------------------------------------------------------
 
 
-class CalendarEventAttendeeCreate(SanitizedBaseModel):
-    user_id: int
-
-
 class CalendarEventAttendeeRead(SanitizedBaseModel):
     model_config = ConfigDict(
         from_attributes=True, json_schema_serialization_defaults_required=True

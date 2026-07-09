@@ -1,66 +1,52 @@
 import { useCallback } from "react";
 
-import type { InitiativeRead } from "@/api/generated/initiativeAPI.schemas";
+import type { InitiativeRead, Tool } from "@/api/generated/initiativeAPI.schemas";
 import { useAuth } from "@/hooks/useAuth";
 import { useGuilds } from "@/hooks/useGuilds";
+import {
+  isToolEnabled,
+  TOOL_REGISTRY,
+  TOOLS,
+  toolMemberCreateFlag,
+  toolMemberViewFlag,
+} from "@/lib/tools";
 
-/** What an initiative's sidebar/sections expose to the current user. */
-export interface InitiativeSectionPermissions {
-  canViewDocs: boolean;
-  canViewProjects: boolean;
-  canViewQueues: boolean;
-  canViewEvents: boolean;
-  canViewAdvancedTool: boolean;
-  canViewCounters: boolean;
-  canCreateDocs: boolean;
-  canCreateProjects: boolean;
-  canCreateQueues: boolean;
-  canCreateEvents: boolean;
-  canCreateCounters: boolean;
+/** What the current user may do with one tool inside an initiative. */
+export interface ToolAccess {
+  view: boolean;
+  create: boolean;
 }
+
+/** Per-tool access for an initiative, keyed by the canonical Tool enum. */
+export type InitiativeToolAccess = Record<Tool, ToolAccess>;
 
 const byName = (a: InitiativeRead, b: InitiativeRead) => a.name.localeCompare(b.name);
 
-// Full visibility into every section (gated by the initiative's feature
-// flags); `canCreate` toggles the create affordances.
-const fullAccess = (
-  initiative: InitiativeRead,
-  canCreate: boolean
-): InitiativeSectionPermissions => ({
-  canViewDocs: true,
-  canViewProjects: true,
-  canViewQueues: initiative.queues_enabled ?? false,
-  canViewEvents: initiative.events_enabled ?? false,
-  canViewAdvancedTool: initiative.advanced_tool_enabled ?? false,
-  canViewCounters: initiative.counters_enabled ?? false,
-  canCreateDocs: canCreate,
-  canCreateProjects: canCreate,
-  canCreateQueues: canCreate && (initiative.queues_enabled ?? false),
-  canCreateEvents: canCreate && (initiative.events_enabled ?? false),
-  canCreateCounters: canCreate && (initiative.counters_enabled ?? false),
-});
+// Full visibility into every tool (gated by the initiative's master
+// switches); `canCreate` toggles the create affordances.
+const fullAccess = (initiative: InitiativeRead, canCreate: boolean): InitiativeToolAccess =>
+  Object.fromEntries(
+    TOOLS.map((tool) => {
+      const enabled = isToolEnabled(tool, initiative);
+      return [tool, { view: enabled, create: canCreate && enabled }];
+    })
+  ) as InitiativeToolAccess;
 
-// Bare read of the always-visible sections (docs/projects) for someone with no
-// membership and no grant — mirrors the historical non-member default.
-const readOnlyDefault: InitiativeSectionPermissions = {
-  canViewDocs: true,
-  canViewProjects: true,
-  canViewQueues: false,
-  canViewEvents: false,
-  canViewAdvancedTool: false,
-  canViewCounters: false,
-  canCreateDocs: false,
-  canCreateProjects: false,
-  canCreateQueues: false,
-  canCreateEvents: false,
-  canCreateCounters: false,
-};
+// Bare read of the always-visible core tools for someone with no membership
+// and no grant — mirrors the historical non-member default.
+const readOnlyDefault: InitiativeToolAccess = Object.fromEntries(
+  TOOLS.map((tool) => [tool, { view: TOOL_REGISTRY[tool].core, create: false }])
+) as InitiativeToolAccess;
 
 /**
  * Centralizes "what initiatives can the current user see, and what can they do
  * in each" for the active guild — accounting for guild-admin and time-bound PAM /
  * break-glass grants in ONE place, so call sites stop re-implementing
  * `initiative.members.some(...)` filters (and stop drifting from each other).
+ *
+ * Access is exposed per tool (`permissionsFor(initiative)[Tool.queue].view`),
+ * derived from the tool registry — a new tool gets its access flags without
+ * touching this hook.
  *
  * `data.bypass` (platform admin/owner) is deliberately NOT a standing access
  * shortcut here: the backend no longer grants ambient cross-guild reach for it
@@ -97,27 +83,23 @@ export function useInitiativeAccess() {
     [user, seesAllInitiatives]
   );
 
-  /** Effective per-section permissions for one initiative. */
+  /** Effective per-tool access for one initiative, keyed by Tool. */
   const permissionsFor = useCallback(
-    (initiative: InitiativeRead): InitiativeSectionPermissions => {
+    (initiative: InitiativeRead): InitiativeToolAccess => {
       if (!user) return readOnlyDefault;
       if (isGuildAdmin) return fullAccess(initiative, true);
       if (isGrantGuild) return fullAccess(initiative, grantReadWrite);
       const membership = initiative.members.find((m) => m.user.id === user.id);
       if (!membership) return readOnlyDefault;
-      return {
-        canViewDocs: membership.can_view_docs ?? true,
-        canViewProjects: membership.can_view_projects ?? true,
-        canViewQueues: membership.can_view_queues ?? false,
-        canViewEvents: membership.can_view_events ?? false,
-        canViewAdvancedTool: membership.can_view_advanced_tool ?? false,
-        canViewCounters: membership.can_view_counters ?? false,
-        canCreateDocs: membership.can_create_docs ?? false,
-        canCreateProjects: membership.can_create_projects ?? false,
-        canCreateQueues: membership.can_create_queues ?? false,
-        canCreateEvents: membership.can_create_events ?? false,
-        canCreateCounters: membership.can_create_counters ?? false,
-      };
+      return Object.fromEntries(
+        TOOLS.map((tool) => [
+          tool,
+          {
+            view: Boolean(membership[toolMemberViewFlag(tool)] ?? TOOL_REGISTRY[tool].core),
+            create: Boolean(membership[toolMemberCreateFlag(tool)] ?? false),
+          },
+        ])
+      ) as InitiativeToolAccess;
     },
     [user, isGuildAdmin, isGrantGuild, grantReadWrite]
   );

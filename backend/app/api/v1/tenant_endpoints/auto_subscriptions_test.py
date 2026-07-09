@@ -13,13 +13,8 @@ from unittest.mock import patch
 import pytest
 from httpx import AsyncClient
 
-from app.models.platform.guild import Guild, GuildRole
-from app.testing.factories import (
-    create_guild,
-    create_guild_membership,
-    create_user,
-    get_guild_headers,
-)
+from app.models.platform.guild import GuildRole
+from app.testing import Actor
 
 
 @pytest.fixture(autouse=True)
@@ -31,27 +26,22 @@ def _force_prod_flag(monkeypatch):
     monkeypatch.setattr(config_module.settings, "WEBHOOK_ALLOW_PRIVATE_TARGETS", False)
 
 
-async def _authed_post(
-    client: AsyncClient, *, guild: Guild, headers: dict[str, str], body: dict
-):
+async def _authed_post(client: AsyncClient, actor: Actor, body: dict):
     return await client.post(
-        f"/api/v1/g/{guild.id}/auto/subscriptions", json=body, headers=headers
+        actor.g("/auto/subscriptions"), json=body, headers=actor.headers
     )
 
 
 @pytest.mark.integration
-async def test_create_rejects_loopback_target_url(client: AsyncClient, session):
+async def test_create_rejects_loopback_target_url(client: AsyncClient, acting_user):
     """Registering a target that resolves to loopback must 400. Without
     this guard, every guild member could redirect outbound dispatches to
     internal services."""
-    user = await create_user(session, email="hook-loopback@example.com")
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    a = await acting_user(guild_role=GuildRole.admin)
 
     response = await _authed_post(
         client,
-        guild=guild,
-        headers=await get_guild_headers(session, guild, user),
+        a,
         body={
             "target_url": "https://127.0.0.1/hook",
             "event_types": ["task.created"],
@@ -62,17 +52,14 @@ async def test_create_rejects_loopback_target_url(client: AsyncClient, session):
 
 
 @pytest.mark.integration
-async def test_create_rejects_metadata_endpoint(client: AsyncClient, session):
+async def test_create_rejects_metadata_endpoint(client: AsyncClient, acting_user):
     """The cloud-metadata endpoint is the canonical SSRF target — keep
     it explicitly in the test suite so a regression is loud."""
-    user = await create_user(session, email="hook-metadata@example.com")
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    a = await acting_user(guild_role=GuildRole.admin)
 
     response = await _authed_post(
         client,
-        guild=guild,
-        headers=await get_guild_headers(session, guild, user),
+        a,
         body={
             "target_url": "https://169.254.169.254/latest/meta-data/iam/",
             "event_types": ["task.created"],
@@ -83,17 +70,14 @@ async def test_create_rejects_metadata_endpoint(client: AsyncClient, session):
 
 
 @pytest.mark.integration
-async def test_create_rejects_plain_http(client: AsyncClient, session):
+async def test_create_rejects_plain_http(client: AsyncClient, acting_user):
     """Plain http:// is rejected with the structural-invalid code so
     the operator sees a different error than for a private-IP target."""
-    user = await create_user(session, email="hook-http@example.com")
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    a = await acting_user(guild_role=GuildRole.admin)
 
     response = await _authed_post(
         client,
-        guild=guild,
-        headers=await get_guild_headers(session, guild, user),
+        a,
         body={
             "target_url": "http://hooks.example.com/in",
             "event_types": ["task.created"],
@@ -105,14 +89,12 @@ async def test_create_rejects_plain_http(client: AsyncClient, session):
 
 @pytest.mark.integration
 async def test_create_accepts_public_target_when_dns_resolves_public(
-    client: AsyncClient, session
+    client: AsyncClient, acting_user
 ):
     """Public-resolving hostnames are allowed. We mock DNS so the test
     isn't network-dependent; the value being a public unicast IP is
     what we're asserting on."""
-    user = await create_user(session, email="hook-public@example.com")
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    a = await acting_user(guild_role=GuildRole.admin)
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]  # example.com IPv4
     with patch(
@@ -121,8 +103,7 @@ async def test_create_accepts_public_target_when_dns_resolves_public(
     ):
         response = await _authed_post(
             client,
-            guild=guild,
-            headers=await get_guild_headers(session, guild, user),
+            a,
             body={
                 "target_url": "https://hooks.example.com/in",
                 "event_types": ["task.created"],
@@ -131,24 +112,17 @@ async def test_create_accepts_public_target_when_dns_resolves_public(
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["target_url"] == "https://hooks.example.com/in"
-    assert body["created_by_user_id"] == user.id
+    assert body["created_by_user_id"] == a.user.id
     assert "hmac_secret" in body  # one-time payload includes the secret
 
 
 @pytest.mark.integration
-async def test_non_owner_member_cannot_delete(client: AsyncClient, session):
+async def test_non_owner_member_cannot_delete(client: AsyncClient, acting_user):
     """A guild member who didn't create the subscription must not be
     able to delete it. RLS keeps the row visible inside the guild but
     that's not the same as authority to mutate it."""
-    creator = await create_user(session, email="hook-creator@example.com")
-    other = await create_user(session, email="hook-other@example.com")
-    guild = await create_guild(session, creator=creator)
-    await create_guild_membership(
-        session, user=creator, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=other, guild=guild, role=GuildRole.member
-    )
+    creator = await acting_user(guild_role=GuildRole.admin)
+    other = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
     with patch(
@@ -157,8 +131,7 @@ async def test_non_owner_member_cannot_delete(client: AsyncClient, session):
     ):
         created = await _authed_post(
             client,
-            guild=guild,
-            headers=await get_guild_headers(session, guild, creator),
+            creator,
             body={
                 "target_url": "https://hooks.example.com/in",
                 "event_types": ["task.created"],
@@ -168,26 +141,19 @@ async def test_non_owner_member_cannot_delete(client: AsyncClient, session):
     sub_id = created.json()["id"]
 
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/auto/subscriptions/{sub_id}",
-        headers=await get_guild_headers(session, guild, other),
+        other.g(f"/auto/subscriptions/{sub_id}"),
+        headers=other.headers,
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "WEBHOOK_SUBSCRIPTION_NOT_OWNER"
 
 
 @pytest.mark.integration
-async def test_non_owner_member_cannot_update(client: AsyncClient, session):
+async def test_non_owner_member_cannot_update(client: AsyncClient, acting_user):
     """Same authority check on PATCH — flipping ``active`` or rewriting
     ``target_url`` are both mutations."""
-    creator = await create_user(session, email="hook-creator2@example.com")
-    other = await create_user(session, email="hook-other2@example.com")
-    guild = await create_guild(session, creator=creator)
-    await create_guild_membership(
-        session, user=creator, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=other, guild=guild, role=GuildRole.member
-    )
+    creator = await acting_user(guild_role=GuildRole.admin)
+    other = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
     with patch(
@@ -196,8 +162,7 @@ async def test_non_owner_member_cannot_update(client: AsyncClient, session):
     ):
         created = await _authed_post(
             client,
-            guild=guild,
-            headers=await get_guild_headers(session, guild, creator),
+            creator,
             body={
                 "target_url": "https://hooks.example.com/in",
                 "event_types": ["task.created"],
@@ -207,28 +172,23 @@ async def test_non_owner_member_cannot_update(client: AsyncClient, session):
     sub_id = created.json()["id"]
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/auto/subscriptions/{sub_id}",
+        other.g(f"/auto/subscriptions/{sub_id}"),
         json={"active": False},
-        headers=await get_guild_headers(session, guild, other),
+        headers=other.headers,
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "WEBHOOK_SUBSCRIPTION_NOT_OWNER"
 
 
 @pytest.mark.integration
-async def test_guild_admin_can_delete_others_subscription(client: AsyncClient, session):
+async def test_guild_admin_can_delete_others_subscription(
+    client: AsyncClient, acting_user
+):
     """Guild admins are the explicit exception to the creator-only rule
     — they can clean up subscriptions left behind by members who left
     or had access revoked."""
-    creator = await create_user(session, email="hook-creator3@example.com")
-    admin = await create_user(session, email="hook-admin3@example.com")
-    guild = await create_guild(session, creator=creator)
-    await create_guild_membership(
-        session, user=creator, guild=guild, role=GuildRole.member
-    )
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    creator = await acting_user(guild_role=GuildRole.member)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=creator.guild)
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
     with patch(
@@ -237,8 +197,7 @@ async def test_guild_admin_can_delete_others_subscription(client: AsyncClient, s
     ):
         created = await _authed_post(
             client,
-            guild=guild,
-            headers=await get_guild_headers(session, guild, creator),
+            creator,
             body={
                 "target_url": "https://hooks.example.com/in",
                 "event_types": ["task.created"],
@@ -248,20 +207,16 @@ async def test_guild_admin_can_delete_others_subscription(client: AsyncClient, s
     sub_id = created.json()["id"]
 
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/auto/subscriptions/{sub_id}",
-        headers=await get_guild_headers(session, guild, admin),
+        admin.g(f"/auto/subscriptions/{sub_id}"),
+        headers=admin.headers,
     )
     assert response.status_code == 204
 
 
 @pytest.mark.integration
-async def test_creator_can_update_own_subscription(client: AsyncClient, session):
+async def test_creator_can_update_own_subscription(client: AsyncClient, acting_user):
     """The happy path: the creator can mutate their own subscription."""
-    user = await create_user(session, email="hook-self@example.com")
-    guild = await create_guild(session, creator=user)
-    await create_guild_membership(
-        session, user=user, guild=guild, role=GuildRole.member
-    )
+    a = await acting_user(guild_role=GuildRole.member)
 
     fake_infos = [(2, 0, 0, "", ("93.184.216.34", 0))]
     with patch(
@@ -270,8 +225,7 @@ async def test_creator_can_update_own_subscription(client: AsyncClient, session)
     ):
         created = await _authed_post(
             client,
-            guild=guild,
-            headers=await get_guild_headers(session, guild, user),
+            a,
             body={
                 "target_url": "https://hooks.example.com/in",
                 "event_types": ["task.created"],
@@ -281,9 +235,9 @@ async def test_creator_can_update_own_subscription(client: AsyncClient, session)
     sub_id = created.json()["id"]
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/auto/subscriptions/{sub_id}",
+        a.g(f"/auto/subscriptions/{sub_id}"),
         json={"active": False},
-        headers=await get_guild_headers(session, guild, user),
+        headers=a.headers,
     )
     assert response.status_code == 200
     assert response.json()["active"] is False

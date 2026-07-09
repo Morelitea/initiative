@@ -1,19 +1,34 @@
 """
 Test data factories for creating database models.
 
-This module provides factory functions for creating test instances of database models
-with sensible defaults. Each factory function can accept overrides for any field.
+This module provides factory functions for creating test instances of database
+models with sensible defaults. Each factory function can accept overrides for
+any field.
+
+Schema-per-guild: tenant models live in per-guild Postgres schemas, never in
+``public``. Every tenant factory therefore routes its session to the target
+guild's schema (``route_session_to_guild``) before reading or writing, derived
+from the parent object it receives — so factory calls are deterministic
+regardless of flush composition. Raw ``session.add()`` of tenant models in
+tests is covered by the fail-closed flush router in ``schema_harness``.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import (
+    create_access_token,
+    get_password_hash,
+    mint_access_token,
+)
 from app.models.tenant.calendar_event import CalendarEvent
-from app.models.tenant.document import Document
+from app.models.tenant.comment import Comment
+from app.models.tenant.counter import Counter, CounterGroup
+from app.models.tenant.document import Document, DocumentType
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeMember
 from app.models.tenant.project import Project
@@ -26,15 +41,19 @@ from app.models.tenant.property import (
     TaskPropertyValue,
 )
 from app.models.tenant.queue import Queue, QueueItem
+from app.models.tenant.tag import Tag
 from app.models.tenant.task import (
+    Subtask,
     Task,
     TaskAssignee,
     TaskPriority,
     TaskStatus,
     TaskStatusCategory,
 )
+from app.models.tenant.upload import Upload
 from app.models.platform.user import User, UserRole, UserStatus
 from app.services.tenant.initiatives import create_builtin_roles
+from app.testing.schema_harness import route_session_to_guild
 
 
 async def create_user(
@@ -224,6 +243,32 @@ def get_auth_token(user: User) -> str:
     return create_access_token(subject=str(user.id), token_version=user.token_version)
 
 
+def get_new_access_token(
+    user: User,
+    *,
+    session_id: uuid.UUID | None = None,
+    amr: list[str] | None = None,
+    satisfied_providers: list[int] | None = None,
+) -> str:
+    """Mint a *new-model* access token (aud ``initiative:access``) for a user.
+
+    Mirrors :func:`get_auth_token` but for the dual-verify path: exercises that
+    the session-JWT verifiers accept the new scheme. ``session_id``/``amr``/
+    ``sat`` default to a throwaway session with ``pwd`` since the verify path
+    only checks ``sub``/``ver``.
+    """
+    token, _ = mint_access_token(
+        user_id=user.id,
+        token_version=user.token_version,
+        session_id=session_id or uuid.uuid4(),
+        amr=amr if amr is not None else ["pwd"],
+        satisfied_providers=satisfied_providers
+        if satisfied_providers is not None
+        else [],
+    )
+    return token
+
+
 def get_auth_headers(user: User) -> dict[str, str]:
     """
     Get authorization headers for API requests.
@@ -240,27 +285,6 @@ def get_auth_headers(user: User) -> dict[str, str]:
     """
     token = get_auth_token(user)
     return {"Authorization": f"Bearer {token}"}
-
-
-async def get_guild_headers(
-    session: AsyncSession, guild: Guild, user: User
-) -> dict[str, str]:
-    """Return auth headers for ``user``.
-
-    Guild context is no longer server-held — every guild-scoped request
-    addresses its guild through the ``/g/{guild_id}`` URL path. So this no
-    longer writes any state; it's a thin wrapper over ``get_auth_headers``,
-    kept for call-site compatibility. Put the guild in the request URL:
-
-        headers = await get_guild_headers(session, test_guild, test_user)
-        await client.get(f"/api/v1/g/{test_guild.id}/initiatives/", headers=headers)
-
-    Args:
-        session: Unused (no server-held context to write).
-        guild: Unused (address the guild in the request path instead).
-        user: User to authenticate as.
-    """
-    return get_auth_headers(user)
 
 
 async def create_initiative(
@@ -286,12 +310,14 @@ async def create_initiative(
     Example:
         initiative = await create_initiative(session, guild, user, name="Test Initiative")
     """
+    await route_session_to_guild(session, guild.id)
+
     defaults = {
         "name": f"Test Initiative {datetime.now(timezone.utc).timestamp()}",
         "description": "A test initiative",
         "guild_id": guild.id,
         "queues_enabled": True,
-        "counters_enabled": True,
+        "counter_groups_enabled": True,
     }
 
     initiative_data = {**defaults, **overrides}
@@ -343,6 +369,8 @@ async def create_project(
     Example:
         project = await create_project(session, initiative, user, name="Test Project")
     """
+    await route_session_to_guild(session, initiative.guild_id)
+
     defaults = {
         "name": f"Test Project {datetime.now(timezone.utc).timestamp()}",
         "description": "A test project",
@@ -393,6 +421,8 @@ async def create_task(
     ``assignees=[user]`` to build a completed, assigned task (e.g. for stats).
     """
     from sqlmodel import select as _select
+
+    await route_session_to_guild(session, project.guild_id)
 
     status = (
         await session.exec(
@@ -459,6 +489,8 @@ async def create_queue(
     Returns:
         Created Queue instance
     """
+    await route_session_to_guild(session, initiative.guild_id)
+
     defaults = {
         "name": f"Test Queue {datetime.now(timezone.utc).timestamp()}",
         "description": "A test queue",
@@ -509,6 +541,8 @@ async def create_queue_item(
     Returns:
         Created QueueItem instance
     """
+    await route_session_to_guild(session, queue.guild_id)
+
     defaults = {
         "queue_id": queue.id,
         "guild_id": queue.guild_id,
@@ -550,6 +584,8 @@ async def create_initiative_member(
     """
     from app.models.tenant.initiative import InitiativeRoleModel
     from sqlmodel import select
+
+    await route_session_to_guild(session, initiative.guild_id)
 
     # Find the matching role for this initiative
     stmt = select(InitiativeRoleModel).where(
@@ -611,6 +647,8 @@ async def create_property_definition(
     Returns:
         Created PropertyDefinition instance
     """
+    await route_session_to_guild(session, initiative.guild_id)
+
     if name is None:
         name = f"Prop {datetime.now(timezone.utc).timestamp()}"
 
@@ -667,6 +705,8 @@ async def create_document_property_value(
     Returns:
         Created DocumentPropertyValue instance
     """
+    await route_session_to_guild(session, document.guild_id)
+
     row = DocumentPropertyValue(
         document_id=document.id,
         property_id=definition.id,
@@ -704,6 +744,8 @@ async def create_task_property_value(
     Returns:
         Created TaskPropertyValue instance
     """
+    await route_session_to_guild(session, task.guild_id)
+
     row = TaskPropertyValue(
         task_id=task.id,
         property_id=definition.id,
@@ -733,6 +775,8 @@ async def create_calendar_event(
     is expected to be events-enabled — callers that need to test the
     feature flag should toggle that on the passed-in ``initiative``.
     """
+    await route_session_to_guild(session, initiative.guild_id)
+
     now = datetime.now(timezone.utc)
     defaults = {
         "guild_id": initiative.guild_id,
@@ -805,6 +849,8 @@ async def create_calendar_event_property_value(
     Mirrors :func:`create_document_property_value` /
     :func:`create_task_property_value` for the event value table.
     """
+    await route_session_to_guild(session, event.guild_id)
+
     row = CalendarEventPropertyValue(
         event_id=event.id,
         property_id=definition.id,
@@ -816,3 +862,260 @@ async def create_calendar_event_property_value(
         await session.commit()
 
     return row
+
+
+async def create_document(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    title: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Document:
+    """Create a test document with sensible defaults.
+
+    Defaults to a ``native`` (editor) document with empty content and an
+    owner grant for ``creator``, mirroring the create endpoint's DAC setup.
+    """
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "title": title or f"Test Document {datetime.now(timezone.utc).timestamp()}",
+        "document_type": DocumentType.native,
+        "created_by_id": creator.id,
+        "updated_by_id": creator.id,
+    }
+    document = Document(**{**defaults, **overrides})
+    session.add(document)
+
+    # The owner grant is part of the factory's contract in BOTH modes; with
+    # commit=False it is flushed (id available) but left uncommitted with the
+    # rest of the caller's transaction.
+    await (session.commit() if commit else session.flush())
+    if commit:
+        await session.refresh(document)
+    session.add(
+        ResourceGrant(
+            resource_type="document",
+            resource_id=document.id,
+            user_id=creator.id,
+            level=ResourceAccessLevel.owner,
+            guild_id=document.guild_id,
+            initiative_id=document.initiative_id,
+        )
+    )
+    if commit:
+        await session.commit()
+
+    return document
+
+
+async def create_comment(
+    session: AsyncSession,
+    author: User,
+    *,
+    task: Task | None = None,
+    document: Document | None = None,
+    content: str = "A test comment",
+    commit: bool = True,
+    **overrides: Any,
+) -> Comment:
+    """Create a comment on exactly one of ``task`` or ``document``."""
+    if (task is None) == (document is None):
+        raise ValueError("pass exactly one of task= or document=")
+    parent = task if task is not None else document
+    await route_session_to_guild(session, parent.guild_id)
+
+    defaults = {
+        "guild_id": parent.guild_id,
+        "content": content,
+        "author_id": author.id,
+        "task_id": task.id if task else None,
+        "document_id": document.id if document else None,
+    }
+    comment = Comment(**{**defaults, **overrides})
+    session.add(comment)
+
+    if commit:
+        await session.commit()
+        await session.refresh(comment)
+
+    return comment
+
+
+async def create_tag(
+    session: AsyncSession,
+    guild: Guild,
+    *,
+    name: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Tag:
+    """Create a guild-scoped tag."""
+    await route_session_to_guild(session, guild.id)
+
+    defaults = {
+        "guild_id": guild.id,
+        "name": name or f"tag-{datetime.now(timezone.utc).timestamp()}",
+    }
+    tag = Tag(**{**defaults, **overrides})
+    session.add(tag)
+
+    if commit:
+        await session.commit()
+        await session.refresh(tag)
+
+    return tag
+
+
+async def create_subtask(
+    session: AsyncSession,
+    task: Task,
+    *,
+    content: str = "A test subtask",
+    commit: bool = True,
+    **overrides: Any,
+) -> Subtask:
+    """Create a subtask under ``task``."""
+    await route_session_to_guild(session, task.guild_id)
+
+    defaults = {
+        "guild_id": task.guild_id,
+        "task_id": task.id,
+        "content": content,
+    }
+    subtask = Subtask(**{**defaults, **overrides})
+    session.add(subtask)
+
+    if commit:
+        await session.commit()
+        await session.refresh(subtask)
+
+    return subtask
+
+
+async def create_task_status(
+    session: AsyncSession,
+    project: Project,
+    *,
+    name: str | None = None,
+    category: TaskStatusCategory = TaskStatusCategory.todo,
+    commit: bool = True,
+    **overrides: Any,
+) -> TaskStatus:
+    """Create a task status for ``project`` (does not deduplicate; use
+    ``create_task`` when you just need a task in a given category)."""
+    await route_session_to_guild(session, project.guild_id)
+
+    defaults = {
+        "guild_id": project.guild_id,
+        "project_id": project.id,
+        "name": name or category.value.replace("_", " ").title(),
+        "category": category,
+        "position": 0,
+    }
+    status = TaskStatus(**{**defaults, **overrides})
+    session.add(status)
+
+    if commit:
+        await session.commit()
+        await session.refresh(status)
+
+    return status
+
+
+async def create_counter_group(
+    session: AsyncSession,
+    initiative: Initiative,
+    creator: User,
+    *,
+    name: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> CounterGroup:
+    """Create a counter group with an owner grant for ``creator``."""
+    await route_session_to_guild(session, initiative.guild_id)
+
+    defaults = {
+        "guild_id": initiative.guild_id,
+        "initiative_id": initiative.id,
+        "name": name or f"Test Counters {datetime.now(timezone.utc).timestamp()}",
+        "created_by_id": creator.id,
+    }
+    group = CounterGroup(**{**defaults, **overrides})
+    session.add(group)
+
+    if commit:
+        await session.commit()
+        await session.refresh(group)
+
+        session.add(
+            ResourceGrant(
+                resource_type="counter_group",
+                resource_id=group.id,
+                user_id=creator.id,
+                level=ResourceAccessLevel.owner,
+                guild_id=group.guild_id,
+                initiative_id=group.initiative_id,
+            )
+        )
+        await session.commit()
+
+    return group
+
+
+async def create_counter(
+    session: AsyncSession,
+    group: CounterGroup,
+    *,
+    name: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Counter:
+    """Create a counter inside ``group``."""
+    await route_session_to_guild(session, group.guild_id)
+
+    defaults = {
+        "guild_id": group.guild_id,
+        "counter_group_id": group.id,
+        "name": name or f"Counter {datetime.now(timezone.utc).timestamp()}",
+    }
+    counter = Counter(**{**defaults, **overrides})
+    session.add(counter)
+
+    if commit:
+        await session.commit()
+        await session.refresh(counter)
+
+    return counter
+
+
+async def create_upload(
+    session: AsyncSession,
+    guild: Guild,
+    uploader: User,
+    *,
+    filename: str | None = None,
+    commit: bool = True,
+    **overrides: Any,
+) -> Upload:
+    """Create an upload row (metadata only; writes no file to disk)."""
+    await route_session_to_guild(session, guild.id)
+
+    defaults = {
+        "guild_id": guild.id,
+        "uploader_user_id": uploader.id,
+        "filename": filename or f"file-{datetime.now(timezone.utc).timestamp()}.txt",
+        "size_bytes": 1,
+    }
+    upload = Upload(**{**defaults, **overrides})
+    session.add(upload)
+
+    if commit:
+        await session.commit()
+        await session.refresh(upload)
+
+    return upload

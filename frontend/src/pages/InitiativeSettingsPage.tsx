@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import type {
   InitiativeMemberRead,
   InitiativeRoleRead,
+  InitiativeUpdate,
+  Tool,
 } from "@/api/generated/initiativeAPI.schemas";
 import { InitiativeSettingsDangerTab } from "@/components/initiatives/settings/InitiativeSettingsDangerTab";
 import { InitiativeSettingsDetailsTab } from "@/components/initiatives/settings/InitiativeSettingsDetailsTab";
@@ -31,6 +33,7 @@ import { useDeleteInitiative, useInitiatives, useUpdateInitiative } from "@/hook
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
+import { isToolEnabled, TOGGLEABLE_TOOLS, toolViewPermission } from "@/lib/tools";
 
 const DEFAULT_INITIATIVE_COLOR = "#6366F1";
 
@@ -138,31 +141,12 @@ export const InitiativeSettingsPage = () => {
     });
   };
 
-  const handleToggleQueues = (value: boolean) => {
+  // One handler for every toggleable tool's master switch — the update field
+  // is the tool's derived `{plural}_enabled` name.
+  const handleToggleTool = (tool: Tool, value: boolean) => {
     updateInitiative.mutate({
       initiativeId,
-      data: { queues_enabled: value },
-    });
-  };
-
-  const handleToggleEvents = (value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { events_enabled: value },
-    });
-  };
-
-  const handleToggleAdvancedTool = (value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { advanced_tool_enabled: value },
-    });
-  };
-
-  const handleToggleCounters = (value: boolean) => {
-    updateInitiative.mutate({
-      initiativeId,
-      data: { counters_enabled: value },
+      data: { [toolViewPermission(tool)]: value } as InitiativeUpdate,
     });
   };
 
@@ -266,14 +250,13 @@ export const InitiativeSettingsPage = () => {
           setDescription={setDescription}
           color={color}
           setColor={setColor}
-          queuesEnabled={initiative?.queues_enabled ?? false}
-          onToggleQueues={handleToggleQueues}
-          eventsEnabled={initiative?.events_enabled ?? false}
-          onToggleEvents={handleToggleEvents}
-          advancedToolEnabled={initiative?.advanced_tool_enabled ?? false}
-          onToggleAdvancedTool={handleToggleAdvancedTool}
-          countersEnabled={initiative?.counters_enabled ?? false}
-          onToggleCounters={handleToggleCounters}
+          toolSwitches={Object.fromEntries(
+            TOGGLEABLE_TOOLS.map((tool) => [
+              tool,
+              Boolean(initiative && isToolEnabled(tool, initiative)),
+            ])
+          )}
+          onToggleTool={handleToggleTool}
           canManageMembers={canManageMembers}
           isSaving={updateInitiative.isPending}
           onSaveDetails={handleSaveDetails}

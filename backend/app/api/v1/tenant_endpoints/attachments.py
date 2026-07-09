@@ -16,7 +16,7 @@ from app.core.messages import AttachmentMessages
 from app.models.tenant.upload import Upload
 from app.models.platform.user import User
 from app.schemas.tenant.attachment import AttachmentUploadResponse
-from app.services.attachments import (
+from app.services.tenant.attachments import (
     FileTooLargeError,
     StorageQuotaExceededError,
     compute_content_hash,

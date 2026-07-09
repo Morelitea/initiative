@@ -30,7 +30,7 @@ from app.api.deps import (
 )
 from app.core.config import settings
 from app.core.messages import CounterMessages, InitiativeMessages
-from app.db.session import AsyncSessionLocal, reapply_rls_context
+from app.db.session import AsyncSessionLocal
 from app.models.tenant.counter import (
     Counter,
     CounterGroup,
@@ -63,6 +63,7 @@ from app.services.tenant import counters as counters_service
 from app.services import permissions as permissions_service
 from app.services.tenant import recent_views as recent_views_service
 from app.api import resource_access
+from app.core.tools import Tool
 from app.services import rls as rls_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform.ws_auth import authenticate_ws_token
@@ -89,11 +90,10 @@ async def _emit_counter(
     path, where the row is soft-deleted before this runs so a post-commit lookup
     would hit the global ``deleted_at IS NULL`` filter and find nothing, silently
     dropping the ``group_deleted`` event. Otherwise the group's guild is resolved
-    from the (guild-routed) session (``reapply_rls_context`` keeps it valid after
-    a commit). One streaming spine; rooms are guild-namespaced (group ids are
+    from the (guild-routed) session (context replays automatically after a
+    commit). One streaming spine; rooms are guild-namespaced (group ids are
     per-schema)."""
     if guild_id is None:
-        await reapply_rls_context(session)
         guild_id = (
             await session.exec(
                 select(CounterGroup.guild_id).where(CounterGroup.id == group_id)
@@ -165,7 +165,7 @@ async def _get_counter_group_with_access(
     """Fetch + authorize a counter group via the shared enforcement path."""
     return await resource_access.load_authorized(
         session,
-        "counter_group",
+        Tool.counter_group,
         group_id,
         user,
         guild_context,
@@ -198,7 +198,7 @@ def _compute_my_permission(
     guild_context: GuildContext,
 ) -> str | None:
     return resource_access.my_permission_level(
-        group, "counter_group", user, guild_context
+        group, Tool.counter_group, user, guild_context
     )
 
 
@@ -232,7 +232,7 @@ async def list_counter_groups(
 
     if initiative_id is not None:
         initiative = await session.get(Initiative, initiative_id)
-        if initiative and not initiative.counters_enabled:
+        if initiative and not initiative.counter_groups_enabled:
             return CounterGroupListResponse(
                 items=[],
                 total_count=0,
@@ -244,7 +244,7 @@ async def list_counter_groups(
     else:
         conditions.append(
             CounterGroup.initiative_id.in_(
-                select(Initiative.id).where(Initiative.counters_enabled == True)  # noqa: E712
+                select(Initiative.id).where(Initiative.counter_groups_enabled == True)  # noqa: E712
             )
         )
 
@@ -300,7 +300,7 @@ async def read_counter_group(
     guild_context: GuildContextDep,
     group: Annotated[
         CounterGroup,
-        Depends(resource_access.resource_dependency("counter_group", "read")),
+        Depends(resource_access.resource_dependency(Tool.counter_group, "read")),
     ],
 ) -> CounterGroupRead:
     """Access enforced by resource_dependency before the body runs."""
@@ -320,7 +320,7 @@ async def create_counter_group(
     initiative = await _get_initiative_for_counter_group(
         session, group_in.initiative_id
     )
-    if not initiative.counters_enabled:
+    if not initiative.counter_groups_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=CounterMessages.FEATURE_DISABLED,
@@ -330,7 +330,7 @@ async def create_counter_group(
         initiative,
         current_user,
         guild_context,
-        PermissionKey.create_counters,
+        PermissionKey.create_counter_groups,
     )
 
     group = CounterGroup(
@@ -367,7 +367,6 @@ async def create_counter_group(
     )
 
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
     return serialize_counter_group(
@@ -407,7 +406,6 @@ async def duplicate_counter_group(
         guild_id=guild_context.guild_id,
     )
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, new_group.id)
     return serialize_counter_group(
@@ -443,7 +441,6 @@ async def update_counter_group(
         group.updated_at = datetime.now(timezone.utc)
         session.add(group)
         await session.commit()
-        await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
@@ -539,7 +536,6 @@ async def add_counter(
     )
     session.add(counter)
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await counters_service.get_counter(
         session, counter.id, populate_existing=True
@@ -632,7 +628,6 @@ async def update_counter(
         counter.updated_at = datetime.now(timezone.utc)
         session.add(counter)
         await session.commit()
-        await reapply_rls_context(session)
 
     hydrated = await counters_service.get_counter(
         session, counter.id, populate_existing=True
@@ -689,7 +684,6 @@ async def _commit_and_broadcast_count(
     counter: Counter,
 ) -> CounterRead:
     await session.commit()
-    await reapply_rls_context(session)
     hydrated = await counters_service.get_counter(
         session, counter.id, populate_existing=True
     )
@@ -781,7 +775,6 @@ async def reset_all_counters(
     )
     await counters_service.reset_all_counters(session, group)
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
@@ -811,7 +804,6 @@ async def sort_counters(
         session, group, field=payload.field, direction=payload.direction
     )
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _refetch_group(session, group.id)
     result = serialize_counter_group(
@@ -845,36 +837,11 @@ async def set_counter_group_grants(
     """
     # Write access is sufficient to manage sharing; only deleting the group is
     # reserved for owners. The owner row itself is preserved regardless.
-    group = await _get_counter_group_with_access(
-        session,
-        group_id,
-        current_user,
-        guild_context,
-        access="write",
-        manage_access=True,
+    await resource_access.set_resource_grants(
+        session, Tool.counter_group, group_id, current_user, guild_context, grants
     )
 
-    # The owner is the user holding the owner-level grant, else the creator.
-    owner_id = group.created_by_id
-    for g in group.grants or []:
-        if g.user_id is not None and g.level == ResourceAccessLevel.owner:
-            owner_id = g.user_id
-            break
-
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="counter_group",
-        resource_id=group.id,
-        guild_id=group.guild_id,
-        initiative_id=group.initiative_id,
-        owner_id=owner_id,
-        grants=grants,
-    )
-
-    await session.commit()
-    await reapply_rls_context(session)
-
-    hydrated = await _refetch_group(session, group.id)
+    hydrated = await _refetch_group(session, group_id)
     result = serialize_counter_group(
         hydrated,
         my_permission_level=_compute_my_permission(
@@ -968,7 +935,7 @@ async def websocket_counter_group(
         # Mirror the feature gate enforced on every HTTP endpoint via
         # _get_counter_group_with_access — don't stream events for a group
         # whose initiative has counters disabled.
-        if group.initiative and not group.initiative.counters_enabled:
+        if group.initiative and not group.initiative.counter_groups_enabled:
             logger.warning(f"Counter WS: counters disabled for group {group_id}")
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return

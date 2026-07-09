@@ -1,0 +1,9 @@
+{
+  "title": "Erweiterte Tools",
+  "loading": "Erweiterte Tools werden geladen…",
+  "loadError": "Erweiterte Tools konnten nicht geladen werden.",
+  "noTools": "Noch keine erweiterten Tools",
+  "noToolsDescription": "Diese Initiative hat noch keine erweiterten Tools aus {{name}}.",
+  "createdExternally": "Erweiterte Tools werden in {{name}} erstellt und bearbeitet; Freigabe und Löschung werden hier verwaltet.",
+  "updated": "Aktualisiert {{date}}"
+}

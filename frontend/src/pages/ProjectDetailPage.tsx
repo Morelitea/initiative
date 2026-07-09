@@ -30,6 +30,7 @@ import { useUsers } from "@/hooks/useUsers";
 import { getHttpStatus } from "@/lib/errorMessage";
 import { useGuildPath } from "@/lib/guildUrl";
 import { Capability, hasCapability } from "@/lib/permissions";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 export const ProjectDetailPage = () => {
   const { t } = useTranslation("projects");
@@ -92,7 +93,7 @@ export const ProjectDetailPage = () => {
     if (!project) {
       return allUsers.map((item) => ({
         id: item.id,
-        label: item.full_name ?? item.email,
+        label: getUserDisplayName(item),
         avatarUrl: item.avatar_url,
         avatarBase64: item.avatar_base64,
       }));
@@ -136,7 +137,7 @@ export const ProjectDetailPage = () => {
       .filter((item) => allowed.has(item.id))
       .map((item) => ({
         id: item.id,
-        label: item.full_name ?? item.email,
+        label: getUserDisplayName(item),
         avatarUrl: item.avatar_url,
         avatarBase64: item.avatar_base64,
       }));

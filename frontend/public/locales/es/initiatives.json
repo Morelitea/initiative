@@ -70,8 +70,9 @@
     "documents": "Documentos",
     "projects": "Proyectos",
     "queues": "Colas",
-    "calendar": "Calendario",
-    "counters": "Contadores"
+    "calendarEvents": "Calendario",
+    "counterGroups": "Contadores",
+    "advancedTools": "Herramientas avanzadas"
   },
   "settings": {
     "title": "Configuración de la iniciativa",
@@ -180,9 +181,9 @@
       "documents": "Documentos",
       "projects": "Proyectos",
       "queues": "Colas",
-      "events": "Eventos",
-      "advancedTool": "Herramienta avanzada",
-      "counters": "Contadores"
+      "calendarEvents": "Eventos",
+      "counterGroups": "Contadores",
+      "advancedTools": "Herramienta avanzada"
     },
     "permissions": {
       "viewDocuments": "Ver documentos",
@@ -191,21 +192,21 @@
       "createProjects": "Crear proyectos",
       "viewQueues": "Ver colas",
       "createQueues": "Crear colas",
-      "viewEvents": "Ver eventos",
-      "createEvents": "Crear eventos",
-      "viewAdvancedTool": "Abrir la herramienta avanzada",
-      "createAdvancedTool": "Crear en la herramienta avanzada",
-      "viewCounters": "Ver contadores",
-      "createCounters": "Crear contadores"
+      "viewCalendarEvents": "Ver eventos",
+      "createCalendarEvents": "Crear eventos",
+      "viewAdvancedTools": "Abrir la herramienta avanzada",
+      "createAdvancedTools": "Crear en la herramienta avanzada",
+      "viewCounterGroups": "Ver contadores",
+      "createCounterGroups": "Crear contadores"
     }
   },
   "advancedTools": "Herramientas avanzadas",
   "advancedToolsDescription": "Habilita herramientas opcionales para esta iniciativa.",
   "queuesFeature": "Colas",
   "queuesFeatureDescription": "Organiza elementos por prioridad, sigue el orden de turnos y gestiona quién sigue.",
-  "eventsFeature": "Calendario",
-  "eventsFeatureDescription": "Programa y gestiona eventos de calendario con asistentes y seguimiento de RSVP.",
-  "advancedToolFeatureDescription": "Inserta el panel de {{name}} en esta iniciativa.",
+  "calendarEventsFeature": "Calendario",
+  "calendarEventsFeatureDescription": "Programa y gestiona eventos de calendario con asistentes y seguimiento de RSVP.",
+  "advancedToolsFeatureDescription": "Inserta el panel de {{name}} en esta iniciativa.",
   "advancedTool": {
     "connecting": "Conectando…",
     "handoffFailed": "No se pudo establecer una sesión segura con la herramienta integrada.",
@@ -218,6 +219,7 @@
     "guildAdminOnlyTitle": "Solo administradores",
     "guildAdminOnlyDescription": "Solo los administradores del grupo pueden gestionar las automatizaciones a nivel de grupo."
   },
-  "countersFeature": "Contadores",
-  "countersFeatureDescription": "Lleva el control de valores numéricos como PG, puntuaciones o presupuestos — acotados, con incremento configurable y mostrados como números, barras o indicadores radiales."
+  "counterGroupsFeature": "Contadores",
+  "counterGroupsFeatureDescription": "Lleva el control de valores numéricos como PG, puntuaciones o presupuestos — acotados, con incremento configurable y mostrados como números, barras o indicadores radiales.",
+  "advancedToolsFeature": "Herramientas avanzadas"
 }

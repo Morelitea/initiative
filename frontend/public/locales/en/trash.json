@@ -37,6 +37,7 @@
     "queue_item": "Queue item",
     "calendar_event": "Calendar event",
     "counter_group": "Counter group",
-    "counter": "Counter"
+    "counter": "Counter",
+    "advanced_tool": "Advanced tool"
   }
 }

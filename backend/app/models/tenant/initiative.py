@@ -14,6 +14,7 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.models.tenant._mixins import SoftDeleteMixin
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -32,76 +33,35 @@ class InitiativeRole(str, Enum):
     member = "member"
 
 
-# Permission keys for role-based access control
-class PermissionKey(str, Enum):
-    docs_enabled = "docs_enabled"
-    projects_enabled = "projects_enabled"
-    create_docs = "create_docs"
-    create_projects = "create_projects"
-    queues_enabled = "queues_enabled"
-    create_queues = "create_queues"
-    events_enabled = "events_enabled"
-    create_events = "create_events"
-    advanced_tool_enabled = "advanced_tool_enabled"
-    create_advanced_tool = "create_advanced_tool"
-    counters_enabled = "counters_enabled"
-    create_counters = "create_counters"
+# Permission keys for role-based access control — fully derived from the Tool
+# enum: one `{plural}_enabled` + `create_{plural}` pair per tool
+# (documents_enabled, create_documents, …, counter_groups_enabled,
+# create_counter_groups). A new Tool member gets its keys automatically; only
+# the DB CHECK constraint on initiative_role_permissions still needs a guild
+# migration to accept the new values.
+PermissionKey = Enum(
+    "PermissionKey",
+    [(name, name) for t in Tool for name in (t.view_permission, t.create_permission)],
+    type=str,
+)
 
 
-# Fallback values when a permission is not explicitly set on a role.
-# Feature visibility defaults to True (permissive), creation defaults to False (restrictive).
-# When adding new permission keys, add an entry here to define the fallback behavior.
+# Fallback values when a permission is not explicitly set on a role, derived
+# from the tool classification: viewing a core (always-on) tool defaults to
+# True, viewing an opt-in tool defaults to False (its initiative master switch
+# gates availability, and within that only managers see it unless a custom
+# role grants it), and creation is always False (restrictive).
 DEFAULT_PERMISSION_VALUES: dict["PermissionKey", bool] = {
-    PermissionKey.docs_enabled: True,
-    PermissionKey.projects_enabled: True,
-    PermissionKey.create_docs: False,
-    PermissionKey.create_projects: False,
-    PermissionKey.queues_enabled: False,
-    PermissionKey.create_queues: False,
-    PermissionKey.events_enabled: False,
-    PermissionKey.create_events: False,
-    # The advanced tool is opt-in by default — the master switch on the
-    # initiative gates whether it's available at all, and within that,
-    # only managers can view/create unless a custom role grants it.
-    PermissionKey.advanced_tool_enabled: False,
-    PermissionKey.create_advanced_tool: False,
-    # Counters is an advanced tool — opt-in by default like queues/events,
-    # gated by the initiative master switch.
-    PermissionKey.counters_enabled: False,
-    PermissionKey.create_counters: False,
+    **{PermissionKey(t.view_permission): t in CORE_TOOLS for t in Tool},
+    **{PermissionKey(t.create_permission): False for t in Tool},
 }
 
 
-# Default permission sets for built-in roles
+# Default permission sets for built-in roles: managers get everything, members
+# get view-only on the core (always-on) tools.
 BUILTIN_ROLE_PERMISSIONS = {
-    "project_manager": {
-        PermissionKey.docs_enabled: True,
-        PermissionKey.projects_enabled: True,
-        PermissionKey.create_docs: True,
-        PermissionKey.create_projects: True,
-        PermissionKey.queues_enabled: True,
-        PermissionKey.create_queues: True,
-        PermissionKey.events_enabled: True,
-        PermissionKey.create_events: True,
-        PermissionKey.advanced_tool_enabled: True,
-        PermissionKey.create_advanced_tool: True,
-        PermissionKey.counters_enabled: True,
-        PermissionKey.create_counters: True,
-    },
-    "member": {
-        PermissionKey.docs_enabled: True,
-        PermissionKey.projects_enabled: True,
-        PermissionKey.create_docs: False,
-        PermissionKey.create_projects: False,
-        PermissionKey.queues_enabled: False,
-        PermissionKey.create_queues: False,
-        PermissionKey.events_enabled: False,
-        PermissionKey.create_events: False,
-        PermissionKey.advanced_tool_enabled: False,
-        PermissionKey.create_advanced_tool: False,
-        PermissionKey.counters_enabled: False,
-        PermissionKey.create_counters: False,
-    },
+    "project_manager": {key: True for key in PermissionKey},
+    "member": dict(DEFAULT_PERMISSION_VALUES),
 }
 
 
@@ -203,7 +163,29 @@ class InitiativeMember(SQLModel, table=True):
     role_ref: Optional["InitiativeRoleModel"] = Relationship(back_populates="members")
 
 
-class Initiative(SoftDeleteMixin, table=True):
+# One `{tool.plural}_enabled` master-switch column per toggleable Tool —
+# derived from the Tool enum, so a new opt-in tool grows its column here
+# automatically. The actual DDL still ships as a guild migration (and the
+# provisioning drift tests catch a model/schema mismatch).
+_InitiativeToolSwitchColumns = type(
+    "_InitiativeToolSwitchColumns",
+    (SQLModel,),
+    {
+        "__module__": __name__,
+        "__annotations__": {t.view_permission: bool for t in TOGGLEABLE_TOOLS},
+        **{
+            t.view_permission: Field(
+                default=False,
+                nullable=False,
+                sa_column_kwargs={"server_default": "false"},
+            )
+            for t in TOGGLEABLE_TOOLS
+        },
+    },
+)
+
+
+class Initiative(_InitiativeToolSwitchColumns, SoftDeleteMixin, table=True):
     __tablename__ = "initiatives"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -219,22 +201,6 @@ class Initiative(SoftDeleteMixin, table=True):
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )
     is_archived: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
-    queues_enabled: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
-    events_enabled: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
-    advanced_tool_enabled: bool = Field(
-        default=False,
-        sa_column=Column(Boolean, nullable=False, server_default="false"),
-    )
-    counters_enabled: bool = Field(
         default=False,
         sa_column=Column(Boolean, nullable=False, server_default="false"),
     )

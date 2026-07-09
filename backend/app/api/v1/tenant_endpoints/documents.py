@@ -41,7 +41,7 @@ from app.core.messages import (
 )
 from app.core.pam_context import has_active_grant
 from app.core.rate_limit import limiter
-from app.db.session import get_admin_session, reapply_rls_context
+from app.db.session import get_admin_session
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.models.tenant.document import (
     Document,
@@ -82,10 +82,11 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
-from app.services import attachments as attachments_service
+from app.services.tenant import attachments as attachments_service
 from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
+from app.core.tools import Tool
 from app.services.tenant import documents as documents_service
 from app.services.tenant import initiatives as initiatives_service
 from app.services import notifications as notifications_service
@@ -95,7 +96,7 @@ from app.services.tenant import recent_views as recent_views_service
 from app.services import rls as rls_service
 from app.schemas.tenant.recent_view import RecentViewWrite
 from app.services.ai_generation import AIGenerationError, generate_document_summary
-from app.services.collaboration import collaboration_manager
+from app.services.tenant.collaboration import collaboration_manager
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +192,7 @@ async def _require_initiative_access(
         user: User to check
         guild_role: User's guild role (admins bypass checks)
         require_manager: If True, require manager-level role (legacy, use permission_key instead)
-        permission_key: Specific permission to check (e.g., PermissionKey.create_docs)
+        permission_key: Specific permission to check (e.g., PermissionKey.create_documents)
     """
     if rls_service.is_guild_admin(guild_role):
         return
@@ -264,7 +265,7 @@ def _require_document_access(
     permission ops) additionally rejects PAM grantees — a grant never manages
     access."""
     resource_access.authorize(
-        "document",
+        Tool.document,
         document,
         user,
         access=access,
@@ -272,11 +273,6 @@ def _require_document_access(
         manage_access=manage_access,
         guild_role=guild_role,
     )
-
-
-def _get_document_permission(document: Document, user_id: int) -> ResourceGrant | None:
-    """Get a user's permission grant for a document from the loaded grants."""
-    return _grant_for_user(document, user_id)
 
 
 def _file_download_response(
@@ -839,7 +835,7 @@ async def create_document(
         initiative_id=initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        permission_key=PermissionKey.create_docs,
+        permission_key=PermissionKey.create_documents,
     )
     title = document_in.title.strip()
     if not title:
@@ -910,7 +906,6 @@ async def create_document(
     )
 
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _get_document_or_404(
         session, document_id=document.id, guild_id=guild_context.guild_id
@@ -946,7 +941,7 @@ async def upload_document_file(
         initiative_id=initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        permission_key=PermissionKey.create_docs,
+        permission_key=PermissionKey.create_documents,
     )
     title = title.strip()
     if not title:
@@ -1069,7 +1064,6 @@ async def upload_document_file(
         )
     )
     await session.commit()
-    await reapply_rls_context(session)
 
     hydrated = await _get_document_or_404(
         session, document_id=document.id, guild_id=guild_context.guild_id
@@ -1202,7 +1196,7 @@ async def upload_document_version(
     document.file_content_type = mime_type
     document.file_size = len(contents)
     document.original_filename = file.filename
-    document.updated_by_id = current_user.id
+    document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     document.updated_at = datetime.now(timezone.utc)
     if mime_type and mime_type.startswith("image/"):
         document.featured_image_url = file_url
@@ -1215,13 +1209,11 @@ async def upload_document_version(
         # MAX() read and this commit. Roll back, drop the orphaned blob, and ask
         # the caller to retry rather than surfacing a 500.
         await session.rollback()
-        await reapply_rls_context(session)
         attachments_service.delete_upload_by_url(file_url)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=DocumentMessages.VERSION_CONFLICT,
         )
-    await reapply_rls_context(session)
     await session.refresh(version)
     return serialize_document_file_version(version, is_current=True)
 
@@ -1325,7 +1317,7 @@ async def delete_document_version(
             document.file_content_type = promoted.file_content_type
             document.file_size = promoted.file_size
             document.original_filename = promoted.original_filename
-            document.updated_by_id = current_user.id
+            document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             document.updated_at = datetime.now(timezone.utc)
             # Keep featured image coherent when it referenced the deleted blob.
             if document.featured_image_url == deleted_url:
@@ -1335,7 +1327,6 @@ async def delete_document_version(
                     document.featured_image_url = None
 
     await session.commit()
-    await reapply_rls_context(session)
 
     # Delete the blob after the row is gone so a failed commit doesn't orphan files.
     attachments_service.delete_upload_by_url(deleted_url)
@@ -1475,7 +1466,7 @@ async def update_document(
 
     if updated:
         document.updated_at = datetime.now(timezone.utc)
-        document.updated_by_id = current_user.id
+        document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         session.add(document)
         # Sync wikilinks if content was updated
         if content_updated:
@@ -1489,7 +1480,6 @@ async def update_document(
             filenames = [url.split("/")[-1] for url in removed_upload_urls]
             await session.exec(sa_delete(Upload).where(Upload.filename.in_(filenames)))
         await session.commit()
-        await reapply_rls_context(session)
         # Invalidate any in-memory collaboration room so the next session
         # loads fresh state from the database. If a room has active
         # collaborators their in-memory state wins until they disconnect.
@@ -1582,13 +1572,13 @@ async def copy_document(
         initiative_id=payload.target_initiative_id,
         guild_id=guild_context.guild_id,
     )
-    # Also require create_docs permission in target initiative
+    # Also require create_documents permission in target initiative
     await _require_initiative_access(
         session,
         initiative_id=target_initiative.id,
         user=current_user,
         guild_role=guild_context.role,
-        permission_key=PermissionKey.create_docs,
+        permission_key=PermissionKey.create_documents,
     )
     title = (payload.title or document.title).strip()
     if not title:
@@ -1838,7 +1828,6 @@ async def set_document_properties(
         )
     except HTTPException:
         await session.rollback()
-        await reapply_rls_context(session)
         raise
 
     # Bump updated_at via a lightweight select to avoid touching the
@@ -1848,7 +1837,6 @@ async def set_document_properties(
     ts_doc = ts_result.one()
     ts_doc.updated_at = datetime.now(timezone.utc)
     await session.commit()
-    await reapply_rls_context(session)
 
     # populate_existing=True forces selectinload to refresh the cached
     # document's property_values collection. Without it, expire_on_commit
@@ -1881,31 +1869,9 @@ async def set_document_grants(
     full list of grants (all-initiative-members / per-user / per-role). Every
     non-owner grant is rebuilt from it; the owner is always preserved.
     """
-    document = await _get_document_or_404(
-        session, document_id=document_id, guild_id=guild_context.guild_id
+    await resource_access.set_resource_grants(
+        session, Tool.document, document_id, current_user, guild_context, grants
     )
-    _require_document_access(document, current_user, access="write", manage_access=True)
-    owner_id = next(
-        (
-            g.user_id
-            for g in document.grants
-            if g.level == ResourceAccessLevel.owner and g.user_id is not None
-        ),
-        document.created_by_id,
-    )
-
-    await permissions_service.replace_resource_grants(
-        session,
-        resource_type="document",
-        resource_id=document_id,
-        guild_id=guild_context.guild_id,
-        initiative_id=document.initiative_id,
-        owner_id=owner_id,
-        grants=grants,
-    )
-
-    await session.commit()
-    await reapply_rls_context(session)
     hydrated = await _get_document_or_404(
         session, document_id=document_id, guild_id=guild_context.guild_id
     )
@@ -1951,7 +1917,7 @@ async def _load_download_document(
 
     # Guard the SET ROLE sink: if the guild schema/role isn't provisioned,
     # establish_guild_access would fault rather than 404. (The session is the
-    # BYPASSRLS admin engine, so this lookup runs regardless of context.)
+    # system admin engine (BYPASSRLS), so this lookup runs regardless of context.)
     schema_exists = (
         await session.exec(
             text("SELECT 1 FROM pg_namespace WHERE nspname = :ns"),
@@ -1963,7 +1929,7 @@ async def _load_download_document(
 
     # Route into the guild through the single entry point — same resolution and
     # applied context (membership / live PAM / break-glass, then SET ROLE +
-    # active_role/grant, no is_superadmin bypass) as REST and the realtime
+    # active_role/grant, no ambient bypass) as REST and the realtime
     # sockets. Fine-grained read permission is then enforced by
     # require_document_access against the context this established.
     try:

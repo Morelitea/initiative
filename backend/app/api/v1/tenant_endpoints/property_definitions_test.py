@@ -16,82 +16,22 @@ from httpx import AsyncClient
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.tenant.document import (
-    Document,
-    DocumentType,
-)
 from app.models.platform.guild import GuildRole
-from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 from app.models.tenant.property import (
     DocumentPropertyValue,
     PropertyDefinition,
     PropertyType,
     TaskPropertyValue,
 )
-from app.services.tenant import task_statuses as task_statuses_service
 from app.testing import (
+    create_document,
     create_document_property_value,
-    create_guild,
-    create_guild_membership,
     create_initiative,
-    create_initiative_member,
     create_project,
     create_property_definition,
+    create_task,
     create_task_property_value,
-    create_user,
-    get_guild_headers,
 )
-
-
-async def _create_task(session: AsyncSession, project, title: str = "Test Task"):
-    from app.models.tenant.task import Task
-
-    await task_statuses_service.ensure_default_statuses(session, project.id)
-    default_status = await task_statuses_service.get_default_status(session, project.id)
-
-    task = Task(
-        title=title,
-        project_id=project.id,
-        task_status_id=default_status.id,
-        guild_id=project.guild_id,
-    )
-    session.add(task)
-    await session.commit()
-    await session.refresh(task)
-    return task
-
-
-async def _create_document(
-    session: AsyncSession,
-    *,
-    initiative,
-    owner,
-    title: str = "Doc With Property",
-) -> Document:
-    doc = Document(
-        title=title,
-        initiative_id=initiative.id,
-        guild_id=initiative.guild_id,
-        created_by_id=owner.id,
-        updated_by_id=owner.id,
-        document_type=DocumentType.native,
-        content={},
-    )
-    session.add(doc)
-    await session.flush()
-
-    perm = ResourceGrant(
-        resource_type="document",
-        resource_id=doc.id,
-        user_id=owner.id,
-        level=ResourceAccessLevel.owner,
-        guild_id=initiative.guild_id,
-        initiative_id=doc.initiative_id,
-    )
-    session.add(perm)
-    await session.commit()
-    await session.refresh(doc)
-    return doc
 
 
 # ---------------------------------------------------------------------------
@@ -101,23 +41,20 @@ async def _create_document(
 
 @pytest.mark.integration
 async def test_list_property_definitions_returns_union_across_initiatives(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Without ``initiative_id`` the list endpoint returns the caller's
     accessible union — definitions across every initiative they're in."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    init_a = await create_initiative(session, guild, user, name="A")
-    init_b = await create_initiative(session, guild, user, name="B")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    init_a = a.initiative
+    init_b = await create_initiative(session, a.guild, a.user, name="B")
 
     defn_a = await create_property_definition(session, init_a, name="In A")
     defn_b = await create_property_definition(session, init_b, name="In B")
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/property-definitions/",
-        headers=await get_guild_headers(session, guild, user),
+        a.g("/property-definitions/"),
+        headers=a.headers,
     )
     assert response.status_code == 200
     ids = {item["id"] for item in response.json()}
@@ -127,22 +64,19 @@ async def test_list_property_definitions_returns_union_across_initiatives(
 
 @pytest.mark.integration
 async def test_list_property_definitions_filtered_by_initiative_id(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """``?initiative_id=X`` filters to that initiative's definitions only."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-
-    init_a = await create_initiative(session, guild, user, name="A")
-    init_b = await create_initiative(session, guild, user, name="B")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    init_a = a.initiative
+    init_b = await create_initiative(session, a.guild, a.user, name="B")
 
     defn_a = await create_property_definition(session, init_a, name="In A")
     defn_b = await create_property_definition(session, init_b, name="In B")
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/property-definitions/?initiative_id={init_a.id}",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/property-definitions/?initiative_id={init_a.id}"),
+        headers=a.headers,
     )
     assert response.status_code == 200
     ids = {item["id"] for item in response.json()}
@@ -152,29 +86,24 @@ async def test_list_property_definitions_filtered_by_initiative_id(
 
 @pytest.mark.integration
 async def test_list_property_definitions_scoped_by_initiative_id_query(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Requesting a specific ``initiative_id`` scopes the result even when
     the caller technically has visibility across multiple initiatives
-    (guild admin / superadmin bypass paths still respect explicit
+    (guild-admin visibility still respects explicit
     filtering through the query param).
     """
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    init_a = await create_initiative(session, guild, admin, name="A")
-    init_b = await create_initiative(session, guild, admin, name="B")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    init_a = a.initiative
+    init_b = await create_initiative(session, a.guild, a.user, name="B")
 
     defn_a = await create_property_definition(session, init_a, name="In A")
     defn_b = await create_property_definition(session, init_b, name="In B")
 
     # Scoped to A
     response_a = await client.get(
-        f"/api/v1/g/{guild.id}/property-definitions/?initiative_id={init_a.id}",
-        headers=await get_guild_headers(session, guild, admin),
+        a.g(f"/property-definitions/?initiative_id={init_a.id}"),
+        headers=a.headers,
     )
     assert response_a.status_code == 200
     ids_a = {item["id"] for item in response_a.json()}
@@ -183,8 +112,8 @@ async def test_list_property_definitions_scoped_by_initiative_id_query(
 
     # Scoped to B
     response_b = await client.get(
-        f"/api/v1/g/{guild.id}/property-definitions/?initiative_id={init_b.id}",
-        headers=await get_guild_headers(session, guild, admin),
+        a.g(f"/property-definitions/?initiative_id={init_b.id}"),
+        headers=a.headers,
     )
     assert response_b.status_code == 200
     ids_b = {item["id"] for item in response_b.json()}
@@ -198,71 +127,51 @@ async def test_list_property_definitions_scoped_by_initiative_id_query(
 
 
 @pytest.mark.integration
-async def test_create_text_property_definition(
-    client: AsyncClient, session: AsyncSession
-):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+async def test_create_text_property_definition(client: AsyncClient, acting_user):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {
         "name": "Status",
         "type": "text",
         "position": 1.0,
-        "initiative_id": initiative.id,
+        "initiative_id": a.initiative.id,
     }
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        a.g("/property-definitions/"), headers=a.headers, json=payload
     )
 
     assert response.status_code == 201
     data = response.json()
     assert data["name"] == "Status"
     assert data["type"] == "text"
-    assert data["initiative_id"] == initiative.id
+    assert data["initiative_id"] == a.initiative.id
 
 
 @pytest.mark.integration
 async def test_create_rejected_when_not_initiative_member(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
     """A plain (non-admin) guild member can't create definitions on an
     initiative they don't belong to.
     """
-    admin = await create_user(session, email="admin@example.com")
-    alice = await create_user(session, email="alice@example.com")
-    bob = await create_user(session, email="bob@example.com")
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=alice, guild=guild, role=GuildRole.member
-    )
-    await create_guild_membership(session, user=bob, guild=guild, role=GuildRole.member)
+    # Alice owns the initiative; Bob is a guild member but NOT an initiative member.
+    alice = await acting_user(guild_role=GuildRole.member, initiative=True)
+    bob = await acting_user(guild_role=GuildRole.member, guild=alice.guild)
 
-    # Alice's initiative; Bob is NOT a member.
-    initiative = await create_initiative(session, guild, alice, name="Init")
-
-    headers = await get_guild_headers(session, guild, bob)
     payload = {
         "name": "Foo",
         "type": "text",
-        "initiative_id": initiative.id,
+        "initiative_id": alice.initiative.id,
     }
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        bob.g("/property-definitions/"), headers=bob.headers, json=payload
     )
     assert response.status_code == 403
     assert response.json()["detail"] == "PROPERTY_NOT_INITIATIVE_MEMBER"
 
 
 @pytest.mark.integration
-async def test_create_allowed_for_initiative_member(
-    client: AsyncClient, session: AsyncSession
-):
+async def test_create_allowed_for_initiative_member(client: AsyncClient, acting_user):
     """A plain (non-admin) guild member who belongs to the initiative can
     create a definition on it.
 
@@ -271,62 +180,46 @@ async def test_create_allowed_for_initiative_member(
     so a legitimate member is no longer false-403'd by a lookup against the
     frozen ``public`` backup.
     """
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
 
-    initiative = await create_initiative(session, guild, admin, name="Init")
-    await create_initiative_member(session, initiative, member)
-
-    headers = await get_guild_headers(session, guild, member)
     payload = {
         "name": "Owner Tag",
         "type": "text",
-        "initiative_id": initiative.id,
+        "initiative_id": admin.initiative.id,
     }
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        member.g("/property-definitions/"), headers=member.headers, json=payload
     )
 
     assert response.status_code == 201
     data = response.json()
     assert data["name"] == "Owner Tag"
-    assert data["initiative_id"] == initiative.id
+    assert data["initiative_id"] == admin.initiative.id
 
 
 @pytest.mark.integration
 async def test_create_rejected_for_guild_member_not_in_initiative(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
     """A guild member who is NOT in the target initiative is rejected with
     the canonical NOT_INITIATIVE_MEMBER code."""
-    admin = await create_user(session, email="admin@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session, creator=admin)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=outsider, guild=guild, role=GuildRole.member
-    )
-
     # Admin's initiative; outsider is a guild member but not an initiative member.
-    initiative = await create_initiative(session, guild, admin, name="Init")
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
-    headers = await get_guild_headers(session, guild, outsider)
     payload = {
         "name": "Foo",
         "type": "text",
-        "initiative_id": initiative.id,
+        "initiative_id": admin.initiative.id,
     }
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        outsider.g("/property-definitions/"), headers=outsider.headers, json=payload
     )
 
     assert response.status_code == 403
@@ -335,52 +228,38 @@ async def test_create_rejected_for_guild_member_not_in_initiative(
 
 @pytest.mark.integration
 async def test_create_allowed_for_guild_admin_not_in_initiative(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A guild admin can create a definition on any initiative in their
     guild even without an explicit initiative-member row — mirroring the
     restrictive RLS policy's admin bypass, now resolved off
     ``GuildContext.role``."""
-    creator = await create_user(session, email="creator@example.com")
-    guild_admin = await create_user(session, email="gadmin@example.com")
-    guild = await create_guild(session, creator=creator)
-    await create_guild_membership(
-        session, user=creator, guild=guild, role=GuildRole.member
-    )
-    await create_guild_membership(
-        session, user=guild_admin, guild=guild, role=GuildRole.admin
-    )
-
     # The creator owns the initiative; the guild admin is not a member of it.
-    initiative = await create_initiative(session, guild, creator, name="Init")
+    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
+    guild_admin = await acting_user(guild_role=GuildRole.admin, guild=creator.guild)
 
-    headers = await get_guild_headers(session, guild, guild_admin)
     payload = {
         "name": "Admin Field",
         "type": "text",
-        "initiative_id": initiative.id,
+        "initiative_id": creator.initiative.id,
     }
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        guild_admin.g("/property-definitions/"),
+        headers=guild_admin.headers,
+        json=payload,
     )
 
     assert response.status_code == 201
-    assert response.json()["initiative_id"] == initiative.id
+    assert response.json()["initiative_id"] == creator.initiative.id
 
 
 @pytest.mark.integration
-async def test_create_select_requires_options(
-    client: AsyncClient, session: AsyncSession
-):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+async def test_create_select_requires_options(client: AsyncClient, acting_user):
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    headers = await get_guild_headers(session, guild, user)
-    payload = {"name": "State", "type": "select", "initiative_id": initiative.id}
+    payload = {"name": "State", "type": "select", "initiative_id": a.initiative.id}
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        a.g("/property-definitions/"), headers=a.headers, json=payload
     )
 
     assert response.status_code == 422
@@ -390,19 +269,15 @@ async def test_create_select_requires_options(
 
 @pytest.mark.integration
 async def test_create_duplicate_name_case_insensitive_conflicts(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    await create_property_definition(session, initiative, name="Priority")
+    await create_property_definition(session, a.initiative, name="Priority")
 
-    headers = await get_guild_headers(session, guild, user)
-    payload = {"name": "priority", "type": "text", "initiative_id": initiative.id}
+    payload = {"name": "priority", "type": "text", "initiative_id": a.initiative.id}
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        a.g("/property-definitions/"), headers=a.headers, json=payload
     )
 
     assert response.status_code == 409
@@ -411,47 +286,40 @@ async def test_create_duplicate_name_case_insensitive_conflicts(
 
 @pytest.mark.integration
 async def test_create_same_name_in_different_initiatives_allowed(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The uniqueness index is on (initiative_id, lower(name)) — two
     initiatives can each have their own 'Priority' without clashing."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    init_a = await create_initiative(session, guild, user, name="A")
-    init_b = await create_initiative(session, guild, user, name="B")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    init_a = a.initiative
+    init_b = await create_initiative(session, a.guild, a.user, name="B")
 
     await create_property_definition(session, init_a, name="Priority")
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {"name": "Priority", "type": "text", "initiative_id": init_b.id}
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        a.g("/property-definitions/"), headers=a.headers, json=payload
     )
     assert response.status_code == 201
 
 
 @pytest.mark.integration
 async def test_create_select_duplicate_option_values_rejected(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {
         "name": "Phase",
         "type": "select",
-        "initiative_id": initiative.id,
+        "initiative_id": a.initiative.id,
         "options": [
             {"value": "draft", "label": "Draft"},
             {"value": "draft", "label": "Also Draft"},
         ],
     }
     response = await client.post(
-        f"/api/v1/g/{guild.id}/property-definitions/", headers=headers, json=payload
+        a.g("/property-definitions/"), headers=a.headers, json=payload
     )
 
     assert response.status_code == 422
@@ -466,17 +334,14 @@ async def test_create_select_duplicate_option_values_rejected(
 
 @pytest.mark.integration
 async def test_get_definition_returns_definition(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    defn = await create_property_definition(session, initiative, name="Phase")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    defn = await create_property_definition(session, a.initiative, name="Phase")
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/property-definitions/{defn.id}",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/property-definitions/{defn.id}"),
+        headers=a.headers,
     )
 
     assert response.status_code == 200
@@ -485,16 +350,14 @@ async def test_get_definition_returns_definition(
 
 @pytest.mark.integration
 async def test_get_definition_for_missing_id_returns_404(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, acting_user
 ):
     """Unknown definition id → 404 with the canonical error code."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
+    a = await acting_user(guild_role=GuildRole.admin)
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/property-definitions/99999",
-        headers=await get_guild_headers(session, guild, user),
+        a.g("/property-definitions/99999"),
+        headers=a.headers,
     )
 
     assert response.status_code == 404
@@ -508,21 +371,17 @@ async def test_get_definition_for_missing_id_returns_404(
 
 @pytest.mark.integration
 async def test_patch_renames_color_and_position(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     defn = await create_property_definition(
-        session, initiative, name="Old Name", position=0.0
+        session, a.initiative, name="Old Name", position=0.0
     )
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {"name": "New Name", "color": "#FF00AA", "position": 5.5}
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/property-definitions/{defn.id}",
-        headers=headers,
+        a.g(f"/property-definitions/{defn.id}"),
+        headers=a.headers,
         json=payload,
     )
 
@@ -536,22 +395,18 @@ async def test_patch_renames_color_and_position(
 
 @pytest.mark.integration
 async def test_patch_ignores_type_change_silently(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """The Update schema has no `type` field, so sending one is ignored."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
     defn = await create_property_definition(
-        session, initiative, name="Immutable", type=PropertyType.text
+        session, a.initiative, name="Immutable", type=PropertyType.text
     )
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {"type": "number", "name": "Renamed"}
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/property-definitions/{defn.id}",
-        headers=headers,
+        a.g(f"/property-definitions/{defn.id}"),
+        headers=a.headers,
         json=payload,
     )
 
@@ -562,17 +417,14 @@ async def test_patch_ignores_type_change_silently(
 
 @pytest.mark.integration
 async def test_patch_removing_option_reports_orphaned_values(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Removing an option on a select with attached values reports the orphans."""
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
 
     defn = await create_property_definition(
         session,
-        initiative,
+        a.initiative,
         name="Stage",
         type=PropertyType.select,
         options=[
@@ -582,15 +434,14 @@ async def test_patch_removing_option_reports_orphaned_values(
     )
 
     # Attach a document value that uses the "live" slug.
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    doc = await create_document(session, a.initiative, a.user)
     await create_document_property_value(session, doc, defn, value_text="live")
 
-    headers = await get_guild_headers(session, guild, user)
     # Remove "live" from the option list.
     payload = {"options": [{"value": "draft", "label": "Draft"}]}
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/property-definitions/{defn.id}",
-        headers=headers,
+        a.g(f"/property-definitions/{defn.id}"),
+        headers=a.headers,
         json=payload,
     )
 
@@ -614,24 +465,20 @@ async def test_patch_removing_option_reports_orphaned_values(
 
 @pytest.mark.integration
 async def test_delete_definition_cascades_to_values(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    defn = await create_property_definition(session, initiative, name="Meta")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    defn = await create_property_definition(session, a.initiative, name="Meta")
 
-    project = await create_project(session, initiative, user, name="Proj")
-    task = await _create_task(session, project)
-    doc = await _create_document(session, initiative=initiative, owner=user)
+    project = await create_project(session, a.initiative, a.user, name="Proj")
+    task = await create_task(session, project)
+    doc = await create_document(session, a.initiative, a.user)
 
     await create_document_property_value(session, doc, defn, value_text="a doc value")
     await create_task_property_value(session, task, defn, value_text="a task value")
 
-    headers = await get_guild_headers(session, guild, user)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/property-definitions/{defn.id}", headers=headers
+        a.g(f"/property-definitions/{defn.id}"), headers=a.headers
     )
     assert response.status_code == 204
 
@@ -663,26 +510,21 @@ async def test_delete_definition_cascades_to_values(
 
 @pytest.mark.integration
 async def test_get_entities_returns_attached_docs_and_tasks(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
-    user = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
-    initiative = await create_initiative(session, guild, user, name="Init")
-    defn = await create_property_definition(session, initiative, name="Owner Tag")
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    defn = await create_property_definition(session, a.initiative, name="Owner Tag")
 
-    project = await create_project(session, initiative, user, name="Proj")
-    task = await _create_task(session, project, "Task 1")
-    doc = await _create_document(
-        session, initiative=initiative, owner=user, title="Doc 1"
-    )
+    project = await create_project(session, a.initiative, a.user, name="Proj")
+    task = await create_task(session, project, title="Task 1")
+    doc = await create_document(session, a.initiative, a.user, title="Doc 1")
 
     await create_document_property_value(session, doc, defn, value_text="x")
     await create_task_property_value(session, task, defn, value_text="y")
 
     response = await client.get(
-        f"/api/v1/g/{guild.id}/property-definitions/{defn.id}/entities",
-        headers=await get_guild_headers(session, guild, user),
+        a.g(f"/property-definitions/{defn.id}/entities"),
+        headers=a.headers,
     )
     assert response.status_code == 200
     data = response.json()

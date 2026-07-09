@@ -29,11 +29,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import config as config_module
 from app.models.platform.user import UserStatus
-from app.testing.factories import (
+from app.testing import (
     create_guild,
     create_guild_membership,
     create_user,
-    get_guild_headers,
 )
 
 
@@ -130,7 +129,6 @@ async def test_delegation_token_guild_claim_pins_context(
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild)
     # The human is legitimately in their own guild...
-    await get_guild_headers(session, guild, user)
     # ...but the workflow's token names a guild they have no access to.
     token = _mint_delegation(user_id=user.id, guild_id=guild.id + 999)
 

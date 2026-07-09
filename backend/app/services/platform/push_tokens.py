@@ -5,7 +5,6 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import select, delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.db.session import reapply_rls_context
 from app.models.platform.push_token import PushToken
 
 
@@ -45,7 +44,6 @@ async def register_push_token(
     )
     result = await session.exec(stmt)
     await session.commit()
-    await reapply_rls_context(session)
     return result.scalars().one()
 
 
@@ -69,35 +67,22 @@ async def get_push_tokens_for_user(
 async def delete_push_token(
     session: AsyncSession,
     *,
+    user_id: int,
     push_token: str,
 ) -> bool:
-    """Remove a push token (on unregister or invalid token error).
-
-    Returns True if a token was deleted, False otherwise.
-    """
-    stmt = delete(PushToken).where(PushToken.push_token == push_token)
-    result = await session.exec(stmt)
-    await session.commit()
-    return result.rowcount > 0  # type: ignore
-
-
-async def delete_push_token_by_id(
-    session: AsyncSession,
-    *,
-    token_id: int,
-    user_id: int,
-) -> bool:
-    """Delete a push token by ID (must belong to the user).
+    """Remove one of ``user_id``'s push tokens (on unregister or invalid
+    token error). Scoped to the owner so a leaked token value can't be used
+    to silence another user's devices.
 
     Returns True if a token was deleted, False otherwise.
     """
     stmt = delete(PushToken).where(
-        PushToken.id == token_id,
         PushToken.user_id == user_id,
+        PushToken.push_token == push_token,
     )
     result = await session.exec(stmt)
     await session.commit()
-    return result.rowcount > 0  # type: ignore
+    return result.rowcount > 0
 
 
 async def update_last_used(
@@ -114,21 +99,3 @@ async def update_last_used(
         token.last_used_at = datetime.now(timezone.utc)
         session.add(token)
         await session.commit()
-
-
-async def delete_tokens_by_device_token_id(
-    session: AsyncSession,
-    *,
-    device_token_id: int,
-) -> int:
-    """Delete all push tokens associated with a device token.
-
-    This is useful when a device token is revoked - we should also remove
-    all push tokens for that device.
-
-    Returns the number of tokens deleted.
-    """
-    stmt = delete(PushToken).where(PushToken.device_token_id == device_token_id)
-    result = await session.exec(stmt)
-    await session.commit()
-    return result.rowcount  # type: ignore

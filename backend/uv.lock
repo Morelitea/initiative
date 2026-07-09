@@ -1190,7 +1190,7 @@ requires-dist = [
     { name = "bcrypt", specifier = "==5.0.0" },
     { name = "boto3", specifier = ">=1.35,<2" },
     { name = "email-validator", specifier = ">=2.3.0,<3" },
-    { name = "fastapi", specifier = ">=0.136.1,<0.139" },
+    { name = "fastapi", specifier = ">=0.136.1,<0.140" },
     { name = "fastmcp", specifier = ">=3.4.2" },
     { name = "google-auth", specifier = ">=2.53.0" },
     { name = "greenlet", specifier = ">=3.0" },
@@ -1201,15 +1201,15 @@ requires-dist = [
     { name = "pycrdt", specifier = ">=0.13.0,<0.15" },
     { name = "pycrdt-websocket", specifier = ">=0.16.1,<0.17" },
     { name = "pydantic-settings", specifier = ">=2.14.2,<3" },
-    { name = "pyjwt", specifier = ">=2.12.1,<3" },
+    { name = "pyjwt", specifier = ">=2.13.0,<3" },
     { name = "python-magic", specifier = ">=0.4.27" },
     { name = "python-multipart", specifier = ">=0.0.31,<0.0.33" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "slowapi", specifier = ">=0.1.9,<0.2" },
     { name = "sqlalchemy", specifier = ">=2.0.49,<3" },
-    { name = "sqlmodel", specifier = ">=0.0.38,<0.0.39" },
+    { name = "sqlmodel", specifier = ">=0.0.38,<0.0.40" },
     { name = "tzdata", specifier = ">=2026.2" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.50" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.52" },
 ]
 
 [package.metadata.requires-dev]

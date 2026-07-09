@@ -23,29 +23,9 @@ from app.models.platform.guild import GuildRole
 from app.testing.factories import (
     create_guild,
     create_guild_membership,
+    create_project,
     create_user,
-    get_guild_headers,
 )
-
-
-async def _create_initiative(session, guild, user):
-    """Helper to create an initiative."""
-    from app.testing.factories import create_initiative as factory_create_initiative
-
-    initiative = await factory_create_initiative(
-        session, guild, user, name="Test Initiative"
-    )
-    return initiative
-
-
-async def _create_project(session, initiative, owner):
-    """Helper to create a project."""
-    from app.testing.factories import create_project as factory_create_project
-
-    project = await factory_create_project(
-        session, initiative, owner, name="Test Project"
-    )
-    return project
 
 
 async def _create_task(session, project, title="Test Task"):
@@ -70,21 +50,19 @@ async def _create_task(session, project, title="Test Task"):
 
 
 @pytest.mark.integration
-async def test_list_tasks_in_project(client: AsyncClient, session: AsyncSession):
+async def test_list_tasks_in_project(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test listing tasks filtered by project."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task1 = await _create_task(session, a.project, "Task 1")
+    task2 = await _create_task(session, a.project, "Task 2")
 
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task1 = await _create_task(session, project, "Task 1")
-    task2 = await _create_task(session, project, "Task 2")
-
-    headers = await get_guild_headers(session, guild, user)
-    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
     response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
     )
 
     assert response.status_code == 200
@@ -96,7 +74,7 @@ async def test_list_tasks_in_project(client: AsyncClient, session: AsyncSession)
 
 @pytest.mark.integration
 async def test_list_tasks_guild_admin_sees_unjoined_project(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A guild admin sees every project's tasks, even ones they never joined.
 
@@ -106,25 +84,21 @@ async def test_list_tasks_guild_admin_sees_unjoined_project(
     full guild access. Previously ``_allowed_project_ids`` lacked a guild-admin
     branch, so the admin got "no results".
     """
-    admin = await create_user(session, email="admin@example.com")
-    owner = await create_user(session, email="owner@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    # ``owner`` (a plain guild member) builds the initiative + project, so the
+    # admin is neither a member nor a permission holder.
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
     )
-    await create_guild_membership(session, user=owner, guild=guild)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=owner.guild)
 
-    # ``owner`` (not the admin) builds the initiative + project, so the admin is
-    # neither a member nor a permission holder.
-    initiative = await _create_initiative(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-    task1 = await _create_task(session, project, "Hidden Task 1")
-    task2 = await _create_task(session, project, "Hidden Task 2")
+    task1 = await _create_task(session, owner.project, "Hidden Task 1")
+    task2 = await _create_task(session, owner.project, "Hidden Task 2")
 
-    headers = await get_guild_headers(session, guild, admin)
-    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": owner.project.id}]
+    )
     response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
+        admin.g(f"/tasks/?conditions={conditions}"), headers=admin.headers
     )
 
     assert response.status_code == 200
@@ -134,34 +108,26 @@ async def test_list_tasks_guild_admin_sees_unjoined_project(
 
 
 @pytest.mark.integration
-async def test_create_task(client: AsyncClient, session: AsyncSession):
+async def test_create_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test creating a new task."""
     from app.services.tenant import task_statuses as task_statuses_service
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
     # Create a task status
-    await task_statuses_service.ensure_default_statuses(session, project.id)
-    status = await task_statuses_service.get_default_status(session, project.id)
+    await task_statuses_service.ensure_default_statuses(session, a.project.id)
+    status = await task_statuses_service.get_default_status(session, a.project.id)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {
         "title": "New Task",
         "description": "Task description",
-        "project_id": project.id,
+        "project_id": a.project.id,
         "task_status_id": status.id,
         "priority": "high",
     }
 
-    response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/", headers=headers, json=payload
-    )
+    response = await client.post(a.g("/tasks/"), headers=a.headers, json=payload)
 
     assert response.status_code == 201
     data = response.json()
@@ -172,33 +138,29 @@ async def test_create_task(client: AsyncClient, session: AsyncSession):
 
 @pytest.mark.integration
 async def test_create_task_requires_project_access(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that creating tasks requires project access."""
-    owner = await create_user(session, email="owner@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=outsider, guild=guild)
-
-    initiative = await _create_initiative(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    # ``outsider`` is a guild member but NOT an initiative member.
+    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
 
     from app.services.tenant import task_statuses as task_statuses_service
 
-    await task_statuses_service.ensure_default_statuses(session, project.id)
-    status = await task_statuses_service.get_default_status(session, project.id)
+    await task_statuses_service.ensure_default_statuses(session, owner.project.id)
+    status = await task_statuses_service.get_default_status(session, owner.project.id)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, outsider)
     payload = {
         "title": "Forbidden Task",
-        "project_id": project.id,
+        "project_id": owner.project.id,
         "task_status_id": status.id,
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/", headers=headers, json=payload
+        outsider.g("/tasks/"), headers=outsider.headers, json=payload
     )
 
     assert (
@@ -207,20 +169,12 @@ async def test_create_task_requires_project_access(
 
 
 @pytest.mark.integration
-async def test_get_task_by_id(client: AsyncClient, session: AsyncSession):
+async def test_get_task_by_id(client: AsyncClient, session: AsyncSession, acting_user):
     """Test getting a task by ID."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
 
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task = await _create_task(session, project)
-
-    headers = await get_guild_headers(session, guild, user)
-    response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers
-    )
+    response = await client.get(a.g(f"/tasks/{task.id}"), headers=a.headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -229,34 +183,27 @@ async def test_get_task_by_id(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_get_task_not_found(client: AsyncClient, session: AsyncSession):
+async def test_get_task_not_found(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test getting non-existent task."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
-    headers = await get_guild_headers(session, guild, user)
-    response = await client.get(f"/api/v1/g/{guild.id}/tasks/99999", headers=headers)
+    response = await client.get(a.g("/tasks/99999"), headers=a.headers)
 
     assert response.status_code == 404
 
 
 @pytest.mark.integration
-async def test_update_task(client: AsyncClient, session: AsyncSession):
+async def test_update_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test updating a task."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
 
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task = await _create_task(session, project)
-
-    headers = await get_guild_headers(session, guild, user)
     payload = {"title": "Updated Title", "description": "Updated description"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers, json=payload
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json=payload
     )
 
     assert response.status_code == 200
@@ -267,24 +214,19 @@ async def test_update_task(client: AsyncClient, session: AsyncSession):
 
 @pytest.mark.integration
 async def test_update_task_without_permission_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that users without permission cannot update tasks."""
-    owner = await create_user(session, email="owner@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=outsider, guild=guild)
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    task = await _create_task(session, owner.project)
 
-    initiative = await _create_initiative(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-    task = await _create_task(session, project)
-
-    headers = await get_guild_headers(session, guild, outsider)
     payload = {"title": "Hacked Title"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers, json=payload
+        outsider.g(f"/tasks/{task.id}"), headers=outsider.headers, json=payload
     )
 
     assert (
@@ -293,42 +235,29 @@ async def test_update_task_without_permission_forbidden(
 
 
 @pytest.mark.integration
-async def test_delete_task(client: AsyncClient, session: AsyncSession):
+async def test_delete_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test deleting a task."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
 
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task = await _create_task(session, project)
-
-    headers = await get_guild_headers(session, guild, user)
-    response = await client.delete(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers
-    )
+    response = await client.delete(a.g(f"/tasks/{task.id}"), headers=a.headers)
 
     assert response.status_code == 204
 
 
 @pytest.mark.integration
 async def test_delete_task_without_permission_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that users without permission cannot delete tasks."""
-    owner = await create_user(session, email="owner@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=owner, guild=guild)
-    await create_guild_membership(session, user=outsider, guild=guild)
+    owner = await acting_user(
+        guild_role=GuildRole.member, initiative=True, project=True
+    )
+    outsider = await acting_user(guild_role=GuildRole.member, guild=owner.guild)
+    task = await _create_task(session, owner.project)
 
-    initiative = await _create_initiative(session, guild, owner)
-    project = await _create_project(session, initiative, owner)
-    task = await _create_task(session, project)
-
-    headers = await get_guild_headers(session, guild, outsider)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers
+        outsider.g(f"/tasks/{task.id}"), headers=outsider.headers
     )
 
     assert (
@@ -337,52 +266,41 @@ async def test_delete_task_without_permission_forbidden(
 
 
 @pytest.mark.integration
-async def test_assign_user_to_task(client: AsyncClient, session: AsyncSession):
+async def test_assign_user_to_task(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test assigning a user to a task."""
-    user = await create_user(session, email="user@example.com")
-    assignee = await create_user(session, email="assignee@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-    await create_guild_membership(session, user=assignee, guild=guild)
+    user = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    # Add assignee to the initiative as a member.
+    assignee = await acting_user(
+        guild_role=GuildRole.member,
+        guild=user.guild,
+        initiative=user.initiative,
+        initiative_role="member",
+    )
 
-    initiative = await _create_initiative(session, guild, user)
+    task = await _create_task(session, user.project)
 
-    # Add assignee to initiative
-    from app.testing.factories import create_initiative_member
-
-    await create_initiative_member(session, initiative, assignee, role_name="member")
-
-    project = await _create_project(session, initiative, user)
-    task = await _create_task(session, project)
-
-    headers = await get_guild_headers(session, guild, user)
-    payload = {"assignee_ids": [assignee.id]}
+    payload = {"assignee_ids": [assignee.user.id]}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}", headers=headers, json=payload
+        user.g(f"/tasks/{task.id}"), headers=user.headers, json=payload
     )
 
     assert response.status_code == 200
     data = response.json()
     assignee_ids = {a["id"] for a in data["assignees"]}
-    assert assignee.id in assignee_ids
+    assert assignee.user.id in assignee_ids
 
 
 @pytest.mark.integration
 async def test_move_task_to_different_project(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test moving a task to a different project."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project1 = await _create_project(session, initiative, user)
-    project2 = await _create_project(session, initiative, user)
-    project2.name = "Project 2"
-    session.add(project2)
-    await session.commit()
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    project1 = a.project
+    project2 = await create_project(session, a.initiative, a.user, name="Project 2")
 
     task = await _create_task(session, project1)
 
@@ -392,14 +310,13 @@ async def test_move_task_to_different_project(
     target_status = await task_statuses_service.get_default_status(session, project2.id)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {
         "target_project_id": project2.id,
         "target_status_id": target_status.id,
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}/move", headers=headers, json=payload
+        a.g(f"/tasks/{task.id}/move"), headers=a.headers, json=payload
     )
 
     assert response.status_code == 200
@@ -408,19 +325,13 @@ async def test_move_task_to_different_project(
 
 
 @pytest.mark.integration
-async def test_duplicate_task(client: AsyncClient, session: AsyncSession):
+async def test_duplicate_task(client: AsyncClient, session: AsyncSession, acting_user):
     """Test duplicating a task."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project, "Original Task")
 
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task = await _create_task(session, project, "Original Task")
-
-    headers = await get_guild_headers(session, guild, user)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}/duplicate", headers=headers, json={}
+        a.g(f"/tasks/{task.id}/duplicate"), headers=a.headers, json={}
     )
 
     assert response.status_code == 201
@@ -431,21 +342,15 @@ async def test_duplicate_task(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_create_subtask(client: AsyncClient, session: AsyncSession):
+async def test_create_subtask(client: AsyncClient, session: AsyncSession, acting_user):
     """Test creating a subtask."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
 
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task = await _create_task(session, project)
-
-    headers = await get_guild_headers(session, guild, user)
     payload = {"content": "Subtask content"}
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}/subtasks", headers=headers, json=payload
+        a.g(f"/tasks/{task.id}/subtasks"), headers=a.headers, json=payload
     )
 
     assert response.status_code == 201
@@ -456,17 +361,12 @@ async def test_create_subtask(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_list_subtasks(client: AsyncClient, session: AsyncSession):
+async def test_list_subtasks(client: AsyncClient, session: AsyncSession, acting_user):
     """Test listing subtasks."""
     from app.models.tenant.task import Subtask
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task = await _create_task(session, project)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
 
     # Create some subtasks
     subtask1 = Subtask(task_id=task.id, content="Subtask 1", position=0)
@@ -475,10 +375,7 @@ async def test_list_subtasks(client: AsyncClient, session: AsyncSession):
     session.add(subtask2)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
-    response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}/subtasks", headers=headers
-    )
+    response = await client.get(a.g(f"/tasks/{task.id}/subtasks"), headers=a.headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -489,17 +386,14 @@ async def test_list_subtasks(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_reorder_subtasks(client: AsyncClient, session: AsyncSession):
+async def test_reorder_subtasks(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test reordering subtasks."""
     from app.models.tenant.task import Subtask
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task = await _create_task(session, project)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task = await _create_task(session, a.project)
 
     # Create subtasks
     subtask1 = Subtask(task_id=task.id, content="Subtask 1", position=0)
@@ -510,7 +404,6 @@ async def test_reorder_subtasks(client: AsyncClient, session: AsyncSession):
     await session.refresh(subtask1)
     await session.refresh(subtask2)
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {
         "items": [
             {"id": subtask2.id, "position": 0},
@@ -519,8 +412,8 @@ async def test_reorder_subtasks(client: AsyncClient, session: AsyncSession):
     }
 
     response = await client.put(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}/subtasks/order",
-        headers=headers,
+        a.g(f"/tasks/{task.id}/subtasks/order"),
+        headers=a.headers,
         json=payload,
     )
 
@@ -531,21 +424,15 @@ async def test_reorder_subtasks(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_reorder_tasks(client: AsyncClient, session: AsyncSession):
+async def test_reorder_tasks(client: AsyncClient, session: AsyncSession, acting_user):
     """Test reordering tasks within a project."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task1 = await _create_task(session, a.project, "Task 1")
+    task2 = await _create_task(session, a.project, "Task 2")
+    task3 = await _create_task(session, a.project, "Task 3")
 
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task1 = await _create_task(session, project, "Task 1")
-    task2 = await _create_task(session, project, "Task 2")
-    task3 = await _create_task(session, project, "Task 3")
-
-    headers = await get_guild_headers(session, guild, user)
     payload = {
-        "project_id": project.id,
+        "project_id": a.project.id,
         "items": [
             {"id": task3.id, "task_status_id": task3.task_status_id, "position": 0},
             {"id": task1.id, "task_status_id": task1.task_status_id, "position": 1},
@@ -553,9 +440,7 @@ async def test_reorder_tasks(client: AsyncClient, session: AsyncSession):
         ],
     }
 
-    response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/reorder", headers=headers, json=payload
-    )
+    response = await client.post(a.g("/tasks/reorder"), headers=a.headers, json=payload)
 
     assert response.status_code == 200
     data = response.json()
@@ -584,18 +469,13 @@ def test_reorder_item_rejects_non_finite_position():
 
 @pytest.mark.integration
 async def test_reorder_single_task_returns_only_affected(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A reorder sends only the moved task and the response is slimmed to it."""
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task1 = await _create_task(session, project, "Task 1")
-    task2 = await _create_task(session, project, "Task 2")
-    task3 = await _create_task(session, project, "Task 3")
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task1 = await _create_task(session, a.project, "Task 1")
+    task2 = await _create_task(session, a.project, "Task 2")
+    task3 = await _create_task(session, a.project, "Task 3")
 
     # Anchor task1/task2 at 1 and 2 so task3 can drop between them.
     task1.position = 1.0
@@ -604,17 +484,14 @@ async def test_reorder_single_task_returns_only_affected(
     session.add_all([task1, task2, task3])
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {
-        "project_id": project.id,
+        "project_id": a.project.id,
         "items": [
             {"id": task3.id, "task_status_id": task3.task_status_id, "position": 1.5},
         ],
     }
 
-    response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/reorder", headers=headers, json=payload
-    )
+    response = await client.post(a.g("/tasks/reorder"), headers=a.headers, json=payload)
 
     assert response.status_code == 200
     data = response.json()
@@ -625,21 +502,16 @@ async def test_reorder_single_task_returns_only_affected(
 
 @pytest.mark.integration
 async def test_reorder_rebalances_on_precision_exhaustion(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Colliding positions trigger a project-wide renumber that leaves the
     updated_at of merely-renumbered (not explicitly moved) tasks untouched."""
     from datetime import datetime
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
-    task1 = await _create_task(session, project, "Task 1")
-    task2 = await _create_task(session, project, "Task 2")
-    task3 = await _create_task(session, project, "Task 3")
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    task1 = await _create_task(session, a.project, "Task 1")
+    task2 = await _create_task(session, a.project, "Task 2")
+    task3 = await _create_task(session, a.project, "Task 3")
 
     # task1/task2 sit one representable step apart, so a midpoint between them
     # rounds onto a neighbor — precision is exhausted at the drop point.
@@ -650,9 +522,8 @@ async def test_reorder_rebalances_on_precision_exhaustion(
     await session.commit()
     task2_updated_before = task2.updated_at
 
-    headers = await get_guild_headers(session, guild, user)
     payload = {
-        "project_id": project.id,
+        "project_id": a.project.id,
         # Drop task3 into the exhausted gap (its position collides with task2),
         # which is what triggers the project-wide renumber.
         "items": [
@@ -664,9 +535,7 @@ async def test_reorder_rebalances_on_precision_exhaustion(
         ],
     }
 
-    response = await client.post(
-        f"/api/v1/g/{guild.id}/tasks/reorder", headers=headers, json=payload
-    )
+    response = await client.post(a.g("/tasks/reorder"), headers=a.headers, json=payload)
 
     assert response.status_code == 200
     data = {t["id"]: t for t in response.json()}
@@ -685,58 +554,50 @@ async def test_reorder_rebalances_on_precision_exhaustion(
 
 
 @pytest.mark.integration
-async def test_task_guild_isolation(client: AsyncClient, session: AsyncSession):
+async def test_task_guild_isolation(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that tasks are isolated by guild."""
-    user = await create_user(session, email="user@example.com")
-    guild1 = await create_guild(session, name="Guild 1")
+    # First guild (with a workspace) — the actor is admin of it.
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    task1 = await _create_task(session, a.project)
+
+    # A SECOND guild for the SAME user (acting_user always makes a new user, so
+    # build the second guild membership with the raw factories reusing a.user).
     guild2 = await create_guild(session, name="Guild 2")
     await create_guild_membership(
-        session, user=user, guild=guild1, role=GuildRole.admin
+        session, user=a.user, guild=guild2, role=GuildRole.admin
     )
-    await create_guild_membership(
-        session, user=user, guild=guild2, role=GuildRole.admin
-    )
-
-    initiative1 = await _create_initiative(session, guild1, user)
-    project1 = await _create_project(session, initiative1, user)
-    task1 = await _create_task(session, project1)
 
     # Cannot access guild1 task with guild2 context
-    headers2 = await get_guild_headers(session, guild2, user)
     response2 = await client.get(
-        f"/api/v1/g/{guild2.id}/tasks/{task1.id}", headers=headers2
+        f"/api/v1/g/{guild2.id}/tasks/{task1.id}", headers=a.headers
     )
 
     assert response2.status_code == 404
 
 
 @pytest.mark.integration
-async def test_list_my_tasks(client: AsyncClient, session: AsyncSession):
+async def test_list_my_tasks(client: AsyncClient, session: AsyncSession, acting_user):
     """Test listing tasks assigned to current user."""
     from app.models.tenant.task import TaskAssignee
 
-    user = await create_user(session, email="user@example.com")
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     other_user = await create_user(session, email="other@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-    await create_guild_membership(session, user=other_user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    await create_guild_membership(session, user=other_user, guild=a.guild)
 
     # Create tasks
-    my_task = await _create_task(session, project, "My Task")
-    other_task = await _create_task(session, project, "Other Task")
+    my_task = await _create_task(session, a.project, "My Task")
+    other_task = await _create_task(session, a.project, "Other Task")
 
     # Assign tasks
-    session.add(TaskAssignee(task_id=my_task.id, user_id=user.id))
+    session.add(TaskAssignee(task_id=my_task.id, user_id=a.user.id))
     session.add(TaskAssignee(task_id=other_task.id, user_id=other_user.id))
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
     conditions = json.dumps([{"field": "assignee_ids", "op": "in_", "value": ["me"]}])
     response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
     )
 
     assert response.status_code == 200
@@ -747,19 +608,18 @@ async def test_list_my_tasks(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
-async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession):
+async def test_filter_tasks_by_status(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test filtering tasks by status."""
     from app.services.tenant import task_statuses as task_statuses_service
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
     # Create statuses
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
     todo_status = next(s for s in statuses if s.is_default)
     done_status = next(s for s in statuses if s.name == "Done")
     await session.commit()
@@ -769,30 +629,29 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
 
     task1 = Task(
         title="Todo Task",
-        project_id=project.id,
+        project_id=a.project.id,
         task_status_id=todo_status.id,
-        guild_id=guild.id,
+        guild_id=a.guild.id,
     )
     task2 = Task(
         title="Done Task",
-        project_id=project.id,
+        project_id=a.project.id,
         task_status_id=done_status.id,
-        guild_id=guild.id,
+        guild_id=a.guild.id,
     )
     session.add(task1)
     session.add(task2)
     await session.commit()
 
-    headers = await get_guild_headers(session, guild, user)
     conditions = json.dumps(
         [
-            {"field": "project_id", "op": "eq", "value": project.id},
+            {"field": "project_id", "op": "eq", "value": a.project.id},
             {"field": "task_status_id", "op": "in_", "value": [todo_status.id]},
         ]
     )
     response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}",
-        headers=headers,
+        a.g(f"/tasks/?conditions={conditions}"),
+        headers=a.headers,
     )
 
     assert response.status_code == 200
@@ -804,22 +663,19 @@ async def test_filter_tasks_by_status(client: AsyncClient, session: AsyncSession
 
 @pytest.mark.integration
 async def test_rolling_recurrence_preserves_due_time(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that completing a task with rolling recurrence preserves the original due time."""
     from datetime import datetime, timezone
     from app.models.tenant.task import Task
     from app.services.tenant import task_statuses as task_statuses_service
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
     # Create statuses
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
     todo_status = next(s for s in statuses if s.is_default)
     done_status = next(s for s in statuses if s.name == "Done")
     await session.commit()
@@ -834,9 +690,9 @@ async def test_rolling_recurrence_preserves_due_time(
 
     task = Task(
         title="Recurring Task",
-        project_id=project.id,
+        project_id=a.project.id,
         task_status_id=todo_status.id,
-        guild_id=guild.id,
+        guild_id=a.guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="rolling",  # After completion mode
@@ -846,19 +702,20 @@ async def test_rolling_recurrence_preserves_due_time(
     await session.refresh(task)
 
     # Mark the task as done (simulating completion at a different time like 12:34)
-    headers = await get_guild_headers(session, guild, user)
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}",
-        headers=headers,
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
         json={"task_status_id": done_status.id},
     )
 
     assert response.status_code == 200
 
     # Fetch all tasks to find the newly created recurring task
-    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
     response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
     )
     assert response.status_code == 200
     tasks = response.json()["items"]
@@ -880,22 +737,19 @@ async def test_rolling_recurrence_preserves_due_time(
 
 @pytest.mark.integration
 async def test_fixed_recurrence_uses_original_due_date(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that fixed recurrence strategy calculates from the original due date."""
     from datetime import datetime, timezone
     from app.models.tenant.task import Task
     from app.services.tenant import task_statuses as task_statuses_service
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
     # Create statuses
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
     todo_status = next(s for s in statuses if s.is_default)
     done_status = next(s for s in statuses if s.name == "Done")
     await session.commit()
@@ -910,9 +764,9 @@ async def test_fixed_recurrence_uses_original_due_date(
 
     task = Task(
         title="Fixed Recurring Task",
-        project_id=project.id,
+        project_id=a.project.id,
         task_status_id=todo_status.id,
-        guild_id=guild.id,
+        guild_id=a.guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="fixed",  # Fixed mode (default)
@@ -922,19 +776,20 @@ async def test_fixed_recurrence_uses_original_due_date(
     await session.refresh(task)
 
     # Mark the task as done
-    headers = await get_guild_headers(session, guild, user)
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}",
-        headers=headers,
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
         json={"task_status_id": done_status.id},
     )
 
     assert response.status_code == 200
 
     # Fetch all tasks
-    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
     response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
     )
     assert response.status_code == 200
     tasks = response.json()["items"]
@@ -954,22 +809,19 @@ async def test_fixed_recurrence_uses_original_due_date(
 
 @pytest.mark.integration
 async def test_rolling_recurrence_with_midnight_time(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that rolling recurrence correctly preserves midnight (00:00) time."""
     from datetime import datetime, timezone
     from app.models.tenant.task import Task
     from app.services.tenant import task_statuses as task_statuses_service
 
-    user = await create_user(session, email="user@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
 
     # Create statuses
-    statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
+    statuses = await task_statuses_service.ensure_default_statuses(
+        session, a.project.id
+    )
     todo_status = next(s for s in statuses if s.is_default)
     done_status = next(s for s in statuses if s.name == "Done")
     await session.commit()
@@ -985,9 +837,9 @@ async def test_rolling_recurrence_with_midnight_time(
 
     task = Task(
         title="Midnight Task",
-        project_id=project.id,
+        project_id=a.project.id,
         task_status_id=todo_status.id,
-        guild_id=guild.id,
+        guild_id=a.guild.id,
         due_date=original_due_time,
         recurrence=recurrence_data,
         recurrence_strategy="rolling",
@@ -997,19 +849,20 @@ async def test_rolling_recurrence_with_midnight_time(
     await session.refresh(task)
 
     # Mark the task as done
-    headers = await get_guild_headers(session, guild, user)
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/tasks/{task.id}",
-        headers=headers,
+        a.g(f"/tasks/{task.id}"),
+        headers=a.headers,
         json={"task_status_id": done_status.id},
     )
 
     assert response.status_code == 200
 
     # Fetch all tasks
-    conditions = json.dumps([{"field": "project_id", "op": "eq", "value": project.id}])
+    conditions = json.dumps(
+        [{"field": "project_id", "op": "eq", "value": a.project.id}]
+    )
     response = await client.get(
-        f"/api/v1/g/{guild.id}/tasks/?conditions={conditions}", headers=headers
+        a.g(f"/tasks/?conditions={conditions}"), headers=a.headers
     )
     assert response.status_code == 200
     tasks = response.json()["items"]
@@ -1028,6 +881,7 @@ async def test_rolling_recurrence_with_midnight_time(
 @pytest.mark.integration
 async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
     session: AsyncSession,
+    acting_user,
 ):
     """The completion-date anchor for rolling recurrence is the user's
     *local* calendar day, not the UTC day.
@@ -1042,13 +896,15 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
     from app.models.tenant.task import Task, TaskStatusCategory
     from app.services.tenant import task_statuses as task_statuses_service
 
-    user = await create_user(
-        session, email="la-user@example.com", timezone="America/Los_Angeles"
+    a = await acting_user(
+        guild_role=GuildRole.member,
+        initiative=True,
+        project=True,
+        email="la-user@example.com",
+        timezone="America/Los_Angeles",
     )
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    user = a.user
+    project = a.project
 
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
     todo_status = next(s for s in statuses if s.is_default)
@@ -1063,7 +919,7 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
         title="Feed frogs",
         project_id=project.id,
         task_status_id=todo_status.id,
-        guild_id=guild.id,
+        guild_id=a.guild.id,
         due_date=original_due,
         recurrence={"frequency": "daily", "interval": 3, "ends": "never"},
         recurrence_strategy="rolling",
@@ -1080,7 +936,7 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
     # Simulate the user completing the task at ~9pm Los Angeles on the
     # same Sunday (2026-05-03). In UTC that's 04:00 Monday 2026-05-04.
     completion_now = datetime(2026, 5, 4, 4, 0, 0, tzinfo=timezone.utc)
-    task.task_status_id = done_status.id
+    task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = done_status
 
     advanced = await _advance_recurrence_if_needed(
@@ -1114,6 +970,7 @@ async def test_rolling_recurrence_uses_user_timezone_for_completion_date(
 @pytest.mark.integration
 async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
     session: AsyncSession,
+    acting_user,
 ):
     """When the original due time would land in the clocked-forward gap
     on a spring-forward night, rolling recurrence preserves the
@@ -1133,13 +990,15 @@ async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
     from app.models.tenant.task import Task, TaskStatusCategory
     from app.services.tenant import task_statuses as task_statuses_service
 
-    user = await create_user(
-        session, email="dst-user@example.com", timezone="America/Los_Angeles"
+    a = await acting_user(
+        guild_role=GuildRole.member,
+        initiative=True,
+        project=True,
+        email="dst-user@example.com",
+        timezone="America/Los_Angeles",
     )
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=user, guild=guild)
-    initiative = await _create_initiative(session, guild, user)
-    project = await _create_project(session, initiative, user)
+    user = a.user
+    project = a.project
 
     statuses = await task_statuses_service.ensure_default_statuses(session, project.id)
     todo_status = next(s for s in statuses if s.is_default)
@@ -1154,7 +1013,7 @@ async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
         title="DST gap task",
         project_id=project.id,
         task_status_id=todo_status.id,
-        guild_id=guild.id,
+        guild_id=a.guild.id,
         due_date=original_due,
         recurrence={"frequency": "daily", "interval": 1, "ends": "never"},
         recurrence_strategy="rolling",
@@ -1174,7 +1033,7 @@ async def test_rolling_recurrence_spring_forward_preserves_wall_clock_time(
     # Mar 9 at 02:30 PDT, which is a valid local time and matches
     # the user's "every day at 2:30 AM" intent.
     completion_now = datetime(2026, 3, 8, 18, 0, 0, tzinfo=timezone.utc)
-    task.task_status_id = done_status.id
+    task.task_status_id = done_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = done_status
 
     advanced = await _advance_recurrence_if_needed(

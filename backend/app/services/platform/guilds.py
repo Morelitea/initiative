@@ -11,9 +11,16 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.messages import GuildMessages
-from app.models.platform.guild import Guild, GuildInvite, GuildMembership, GuildRole
+from app.models.platform.guild import (
+    Guild,
+    GuildInvite,
+    GuildMembership,
+    GuildRole,
+    GuildStatus,
+)
 from app.models.tenant.guild_setting import GuildSetting
 from app.models.platform.user import User
+from app.services.platform import billing_ping
 
 DEFAULT_INVITE_EXPIRATION_DAYS = 7
 INVITE_CODE_BYTES = 16
@@ -21,6 +28,10 @@ INVITE_CODE_BYTES = 16
 
 class GuildInviteError(Exception):
     """Raised when an invite cannot be redeemed."""
+
+
+class GuildCapacityError(Exception):
+    """Raised when adding a member would exceed the guild's ``max_users`` cap."""
 
 
 async def get_primary_guild(session: AsyncSession) -> Guild:
@@ -87,6 +98,11 @@ async def ensure_membership(
             session.add(membership)
             await session.flush()
         return membership
+    # New member: enforce the per-guild cap. Only reached on a genuine insert
+    # (re-joins / role updates return above), so an existing member is never
+    # blocked. SSO/OIDC provisioning uses a separate insert path
+    # (oidc_sync._create_guild_membership) and is intentionally exempt.
+    await _assert_member_capacity(session, guild_id=guild_id)
     next_position = await _next_membership_position(session, user_id=user_id)
     membership = GuildMembership(
         guild_id=guild_id,
@@ -97,7 +113,44 @@ async def ensure_membership(
     )
     session.add(membership)
     await session.flush()
+    # Event-driven seats (billing plan D5): nudge billing to recompute this
+    # guild's caps from the authoritative headcount. No-op unless a hosted
+    # deployment configured the outbound billing settings.
+    billing_ping.notify_membership_changed(guild_id)
     return membership
+
+
+# Advisory-lock namespace for per-guild membership-cap admission. A fixed ASCII
+# tag ("USER") so the two-int key (namespace, guild_id) can't collide with the
+# storage-quota ("STOR") or (user_id, guild_id) advisory locks used elsewhere.
+_MEMBER_CAP_LOCK_NAMESPACE = 0x55534552  # 1431193938
+
+
+async def _assert_member_capacity(session: AsyncSession, *, guild_id: int) -> None:
+    """Raise ``GuildCapacityError`` if the guild is at its ``max_users`` cap.
+
+    A ``NULL`` cap means unlimited and short-circuits before any lock or count.
+    The caller's session must be able to see the guild's ``guild_memberships``
+    rows (system engine, or an RLS context routed to this guild) — the same
+    precondition ``count_members`` documents.
+
+    Must run in the SAME transaction that then inserts the membership and
+    commits. When a cap is set it takes a transaction-scoped advisory lock keyed
+    on the guild before counting, so the count check and the insert that follows
+    cannot interleave with a concurrent join — without it, two joins to a
+    near-full guild could each read the pre-insert count and collectively exceed
+    the cap (a TOCTOU race). The lock releases on commit/rollback and only
+    serializes joins to the SAME guild (mirrors ``enforce_storage_quota``).
+    """
+    guild = await get_guild(session, guild_id=guild_id)
+    if guild.max_users is None:
+        return
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :gid)"),
+        params={"ns": _MEMBER_CAP_LOCK_NAMESPACE, "gid": int(guild_id)},
+    )
+    if await count_members(session, guild_id=guild_id) >= guild.max_users:
+        raise GuildCapacityError(GuildMessages.GUILD_USER_LIMIT_REACHED)
 
 
 async def _next_membership_position(session: AsyncSession, *, user_id: int) -> int:
@@ -217,6 +270,16 @@ async def list_memberships(
 
     out: list[tuple[Guild, GuildMembership, int | None, int]] = []
     for guild, membership in pairs:
+        # A suspended guild disappears from its members' guild list; guild
+        # ADMINS keep the entry so they can still reach the settings surface
+        # (billing / data ownership / danger zone stay theirs under any
+        # status). No status is serialized either way — the row is simply
+        # absent for members.
+        if (
+            guild.status == GuildStatus.suspended.value
+            and membership.role != GuildRole.admin
+        ):
+            continue
         await set_rls_context(session, user_id=user_id, guild_id=guild.id)
         row = (
             await session.exec(
@@ -239,7 +302,7 @@ async def count_members(session: AsyncSession, *, guild_id: int) -> int:
     """Total number of members in a guild.
 
     The caller must already hold a session that can see the guild's
-    ``guild_memberships`` rows — an admin (BYPASSRLS) session, or one whose RLS
+    ``guild_memberships`` rows — a system-engine session, or one whose RLS
     context is set to this guild (``guild_id = current_guild_id``). Under a
     user-only context the ``guild_memberships_select`` policy would expose only
     the caller's own row."""
@@ -303,7 +366,6 @@ async def seed_guild_content(
     *,
     guild_id: int,
     creator: User,
-    is_superadmin: bool = False,
 ) -> None:
     """Provision a new guild's schema and create its guild-scoped seed rows
     (settings + default initiative) *inside* it.
@@ -322,7 +384,6 @@ async def seed_guild_content(
         user_id=creator.id,
         guild_id=guild_id,
         guild_role=GuildRole.admin.value,
-        is_superadmin=is_superadmin,
     )
     await create_guild_settings(session, guild_id)
     await initiatives_service.ensure_default_initiative(
@@ -342,6 +403,8 @@ async def update_guild(
     retention_days_provided: bool = False,
     max_storage_bytes: int | None = None,
     max_storage_bytes_provided: bool = False,
+    max_users: int | None = None,
+    max_users_provided: bool = False,
 ) -> Guild:
     guild = await get_guild(session, guild_id=guild_id)
     updated = False
@@ -359,6 +422,9 @@ async def update_guild(
     if max_storage_bytes_provided and guild.max_storage_bytes != max_storage_bytes:
         guild.max_storage_bytes = max_storage_bytes
         updated = True
+    if max_users_provided and guild.max_users != max_users:
+        guild.max_users = max_users
+        updated = True
     if updated:
         guild.updated_at = datetime.now(timezone.utc)
         session.add(guild)
@@ -371,6 +437,29 @@ async def update_guild(
             gs.retention_days = retention_days
             session.add(gs)
             await session.flush()
+    return guild
+
+
+async def set_guild_status(
+    session: AsyncSession,
+    *,
+    guild_id: int,
+    status: GuildStatus,
+) -> Guild:
+    """Set a guild's lifecycle status (operator moderation action).
+
+    Kept separate from ``update_guild`` so only the platform-operator endpoint
+    reaches it — a guild's own admins must never flip their guild's status. On a
+    real transition it stamps ``status_changed_at``; a no-op change is left
+    untouched. Enforcement of the status lives in the request path
+    (``_load_guild_context`` + session routing), not here.
+    """
+    guild = await get_guild(session, guild_id=guild_id)
+    if guild.status != status.value:
+        guild.status = status.value
+        guild.status_changed_at = datetime.now(timezone.utc)
+        session.add(guild)
+        await session.flush()
     return guild
 
 
@@ -510,6 +599,12 @@ async def redeem_invite_for_user(
         raise GuildInviteError(GuildMessages.INVITE_NOT_FOUND)
     if not invite_is_active(invite):
         raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
+    # A non-active guild is frozen: no new members while read_only or
+    # suspended. Reported as an ordinary expired invite — the guild's
+    # lifecycle status is deliberately not disclosed.
+    target_guild = await get_guild(session, guild_id=invite.guild_id)
+    if target_guild.status != GuildStatus.active.value:
+        raise GuildInviteError(GuildMessages.INVITE_EXPIRED_OR_USED)
 
     # Email binding. ``invitee_email`` is advisory-when-absent: an invite with no
     # bound address (``invitee_email_encrypted`` is NULL) is a shareable link and
@@ -544,6 +639,10 @@ async def describe_invite_code(
     if not invite:
         return None, None, False, GuildMessages.INVITE_NOT_FOUND
     guild = await get_guild(session, guild_id=invite.guild_id)
+    # A non-active guild accepts no new members; report the invite as plain
+    # expired (never the guild's lifecycle status).
+    if guild.status != GuildStatus.active.value:
+        return invite, guild, False, GuildMessages.INVITE_EXPIRED
     if invite_is_active(invite):
         return invite, guild, True, None
 
@@ -577,4 +676,10 @@ async def remove_user_from_guild(
         GuildMembership.guild_id == guild_id,
         GuildMembership.user_id == user_id,
     )
-    await session.exec(stmt)
+    result = await session.exec(stmt)
+    # Only a real removal is a membership change — mirror the insert side,
+    # which pings only on a genuine insert (a no-op remove of a non-member
+    # must not nudge billing). Billing decides what to do with shrinkage; the
+    # ping only triggers a recompute from the committed headcount (plan D5).
+    if result.rowcount:
+        billing_ping.notify_membership_changed(guild_id)

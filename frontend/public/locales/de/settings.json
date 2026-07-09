@@ -19,13 +19,24 @@
     "title": "Gilden-Einstellungen",
     "subtitle": "Verwalte die Mitgliedschaft im Arbeitsbereich und die Gilden-Details.",
     "permissionDenied": "Du benötigst zusätzliche Berechtigungen, um diese Seite anzuzeigen.",
+    "restricted": {
+      "read_only": {
+        "label": "Schreibgeschützt",
+        "message": "Diese Gilde ist schreibgeschützt. Wende dich an deinen Plattform-Administrator, um den vollen Zugriff wiederherzustellen."
+      },
+      "suspended": {
+        "label": "Gesperrt",
+        "message": "Diese Gilde ist gesperrt und Mitglieder haben keinen Zugriff. Wende dich an deinen Plattform-Administrator."
+      }
+    },
     "tabs": {
       "guild": "Gilde",
       "ai": "KI",
       "users": "Benutzer",
       "initiatives": "Initiativen",
       "trash": "Papierkorb",
-      "dangerZone": "Gefahrenzone"
+      "dangerZone": "Gefahrenzone",
+      "auth": "Authentifizierung"
     }
   },
   "profile": {
@@ -564,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Zuerst Initiative auswählen",
     "loadingOptions": "Optionen werden geladen…",
     "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
-    "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden."
+    "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
+    "scope": {
+      "title": "Anmeldekonfiguration",
+      "description": "Lege fest, wo die Anmeldung für diesen Server konfiguriert wird.",
+      "platformLabel": "Plattformweit",
+      "platformHelp": "Die Anmeldung wird einmal, hier, für den gesamten Server konfiguriert. Alle Gilden verwenden sie. Ideal für eine einzelne Organisation mit eigener Instanz.",
+      "guildLabel": "Pro Gilde",
+      "guildHelp": "Jede Gilde konfiguriert ihre Anmeldung und Mitgliedschaftsregeln in ihren Gildeneinstellungen. Ideal für einen Server mit mehreren unabhängigen Organisationen.",
+      "comingSoon": "Demnächst",
+      "passwordNote": "Die Passwort-Anmeldung bleibt in beiden Modi verfügbar."
+    }
   },
   "platformUsers": {
     "title": "Plattformbenutzer",
@@ -742,7 +763,7 @@
     "title": "Plattformeinstellungen",
     "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail und KI für die gesamte Plattform.",
     "tabs": {
-      "auth": "Auth",
+      "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
       "ai": "KI",
@@ -759,22 +780,41 @@
     }
   },
   "guilds": {
-    "title": "Gilden-Speicherlimits",
-    "description": "Lege fest, wie viel Gesamtspeicher jede Gilde für hochgeladene Dateien nutzen darf. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads, löscht aber keine vorhandenen Dateien.",
-    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um Gilden-Speicherlimits zu verwalten.",
+    "title": "Gilden-Limits",
+    "description": "Lege pro Gilde Obergrenzen für Speicher und Benutzeranzahl fest. Ein Limit unter die aktuelle Nutzung zu senken, blockiert neue Uploads oder Mitglieder, entfernt aber nie vorhandene Dateien oder Mitglieder.",
+    "adminOnly": "Du benötigst die Plattform-Eigentümerrolle, um Gilden-Limits zu verwalten.",
     "loading": "Gilden werden geladen…",
     "loadError": "Gilden konnten nicht geladen werden. Bitte versuche es erneut.",
     "filterByName": "Gilden nach Namen filtern",
     "unlimitedPlaceholder": "Unbegrenzt",
-    "helpText": "Limits sind in GB und werden automatisch gespeichert. Lass ein Feld leer für unbegrenzten Speicher.",
+    "helpText": "Speicherlimits sind in GB; Benutzerlimits sind eine Mitgliederzahl. Beide werden automatisch gespeichert – lass ein Feld leer für unbegrenzt.",
     "limitInputLabel": "Speicherlimit für {{name}} in GB",
+    "userLimitInputLabel": "Benutzerlimit für {{name}}",
+    "overLimitHint": "{{name}} hat mehr Mitglieder, als das aktuelle Limit erlaubt.",
     "saved": "Speicherlimit für {{name}} aktualisiert.",
     "saveError": "Das Speicherlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "usersSaved": "Benutzerlimit für {{name}} aktualisiert.",
+    "usersSaveError": "Das Benutzerlimit konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "statusInputLabel": "Status für {{name}}",
+    "statusSaved": "Status für {{name}} aktualisiert.",
+    "statusSaveError": "Der Gildenstatus konnte nicht aktualisiert werden. Bitte versuche es erneut.",
+    "status": {
+      "active": "Aktiv",
+      "read_only": "Schreibgeschützt",
+      "suspended": "Gesperrt"
+    },
+    "suspendConfirm": {
+      "title": "{{name}} sperren?",
+      "description": "Mitglieder verlieren jeglichen Zugriff und die Gilde verschwindet aus ihrer Liste. Es wird nichts gelöscht und du kannst sie jederzeit reaktivieren; Betreiber behalten den Zugriff über eine Break-Glass-Berechtigung.",
+      "confirm": "Gilde sperren"
+    },
     "columns": {
       "id": "ID",
       "guild": "Gilde",
       "members": "Mitglieder",
-      "storageLimit": "Speicherlimit"
+      "users": "Benutzer",
+      "storageLimit": "Speicherlimit",
+      "status": "Status"
     }
   },
   "storage": {
@@ -827,5 +867,11 @@
       "complete": "Abgeschlossen",
       "failed": "Fehlgeschlagen"
     }
+  },
+  "guildAuth": {
+    "title": "Authentifizierung",
+    "comingSoon": "Demnächst",
+    "description": "Anmeldekonfiguration für diese Gilde.",
+    "body": "Dieser Server verwendet die Anmeldung pro Gilde. Bald können Gilden-Admins hier Single Sign-on und Mitgliedschaftsregeln für diese Gilde konfigurieren."
   }
 }

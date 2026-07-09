@@ -37,8 +37,8 @@ from app.models.tenant.initiative import (
 )
 from app.models.platform.user import User
 
-# Re-export RLS context helpers so callers can import from a single place.
-from app.db.session import set_rls_context, reapply_rls_context  # noqa: F401
+# Re-export the RLS context helper so callers can import from a single place.
+from app.db.session import set_rls_context  # noqa: F401
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +187,7 @@ async def check_initiative_permission(
         session: Database session
         initiative_id: ID of the initiative
         user: User to check permissions for
-        permission_key: Permission to check (e.g., PermissionKey.create_docs)
+        permission_key: Permission to check (e.g., PermissionKey.create_documents)
 
     Returns:
         True if user has the permission, False otherwise
@@ -220,38 +220,6 @@ def _role_grants(
     return DEFAULT_PERMISSION_VALUES.get(permission_key, False)
 
 
-async def accessible_initiative_ids(
-    session: AsyncSession,
-    *,
-    user: User,
-    permission_key: PermissionKey,
-) -> set[int]:
-    """Initiative ids (in the routed guild schema) where the user's initiative
-    role grants ``permission_key`` — the bulk form of
-    :func:`check_initiative_permission`, for scoping tool *lists* to the SAME
-    role-permission the frontend reflects.
-
-    One query over the user's memberships (bounded by how many initiatives they're
-    in), so it stays cheap at scale; the per-row decision reuses ``_role_grants``.
-    Guild-admin / PAM are handled separately by the caller (they see everything);
-    this is purely the membership-role tier.
-    """
-    from sqlalchemy.orm import selectinload
-    from sqlmodel import select
-
-    stmt = (
-        select(InitiativeMember)
-        .options(
-            selectinload(InitiativeMember.role_ref).selectinload(
-                InitiativeRoleModel.permissions
-            )
-        )
-        .where(InitiativeMember.user_id == user.id)
-    )
-    rows = (await session.exec(stmt)).all()
-    return {m.initiative_id for m in rows if _role_grants(m.role_ref, permission_key)}
-
-
 async def override_sharing_initiative_ids(
     session: AsyncSession,
     *,
@@ -279,28 +247,3 @@ async def override_sharing_initiative_ids(
         )
     )
     return set((await session.exec(stmt)).all())
-
-
-async def has_feature_access(
-    session: AsyncSession,
-    *,
-    initiative_id: int,
-    user: User,
-    feature: str,
-) -> bool:
-    """Check if user can see a feature (docs or projects).
-
-    Args:
-        feature: Either "docs" or "projects"
-    """
-    perm_key = (
-        PermissionKey.docs_enabled
-        if feature == "docs"
-        else PermissionKey.projects_enabled
-    )
-    return await check_initiative_permission(
-        session,
-        initiative_id=initiative_id,
-        user=user,
-        permission_key=perm_key,
-    )

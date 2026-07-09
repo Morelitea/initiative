@@ -23,7 +23,6 @@ from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
-    get_guild_headers,
 )
 
 
@@ -105,7 +104,7 @@ async def test_list_users_in_guild(client: AsyncClient, session: AsyncSession):
     await create_guild_membership(session, user=user1, guild=guild)
     await create_guild_membership(session, user=user2, guild=guild)
 
-    headers = await get_guild_headers(session, guild, user1)
+    headers = get_auth_headers(user1)
 
     response = await client.get(f"/api/v1/g/{guild.id}/users/", headers=headers)
 
@@ -133,7 +132,7 @@ async def test_update_user_by_id_as_admin(client: AsyncClient, session: AsyncSes
         session, user=member, guild=guild, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
 
     update_data = {"full_name": "New Name"}
 
@@ -192,7 +191,7 @@ async def test_admin_password_reset_revokes_sessions_and_device_tokens(
     # Admin resets the member's password.
     reset = await client.patch(
         f"/api/v1/g/{guild.id}/users/{member.id}",
-        headers=await get_guild_headers(session, guild, admin),
+        headers=get_auth_headers(admin),
         json={"password": "brand-new-secret-123"},
     )
     assert reset.status_code == 200
@@ -290,7 +289,7 @@ async def test_update_user_as_member_forbidden(
         session, user=member2, guild=guild, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild, member1)
+    headers = get_auth_headers(member1)
 
     update_data = {"full_name": "Hacked Name"}
 
@@ -344,7 +343,7 @@ async def test_delete_user_as_admin(client: AsyncClient, session: AsyncSession):
         session, user=member, guild=guild, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
 
     response = await client.delete(
         f"/api/v1/g/{guild.id}/users/{member.id}", headers=headers
@@ -369,7 +368,7 @@ async def test_delete_user_as_member_forbidden(
         session, user=member2, guild=guild, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild, member1)
+    headers = get_auth_headers(member1)
 
     response = await client.delete(
         f"/api/v1/g/{guild.id}/users/{member2.id}", headers=headers
@@ -401,7 +400,7 @@ async def test_guild_removal_eligibility_lists_owned_projects(
 
     response = await client.get(
         f"/api/v1/g/{guild.id}/users/{member.id}/guild-removal-eligibility",
-        headers=await get_guild_headers(session, guild, admin),
+        headers=get_auth_headers(admin),
     )
     assert response.status_code == 200
     data = response.json()
@@ -432,7 +431,7 @@ async def test_delete_user_blocks_when_owned_projects_lack_transfer(
 
     response = await client.delete(
         f"/api/v1/g/{guild.id}/users/{member.id}",
-        headers=await get_guild_headers(session, guild, admin),
+        headers=get_auth_headers(admin),
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "CANNOT_REMOVE_OWNS_PROJECTS"
@@ -473,7 +472,7 @@ async def test_delete_user_with_transfers_reassigns_and_succeeds(
     response = await client.request(
         "DELETE",
         f"/api/v1/g/{guild.id}/users/{member.id}",
-        headers=await get_guild_headers(session, guild, admin),
+        headers=get_auth_headers(admin),
         json={"project_transfers": {str(project.id): successor.id}},
     )
     assert response.status_code == 204
@@ -510,7 +509,7 @@ async def test_delete_user_with_deletion_soft_deletes_project(
     response = await client.request(
         "DELETE",
         f"/api/v1/g/{guild.id}/users/{member.id}",
-        headers=await get_guild_headers(session, guild, admin),
+        headers=get_auth_headers(admin),
         json={"project_deletions": [project.id]},
     )
     assert response.status_code == 204
@@ -719,7 +718,7 @@ async def test_list_users_only_shows_guild_members(
     await create_guild_membership(session, user=user1, guild=guild1)
     await create_guild_membership(session, user=user2, guild=guild2)
 
-    headers = await get_guild_headers(session, guild1, user1)
+    headers = get_auth_headers(user1)
 
     response = await client.get(f"/api/v1/g/{guild1.id}/users/", headers=headers)
 
@@ -758,7 +757,7 @@ async def test_export_users_csv_as_admin(client: AsyncClient, session: AsyncSess
         session, user=member, guild=guild, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
     response = await client.get(
         f"/api/v1/g/{guild.id}/users/export.csv", headers=headers
     )
@@ -796,7 +795,7 @@ async def test_export_users_csv_forbidden_for_member(
         session, user=member, guild=guild, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild, member)
+    headers = get_auth_headers(member)
     response = await client.get(
         f"/api/v1/g/{guild.id}/users/export.csv", headers=headers
     )
@@ -821,7 +820,7 @@ async def test_export_users_csv_single_user_id(
         session, user=target, guild=guild, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
     response = await client.get(
         f"/api/v1/g/{guild.id}/users/export.csv?user_id={target.id}", headers=headers
     )
@@ -849,7 +848,7 @@ async def test_export_users_csv_multi_user_id(
     await create_guild_membership(session, user=a, guild=guild, role=GuildRole.member)
     await create_guild_membership(session, user=b, guild=guild, role=GuildRole.member)
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
     response = await client.get(
         f"/api/v1/g/{guild.id}/users/export.csv?user_id={a.id}&user_id={b.id}",
         headers=headers,
@@ -877,7 +876,7 @@ async def test_export_users_csv_partial_miss(
         session, user=target, guild=guild, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
     response = await client.get(
         f"/api/v1/g/{guild.id}/users/export.csv?user_id={target.id}&user_id=99999",
         headers=headers,
@@ -900,7 +899,7 @@ async def test_export_users_csv_no_matches_returns_404(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
     response = await client.get(
         f"/api/v1/g/{guild.id}/users/export.csv?user_id=99998&user_id=99999",
         headers=headers,
@@ -925,7 +924,7 @@ async def test_export_users_csv_user_outside_guild(
         session, user=outsider, guild=guild2, role=GuildRole.member
     )
 
-    headers = await get_guild_headers(session, guild1, admin)
+    headers = get_auth_headers(admin)
     response = await client.get(
         f"/api/v1/g/{guild1.id}/users/export.csv?user_id={outsider.id}", headers=headers
     )
@@ -1107,7 +1106,7 @@ async def test_create_user_ignores_requested_platform_role(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
 
     for requested_role in ("owner", "admin", "moderator", "support"):
         new_email = f"escalate-{requested_role}@example.com"
@@ -1146,7 +1145,7 @@ async def test_create_user_happy_path_creates_member(
         session, user=admin, guild=guild, role=GuildRole.admin
     )
 
-    headers = await get_guild_headers(session, guild, admin)
+    headers = get_auth_headers(admin)
 
     response = await client.post(
         f"/api/v1/g/{guild.id}/users/",
@@ -1162,3 +1161,63 @@ async def test_create_user_happy_path_creates_member(
     body = response.json()
     assert body["full_name"] == "New Member"
     assert body["role"] == UserRole.member.value
+
+
+@pytest.mark.integration
+async def test_create_user_blocked_when_guild_full(
+    client: AsyncClient, session: AsyncSession
+):
+    """A guild admin creating a member into a full guild is refused (403)."""
+    guild = await create_guild(session, max_users=1)
+    admin = await create_user(session, email="cap-admin@example.com")
+    # The admin's own membership fills the single seat (count 1 == cap).
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/users/",
+        headers=get_auth_headers(admin),
+        json={
+            "email": "capped-newuser@example.com",
+            "full_name": "Should Not Be Created",
+            "password": "testpassword123",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+    # The rejected account must not have been persisted.
+    leaked = (
+        await session.exec(
+            select(User).where(
+                User.email_hash == hash_email("capped-newuser@example.com")
+            )
+        )
+    ).one_or_none()
+    assert leaked is None
+
+
+@pytest.mark.integration
+async def test_create_user_allowed_under_user_cap(
+    client: AsyncClient, session: AsyncSession
+):
+    """Under the cap, admin-create still succeeds and the count grows."""
+    guild = await create_guild(session, max_users=5)
+    admin = await create_user(session, email="under-admin@example.com")
+    await create_guild_membership(
+        session, user=admin, guild=guild, role=GuildRole.admin
+    )
+
+    response = await client.post(
+        f"/api/v1/g/{guild.id}/users/",
+        headers=get_auth_headers(admin),
+        json={
+            "email": "under-newuser@example.com",
+            "full_name": "Second Seat",
+            "password": "testpassword123",
+        },
+    )
+
+    assert response.status_code == 201, response.text

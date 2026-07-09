@@ -1,8 +1,21 @@
+from enum import Enum
 from typing import Optional
 
 from sqlalchemy import Boolean, Column, Integer, JSON, String
 from sqlmodel import Field, SQLModel
 from pydantic import ConfigDict
+
+
+class AuthScope(str, Enum):
+    """Where login is configured: once for the whole platform, or per guild.
+
+    Mutually exclusive postures (see the auth-settings-scope design doc): the
+    inactive side's provider configuration stays stored but dormant — switching
+    is non-destructive and reversible.
+    """
+
+    platform = "platform"
+    guild = "guild"
 
 
 class AppSetting(SQLModel, table=True):
@@ -11,6 +24,12 @@ class AppSetting(SQLModel, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: int = Field(default=1, primary_key=True)
+
+    # Which posture is live; the dormant side's config is kept, not deleted.
+    auth_scope: str = Field(
+        default=AuthScope.platform.value,
+        sa_column=Column(String(20), nullable=False, server_default="platform"),
+    )
 
     oidc_enabled: bool = Field(default=False, nullable=False)
     oidc_issuer: Optional[str] = None

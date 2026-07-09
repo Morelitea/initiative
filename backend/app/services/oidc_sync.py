@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.services.platform import billing_ping
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
@@ -139,7 +140,7 @@ async def sync_oidc_assignments(
 
     # ``oidc_claim_mappings`` is shared, but initiatives/roles/members are
     # guild-scoped (per-guild schemas). Every guild-scoped read/write below is
-    # therefore routed into the relevant guild's schema as superadmin — the
+    # therefore routed into the relevant guild's schema as its guild role — the
     # unrouted (public) default would touch the frozen backup and silently
     # desync SSO role assignment.
 
@@ -166,6 +167,9 @@ async def sync_oidc_assignments(
                 session, user_id=user_id, guild_id=guild_id, role=role
             )
             result.guilds_added.append(guild_id)
+            # Event-driven seats (billing plan D5); no-op unless billing is
+            # configured. Once per changed guild, not per member row.
+            billing_ping.notify_membership_changed(guild_id)
     await session.flush()
 
     # Guilds to visit for guild-scoped work: those the claims map to, plus every
@@ -191,7 +195,7 @@ async def sync_oidc_assignments(
 
     for gid in relevant_guilds:
         session.expunge_all()
-        await set_rls_context(session, guild_id=gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=gid, guild_role="admin")
 
         guild_inits = {iid for iid, g in initiative_guild.items() if g == gid}
         # Drop references to initiatives that no longer exist in this schema
@@ -275,7 +279,7 @@ async def sync_oidc_assignments(
     from app.services.tenant.initiatives import remove_user_from_guild_initiatives
 
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     stale_guild_ids = (
         await session.exec(
             select(GuildMembership.guild_id).where(
@@ -288,7 +292,7 @@ async def sync_oidc_assignments(
         if stale_gid in matched_guild_ids:
             continue
         session.expunge_all()
-        await set_rls_context(session, guild_id=stale_gid, is_superadmin=True)
+        await set_rls_context(session, guild_id=stale_gid, guild_role="admin")
         await _auto_transfer_owned_projects(
             session, user_id=user_id, guild_id=stale_gid
         )
@@ -297,7 +301,7 @@ async def sync_oidc_assignments(
         )
         await session.flush()
         session.expunge_all()
-        await set_rls_context(session, is_superadmin=True)
+        await set_rls_context(session)
         await session.exec(
             delete(GuildMembership).where(
                 GuildMembership.user_id == user_id,
@@ -305,9 +309,10 @@ async def sync_oidc_assignments(
             )
         )
         result.guilds_removed.append(stale_gid)
+        billing_ping.notify_membership_changed(stale_gid)
 
     session.expunge_all()
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     await session.commit()
     return result
 

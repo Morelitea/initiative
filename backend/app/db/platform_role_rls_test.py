@@ -124,7 +124,7 @@ async def _insert_grant(session, user_id: int, guild_id: int) -> None:
 
 async def test_access_grants_self_vs_admin(session):
     """A grantee sees only their own grant (``access_grants_self``); an admin sees
-    the whole queue (``access_grants_admin``). ``is_superadmin`` is retired here."""
+    the whole queue (``access_grants_admin``). There is no superadmin bypass."""
     guild = await create_guild(session)
     u1 = await create_user(session)
     u2 = await create_user(session)
@@ -241,28 +241,28 @@ async def test_app_settings_reseed_degrades_to_transient_for_non_owner(
 
 
 async def test_support_can_list_users_role_scoped(client, acting_user):
-    """The moved ``GET /admin/users`` runs as ``platform_support`` (off the BYPASSRLS
+    """The moved ``GET /admin/users`` runs as ``platform_support`` (off the
     engine) and the cross-user read is authorized by ``users_platform_read``."""
-    user, headers = await acting_user("support")
-    resp = await client.get("/api/v1/admin/users", headers=headers)
+    a = await acting_user("support")
+    resp = await client.get("/api/v1/admin/users", headers=a.headers)
     assert resp.status_code == 200
-    assert any(u["id"] == user.id for u in resp.json())
+    assert any(u["id"] == a.user.id for u in resp.json())
 
 
 async def test_member_cannot_list_users(client, acting_user):
     """The capability gate still holds above RLS: a member lacks ``users.read``."""
-    _user, headers = await acting_user("member")
-    resp = await client.get("/api/v1/admin/users", headers=headers)
+    a = await acting_user("member")
+    resp = await client.get("/api/v1/admin/users", headers=a.headers)
     assert resp.status_code == 403
 
 
 async def test_owner_can_update_interface_settings_role_scoped(client, acting_user):
     """The moved ``PUT /settings/interface`` runs as ``platform_owner`` and the
     owner-only GRANT + ``app_settings_owner`` policy let the write through."""
-    _user, headers = await acting_user("owner")
+    a = await acting_user("owner")
     resp = await client.put(
         "/api/v1/settings/interface",
-        headers=headers,
+        headers=a.headers,
         json={"light_accent_color": "#123456", "dark_accent_color": "#654321"},
     )
     assert resp.status_code == 200
@@ -273,6 +273,6 @@ async def test_interface_settings_readable_without_write_privilege(client, actin
     """A public config read works even for a non-owner when the singleton row is
     absent: the privilege-tolerant lazy-create degrades to a transient default
     instead of faulting on the owner-only write."""
-    _user, headers = await acting_user("member")
-    resp = await client.get("/api/v1/settings/interface", headers=headers)
+    a = await acting_user("member")
+    resp = await client.get("/api/v1/settings/interface", headers=a.headers)
     assert resp.status_code == 200

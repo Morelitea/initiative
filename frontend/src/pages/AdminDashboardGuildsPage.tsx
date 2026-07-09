@@ -3,14 +3,24 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { PlatformGuildStorageRead } from "@/api/generated/initiativeAPI.schemas";
+import { GuildStatus } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { usePlatformGuilds, useUpdateGuildStorage } from "@/hooks/useSettings";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
 import { Capability, hasCapability } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 // Storage caps are entered in binary GB (GiB) so a value round-trips cleanly
 // with `formatBytes` (which is also 1024-based).
@@ -90,6 +100,166 @@ const GuildStorageCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
   );
 };
 
+/** Parse the user-limit input into the value to send, or flag an invalid entry. */
+const parseUserLimitInput = (raw: string): { limit: number | null; invalid: boolean } => {
+  const trimmed = raw.trim();
+  if (trimmed === "") return { limit: null, invalid: false }; // blank = unlimited
+  const n = Number(trimmed);
+  // A member cap must be a whole number >= 1 (a guild always has its creator).
+  if (!Number.isInteger(n) || n < 1) return { limit: null, invalid: true };
+  return { limit: n, invalid: false };
+};
+
+/** Render a stored user cap back into a tidy input string ("" = unlimited). */
+const userLimitToInput = (limit: number | null): string => (limit == null ? "" : String(limit));
+
+/**
+ * The "Users" cell: current member count over an inline-editable cap, rendering
+ * the `3/unlimited` (or `3/10`) display the operator reads at a glance. The cap
+ * input auto-saves on blur (and Enter); blank means unlimited and a bad entry
+ * reverts. When a guild is over its cap (e.g. the cap was lowered below the
+ * current headcount) the count is flagged — existing members are never removed,
+ * only new joins are blocked.
+ */
+const GuildUserLimitCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+  const { t } = useTranslation("settings");
+  const stored = guild.max_users ?? null;
+  const [draft, setDraft] = useState(() => userLimitToInput(stored));
+
+  const update = useUpdateGuildStorage({
+    onSuccess: (row) => {
+      setDraft(userLimitToInput(row.max_users ?? null));
+      toast.success(t("guilds.usersSaved", { name: row.name }));
+    },
+    onError: (err) => {
+      setDraft(userLimitToInput(stored)); // revert to the last persisted value
+      toast.error(getErrorMessage(err, "settings:guilds.usersSaveError"));
+    },
+  });
+
+  const commit = () => {
+    const { limit, invalid } = parseUserLimitInput(draft);
+    if (invalid) {
+      setDraft(userLimitToInput(stored));
+      return;
+    }
+    if (limit === stored) {
+      setDraft(userLimitToInput(stored)); // normalize formatting (e.g. "10 " -> "10")
+      return;
+    }
+    update.mutate({ guildId: guild.id, data: { max_users: limit } });
+  };
+
+  const overLimit = stored != null && guild.member_count > stored;
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className={cn(
+          "tabular-nums",
+          overLimit ? "font-medium text-destructive" : "text-muted-foreground"
+        )}
+        title={overLimit ? t("guilds.overLimitHint", { name: guild.name }) : undefined}
+      >
+        {guild.member_count}
+      </span>
+      <span className="text-muted-foreground">/</span>
+      <Input
+        type="number"
+        min={1}
+        step={1}
+        inputMode="numeric"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
+        placeholder={t("guilds.unlimitedPlaceholder")}
+        aria-label={t("guilds.userLimitInputLabel", { name: guild.name })}
+        disabled={update.isPending}
+        className="w-28"
+      />
+    </div>
+  );
+};
+
+// Ordered least → most restrictive for the dropdown.
+const GUILD_STATUS_ORDER: GuildStatus[] = [
+  GuildStatus.active,
+  GuildStatus.read_only,
+  GuildStatus.suspended,
+];
+
+/**
+ * Lifecycle-status control for one guild. Changing to `suspended` (a soft
+ * delete — members lose all access) is gated behind a confirm dialog; the
+ * lighter transitions apply immediately. The change saves via the same
+ * platform-guilds mutation and the list invalidates on success, so the Select
+ * reflects the persisted status.
+ */
+const GuildStatusCell = ({ guild }: { guild: PlatformGuildStorageRead }) => {
+  const { t } = useTranslation(["settings", "common"]);
+  const [pendingSuspend, setPendingSuspend] = useState(false);
+
+  const update = useUpdateGuildStorage({
+    onSuccess: (row) => {
+      toast.success(t("guilds.statusSaved", { name: row.name }));
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, "settings:guilds.statusSaveError"));
+    },
+    // Close the confirm dialog only once the mutation settles, so its in-flight
+    // state is actually observable (the dialog shows "please wait" while saving).
+    onSettled: () => setPendingSuspend(false),
+  });
+
+  const apply = (status: GuildStatus) => {
+    update.mutate({ guildId: guild.id, data: { status } });
+  };
+
+  const handleChange = (value: string) => {
+    const next = value as GuildStatus;
+    if (next === guild.status) return;
+    if (next === GuildStatus.suspended) {
+      setPendingSuspend(true); // confirm the soft delete first
+      return;
+    }
+    apply(next);
+  };
+
+  return (
+    <>
+      <Select value={guild.status} onValueChange={handleChange} disabled={update.isPending}>
+        <SelectTrigger
+          className="w-36"
+          aria-label={t("guilds.statusInputLabel", { name: guild.name })}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {GUILD_STATUS_ORDER.map((status) => (
+            <SelectItem key={status} value={status}>
+              {t(`guilds.status.${status}`)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <ConfirmDialog
+        open={pendingSuspend}
+        onOpenChange={setPendingSuspend}
+        title={t("guilds.suspendConfirm.title", { name: guild.name })}
+        description={t("guilds.suspendConfirm.description")}
+        confirmLabel={t("guilds.suspendConfirm.confirm")}
+        cancelLabel={t("common:cancel")}
+        destructive
+        isLoading={update.isPending}
+        onConfirm={() => apply(GuildStatus.suspended)}
+      />
+    </>
+  );
+};
+
 export const AdminDashboardGuildsPage = () => {
   const { t } = useTranslation("settings");
   const { user } = useAuth();
@@ -112,16 +282,20 @@ export const AdminDashboardGuildsPage = () => {
     },
     {
       accessorKey: "member_count",
-      header: t("guilds.columns.members"),
-      cell: ({ row }) => (
-        <span className="text-muted-foreground tabular-nums">{row.original.member_count}</span>
-      ),
+      header: t("guilds.columns.users"),
+      cell: ({ row }) => <GuildUserLimitCell guild={row.original} />,
     },
     {
       id: "storage",
       header: t("guilds.columns.storageLimit"),
       enableSorting: false,
       cell: ({ row }) => <GuildStorageCell guild={row.original} />,
+    },
+    {
+      id: "status",
+      header: t("guilds.columns.status"),
+      enableSorting: false,
+      cell: ({ row }) => <GuildStatusCell guild={row.original} />,
     },
   ];
 

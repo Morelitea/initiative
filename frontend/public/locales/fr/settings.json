@@ -19,13 +19,24 @@
     "title": "Paramètres du groupe",
     "subtitle": "Gérez les membres de l'espace de travail et les détails du groupe.",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
+    "restricted": {
+      "read_only": {
+        "label": "Lecture seule",
+        "message": "Ce groupe est en lecture seule. Contactez votre administrateur de plateforme pour rétablir l'accès complet."
+      },
+      "suspended": {
+        "label": "Suspendu",
+        "message": "Ce groupe est suspendu et les membres n'y ont pas accès. Contactez votre administrateur de plateforme."
+      }
+    },
     "tabs": {
       "guild": "Groupe",
       "ai": "IA",
       "users": "Utilisateurs",
       "initiatives": "Initiatives",
       "trash": "Corbeille",
-      "dangerZone": "Zone de danger"
+      "dangerZone": "Zone de danger",
+      "auth": "Authentification"
     }
   },
   "profile": {
@@ -564,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Sélectionnez d'abord une initiative",
     "loadingOptions": "Chargement des options…",
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
-    "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC."
+    "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
+    "scope": {
+      "title": "Configuration de connexion",
+      "description": "Choisissez où la connexion est configurée pour ce serveur.",
+      "platformLabel": "À l'échelle de la plateforme",
+      "platformHelp": "La connexion est configurée une seule fois, ici, pour tout le serveur. Toutes les guildes l'utilisent. Idéal pour une organisation unique gérant sa propre instance.",
+      "guildLabel": "Par guilde",
+      "guildHelp": "Chaque guilde configure sa propre connexion et ses règles d'adhésion dans ses paramètres de guilde. Idéal pour un serveur hébergeant plusieurs organisations indépendantes.",
+      "comingSoon": "Bientôt disponible",
+      "passwordNote": "La connexion par mot de passe reste disponible dans les deux modes."
+    }
   },
   "platformUsers": {
     "title": "Utilisateurs de la plateforme",
@@ -742,7 +763,7 @@
     "title": "Paramètres de la plateforme",
     "subtitle": "Configurez l'authentification, la personnalisation, l'email et l'IA pour toute la plateforme.",
     "tabs": {
-      "auth": "Auth",
+      "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
       "ai": "IA",
@@ -759,22 +780,41 @@
     }
   },
   "guilds": {
-    "title": "Limites de stockage par groupe",
-    "description": "Définissez le stockage total maximal que chaque groupe peut utiliser pour les fichiers téléversés. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements, mais ne supprime jamais les fichiers existants.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites de stockage des groupes.",
+    "title": "Limites par groupe",
+    "description": "Définissez des limites par groupe pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des groupes.",
     "loading": "Chargement des groupes…",
     "loadError": "Impossible de charger les groupes. Veuillez réessayer.",
     "filterByName": "Filtrer les groupes par nom",
     "unlimitedPlaceholder": "Illimité",
-    "helpText": "Les limites sont en Go et sont enregistrées automatiquement. Laissez un champ vide pour un stockage illimité.",
+    "helpText": "Les limites de stockage sont en Go ; les limites d'utilisateurs correspondent à un nombre de membres. Les deux sont enregistrées automatiquement — laissez un champ vide pour illimité.",
     "limitInputLabel": "Limite de stockage pour {{name}} en Go",
+    "userLimitInputLabel": "Limite d'utilisateurs pour {{name}}",
+    "overLimitHint": "{{name}} compte plus de membres que sa limite actuelle ne l'autorise.",
     "saved": "Limite de stockage mise à jour pour {{name}}.",
     "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
+    "usersSaved": "Limite d'utilisateurs mise à jour pour {{name}}.",
+    "usersSaveError": "Impossible de mettre à jour la limite d'utilisateurs. Veuillez réessayer.",
+    "statusInputLabel": "Statut de {{name}}",
+    "statusSaved": "Statut de {{name}} mis à jour.",
+    "statusSaveError": "Impossible de mettre à jour le statut du groupe. Veuillez réessayer.",
+    "status": {
+      "active": "Actif",
+      "read_only": "Lecture seule",
+      "suspended": "Suspendu"
+    },
+    "suspendConfirm": {
+      "title": "Suspendre {{name}} ?",
+      "description": "Les membres perdent tout accès et le groupe disparaît de leur liste. Rien n'est supprimé et vous pouvez le réactiver à tout moment ; les opérateurs conservent l'accès via une autorisation break-glass.",
+      "confirm": "Suspendre le groupe"
+    },
     "columns": {
       "id": "ID",
       "guild": "Groupe",
       "members": "Membres",
-      "storageLimit": "Limite de stockage"
+      "users": "Utilisateurs",
+      "storageLimit": "Limite de stockage",
+      "status": "Statut"
     }
   },
   "storage": {
@@ -827,5 +867,11 @@
       "complete": "Terminé",
       "failed": "Échoué"
     }
+  },
+  "guildAuth": {
+    "title": "Authentification",
+    "comingSoon": "Bientôt disponible",
+    "description": "Configuration de connexion pour cette guilde.",
+    "body": "Ce serveur utilise la connexion par guilde. Bientôt, les admins de guilde configureront ici l'authentification unique et les règles d'adhésion de cette guilde."
   }
 }

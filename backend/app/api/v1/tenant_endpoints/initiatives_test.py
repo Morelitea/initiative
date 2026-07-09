@@ -14,34 +14,21 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole
-from app.testing.factories import (
-    create_guild,
-    create_guild_membership,
-    create_initiative_member,
-    create_user,
-    get_guild_headers,
-)
+from app.testing.factories import create_initiative
 
 
 @pytest.mark.integration
 async def test_list_initiatives_as_admin_shows_all(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that guild admin can see all initiatives."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
 
     # Create multiple initiatives (factory creates builtin roles + PM membership)
-    await create_initiative(session, guild, admin, name="Initiative 1")
-    await create_initiative(session, guild, admin, name="Initiative 2")
+    await create_initiative(session, admin.guild, admin.user, name="Initiative 1")
+    await create_initiative(session, admin.guild, admin.user, name="Initiative 2")
 
-    headers = await get_guild_headers(session, guild, admin)
-    response = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    response = await client.get(admin.g("/initiatives/"), headers=admin.headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -53,32 +40,26 @@ async def test_list_initiatives_as_admin_shows_all(
 
 @pytest.mark.integration
 async def test_list_initiatives_as_member_shows_only_membership(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that regular members only see initiatives they're part of."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
 
     # Create two initiatives
     initiative1 = await create_initiative(
-        session, guild, admin, name="Member's Initiative"
+        session, admin.guild, admin.user, name="Member's Initiative"
     )
-    await create_initiative(session, guild, admin, name="Other Initiative")
+    await create_initiative(session, admin.guild, admin.user, name="Other Initiative")
 
     # Add member to only initiative1
-    await create_initiative_member(session, initiative1, member, role_name="member")
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative1,
+        initiative_role="member",
+    )
 
-    headers = await get_guild_headers(session, guild, member)
-    response = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    response = await client.get(member.g("/initiatives/"), headers=member.headers)
 
     assert response.status_code == 200
     data = response.json()
@@ -88,15 +69,12 @@ async def test_list_initiatives_as_member_shows_only_membership(
 
 
 @pytest.mark.integration
-async def test_create_initiative_as_admin(client: AsyncClient, session: AsyncSession):
+async def test_create_initiative_as_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that guild admin can create initiatives."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
 
-    headers = await get_guild_headers(session, guild, admin)
     payload = {
         "name": "New Initiative",
         "description": "A test initiative",
@@ -104,7 +82,7 @@ async def test_create_initiative_as_admin(client: AsyncClient, session: AsyncSes
     }
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=headers, json=payload
+        admin.g("/initiatives/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 201
@@ -116,20 +94,15 @@ async def test_create_initiative_as_admin(client: AsyncClient, session: AsyncSes
 
 @pytest.mark.integration
 async def test_create_initiative_as_member_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that regular members cannot create initiatives."""
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
-    )
+    member = await acting_user(guild_role=GuildRole.member)
 
-    headers = await get_guild_headers(session, guild, member)
     payload = {"name": "New Initiative"}
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=headers, json=payload
+        member.g("/initiatives/"), headers=member.headers, json=payload
     )
 
     assert response.status_code == 403
@@ -137,25 +110,20 @@ async def test_create_initiative_as_member_forbidden(
 
 @pytest.mark.integration
 async def test_create_initiative_duplicate_name_fails(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that duplicate initiative names are rejected."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
 
     # Create first initiative
-    await create_initiative(session, guild, admin, name="Existing Initiative")
+    await create_initiative(
+        session, admin.guild, admin.user, name="Existing Initiative"
+    )
 
-    headers = await get_guild_headers(session, guild, admin)
     payload = {"name": "Existing Initiative"}
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=headers, json=payload
+        admin.g("/initiatives/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 409
@@ -164,50 +132,37 @@ async def test_create_initiative_duplicate_name_fails(
 
 @pytest.mark.integration
 async def test_create_initiative_makes_creator_manager(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that creating an initiative makes the creator a manager."""
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
 
-    headers = await get_guild_headers(session, guild, admin)
     payload = {"name": "New Initiative"}
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/", headers=headers, json=payload
+        admin.g("/initiatives/"), headers=admin.headers, json=payload
     )
 
     assert response.status_code == 201
     data = response.json()
     assert len(data["members"]) == 1
-    assert data["members"][0]["user"]["id"] == admin.id
+    assert data["members"][0]["user"]["id"] == admin.user.id
     assert data["members"][0]["role"] == "project_manager"
 
 
 @pytest.mark.integration
-async def test_update_initiative_as_manager(client: AsyncClient, session: AsyncSession):
+async def test_update_initiative_as_manager(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that initiative manager can update initiative."""
-    from app.testing.factories import create_initiative
+    # A plain guild member who creates (and therefore manages) an initiative.
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
 
-    manager = await create_user(session, email="manager@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=manager, guild=guild, role=GuildRole.member
-    )
-
-    initiative = await create_initiative(
-        session, guild, manager, name="Test Initiative"
-    )
-
-    headers = await get_guild_headers(session, guild, manager)
     payload = {"name": "Updated Initiative", "description": "Updated description"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
-        headers=headers,
+        manager.g(f"/initiatives/{manager.initiative.id}"),
+        headers=manager.headers,
         json=payload,
     )
 
@@ -218,30 +173,18 @@ async def test_update_initiative_as_manager(client: AsyncClient, session: AsyncS
 
 
 @pytest.mark.integration
-async def test_update_initiative_as_admin(client: AsyncClient, session: AsyncSession):
+async def test_update_initiative_as_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that guild admin can update any initiative."""
-    from app.testing.factories import create_initiative
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+    admin = await acting_user(guild_role=GuildRole.admin, guild=manager.guild)
 
-    admin = await create_user(session, email="admin@example.com")
-    manager = await create_user(session, email="manager@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=manager, guild=guild, role=GuildRole.member
-    )
-
-    initiative = await create_initiative(
-        session, guild, manager, name="Manager's Initiative"
-    )
-
-    headers = await get_guild_headers(session, guild, admin)
     payload = {"name": "Admin Updated"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
-        headers=headers,
+        admin.g(f"/initiatives/{manager.initiative.id}"),
+        headers=admin.headers,
         json=payload,
     )
 
@@ -252,30 +195,22 @@ async def test_update_initiative_as_admin(client: AsyncClient, session: AsyncSes
 
 @pytest.mark.integration
 async def test_update_initiative_as_regular_member_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that regular members cannot update initiatives."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
 
-    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
-    await create_initiative_member(session, initiative, member, role_name="member")
-
-    headers = await get_guild_headers(session, guild, member)
     payload = {"name": "Hacked Name"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
-        headers=headers,
+        member.g(f"/initiatives/{admin.initiative.id}"),
+        headers=member.headers,
         json=payload,
     )
 
@@ -284,26 +219,21 @@ async def test_update_initiative_as_regular_member_forbidden(
 
 @pytest.mark.integration
 async def test_update_initiative_duplicate_name_fails(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that renaming to existing name fails."""
-    from app.testing.factories import create_initiative
+    admin = await acting_user(guild_role=GuildRole.admin)
 
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    initiative1 = await create_initiative(
+        session, admin.guild, admin.user, name="Initiative 1"
     )
+    await create_initiative(session, admin.guild, admin.user, name="Initiative 2")
 
-    initiative1 = await create_initiative(session, guild, admin, name="Initiative 1")
-    await create_initiative(session, guild, admin, name="Initiative 2")
-
-    headers = await get_guild_headers(session, guild, admin)
     payload = {"name": "Initiative 2"}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative1.id}",
-        headers=headers,
+        admin.g(f"/initiatives/{initiative1.id}"),
+        headers=admin.headers,
         json=payload,
     )
 
@@ -315,21 +245,14 @@ async def test_update_initiative_duplicate_name_fails(
 
 @pytest.mark.integration
 async def test_initiative_is_archived_defaults_false(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A freshly created initiative is not archived."""
-    from app.testing.factories import create_initiative
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(session, admin.guild, admin.user, name="Fresh")
 
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    initiative = await create_initiative(session, guild, admin, name="Fresh")
-
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
+        admin.g(f"/initiatives/{initiative.id}"), headers=admin.headers
     )
 
     assert response.status_code == 200
@@ -337,22 +260,19 @@ async def test_initiative_is_archived_defaults_false(
 
 
 @pytest.mark.integration
-async def test_archive_initiative_via_patch(client: AsyncClient, session: AsyncSession):
+async def test_archive_initiative_via_patch(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """A guild admin can archive (and unarchive) an initiative through PATCH; it
     stays in the list either way (the settings table manages it there)."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Archivable"
     )
-    initiative = await create_initiative(session, guild, admin, name="Archivable")
-    headers = await get_guild_headers(session, guild, admin)
 
     archive = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
-        headers=headers,
+        admin.g(f"/initiatives/{initiative.id}"),
+        headers=admin.headers,
         json={"is_archived": True},
     )
     assert archive.status_code == 200
@@ -360,14 +280,14 @@ async def test_archive_initiative_via_patch(client: AsyncClient, session: AsyncS
 
     # Archived initiatives are NOT removed from the list — only the sidebar
     # filters them client-side; the settings table must still see them.
-    listing = await client.get(f"/api/v1/g/{guild.id}/initiatives/", headers=headers)
+    listing = await client.get(admin.g("/initiatives/"), headers=admin.headers)
     assert listing.status_code == 200
     archived = next(i for i in listing.json() if i["id"] == initiative.id)
     assert archived["is_archived"] is True
 
     unarchive = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
-        headers=headers,
+        admin.g(f"/initiatives/{initiative.id}"),
+        headers=admin.headers,
         json={"is_archived": False},
     )
     assert unarchive.status_code == 200
@@ -376,33 +296,25 @@ async def test_archive_initiative_via_patch(client: AsyncClient, session: AsyncS
 
 @pytest.mark.integration
 async def test_archive_initiative_as_manager_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Archiving is guild-admin only. A plain initiative manager (who may edit
     other settings here) is rejected when toggling is_archived."""
-    from app.testing.factories import create_initiative
-
-    manager = await create_user(session, email="manager@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=manager, guild=guild, role=GuildRole.member
-    )
     # Creator becomes the initiative's PM (manager) but is not a guild admin.
-    initiative = await create_initiative(session, guild, manager, name="Managed")
-    headers = await get_guild_headers(session, guild, manager)
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     # A non-archive edit still works for a manager...
     ok = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
-        headers=headers,
+        manager.g(f"/initiatives/{manager.initiative.id}"),
+        headers=manager.headers,
         json={"description": "Edited by manager"},
     )
     assert ok.status_code == 200
 
     # ...but flipping is_archived is admin-only.
     forbidden = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}",
-        headers=headers,
+        manager.g(f"/initiatives/{manager.initiative.id}"),
+        headers=manager.headers,
         json={"is_archived": True},
     )
     assert forbidden.status_code == 403
@@ -410,21 +322,17 @@ async def test_archive_initiative_as_manager_forbidden(
 
 
 @pytest.mark.integration
-async def test_delete_initiative_as_admin(client: AsyncClient, session: AsyncSession):
+async def test_delete_initiative_as_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that guild admin can delete initiatives."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="To Delete"
     )
 
-    initiative = await create_initiative(session, guild, admin, name="To Delete")
-
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
+        admin.g(f"/initiatives/{initiative.id}"), headers=admin.headers
     )
 
     assert response.status_code == 204
@@ -432,24 +340,13 @@ async def test_delete_initiative_as_admin(client: AsyncClient, session: AsyncSes
 
 @pytest.mark.integration
 async def test_delete_initiative_as_manager_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that initiative manager cannot delete initiatives."""
-    from app.testing.factories import create_initiative
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
 
-    manager = await create_user(session, email="manager@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=manager, guild=guild, role=GuildRole.member
-    )
-
-    initiative = await create_initiative(
-        session, guild, manager, name="Test Initiative"
-    )
-
-    headers = await get_guild_headers(session, guild, manager)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
+        manager.g(f"/initiatives/{manager.initiative.id}"), headers=manager.headers
     )
 
     assert response.status_code == 403
@@ -457,25 +354,18 @@ async def test_delete_initiative_as_manager_forbidden(
 
 @pytest.mark.integration
 async def test_delete_default_initiative_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that default initiative cannot be deleted."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
 
     # Create and mark as default
     initiative = await create_initiative(
-        session, guild, admin, name="Default Initiative", is_default=True
+        session, admin.guild, admin.user, name="Default Initiative", is_default=True
     )
 
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}", headers=headers
+        admin.g(f"/initiatives/{initiative.id}"), headers=admin.headers
     )
 
     assert response.status_code == 400
@@ -483,102 +373,85 @@ async def test_delete_default_initiative_forbidden(
 
 
 @pytest.mark.integration
-async def test_get_initiative_members(client: AsyncClient, session: AsyncSession):
+async def test_get_initiative_members(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test getting all members of an initiative."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    member1 = await create_user(
-        session, email="member1@example.com", full_name="Member One"
+    admin = await acting_user(guild_role=GuildRole.admin)
+    initiative = await create_initiative(
+        session, admin.guild, admin.user, name="Test Initiative"
     )
-    member2 = await create_user(
-        session, email="member2@example.com", full_name="Member Two"
+    member1 = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="member",
+        email="member1@example.com",
+        full_name="Member One",
     )
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    member2 = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=initiative,
+        initiative_role="member",
+        email="member2@example.com",
+        full_name="Member Two",
     )
-    await create_guild_membership(session, user=member1, guild=guild)
-    await create_guild_membership(session, user=member2, guild=guild)
 
-    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
-    await create_initiative_member(session, initiative, member1, role_name="member")
-    await create_initiative_member(session, initiative, member2, role_name="member")
-
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.get(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members", headers=headers
+        admin.g(f"/initiatives/{initiative.id}/members"), headers=admin.headers
     )
 
     assert response.status_code == 200
     data = response.json()
     assert len(data) >= 3
     emails = {user["email"] for user in data}
-    assert "admin@example.com" in emails
-    assert "member1@example.com" in emails
-    assert "member2@example.com" in emails
+    assert admin.user.email in emails
+    assert member1.user.email in emails
+    assert member2.user.email in emails
 
 
 @pytest.mark.integration
 async def test_add_initiative_member_as_manager(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that manager can add members to initiative."""
-    from app.testing.factories import create_initiative
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
+    new_member = await acting_user(guild_role=GuildRole.member, guild=manager.guild)
 
-    manager = await create_user(session, email="manager@example.com")
-    new_member = await create_user(session, email="newmember@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=manager, guild=guild, role=GuildRole.member
-    )
-    await create_guild_membership(session, user=new_member, guild=guild)
-
-    initiative = await create_initiative(
-        session, guild, manager, name="Test Initiative"
-    )
-
-    headers = await get_guild_headers(session, guild, manager)
-    payload = {"user_id": new_member.id, "role": "member"}
+    payload = {"user_id": new_member.user.id, "role": "member"}
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
-        headers=headers,
+        manager.g(f"/initiatives/{manager.initiative.id}/members"),
+        headers=manager.headers,
         json=payload,
     )
 
     assert response.status_code == 200
     data = response.json()
     member_ids = {m["user"]["id"] for m in data["members"]}
-    assert new_member.id in member_ids
+    assert new_member.user.id in member_ids
 
 
 @pytest.mark.integration
 async def test_add_initiative_member_as_regular_member_forbidden(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test that regular members cannot add members."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    new_member = await create_user(session, email="newmember@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
-    await create_guild_membership(session, user=member, guild=guild)
-    await create_guild_membership(session, user=new_member, guild=guild)
+    new_member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
 
-    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
-    await create_initiative_member(session, initiative, member, role_name="member")
-
-    headers = await get_guild_headers(session, guild, member)
-    payload = {"user_id": new_member.id, "role": "member"}
+    payload = {"user_id": new_member.user.id, "role": "member"}
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
-        headers=headers,
+        member.g(f"/initiatives/{admin.initiative.id}/members"),
+        headers=member.headers,
         json=payload,
     )
 
@@ -586,25 +459,19 @@ async def test_add_initiative_member_as_regular_member_forbidden(
 
 
 @pytest.mark.integration
-async def test_add_user_not_in_guild_fails(client: AsyncClient, session: AsyncSession):
+async def test_add_user_not_in_guild_fails(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that adding a user not in the guild fails."""
-    from app.testing.factories import create_initiative
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    # An outsider with no membership in the admin's guild.
+    outsider = await acting_user(email="outsider@example.com")
 
-    admin = await create_user(session, email="admin@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-
-    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
-
-    headers = await get_guild_headers(session, guild, admin)
-    payload = {"user_id": outsider.id, "role": "member"}
+    payload = {"user_id": outsider.user.id, "role": "member"}
 
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
-        headers=headers,
+        admin.g(f"/initiatives/{admin.initiative.id}/members"),
+        headers=admin.headers,
         json=payload,
     )
 
@@ -614,84 +481,69 @@ async def test_add_user_not_in_guild_fails(client: AsyncClient, session: AsyncSe
 
 @pytest.mark.integration
 async def test_update_initiative_member_role(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Test updating an initiative member's role."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
-    await create_guild_membership(session, user=member, guild=guild)
-
-    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
-    await create_initiative_member(session, initiative, member, role_name="member")
 
     # Look up the PM role ID for this initiative
     from app.models.tenant.initiative import InitiativeRoleModel
     from sqlmodel import select
 
     pm_role_stmt = select(InitiativeRoleModel).where(
-        InitiativeRoleModel.initiative_id == initiative.id,
+        InitiativeRoleModel.initiative_id == admin.initiative.id,
         InitiativeRoleModel.name == "project_manager",
     )
     pm_role = (await session.exec(pm_role_stmt)).one()
 
-    headers = await get_guild_headers(session, guild, admin)
     payload = {"role_id": pm_role.id}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{member.id}",
-        headers=headers,
+        admin.g(f"/initiatives/{admin.initiative.id}/members/{member.user.id}"),
+        headers=admin.headers,
         json=payload,
     )
 
     assert response.status_code == 200
     data = response.json()
     member_roles = {m["user"]["id"]: m["role"] for m in data["members"]}
-    assert member_roles[member.id] == "project_manager"
+    assert member_roles[member.user.id] == "project_manager"
 
 
 @pytest.mark.integration
 async def test_guild_admin_cannot_be_assigned_member_role(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A guild admin is an implicit full-access member; assigning them a
     standard member (or custom) role is rejected — they may only be elevated to
     a manager role."""
     from app.models.tenant.initiative import InitiativeRoleModel
-    from app.testing.factories import create_initiative
     from sqlmodel import select
 
-    admin = await create_user(session, email="admin@example.com")
-    target_admin = await create_user(session, email="admin2@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    target_admin = await acting_user(
+        guild_role=GuildRole.admin, guild=admin.guild, email="admin2@example.com"
     )
-    await create_guild_membership(
-        session, user=target_admin, guild=guild, role=GuildRole.admin
-    )
-
-    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
 
     member_role = (
         await session.exec(
             select(InitiativeRoleModel).where(
-                InitiativeRoleModel.initiative_id == initiative.id,
+                InitiativeRoleModel.initiative_id == admin.initiative.id,
                 InitiativeRoleModel.name == "member",
             )
         )
     ).one()
 
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
-        headers=headers,
-        json={"user_id": target_admin.id, "role_id": member_role.id},
+        admin.g(f"/initiatives/{admin.initiative.id}/members"),
+        headers=admin.headers,
+        json={"user_id": target_admin.user.id, "role_id": member_role.id},
     )
 
     assert response.status_code == 400
@@ -700,95 +552,73 @@ async def test_guild_admin_cannot_be_assigned_member_role(
 
 @pytest.mark.integration
 async def test_guild_admin_can_be_assigned_manager_role(
-    client: AsyncClient, session: AsyncSession
+    client: AsyncClient, session: AsyncSession, acting_user
 ):
     """A guild admin may be elevated to the manager role (for manager-style
     features like notifications)."""
     from app.models.tenant.initiative import InitiativeRoleModel
-    from app.testing.factories import create_initiative
     from sqlmodel import select
 
-    admin = await create_user(session, email="admin@example.com")
-    target_admin = await create_user(session, email="admin2@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    target_admin = await acting_user(
+        guild_role=GuildRole.admin, guild=admin.guild, email="admin2@example.com"
     )
-    await create_guild_membership(
-        session, user=target_admin, guild=guild, role=GuildRole.admin
-    )
-
-    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
 
     pm_role = (
         await session.exec(
             select(InitiativeRoleModel).where(
-                InitiativeRoleModel.initiative_id == initiative.id,
+                InitiativeRoleModel.initiative_id == admin.initiative.id,
                 InitiativeRoleModel.name == "project_manager",
             )
         )
     ).one()
 
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members",
-        headers=headers,
-        json={"user_id": target_admin.id, "role_id": pm_role.id},
+        admin.g(f"/initiatives/{admin.initiative.id}/members"),
+        headers=admin.headers,
+        json={"user_id": target_admin.user.id, "role_id": pm_role.id},
     )
 
     assert response.status_code == 200
     data = response.json()
     member_roles = {m["user"]["id"]: m["role"] for m in data["members"]}
-    assert member_roles[target_admin.id] == "project_manager"
+    assert member_roles[target_admin.user.id] == "project_manager"
 
 
 @pytest.mark.integration
-async def test_remove_initiative_member(client: AsyncClient, session: AsyncSession):
+async def test_remove_initiative_member(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test removing an initiative member."""
-    from app.testing.factories import create_initiative
-
-    admin = await create_user(session, email="admin@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=admin.guild,
+        initiative=admin.initiative,
+        initiative_role="member",
     )
-    await create_guild_membership(session, user=member, guild=guild)
 
-    initiative = await create_initiative(session, guild, admin, name="Test Initiative")
-    await create_initiative_member(session, initiative, member, role_name="member")
-
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{member.id}",
-        headers=headers,
+        admin.g(f"/initiatives/{admin.initiative.id}/members/{member.user.id}"),
+        headers=admin.headers,
     )
 
     assert response.status_code == 200
     data = response.json()
     member_ids = {m["user"]["id"] for m in data["members"]}
-    assert member.id not in member_ids
+    assert member.user.id not in member_ids
 
 
 @pytest.mark.integration
-async def test_cannot_remove_last_manager(client: AsyncClient, session: AsyncSession):
+async def test_cannot_remove_last_manager(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that removing the last manager fails."""
-    from app.testing.factories import create_initiative
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
 
-    manager = await create_user(session, email="manager@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=manager, guild=guild, role=GuildRole.member
-    )
-
-    initiative = await create_initiative(
-        session, guild, manager, name="Test Initiative"
-    )
-
-    headers = await get_guild_headers(session, guild, manager)
     response = await client.delete(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{manager.id}",
-        headers=headers,
+        manager.g(f"/initiatives/{manager.initiative.id}/members/{manager.user.id}"),
+        headers=manager.headers,
     )
 
     assert response.status_code == 400
@@ -796,36 +626,27 @@ async def test_cannot_remove_last_manager(client: AsyncClient, session: AsyncSes
 
 
 @pytest.mark.integration
-async def test_cannot_demote_last_manager(client: AsyncClient, session: AsyncSession):
+async def test_cannot_demote_last_manager(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that demoting the last manager fails."""
-    from app.testing.factories import create_initiative
-
-    manager = await create_user(session, email="manager@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=manager, guild=guild, role=GuildRole.member
-    )
-
-    initiative = await create_initiative(
-        session, guild, manager, name="Test Initiative"
-    )
+    manager = await acting_user(guild_role=GuildRole.member, initiative=True)
 
     # Look up the member role ID for this initiative
     from app.models.tenant.initiative import InitiativeRoleModel
     from sqlmodel import select
 
     member_role_stmt = select(InitiativeRoleModel).where(
-        InitiativeRoleModel.initiative_id == initiative.id,
+        InitiativeRoleModel.initiative_id == manager.initiative.id,
         InitiativeRoleModel.name == "member",
     )
     member_role = (await session.exec(member_role_stmt)).one()
 
-    headers = await get_guild_headers(session, guild, manager)
     payload = {"role_id": member_role.id}
 
     response = await client.patch(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/members/{manager.id}",
-        headers=headers,
+        manager.g(f"/initiatives/{manager.initiative.id}/members/{manager.user.id}"),
+        headers=manager.headers,
         json=payload,
     )
 
@@ -834,30 +655,26 @@ async def test_cannot_demote_last_manager(client: AsyncClient, session: AsyncSes
 
 
 @pytest.mark.integration
-async def test_initiative_guild_isolation(client: AsyncClient, session: AsyncSession):
+async def test_initiative_guild_isolation(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
     """Test that initiatives are isolated by guild."""
-    from app.testing.factories import create_initiative
+    from app.testing.factories import create_guild, create_guild_membership
 
-    user = await create_user(session, email="user@example.com")
-    guild1 = await create_guild(session, name="Guild 1")
-    guild2 = await create_guild(session, name="Guild 2")
+    # One user who is an admin of two distinct guilds.
+    a = await acting_user(guild_role=GuildRole.admin)
+    guild2 = await create_guild(session)
     await create_guild_membership(
-        session, user=user, guild=guild1, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=user, guild=guild2, role=GuildRole.admin
+        session, user=a.user, guild=guild2, role=GuildRole.admin
     )
 
     initiative1 = await create_initiative(
-        session, guild1, user, name="Guild 1 Initiative"
+        session, a.guild, a.user, name="Guild 1 Initiative"
     )
-    await create_initiative(session, guild2, user, name="Guild 2 Initiative")
+    await create_initiative(session, guild2, a.user, name="Guild 2 Initiative")
 
     # Request with guild1 context
-    headers1 = await get_guild_headers(session, guild1, user)
-    response1 = await client.get(
-        f"/api/v1/g/{guild1.id}/initiatives/", headers=headers1
-    )
+    response1 = await client.get(a.g("/initiatives/"), headers=a.headers)
 
     assert response1.status_code == 200
     data1 = response1.json()
@@ -868,9 +685,8 @@ async def test_initiative_guild_isolation(client: AsyncClient, session: AsyncSes
     # Cannot access guild1's initiative with guild2 context. Under schema-per-guild
     # ids are per-schema (not globally unique), so initiative1.id may collide with
     # a guild2 initiative — but it must never resolve to guild1's initiative.
-    headers2 = await get_guild_headers(session, guild2, user)
     response2 = await client.get(
-        f"/api/v1/g/{guild2.id}/initiatives/{initiative1.id}", headers=headers2
+        f"/api/v1/g/{guild2.id}/initiatives/{initiative1.id}", headers=a.headers
     )
 
     if response2.status_code == 200:
@@ -886,36 +702,30 @@ async def test_initiative_guild_isolation(client: AsyncClient, session: AsyncSes
 #   1. ADVANCED_TOOL_URL configured
 #   2. Initiative exists in the active guild
 #   3. User is guild admin OR initiative member
-#   4. initiative.advanced_tool_enabled = true
-#   5. User's role grants advanced_tool_enabled (managers bypass)
+#   4. initiative.advanced_tools_enabled = true
+#   5. User's role grants advanced_tools_enabled (managers bypass)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
 async def test_advanced_tool_handoff_returns_404_when_url_unset(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """Without ADVANCED_TOOL_URL the embed isn't deployed, so the
     endpoint must look like it doesn't exist — not even an authorized
     user should be able to mint a token that has nowhere to go."""
     from app.core.config import settings as app_settings
-    from app.testing.factories import create_initiative
 
     monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", None)
 
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
-        session, guild, admin, name="Init", advanced_tool_enabled=True
+        session, admin.guild, admin.user, name="Init", advanced_tools_enabled=True
     )
 
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
-        headers=headers,
+        admin.g(f"/initiatives/{initiative.id}/advanced-tool/handoff"),
+        headers=admin.headers,
     )
 
     assert response.status_code == 404
@@ -924,29 +734,23 @@ async def test_advanced_tool_handoff_returns_404_when_url_unset(
 
 @pytest.mark.integration
 async def test_advanced_tool_handoff_returns_403_when_master_switch_off(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """The per-initiative master switch is the manager's opt-in. Even a
     guild admin can't bypass it — the embed's data plane likely doesn't
     have the initiative provisioned yet."""
     from app.core.config import settings as app_settings
-    from app.testing.factories import create_initiative
 
     monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
 
-    admin = await create_user(session, email="admin@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
     initiative = await create_initiative(
-        session, guild, admin, name="Init", advanced_tool_enabled=False
+        session, admin.guild, admin.user, name="Init", advanced_tools_enabled=False
     )
 
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
-        headers=headers,
+        admin.g(f"/initiatives/{initiative.id}/advanced-tool/handoff"),
+        headers=admin.headers,
     )
 
     assert response.status_code == 403
@@ -955,33 +759,24 @@ async def test_advanced_tool_handoff_returns_403_when_master_switch_off(
 
 @pytest.mark.integration
 async def test_advanced_tool_handoff_returns_403_for_non_member(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """Members of the guild who aren't members of the initiative get
     rejected — view access is initiative-scoped, not guild-scoped (for
     non-admins)."""
     from app.core.config import settings as app_settings
-    from app.testing.factories import create_initiative
 
     monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
 
-    admin = await create_user(session, email="admin@example.com")
-    outsider = await create_user(session, email="outsider@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
-    )
-    await create_guild_membership(
-        session, user=outsider, guild=guild, role=GuildRole.member
-    )
+    admin = await acting_user(guild_role=GuildRole.admin)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
     initiative = await create_initiative(
-        session, guild, admin, name="Init", advanced_tool_enabled=True
+        session, admin.guild, admin.user, name="Init", advanced_tools_enabled=True
     )
 
-    headers = await get_guild_headers(session, guild, outsider)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
-        headers=headers,
+        outsider.g(f"/initiatives/{initiative.id}/advanced-tool/handoff"),
+        headers=outsider.headers,
     )
 
     assert response.status_code == 403
@@ -989,36 +784,36 @@ async def test_advanced_tool_handoff_returns_403_for_non_member(
 
 @pytest.mark.integration
 async def test_advanced_tool_handoff_returns_403_when_role_lacks_view_permission(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """An initiative member whose role does NOT grant
-    ``advanced_tool_enabled`` must be refused. The default ``member``
+    ``advanced_tools_enabled`` must be refused. The default ``member``
     role is exactly this case — view permission is opt-in per role.
     Without this gate, role-level access control would be a no-op."""
     from app.core.config import settings as app_settings
-    from app.testing.factories import create_initiative, create_initiative_member
 
     monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
 
-    pm = await create_user(session, email="pm@example.com")
-    member = await create_user(session, email="member@example.com")
-    guild = await create_guild(session)
-    # Both users are guild members (not admins) so guild-admin bypass doesn't apply
-    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
-    await create_guild_membership(
-        session, user=member, guild=guild, role=GuildRole.member
+    # Both users are guild members (not admins) so guild-admin bypass doesn't apply.
+    # pm creates the initiative and is auto-added as project_manager.
+    pm = await acting_user(
+        guild_role=GuildRole.member, initiative=True, email="pm@example.com"
     )
-    initiative = await create_initiative(
-        session, guild, pm, name="Init", advanced_tool_enabled=True
+    pm.initiative.advanced_tools_enabled = True
+    session.add(pm.initiative)
+    await session.commit()
+    # member joins with the default member role (advanced_tools_enabled=False)
+    member = await acting_user(
+        guild_role=GuildRole.member,
+        guild=pm.guild,
+        initiative=pm.initiative,
+        initiative_role="member",
+        email="member@example.com",
     )
-    # pm is auto-added as project_manager by the factory; add member with the
-    # default member role (which has advanced_tool_enabled=False)
-    await create_initiative_member(session, initiative, member, role_name="member")
 
-    headers = await get_guild_headers(session, guild, member)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
-        headers=headers,
+        member.g(f"/initiatives/{pm.initiative.id}/advanced-tool/handoff"),
+        headers=member.headers,
     )
 
     assert response.status_code == 403
@@ -1027,29 +822,25 @@ async def test_advanced_tool_handoff_returns_403_when_role_lacks_view_permission
 
 @pytest.mark.integration
 async def test_advanced_tool_handoff_succeeds_for_initiative_manager(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """The happy path: manager opens the panel, gets a token with
     ``scope=initiative``, the right initiative_id, and ``can_create``
     set so the embed can show edit affordances."""
     from app.core.config import settings as app_settings
     from app.core.security import ADVANCED_TOOL_AUDIENCE
-    from app.testing.factories import create_initiative
     import jwt
 
     monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
 
-    pm = await create_user(session, email="pm@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
+    pm = await acting_user(guild_role=GuildRole.member, email="pm@example.com")
     initiative = await create_initiative(
-        session, guild, pm, name="Init", advanced_tool_enabled=True
+        session, pm.guild, pm.user, name="Init", advanced_tools_enabled=True
     )
 
-    headers = await get_guild_headers(session, guild, pm)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
-        headers=headers,
+        pm.g(f"/initiatives/{initiative.id}/advanced-tool/handoff"),
+        headers=pm.headers,
     )
 
     assert response.status_code == 200
@@ -1070,7 +861,7 @@ async def test_advanced_tool_handoff_succeeds_for_initiative_manager(
         algorithms=["HS256"],
         audience=ADVANCED_TOOL_AUDIENCE,
     )
-    assert payload["sub"] == str(pm.id)
+    assert payload["sub"] == str(pm.user.id)
     assert payload["scope"] == "initiative"
     assert payload["initiative_id"] == initiative.id
     assert payload["is_manager"] is True
@@ -1079,7 +870,7 @@ async def test_advanced_tool_handoff_succeeds_for_initiative_manager(
 
 @pytest.mark.integration
 async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """A custom role that grants view but not create gets a token with
     ``can_create=false`` so the embed hides creation UI. The token is
@@ -1091,31 +882,23 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
         InitiativeRolePermission,
         PermissionKey,
     )
-    from app.testing.factories import (
-        create_initiative,
-        create_initiative_member,
-    )
     import jwt
     from sqlmodel import select
 
     monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
 
-    pm = await create_user(session, email="pm@example.com")
-    viewer = await create_user(session, email="viewer@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
-    await create_guild_membership(
-        session, user=viewer, guild=guild, role=GuildRole.member
+    pm = await acting_user(
+        guild_role=GuildRole.member, initiative=True, email="pm@example.com"
     )
-    initiative = await create_initiative(
-        session, guild, pm, name="Init", advanced_tool_enabled=True
-    )
+    pm.initiative.advanced_tools_enabled = True
+    session.add(pm.initiative)
+    await session.commit()
 
     # Flip the default member role to grant view but not create
     member_role = (
         await session.exec(
             select(InitiativeRoleModel).where(
-                InitiativeRoleModel.initiative_id == initiative.id,
+                InitiativeRoleModel.initiative_id == pm.initiative.id,
                 InitiativeRoleModel.name == "member",
             )
         )
@@ -1125,7 +908,7 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
             select(InitiativeRolePermission).where(
                 InitiativeRolePermission.initiative_role_id == member_role.id,
                 InitiativeRolePermission.permission_key
-                == PermissionKey.advanced_tool_enabled,
+                == PermissionKey.advanced_tools_enabled,
             )
         )
     ).one()
@@ -1133,12 +916,17 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
     session.add(view_perm)
     await session.commit()
 
-    await create_initiative_member(session, initiative, viewer, role_name="member")
+    viewer = await acting_user(
+        guild_role=GuildRole.member,
+        guild=pm.guild,
+        initiative=pm.initiative,
+        initiative_role="member",
+        email="viewer@example.com",
+    )
 
-    headers = await get_guild_headers(session, guild, viewer)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
-        headers=headers,
+        viewer.g(f"/initiatives/{pm.initiative.id}/advanced-tool/handoff"),
+        headers=viewer.headers,
     )
 
     assert response.status_code == 200
@@ -1159,32 +947,27 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
 
 @pytest.mark.integration
 async def test_advanced_tool_handoff_succeeds_for_guild_admin_non_member(
-    client: AsyncClient, session: AsyncSession, monkeypatch
+    client: AsyncClient, session: AsyncSession, acting_user, monkeypatch
 ):
     """Guild admins can mint a token even if they aren't an initiative
     member — admin override is the existing pattern for guild-wide
     operational access."""
     from app.core.config import settings as app_settings
-    from app.testing.factories import create_initiative
 
     monkeypatch.setattr(app_settings, "ADVANCED_TOOL_URL", "https://embed.example.com")
 
-    admin = await create_user(session, email="admin@example.com")
-    pm = await create_user(session, email="pm@example.com")
-    guild = await create_guild(session)
-    await create_guild_membership(
-        session, user=admin, guild=guild, role=GuildRole.admin
+    admin = await acting_user(guild_role=GuildRole.admin, email="admin@example.com")
+    pm = await acting_user(
+        guild_role=GuildRole.member, guild=admin.guild, email="pm@example.com"
     )
-    await create_guild_membership(session, user=pm, guild=guild, role=GuildRole.member)
     initiative = await create_initiative(
-        session, guild, pm, name="Init", advanced_tool_enabled=True
+        session, admin.guild, pm.user, name="Init", advanced_tools_enabled=True
     )
     # Admin is intentionally NOT added as an initiative member
 
-    headers = await get_guild_headers(session, guild, admin)
     response = await client.post(
-        f"/api/v1/g/{guild.id}/initiatives/{initiative.id}/advanced-tool/handoff",
-        headers=headers,
+        admin.g(f"/initiatives/{initiative.id}/advanced-tool/handoff"),
+        headers=admin.headers,
     )
 
     assert response.status_code == 200

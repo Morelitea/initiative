@@ -32,7 +32,6 @@ from app.api.deps import (
     get_guild_membership,
     GuildContext,
 )
-from app.db.session import reapply_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.models.tenant.project import Project
 from app.models.tenant.resource_grant import ResourceGrant
@@ -79,7 +78,7 @@ from app.services.realtime import broadcast_event
 from app.services.tenant import webhook_dispatcher
 from app.services import notifications as notifications_service
 from app.services import permissions as permissions_service
-from app.services.recurrence import get_next_due_date
+from app.services.tenant.recurrence import get_next_due_date
 from app.services.tenant import task_statuses as task_statuses_service
 from app.services import ai_generation as ai_generation_service
 from app.services.tenant import properties as properties_service
@@ -425,7 +424,7 @@ async def _rebalance_if_needed(
         if task.position != new_position:
             task.position = new_position
             session.add(task)
-            changed[task.id] = new_position
+            changed[task.id] = new_position  # ty: ignore[invalid-assignment] — persisted row, id is set
     return changed
 
 
@@ -659,11 +658,10 @@ async def _broadcast_task(
     The room is ``(guild_id, initiative_id)``; initiative_id is resolved from the
     project within the guild-routed session (initiative ids are per-guild-schema
     sequences, so both are required and the lookup is guild-safe).
-    ``reapply_rls_context`` keeps the lookup under the guild context even when the
-    broadcast fires after a commit. The client refetches through the RLS + DAC
+    The automatic context replay keeps the lookup under the guild context even
+    when the broadcast fires after a commit. The client refetches through the RLS + DAC
     gated REST path — the actual content gate; the bus carries ids only.
     """
-    await reapply_rls_context(session)
     initiative_id = (
         await session.exec(
             select(Project.initiative_id).where(Project.id == project_id)
@@ -1526,7 +1524,7 @@ async def create_task(
             session, project.id
         )
 
-    task_data = task_in.dict(exclude={"assignee_ids", "task_status_id"})
+    task_data = task_in.model_dump(exclude={"assignee_ids", "task_status_id"})
 
     # Serialize recurrence to JSON if present
     if task_data.get("recurrence") is not None:
@@ -1558,7 +1556,6 @@ async def create_task(
             )
     await _touch_project(session, task_in.project_id)
     await session.commit()
-    await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
         raise HTTPException(
@@ -1627,7 +1624,7 @@ async def update_task(
         access="write",
     )
 
-    update_data = task_in.dict(exclude_unset=True)
+    update_data = task_in.model_dump(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
@@ -1643,7 +1640,7 @@ async def update_task(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=TaskMessages.STATUS_NOT_FOUND,
             )
-        task.task_status_id = selected_status.id
+        task.task_status_id = selected_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         task.task_status = selected_status
 
     for field, value in update_data.items():
@@ -1696,7 +1693,6 @@ async def update_task(
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
-    await reapply_rls_context(session)
     task = await _fetch_task(session, task.id, guild_context.guild_id)
     if task is None:
         raise HTTPException(
@@ -1755,8 +1751,8 @@ async def move_task(
     now = datetime.now(timezone.utc)
     source_project_id = task.project_id
     source_initiative_id = task.project.initiative_id if task.project else None
-    task.project_id = target_project.id
-    task.task_status_id = default_status.id
+    task.project_id = target_project.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+    task.task_status_id = default_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = default_status
     task.position = 0
     task.updated_at = now
@@ -1776,7 +1772,6 @@ async def move_task(
     await _touch_project(session, source_project_id, timestamp=now)
     await _touch_project(session, target_project.id, timestamp=now)
     await session.commit()
-    await reapply_rls_context(session)
 
     updated_task = await _fetch_task(session, task.id, guild_context.guild_id)
     if updated_task is None:
@@ -1912,7 +1907,6 @@ async def duplicate_task(
 
     await _touch_project(session, original_task.project_id)
     await session.commit()
-    await reapply_rls_context(session)
 
     # Fetch with all relationships for the response
     task_with_relations = await _fetch_task(
@@ -2042,7 +2036,7 @@ async def reorder_tasks(
                         detail=TaskMessages.STATUS_NOT_FOUND,
                     )
                 status_cache[item.task_status_id] = status_obj
-            task.task_status_id = status_obj.id
+            task.task_status_id = status_obj.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             task.task_status = status_obj
 
         task.position = item.position
@@ -2066,7 +2060,6 @@ async def reorder_tasks(
 
     await _touch_project(session, reorder_in.project_id, timestamp=now)
     await session.commit()
-    await reapply_rls_context(session)
 
     affected_ids = set(task_ids) | rebalanced_ids
     refreshed_stmt = (
@@ -2220,7 +2213,6 @@ async def create_subtask(
     session.add(subtask)
     session.add(task)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(subtask)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
@@ -2275,7 +2267,6 @@ async def create_subtasks_batch(
         await _touch_project(session, task.project_id, timestamp=now)
         session.add(task)
         await session.commit()
-        await reapply_rls_context(session)
         for subtask in created_subtasks:
             await session.refresh(subtask)
         await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
@@ -2331,7 +2322,6 @@ async def reorder_subtasks(
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
-    await reapply_rls_context(session)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return await _list_subtasks_for_task(session, task.id)
 
@@ -2386,7 +2376,6 @@ async def update_subtask(
     session.add(subtask)
     session.add(task)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(subtask)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return subtask
@@ -2425,7 +2414,6 @@ async def delete_subtask(
     await _touch_project(session, task.project_id, timestamp=now)
     session.add(task)
     await session.commit()
-    await reapply_rls_context(session)
     await _broadcast_task_refresh(session, task.id, guild_context.guild_id)
     return None
 
@@ -2564,7 +2552,6 @@ async def set_task_tags(
     ts_task.updated_at = now
     await _touch_project(session, ts_task.project_id, timestamp=now)
     await session.commit()
-    await reapply_rls_context(session)
 
     # Single fetch with all relationships for the response
     task = await _fetch_task(session, task_id_to_update, guild_context.guild_id)
@@ -2623,7 +2610,6 @@ async def set_task_properties(
         )
     except HTTPException:
         await session.rollback()
-        await reapply_rls_context(session)
         raise
 
     # Update task timestamp via a lightweight select (avoids stale
@@ -2636,7 +2622,6 @@ async def set_task_properties(
     await _touch_project(session, project_id, timestamp=now)
 
     await session.commit()
-    await reapply_rls_context(session)
 
     # populate_existing=True forces selectinload to refresh the cached
     # task's property_values collection; expire_on_commit=False keeps the

@@ -1,19 +1,17 @@
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { TOGGLEABLE_TOOLS, toolCamelPlural, toolRouteSegment } from "@/lib/tools";
 
 export interface AdvancedToolsSectionProps {
-  eventsEnabled: boolean;
-  queuesEnabled: boolean;
-  countersEnabled: boolean;
-  advancedToolEnabled: boolean;
-  onToggleEvents: (value: boolean) => void;
-  onToggleQueues: (value: boolean) => void;
-  onToggleCounters: (value: boolean) => void;
-  onToggleAdvancedTool: (value: boolean) => void;
+  /** Current master-switch value per toggleable tool. */
+  values: Record<Tool, boolean> | Partial<Record<Tool, boolean>>;
+  /** Toggle one tool's master switch. */
+  onToggle: (tool: Tool, value: boolean) => void;
   canManage: boolean;
   isSaving: boolean;
   /** "card" wraps the rows in a Card with title+description (settings page). "plain" returns just the rows (for use inside an Accordion). */
@@ -48,15 +46,15 @@ const AdvancedToolToggle = ({
   </div>
 );
 
+/**
+ * One master-switch row per toggleable tool, derived from the registry
+ * (core tools are always on and never get a row). The advanced tool renders
+ * under the deployment's own name for it and only when the runtime config
+ * exposes one.
+ */
 export const AdvancedToolsSection = ({
-  eventsEnabled,
-  queuesEnabled,
-  countersEnabled,
-  advancedToolEnabled,
-  onToggleEvents,
-  onToggleQueues,
-  onToggleCounters,
-  onToggleAdvancedTool,
+  values,
+  onToggle,
   canManage,
   isSaving,
   layout = "card",
@@ -68,40 +66,27 @@ export const AdvancedToolsSection = ({
 
   const rows = (
     <div className="space-y-3">
-      <AdvancedToolToggle
-        id={`${idPrefix}-events-toggle`}
-        title={t("eventsFeature")}
-        description={t("eventsFeatureDescription")}
-        checked={eventsEnabled}
-        onCheckedChange={onToggleEvents}
-        disabled={disabled}
-      />
-      <AdvancedToolToggle
-        id={`${idPrefix}-queues-toggle`}
-        title={t("queuesFeature")}
-        description={t("queuesFeatureDescription")}
-        checked={queuesEnabled}
-        onCheckedChange={onToggleQueues}
-        disabled={disabled}
-      />
-      <AdvancedToolToggle
-        id={`${idPrefix}-counters-toggle`}
-        title={t("countersFeature")}
-        description={t("countersFeatureDescription")}
-        checked={countersEnabled}
-        onCheckedChange={onToggleCounters}
-        disabled={disabled}
-      />
-      {advancedTool && (
-        <AdvancedToolToggle
-          id={`${idPrefix}-advanced-tool-toggle`}
-          title={advancedTool.name}
-          description={t("advancedToolFeatureDescription", { name: advancedTool.name })}
-          checked={advancedToolEnabled}
-          onCheckedChange={onToggleAdvancedTool}
-          disabled={disabled}
-        />
-      )}
+      {TOGGLEABLE_TOOLS.map((tool) => {
+        if (tool === Tool.advanced_tool && !advancedTool) return null;
+        const camel = toolCamelPlural(tool);
+        const title =
+          tool === Tool.advanced_tool && advancedTool?.name
+            ? advancedTool.name
+            : t(`${camel}Feature` as never);
+        return (
+          <AdvancedToolToggle
+            key={tool}
+            id={`${idPrefix}-${toolRouteSegment(tool)}-toggle`}
+            title={title}
+            description={t(`${camel}FeatureDescription` as never, {
+              name: advancedTool?.name ?? "",
+            })}
+            checked={values[tool] ?? false}
+            onCheckedChange={(value) => onToggle(tool, value)}
+            disabled={disabled}
+          />
+        );
+      })}
     </div>
   );
 

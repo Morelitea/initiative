@@ -24,7 +24,7 @@ import jwt
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import settings
+from app.core.security import decode_session_token
 from app.models.platform.user import User, UserStatus
 from app.schemas.platform.token import TokenPayload
 from app.services.platform import user_tokens
@@ -45,9 +45,7 @@ async def authenticate_ws_token(token: str, session: AsyncSession) -> Optional[U
     """
     # First try JWT validation.
     try:
-        payload = jwt.decode(
-            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
-        )
+        payload = decode_session_token(token)
         token_data = TokenPayload(**payload)
         if token_data.sub:
             statement = select(User).where(User.id == int(token_data.sub))

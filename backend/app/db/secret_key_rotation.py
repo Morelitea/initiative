@@ -28,9 +28,11 @@ Runs two ways:
         # 3. restart, confirm login / SMTP / AI keys work, then UNSET PREVIOUS_SECRET_KEY
 
 Schema-per-guild: ``guild_settings`` is guild-scoped, so its live rows live in every
-``guild_<id>`` schema (plus a retained ``public`` backup copy from the conversion);
-the sweep visits both. Runs on the provisioning (superuser) engine so it reaches
-every guild schema and bypasses RLS.
+``guild_<id>`` schema; the sweep re-keys them there. The frozen ``public`` copies of
+guild tables (a read-nothing/write-nothing integrity backup on legacy deployments)
+are deliberately NOT re-keyed — a stale backup holds old secrets, not live content,
+and writing it would touch guild data on an unrouted public pathway. Runs on the
+provisioning (superuser) engine so it reaches every guild schema and bypasses RLS.
 """
 
 from __future__ import annotations
@@ -56,23 +58,30 @@ from app.core.encryption import (
     hash_email,
 )
 from app.db import session as db_session
-from app.db.schema_provisioning import guild_schema_name
+from app.db.schema_provisioning import guild_role_name, guild_schema_name
 
 logger = logging.getLogger(__name__)
 
 # Every Fernet column EXCEPT users.email_encrypted, which is handled specially
 # because its plaintext also feeds the email_hash HMAC (the two must move together).
-# (table, column, salt). All live in ``public``; guild_settings additionally lives in
-# each guild schema (see _GUILD_SCHEMA_COLUMNS).
+# (table, column, salt). These are the SHARED ``public`` tables only. Guild-scoped
+# columns (e.g. guild_settings) are re-keyed per guild schema via
+# _GUILD_SCHEMA_COLUMNS — never through a public copy: the frozen public copies of
+# guild tables are a read-nothing/write-nothing integrity backup, so re-encrypting
+# them would be a write of guild data on an unrouted public pathway. A legacy backup
+# left under the old key is fine — it holds stale secrets, not live content.
 _PUBLIC_FERNET_COLUMNS: list[tuple[str, str, bytes]] = [
     ("users", "ai_api_key_encrypted", SALT_AI_API_KEY),
     ("users", "oidc_refresh_token_encrypted", SALT_OIDC_REFRESH_TOKEN),
     ("app_settings", "oidc_client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
+    # Successor home for the OIDC client secret (same salt → ciphertext moves
+    # verbatim). Both rows are rotated during the transition; app_settings is
+    # dropped in Phase 4. Currently always NULL until the OidcProvider phase
+    # backfills it — rotating a NULL column is a harmless no-op.
+    ("auth_provider_secrets", "client_secret_encrypted", SALT_OIDC_CLIENT_SECRET),
     ("app_settings", "smtp_password_encrypted", SALT_SMTP_PASSWORD),
     ("app_settings", "ai_api_key_encrypted", SALT_AI_API_KEY),
     ("guild_invites", "invitee_email_encrypted", SALT_EMAIL),
-    # Retained public backup copy of the (now guild-scoped) guild_settings rows.
-    ("guild_settings", "ai_api_key_encrypted", SALT_AI_API_KEY),
 ]
 
 # Columns rotated once per ``guild_<id>`` schema (the live copies).
@@ -159,6 +168,16 @@ async def _rotate_fernet_column(
     UPDATE key (Fernet's random IV makes each value unique), so this needs no
     knowledge of the table's primary key."""
     result = ColumnResult(schema, table, column)
+    # Skip a guild-schema relation that isn't there yet: a guild schema can lag a
+    # migration that added a table/column, and reading a missing relation would
+    # abort the whole streamed sweep. Absent → nothing to re-key for this column.
+    if (
+        await read_conn.scalar(
+            text("SELECT to_regclass(:rel)"), {"rel": f'"{schema}"."{table}"'}
+        )
+        is None
+    ):
+        return result
     stream = await read_conn.stream(
         text(
             f'SELECT "{column}" FROM "{schema}"."{table}" WHERE "{column}" IS NOT NULL'
@@ -183,8 +202,11 @@ async def _rotate_fernet_column(
             # Count actual writes: a concurrent rotation may have already re-keyed
             # this value (WHERE no longer matches → rowcount 0), so don't overcount.
             res = await write_conn.execute(
+                # Identifiers come from this module's hardcoded Fernet-column
+                # registry (and guild_schema_name(int)) — never user input;
+                # values are bind params.
                 text(
-                    f'UPDATE "{schema}"."{table}" SET "{column}" = :new '
+                    f'UPDATE "{schema}"."{table}" SET "{column}" = :new '  # noqa: S608
                     f'WHERE "{column}" = :old'
                 ),
                 {"new": new_value, "old": value},
@@ -265,12 +287,18 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
         )
 
     summary = RotationSummary(dry_run=dry_run)
-    engine = db_session.provisioning_engine  # superuser: all schemas, bypasses RLS
+    # System engine (policy-bound): the public half runs as app_admin under its
+    # enumerated `_system` policies; each guild schema is entered by assuming
+    # that guild's own role (app_admin holds INHERIT FALSE membership in all).
+    engine = db_session.admin_engine
 
     # Platform tables (public). Reads stream on one connection; writes commit on a
     # second (engine.begin()) — separate connections so an open read cursor and the
     # UPDATEs don't collide on asyncpg. The write txn commits together, resumable.
     async with engine.connect() as read_conn, engine.begin() as write_conn:
+        for conn_ in (read_conn, write_conn):
+            # Pooled connections: shed any guild role a prior checkout assumed.
+            await conn_.execute(text("SELECT set_config('role', 'none', false)"))
         summary.columns.append(
             await _rotate_user_emails(read_conn, write_conn, old_key, new_key, dry_run)
         )
@@ -304,6 +332,11 @@ async def rotate_secret_key(*, dry_run: bool = False) -> RotationSummary:
                 engine.connect() as read_conn,
                 engine.begin() as write_conn,
             ):
+                for conn_ in (read_conn, write_conn):
+                    await conn_.execute(
+                        text("SELECT set_config('role', :r, false)"),
+                        {"r": guild_role_name(gid)},
+                    )
                 for table, column, salt in _GUILD_SCHEMA_COLUMNS:
                     summary.columns.append(
                         await _rotate_fernet_column(

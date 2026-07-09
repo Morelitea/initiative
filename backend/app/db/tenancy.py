@@ -20,8 +20,9 @@ once each guild becomes its own PostgreSQL schema. Two orthogonal levels:
   policies deferring to ``public.initiative_access(...)``. They are declared once
   in ``app.db.initiative_rls.INITIATIVE_PATHS`` (table -> initiative path);
   ``INITIATIVE_SCOPED_TABLES`` is the keys of that registry, and
-  ``guild_rls.sql`` is generated from it. So adding an initiative-scoped table
-  is a *single* edit (a path in ``initiative_rls``).
+  the RLS DDL is rendered from it at provisioning time (``app.db.guild_ddl``).
+  So adding an initiative-scoped table is a *single* edit (a path in
+  ``initiative_rls``).
 - **Guild-level** tables (``GUILD_LEVEL_TABLES``) are exempt — guild-wide,
   structural, or own-row — protected only by the schema boundary (the
   ``guild_<id>`` role). Adding one here is the explicit "not initiative-scoped"
@@ -67,11 +68,19 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # Consumed pre-membership / pre-routing
         "guild_invites",  # looked up by token before the user is a member
         "oidc_claim_mappings",  # SSO auto-join rules, read across all guilds at login
+        # Auth/login foundation — one user's identities span guilds; provider
+        # registry is read pre-routing at login.
+        "auth_providers",  # login provider registry (operator-global or guild-scoped)
+        "auth_provider_secrets",  # provider client secret; app_admin-only companion
+        "federated_identities",  # (provider, subject) -> user links
+        "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
-        "storage_backfill_state",  # cluster-wide local->S3 backfill status (admin-only)
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)
+        # Billing write boundary (external billing service, initiative_billing role)
+        "billing_event_log",  # idempotency claim + append-only audit; weak guild ref
+        "billing_jti_blocklist",  # one-shot billing service-JWT redemption
     }
 )
 
@@ -84,7 +93,7 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # NB: "guild-level" = not initiative-membership-gated. Two members here
         # (initiatives, tags) are soft-deletable and so DO carry RLS — but only to
         # host the admin-only purge guard (guild_level_open allow-all +
-        # soft_delete_admin_purge), never a membership scope. See guild_rls.sql.
+        # soft_delete_admin_purge), never a membership scope. See the rendered RLS DDL.
         # Guild-wide config / data (no initiative scope)
         "guild_settings",
         "webhook_subscriptions",  # guild integration config; initiative_id nullable
@@ -96,7 +105,7 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         # Structural initiative tables — deliberately guild-scoped, not
         # initiative-member-scoped (the membership table can't be gated by the
         # membership check it backs without recursing; own-row scoping would
-        # break co-member rosters). See guild_rls.sql header.
+        # break co-member rosters). See the rendered RLS DDL header.
         "initiatives",  # purge-guarded (admin-only DELETE), not membership-gated
         "initiative_members",
         "initiative_roles",

@@ -20,10 +20,13 @@ if str(BASE_DIR) not in sys.path:
 
 from app.core.config import settings  # noqa: E402
 from app.db import base  # noqa: F401,E402  # ensure models are imported
+from app.db.migration_filters import make_include_object  # noqa: E402
 
 config = context.config
 
-if config.config_file_name is not None and config.attributes.get("configure_logger", True):
+if config.config_file_name is not None and config.attributes.get(
+    "configure_logger", True
+):
     fileConfig(config.config_file_name)
 
 # Only set URL for CLI invocations. When called programmatically via
@@ -33,6 +36,22 @@ if not config.attributes.get("url_configured"):
     config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = SQLModel.metadata
+
+# `alembic -x guild revision --autogenerate` (alembic's -x argument channel,
+# driven by scripts/gen_guild_migration.py) flips autogenerate into guild
+# mode: the comparison reflects the Alembic-maintained guild_template schema
+# instead of public, the include filter inverts to guild-content tables ONLY,
+# and script.py.mako (branching on config.attributes, the same pattern as
+# alembic's bundled multidb template) wraps the generated ops in the
+# per-guild-schema loop. Normal runs are unaffected.
+GUILD_AUTOGEN = "guild" in context.get_x_argument(as_dictionary=True)
+config.attributes["guild_autogen"] = GUILD_AUTOGEN
+
+
+# What each autogenerate mode manages lives in app.db.migration_filters
+# (shared with the model drift test, so CI proves models match the migrated
+# schemas through the exact filter autogenerate uses).
+_include_object = make_include_object(GUILD_AUTOGEN)
 
 
 def _process_revision_directives(context, revision, directives):
@@ -48,7 +67,12 @@ def _process_revision_directives(context, revision, directives):
     for f in versions_dir.glob("*.py"):
         name = f.stem
         # Match pattern: YYYYMMDD_NNNN_...
-        if len(name) >= 13 and name[8] == "_" and name[:8].isdigit() and name[9:13].isdigit():
+        if (
+            len(name) >= 13
+            and name[8] == "_"
+            and name[:8].isdigit()
+            and name[9:13].isdigit()
+        ):
             max_seq = max(max_seq, int(name[9:13]))
 
     next_seq = max_seq + 1
@@ -66,6 +90,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
         render_as_batch=True,
+        include_object=_include_object,
         process_revision_directives=_process_revision_directives,
     )
 
@@ -74,6 +99,12 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    if GUILD_AUTOGEN:
+        # Reflect guild_template as the "current" state: it is first on the
+        # search_path, so it becomes the default schema autogenerate compares
+        # the (schema-less) model metadata against. public stays on the path
+        # so shared enum types resolve as schema-less on both sides.
+        connection.exec_driver_sql("SET search_path TO guild_template, public")
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
@@ -82,6 +113,7 @@ def do_run_migrations(connection: Connection) -> None:
         # Commit after each migration to allow PostgreSQL enum values
         # added in one migration to be used in subsequent migrations
         transaction_per_migration=True,
+        include_object=_include_object,
         process_revision_directives=_process_revision_directives,
     )
 

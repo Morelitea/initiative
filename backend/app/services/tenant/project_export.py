@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 
@@ -103,7 +103,7 @@ async def build_project_export(
             pd = pv.property_definition
             if pd is None:
                 continue
-            referenced_property_ids[pd.id] = _PropDefSnapshot(
+            referenced_property_ids[pd.id] = _PropDefSnapshot(  # ty: ignore[invalid-assignment] — persisted row, id is set
                 name=pd.name,
                 type=pd.type,
                 position=pd.position,

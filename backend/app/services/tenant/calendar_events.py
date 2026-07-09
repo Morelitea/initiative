@@ -1,6 +1,6 @@
 """Calendar event service layer — business logic for CRUD and attachments.
 
-Access control is at the initiative level (events_enabled + create_events
+Access control is at the initiative level (calendar_events_enabled + create_calendar_events
 permission keys). No per-event DAC — any initiative member with the right
 role permission can view/create/edit events.
 """
@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete as sa_delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
 

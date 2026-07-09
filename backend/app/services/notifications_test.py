@@ -52,14 +52,14 @@ async def _dispatch(session: AsyncSession) -> None:
     """Drive the reminder pass with the test session. The worker's
     AdminSessionLocal (app_admin) sees the shared users table; mirror that so the
     user-list read isn't RLS-filtered (the gather inside is still member-scoped)."""
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     await _run_event_reminder_pass(session, now=datetime.now(timezone.utc))
 
 
 async def _events_initiative(session: AsyncSession, creator):
     guild = await create_guild(session)
     initiative = await create_initiative(session, guild, creator, name="Reminders")
-    initiative.events_enabled = True
+    initiative.calendar_events_enabled = True
     session.add(initiative)
     await session.commit()
     await session.refresh(initiative)
@@ -95,44 +95,69 @@ async def _reminders_for(session: AsyncSession, user_id: int) -> list[Notificati
     return list(result.all())
 
 
+def _unsaved_event(
+    *, title: str, start_at: datetime, end_at: datetime, all_day: bool
+) -> CalendarEvent:
+    """In-memory event for the pure-unit formatting tests (never persisted)."""
+    return CalendarEvent(
+        guild_id=1,
+        initiative_id=1,
+        created_by_id=1,
+        title=title,
+        start_at=start_at,
+        end_at=end_at,
+        all_day=all_day,
+    )
+
+
+def _unsaved_user(tz: str) -> User:
+    """In-memory recipient for the pure-unit formatting tests (never persisted)."""
+    return User(
+        email_hash="x",
+        email_encrypted="x",
+        hashed_password="x",
+        timezone=tz,
+    )
+
+
 @pytest.mark.unit
 def test_format_event_when_localizes_to_recipient_timezone():
     """A timed event renders in the recipient's IANA timezone with its abbrev."""
-    event = CalendarEvent(
+    event = _unsaved_event(
         title="Sync",
         start_at=datetime(2026, 7, 1, 21, 30, tzinfo=timezone.utc),
         end_at=datetime(2026, 7, 1, 22, 30, tzinfo=timezone.utc),
         all_day=False,
     )
-    la = User(timezone="America/Los_Angeles")
+    la = _unsaved_user("America/Los_Angeles")
     assert _format_event_when(event, la) == "Wed, Jul 1, 2026 at 2:30 PM PDT"
 
-    utc_user = User(timezone="UTC")
+    utc_user = _unsaved_user("UTC")
     assert _format_event_when(event, utc_user) == "Wed, Jul 1, 2026 at 9:30 PM UTC"
 
 
 @pytest.mark.unit
 def test_format_event_when_all_day_omits_time_and_zone():
     """All-day events show just the date, regardless of recipient timezone."""
-    event = CalendarEvent(
+    event = _unsaved_event(
         title="Holiday",
         start_at=datetime(2026, 7, 1, 0, 0, tzinfo=timezone.utc),
         end_at=datetime(2026, 7, 1, 23, 59, tzinfo=timezone.utc),
         all_day=True,
     )
-    assert _format_event_when(event, User(timezone="Asia/Tokyo")) == "Wed, Jul 1, 2026"
+    assert _format_event_when(event, _unsaved_user("Asia/Tokyo")) == "Wed, Jul 1, 2026"
 
 
 @pytest.mark.unit
 def test_format_event_when_falls_back_on_bad_timezone():
     """An unrecognized timezone string falls back to UTC instead of raising."""
-    event = CalendarEvent(
+    event = _unsaved_event(
         title="Sync",
         start_at=datetime(2026, 7, 1, 21, 30, tzinfo=timezone.utc),
         end_at=datetime(2026, 7, 1, 22, 30, tzinfo=timezone.utc),
         all_day=False,
     )
-    assert _format_event_when(event, User(timezone="Not/AZone")) == (
+    assert _format_event_when(event, _unsaved_user("Not/AZone")) == (
         "Wed, Jul 1, 2026 at 9:30 PM UTC"
     )
 
@@ -364,7 +389,7 @@ async def test_overdue_digest_gathers_tasks_across_user_guilds(
 
     # Mirror the worker's starting context: its AdminSessionLocal (app_admin) sees
     # the shared users table; the gather inside still scopes guild data per member.
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     await _run_overdue_pass(session, now=datetime.now(timezone.utc))
 
     assert captured.get("user_id") == user.id
@@ -377,7 +402,7 @@ async def _assignment_item_in_new_guild(
     """Queue a task-assignment digest item for ``user`` in a brand-new guild."""
     # A prior call left the session in a guild-member context; reset so the new
     # guild INSERT into public.guilds isn't RLS-denied.
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     guild = await create_guild(session, creator=user)
     await create_guild_membership(session, user=user, guild=guild, role=GuildRole.admin)
     initiative = await create_initiative(session, guild, user, name=label)
@@ -442,7 +467,7 @@ async def test_assignment_digest_gathers_items_across_user_guilds(
         email_service, "send_task_assignment_digest_email", _capture_email
     )
 
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     await _run_assignment_digest_pass(session, now=datetime.now(timezone.utc))
 
     assert captured.get("user_id") == user.id
@@ -470,13 +495,11 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
         session, email="multi-reminder@example.com", event_reminder_minutes_before=15
     )
     for label in ("Alpha", "Beta"):
-        await set_rls_context(
-            session, is_superadmin=True
-        )  # permissive for the guild INSERT
+        await set_rls_context(session)  # permissive for the guild INSERT
         creator = await create_user(session, email=f"organizer-{label}@example.com")
         guild = await create_guild(session, creator=creator)
         initiative = await create_initiative(session, guild, creator, name=label)
-        initiative.events_enabled = True
+        initiative.calendar_events_enabled = True
         session.add(initiative)
         await session.commit()
         await session.refresh(initiative)
@@ -494,7 +517,8 @@ async def test_event_reminders_fire_across_a_users_guilds(session: AsyncSession)
 
     await _dispatch(session)
 
-    # Count across guilds: notifications are shared, so view them as superadmin.
-    await set_rls_context(session, is_superadmin=True)
+    # Count across guilds: notifications are shared, so read them on the
+    # unrouted system engine.
+    await set_rls_context(session)
     reminders = await _reminders_for(session, attendee.id)
     assert len(reminders) == 2

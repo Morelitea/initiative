@@ -9,7 +9,7 @@ from sqlalchemy import select, delete, update as sa_update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.email_i18n import email_t, translate
-from app.db.session import AdminSessionLocal, reapply_rls_context, set_rls_context
+from app.db.session import AdminSessionLocal, set_rls_context
 from app.services.cross_guild import gather_across_guilds, member_guild_ids
 from app.core.config import settings as app_config
 from app.models.tenant.initiative import Initiative
@@ -22,12 +22,11 @@ from app.models.tenant.calendar_event import (
     RSVPStatus,
 )
 from app.models.tenant.event_reminder_dispatch import EventReminderDispatch
-from app.core.capabilities import Capability, roles_with_capability
-from app.models.platform.user import User, UserStatus
+from app.models.platform.user import User
 from app.models.platform.notification import NotificationType
 from app.services import email as email_service
 from app.services.platform import user_notifications
-from app.services import push_notifications
+from app.services.platform import push_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -164,11 +163,32 @@ async def enqueue_task_assignment_event(
 async def clear_task_assignment_queue_for_user(
     session: AsyncSession, user_id: int
 ) -> None:
+    """Clear the user's pending digest items in the CURRENTLY ROUTED guild
+    schema. Callers on the platform path (no guild route) must use
+    :func:`clear_task_assignment_queue_across_guilds` instead."""
     stmt = delete(TaskAssignmentDigestItem).where(
         TaskAssignmentDigestItem.user_id == user_id,
         TaskAssignmentDigestItem.processed_at.is_(None),
     )
     await session.exec(stmt)
+
+
+async def clear_task_assignment_queue_across_guilds(
+    session: AsyncSession, user_id: int
+) -> None:
+    """Platform-path variant: the digest queue is guild-scoped, so visit each
+    of the user's guild schemas. Leaves the session routed into the last guild
+    and the identity map expunged — the caller restores its own context.
+    Deletes are flushed, not committed; they ride the caller's transaction."""
+    from app.services import cross_guild
+
+    guild_ids = await cross_guild.member_guild_ids(session, user_id)
+
+    async def _clear(routed: AsyncSession, _gid: int) -> list:
+        await clear_task_assignment_queue_for_user(routed, user_id)
+        return []
+
+    await cross_guild.gather_across_guilds(session, user_id, guild_ids, _clear)
 
 
 async def notify_initiative_membership(
@@ -296,25 +316,6 @@ async def notify_project_added(
             )
         except Exception as exc:
             logger.error(f"Failed to send push notification: {exc}", exc_info=True)
-    await session.commit()
-
-
-async def notify_admins_pending_user(session: AsyncSession, pending_user: User) -> None:
-    manager_roles = list(roles_with_capability(Capability.USERS_MANAGE))
-    stmt = select(User).where(
-        User.role.in_(manager_roles), User.status == UserStatus.active
-    )
-    result = await session.exec(stmt)
-    admins = result.scalars().all()
-    if not admins:
-        return
-    for admin in admins:
-        await user_notifications.create_notification(
-            session,
-            user_id=admin.id,
-            notification_type=NotificationType.user_pending_approval,
-            data={"user_id": pending_user.id, "email": pending_user.email},
-        )
     await session.commit()
 
 
@@ -1143,7 +1144,7 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
     Split out from ``process_task_assignment_digests`` so tests can drive it with
     the test session. Each user's pending digest items live in their own guild
     schemas, so they're gathered with the user's membership context (no
-    superadmin) and the items are marked processed back in each schema.
+    the guild's role) and the items are marked processed back in each schema.
     """
     result = await session.exec(
         select(User).where(User.email_task_assignment.is_not(False))
@@ -1232,9 +1233,6 @@ async def _run_assignment_digest_pass(session: AsyncSession, *, now: datetime) -
                 .values(processed_at=now)
             )
             await session.commit()
-            await reapply_rls_context(
-                session
-            )  # commit may have dropped the connection's context
         session.expunge_all()
         await set_rls_context(session, user_id=user_id)
         user = (
@@ -1305,7 +1303,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
     Split out from ``process_overdue_notifications`` so tests can drive it with
     the test session (the worker opens its own ``AdminSessionLocal``). Each
     user's overdue tasks are gathered from their own guild schemas with their
-    membership context — no superadmin / all-guild access.
+    membership context — no all-guild access.
     """
     result = await session.exec(select(User).where(User.email_overdue_tasks.is_(True)))
     users = result.scalars().all()
@@ -1339,7 +1337,7 @@ async def _run_overdue_pass(session: AsyncSession, *, now: datetime) -> None:
         if last_at and last_at.astimezone(tz).date() == now_local.date():
             continue
         # User-scoped: visit each of the user's guild schemas with their own
-        # membership context (no superadmin) and collect their overdue tasks.
+        # membership context (no all-guild access) and collect their overdue tasks.
         guild_ids = await member_guild_ids(session, user_id)
         tasks = await gather_across_guilds(
             session,
@@ -1455,7 +1453,6 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
                     )
                 )
                 await session.commit()
-                await reapply_rls_context(session)
                 recipient = (
                     await session.exec(select(User).where(User.id == user_id))
                 ).scalar_one_or_none()
@@ -1470,7 +1467,6 @@ async def _run_event_reminder_pass(session: AsyncSession, *, now: datetime) -> N
                     session, recipient=recipient, event=event, guild_id=ev_guild_id
                 )
                 await session.commit()
-                await reapply_rls_context(session)
 
 
 async def process_event_reminders() -> None:

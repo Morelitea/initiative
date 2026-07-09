@@ -29,7 +29,7 @@ import { Route as ServerRequiredAuthenticatedProfileRouteImport } from './routes
 import { Route as ServerRequiredAuthenticatedNavigateRouteImport } from './routes/_serverRequired/_authenticated/navigate'
 import { Route as ServerRequiredAuthenticatedMyProjectsRouteImport } from './routes/_serverRequired/_authenticated/my-projects'
 import { Route as ServerRequiredAuthenticatedMyDocumentsRouteImport } from './routes/_serverRequired/_authenticated/my-documents'
-import { Route as ServerRequiredAuthenticatedMyCalendarRouteImport } from './routes/_serverRequired/_authenticated/my-calendar'
+import { Route as ServerRequiredAuthenticatedMyCalendarEventsRouteImport } from './routes/_serverRequired/_authenticated/my-calendar-events'
 import { Route as ServerRequiredAuthenticatedInitiativesRouteImport } from './routes/_serverRequired/_authenticated/initiatives'
 import { Route as ServerRequiredAuthenticatedDocumentsRouteImport } from './routes/_serverRequired/_authenticated/documents'
 import { Route as ServerRequiredAuthenticatedCreatedTasksRouteImport } from './routes/_serverRequired/_authenticated/created-tasks'
@@ -64,9 +64,9 @@ import { Route as ServerRequiredAuthenticatedGGuildIdSettingsRouteImport } from 
 import { Route as ServerRequiredAuthenticatedGGuildIdQueuesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/queues'
 import { Route as ServerRequiredAuthenticatedGGuildIdProjectsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/projects'
 import { Route as ServerRequiredAuthenticatedGGuildIdInitiativesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/initiatives'
-import { Route as ServerRequiredAuthenticatedGGuildIdEventsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/events'
 import { Route as ServerRequiredAuthenticatedGGuildIdDocumentsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/documents'
 import { Route as ServerRequiredAuthenticatedGGuildIdCounterGroupsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/counter-groups'
+import { Route as ServerRequiredAuthenticatedGGuildIdCalendarEventsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/calendar-events'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/index'
 import { Route as ServerRequiredAuthenticatedGGuildIdTasksTaskIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/tasks_.$taskId'
 import { Route as ServerRequiredAuthenticatedGGuildIdTagsTagIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/tags_.$tagId'
@@ -74,21 +74,22 @@ import { Route as ServerRequiredAuthenticatedGGuildIdSettingsUsersRouteImport } 
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsTrashRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/trash'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/initiatives'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/danger-zone'
+import { Route as ServerRequiredAuthenticatedGGuildIdSettingsAuthRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/auth'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsAiRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/ai'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/advanced-tool'
 import { Route as ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/queues_.$queueId'
 import { Route as ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/projects_.$projectId'
 import { Route as ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/initiatives_.$initiativeId'
-import { Route as ServerRequiredAuthenticatedGGuildIdEventsEventIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/events_.$eventId'
 import { Route as ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/documents_.$documentId'
 import { Route as ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/counter-groups_.$groupId'
+import { Route as ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/calendar-events_.$eventId'
 import { Route as ServerRequiredAuthenticatedGGuildIdQueuesQueueIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/queues_.$queueId_.settings'
 import { Route as ServerRequiredAuthenticatedGGuildIdProjectsProjectIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/projects_.$projectId_.settings'
 import { Route as ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/initiatives_.$initiativeId_.settings'
 import { Route as ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/initiatives_.$initiativeId_.advanced-tool'
-import { Route as ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/events_.$eventId_.settings'
 import { Route as ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/documents_.$documentId_.settings'
 import { Route as ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/counter-groups_.$groupId_.settings'
+import { Route as ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/calendar-events_.$eventId_.settings'
 import { Route as ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdCounterCounterIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/counter-groups_.$groupId_.counter_.$counterId'
 
 const ConnectRoute = ConnectRouteImport.update({
@@ -204,10 +205,10 @@ const ServerRequiredAuthenticatedMyDocumentsRoute =
     path: '/my-documents',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
-const ServerRequiredAuthenticatedMyCalendarRoute =
-  ServerRequiredAuthenticatedMyCalendarRouteImport.update({
-    id: '/my-calendar',
-    path: '/my-calendar',
+const ServerRequiredAuthenticatedMyCalendarEventsRoute =
+  ServerRequiredAuthenticatedMyCalendarEventsRouteImport.update({
+    id: '/my-calendar-events',
+    path: '/my-calendar-events',
     getParentRoute: () => ServerRequiredAuthenticatedRoute,
   } as any)
 const ServerRequiredAuthenticatedInitiativesRoute =
@@ -414,12 +415,6 @@ const ServerRequiredAuthenticatedGGuildIdInitiativesRoute =
     path: '/initiatives',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
-const ServerRequiredAuthenticatedGGuildIdEventsRoute =
-  ServerRequiredAuthenticatedGGuildIdEventsRouteImport.update({
-    id: '/events',
-    path: '/events',
-    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
-  } as any)
 const ServerRequiredAuthenticatedGGuildIdDocumentsRoute =
   ServerRequiredAuthenticatedGGuildIdDocumentsRouteImport.update({
     id: '/documents',
@@ -430,6 +425,12 @@ const ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute =
   ServerRequiredAuthenticatedGGuildIdCounterGroupsRouteImport.update({
     id: '/counter-groups',
     path: '/counter-groups',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute =
+  ServerRequiredAuthenticatedGGuildIdCalendarEventsRouteImport.update({
+    id: '/calendar-events',
+    path: '/calendar-events',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
 const ServerRequiredAuthenticatedGGuildIdSettingsIndexRoute =
@@ -474,6 +475,12 @@ const ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute =
     path: '/danger-zone',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdSettingsRoute,
   } as any)
+const ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute =
+  ServerRequiredAuthenticatedGGuildIdSettingsAuthRouteImport.update({
+    id: '/auth',
+    path: '/auth',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdSettingsRoute,
+  } as any)
 const ServerRequiredAuthenticatedGGuildIdSettingsAiRoute =
   ServerRequiredAuthenticatedGGuildIdSettingsAiRouteImport.update({
     id: '/ai',
@@ -504,12 +511,6 @@ const ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute =
     path: '/initiatives/$initiativeId',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
-const ServerRequiredAuthenticatedGGuildIdEventsEventIdRoute =
-  ServerRequiredAuthenticatedGGuildIdEventsEventIdRouteImport.update({
-    id: '/events_/$eventId',
-    path: '/events/$eventId',
-    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
-  } as any)
 const ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute =
   ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRouteImport.update({
     id: '/documents_/$documentId',
@@ -520,6 +521,12 @@ const ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute =
   ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRouteImport.update({
     id: '/counter-groups_/$groupId',
     path: '/counter-groups/$groupId',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+  } as any)
+const ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute =
+  ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRouteImport.update({
+    id: '/calendar-events_/$eventId',
+    path: '/calendar-events/$eventId',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
 const ServerRequiredAuthenticatedGGuildIdQueuesQueueIdSettingsRoute =
@@ -552,12 +559,6 @@ const ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRout
       getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
     } as any,
   )
-const ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRoute =
-  ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRouteImport.update({
-    id: '/events_/$eventId_/settings',
-    path: '/events/$eventId/settings',
-    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
-  } as any)
 const ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRoute =
   ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRouteImport.update(
     {
@@ -571,6 +572,14 @@ const ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRoute =
     {
       id: '/counter-groups_/$groupId_/settings',
       path: '/counter-groups/$groupId/settings',
+      getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
+    } as any,
+  )
+const ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRoute =
+  ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRouteImport.update(
+    {
+      id: '/calendar-events_/$eventId_/settings',
+      path: '/calendar-events/$eventId/settings',
       getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
     } as any,
   )
@@ -595,7 +604,7 @@ export interface FileRoutesByFullPath {
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
-  '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
+  '/my-calendar-events': typeof ServerRequiredAuthenticatedMyCalendarEventsRoute
   '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
@@ -618,9 +627,9 @@ export interface FileRoutesByFullPath {
   '/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildRouteWithChildren
   '/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
   '/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
+  '/g/$guildId/calendar-events': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute
   '/g/$guildId/counter-groups': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute
   '/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
-  '/g/$guildId/events': typeof ServerRequiredAuthenticatedGGuildIdEventsRoute
   '/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
   '/g/$guildId/projects': typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   '/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
@@ -640,14 +649,15 @@ export interface FileRoutesByFullPath {
   '/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/guild/': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
   '/settings/platform/': typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
+  '/g/$guildId/calendar-events/$eventId': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute
   '/g/$guildId/counter-groups/$groupId': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute
   '/g/$guildId/documents/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
-  '/g/$guildId/events/$eventId': typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdRoute
   '/g/$guildId/initiatives/$initiativeId': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
   '/g/$guildId/projects/$projectId': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
   '/g/$guildId/queues/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
   '/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
+  '/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
   '/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
@@ -655,9 +665,9 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/tags/$tagId': typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
   '/g/$guildId/tasks/$taskId': typeof ServerRequiredAuthenticatedGGuildIdTasksTaskIdRoute
   '/g/$guildId/settings/': typeof ServerRequiredAuthenticatedGGuildIdSettingsIndexRoute
+  '/g/$guildId/calendar-events/$eventId/settings': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRoute
   '/g/$guildId/counter-groups/$groupId/settings': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRoute
   '/g/$guildId/documents/$documentId/settings': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRoute
-  '/g/$guildId/events/$eventId/settings': typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRoute
   '/g/$guildId/initiatives/$initiativeId/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRoute
   '/g/$guildId/initiatives/$initiativeId/settings': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdSettingsRoute
   '/g/$guildId/projects/$projectId/settings': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdSettingsRoute
@@ -676,7 +686,7 @@ export interface FileRoutesByTo {
   '/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
-  '/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
+  '/my-calendar-events': typeof ServerRequiredAuthenticatedMyCalendarEventsRoute
   '/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
@@ -694,9 +704,9 @@ export interface FileRoutesByTo {
   '/profile/security': typeof ServerRequiredAuthenticatedProfileSecurityRoute
   '/profile/trash': typeof ServerRequiredAuthenticatedProfileTrashRoute
   '/profile': typeof ServerRequiredAuthenticatedProfileIndexRoute
+  '/g/$guildId/calendar-events': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute
   '/g/$guildId/counter-groups': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute
   '/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
-  '/g/$guildId/events': typeof ServerRequiredAuthenticatedGGuildIdEventsRoute
   '/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
   '/g/$guildId/projects': typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   '/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
@@ -715,14 +725,15 @@ export interface FileRoutesByTo {
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
   '/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
+  '/g/$guildId/calendar-events/$eventId': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute
   '/g/$guildId/counter-groups/$groupId': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute
   '/g/$guildId/documents/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
-  '/g/$guildId/events/$eventId': typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdRoute
   '/g/$guildId/initiatives/$initiativeId': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
   '/g/$guildId/projects/$projectId': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
   '/g/$guildId/queues/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
   '/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
+  '/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
   '/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
@@ -730,9 +741,9 @@ export interface FileRoutesByTo {
   '/g/$guildId/tags/$tagId': typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
   '/g/$guildId/tasks/$taskId': typeof ServerRequiredAuthenticatedGGuildIdTasksTaskIdRoute
   '/g/$guildId/settings': typeof ServerRequiredAuthenticatedGGuildIdSettingsIndexRoute
+  '/g/$guildId/calendar-events/$eventId/settings': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRoute
   '/g/$guildId/counter-groups/$groupId/settings': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRoute
   '/g/$guildId/documents/$documentId/settings': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRoute
-  '/g/$guildId/events/$eventId/settings': typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRoute
   '/g/$guildId/initiatives/$initiativeId/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRoute
   '/g/$guildId/initiatives/$initiativeId/settings': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdSettingsRoute
   '/g/$guildId/projects/$projectId/settings': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdSettingsRoute
@@ -753,7 +764,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/created-tasks': typeof ServerRequiredAuthenticatedCreatedTasksRoute
   '/_serverRequired/_authenticated/documents': typeof ServerRequiredAuthenticatedDocumentsRoute
   '/_serverRequired/_authenticated/initiatives': typeof ServerRequiredAuthenticatedInitiativesRoute
-  '/_serverRequired/_authenticated/my-calendar': typeof ServerRequiredAuthenticatedMyCalendarRoute
+  '/_serverRequired/_authenticated/my-calendar-events': typeof ServerRequiredAuthenticatedMyCalendarEventsRoute
   '/_serverRequired/_authenticated/my-documents': typeof ServerRequiredAuthenticatedMyDocumentsRoute
   '/_serverRequired/_authenticated/my-projects': typeof ServerRequiredAuthenticatedMyProjectsRoute
   '/_serverRequired/_authenticated/navigate': typeof ServerRequiredAuthenticatedNavigateRoute
@@ -777,9 +788,9 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildRouteWithChildren
   '/_serverRequired/_authenticated/settings/platform': typeof ServerRequiredAuthenticatedSettingsPlatformRouteWithChildren
   '/_serverRequired/_authenticated/profile/': typeof ServerRequiredAuthenticatedProfileIndexRoute
+  '/_serverRequired/_authenticated/g/$guildId/calendar-events': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute
   '/_serverRequired/_authenticated/g/$guildId/counter-groups': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute
   '/_serverRequired/_authenticated/g/$guildId/documents': typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
-  '/_serverRequired/_authenticated/g/$guildId/events': typeof ServerRequiredAuthenticatedGGuildIdEventsRoute
   '/_serverRequired/_authenticated/g/$guildId/initiatives': typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
   '/_serverRequired/_authenticated/g/$guildId/projects': typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   '/_serverRequired/_authenticated/g/$guildId/queues': typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
@@ -799,14 +810,15 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/_serverRequired/_authenticated/settings/guild/': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
   '/_serverRequired/_authenticated/settings/platform/': typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
+  '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute
   '/_serverRequired/_authenticated/g/$guildId/counter-groups_/$groupId': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute
   '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
-  '/_serverRequired/_authenticated/g/$guildId/events_/$eventId': typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdRoute
   '/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
   '/_serverRequired/_authenticated/g/$guildId/projects_/$projectId': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
   '/_serverRequired/_authenticated/g/$guildId/queues_/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
+  '/_serverRequired/_authenticated/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
@@ -814,9 +826,9 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/tags_/$tagId': typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
   '/_serverRequired/_authenticated/g/$guildId/tasks_/$taskId': typeof ServerRequiredAuthenticatedGGuildIdTasksTaskIdRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/': typeof ServerRequiredAuthenticatedGGuildIdSettingsIndexRoute
+  '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId_/settings': typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRoute
   '/_serverRequired/_authenticated/g/$guildId/counter-groups_/$groupId_/settings': typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRoute
   '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId_/settings': typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRoute
-  '/_serverRequired/_authenticated/g/$guildId/events_/$eventId_/settings': typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRoute
   '/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId_/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRoute
   '/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId_/settings': typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdSettingsRoute
   '/_serverRequired/_authenticated/g/$guildId/projects_/$projectId_/settings': typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdSettingsRoute
@@ -837,7 +849,7 @@ export interface FileRouteTypes {
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
-    | '/my-calendar'
+    | '/my-calendar-events'
     | '/my-documents'
     | '/my-projects'
     | '/navigate'
@@ -860,9 +872,9 @@ export interface FileRouteTypes {
     | '/settings/guild'
     | '/settings/platform'
     | '/profile/'
+    | '/g/$guildId/calendar-events'
     | '/g/$guildId/counter-groups'
     | '/g/$guildId/documents'
-    | '/g/$guildId/events'
     | '/g/$guildId/initiatives'
     | '/g/$guildId/projects'
     | '/g/$guildId/queues'
@@ -882,14 +894,15 @@ export interface FileRouteTypes {
     | '/settings/admin/'
     | '/settings/guild/'
     | '/settings/platform/'
+    | '/g/$guildId/calendar-events/$eventId'
     | '/g/$guildId/counter-groups/$groupId'
     | '/g/$guildId/documents/$documentId'
-    | '/g/$guildId/events/$eventId'
     | '/g/$guildId/initiatives/$initiativeId'
     | '/g/$guildId/projects/$projectId'
     | '/g/$guildId/queues/$queueId'
     | '/g/$guildId/settings/advanced-tool'
     | '/g/$guildId/settings/ai'
+    | '/g/$guildId/settings/auth'
     | '/g/$guildId/settings/danger-zone'
     | '/g/$guildId/settings/initiatives'
     | '/g/$guildId/settings/trash'
@@ -897,9 +910,9 @@ export interface FileRouteTypes {
     | '/g/$guildId/tags/$tagId'
     | '/g/$guildId/tasks/$taskId'
     | '/g/$guildId/settings/'
+    | '/g/$guildId/calendar-events/$eventId/settings'
     | '/g/$guildId/counter-groups/$groupId/settings'
     | '/g/$guildId/documents/$documentId/settings'
-    | '/g/$guildId/events/$eventId/settings'
     | '/g/$guildId/initiatives/$initiativeId/advanced-tool'
     | '/g/$guildId/initiatives/$initiativeId/settings'
     | '/g/$guildId/projects/$projectId/settings'
@@ -918,7 +931,7 @@ export interface FileRouteTypes {
     | '/created-tasks'
     | '/documents'
     | '/initiatives'
-    | '/my-calendar'
+    | '/my-calendar-events'
     | '/my-documents'
     | '/my-projects'
     | '/navigate'
@@ -936,9 +949,9 @@ export interface FileRouteTypes {
     | '/profile/security'
     | '/profile/trash'
     | '/profile'
+    | '/g/$guildId/calendar-events'
     | '/g/$guildId/counter-groups'
     | '/g/$guildId/documents'
-    | '/g/$guildId/events'
     | '/g/$guildId/initiatives'
     | '/g/$guildId/projects'
     | '/g/$guildId/queues'
@@ -957,14 +970,15 @@ export interface FileRouteTypes {
     | '/settings/admin'
     | '/settings/guild'
     | '/settings/platform'
+    | '/g/$guildId/calendar-events/$eventId'
     | '/g/$guildId/counter-groups/$groupId'
     | '/g/$guildId/documents/$documentId'
-    | '/g/$guildId/events/$eventId'
     | '/g/$guildId/initiatives/$initiativeId'
     | '/g/$guildId/projects/$projectId'
     | '/g/$guildId/queues/$queueId'
     | '/g/$guildId/settings/advanced-tool'
     | '/g/$guildId/settings/ai'
+    | '/g/$guildId/settings/auth'
     | '/g/$guildId/settings/danger-zone'
     | '/g/$guildId/settings/initiatives'
     | '/g/$guildId/settings/trash'
@@ -972,9 +986,9 @@ export interface FileRouteTypes {
     | '/g/$guildId/tags/$tagId'
     | '/g/$guildId/tasks/$taskId'
     | '/g/$guildId/settings'
+    | '/g/$guildId/calendar-events/$eventId/settings'
     | '/g/$guildId/counter-groups/$groupId/settings'
     | '/g/$guildId/documents/$documentId/settings'
-    | '/g/$guildId/events/$eventId/settings'
     | '/g/$guildId/initiatives/$initiativeId/advanced-tool'
     | '/g/$guildId/initiatives/$initiativeId/settings'
     | '/g/$guildId/projects/$projectId/settings'
@@ -994,7 +1008,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/created-tasks'
     | '/_serverRequired/_authenticated/documents'
     | '/_serverRequired/_authenticated/initiatives'
-    | '/_serverRequired/_authenticated/my-calendar'
+    | '/_serverRequired/_authenticated/my-calendar-events'
     | '/_serverRequired/_authenticated/my-documents'
     | '/_serverRequired/_authenticated/my-projects'
     | '/_serverRequired/_authenticated/navigate'
@@ -1018,9 +1032,9 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/guild'
     | '/_serverRequired/_authenticated/settings/platform'
     | '/_serverRequired/_authenticated/profile/'
+    | '/_serverRequired/_authenticated/g/$guildId/calendar-events'
     | '/_serverRequired/_authenticated/g/$guildId/counter-groups'
     | '/_serverRequired/_authenticated/g/$guildId/documents'
-    | '/_serverRequired/_authenticated/g/$guildId/events'
     | '/_serverRequired/_authenticated/g/$guildId/initiatives'
     | '/_serverRequired/_authenticated/g/$guildId/projects'
     | '/_serverRequired/_authenticated/g/$guildId/queues'
@@ -1040,14 +1054,15 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/admin/'
     | '/_serverRequired/_authenticated/settings/guild/'
     | '/_serverRequired/_authenticated/settings/platform/'
+    | '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId'
     | '/_serverRequired/_authenticated/g/$guildId/counter-groups_/$groupId'
     | '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId'
-    | '/_serverRequired/_authenticated/g/$guildId/events_/$eventId'
     | '/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId'
     | '/_serverRequired/_authenticated/g/$guildId/projects_/$projectId'
     | '/_serverRequired/_authenticated/g/$guildId/queues_/$queueId'
     | '/_serverRequired/_authenticated/g/$guildId/settings/advanced-tool'
     | '/_serverRequired/_authenticated/g/$guildId/settings/ai'
+    | '/_serverRequired/_authenticated/g/$guildId/settings/auth'
     | '/_serverRequired/_authenticated/g/$guildId/settings/danger-zone'
     | '/_serverRequired/_authenticated/g/$guildId/settings/initiatives'
     | '/_serverRequired/_authenticated/g/$guildId/settings/trash'
@@ -1055,9 +1070,9 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/tags_/$tagId'
     | '/_serverRequired/_authenticated/g/$guildId/tasks_/$taskId'
     | '/_serverRequired/_authenticated/g/$guildId/settings/'
+    | '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId_/settings'
     | '/_serverRequired/_authenticated/g/$guildId/counter-groups_/$groupId_/settings'
     | '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId_/settings'
-    | '/_serverRequired/_authenticated/g/$guildId/events_/$eventId_/settings'
     | '/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId_/advanced-tool'
     | '/_serverRequired/_authenticated/g/$guildId/initiatives_/$initiativeId_/settings'
     | '/_serverRequired/_authenticated/g/$guildId/projects_/$projectId_/settings'
@@ -1212,11 +1227,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedMyDocumentsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
-    '/_serverRequired/_authenticated/my-calendar': {
-      id: '/_serverRequired/_authenticated/my-calendar'
-      path: '/my-calendar'
-      fullPath: '/my-calendar'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedMyCalendarRouteImport
+    '/_serverRequired/_authenticated/my-calendar-events': {
+      id: '/_serverRequired/_authenticated/my-calendar-events'
+      path: '/my-calendar-events'
+      fullPath: '/my-calendar-events'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedMyCalendarEventsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedRoute
     }
     '/_serverRequired/_authenticated/initiatives': {
@@ -1457,13 +1472,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
-    '/_serverRequired/_authenticated/g/$guildId/events': {
-      id: '/_serverRequired/_authenticated/g/$guildId/events'
-      path: '/events'
-      fullPath: '/g/$guildId/events'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdEventsRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
-    }
     '/_serverRequired/_authenticated/g/$guildId/documents': {
       id: '/_serverRequired/_authenticated/g/$guildId/documents'
       path: '/documents'
@@ -1476,6 +1484,13 @@ declare module '@tanstack/react-router' {
       path: '/counter-groups'
       fullPath: '/g/$guildId/counter-groups'
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/calendar-events': {
+      id: '/_serverRequired/_authenticated/g/$guildId/calendar-events'
+      path: '/calendar-events'
+      fullPath: '/g/$guildId/calendar-events'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
     '/_serverRequired/_authenticated/g/$guildId/settings/': {
@@ -1527,6 +1542,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRoute
     }
+    '/_serverRequired/_authenticated/g/$guildId/settings/auth': {
+      id: '/_serverRequired/_authenticated/g/$guildId/settings/auth'
+      path: '/auth'
+      fullPath: '/g/$guildId/settings/auth'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRoute
+    }
     '/_serverRequired/_authenticated/g/$guildId/settings/ai': {
       id: '/_serverRequired/_authenticated/g/$guildId/settings/ai'
       path: '/ai'
@@ -1562,13 +1584,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
-    '/_serverRequired/_authenticated/g/$guildId/events_/$eventId': {
-      id: '/_serverRequired/_authenticated/g/$guildId/events_/$eventId'
-      path: '/events/$eventId'
-      fullPath: '/g/$guildId/events/$eventId'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
-    }
     '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId': {
       id: '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId'
       path: '/documents/$documentId'
@@ -1581,6 +1596,13 @@ declare module '@tanstack/react-router' {
       path: '/counter-groups/$groupId'
       fullPath: '/g/$guildId/counter-groups/$groupId'
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId': {
+      id: '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId'
+      path: '/calendar-events/$eventId'
+      fullPath: '/g/$guildId/calendar-events/$eventId'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
     '/_serverRequired/_authenticated/g/$guildId/queues_/$queueId_/settings': {
@@ -1611,13 +1633,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
-    '/_serverRequired/_authenticated/g/$guildId/events_/$eventId_/settings': {
-      id: '/_serverRequired/_authenticated/g/$guildId/events_/$eventId_/settings'
-      path: '/events/$eventId/settings'
-      fullPath: '/g/$guildId/events/$eventId/settings'
-      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRouteImport
-      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
-    }
     '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId_/settings': {
       id: '/_serverRequired/_authenticated/g/$guildId/documents_/$documentId_/settings'
       path: '/documents/$documentId/settings'
@@ -1630,6 +1645,13 @@ declare module '@tanstack/react-router' {
       path: '/counter-groups/$groupId/settings'
       fullPath: '/g/$guildId/counter-groups/$groupId/settings'
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId_/settings': {
+      id: '/_serverRequired/_authenticated/g/$guildId/calendar-events_/$eventId_/settings'
+      path: '/calendar-events/$eventId/settings'
+      fullPath: '/g/$guildId/calendar-events/$eventId/settings'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
     '/_serverRequired/_authenticated/g/$guildId/counter-groups_/$groupId_/counter_/$counterId': {
@@ -1780,6 +1802,7 @@ const ServerRequiredAuthenticatedSettingsRouteWithChildren =
 interface ServerRequiredAuthenticatedGGuildIdSettingsRouteChildren {
   ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
   ServerRequiredAuthenticatedGGuildIdSettingsAiRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
+  ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
   ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
@@ -1793,6 +1816,8 @@ const ServerRequiredAuthenticatedGGuildIdSettingsRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsAiRoute:
       ServerRequiredAuthenticatedGGuildIdSettingsAiRoute,
+    ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute:
+      ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute:
       ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute:
@@ -1811,25 +1836,25 @@ const ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren =
   )
 
 interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
+  ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute
   ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute: typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute
   ServerRequiredAuthenticatedGGuildIdDocumentsRoute: typeof ServerRequiredAuthenticatedGGuildIdDocumentsRoute
-  ServerRequiredAuthenticatedGGuildIdEventsRoute: typeof ServerRequiredAuthenticatedGGuildIdEventsRoute
   ServerRequiredAuthenticatedGGuildIdInitiativesRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesRoute
   ServerRequiredAuthenticatedGGuildIdProjectsRoute: typeof ServerRequiredAuthenticatedGGuildIdProjectsRoute
   ServerRequiredAuthenticatedGGuildIdQueuesRoute: typeof ServerRequiredAuthenticatedGGuildIdQueuesRoute
   ServerRequiredAuthenticatedGGuildIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren
   ServerRequiredAuthenticatedGGuildIdIndexRoute: typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
+  ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute
   ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute: typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute
   ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute: typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute
-  ServerRequiredAuthenticatedGGuildIdEventsEventIdRoute: typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdRoute
   ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute
   ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute: typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute
   ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute: typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute: typeof ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute
   ServerRequiredAuthenticatedGGuildIdTasksTaskIdRoute: typeof ServerRequiredAuthenticatedGGuildIdTasksTaskIdRoute
+  ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRoute
   ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRoute
   ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRoute
-  ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRoute
   ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRoute
   ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdSettingsRoute
   ServerRequiredAuthenticatedGGuildIdProjectsProjectIdSettingsRoute: typeof ServerRequiredAuthenticatedGGuildIdProjectsProjectIdSettingsRoute
@@ -1839,12 +1864,12 @@ interface ServerRequiredAuthenticatedGGuildIdRouteChildren {
 
 const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthenticatedGGuildIdRouteChildren =
   {
+    ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute:
+      ServerRequiredAuthenticatedGGuildIdCalendarEventsRoute,
     ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute:
       ServerRequiredAuthenticatedGGuildIdCounterGroupsRoute,
     ServerRequiredAuthenticatedGGuildIdDocumentsRoute:
       ServerRequiredAuthenticatedGGuildIdDocumentsRoute,
-    ServerRequiredAuthenticatedGGuildIdEventsRoute:
-      ServerRequiredAuthenticatedGGuildIdEventsRoute,
     ServerRequiredAuthenticatedGGuildIdInitiativesRoute:
       ServerRequiredAuthenticatedGGuildIdInitiativesRoute,
     ServerRequiredAuthenticatedGGuildIdProjectsRoute:
@@ -1855,12 +1880,12 @@ const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthentica
       ServerRequiredAuthenticatedGGuildIdSettingsRouteWithChildren,
     ServerRequiredAuthenticatedGGuildIdIndexRoute:
       ServerRequiredAuthenticatedGGuildIdIndexRoute,
+    ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute:
+      ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdRoute,
     ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute:
       ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdRoute,
     ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute:
       ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdRoute,
-    ServerRequiredAuthenticatedGGuildIdEventsEventIdRoute:
-      ServerRequiredAuthenticatedGGuildIdEventsEventIdRoute,
     ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute:
       ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdRoute,
     ServerRequiredAuthenticatedGGuildIdProjectsProjectIdRoute:
@@ -1871,12 +1896,12 @@ const ServerRequiredAuthenticatedGGuildIdRouteChildren: ServerRequiredAuthentica
       ServerRequiredAuthenticatedGGuildIdTagsTagIdRoute,
     ServerRequiredAuthenticatedGGuildIdTasksTaskIdRoute:
       ServerRequiredAuthenticatedGGuildIdTasksTaskIdRoute,
+    ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRoute:
+      ServerRequiredAuthenticatedGGuildIdCalendarEventsEventIdSettingsRoute,
     ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRoute:
       ServerRequiredAuthenticatedGGuildIdCounterGroupsGroupIdSettingsRoute,
     ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRoute:
       ServerRequiredAuthenticatedGGuildIdDocumentsDocumentIdSettingsRoute,
-    ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRoute:
-      ServerRequiredAuthenticatedGGuildIdEventsEventIdSettingsRoute,
     ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRoute:
       ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdAdvancedToolRoute,
     ServerRequiredAuthenticatedGGuildIdInitiativesInitiativeIdSettingsRoute:
@@ -1898,7 +1923,7 @@ interface ServerRequiredAuthenticatedRouteChildren {
   ServerRequiredAuthenticatedCreatedTasksRoute: typeof ServerRequiredAuthenticatedCreatedTasksRoute
   ServerRequiredAuthenticatedDocumentsRoute: typeof ServerRequiredAuthenticatedDocumentsRoute
   ServerRequiredAuthenticatedInitiativesRoute: typeof ServerRequiredAuthenticatedInitiativesRoute
-  ServerRequiredAuthenticatedMyCalendarRoute: typeof ServerRequiredAuthenticatedMyCalendarRoute
+  ServerRequiredAuthenticatedMyCalendarEventsRoute: typeof ServerRequiredAuthenticatedMyCalendarEventsRoute
   ServerRequiredAuthenticatedMyDocumentsRoute: typeof ServerRequiredAuthenticatedMyDocumentsRoute
   ServerRequiredAuthenticatedMyProjectsRoute: typeof ServerRequiredAuthenticatedMyProjectsRoute
   ServerRequiredAuthenticatedNavigateRoute: typeof ServerRequiredAuthenticatedNavigateRoute
@@ -1919,8 +1944,8 @@ const ServerRequiredAuthenticatedRouteChildren: ServerRequiredAuthenticatedRoute
       ServerRequiredAuthenticatedDocumentsRoute,
     ServerRequiredAuthenticatedInitiativesRoute:
       ServerRequiredAuthenticatedInitiativesRoute,
-    ServerRequiredAuthenticatedMyCalendarRoute:
-      ServerRequiredAuthenticatedMyCalendarRoute,
+    ServerRequiredAuthenticatedMyCalendarEventsRoute:
+      ServerRequiredAuthenticatedMyCalendarEventsRoute,
     ServerRequiredAuthenticatedMyDocumentsRoute:
       ServerRequiredAuthenticatedMyDocumentsRoute,
     ServerRequiredAuthenticatedMyProjectsRoute:

@@ -5,6 +5,12 @@ on:
     branches: [main, dev]
   push:
     branches: [main, dev]
+    # Skip app CI on docs-only pushes (the Documentation workflow handles those).
+    # Left on pull_request so required checks still run for PRs.
+    paths-ignore:
+      - "docs/**"
+      - "zensical.toml"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read
@@ -29,9 +35,15 @@ jobs:
           --health-retries 5
 
     env:
+      # Provisioner/migrations: DIRECT to Postgres (never pooled, like prod).
       DATABASE_URL: postgresql+asyncpg://initiative:initiative@localhost:5432/initiative_test
-      DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:5432/initiative_test
-      DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:5432/initiative_test
+      # Request + system engines: through PgBouncer in TRANSACTION mode
+      # (started as a step below). The pooler environment is strictly harder
+      # than direct Postgres, so one suite run proves both — and any
+      # reintroduction of session-level SET ROLE/GUC state fails here before
+      # merge (#784). Config: backend/scripts/ci/pgbouncer.ini.
+      DATABASE_URL_APP: postgresql+asyncpg://app_user:app_user@localhost:6432/initiative_test
+      DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:6432/initiative_test
       # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
       SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
       AUTO_APPROVED_EMAIL_DOMAINS: '["example.com"]'
@@ -137,17 +149,31 @@ jobs:
           uv run ruff format --check app
 
       - name: Type-check with ty
-        # Scoped gate: only ty's `invalid-return-type` rule is enforced (every
-        # other rule is ignored), mirroring the old Pyright `reportReturnType`
-        # gate — fails on return-type regressions without drowning in the
-        # SQLModel/ORM-expression false positives ty reports by default.
+        # Full default rule set; the only exclusions are the SQLModel/ORM
+        # false-positive rules disabled in backend/pyproject.toml
+        # ([tool.ty.rules]), which is the single source of truth for the gate.
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          uv run ty check app --ignore all --error invalid-return-type
+          uv run ty check app
 
 
-      - name: Run tests
+      - name: Start PgBouncer (transaction mode)
+        # Runs as a step (not a service) so the committed reference config is
+        # available post-checkout. edoburu/pgbouncer is pinned; PgBouncer
+        # >= 1.21 is required for max_prepared_statements (asyncpg keeps its
+        # normal prepared-statement cache — there is no app-side pooler mode).
+        if: steps.changes.outputs.skip != 'true'
+        run: |
+          printf '"app_user" "app_user"\n"app_admin" "app_admin"\n' > /tmp/pgb-userlist.txt
+          docker run -d --name ci-pgbouncer --network host \
+            -v "$GITHUB_WORKSPACE/backend/scripts/ci/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro" \
+            -v /tmp/pgb-userlist.txt:/etc/pgbouncer/userlist.txt:ro \
+            edoburu/pgbouncer:v1.24.1-p1
+          timeout 30 bash -c 'until (echo > /dev/tcp/127.0.0.1/6432) 2>/dev/null; do sleep 1; done'
+          echo "PgBouncer up on :6432 (transaction mode)"
+
+      - name: Run tests (through the pooler)
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
@@ -250,20 +276,6 @@ jobs:
         run: |
           cd backend
           uv sync --frozen --no-dev
-
-      - name: Check guild RLS policies are regenerated
-        if: steps.filter.outputs.skip != 'true'
-        run: |
-          cd backend
-          uv run python scripts/gen_guild_rls.py
-          if ! git diff --exit-code alembic/guild/guild_rls.sql; then
-            echo ""
-            echo "ERROR: alembic/guild/guild_rls.sql is out of date!"
-            echo "Run 'python scripts/gen_guild_rls.py' in backend/ and commit the result."
-            echo ""
-            exit 1
-          fi
-          echo "Guild RLS policies are up to date."
 
       - name: Export OpenAPI spec
         if: steps.filter.outputs.skip != 'true'

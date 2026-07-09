@@ -24,6 +24,9 @@ class AuthMessages:
     USER_NOT_FOUND = "USER_NOT_FOUND"
     INSUFFICIENT_PRIVILEGES = "INSUFFICIENT_PRIVILEGES"
     INVALID_TOKEN = "INVALID_TOKEN"
+    # Generic refresh rejection: unknown / expired / reused all map here so the
+    # client learns only "re-authenticate", never that a replay was detected.
+    INVALID_REFRESH_TOKEN = "INVALID_REFRESH_TOKEN"
     INVALID_OR_EXPIRED_TOKEN = "INVALID_OR_EXPIRED_TOKEN"
     SMTP_NOT_CONFIGURED = "SMTP_NOT_CONFIGURED"
     CAPTCHA_REQUIRED = "CAPTCHA_REQUIRED"
@@ -31,10 +34,9 @@ class AuthMessages:
 
 
 class GuildMessages:
-    # Legacy code for "no guild context". Guild is now resolved from the
-    # ``/g/{guild_id}`` path and a missing/forbidden guild returns 403
-    # GUILD_ACCESS_DENIED; kept for the frontend error map's back-compat.
-    NO_GUILD_MEMBERSHIP = "NO_GUILD_MEMBERSHIP"
+    # The frontend error map still carries NO_GUILD_MEMBERSHIP for servers
+    # that predate path-based guild resolution; the backend itself only
+    # raises GUILD_ACCESS_DENIED.
     GUILD_ACCESS_DENIED = "GUILD_ACCESS_DENIED"
     GUILD_PERMISSION_REQUIRED = "GUILD_PERMISSION_REQUIRED"
     GUILD_ADMIN_REQUIRED = "GUILD_ADMIN_REQUIRED"
@@ -45,7 +47,11 @@ class GuildMessages:
     GUILD_PROVISION_FAILED = "GUILD_PROVISION_FAILED"
     GUILD_DELETE_FAILED = "GUILD_DELETE_FAILED"
     GUILD_MEMBERSHIP_MISSING = "GUILD_MEMBERSHIP_MISSING"
+    GUILD_USER_LIMIT_REACHED = "GUILD_USER_LIMIT_REACHED"
     CANNOT_CHANGE_OWN_ROLE = "CANNOT_CHANGE_OWN_ROLE"
+    # 'support' is synthesized for PAM grantees only; it is never a stored
+    # guild-membership role, so it cannot be assigned via the role endpoints.
+    GUILD_ROLE_NOT_ASSIGNABLE = "GUILD_ROLE_NOT_ASSIGNABLE"
     USER_NOT_FOUND_IN_GUILD = "USER_NOT_FOUND_IN_GUILD"
     CANNOT_DEMOTE_LAST_ADMIN = "CANNOT_DEMOTE_LAST_ADMIN"
     NOT_GUILD_MEMBER = "NOT_GUILD_MEMBER"
@@ -272,6 +278,10 @@ class AdminMessages:
     USER_CANNOT_BE_DELETED = "ADMIN_USER_CANNOT_BE_DELETED"
     PROJECT_TRANSFERS_REQUIRED = "ADMIN_PROJECT_TRANSFERS_REQUIRED"
     GUILD_NOT_FOUND = "ADMIN_GUILD_NOT_FOUND"
+    # Operator guild deletion is scoped to resolving a user-deletion blocker:
+    # the guild must be one the named user is the SOLE admin of. Any other guild
+    # is refused (operators reach a live guild only via a break-glass grant).
+    GUILD_NOT_A_DELETION_BLOCKER = "ADMIN_GUILD_NOT_A_DELETION_BLOCKER"
     USER_NOT_IN_GUILD = "ADMIN_USER_NOT_IN_GUILD"
     CANNOT_DEMOTE_LAST_GUILD_ADMIN = "ADMIN_CANNOT_DEMOTE_LAST_GUILD_ADMIN"
     INITIATIVE_NOT_FOUND = "ADMIN_INITIATIVE_NOT_FOUND"
@@ -410,6 +420,16 @@ class TrashMessages:
 class AdvancedToolMessages:
     NOT_CONFIGURED = "ADVANCED_TOOL_NOT_CONFIGURED"
     NOT_ENABLED = "ADVANCED_TOOL_NOT_ENABLED"
+    NOT_FOUND = "ADVANCED_TOOL_NOT_FOUND"
+    NO_ACCESS = "ADVANCED_TOOL_NO_ACCESS"
+    OWNER_REQUIRED = "ADVANCED_TOOL_OWNER_REQUIRED"
+    WRITE_ACCESS_REQUIRED = "ADVANCED_TOOL_WRITE_ACCESS_REQUIRED"
+    GRANT_CANNOT_MANAGE_MEMBERS = "ADVANCED_TOOL_GRANT_CANNOT_MANAGE_MEMBERS"
+    CREATE_PERMISSION_REQUIRED = "ADVANCED_TOOL_CREATE_PERMISSION_REQUIRED"
+    # Creating a guild-wide advanced tool (no initiative) is guild-admin only.
+    GUILD_WIDE_REQUIRES_ADMIN = "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN"
+    # Guild-wide tools are admin-only and hold no per-user/role grants.
+    GUILD_WIDE_NOT_SHAREABLE = "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE"
 
 
 class WebhookSubscriptionMessages:
@@ -426,3 +446,24 @@ class AIMessages:
 
 class NativeMessages:
     OTA_BUNDLE_NOT_AVAILABLE = "NATIVE_OTA_BUNDLE_NOT_AVAILABLE"
+
+
+class BillingMessages:
+    """Codes for the service-to-service billing write boundary.
+
+    These endpoints are machine-to-machine (the billing service, not the
+    SPA), so the codes are consumed by the caller's logs/retry logic rather
+    than errors.json.
+    """
+
+    NOT_CONFIGURED = "BILLING_NOT_CONFIGURED"
+    MISSING_SIGNATURE = "BILLING_MISSING_SIGNATURE"
+    STALE_TIMESTAMP = "BILLING_STALE_TIMESTAMP"
+    INVALID_SIGNATURE = "BILLING_INVALID_SIGNATURE"
+    INVALID_TOKEN = "BILLING_INVALID_TOKEN"
+    REPLAYED_TOKEN = "BILLING_REPLAYED_TOKEN"
+    INVALID_PAYLOAD = "BILLING_INVALID_PAYLOAD"
+    GUILD_NOT_FOUND = "BILLING_GUILD_NOT_FOUND"
+    SUPPORT_SOURCE_RESTRICTED = "BILLING_SUPPORT_SOURCE_RESTRICTED"
+    SUPPORT_CANNOT_LOWER = "BILLING_SUPPORT_CANNOT_LOWER"
+    ACTOR_REQUIRED = "BILLING_ACTOR_REQUIRED"

@@ -18,7 +18,6 @@ from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.storage_backfill_state import StorageBackfillState
 from app.models.platform.guild import Guild, GuildMembership, GuildRole
 from app.models.tenant.initiative import Initiative, InitiativeRoleModel
 from app.models.platform.oidc_claim_mapping import (
@@ -26,6 +25,7 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
+    AuthScopeUpdate,
     EmailSettingsResponse,
     EmailSettingsUpdate,
     EmailTestRequest,
@@ -43,6 +43,7 @@ from app.schemas.platform.settings import (
     StorageSettingsUpdate,
     StorageTestResponse,
 )
+from app.models.platform.guild import GuildStatus
 from app.schemas.platform.guild import (
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
@@ -97,6 +98,7 @@ async def get_oidc_settings(
 ) -> OIDCSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     return OIDCSettingsResponse(
+        auth_scope=settings_obj.auth_scope,
         enabled=settings_obj.oidc_enabled,
         issuer=settings_obj.oidc_issuer,
         client_id=settings_obj.oidc_client_id,
@@ -124,6 +126,35 @@ async def update_oidc_settings(
         scopes=payload.scopes,
     )
     return OIDCSettingsResponse(
+        auth_scope=updated.auth_scope,
+        enabled=updated.oidc_enabled,
+        issuer=updated.oidc_issuer,
+        client_id=updated.oidc_client_id,
+        redirect_uri=_backend_redirect_uri(),
+        post_login_redirect=_frontend_redirect_uri(),
+        mobile_redirect_uri=_mobile_redirect_uri(),
+        provider_name=updated.oidc_provider_name,
+        scopes=updated.oidc_scopes,
+    )
+
+
+@router.put("/auth-scope", response_model=OIDCSettingsResponse)
+async def update_auth_scope(
+    payload: AuthScopeUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> OIDCSettingsResponse:
+    """Switch where login is configured (platform-wide vs per-guild).
+
+    Non-destructive: the dormant posture's provider configuration is kept, so
+    switching back restores it exactly. Enforcement is server-side — the OIDC
+    login endpoints refuse when the platform posture isn't active.
+    """
+    updated = await app_settings_service.update_auth_scope(
+        session, scope=payload.scope.value
+    )
+    return OIDCSettingsResponse(
+        auth_scope=updated.auth_scope,
         enabled=updated.oidc_enabled,
         issuer=updated.oidc_issuer,
         client_id=updated.oidc_client_id,
@@ -143,6 +174,7 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        auth_scope=settings_obj.auth_scope,
     )
 
 
@@ -160,6 +192,7 @@ async def update_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        auth_scope=settings_obj.auth_scope,
     )
 
 
@@ -305,17 +338,19 @@ async def test_storage_connection(
     return StorageTestResponse(success=ok, message=message)
 
 
-def _backfill_payload(row: StorageBackfillState) -> StorageBackfillStatusResponse:
+def _backfill_payload(row: dict) -> StorageBackfillStatusResponse:
+    started = row.get("started_at")
+    finished = row.get("finished_at")
     return StorageBackfillStatusResponse(
-        status=row.status,  # type: ignore[arg-type]
-        copied=row.copied,
-        skipped=row.skipped,
-        failed=row.failed,
-        hash_mismatches=row.hash_mismatches,
-        failed_keys=list(row.failed_keys or []),
-        started_at=row.started_at.isoformat() if row.started_at else None,
-        finished_at=row.finished_at.isoformat() if row.finished_at else None,
-        error=row.error,
+        status=row["status"],
+        copied=row["copied"],
+        skipped=row["skipped"],
+        failed=row["failed"],
+        hash_mismatches=row["hash_mismatches"],
+        failed_keys=list(row.get("failed_keys") or []),
+        started_at=started.isoformat() if started else None,
+        finished_at=finished.isoformat() if finished else None,
+        error=row.get("error"),
     )
 
 
@@ -386,7 +421,7 @@ async def list_platform_guild_storage(
 
     Admin/owner (``guilds.manage``). Reads only shared ``public`` tables
     (``guilds``, ``guild_memberships``) — no guild-scoped content — so it runs on
-    the BYPASSRLS admin engine without routing into any guild schema. Member
+    the system admin engine without routing into any guild schema. Member
     counts come from a single grouped query rather than per-guild (no N+1).
     """
     guilds = (await session.exec(select(Guild).order_by(Guild.name))).all()
@@ -405,6 +440,9 @@ async def list_platform_guild_storage(
             name=g.name,
             member_count=counts.get(g.id, 0),
             max_storage_bytes=g.max_storage_bytes,
+            max_users=g.max_users,
+            status=GuildStatus(g.status),
+            status_changed_at=g.status_changed_at,
         )
         for g in guilds
     ]
@@ -417,20 +455,38 @@ async def update_platform_guild_storage(
     session: AdminSessionDep,
     _admin: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
-    """Set a guild's storage cap (bytes; ``null`` = unlimited). Admin/owner.
+    """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
 
-    Writes only ``public.guilds.max_storage_bytes`` — a shared column — so no
-    guild-schema routing is needed. The cap is enforced on every upload by
-    ``enforce_storage_quota``; lowering it below current usage simply blocks
-    further uploads, it does not delete existing blobs.
+    Writes only shared ``public.guilds`` columns (``max_storage_bytes`` /
+    ``max_users`` / ``status``) — no guild-schema routing needed.
+    ``model_fields_set`` tells an omitted cap (leave untouched) from one sent as
+    ``null`` (reset to unlimited). ``status`` (active / read_only / suspended) is
+    a moderation action: it downgrades or cuts off member access on the request
+    path (see ``_load_guild_context``) but never touches stored data, and PAM /
+    break-glass grants override it so operators can't lock themselves out.
+    Lowering a cap below current usage just blocks further uploads / new joins.
     """
+    provided = payload.model_fields_set
     try:
         guild = await guilds_service.update_guild(
             session,
             guild_id=guild_id,
             max_storage_bytes=payload.max_storage_bytes,
-            max_storage_bytes_provided=True,
+            max_storage_bytes_provided="max_storage_bytes" in provided,
+            max_users=payload.max_users,
+            max_users_provided="max_users" in provided,
         )
+        if payload.status is not None and guild.status != payload.status.value:
+            logger.info(
+                "guild %s status %s -> %s by user %s",
+                guild_id,
+                guild.status,
+                payload.status.value,
+                _admin.id,
+            )
+            guild = await guilds_service.set_guild_status(
+                session, guild_id=guild_id, status=payload.status
+            )
     except ValueError as exc:
         # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
         # is gone. Letting it own the existence check (rather than a separate
@@ -449,6 +505,9 @@ async def update_platform_guild_storage(
         name=guild.name,
         member_count=member_count,
         max_storage_bytes=guild.max_storage_bytes,
+        max_users=guild.max_users,
+        status=GuildStatus(guild.status),
+        status_changed_at=guild.status_changed_at,
     )
 
 
@@ -465,7 +524,7 @@ async def _route_admin_to_guild(session: AsyncSession, guild_id: int) -> None:
     routed guild could otherwise be returned for a colliding id.
     """
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id)
 
 
 async def _reset_admin_session(session: AsyncSession) -> None:
@@ -473,7 +532,7 @@ async def _reset_admin_session(session: AsyncSession) -> None:
 
     After routing into a guild schema the session has assumed that guild's role,
     which has no write access to shared ``public`` config tables. Reset to the
-    BYPASSRLS admin login role (``SET ROLE none``, ``search_path public``) before
+    admin login role (``SET ROLE none``, ``search_path public``) before
     writing the mapping back to ``public``.
     """
     await set_rls_context(session)
@@ -489,12 +548,12 @@ async def _lookup_guild_initiative(
 
     Routes the session into ``guild_<id>`` for the read, then resets it back to
     the neutral admin baseline so callers can write the mapping to the shared
-    ``public.oidc_claim_mappings`` table as the BYPASSRLS admin login role (the
+    ``public.oidc_claim_mappings`` table as the admin login role (the
     guild role has no write grant on config tables). ``populate_existing`` keeps
     a colliding id from another guild already in the identity map from being
     returned stale — ids are unique only within a schema.
     """
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id)
     try:
         initiative = (
             await session.exec(

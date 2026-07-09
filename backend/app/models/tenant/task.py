@@ -118,7 +118,8 @@ class Task(SoftDeleteMixin, table=True):
     project_id: int = Field(foreign_key="projects.id", nullable=False)
     task_status_id: int = Field(foreign_key="task_statuses.id", nullable=False)
     title: str = Field(nullable=False)
-    description: Optional[str] = Field(default=None)
+    # TEXT in DDL (unbounded); sa_column keeps autogen quiet vs AutoString
+    description: Optional[str] = Field(default=None, sa_column=Column(Text))
     priority: TaskPriority = Field(
         default=TaskPriority.medium,
         sa_column=Column(SQLEnum(TaskPriority, name="task_priority"), nullable=False),

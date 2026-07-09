@@ -11,9 +11,11 @@ import logging
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.platform.guild import GuildRole
+from app.models.platform.guild import GuildRole, GuildStatus
 from app.models.platform.user import UserRole
 from app.services import email as email_service
 from app.testing import (
@@ -173,7 +175,7 @@ async def test_create_initiative_oidc_mapping_resolves_guild_scoped_data(
 
 
 # The whole OIDC claim-mapping surface reads/writes guild-scoped data through the
-# BYPASSRLS admin engine, so the ONLY thing standing between a caller and every
+# system admin engine, so the ONLY thing standing between a caller and every
 # guild's data is the owner-only ``config.manage`` capability gate. These tests
 # hard-pin that gate per endpoint so a future edit can't silently drop it and let
 # a non-owner (even a platform admin) through.
@@ -305,6 +307,350 @@ async def test_update_guild_storage_sets_and_clears_limit(
     )
     assert clear_resp.status_code == 200
     assert clear_resp.json()["max_storage_bytes"] is None
+
+
+@pytest.mark.integration
+async def test_list_guild_storage_returns_max_users(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """The Guilds tab reports each guild's user cap (null = unlimited) alongside
+    its member count, for the ``3/unlimited`` display."""
+    owner = await create_user(
+        session, email="owner-gusers-list@example.com", role=UserRole.owner
+    )
+    capped = await create_guild(
+        session, creator=owner, name="Seat-Capped Guild", max_users=10
+    )
+    await create_guild_membership(
+        session, user=owner, guild=capped, role=GuildRole.admin
+    )
+    await create_guild(session, creator=owner, name="Open Guild")
+
+    resp = await client.get("/api/v1/settings/guilds", headers=get_auth_headers(owner))
+    assert resp.status_code == 200
+    rows = {row["name"]: row for row in resp.json()}
+
+    assert rows["Seat-Capped Guild"]["max_users"] == 10
+    assert rows["Seat-Capped Guild"]["member_count"] == 1
+    assert rows["Open Guild"]["max_users"] is None
+    assert rows["Open Guild"]["member_count"] == 0
+
+
+@pytest.mark.integration
+async def test_update_guild_users_sets_and_clears_limit(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An operator can cap a guild's users and later switch it back to unlimited."""
+    owner = await create_user(
+        session, email="owner-gusers-upd@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    headers = get_auth_headers(owner)
+
+    set_resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 25},
+        headers=headers,
+    )
+    assert set_resp.status_code == 200
+    assert set_resp.json()["max_users"] == 25
+
+    clear_resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": None},
+        headers=headers,
+    )
+    assert clear_resp.status_code == 200
+    assert clear_resp.json()["max_users"] is None
+
+
+@pytest.mark.integration
+async def test_update_guild_caps_are_independent(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A PATCH touching only one cap leaves the other untouched (the endpoint
+    keys off ``model_fields_set``)."""
+    owner = await create_user(
+        session, email="owner-gcaps-indep@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(
+        session, creator=owner, max_storage_bytes=2048, max_users=5
+    )
+    headers = get_auth_headers(owner)
+
+    # Update only the user cap: storage must survive.
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 9},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["max_users"] == 9
+    assert resp.json()["max_storage_bytes"] == 2048
+
+    # Update only storage: the user cap must survive.
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_storage_bytes": 4096},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["max_storage_bytes"] == 4096
+    assert resp.json()["max_users"] == 9
+
+
+# --- Guild lifecycle status (platform settings → Guilds tab) ---------------
+
+
+@pytest.mark.integration
+async def test_list_guild_storage_includes_status(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """The Guilds tab surfaces each guild's lifecycle status (default active)."""
+    owner = await create_user(
+        session, email="owner-gstatus-list@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, name="Status Guild")
+
+    resp = await client.get("/api/v1/settings/guilds", headers=get_auth_headers(owner))
+    assert resp.status_code == 200
+    row = {r["name"]: r for r in resp.json()}["Status Guild"]
+    assert row["id"] == guild.id
+    assert row["status"] == GuildStatus.active.value
+    assert row["status_changed_at"] is None
+
+
+@pytest.mark.integration
+async def test_operator_sets_and_clears_guild_status(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An operator can suspend a guild and reactivate it; a real transition
+    stamps status_changed_at."""
+    owner = await create_user(
+        session, email="owner-gstatus-upd@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    headers = get_auth_headers(owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "suspended"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "suspended"
+    assert resp.json()["status_changed_at"] is not None
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "read_only"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "read_only"
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "active"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "active"
+
+
+@pytest.mark.integration
+async def test_guild_status_rejects_unknown_value(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """An unknown status value is a 422 (validated against GuildStatus)."""
+    owner = await create_user(
+        session, email="owner-gstatus-bad@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "deleted"},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.integration
+async def test_status_and_caps_are_independent(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Status and caps use omit-to-skip: touching one leaves the other alone."""
+    owner = await create_user(
+        session, email="owner-gstatus-indep@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, max_users=5)
+    headers = get_auth_headers(owner)
+
+    # Set only status: the cap survives.
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "read_only"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "read_only"
+    assert resp.json()["max_users"] == 5
+
+    # Set only a cap: the status survives.
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 9},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["max_users"] == 9
+    assert resp.json()["status"] == "read_only"
+
+
+@pytest.mark.integration
+async def test_non_privileged_user_cannot_set_guild_status(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Setting status requires guilds.manage (admin/owner) — a plain member 403s."""
+    member = await create_user(
+        session, email="member-gstatus@example.com", role=UserRole.member
+    )
+    owner = await create_user(
+        session, email="owner-gstatus-gate@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"status": "suspended"},
+        headers=get_auth_headers(member),
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.integration
+async def test_update_guild_users_rejects_zero(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A cap of 0 is nonsensical (a guild always has at least its creator) and is
+    rejected by validation (``ge=1``)."""
+    owner = await create_user(
+        session, email="owner-gusers-zero@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 0},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.integration
+async def test_lowering_cap_below_count_keeps_members_and_blocks_join(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """Lowering the cap under the current headcount is allowed: it never removes
+    existing members, it only blocks the next join. End-to-end across the
+    settings PATCH and invite-accept endpoints."""
+    from app.services.platform import guilds as guild_service
+
+    owner = await create_user(
+        session, email="owner-lower@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner)
+    other = await create_user(session, email="lower-other@example.com")
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=owner.id, role=GuildRole.admin
+    )
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=other.id, role=GuildRole.member
+    )
+    invitee = await create_user(session, email="lower-invitee@example.com")
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=owner.id, max_uses=5
+    )
+    await session.commit()
+    headers = get_auth_headers(owner)
+
+    # Cap 1 is below the current 2 members — accepted, and both members stay.
+    patch = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 1},
+        headers=headers,
+    )
+    assert patch.status_code == 200
+    assert patch.json()["max_users"] == 1
+    assert patch.json()["member_count"] == 2
+
+    # But the guild is now over its cap, so a new join is refused.
+    accept = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(invitee),
+        json={"code": invite.code},
+    )
+    assert accept.status_code == 403
+    assert accept.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+
+@pytest.mark.integration
+async def test_raising_cap_reopens_joins(
+    client: AsyncClient,
+    session: AsyncSession,
+) -> None:
+    """A full guild blocks joins; raising the cap lets the same invite through."""
+    from app.services.platform import guilds as guild_service
+
+    owner = await create_user(
+        session, email="owner-raise@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=owner, max_users=1)
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=owner.id, role=GuildRole.admin
+    )
+    invitee = await create_user(session, email="raise-invitee@example.com")
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=owner.id, max_uses=5
+    )
+    await session.commit()
+    headers = get_auth_headers(owner)
+
+    # Full (1/1) — the invite is refused, and it is NOT consumed (the cap check
+    # runs before the invite's use count is incremented).
+    blocked = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(invitee),
+        json={"code": invite.code},
+    )
+    assert blocked.status_code == 403
+
+    # Raise the cap, then the very same invite succeeds.
+    patch = await client.patch(
+        f"/api/v1/settings/guilds/{guild.id}",
+        json={"max_users": 5},
+        headers=headers,
+    )
+    assert patch.status_code == 200
+
+    accepted = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(invitee),
+        json={"code": invite.code},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["max_users"] == 5
 
 
 @pytest.mark.integration
@@ -587,8 +933,16 @@ async def test_storage_backfill_status_reads_shared_row(
     client: AsyncClient,
     session: AsyncSession,
 ) -> None:
-    """GET status returns the shared DB-backed row (idle by default), so every
-    worker reports the same thing rather than its own in-memory guess."""
+    """GET status returns the shared UNLOGGED-table row (idle by default), so
+    every worker reports the same thing rather than its own in-memory guess."""
+    from app.services import storage_backfill
+
+    # The UNLOGGED status row persists across tests within a worker; clear it so a
+    # prior test's terminal status doesn't bleed into this fresh-state assertion.
+    await storage_backfill._ensure_table()
+    await session.execute(text("DELETE FROM storage_backfill_state"))
+    await session.commit()
+
     owner = await create_user(
         session, email="owner-storage-bfstatus@example.com", role=UserRole.owner
     )
@@ -630,3 +984,137 @@ async def test_storage_endpoints_reject_non_owner(
             f"{method.upper()} {url} as {role.value}: {resp.status_code}"
         )
         assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"
+
+
+# --- auth scope (platform-wide vs guild-scoped login) -------------------------
+
+
+async def _configure_platform_oidc(client: AsyncClient, headers: dict) -> None:
+    resp = await client.put(
+        "/api/v1/settings/auth",
+        json={
+            "enabled": True,
+            "issuer": "https://idp.example.com",
+            "client_id": "client-123",
+            "client_secret": "s3cret",
+            "provider_name": "Okta",
+            "scopes": ["openid", "email"],
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.integration
+async def test_auth_scope_defaults_to_platform(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    owner = await create_user(session, role=UserRole.owner)
+
+    resp = await client.get("/api/v1/settings/auth", headers=get_auth_headers(owner))
+    assert resp.status_code == 200
+    assert resp.json()["auth_scope"] == "platform"
+
+    # Non-secret posture info is readable without config.manage (login page,
+    # guild settings) via the interface settings.
+    resp = await client.get("/api/v1/settings/interface")
+    assert resp.status_code == 200
+    assert resp.json()["auth_scope"] == "platform"
+
+
+@pytest.mark.integration
+async def test_auth_scope_switch_is_non_destructive(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Switching postures never touches the dormant side's configuration —
+    switching back restores platform OIDC exactly."""
+    owner = await create_user(session, role=UserRole.owner)
+    headers = get_auth_headers(owner)
+    await _configure_platform_oidc(client, headers)
+
+    status_resp = await client.get("/api/v1/auth/oidc/status")
+    assert status_resp.json()["enabled"] is True
+
+    # Switch to guild scope: OIDC config is retained but the login goes dormant.
+    resp = await client.put(
+        "/api/v1/settings/auth-scope", json={"scope": "guild"}, headers=headers
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["auth_scope"] == "guild"
+    assert body["enabled"] is True  # stored config untouched...
+    assert body["issuer"] == "https://idp.example.com"
+    status_resp = await client.get("/api/v1/auth/oidc/status")
+    assert status_resp.json()["enabled"] is False  # ...but not offered
+
+    # Switch back: everything as before.
+    resp = await client.put(
+        "/api/v1/settings/auth-scope", json={"scope": "platform"}, headers=headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["auth_scope"] == "platform"
+    status_resp = await client.get("/api/v1/auth/oidc/status")
+    assert status_resp.json()["enabled"] is True
+
+
+@pytest.mark.integration
+async def test_guild_scope_refuses_platform_oidc_login(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Server-side enforcement: in guild scope the dormant platform provider
+    must not authenticate anyone, regardless of what a client requests."""
+    owner = await create_user(session, role=UserRole.owner)
+    headers = get_auth_headers(owner)
+    await _configure_platform_oidc(client, headers)
+    resp = await client.put(
+        "/api/v1/settings/auth-scope", json={"scope": "guild"}, headers=headers
+    )
+    assert resp.status_code == 200
+
+    login_resp = await client.get("/api/v1/auth/oidc/login")
+    assert login_resp.status_code == 404
+    assert login_resp.json()["detail"] == "OIDC_NOT_ENABLED"
+
+
+@pytest.mark.integration
+async def test_auth_scope_rejects_unknown_value(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    owner = await create_user(session, role=UserRole.owner)
+    resp = await client.put(
+        "/api/v1/settings/auth-scope",
+        json={"scope": "both"},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.integration
+async def test_auth_scope_requires_config_manage(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    member = await create_user(session, role=UserRole.member)
+    resp = await client.put(
+        "/api/v1/settings/auth-scope",
+        json={"scope": "guild"},
+        headers=get_auth_headers(member),
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.integration
+async def test_auth_scope_check_constraint_rejects_garbage(
+    session: AsyncSession,
+) -> None:
+    """The posture gate compares literally, so an out-of-vocabulary value would
+    silently disable login — the DB CHECK refuses it even for a privileged
+    writer that bypasses the API schema. (INSERT, not UPDATE: the settings
+    singleton may not exist yet, and a zero-row UPDATE never fires the check.)"""
+    with pytest.raises(DBAPIError):
+        async with session.begin_nested():
+            await session.exec(
+                text(
+                    "INSERT INTO app_settings (id, oidc_enabled, auth_scope) "
+                    "VALUES (999, false, 'both')"
+                )
+            )

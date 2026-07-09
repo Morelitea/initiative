@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import type {
+  AuthScopeUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   FCMConfigResponse,
@@ -45,6 +46,7 @@ import {
   sendTestEmailApiV1SettingsEmailTestPost,
   startStorageBackfillApiV1SettingsStorageBackfillPost,
   testStorageConnectionApiV1SettingsStorageTestPost,
+  updateAuthScopeApiV1SettingsAuthScopePut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
@@ -215,6 +217,30 @@ export const useUpdateOidcSettings = (
     },
     onSuccess: (...args) => {
       void invalidateAuthSettings();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+export const useUpdateAuthScope = (
+  options?: MutationOpts<OIDCSettingsResponse, AuthScopeUpdate>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (data: AuthScopeUpdate) => {
+      return updateAuthScopeApiV1SettingsAuthScopePut(
+        data
+      ) as unknown as Promise<OIDCSettingsResponse>;
+    },
+    onSuccess: (...args) => {
+      // The posture is read from both the admin auth settings and the public
+      // interface settings (login page / guild tab visibility).
+      void invalidateAuthSettings();
+      void invalidateInterfaceSettings();
       onSuccess?.(...args);
     },
     onError,

@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import EmailStr, Field, field_validator, model_validator
+from pydantic import AliasChoices, EmailStr, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Origins used by the Capacitor native mobile app (iOS and Android).
@@ -136,7 +136,7 @@ class Settings(BaseSettings):
     DATABASE_URL_APP: (
         str  # Non-superuser connection for RLS-enforced queries (required)
     )
-    DATABASE_URL_ADMIN: str  # Admin connection with BYPASSRLS for migrations (required)
+    DATABASE_URL_ADMIN: str  # System-engine login (BYPASSRLS, grant-bounded) for jobs/seeding (required)
 
     SECRET_KEY: str
     # Optional: the *previous* SECRET_KEY, set only while rotating the encryption
@@ -153,6 +153,20 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     ALGORITHM: str = "HS256"
     COOKIE_NAME: str = "session_token"
+    # New login model: the rotating refresh token rides in its own HttpOnly
+    # cookie, path-scoped to the auth routes (sent only on refresh/logout, never
+    # on ordinary API calls — smaller exposure than the session cookie).
+    REFRESH_COOKIE_NAME: str = "refresh_token"
+
+    # New login model (auth rewrite, Phase 0 — history/auth-detailed-design.md §3).
+    # The access token is short-lived + stateless: verified locally with no
+    # per-request DB read (the 10k+ win), so a leak is stale within one TTL. The
+    # refresh token is long, opaque, rotating, and revocable via ``auth_sessions``.
+    # These are deliberately separate from the legacy ``ACCESS_TOKEN_EXPIRE_MINUTES``
+    # (the current long-lived session JWT) — the two models coexist during the
+    # dual-verify cutover window.
+    AUTH_ACCESS_TTL_MINUTES: int = 15
+    AUTH_REFRESH_TTL_DAYS: int = 30
 
     @field_validator("SECRET_KEY")
     @classmethod
@@ -364,7 +378,7 @@ class Settings(BaseSettings):
     # Point at your own object store (e.g. a self-hosted Garage instance): set
     # S3_BUCKET + S3_ENDPOINT_URL + S3_REGION, S3_USE_PATH_STYLE=true (Garage and
     # most non-AWS stores), and the access/secret keys (or leave them unset to use
-    # the ambient credential chain). See docs/OBJECT_STORAGE.md.
+    # the ambient credential chain). See docs/en/admin/object-storage.md.
     S3_BUCKET: str | None = None
     S3_REGION: str = "us-east-1"
     S3_ENDPOINT_URL: str | None = None
@@ -379,10 +393,29 @@ class Settings(BaseSettings):
     S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
-    FIRST_SUPERUSER_EMAIL: EmailStr | None = None
-    FIRST_SUPERUSER_PASSWORD: str | None = None
-    FIRST_SUPERUSER_FULL_NAME: str | None = None
+    # First/bootstrap user — becomes the platform `owner` tier (there is no
+    # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
+    # as aliases so existing deployments keep working.
+    FIRST_OWNER_EMAIL: EmailStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FIRST_OWNER_EMAIL", "FIRST_SUPERUSER_EMAIL"),
+    )
+    FIRST_OWNER_PASSWORD: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "FIRST_OWNER_PASSWORD", "FIRST_SUPERUSER_PASSWORD"
+        ),
+    )
+    FIRST_OWNER_FULL_NAME: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "FIRST_OWNER_FULL_NAME", "FIRST_SUPERUSER_FULL_NAME"
+        ),
+    )
     DISABLE_GUILD_CREATION: bool = False
+    # Boot back-fill normally skips guild schemas stamped with the current
+    # provisioning-artifact version; set true to force a full sweep once.
+    FORCE_GUILD_BACKFILL: bool = False
     ENABLE_PUBLIC_REGISTRATION: bool = (
         True  # When False, requires invite code to register
     )
@@ -421,6 +454,17 @@ class Settings(BaseSettings):
     # image — the toggle and panel are then fully hidden.
     ADVANCED_TOOL_NAME: str | None = None
     ADVANCED_TOOL_URL: str | None = None
+
+    # Server-to-server link to the advanced tool's own backend. When a
+    # guild HARD-purges an advanced tool (manual trash purge or the
+    # retention worker), we notify that backend so its scheduling mirror
+    # is deleted too — a purge must not leave a live schedule pointing at
+    # nothing. ``ADVANCED_TOOL_BACKEND_URL`` is the service's API base
+    # (e.g. http://auto:9002/api/v1); ``ADVANCED_TOOL_PURGE_SECRET`` signs
+    # the notification (HMAC-SHA256, same envelope as webhook dispatch).
+    # Either unset -> notifications are skipped silently (default OSS image).
+    ADVANCED_TOOL_BACKEND_URL: str | None = None
+    ADVANCED_TOOL_PURGE_SECRET: str | None = None
 
     # Optional captcha gate on the public registration endpoint to push
     # back on bot signups. ``CAPTCHA_PROVIDER`` selects the vendor —
@@ -465,6 +509,35 @@ class Settings(BaseSettings):
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
 
+    # --- Billing (hosted deployments only; default OFF) -------------------
+    # Billing is an optional EXTERNAL service. Every BILLING_* setting below
+    # is unset on a self-hosted install, and with them unset the app behaves
+    # exactly as if billing did not exist: the /billing endpoints answer 503,
+    # the membership ping is a no-op, and guild caps/status are governed
+    # solely by what the operator sets (PATCH /settings/guilds/{id}).
+    #
+    # Inbound calls from the billing service (initiative-billing). Requests
+    # carry an RS256 service JWT (verified against this public key) plus an
+    # HMAC-SHA256 over METHOD\nPATH\nTIMESTAMP\nsha256(body) keyed by the
+    # shared secret. Both must be configured or the /billing endpoints
+    # refuse every request.
+    BILLING_PUBLIC_KEY_PEM: str | None = None
+    BILLING_HMAC_SECRET: str | None = None
+    BILLING_AUDIENCE: str = "initiative:billing"
+    BILLING_ISSUER: str = "initiative-billing"
+    # Max |now - signed timestamp| accepted, in seconds. Never 0.
+    BILLING_REPLAY_WINDOW_SECONDS: int = Field(default=300, ge=1)
+    # Outbound base URL of the billing service, for the fire-and-forget
+    # membership-change ping (guild id + event id only — no member data).
+    # The ping is dispatched only when this AND BILLING_HMAC_SECRET are set.
+    BILLING_SERVICE_URL: str | None = None
+    # Public base URL of an external billing portal, surfaced to the SPA via
+    # /config. Unset (the default) ⇒ the SPA shows NO tier label, upgrade, or
+    # manage-billing UI; the usage panel still shows caps/usage (operator-set
+    # numbers). Set ⇒ the link-out buttons appear. Mirrors the
+    # ADVANCED_TOOL_URL pattern: the OSS core defers to an external service.
+    BILLING_URL: str | None = None
+
     # Local-dev escape hatch for the webhook SSRF guard. When TRUE, the
     # dispatcher accepts ``http://`` and private/loopback/link-local
     # targets — needed only for round-tripping with auto running on
@@ -486,6 +559,14 @@ class Settings(BaseSettings):
     # apply. The test suite sets ``limiter.enabled = False`` so this never
     # throttles the hundreds of rapid requests a test makes from one client IP.
     RATE_LIMIT_DEFAULT: str = "100/minute"
+    # Master on/off switch for ALL rate limiting — the global default *and* every
+    # per-route ``@limiter.limit(...)`` cap (e.g. login's ``5/15minutes``). Leave
+    # True in any shared/production environment; set ``RATE_LIMIT_ENABLED=false``
+    # in a local ``.env`` to stop throttling yourself while testing auth flows.
+    # This is the same lever the test suite pulls (``limiter.enabled = False``),
+    # surfaced as config — NOT a request-time bypass, so there is no hidden
+    # back door for an attacker to hit.
+    RATE_LIMIT_ENABLED: bool = True
     # Storage backend for rate-limit counters. Defaults to in-process memory
     # (``memory://``), which is per-worker — fine for a single process. For a
     # multi-worker / multi-replica deployment that needs a shared, accurate
@@ -603,7 +684,9 @@ class Settings(BaseSettings):
 # Use caching to avoid re-reading the env file over and over
 # (FastAPI startup imports Config many times).
 def get_settings() -> Settings:
-    return Settings()
+    # Required fields (DATABASE_URL_*, SECRET_KEY) are loaded from the
+    # environment by pydantic-settings, which ty can't see.
+    return Settings()  # ty: ignore[missing-argument]
 
 
 settings = get_settings()

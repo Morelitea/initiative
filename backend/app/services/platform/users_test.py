@@ -335,6 +335,136 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
 
 @pytest.mark.unit
 @pytest.mark.service
+async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
+    """Anonymizing a user must erase their address from any guild invite bound
+    to it — a lingering invite otherwise keeps a reversible copy of the very
+    email the erasure was meant to remove. The matched invite is also
+    neutralised so nulling its bound address can't demote a single-recipient
+    invite into an open shareable link. Invites for other people, and unbound
+    (shareable-link) invites, are left untouched."""
+    from app.models.platform.guild import GuildInvite
+    from app.services.platform import guilds as guild_service
+
+    victim = await create_user(session, email="scrubme@example.com")
+    admin = await create_user(session, email="inviteadmin@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=victim, guild=guild, role=GuildRole.member
+    )
+
+    # Active invite addressed to the victim — the recoverable PII trace.
+    victim_invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=admin.id,
+        invitee_email="scrubme@example.com",
+        max_uses=1,
+        expires_at=None,
+    )
+    # Invite for someone else — must be untouched.
+    other_invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=admin.id,
+        invitee_email="keep@example.com",
+        max_uses=1,
+        expires_at=None,
+    )
+    # Unbound shareable link (no address) — must be untouched.
+    open_invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=admin.id,
+        invitee_email=None,
+        max_uses=5,
+        expires_at=None,
+    )
+    victim_invite_id = victim_invite.id
+    other_invite_id = other_invite.id
+    open_invite_id = open_invite.id
+
+    # Sanity: the victim's invite is active/bound before erasure.
+    assert guild_service.invite_is_active(victim_invite) is True
+
+    await user_service.soft_delete_user(session, victim.id)
+    session.expunge_all()
+
+    scrubbed = (
+        await session.exec(
+            select(GuildInvite).where(GuildInvite.id == victim_invite_id)
+        )
+    ).one()
+    # Address erased, and the invite neutralised so it can't act as an open link.
+    assert scrubbed.invitee_email_encrypted is None
+    assert scrubbed.invitee_email is None
+    assert scrubbed.max_uses == 0
+    assert guild_service.invite_is_active(scrubbed) is False
+
+    # Someone else's invite is untouched.
+    other_after = (
+        await session.exec(select(GuildInvite).where(GuildInvite.id == other_invite_id))
+    ).one()
+    assert other_after.invitee_email == "keep@example.com"
+    assert other_after.max_uses == 1
+
+    # Unbound shareable-link invites are untouched.
+    open_after = (
+        await session.exec(select(GuildInvite).where(GuildInvite.id == open_invite_id))
+    ).one()
+    assert open_after.invitee_email is None
+    assert open_after.max_uses == 5
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
+    """Hard delete has the same residual-PII gap: an invite addressed to the
+    removed user keeps a reversible copy of their email. The invitee address
+    must be scrubbed — distinct from the ``created_by_user_id`` NULLing, which
+    only covers invites the user *sent* (here the inviter is a different
+    admin, so only the invitee-scrub can clear it)."""
+    from app.models.platform.guild import GuildInvite
+    from app.services.platform import guilds as guild_service
+
+    victim = await create_user(session, email="hardscrub@example.com")
+    admin = await create_user(session, email="hardadmin@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=victim, guild=guild, role=GuildRole.member
+    )
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=admin.id,
+        invitee_email="hardscrub@example.com",
+        max_uses=1,
+        expires_at=None,
+    )
+    invite_id = invite.id
+    victim_id = victim.id
+
+    await user_service.hard_delete_user(session, victim_id, {})
+    session.expunge_all()
+
+    # User row is gone...
+    assert (
+        await session.exec(select(User).where(User.id == victim_id))
+    ).one_or_none() is None
+    # ...and no invite retains their recoverable address.
+    scrubbed = (
+        await session.exec(select(GuildInvite).where(GuildInvite.id == invite_id))
+    ).one()
+    assert scrubbed.invitee_email_encrypted is None
+    assert scrubbed.invitee_email is None
+    # ...and it's neutralised so nulling the bound address can't leave it as an
+    # open shareable link.
+    assert scrubbed.max_uses == 0
+    assert guild_service.invite_is_active(scrubbed) is False
+
+
+@pytest.mark.unit
+@pytest.mark.service
 async def test_users_table_has_rls_delete_deny_policy(session: AsyncSession):
     """The migration must enable RLS on `users` and install the
     ``users_no_delete`` restrictive policy that blocks DELETE for any
@@ -585,7 +715,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
     await create_initiative_member(session, initiative=initiative, user=member)
 
     # Sanity: the membership exists in the guild schema before deletion.
-    await set_rls_context(session, guild_id=guild.id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
     before = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -597,7 +727,7 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
 
     # Re-route into the guild schema and confirm the row is gone THERE.
     session.expunge_all()
-    await set_rls_context(session, guild_id=guild.id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild.id, guild_role="admin")
     after = (
         await session.exec(
             select(InitiativeMember).where(InitiativeMember.user_id == member.id)
@@ -606,6 +736,171 @@ async def test_soft_delete_removes_membership_in_guild_schema(session: AsyncSess
     assert after == []
 
     # And the user row itself (shared/public) is anonymized.
-    await set_rls_context(session, is_superadmin=True)
+    await set_rls_context(session)
     refreshed = (await session.exec(select(User).where(User.id == member.id))).one()
     assert refreshed.status == UserStatus.anonymized
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_soft_delete_scrubs_embedded_mentions(session: AsyncSession):
+    """Anonymizing a user rewrites their display name wherever content embedded
+    it as literal text: @-mention markup in comments, Lexical mention nodes in
+    documents (with yjs_state cleared), and digest-row name snapshots
+    (issue #794)."""
+    from app.models.tenant.comment import Comment
+    from app.models.tenant.document import Document
+    from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
+    from app.services.tenant.mention_parser import ANONYMIZED_MENTION_NAME
+    from app.testing.factories import (
+        create_comment,
+        create_document,
+        create_initiative,
+        create_initiative_member,
+        create_project,
+        create_task,
+    )
+    from app.testing.schema_harness import route_session_to_guild
+
+    author = await create_user(session, email="author@example.com")
+    victim = await create_user(session, email="victim@example.com", full_name="Vic Tim")
+    guild = await create_guild(session, creator=author)
+    await create_guild_membership(session, user=victim, guild=guild)
+    initiative = await create_initiative(session, guild, author)
+    await create_initiative_member(session, initiative=initiative, user=victim)
+    project = await create_project(session, initiative, author)
+    task = await create_task(session, project)
+
+    comment = await create_comment(
+        session, author, task=task, content=f"ping @[Vic Tim]({victim.id}) thanks"
+    )
+    document = await create_document(
+        session,
+        initiative,
+        author,
+        content={
+            "root": {
+                "type": "root",
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [
+                            {
+                                "type": "mention",
+                                "mentionName": "Vic Tim",
+                                "mentionUserId": victim.id,
+                                "text": "Vic Tim",
+                            }
+                        ],
+                    }
+                ],
+            }
+        },
+        yjs_state=b"stale-state",
+    )
+    digest = TaskAssignmentDigestItem(
+        user_id=author.id,
+        task_id=task.id,
+        project_id=project.id,
+        task_title=task.title,
+        project_name=project.name,
+        assigned_by_name="Vic Tim",
+        assigned_by_id=victim.id,
+    )
+    session.add(digest)
+    await session.commit()
+    victim_id = victim.id
+
+    await user_service.soft_delete_user(session, victim_id)
+
+    session.expunge_all()
+    await route_session_to_guild(session, guild.id)
+
+    refreshed_comment = (
+        await session.exec(select(Comment).where(Comment.id == comment.id))
+    ).one()
+    assert (
+        refreshed_comment.content
+        == f"ping @[{ANONYMIZED_MENTION_NAME}]({victim_id}) thanks"
+    )
+
+    refreshed_doc = (
+        await session.exec(select(Document).where(Document.id == document.id))
+    ).one()
+    node = refreshed_doc.content["root"]["children"][0]["children"][0]
+    assert node["mentionName"] == ANONYMIZED_MENTION_NAME
+    assert node["text"] == ANONYMIZED_MENTION_NAME
+    assert node["mentionUserId"] == victim_id
+    assert refreshed_doc.yjs_state is None
+
+    refreshed_digest = (
+        await session.exec(
+            select(TaskAssignmentDigestItem).where(
+                TaskAssignmentDigestItem.assigned_by_id == victim_id
+            )
+        )
+    ).one()
+    assert refreshed_digest.assigned_by_name == ANONYMIZED_MENTION_NAME
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_hard_delete_anonymized_user_cleans_guild_data(session: AsyncSession):
+    """Hard-deleting an already-anonymized user must still clean their
+    guild-scoped rows. Anonymize drops the membership rows, so enumerating
+    memberships found no guilds and silently left everything behind
+    (issue #794) — the sweep now covers every guild."""
+    from app.models.tenant.resource_grant import ResourceGrant
+    from app.models.tenant.task import Task, TaskAssignee
+    from app.testing.factories import (
+        create_initiative,
+        create_initiative_member,
+        create_project,
+        create_task,
+    )
+    from app.testing.schema_harness import route_session_to_guild
+
+    admin = await create_user(session, email="keeper@example.com")
+    victim = await create_user(session, email="husk@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(session, user=victim, guild=guild)
+    initiative = await create_initiative(session, guild, admin)
+    await create_initiative_member(session, initiative=initiative, user=victim)
+    project = await create_project(session, initiative, admin)
+    task = await create_task(session, project, assignees=[victim])
+    guild_id = guild.id
+    victim_id = victim.id
+    task_id = task.id
+
+    # Anonymize first — this drops the guild membership rows.
+    await user_service.soft_delete_user(session, victim_id)
+    session.expunge_all()
+
+    await user_service.hard_delete_user(session, victim_id, {})
+    session.expunge_all()
+
+    # The users row is gone.
+    remaining_user = (
+        await session.exec(select(User).where(User.id == victim_id))
+    ).one_or_none()
+    assert remaining_user is None
+
+    # And so are their guild-scoped rows, even though they had no
+    # membership left at hard-delete time.
+    await route_session_to_guild(session, guild_id)
+    assignees = (
+        await session.exec(
+            select(TaskAssignee).where(TaskAssignee.user_id == victim_id)
+        )
+    ).all()
+    assert assignees == []
+    grants = (
+        await session.exec(
+            select(ResourceGrant).where(ResourceGrant.user_id == victim_id)
+        )
+    ).all()
+    assert grants == []
+    # The task itself survives.
+    assert (
+        await session.exec(select(Task).where(Task.id == task_id))
+    ).one_or_none() is not None

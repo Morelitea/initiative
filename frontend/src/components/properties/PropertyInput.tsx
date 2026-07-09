@@ -25,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SearchableCombobox } from "@/components/ui/searchable-combobox";
 import { useAppendPropertyOption } from "@/hooks/useProperties";
 import { useUsers } from "@/hooks/useUsers";
+import { getUserDisplayName } from "@/lib/userDisplay";
 import { cn } from "@/lib/utils";
 
 type PropertyDefinitionLike = PropertyDefinitionRead | PropertySummary;
@@ -261,7 +262,7 @@ export const PropertyInput = ({
         .filter((user) => user.status !== "anonymized")
         .map((user) => ({
           value: String(user.id),
-          label: user.full_name ?? user.email,
+          label: getUserDisplayName(user),
         }));
       return (
         <SearchableCombobox

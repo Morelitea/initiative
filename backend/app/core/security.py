@@ -69,6 +69,107 @@ def create_access_token(
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# New login model — stateless access token (auth rewrite, Phase 0)
+#
+# A short-lived JWT that names both the user AND the server-side session
+# (``auth_sessions.id``) that backs it, plus the auth methods/providers that
+# session satisfied. It is verified locally (no per-request DB hit — the 10k+
+# win) and made revocable by its paired refresh token, whose rotation lives in
+# ``app.services.auth.sessions``. Its distinct ``aud`` keeps it from being
+# confused with the legacy session JWT, the upload token, or the handoff token
+# during the dual-verify cutover window (verification lands with the endpoint).
+# ──────────────────────────────────────────────────────────────────────────
+
+# Audience/issuer that mark a token as a new-model access credential. The
+# session-JWT verification path (added with ``/auth/refresh``) MUST check both,
+# and the upload/handoff paths already reject anything carrying this audience.
+AUTH_ACCESS_AUDIENCE = "initiative:access"
+AUTH_TOKEN_ISSUER = "initiative"
+
+
+def mint_access_token(
+    *,
+    user_id: int,
+    token_version: int,
+    session_id: uuid.UUID,
+    amr: list[str],
+    satisfied_providers: list[int],
+    expires_in: timedelta | None = None,
+    now: datetime | None = None,
+) -> tuple[str, int]:
+    """Mint a short-lived, stateless access token for one session.
+
+    Claims (history/auth-detailed-design.md §3.1): ``sub`` (user id), ``sid``
+    (the ``auth_sessions`` row), ``ver`` (``users.token_version`` — coarse "sign
+    out everywhere"), ``amr`` (auth methods satisfied), ``sat`` (satisfied-auth
+    provider ids → the per-guild auth-policy gate), plus ``iss``/``aud``/
+    ``iat``/``exp``. Returns ``(token, expires_in_seconds)`` so the caller can
+    schedule a refresh before it lapses.
+    """
+    issued = now or datetime.now(timezone.utc)
+    ttl = expires_in or timedelta(minutes=settings.AUTH_ACCESS_TTL_MINUTES)
+    payload: dict[str, Any] = {
+        "sub": str(user_id),
+        "sid": str(session_id),
+        "ver": token_version,
+        "amr": amr,
+        "sat": satisfied_providers,
+        "iss": AUTH_TOKEN_ISSUER,
+        "aud": AUTH_ACCESS_AUDIENCE,
+        "iat": int(issued.timestamp()),
+        "exp": issued + ttl,
+    }
+    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
+    return token, int(ttl.total_seconds())
+
+
+def decode_session_token(token: str) -> dict[str, Any]:
+    """Decode a session credential, accepting BOTH schemes during the
+    dual-verify cutover window (history/auth-detailed-design.md §3.1):
+
+    - the **new-model access token** — ``aud=initiative:access`` /
+      ``iss=initiative``, additionally carrying ``sid``/``amr``/``sat``.
+    - the **legacy session JWT** — no ``aud``/``iss``.
+
+    Both carry ``sub`` + ``ver`` (the caller checks ``ver`` against
+    ``users.token_version``). Raises :class:`jwt.PyJWTError` for anything else,
+    which every call site already maps to 401. Crucially this keeps the session
+    path refusing **scoped** tokens: an upload/handoff token carries a *foreign*
+    ``aud`` that fails the new decode (wrong audience) AND the legacy decode
+    (which rejects any token bearing an ``aud``), so neither is honored as a
+    session. Bad signature / expiry / missing claims raise as before.
+
+    New scheme is tried first, so once issuance flips it's the single-decode
+    fast path; during the window a legacy token pays one extra HMAC verify.
+    """
+    try:
+        return jwt.decode(
+            token,
+            settings.jwt_signing_key,
+            algorithms=[settings.ALGORITHM],
+            audience=AUTH_ACCESS_AUDIENCE,
+            issuer=AUTH_TOKEN_ISSUER,
+            options={"require": ["exp", "sub", "ver", "aud", "iss"]},
+        )
+    except (
+        jwt.InvalidAudienceError,
+        jwt.InvalidIssuerError,
+        jwt.MissingRequiredClaimError,
+    ):
+        # These three mean "not a new-model token" — absent/foreign aud or iss,
+        # or missing the new claims — so fall back to the legacy scheme. A
+        # genuinely expired/forged/malformed JWT raises a *different* PyJWTError
+        # (ExpiredSignature/InvalidSignature/Decode) that is NOT caught here, so
+        # it propagates with its true type instead of being masked by the
+        # legacy decode's audience error — keeping cutover-window logs honest.
+        # A legacy token bearing any aud (upload/handoff) still fails the legacy
+        # decode below and is rejected.
+        return jwt.decode(
+            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # Scoped upload tokens
 #
 # Native (Capacitor) WebViews can't attach an Authorization header or send the
@@ -237,7 +338,7 @@ def create_advanced_tool_handoff_token(
         "is_manager": is_manager,
         "scope": scope,
         # Forwarded so the proprietary backend can hide create UI for
-        # members whose role doesn't grant create_advanced_tool. View
+        # members whose role doesn't grant create_advanced_tools. View
         # access is implied by the fact that we issued this token at all.
         "can_create": can_create,
     }

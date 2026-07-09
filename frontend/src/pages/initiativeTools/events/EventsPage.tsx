@@ -1,17 +1,22 @@
 import { keepPreviousData } from "@tanstack/react-query";
 import { useRouter, useSearch } from "@tanstack/react-router";
 import { addYears, endOfYear, format, startOfYear, subYears } from "date-fns";
-import { ChevronDown, Download, Filter, Loader2, Plus, Upload } from "lucide-react";
+import { ChevronDown, Download, Filter, Loader2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import type {
+  CalendarEventSummary,
   FilterCondition,
   ListTasksApiV1GGuildIdTasksGetParams,
   TaskPriority,
   TaskStatusCategory,
 } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllCalendarEvents } from "@/api/query-keys";
+import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
 import {
   buildTaskCalendarEntries,
   CALENDAR_VIEW_MODE_KEY,
@@ -22,6 +27,7 @@ import {
 } from "@/components/calendar";
 import { CreateEventDialog } from "@/components/initiativeTools/events/CreateEventDialog";
 import { ICalImportDialog } from "@/components/initiativeTools/events/ICalImportDialog";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import {
   PropertyFilter,
   type PropertyFilterCondition,
@@ -33,10 +39,8 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { useCalendarEventsList, useRescheduleCalendarEvent } from "@/hooks/useCalendarEvents";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { useGridSelection } from "@/hooks/useGridSelection";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { toast } from "@/lib/chesterToast";
@@ -101,7 +105,7 @@ type EventsViewProps = {
 };
 
 export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) => {
-  const { t } = useTranslation(["events", "tasks", "common"]);
+  const { t } = useTranslation(["calendarEvents", "tasks", "common", "access"]);
   const router = useRouter();
   const { user } = useAuth();
   const gp = useGuildPath();
@@ -248,7 +252,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   const canCreateEvents = useMemo(() => {
     if (canCreate !== undefined) return canCreate;
     if (initiativeId && initiativePermissions) {
-      return canCreatePermission(initiativePermissions, "events");
+      return canCreateTool(initiativePermissions, Tool.calendar_event);
     }
     return false;
   }, [canCreate, initiativeId, initiativePermissions]);
@@ -260,7 +264,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   // event-create and task-edit are judged independently.
   const canEditTasks = useMemo(() => {
     if (initiativeId && initiativePermissions) {
-      return canCreatePermission(initiativePermissions, "projects");
+      return canCreateTool(initiativePermissions, Tool.project);
     }
     return false;
   }, [initiativeId, initiativePermissions]);
@@ -306,10 +310,59 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     return entries;
   }, [showEvents, showTasks, eventsQuery.data, tasksQuery.data, canCreateEvents, canEditTasks]);
 
+  // --- Bulk edit-access selection (list view only) ---
+  const eventSelection = useGridSelection<CalendarEventSummary>();
+  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+
+  const eventsById = useMemo(() => {
+    const map = new Map<number, CalendarEventSummary>();
+    for (const event of eventsQuery.data?.items ?? []) map.set(event.id, event);
+    return map;
+  }, [eventsQuery.data]);
+
+  const selectedEntryIds = useMemo(
+    () => new Set<CalendarEntry["id"]>(eventSelection.selectedItems.map((e) => `event-${e.id}`)),
+    [eventSelection.selectedItems]
+  );
+
+  const isEntrySelectable = useCallback(
+    (entry: CalendarEntry) => (entry.meta as { type?: string } | undefined)?.type === "event",
+    []
+  );
+
+  const toggleEntrySelection = useCallback(
+    (entry: CalendarEntry) => {
+      const eventId = (entry.meta as { eventId?: number } | undefined)?.eventId;
+      const event = typeof eventId === "number" ? eventsById.get(eventId) : undefined;
+      if (event) eventSelection.toggle(event);
+    },
+    [eventsById, eventSelection]
+  );
+
+  // Selection only exists in the list view — leaving it cancels the selection.
+  // Depend on the stable primitive/callback, not the per-render selection object.
+  const { active: selectionModeActive, exit: exitSelection } = eventSelection;
+  useEffect(() => {
+    if (viewMode !== "list" && selectionModeActive) exitSelection();
+  }, [viewMode, selectionModeActive, exitSelection]);
+
   // Create dialog state
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [createDefaultDate, setCreateDefaultDate] = useState<Date | null>(null);
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canCreateEvents && initiativeId
+      ? {
+          run: () => {
+            setCreateDefaultDate(null);
+            setCreateDialogOpen(true);
+          },
+          label: t("createEvent"),
+        }
+      : null
+  );
 
   useEffect(() => {
     const shouldCreate = searchParams.create === "true";
@@ -328,7 +381,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
       if (searchParams.create) {
         isClosingCreateDialog.current = true;
         void router.navigate({
-          to: gp("/events"),
+          to: gp("/calendar-events"),
           search: { initiativeId: searchParams.initiativeId },
           replace: true,
         });
@@ -337,7 +390,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
   };
 
   const handleEventCreated = (event: { id: number }) => {
-    void router.navigate({ to: gp(`/events/${event.id}`) });
+    void router.navigate({ to: gp(`/calendar-events/${event.id}`) });
   };
 
   const handleSlotClick = (date: Date) => {
@@ -350,7 +403,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
     const meta = entry.meta as { type: string; taskId?: number; eventId?: number } | undefined;
     if (!meta) return;
     if (meta.type === "event" && meta.eventId) {
-      void router.navigate({ to: gp(`/events/${meta.eventId}`) });
+      void router.navigate({ to: gp(`/calendar-events/${meta.eventId}`) });
     } else if (meta.type === "task" && meta.taskId) {
       void router.navigate({ to: gp(`/tasks/${meta.taskId}`) });
     }
@@ -536,7 +589,7 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
                 size="sm"
                 onClick={() => setShowEvents(!showEvents)}
               >
-                {t("events:event")}
+                {t("calendarEvents:event")}
               </Button>
               <Button
                 variant={showTasks ? "default" : "outline"}
@@ -568,17 +621,37 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
           {t("loading")}
         </div>
       ) : (
-        <CalendarView
-          entries={calendarEntries}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          focusDate={focusDate}
-          onFocusDateChange={setFocusDate}
-          onEntryClick={handleEntryClick}
-          onSlotClick={canCreateEvents ? handleSlotClick : undefined}
-          onEntryReschedule={canCreateEvents || canEditTasks ? handleEntryReschedule : undefined}
-          weekStartsOn={weekStartsOn}
-        />
+        <div className="space-y-3">
+          {eventSelection.active ? (
+            <BulkAccessBar
+              count={eventSelection.selectedItems.length}
+              canManage={canManageSharing(eventSelection.selectedItems)}
+              onEditAccess={() => setBulkAccessOpen(true)}
+              onExit={eventSelection.exit}
+            />
+          ) : viewMode === "list" ? (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={eventSelection.enter}>
+                {t("access:bulkBar.select")}
+              </Button>
+            </div>
+          ) : null}
+          <CalendarView
+            entries={calendarEntries}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            focusDate={focusDate}
+            onFocusDateChange={setFocusDate}
+            onEntryClick={handleEntryClick}
+            onSlotClick={canCreateEvents ? handleSlotClick : undefined}
+            onEntryReschedule={canCreateEvents || canEditTasks ? handleEntryReschedule : undefined}
+            weekStartsOn={weekStartsOn}
+            selectionActive={eventSelection.active}
+            selectedEntryIds={selectedEntryIds}
+            isEntrySelectable={isEntrySelectable}
+            onToggleEntrySelection={toggleEntrySelection}
+          />
+        </div>
       )}
 
       {initiativeId && (
@@ -591,24 +664,20 @@ export const EventsView = ({ fixedInitiativeId, canCreate }: EventsViewProps) =>
         />
       )}
 
+      <BulkEditAccessDialog
+        open={bulkAccessOpen}
+        onOpenChange={setBulkAccessOpen}
+        items={eventSelection.selectedItems}
+        resourceType={Tool.calendar_event}
+        invalidate={invalidateAllCalendarEvents}
+        onSuccess={eventSelection.exit}
+      />
+
       <ICalImportDialog
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
         fixedInitiativeId={initiativeId ?? undefined}
       />
-
-      {canCreateEvents && initiativeId && (
-        <Button
-          className="fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
-          onClick={() => {
-            setCreateDefaultDate(null);
-            setCreateDialogOpen(true);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          {t("createEvent")}
-        </Button>
-      )}
     </div>
   );
 };

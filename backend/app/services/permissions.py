@@ -24,6 +24,7 @@ from sqlmodel import select
 
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
 from app.core.role_context import active_guild_role, request_overrides_sharing
+from app.core.tools import Tool
 from app.services.membership import guild_member_clause
 
 from app.models.platform.guild import GuildRole
@@ -38,6 +39,7 @@ from app.models.tenant.document import (
 from app.models.tenant.initiative import InitiativeMember, InitiativeRoleModel
 from app.models.platform.user import User
 from app.core.messages import (
+    AdvancedToolMessages,
     ProjectMessages,
     DocumentMessages,
     QueueMessages,
@@ -55,53 +57,6 @@ from app.models.tenant.resource_grant import ResourceAccessLevel, ResourceGrant
 # caller's concrete level type (ProjectPermissionLevel, DocumentPermissionLevel,
 # QueuePermissionLevel) flows through to the return type.
 PermLevel = TypeVar("PermLevel", bound=Enum)
-
-
-def _get_user_role_ids(
-    memberships: list[Any] | None,
-    user_id: int,
-) -> set[int]:
-    """Extract the set of role IDs a user holds in an initiative's memberships."""
-    if not memberships:
-        return set()
-    return {
-        m.role_id for m in memberships if m.user_id == user_id and m.role_id is not None
-    }
-
-
-def role_permission_level(
-    role_permissions: list[Any] | None,
-    memberships: list[Any] | None,
-    user_id: int,
-    level_order: dict[PermLevel, int],
-) -> PermLevel | None:
-    """Get the highest role-based permission level for a user.
-
-    Works with both ProjectPermissionLevel and DocumentPermissionLevel enums.
-
-    Args:
-        role_permissions: The role-based grant records (rows with an
-            ``initiative_role_id`` and ``level``).
-        memberships: The initiative memberships (Initiative.memberships).
-        user_id: The user to check.
-        level_order: Mapping from permission level enum to numeric rank
-            (e.g. {read: 0, write: 1, owner: 2}).
-
-    Returns:
-        The highest matching permission level, or None.
-    """
-    if not role_permissions:
-        return None
-    user_role_ids = _get_user_role_ids(memberships, user_id)
-    if not user_role_ids:
-        return None
-
-    best: PermLevel | None = None
-    for rp in role_permissions:
-        if rp.initiative_role_id in user_role_ids:
-            if best is None or level_order.get(rp.level, 0) > level_order.get(best, 0):
-                best = rp.level
-    return best
 
 
 def effective_permission_level(
@@ -311,48 +266,55 @@ def initiative_scope_ok(
 
 @dataclass(frozen=True)
 class DacResource:
-    name: str
+    name: Tool
     scope_gate: bool  # gate on initiative_scope_ok? (project/document yes)
     denied_msg: str
     owner_msg: str
     write_msg: str
 
 
-DAC_RESOURCES: dict[str, DacResource] = {
-    "project": DacResource(
-        "project",
+DAC_RESOURCES: dict[Tool, DacResource] = {
+    Tool.project: DacResource(
+        Tool.project,
         True,
         ProjectMessages.NO_ACCESS,
         ProjectMessages.OWNER_REQUIRED,
         ProjectMessages.WRITE_ACCESS_REQUIRED,
     ),
-    "document": DacResource(
-        "document",
+    Tool.document: DacResource(
+        Tool.document,
         True,
         DocumentMessages.NO_ACCESS,
         DocumentMessages.OWNER_REQUIRED,
         DocumentMessages.WRITE_ACCESS_REQUIRED,
     ),
-    "queue": DacResource(
-        "queue",
+    Tool.queue: DacResource(
+        Tool.queue,
         False,
         QueueMessages.PERMISSION_REQUIRED,
         QueueMessages.OWNER_REQUIRED,
         QueueMessages.WRITE_ACCESS_REQUIRED,
     ),
-    "counter_group": DacResource(
-        "counter_group",
+    Tool.counter_group: DacResource(
+        Tool.counter_group,
         False,
         CounterMessages.PERMISSION_REQUIRED,
         CounterMessages.OWNER_REQUIRED,
         CounterMessages.WRITE_ACCESS_REQUIRED,
     ),
-    "calendar_event": DacResource(
-        "calendar_event",
+    Tool.calendar_event: DacResource(
+        Tool.calendar_event,
         False,
         CalendarEventMessages.PERMISSION_REQUIRED,
         CalendarEventMessages.OWNER_REQUIRED,
         CalendarEventMessages.WRITE_ACCESS_REQUIRED,
+    ),
+    Tool.advanced_tool: DacResource(
+        Tool.advanced_tool,
+        False,
+        AdvancedToolMessages.NO_ACCESS,
+        AdvancedToolMessages.OWNER_REQUIRED,
+        AdvancedToolMessages.WRITE_ACCESS_REQUIRED,
     ),
 }
 
@@ -565,7 +527,7 @@ def compute_project_permission(
     user_id: int,
 ) -> str | None:
     """Effective project permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES["project"], project, user_id)
+    return compute_permission(DAC_RESOURCES[Tool.project], project, user_id)
 
 
 def require_project_access(
@@ -578,7 +540,7 @@ def require_project_access(
 ) -> None:
     """Raise 403 unless the user may act on the project (delegates to the engine)."""
     require_access(
-        DAC_RESOURCES["project"],
+        DAC_RESOURCES[Tool.project],
         project,
         user,
         access=access,
@@ -592,7 +554,7 @@ def has_project_write_access(
     user: User,
 ) -> bool:
     """Check if user has write access (synchronous, for filtering)."""
-    return effective_level(DAC_RESOURCES["project"], project, user.id) in (
+    return effective_level(DAC_RESOURCES[Tool.project], project, user.id) in (
         "write",
         "owner",
     )
@@ -606,12 +568,12 @@ def compute_document_permission(
     user_id: int,
 ) -> str | None:
     """Effective document permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES["document"], document, user_id)
+    return compute_permission(DAC_RESOURCES[Tool.document], document, user_id)
 
 
 def compute_calendar_event_permission(event: Any, user_id: int) -> str | None:
     """Effective calendar-event permission string for the client (delegates to the engine)."""
-    return compute_permission(DAC_RESOURCES["calendar_event"], event, user_id)
+    return compute_permission(DAC_RESOURCES[Tool.calendar_event], event, user_id)
 
 
 def require_document_access(
@@ -624,7 +586,7 @@ def require_document_access(
 ) -> None:
     """Raise 403 unless the user may act on the document (delegates to the engine)."""
     require_access(
-        DAC_RESOURCES["document"],
+        DAC_RESOURCES[Tool.document],
         document,
         user,
         access=access,

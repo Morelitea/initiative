@@ -21,7 +21,7 @@ from app.core.messages import (
 )
 from app.core.security import create_advanced_tool_handoff_token
 from app.core.config import settings
-from app.db.session import reapply_rls_context
+from app.core.tools import CORE_TOOLS, TOGGLEABLE_TOOLS, Tool
 from app.models.platform.access_grant import AccessLevel
 from app.models.tenant.document import Document
 from app.models.tenant.project import Project
@@ -270,10 +270,12 @@ async def create_initiative(
         name=initiative_in.name,
         description=initiative_in.description,
         guild_id=guild_id,
-        queues_enabled=initiative_in.queues_enabled,
-        events_enabled=initiative_in.events_enabled,
-        advanced_tool_enabled=initiative_in.advanced_tool_enabled,
-        counters_enabled=initiative_in.counters_enabled,
+        # One master switch per toggleable tool, derived — a new Tool member
+        # flows through without touching this endpoint.
+        **{
+            t.view_permission: getattr(initiative_in, t.view_permission)
+            for t in TOGGLEABLE_TOOLS
+        },
     )
     if initiative_in.color:
         initiative.color = initiative_in.color
@@ -295,7 +297,6 @@ async def create_initiative(
         )
     )
     await session.commit()
-    await reapply_rls_context(session)
     initiative = await _get_initiative_or_404(initiative.id, session, guild_id)
     return serialize_initiative(initiative)
 
@@ -344,7 +345,6 @@ async def update_initiative(
         setattr(initiative, field, value)
     session.add(initiative)
     await session.commit()
-    await reapply_rls_context(session)
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
     )
@@ -578,7 +578,6 @@ async def update_initiative_role(
         )
 
     await session.commit()
-    await reapply_rls_context(session)
     member_count = await initiatives_service.count_role_members(
         session, role_id=role.id
     )
@@ -631,6 +630,11 @@ async def get_my_initiative_permissions(
         initiative_id, session, guild_context.guild_id
     )
 
+    # Whether a tool is available in this initiative at all: core tools always,
+    # toggleable tools per their master switch.
+    def tool_available(t: Tool) -> bool:
+        return t in CORE_TOOLS or bool(getattr(initiative, t.view_permission))
+
     # Guild admins have all permissions
     if rls_service.is_guild_admin(guild_context.role):
         return MyInitiativePermissions(
@@ -638,20 +642,11 @@ async def get_my_initiative_permissions(
             # Guild admins view/edit everything regardless of sharing.
             override_share_restrictions=True,
             permissions={
-                "docs_enabled": True,
-                "projects_enabled": True,
-                "create_docs": True,
-                "create_projects": True,
-                "queues_enabled": initiative.queues_enabled,
-                "create_queues": initiative.queues_enabled,
-                "events_enabled": initiative.events_enabled,
-                "create_events": initiative.events_enabled,
-                "advanced_tool_enabled": initiative.advanced_tool_enabled,
-                "create_advanced_tool": initiative.advanced_tool_enabled,
-                "counters_enabled": initiative.counters_enabled,
-                "create_counters": initiative.counters_enabled,
+                PermissionKey(key): tool_available(t)
+                for t in Tool
+                for key in (t.view_permission, t.create_permission)
             },
-            advanced_tool_enabled=initiative.advanced_tool_enabled,
+            advanced_tools_enabled=initiative.advanced_tools_enabled,
         )
 
     # PAM grantee: time-bound, guild-wide access with no membership row. They
@@ -666,20 +661,13 @@ async def get_my_initiative_permissions(
         return MyInitiativePermissions(
             is_manager=False,
             permissions={
-                "docs_enabled": True,
-                "projects_enabled": True,
-                "create_docs": can_write,
-                "create_projects": can_write,
-                "queues_enabled": initiative.queues_enabled,
-                "create_queues": initiative.queues_enabled and can_write,
-                "events_enabled": initiative.events_enabled,
-                "create_events": initiative.events_enabled and can_write,
-                "advanced_tool_enabled": initiative.advanced_tool_enabled,
-                "create_advanced_tool": initiative.advanced_tool_enabled and can_write,
-                "counters_enabled": initiative.counters_enabled,
-                "create_counters": initiative.counters_enabled and can_write,
+                **{PermissionKey(t.view_permission): tool_available(t) for t in Tool},
+                **{
+                    PermissionKey(t.create_permission): tool_available(t) and can_write
+                    for t in Tool
+                },
             },
-            advanced_tool_enabled=initiative.advanced_tool_enabled,
+            advanced_tools_enabled=initiative.advanced_tools_enabled,
         )
 
     membership = await initiatives_service.get_initiative_membership_with_role(
@@ -701,28 +689,14 @@ async def get_my_initiative_permissions(
         perm.permission_key: perm.enabled for perm in (role.permissions or [])
     }
 
-    # Initiative-level master switch overrides role-level queue permissions
-    if not initiative.queues_enabled:
-        permissions[PermissionKey.queues_enabled] = False
-        permissions[PermissionKey.create_queues] = False
-
-    # Initiative-level master switch overrides role-level event permissions
-    if not initiative.events_enabled:
-        permissions[PermissionKey.events_enabled] = False
-        permissions[PermissionKey.create_events] = False
-
-    # Same pattern for advanced tool: master switch overrides per-role keys
-    # so members of an initiative whose toggle is off never see the panel
+    # Initiative-level master switches override role-level permissions, so
+    # members of an initiative whose toggle is off never see the tool
     # regardless of what their role permits.
-    if not initiative.advanced_tool_enabled:
-        permissions[PermissionKey.advanced_tool_enabled] = False
-        permissions[PermissionKey.create_advanced_tool] = False
-    advanced_tool_enabled = initiative.advanced_tool_enabled
-
-    # Initiative-level master switch overrides role-level counters permissions
-    if not initiative.counters_enabled:
-        permissions[PermissionKey.counters_enabled] = False
-        permissions[PermissionKey.create_counters] = False
+    for t in TOGGLEABLE_TOOLS:
+        if not tool_available(t):
+            permissions[PermissionKey(t.view_permission)] = False
+            permissions[PermissionKey(t.create_permission)] = False
+    advanced_tools_enabled = initiative.advanced_tools_enabled
 
     return MyInitiativePermissions(
         role_id=role.id,
@@ -731,7 +705,7 @@ async def get_my_initiative_permissions(
         is_manager=role.is_manager,
         override_share_restrictions=role.override_share_restrictions,
         permissions=permissions,
-        advanced_tool_enabled=advanced_tool_enabled,
+        advanced_tools_enabled=advanced_tools_enabled,
     )
 
 
@@ -758,15 +732,15 @@ async def create_advanced_tool_handoff(
       1. The deployment must have ADVANCED_TOOL_URL configured.
       2. The initiative must exist in the active guild.
       3. The user must be a guild admin OR an initiative member.
-      4. The initiative must have advanced_tool_enabled=true.
+      4. The initiative must have advanced_tools_enabled=true.
       5. The user's initiative role must include the
-         ``advanced_tool_enabled`` permission key. Guild admins and
+         ``advanced_tools_enabled`` permission key. Guild admins and
          initiative managers bypass step 5 since they're trusted by
          construction.
 
     The returned token has audience=initiative:advanced-tool and a 60s
     expiry. The SPA passes it via postMessage (never URL/query string).
-    The ``can_create`` claim forwards the create_advanced_tool permission
+    The ``can_create`` claim forwards the create_advanced_tools permission
     so the proprietary backend can hide create UI for view-only members.
     """
     if not settings.ADVANCED_TOOL_URL:
@@ -782,7 +756,7 @@ async def create_advanced_tool_handoff(
     # Master switch: per-initiative toggle owned by an initiative manager.
     # If off, even a guild admin can't open the panel — the data plane on
     # the proprietary side may not even know this initiative exists yet.
-    if not initiative.advanced_tool_enabled:
+    if not initiative.advanced_tools_enabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=AdvancedToolMessages.NOT_ENABLED,
@@ -811,12 +785,12 @@ async def create_advanced_tool_handoff(
     if not is_manager and role_ref:
         for perm in role_ref.permissions or []:
             if (
-                perm.permission_key == PermissionKey.advanced_tool_enabled
+                perm.permission_key == PermissionKey.advanced_tools_enabled
                 and perm.enabled
             ):
                 can_view = True
             elif (
-                perm.permission_key == PermissionKey.create_advanced_tool
+                perm.permission_key == PermissionKey.create_advanced_tools
                 and perm.enabled
             ):
                 can_create = True
@@ -1004,7 +978,6 @@ async def add_initiative_member(
         created = True
 
     await session.commit()
-    await reapply_rls_context(session)
     # Re-fetch initiative with updated memberships
     initiative = await _get_initiative_or_404(
         initiative_id, session, guild_context.guild_id
@@ -1160,7 +1133,6 @@ async def remove_initiative_member(
         )
 
         await session.commit()
-        await reapply_rls_context(session)
         # Removed from the initiative — drop this user's live content streams in
         # the guild immediately (initiative-level access change).
         await stream_authority.revoke_user(guild_context.guild_id, user_id)
@@ -1240,7 +1212,6 @@ async def update_initiative_member(
         membership.role_id = payload.role_id
         session.add(membership)
         await session.commit()
-        await reapply_rls_context(session)
         # Role change may reduce content access — re-check this user's live
         # content streams immediately (initiative-level access change).
         await stream_authority.revoke_user(guild_context.guild_id, user_id)

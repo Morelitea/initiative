@@ -47,7 +47,7 @@ class Capability(str, Enum):
     ROLES_ASSIGN = "roles.assign"
 
     # The right to self-issue a break-glass PAM grant (admin+owner only). This is
-    # NOT a standing all-guild bypass: instead of ambient ``app.is_superadmin``
+    # NOT a standing all-guild bypass: instead of an ambient superadmin flag
     # god-mode, the holder records a scoped, time-bound, audited grant in one step
     # (created + self-approved) to reach one guild's data, then routes through the
     # normal PAM path until it expires. Lower tiers reach a guild via the

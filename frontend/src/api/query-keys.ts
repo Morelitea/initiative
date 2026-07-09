@@ -301,6 +301,13 @@ export const invalidateAllCalendarEvents = () => invalidateResourceAndMe("calend
 export const invalidateCalendarEvent = (eventId: number) =>
   invalidateGuildExact([`/api/v1/calendar-events/${eventId}`]);
 
+// ── Advanced Tools (guild) ────────────────────────────────────────────────────────
+
+export const invalidateAllAdvancedTools = () => invalidateGuildPrefix("/api/v1/advanced-tools");
+
+export const invalidateAdvancedTool = (advancedToolId: number) =>
+  invalidateGuildExact([`/api/v1/advanced-tools/${advancedToolId}`]);
+
 // ── Subtasks (guild) ──────────────────────────────────────────────────────────────
 
 export const invalidateSubtask = (subtaskId: number) =>

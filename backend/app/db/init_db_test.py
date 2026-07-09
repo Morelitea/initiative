@@ -16,15 +16,15 @@ from app.services.platform import guilds as guilds_service
 pytestmark = pytest.mark.database
 
 
-async def test_init_superuser_cleans_up_when_guild_seed_fails(engine, monkeypatch):
+async def test_init_owner_cleans_up_when_guild_seed_fails(engine, monkeypatch):
     """A guild-seed failure during first-boot superuser init must undo the
     already-committed user + guild.
 
-    Otherwise the committed user makes init_superuser short-circuit on every
+    Otherwise the committed user makes init_owner short-circuit on every
     subsequent restart ("already seeded"), permanently stranding the primary
     guild without a schema. The cleanup mirrors the API/registration paths.
     """
-    # init_superuser uses AdminSessionLocal (bound to the prod admin engine);
+    # init_owner uses AdminSessionLocal (bound to the prod admin engine);
     # point it (and provisioning, via the autouse harness) at the test DB.
     test_sessions = async_sessionmaker(
         engine, class_=AsyncSession, expire_on_commit=False
@@ -32,9 +32,9 @@ async def test_init_superuser_cleans_up_when_guild_seed_fails(engine, monkeypatc
     monkeypatch.setattr(init_db, "AdminSessionLocal", test_sessions)
 
     email = "init-boot-seedfail@example.com"
-    monkeypatch.setattr(settings, "FIRST_SUPERUSER_EMAIL", email)
-    monkeypatch.setattr(settings, "FIRST_SUPERUSER_PASSWORD", "securepassword123")
-    monkeypatch.setattr(settings, "FIRST_SUPERUSER_FULL_NAME", "Boot Fail")
+    monkeypatch.setattr(settings, "FIRST_OWNER_EMAIL", email)
+    monkeypatch.setattr(settings, "FIRST_OWNER_PASSWORD", "securepassword123")
+    monkeypatch.setattr(settings, "FIRST_OWNER_FULL_NAME", "Boot Fail")
 
     async def _boom(seed_session, *args, **kwargs):
         # Abort the transaction like a real failing query would, so the cleanup
@@ -47,7 +47,7 @@ async def test_init_superuser_cleans_up_when_guild_seed_fails(engine, monkeypatc
         guilds_before = len((await pre.exec(select(Guild))).all())
 
     with pytest.raises(Exception):
-        await init_db.init_superuser()
+        await init_db.init_owner()
 
     async with test_sessions() as check:
         user = (

@@ -55,12 +55,13 @@ import {
   useSetEventTags,
   useUpdateCalendarEvent,
 } from "@/hooks/useCalendarEvents";
-import { useInitiativeMembers } from "@/hooks/useInitiatives";
+import { useInitiative } from "@/hooks/useInitiatives";
 import { toast } from "@/lib/chesterToast";
 import { useGuildPath } from "@/lib/guildUrl";
+import { getUserDisplayName } from "@/lib/userDisplay";
 
 export function EventSettingsPage() {
-  const { t } = useTranslation(["events", "common", "access"]);
+  const { t } = useTranslation(["calendarEvents", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
   const { eventId: eventIdParam } = useParams({ strict: false });
@@ -86,27 +87,51 @@ export function EventSettingsPage() {
   // the PropertyList. The list's debounced save handles persistence.
   const [pendingProperties, setPendingProperties] = useState<PropertyDefinitionRead[]>([]);
 
-  // Fetch initiative members
-  const { data: members } = useInitiativeMembers(event?.initiative_id ?? null);
+  // Attendee candidates: initiative members who can access this event via its
+  // grants — mirrors task-assignee derivation (ProjectDetailPage.userOptions)
+  // but scoped to the initiative's members rather than all guild users. Any
+  // grant level qualifies (attending needs only view access). The initiative is
+  // read via get_initiative (the same source ShareControl uses), which honors
+  // the guild-admin override — the /members endpoint 403'd for a non-member
+  // admin and left the picker empty.
+  const { data: initiative } = useInitiative(event?.initiative_id ?? null);
+  const members = useMemo(() => {
+    const initiativeMembers = initiative?.members ?? [];
+    const grants = event?.grants ?? [];
+    if (grants.some((g) => g.all_initiative_members)) {
+      return initiativeMembers.map((m) => m.user);
+    }
+    const grantedUserIds = new Set(
+      grants.filter((g) => g.user_id != null).map((g) => g.user_id as number)
+    );
+    const grantedRoleIds = new Set(
+      grants.filter((g) => g.role_id != null).map((g) => g.role_id as number)
+    );
+    return initiativeMembers
+      .filter(
+        (m) => grantedUserIds.has(m.user.id) || (m.role_id != null && grantedRoleIds.has(m.role_id))
+      )
+      .map((m) => m.user);
+  }, [initiative?.members, event?.grants]);
 
   const memberItems = useMemo(() => {
     return (members ?? [])
       .filter((m) => !attendeeIds.includes(m.id))
       .map((m) => ({
         value: String(m.id),
-        label: m.full_name || m.email,
+        label: getUserDisplayName(m),
       }));
   }, [members, attendeeIds]);
 
   const attendeeNames = useMemo(() => {
     const map = new Map<number, string>();
     for (const m of members ?? []) {
-      map.set(m.id, m.full_name || m.email);
+      map.set(m.id, getUserDisplayName(m));
     }
     // Also include names from event attendees in case members haven't loaded
     for (const a of event?.attendees ?? []) {
       if (a.user && !map.has(a.user_id)) {
-        map.set(a.user_id, a.user.full_name || a.user.email);
+        map.set(a.user_id, getUserDisplayName(a.user));
       }
     }
     return map;
@@ -233,7 +258,7 @@ export function EventSettingsPage() {
   const deleteEvent = useDeleteCalendarEvent({
     onSuccess: () => {
       toast.success(t("eventDeleted"));
-      void router.navigate({ to: gp("/events") });
+      void router.navigate({ to: gp("/calendar-events") });
     },
   });
 
@@ -273,7 +298,7 @@ export function EventSettingsPage() {
       <div className="p-8 text-center">
         <p className="text-muted-foreground">{t("notFound")}</p>
         <Button variant="link" asChild className="mt-2">
-          <Link to={gp("/events")}>{t("backToEvents")}</Link>
+          <Link to={gp("/calendar-events")}>{t("backToEvents")}</Link>
         </Button>
       </div>
     );
@@ -285,13 +310,13 @@ export function EventSettingsPage() {
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={gp("/events")}>{t("title")}</Link>
+              <Link to={gp("/calendar-events")}>{t("title")}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to={gp(`/events/${eventId}`)}>{event.title}</Link>
+              <Link to={gp(`/calendar-events/${eventId}`)}>{event.title}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />

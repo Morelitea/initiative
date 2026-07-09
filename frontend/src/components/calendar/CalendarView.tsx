@@ -49,6 +49,7 @@ import { nonEmptyPropertySummaries } from "@/components/properties/propertyHelpe
 import { TagBadge } from "@/components/tags/TagBadge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getInitials } from "@/lib/initials";
@@ -141,6 +142,12 @@ type CalendarViewProps = {
   isLoading?: boolean;
   /** Hide the list view option (e.g. for tasks where list doesn't make sense) */
   hideListView?: boolean;
+  /** Multi-select on the list view (opt-in — only the list view uses these, and
+   *  only the entries `isEntrySelectable` accepts get a checkbox). */
+  selectionActive?: boolean;
+  selectedEntryIds?: Set<CalendarEntry["id"]>;
+  isEntrySelectable?: (entry: CalendarEntry) => boolean;
+  onToggleEntrySelection?: (entry: CalendarEntry) => void;
 };
 
 // ---------------------------------------------------------------------------
@@ -1407,10 +1414,18 @@ function ListView({
   entries,
   focusDate,
   onEntryClick,
+  selectionActive = false,
+  selectedEntryIds,
+  isEntrySelectable,
+  onToggleEntrySelection,
 }: {
   entries: CalendarEntry[];
   focusDate: Date;
   onEntryClick?: (entry: CalendarEntry) => void;
+  selectionActive?: boolean;
+  selectedEntryIds?: Set<CalendarEntry["id"]>;
+  isEntrySelectable?: (entry: CalendarEntry) => boolean;
+  onToggleEntrySelection?: (entry: CalendarEntry) => void;
 }) {
   const { t } = useTranslation(["common"]);
 
@@ -1423,6 +1438,11 @@ function ListView({
     const result: ListRow[] = [];
 
     for (const entry of entries) {
+      // In selection mode the list is a picker for shareable entries only — hide
+      // everything that can't be selected (e.g. tasks) so it can't be confused
+      // for something you can bulk-edit.
+      if (selectionActive && !(isEntrySelectable?.(entry) ?? false)) continue;
+
       const { start, end } = parseEntry(entry);
       if (Number.isNaN(start.getTime())) continue;
 
@@ -1447,7 +1467,7 @@ function ListView({
 
     result.sort((a, b) => a.displayDate.getTime() - b.displayDate.getTime());
     return result;
-  }, [entries, focusDate]);
+  }, [entries, focusDate, selectionActive, isEntrySelectable]);
 
   if (rows.length === 0) {
     return (
@@ -1467,17 +1487,39 @@ function ListView({
           const month = format(displayDate, "MMM");
           const weekday = format(displayDate, "EEEE");
 
+          // In selection mode, only selectable entries (events) can be picked;
+          // other rows (tasks) are shown dimmed and inert so they stay for
+          // context without navigating away or being selectable.
+          const selectable = selectionActive && (isEntrySelectable?.(entry) ?? false);
+          const selected = selectable && (selectedEntryIds?.has(entry.id) ?? false);
+          const interactive = selectionActive ? selectable : !!onEntryClick;
+
           return (
             <button
               key={`${entry.id}-${dateKey(displayDate)}`}
               type="button"
+              disabled={selectionActive && !selectable}
+              aria-pressed={selectable ? selected : undefined}
               className={cn(
                 "flex w-full items-start gap-4 rounded-md border px-3 py-2.5 text-left text-sm transition-colors",
                 isToday(displayDate) && "ring-1 ring-primary/60",
-                onEntryClick ? "cursor-pointer hover:bg-accent" : "cursor-default"
+                interactive ? "cursor-pointer hover:bg-accent" : "cursor-default",
+                selected && "bg-primary/5 ring-2 ring-primary",
+                selectionActive && !selectable && "opacity-50"
               )}
-              onClick={() => onEntryClick?.(entry)}
+              onClick={() =>
+                selectionActive
+                  ? selectable && onToggleEntrySelection?.(entry)
+                  : onEntryClick?.(entry)
+              }
             >
+              {selectable && (
+                <Checkbox
+                  checked={selected}
+                  className="pointer-events-none mt-0.5 shrink-0 border-2"
+                  aria-hidden="true"
+                />
+              )}
               {/* Date column: day + month */}
               <div className="flex w-14 shrink-0 flex-col items-center pt-0.5 leading-tight">
                 <span className="font-bold text-lg">{day}</span>
@@ -1676,6 +1718,10 @@ export const CalendarView = ({
   weekStartsOn = 0,
   isLoading = false,
   hideListView = false,
+  selectionActive = false,
+  selectedEntryIds,
+  isEntrySelectable,
+  onToggleEntrySelection,
 }: CalendarViewProps) => {
   const periodLabel = usePeriodLabel(viewMode, focusDate, weekStartsOn);
   const dndEnabled = !!onEntryReschedule;
@@ -1799,7 +1845,15 @@ export const CalendarView = ({
       ) : null}
 
       {viewMode === "list" ? (
-        <ListView entries={entries} focusDate={focusDate} onEntryClick={onEntryClick} />
+        <ListView
+          entries={entries}
+          focusDate={focusDate}
+          onEntryClick={onEntryClick}
+          selectionActive={selectionActive}
+          selectedEntryIds={selectedEntryIds}
+          isEntrySelectable={isEntrySelectable}
+          onToggleEntrySelection={onToggleEntrySelection}
+        />
       ) : null}
     </>
   );

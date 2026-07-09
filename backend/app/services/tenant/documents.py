@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from sqlalchemy import func
-from app.db.session import reapply_rls_context
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 from sqlmodel import select
@@ -32,8 +31,8 @@ from app.models.tenant.tag import DocumentTag
 from app.models.tenant.project import Project
 from app.core.config import settings
 from app.core.messages import DocumentMessages
-from app.services import attachments as attachments_service
-from app.services.collaboration import collaboration_manager
+from app.services.tenant import attachments as attachments_service
+from app.services.tenant.collaboration import collaboration_manager
 
 
 def _empty_paragraph() -> dict[str, Any]:
@@ -179,6 +178,32 @@ async def get_document(
     return document
 
 
+async def get_document_for_grants(
+    session: AsyncSession, document_id: int
+) -> Document | None:
+    """Load a document with just the relationships the grant flow needs — its
+    ``grants`` (owner resolution) and ``initiative.memberships`` (authorization).
+    RLS scopes the row to the request's guild, so no explicit guild filter (mirrors
+    the queue/counter grant loaders). Uniform ``(session, id)`` shape so
+    ``resource_access`` can register it like the others."""
+    statement = (
+        select(Document)
+        .where(Document.id == document_id)
+        .options(
+            selectinload(Document.initiative)
+            .selectinload(Initiative.memberships)
+            .options(
+                selectinload(InitiativeMember.user),
+                selectinload(InitiativeMember.role_ref).selectinload(
+                    InitiativeRoleModel.permissions
+                ),
+            ),
+            selectinload(Document.grants).selectinload(ResourceGrant.role),
+        )
+    )
+    return (await session.exec(statement)).one_or_none()
+
+
 async def attach_document_to_project(
     session: AsyncSession,
     *,
@@ -203,7 +228,6 @@ async def attach_document_to_project(
     )
     session.add(link)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(link)
     return link
 
@@ -274,7 +298,8 @@ async def duplicate_document(
         new_to_source = {new: old for old, new in replacements.items()}
         if featured_image_url and featured_image_url != source.featured_image_url:
             new_urls.append(featured_image_url)
-            new_to_source[featured_image_url] = source.featured_image_url
+            if source.featured_image_url:
+                new_to_source[featured_image_url] = source.featured_image_url
         source_meta = await attachments_service.get_upload_metadata_for_urls(
             session, list(new_to_source.values())
         )
@@ -685,18 +710,23 @@ async def unresolve_wikilinks_to_document(
     *,
     deleted_document_id: int,
 ) -> None:
-    """Unresolve all wikilinks pointing to a document that is being deleted.
+    """Unresolve all wikilinks pointing to a document that is being hard-purged.
 
-    This updates the content of all documents that link to the deleted document,
+    This updates the content of all documents that link to the purged document,
     setting the wikilink's documentId to null so they appear as unresolved.
     Also removes the corresponding document_links entries and invalidates
     any in-memory collaboration rooms.
 
-    Should be called before deleting a document.
+    Called by ``hard_purge_entity`` before the DELETEs are issued (the
+    ``document_links`` rows must still exist to find the linking documents).
+    Soft-deleted linking documents are included — a trashed document restored
+    after the purge must not come back with a dangling wikilink.
     """
+    from app.db.soft_delete_filter import select_including_deleted
+
     # Find all documents that link to this document
     stmt = (
-        select(Document)
+        select_including_deleted(Document)
         .join(DocumentLink, DocumentLink.source_document_id == Document.id)
         .where(DocumentLink.target_document_id == deleted_document_id)
     )

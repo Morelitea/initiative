@@ -20,8 +20,13 @@ import { type HTMLAttributes, useCallback, useEffect, useMemo, useRef, useState 
 import { useTranslation } from "react-i18next";
 
 import type { ProjectRead, TagRead, TagSummary } from "@/api/generated/initiativeAPI.schemas";
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
 import { invalidateAllProjects } from "@/api/query-keys";
+import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
+import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { Markdown } from "@/components/Markdown";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { CreateProjectDialog } from "@/components/projects/CreateProjectDialog";
 import { ProjectImportDialog } from "@/components/projects/ProjectImportDialog";
@@ -38,12 +43,10 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/useAuth";
+import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
 import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import {
   useArchivedProjects,
@@ -76,7 +79,7 @@ type ProjectsViewProps = {
 };
 
 export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: ProjectsViewProps) => {
-  const { t } = useTranslation(["projects", "common"]);
+  const { t } = useTranslation(["projects", "common", "access"]);
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
   // Single source of truth for "what can I do in each initiative" — honors
@@ -91,12 +94,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
   const handleRefresh = useCallback(async () => {
     await invalidateAllProjects();
   }, []);
-  const claimedManagedInitiatives = useMemo(
-    () =>
-      user?.initiative_roles?.filter((assignment) => assignment.role === "project_manager") ?? [],
-    [user]
-  );
-  const hasClaimedManagerRole = claimedManagedInitiatives.length > 0;
   const [initiativeId, setInitiativeId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -240,11 +237,13 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
 
   const projectsQuery = useProjects();
 
-  const initiativesQuery = useInitiatives({
-    // Guild admins / PAM grantees can create across the guild even without a
-    // claimed manager role, so they must fetch initiatives too.
-    enabled: hasClaimedManagerRole || isGuildAdmin || isGrantGuild,
-  });
+  // This is a guild-scoped page and the initiatives list is cheap + cached, so
+  // fetch it unconditionally. Manager state is derived below from the payload
+  // via the shared access helper (permissionsFor(...).canCreateProjects), which
+  // already honors guild-admin / PAM grants — no need to pre-gate on a claimed
+  // manager role from user.initiative_roles (the /users/me object no longer
+  // populates that field: initiative membership is guild-schema content).
+  const initiativesQuery = useInitiatives();
   // Initiatives the user can create projects in — resolved through the shared
   // access helper so guild admins are included regardless of any membership row.
   const creatableInitiatives = useMemo(() => {
@@ -252,7 +251,7 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
       return [];
     }
     return filterVisible(initiativesQuery.data).filter(
-      (initiative) => permissionsFor(initiative).canCreateProjects
+      (initiative) => permissionsFor(initiative)[Tool.project].create
     );
   }, [initiativesQuery.data, user, filterVisible, permissionsFor]);
   const isProjectManager = creatableInitiatives.length > 0;
@@ -295,11 +294,16 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     }
     // If a specific initiative is filtered, check permissions for that initiative
     if (filteredInitiativeId && filteredInitiativePermissions) {
-      return canCreatePermission(filteredInitiativePermissions, "projects");
+      return canCreateTool(filteredInitiativePermissions, Tool.project);
     }
     // Fall back to legacy check (user is PM in any initiative)
     return isProjectManager;
   }, [canCreate, filteredInitiativeId, filteredInitiativePermissions, isProjectManager]);
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canCreateProjects ? { run: () => setIsComposerOpen(true), label: t("addProject") } : null
+  );
 
   // Helper function for per-project DAC checks
   const hasProjectWritePermission = (project: ProjectRead): boolean => {
@@ -521,49 +525,81 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
     });
   };
 
-  const projectCards =
-    sortMode === "custom" ? (
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleProjectDragEnd}
-      >
-        <SortableContext
-          items={sortedProjects.map((project) => project.id.toString())}
-          strategy={verticalListSortingStrategy}
-        >
-          {viewMode === "list" ? (
-            <div className="space-y-3">
-              {sortedProjects.map((project) => (
-                <SortableProjectRowLink key={project.id} project={project} userId={user?.id} />
-              ))}
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              {sortedProjects.map((project) => (
-                <SortableProjectCardLink key={project.id} project={project} userId={user?.id} />
-              ))}
-            </div>
-          )}
-        </SortableContext>
-      </DndContext>
+  const selection = useGridSelection<(typeof sortedProjects)[number]>();
+  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+
+  const projectCards = selection.active ? (
+    viewMode === "list" ? (
+      <div className="space-y-3">
+        {sortedProjects.map((project) => (
+          <SelectableGridItem
+            key={project.id}
+            active
+            selected={selection.selectedIds.has(project.id)}
+            onToggle={() => selection.toggle(project)}
+            label={project.name}
+          >
+            <ProjectRowLink project={project} userId={user?.id} />
+          </SelectableGridItem>
+        ))}
+      </div>
     ) : (
-      <>
+      <div className="grid gap-4 md:grid-cols-2">
+        {sortedProjects.map((project) => (
+          <SelectableGridItem
+            key={project.id}
+            active
+            selected={selection.selectedIds.has(project.id)}
+            onToggle={() => selection.toggle(project)}
+            label={project.name}
+          >
+            <ProjectCardLink project={project} userId={user?.id} />
+          </SelectableGridItem>
+        ))}
+      </div>
+    )
+  ) : sortMode === "custom" ? (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleProjectDragEnd}
+    >
+      <SortableContext
+        items={sortedProjects.map((project) => project.id.toString())}
+        strategy={verticalListSortingStrategy}
+      >
         {viewMode === "list" ? (
           <div className="space-y-3">
             {sortedProjects.map((project) => (
-              <ProjectRowLink key={project.id} project={project} userId={user?.id} />
+              <SortableProjectRowLink key={project.id} project={project} userId={user?.id} />
             ))}
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {sortedProjects.map((project) => (
-              <ProjectCardLink key={project.id} project={project} userId={user?.id} />
+              <SortableProjectCardLink key={project.id} project={project} userId={user?.id} />
             ))}
           </div>
         )}
-      </>
-    );
+      </SortableContext>
+    </DndContext>
+  ) : (
+    <>
+      {viewMode === "list" ? (
+        <div className="space-y-3">
+          {sortedProjects.map((project) => (
+            <ProjectRowLink key={project.id} project={project} userId={user?.id} />
+          ))}
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {sortedProjects.map((project) => (
+            <ProjectCardLink key={project.id} project={project} userId={user?.id} />
+          ))}
+        </div>
+      )}
+    </>
+  );
 
   const pinnedProjectsSection =
     pinnedProjects.length > 0 ? (
@@ -671,6 +707,11 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
+              {canViewProjects && sortedProjects.length > 0 && !selection.active && (
+                <Button variant="outline" onClick={selection.enter}>
+                  {t("access:bulkBar.select")}
+                </Button>
+              )}
             </div>
             <ProjectsFilterBar
               searchQuery={searchQuery}
@@ -704,7 +745,16 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
               </p>
             ) : (
               <>
-                {pinnedProjectsSection}
+                {selection.active ? (
+                  <BulkAccessBar
+                    count={selection.selectedItems.length}
+                    canManage={canManageSharing(selection.selectedItems)}
+                    onEditAccess={() => setBulkAccessOpen(true)}
+                    onExit={selection.exit}
+                  />
+                ) : (
+                  pinnedProjectsSection
+                )}
                 {sortedProjects.length > 0 ? (
                   projectCards
                 ) : pinnedProjects.length > 0 ? (
@@ -840,16 +890,6 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
         </Tabs>
 
         {canCreateProjects && (
-          <Button
-            className="fixed right-6 bottom-6 z-40 h-12 rounded-full px-6 shadow-lg shadow-primary/40"
-            onClick={() => setIsComposerOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            {t("addProject")}
-          </Button>
-        )}
-
-        {canCreateProjects && (
           <CreateProjectDialog
             open={isComposerOpen}
             onOpenChange={handleComposerOpenChange}
@@ -873,6 +913,15 @@ export const ProjectsView = ({ fixedInitiativeId, fixedTagIds, canCreate }: Proj
             defaultInitiativeId={initiativeId}
           />
         )}
+
+        <BulkEditAccessDialog
+          open={bulkAccessOpen}
+          onOpenChange={setBulkAccessOpen}
+          items={selection.selectedItems}
+          resourceType={Tool.project}
+          invalidate={invalidateAllProjects}
+          onSuccess={selection.exit}
+        />
       </div>
     </PullToRefresh>
   );

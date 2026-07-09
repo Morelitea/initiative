@@ -23,7 +23,7 @@ from app.core.user_input_validators import (
     normalize_timezone,
     normalize_week_starts_on,
 )
-from app.db.session import get_admin_session, reapply_rls_context, set_rls_context
+from app.db.session import get_admin_session, set_rls_context
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.platform.guild import GuildRole, GuildMembership
 from app.models.tenant.initiative import InitiativeMember
@@ -55,8 +55,8 @@ from app.services.platform import guilds as guilds_service
 from app.services.stream_authz import authority as stream_authority
 from app.services.platform import users as users_service
 from app.services.platform import api_keys as api_keys_service
-from app.services import csv_export
-from app.services import stats_service
+from app.services.platform import csv_export
+from app.services.tenant import stats_service
 from app.services.platform import user_tokens as user_tokens_service
 from app.services.tenant import recent_views as recent_views_service
 
@@ -88,7 +88,10 @@ async def read_users_me(
     session: UserSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
-    await initiatives_service.load_user_initiative_roles(session, [current_user])
+    # No initiative_roles enrichment: initiative membership is guild-schema
+    # content, which a platform-path request cannot (and must not) read.
+    # Guild-scoped rosters (/g/{guild_id}/users/) still serve it; clients
+    # derive per-guild manager state from guild-scoped initiative data.
     return current_user
 
 
@@ -265,14 +268,18 @@ async def create_user(
     session.add(user)
     await session.flush()
     # Platform role and guild role are independent - new users join as guild members
-    await guilds_service.ensure_membership(
-        session,
-        guild_id=guild_id,
-        user_id=user.id,
-        role=GuildRole.member,
-    )
+    try:
+        await guilds_service.ensure_membership(
+            session,
+            guild_id=guild_id,
+            user_id=user.id,
+            role=GuildRole.member,
+        )
+    except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -282,12 +289,32 @@ async def create_user(
 async def update_users_me(
     user_in: UserSelfUpdate,
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     response: Response,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
-    update_data = user_in.dict(exclude_unset=True)
+    update_data = user_in.model_dump(exclude_unset=True)
     if not update_data:
         return current_user
+
+    if (
+        update_data.get("email_task_assignment") is False
+        and current_user.email_task_assignment is not False
+    ):
+        # The digest queue is guild-scoped, so it must be cleared inside each
+        # of the user's guild schemas — before any mutation below, because the
+        # fan-out expunges the identity map (per-schema ids collide). Restore
+        # the platform context and re-fetch the user afterwards; the deletes
+        # ride this request's transaction and commit with it. Skipped when the
+        # preference is already off (nothing can be queued).
+        user_id = current_user.id
+        await notifications_service.clear_task_assignment_queue_across_guilds(
+            session, user_id
+        )
+        await set_rls_context(session, user_id=user_id)
+        current_user = (
+            await session.exec(select(User).where(User.id == user_id))
+        ).one()
 
     new_full_name = update_data.get("full_name")
     if new_full_name is not None:
@@ -313,9 +340,11 @@ async def update_users_me(
                 )
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
-        # Bump token_version and revoke active device tokens + API keys so a
-        # stale JWT/device token/API key can't survive the password change.
-        await user_tokens_service.revoke_user_sessions(session, user=current_user)
+        # Bump token_version and revoke device tokens + API keys + refresh
+        # sessions so no stale credential can survive the password change.
+        await user_tokens_service.revoke_user_sessions(
+            session, user=current_user, admin_session=admin_session
+        )
         # ...but keep THIS session alive. The version bump above invalidates the
         # caller's own token too, so re-issue the session cookie with the new
         # version: every *other* session/device still dies, while the user who
@@ -389,12 +418,10 @@ async def update_users_me(
         "push_event_reminders",
     ]:
         if field in update_data:
-            new_value = bool(update_data[field])
-            setattr(current_user, field, new_value)
-            if field == "email_task_assignment" and not new_value:
-                await notifications_service.clear_task_assignment_queue_for_user(
-                    session, current_user.id
-                )
+            # email_task_assignment=False also cleared the guild-scoped digest
+            # queue — done up-front (before any mutation) via the cross-guild
+            # fan-out at the top of this handler.
+            setattr(current_user, field, bool(update_data[field]))
     if "color_theme" in update_data:
         current_user.color_theme = update_data["color_theme"]
     if "task_completion_visual_feedback" in update_data:
@@ -419,9 +446,8 @@ async def update_users_me(
     current_user.updated_at = datetime.now(timezone.utc)
     session.add(current_user)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(current_user)
-    await initiatives_service.load_user_initiative_roles(session, [current_user])
+    # Platform path — no initiative_roles enrichment (see read_users_me).
     return current_user
 
 
@@ -430,6 +456,7 @@ async def update_user(
     user_id: int,
     user_in: UserUpdate,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
@@ -455,7 +482,7 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
-    update_data = user_in.dict(exclude_unset=True)
+    update_data = user_in.model_dump(exclude_unset=True)
     # Platform role changes are not allowed via this endpoint - use /admin/users/{id}/platform-role
     if "role" in update_data:
         raise HTTPException(
@@ -466,10 +493,12 @@ async def update_user(
         await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
         # Resetting a compromised account must invalidate the attacker's
-        # outstanding sessions: bump token_version (kills unexpired JWTs)
-        # and revoke active device tokens, mirroring the self-service and
-        # forgot-password reset paths.
-        await user_tokens_service.revoke_user_sessions(session, user=user)
+        # outstanding sessions: bump token_version (kills unexpired JWTs) and
+        # revoke device tokens / API keys / refresh sessions, mirroring the
+        # self-service and forgot-password reset paths.
+        await user_tokens_service.revoke_user_sessions(
+            session, user=user, admin_session=admin_session
+        )
     if "avatar_base64" in update_data:
         user.avatar_base64 = update_data.pop("avatar_base64")
         if user.avatar_base64:
@@ -506,7 +535,6 @@ async def update_user(
 
     session.add(user)
     await session.commit()
-    await reapply_rls_context(session)
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -554,7 +582,6 @@ async def approve_user(
         user.updated_at = datetime.now(timezone.utc)
         session.add(user)
         await session.commit()
-        await reapply_rls_context(session)
         await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
     return user
@@ -598,11 +625,11 @@ async def get_my_initiative_members(
     Used by the account-deletion transfer-target picker. ``guild_id`` is
     required: the initiative lives in that guild's schema (ids repeat across
     guild schemas), and the caller has it from the blocker record. We route in
-    as superadmin so the member list is read from the live guild schema (the
+    into the guild schema so the member list is read from the live data (the
     intentional cross-guild visibility the picker needs), not the frozen
     ``public`` backup.
     """
-    await set_rls_context(session, guild_id=guild_id, is_superadmin=True)
+    await set_rls_context(session, guild_id=guild_id)
 
     # Verify the current user is a member of this initiative
     membership = await initiatives_service.get_initiative_membership(

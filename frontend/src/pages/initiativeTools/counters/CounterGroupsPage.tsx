@@ -3,17 +3,21 @@ import { Loader2, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Tool } from "@/api/generated/initiativeAPI.schemas";
+import { invalidateAllCounterGroups } from "@/api/query-keys";
+import { BulkAccessBar, canManageSharing } from "@/components/access/BulkAccessBar";
+import { BulkEditAccessDialog } from "@/components/access/BulkEditAccessDialog";
+import { SelectableGridItem } from "@/components/access/SelectableGridItem";
 import { CounterGroupCard } from "@/components/initiativeTools/counters/CounterGroupCard";
 import { CountersFilterBar } from "@/components/initiativeTools/counters/CountersFilterBar";
 import { CreateCounterGroupDialog } from "@/components/initiativeTools/counters/CreateCounterGroupDialog";
+import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCounterGroupsList } from "@/hooks/useCounters";
+import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
-import {
-  canCreate as canCreatePermission,
-  useMyInitiativePermissions,
-} from "@/hooks/useInitiativeRoles";
+import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
 
@@ -25,7 +29,7 @@ type CountersViewProps = {
 };
 
 export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersViewProps) => {
-  const { t } = useTranslation(["counters", "common"]);
+  const { t } = useTranslation(["counterGroups", "common", "access"]);
   const router = useRouter();
   const gp = useGuildPath();
   const { activeGuildId } = useGuilds();
@@ -84,7 +88,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   });
   const initiativesQuery = useInitiatives();
   const initiatives = useMemo(
-    () => (initiativesQuery.data ?? []).filter((init) => init.counters_enabled),
+    () => (initiativesQuery.data ?? []).filter((init) => init.counter_groups_enabled),
     [initiativesQuery.data]
   );
   const initiativeNameMap = useMemo(() => {
@@ -96,7 +100,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const canCreateGroups = useMemo(() => {
     if (canCreate !== undefined) return canCreate;
     if (effectiveInitiativeId && initiativePerms) {
-      return canCreatePermission(initiativePerms, "counters");
+      return canCreateTool(initiativePerms, Tool.counter_group);
     }
     return initiatives.length > 0;
   }, [canCreate, effectiveInitiativeId, initiativePerms, initiatives.length]);
@@ -104,6 +108,11 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const [createOpen, setCreateOpen] = useState(searchParams.create === "true");
   const isClosingCreateDialog = useRef(false);
   const [search, setSearch] = useState("");
+
+  // Drive the app-wide bottom-nav add button for this route.
+  useRegisterPrimaryCreateAction(
+    canCreateGroups ? { run: () => setCreateOpen(true), label: t("createGroup") } : null
+  );
 
   // Open the create dialog whenever ?create=true is present — including when
   // the sidebar "+" navigates here while already on the page (the useState
@@ -149,6 +158,9 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const handleCreated = (group: { id: number }) => {
     void router.navigate({ to: gp(`/counter-groups/${group.id}`) });
   };
+
+  const selection = useGridSelection<(typeof groups)[number]>();
+  const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -198,15 +210,38 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
       ) : groupsQuery.isError ? (
         <p className="text-destructive text-sm">{t("loadError")}</p>
       ) : groups.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {groups.map((group) => (
-            <CounterGroupCard
-              key={group.id}
-              group={group}
-              initiativeName={initiativeNameMap.get(group.initiative_id)}
+        <>
+          {selection.active ? (
+            <BulkAccessBar
+              count={selection.selectedItems.length}
+              canManage={canManageSharing(selection.selectedItems)}
+              onEditAccess={() => setBulkAccessOpen(true)}
+              onExit={selection.exit}
             />
-          ))}
-        </div>
+          ) : (
+            <div className="flex justify-end">
+              <Button variant="outline" size="sm" onClick={selection.enter}>
+                {t("access:bulkBar.select")}
+              </Button>
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {groups.map((group) => (
+              <SelectableGridItem
+                key={group.id}
+                active={selection.active}
+                selected={selection.selectedIds.has(group.id)}
+                onToggle={() => selection.toggle(group)}
+                label={group.name}
+              >
+                <CounterGroupCard
+                  group={group}
+                  initiativeName={initiativeNameMap.get(group.initiative_id)}
+                />
+              </SelectableGridItem>
+            ))}
+          </div>
+        </>
       ) : totalCount > 0 ? (
         <p className="text-muted-foreground text-sm">{t("filters.noMatchingGroups")}</p>
       ) : (
@@ -229,6 +264,15 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
         initiativeId={lockedInitiativeId ?? undefined}
         defaultInitiativeId={effectiveInitiativeId ?? undefined}
         onSuccess={handleCreated}
+      />
+
+      <BulkEditAccessDialog
+        open={bulkAccessOpen}
+        onOpenChange={setBulkAccessOpen}
+        items={selection.selectedItems}
+        resourceType={Tool.counter_group}
+        invalidate={invalidateAllCounterGroups}
+        onSuccess={selection.exit}
       />
     </div>
   );

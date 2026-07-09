@@ -9,6 +9,7 @@ from fastapi import APIRouter
 #                          them — the one place tenant data is read without a
 #                          single guild context (see /me routes below).
 from app.api.v1.tenant_endpoints import (
+    advanced_tool,
     ai_settings,
     attachments,
     auto_subscriptions,
@@ -25,6 +26,8 @@ from app.api.v1.tenant_endpoints import (
     property_definitions,
     queues,
     recents,
+    resource_grants,
+    storage,
     tags,
     task_statuses,
     tasks,
@@ -33,7 +36,9 @@ from app.api.v1.tenant_endpoints import (
 from app.api.v1.platform_endpoints import (
     access_grants,
     admin,
+    ai_settings as platform_ai_settings,
     auth,
+    billing,
     config,
     guilds,
     native,
@@ -65,8 +70,10 @@ api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+# Service-to-service endpoints for the external billing service.
+api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(
-    ai_settings.platform_router, prefix="/settings", tags=["ai-settings"]
+    platform_ai_settings.platform_router, prefix="/settings", tags=["ai-settings"]
 )
 # Notifications are user-scoped (cross-guild) — not under /g.
 api_router.include_router(
@@ -113,7 +120,14 @@ guild_router.include_router(
 guild_router.include_router(
     calendar_events.router, prefix="/calendar-events", tags=["calendar-events"]
 )
+guild_router.include_router(
+    resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]
+)
+guild_router.include_router(storage.router, prefix="/storage", tags=["storage"])
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
+guild_router.include_router(
+    advanced_tool.router, prefix="/advanced-tools", tags=["advanced-tools"]
+)
 guild_router.include_router(
     property_definitions.router,
     prefix="/property-definitions",

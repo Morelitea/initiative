@@ -93,9 +93,14 @@ async def test_apply_to_all_guild_schemas_hits_every_guild(engine):
             await drop_guild_schema(conn, _GID_B)
 
 
-async def test_apply_to_all_guild_schemas_includes_public_by_default(engine):
-    """The default include_public=True also changes the legacy public copy — the
-    path every guild-scoped migration takes until public's copies are retired."""
+async def test_apply_to_all_guild_schemas_targets_template_not_public_by_default(
+    engine,
+):
+    """Post-squash contract: the default (include_public=False) applies to
+    ``guild_template`` + every ``guild_<id>`` and must NOT touch the frozen legacy
+    public copies. The template is the source provisioning reflects, so a fresh
+    guild inherits the change; public's copies are frozen/absent and are never a
+    guild-scoped migration target."""
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, _GID_C)
@@ -103,17 +108,22 @@ async def test_apply_to_all_guild_schemas_includes_public_by_default(engine):
             await conn.run_sync(
                 lambda c: apply_to_all_guild_schemas(
                     c, f"ALTER TABLE tags ADD COLUMN IF NOT EXISTS {_COLUMN} boolean"
-                )  # include_public defaults to True
+                )  # include_public defaults to False now
             )
         async with engine.connect() as conn:
-            assert await _tags_has_column(conn, "public")  # the default path hit public
+            # The provisioned guild schema got the change...
             assert await _tags_has_column(conn, guild_schema_name(_GID_C))
+            # ...and so did guild_template (the source new guilds are built from),
+            # which the migration 20260701_0126 created in the test DB.
+            assert await _tags_has_column(conn, "guild_template")
+            # ...but the legacy public copy is deliberately left untouched.
+            assert not await _tags_has_column(conn, "public")
     finally:
         async with engine.begin() as conn:
             await conn.run_sync(
                 lambda c: apply_to_all_guild_schemas(
                     c, f"ALTER TABLE tags DROP COLUMN IF EXISTS {_COLUMN}"
-                )  # remove from public + every guild schema
+                )  # remove from guild_template + every guild schema
             )
             await drop_guild_schema(conn, _GID_C)
 
