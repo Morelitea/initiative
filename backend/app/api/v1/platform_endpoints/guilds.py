@@ -64,6 +64,9 @@ def _serialize_guild(
         member_count=member_count,
         max_storage_bytes=guild.max_storage_bytes,
         max_users=guild.max_users,
+        # Display-only plan label (never an enforcement input); the SPA shows
+        # it only when a billing portal is configured.
+        tier_name=guild.tier_name,
         # Only guild admins learn the lifecycle status (for the settings-page
         # chip); members get None so a moderation hold isn't disclosed to them.
         status=(

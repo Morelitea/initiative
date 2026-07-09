@@ -191,7 +191,7 @@ async def _select_tier_row(session: AsyncSession, guild_id: int):
     """Read the billing-visible slice of one guild. Explicit columns only —
     the role's grants are column-scoped, so an ORM ``SELECT *`` would fail."""
     return (
-        await session.execute(select(*_GUILD_TIER_COLUMNS).where(Guild.id == guild_id))
+        await session.exec(select(*_GUILD_TIER_COLUMNS).where(Guild.id == guild_id))
     ).one_or_none()
 
 
@@ -199,12 +199,12 @@ async def _member_count(session: AsyncSession, guild_id: int) -> int:
     # count(guild_id), not count(*): guild_id (NOT NULL) is the role's only
     # granted column on this table.
     return (
-        await session.execute(
+        await session.exec(
             select(func.count(GuildMembership.guild_id)).where(
                 GuildMembership.guild_id == guild_id
             )
         )
-    ).scalar_one()
+    ).one()
 
 
 async def apply_guild_tier(
@@ -255,7 +255,7 @@ async def apply_guild_tier(
     )
     try:
         async with session.begin_nested():
-            await session.execute(claim)
+            await session.exec(claim)
         applied = True
     except IntegrityError:
         applied = False
@@ -280,7 +280,7 @@ async def apply_guild_tier(
             )
         if values:
             values["updated_at"] = now
-            await session.execute(
+            await session.exec(
                 update(Guild).where(Guild.id == payload.guild_id).values(**values)
             )
             row = await _select_tier_row(session, payload.guild_id)
@@ -299,8 +299,33 @@ async def apply_guild_tier(
 async def guild_member_count(session: AsyncSession, guild_id: int) -> int:
     """Headcount for per-user billing."""
     exists = (
-        await session.execute(select(Guild.id).where(Guild.id == guild_id))
+        await session.exec(select(Guild.id).where(Guild.id == guild_id))
     ).one_or_none()
     if exists is None:
         raise BillingGuildNotFoundError(guild_id)
     return await _member_count(session, guild_id)
+
+
+async def guild_storage_usage(admin_session: AsyncSession, guild_id: int) -> int:
+    """Current stored bytes for one guild, for the signed usage read.
+
+    ``uploads`` lives in the per-guild ``guild_<id>`` schema, which the
+    column-scoped ``initiative_billing`` role cannot reach — so this runs on
+    the **system engine** routed into the guild (``guild_role='admin'``, the
+    trash-purge pattern), not the billing-context session. The billing session
+    still owns envelope verification + the jti burn in the endpoint; this only
+    reads the same ``SUM(uploads.size_bytes)`` that ``enforce_storage_quota``
+    enforces against. Read-only — the app never pushes usage anywhere.
+    """
+    from app.db.session import set_rls_context
+    from app.services.tenant.attachments import get_guild_storage_usage
+
+    # Existence check at the public baseline before routing into the schema.
+    exists = (
+        await admin_session.exec(select(Guild.id).where(Guild.id == guild_id))
+    ).one_or_none()
+    if exists is None:
+        raise BillingGuildNotFoundError(guild_id)
+
+    await set_rls_context(admin_session, guild_id=guild_id, guild_role="admin")
+    return await get_guild_storage_usage(admin_session)

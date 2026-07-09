@@ -33,7 +33,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core import config as config_module
 from app.db.jti_blocklist import purge_expired_jtis
 from app.models.platform.billing import BillingEventLog, BillingJti
-from app.testing import create_guild, create_guild_membership, create_user
+from app.testing import (
+    create_guild,
+    create_guild_membership,
+    create_upload,
+    create_user,
+)
 
 pytestmark = pytest.mark.integration
 
@@ -536,5 +541,44 @@ async def test_headcount_burns_jti(client: AsyncClient, session: AsyncSession):
     first = await _post(client, "headcount", {"guild_id": guild.id}, token=token)
     assert first.status_code == 200
     second = await _post(client, "headcount", {"guild_id": guild.id}, token=token)
+    assert second.status_code == 403
+    assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
+
+
+# --- usage (signed storage read) -------------------------------------------------
+
+
+async def test_usage_sums_guild_bytes(client: AsyncClient, session: AsyncSession):
+    """The signed pull returns SUM(uploads.size_bytes) for the guild — the same
+    figure enforcement reads — via the guild schema (not the billing role)."""
+    guild = await create_guild(session)
+    uploader = await create_user(session, email="uploader@example.com")
+    await create_upload(session, guild, uploader, size_bytes=1000)
+    await create_upload(session, guild, uploader, size_bytes=234)
+
+    response = await _post(client, "usage", {"guild_id": guild.id})
+    assert response.status_code == 200, response.text
+    assert response.json() == {"guild_id": guild.id, "usage_bytes": 1234}
+
+
+async def test_usage_zero_for_empty_guild(client: AsyncClient, session: AsyncSession):
+    guild = await create_guild(session)
+    response = await _post(client, "usage", {"guild_id": guild.id})
+    assert response.status_code == 200, response.text
+    assert response.json() == {"guild_id": guild.id, "usage_bytes": 0}
+
+
+async def test_usage_unknown_guild_404(client: AsyncClient, session: AsyncSession):
+    response = await _post(client, "usage", {"guild_id": 999_999_999})
+    assert response.status_code == 404
+    assert response.json()["detail"] == "BILLING_GUILD_NOT_FOUND"
+
+
+async def test_usage_burns_jti(client: AsyncClient, session: AsyncSession):
+    guild = await create_guild(session)
+    token = _mint_token(jti="billing-usage-replay")
+    first = await _post(client, "usage", {"guild_id": guild.id}, token=token)
+    assert first.status_code == 200
+    second = await _post(client, "usage", {"guild_id": guild.id}, token=token)
     assert second.status_code == 403
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"

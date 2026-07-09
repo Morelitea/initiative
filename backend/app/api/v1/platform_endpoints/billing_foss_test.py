@@ -53,7 +53,7 @@ def test_billing_settings_default_off():
     assert settings.BILLING_SERVICE_URL is None
 
 
-@pytest.mark.parametrize("endpoint", ["guild-tier", "headcount"])
+@pytest.mark.parametrize("endpoint", ["guild-tier", "headcount", "usage"])
 async def test_unconfigured_endpoints_fail_closed_503(
     client: AsyncClient, session: AsyncSession, endpoint: str
 ):
@@ -151,13 +151,17 @@ async def test_operator_keeps_full_authority_over_billed_guild(
 
 # The complete surface allowed to mention tier_name. Everything else in
 # app/ — enforcement, services, deps, quota checks — must not: enforcement
-# reads only max_storage_bytes / max_users / status.
+# reads only max_storage_bytes / max_users / status. The display read
+# (GuildRead + its serializer) is allowed — it renders the plan label, it does
+# not gate anything.
 _TIER_NAME_ALLOWED = {
     "models/platform/guild.py",  # the column + its contract
     "models/platform/billing.py",  # audit vocabulary docstrings
     "schemas/platform/billing.py",  # the billing payloads
     "services/platform/billing.py",  # the boundary write
     "api/v1/platform_endpoints/billing.py",  # the boundary endpoints
+    "schemas/platform/guild.py",  # GuildRead display field
+    "api/v1/platform_endpoints/guilds.py",  # _serialize_guild passes it through
 }
 
 

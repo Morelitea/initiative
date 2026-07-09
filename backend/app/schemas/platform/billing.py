@@ -85,3 +85,22 @@ class BillingHeadcountRequest(SanitizedBaseModel):
 class BillingHeadcountRead(SanitizedBaseModel):
     guild_id: int
     member_count: int
+
+
+class BillingUsageRequest(SanitizedBaseModel):
+    """Body of ``POST /billing/usage`` — the storage read.
+
+    The guild rides the signed body (not a query string) so the envelope's
+    HMAC covers it, exactly like the headcount read.
+    """
+
+    guild_id: int = Field(ge=1)
+
+
+class BillingUsageRead(SanitizedBaseModel):
+    """Current stored bytes for one guild — the same figure
+    ``enforce_storage_quota`` reads. Read-only; the app never pushes usage
+    anywhere."""
+
+    guild_id: int
+    usage_bytes: int
