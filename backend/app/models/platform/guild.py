@@ -61,6 +61,10 @@ class Guild(SQLModel, table=True):
     max_users: Optional[int] = Field(
         default=None, sa_column=Column(Integer, nullable=True)
     )
+    # Display/audit label of the paid tier (NULL = none). CONTRACT: never an
+    # enforcement input — enforcement reads only max_storage_bytes / max_users
+    # / status, so the FOSS app enforces numbers, not plans. A test pins
+    # tier_name to the billing surface (billing_foss_test.py).
     tier_name: Optional[str] = Field(
         default=None, sa_column=Column(String(64), nullable=True)
     )

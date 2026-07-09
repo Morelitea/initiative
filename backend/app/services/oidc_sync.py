@@ -8,6 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db.session import set_rls_context
 from app.models.platform.guild import GuildMembership, GuildRole
+from app.services.platform import billing_ping
 from app.models.tenant.initiative import (
     Initiative,
     InitiativeMember,
@@ -166,6 +167,9 @@ async def sync_oidc_assignments(
                 session, user_id=user_id, guild_id=guild_id, role=role
             )
             result.guilds_added.append(guild_id)
+            # Event-driven seats (billing plan D5); no-op unless billing is
+            # configured. Once per changed guild, not per member row.
+            billing_ping.notify_membership_changed(guild_id)
     await session.flush()
 
     # Guilds to visit for guild-scoped work: those the claims map to, plus every
@@ -305,6 +309,7 @@ async def sync_oidc_assignments(
             )
         )
         result.guilds_removed.append(stale_gid)
+        billing_ping.notify_membership_changed(stale_gid)
 
     session.expunge_all()
     await set_rls_context(session)
