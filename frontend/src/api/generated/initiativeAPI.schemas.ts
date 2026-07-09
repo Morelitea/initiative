@@ -441,11 +441,24 @@ export interface CaptchaConfig {
 }
 
 /**
+ * Public link-out to an external billing portal.
+ *
+ * When ``BILLING_URL`` is unset on the backend (the default) this whole
+ * field is ``None`` and the SPA shows no tier label, upgrade, or
+ * manage-billing UI. The usage panel (caps + usage, all operator-set
+ * numbers) renders regardless. Only the base URL crosses.
+ */
+export interface BillingConfig {
+  url: string;
+}
+
+/**
  * Public, runtime-injected configuration consumed by the SPA at boot.
  */
 export interface AppConfig {
   advanced_tool?: AdvancedToolConfig | null;
   captcha?: CaptchaConfig | null;
+  billing?: BillingConfig | null;
 }
 
 export interface ArchiveDoneResponse {
@@ -1336,6 +1349,7 @@ export interface GuildRead {
   max_storage_bytes: number | null;
   max_users: number | null;
   member_count: number;
+  tier_name: string | null;
   status: GuildStatus | null;
 }
 
@@ -1389,6 +1403,11 @@ export type GuildRemovalRequestProjectTransfers = { [key: string]: number };
 export interface GuildRemovalRequest {
   project_transfers?: GuildRemovalRequestProjectTransfers;
   project_deletions?: number[];
+}
+
+export interface GuildStorageUsageRead {
+  guild_id: number;
+  usage_bytes: number;
 }
 
 export interface GuildSummary {
