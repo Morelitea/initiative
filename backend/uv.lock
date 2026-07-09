@@ -1209,7 +1209,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.49,<3" },
     { name = "sqlmodel", specifier = ">=0.0.38,<0.0.40" },
     { name = "tzdata", specifier = ">=2026.2" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.50" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.41.0,<0.52" },
 ]
 
 [package.metadata.requires-dev]

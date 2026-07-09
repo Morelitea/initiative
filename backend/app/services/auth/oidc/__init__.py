@@ -1,8 +1,9 @@
 """OpenID Connect relying-party building blocks.
 
 Small, independently-testable units — discovery, the id_token verifier, the
-JWKS key resolver, and the PKCE/nonce flow state so far; the ``OidcProvider``
-that composes them lands in a follow-up slice.
+JWKS key resolver, the PKCE/nonce flow state, and the ``OidcProvider`` that
+composes them into the begin/complete relying-party flow. Identity resolution
+against the database is the caller's step after ``complete``.
 """
 
 from app.services.auth.oidc.discovery import (
@@ -21,6 +22,13 @@ from app.services.auth.oidc.id_token import (
     verify_id_token,
 )
 from app.services.auth.oidc.jwks import JwksResolutionError, JwksResolver
+from app.services.auth.oidc.provider import (
+    OidcBegin,
+    OidcClientConfig,
+    OidcCompletion,
+    OidcFlowError,
+    OidcProvider,
+)
 
 __all__ = [
     "DiscoveryError",
@@ -28,10 +36,15 @@ __all__ = [
     "IdTokenVerificationError",
     "JwksResolutionError",
     "JwksResolver",
+    "OidcBegin",
+    "OidcClientConfig",
+    "OidcCompletion",
     "OidcDiscovery",
+    "OidcFlowError",
     "OidcFlowState",
     "OidcMetadata",
+    "OidcProvider",
+    "verify_id_token",
     "create_flow_state",
     "decode_flow_state",
-    "verify_id_token",
 ]

@@ -154,6 +154,24 @@ def test_valid_token_missing_required_field_rejected():
         decode_flow_state(token)
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        '{"code_verifier":"","nonce":"n"}',
+        '{"code_verifier":"v","nonce":""}',
+        '{"code_verifier":null,"nonce":"n"}',
+        '{"code_verifier":"v","nonce":42}',
+    ],
+)
+def test_empty_or_non_string_secrets_rejected(payload):
+    """A decoded flow state must always carry non-empty string secrets — an
+    empty nonce/verifier would otherwise surface downstream as a caller error
+    instead of a rejected login."""
+    token = encrypt_field(payload, SALT_OIDC_FLOW_STATE)
+    with pytest.raises(FlowStateError):
+        decode_flow_state(token)
+
+
 def test_valid_token_with_non_utf8_plaintext_rejected():
     """A same-key token whose plaintext isn't UTF-8 must still surface as
     FlowStateError — the function's whole contract — not UnicodeDecodeError."""

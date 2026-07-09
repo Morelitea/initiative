@@ -102,7 +102,7 @@ def decode_flow_state(
         raise FlowStateError("invalid or expired flow state") from exc
     try:
         data = json.loads(plaintext)
-        return OidcFlowState(
+        decoded = OidcFlowState(
             code_verifier=data["code_verifier"],
             nonce=data["nonce"],
             mobile=bool(data.get("mobile", False)),
@@ -110,3 +110,10 @@ def decode_flow_state(
         )
     except (ValueError, KeyError, TypeError) as exc:
         raise FlowStateError("malformed flow state payload") from exc
+    # A flow state exists to carry these two secrets; empty ones are malformed
+    # (and downstream verification treats them as caller errors, not bad input).
+    if not isinstance(decoded.code_verifier, str) or not decoded.code_verifier:
+        raise FlowStateError("malformed flow state payload")
+    if not isinstance(decoded.nonce, str) or not decoded.nonce:
+        raise FlowStateError("malformed flow state payload")
+    return decoded
