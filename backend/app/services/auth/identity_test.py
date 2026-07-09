@@ -16,7 +16,7 @@ from app.core.config import settings
 from app.core.encryption import hash_email
 from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
 from app.models.platform.federated_identity import FederatedIdentity
-from app.models.platform.user import UserRole, UserStatus
+from app.models.platform.user import User, UserRole, UserStatus
 from app.services.auth.identity import (
     IdentityResolution,
     ResolutionOutcome,
@@ -186,30 +186,83 @@ async def test_jit_disabled_provider_refuses_unknown_user(session):
     assert await _identities_for(session, provider) == []
 
 
-async def test_provisioning_writes_exactly_one_user_and_link(session):
-    """The JIT path is a single atomic transaction — one user, one link, no
-    partial state. (The lost-race recovery branch itself can't be exercised
-    here: the shared session fixture rolls the whole test back on the service's
-    rollback, so a concurrently-committed winner can't survive it; the branch is
-    correct by construction — atomic insert + Postgres unique-blocks-until-commit
-    — and becomes live in the wiring PR.)"""
+async def test_provision_recovers_from_subject_race_without_orphan(session):
+    """Case (a): a concurrent login committed our (provider, subject) first.
+    _provision must resolve to the winner (LINKED) and leave no orphaned user.
+    (The winner is created via a prior commit, which survives the service's
+    rollback; _provision is called directly since the top-level resolve would
+    short-circuit to LINKED before ever provisioning.)"""
+    from app.services.auth.identity import _provision
+
     provider = await _create_provider(session)
+    winner = await create_user(session, email="winner@example.com")
+    await link_identity(
+        session, user=winner, provider=provider, subject="sub-1", email_verified=True
+    )
 
-    result = await _resolve(session, provider, email="solo@example.com")
-    assert result.outcome is ResolutionOutcome.PROVISIONED
-
-    from app.models.platform.user import User
-
-    users = (
+    result = await _provision(
+        session,
+        provider=provider,
+        subject="sub-1",
+        email="loser@example.com",
+        email_verified=True,
+        full_name="Loser",
+        avatar_url=None,
+    )
+    assert result.outcome is ResolutionOutcome.LINKED
+    assert result.user.id == winner.id
+    # Our uncommitted user was rolled back — no orphan.
+    loser = (
         await session.exec(
-            select(User).where(User.email_hash == hash_email("solo@example.com"))
+            select(User).where(User.email_hash == hash_email("loser@example.com"))
         )
-    ).all()
-    assert len(users) == 1
-    links = await _identities_for(session, provider)
-    assert len(links) == 1
-    assert links[0].user_id == users[0].id
-    assert links[0].subject == "sub-1"
+    ).one_or_none()
+    assert loser is None
+
+
+async def test_provision_recovers_from_email_race_as_email_match(session):
+    """Case (b): a *different* subject with the same email won the email_hash
+    unique race. The loser must surface EMAIL_MATCH (never a silent link), not
+    re-raise a 500."""
+    from app.services.auth.identity import _provision
+
+    provider = await _create_provider(session)
+    winner = await create_user(session, email="shared@example.com")
+
+    result = await _provision(
+        session,
+        provider=provider,
+        subject="sub-new",
+        email="shared@example.com",
+        email_verified=True,
+        full_name="Loser",
+        avatar_url=None,
+    )
+    assert result.outcome is ResolutionOutcome.EMAIL_MATCH
+    assert result.user.id == winner.id
+    assert await _identities_for(session, provider) == []  # no link written
+
+
+async def test_provision_email_race_unverified_is_refused(session):
+    """Case (b) with an unverified asserted email → EMAIL_UNVERIFIED, mirroring
+    the non-raced account-takeover guard."""
+    from app.services.auth.identity import _provision
+
+    provider = await _create_provider(session)
+    winner = await create_user(session, email="victim@example.com")
+
+    result = await _provision(
+        session,
+        provider=provider,
+        subject="sub-new",
+        email="victim@example.com",
+        email_verified=False,
+        full_name="Attacker",
+        avatar_url=None,
+    )
+    assert result.outcome is ResolutionOutcome.EMAIL_UNVERIFIED
+    assert result.user.id == winner.id
+    assert await _identities_for(session, provider) == []
 
 
 async def test_closed_registration_refuses_unknown_user(session, monkeypatch):

@@ -223,23 +223,28 @@ async def _provision(
         avatar_url=avatar_url,
         email_verified=verified,
     )
-    session.add(user)
     try:
-        # User + identity land in ONE transaction: flush assigns the user id
-        # without committing, then both commit together. So a failure can never
-        # leave a committed, login-less user with no identity (the orphan case),
-        # and there is no window where the user exists but the link doesn't.
-        await session.flush()
-        if user.id is None:  # populated by flush; guard also narrows the type
-            raise RuntimeError("user id not assigned after flush")
-        identity = FederatedIdentity(
-            user_id=user.id,
-            provider_id=provider.id,
-            subject=subject,
-            email_verified=verified,
-            last_login_at=datetime.now(timezone.utc),
-        )
-        session.add(identity)
+        # User + identity are inserted inside ONE savepoint: flush assigns the
+        # user id, then both are staged together. A conflict rolls the savepoint
+        # back (discarding our user — no orphan) while leaving the outer
+        # transaction usable for the recovery reads below. (A plain flush +
+        # session.rollback() would instead poison the connection and expire every
+        # object, so the recovery SELECT couldn't run — hence the savepoint, the
+        # same pattern the billing idempotency insert uses.)
+        async with session.begin_nested():
+            session.add(user)
+            await session.flush()
+            if user.id is None:  # populated by flush; guard also narrows the type
+                raise RuntimeError("user id not assigned after flush")
+            identity = FederatedIdentity(
+                user_id=user.id,
+                provider_id=provider.id,
+                subject=subject,
+                email_verified=verified,
+                last_login_at=datetime.now(timezone.utc),
+            )
+            session.add(identity)
+            await session.flush()
         await session.commit()
         await session.refresh(user)
         await session.refresh(identity)
@@ -247,12 +252,13 @@ async def _provision(
             outcome=ResolutionOutcome.PROVISIONED, user=user, identity=identity
         )
     except IntegrityError:
-        # Lost a provisioning race: a concurrent login inserted the same subject
-        # (or email) first. Its conflicting unique insert blocked ours until it
-        # committed, so the winner is now committed and visible — re-resolve to
-        # it instead of failing the login. The rollback discards our uncommitted
-        # user, so no orphan is left behind.
-        await session.rollback()
+        # Lost a JIT race with a concurrent login. A conflicting unique insert
+        # blocks until the other transaction commits, so by the time we're here
+        # the winner is committed and visible; the savepoint has already discarded
+        # our user (no orphan) and the outer transaction is intact. Resolve to
+        # whatever the winner left — the two unique constraints give two races:
+        # (a) (provider, subject) — a double-submit of the *same* login. The
+        #     winner's link is ours to use.
         winner = await _find_identity(session, provider_id=provider.id, subject=subject)
         if winner is not None:
             user = (
@@ -262,4 +268,26 @@ async def _provision(
                 return IdentityResolution(
                     outcome=ResolutionOutcome.LINKED, user=user, identity=winner
                 )
+        # (b) users.email_hash — a *different* subject with the same email (a
+        #     second provider, or the IdP issuing a new subject) got there first.
+        #     That is now an existing, unlinked account matched by email: the same
+        #     EMAIL_MATCH / EMAIL_UNVERIFIED decision a non-raced login makes,
+        #     never a silent link. Only a real asserted email can collide here —
+        #     the synthetic {subject}@oidc.local address is subject-unique, so its
+        #     only race is (a).
+        if email:
+            matched = (
+                await session.exec(
+                    select(User).where(
+                        User.email_hash == hash_email(email.lower().strip())
+                    )
+                )
+            ).one_or_none()
+            if matched is not None:
+                outcome = (
+                    ResolutionOutcome.EMAIL_MATCH
+                    if email_verified
+                    else ResolutionOutcome.EMAIL_UNVERIFIED
+                )
+                return IdentityResolution(outcome=outcome, user=matched)
         raise
