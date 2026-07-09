@@ -464,7 +464,8 @@ async def backfill_guild_schemas() -> BackfillSummary:
 
 
 async def warn_if_privileged_database_url() -> None:
-    """Warn when DATABASE_URL connects as a superuser (or BYPASSRLS) role.
+    """Emit a deprecation banner when DATABASE_URL connects as a superuser
+    (or BYPASSRLS) role.
 
     The app never needs a Postgres superuser: migrations + guild provisioning
     fit in the least-privilege ``app_provisioner`` role (NOSUPERUSER CREATEROLE
@@ -473,6 +474,11 @@ async def warn_if_privileged_database_url() -> None:
     get the role from the Postgres image's ``docker-entrypoint-initdb.d``
     script; existing deployments run ``scripts/create-provisioner.sql`` once
     (see the deployment docs), then point DATABASE_URL at ``app_provisioner``.
+
+    Superuser DATABASE_URL support is DEPRECATED and a future release will
+    refuse to start with it, so the banner is deliberately loud — a framed
+    multi-line block at WARNING every boot, not a one-liner that scrolls past —
+    to move the remaining legacy deployments before the hard cutoff.
     """
     async with db_session.provisioning_engine.connect() as conn:
         rolsuper, rolbypassrls = (
@@ -485,10 +491,26 @@ async def warn_if_privileged_database_url() -> None:
         ).one()
     if rolsuper or rolbypassrls:
         logger.warning(
-            "DATABASE_URL connects as %s role — the app does not need this. "
-            "Run backend/scripts/create-provisioner.sql once (see the "
-            "deployment docs) and point DATABASE_URL at app_provisioner.",
+            "\n%s\n"
+            "DEPRECATED: DATABASE_URL connects as %s role.\n"
+            "The app never needs these privileges, and a FUTURE RELEASE WILL\n"
+            "REFUSE TO START with them. Migrate once (about a minute):\n"
+            "\n"
+            "  1. Create the least-privilege provisioning role — connected as\n"
+            "     the current DATABASE_URL role, run\n"
+            "     backend/scripts/create-provisioner.sql, e.g.:\n"
+            "       docker exec -i initiative-db \\\n"
+            "         psql -v ON_ERROR_STOP=1 -U <user> -d <database> \\\n"
+            "              -v provisioner_password='CHANGE-ME' \\\n"
+            "              -f - < backend/scripts/create-provisioner.sql\n"
+            "  2. Point DATABASE_URL at app_provisioner and restart.\n"
+            "\n"
+            "DATABASE_URL_APP / DATABASE_URL_ADMIN are unaffected. See the\n"
+            "deployment docs for details.\n"
+            "%s",
+            "=" * 70,
             "a SUPERUSER" if rolsuper else "a BYPASSRLS",
+            "=" * 70,
         )
 
 
