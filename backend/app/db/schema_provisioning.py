@@ -490,3 +490,88 @@ async def warn_if_privileged_database_url() -> None:
             "deployment docs) and point DATABASE_URL at app_provisioner.",
             "a SUPERUSER" if rolsuper else "a BYPASSRLS",
         )
+
+
+_EFFECTIVE_BYPASS_SQL = (
+    "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
+)
+
+
+async def ensure_system_engine_bypassrls() -> None:
+    """Verify the system engine (``DATABASE_URL_ADMIN``) actually bypasses RLS,
+    re-asserting the attribute when the provisioning login lawfully can.
+
+    Every seeding/background-job query assumes the system engine holds
+    BYPASSRLS. A login that connects fine but is policy-bound (roles are
+    cluster state — a ``pg_dump``-based restore recreates none of their
+    attributes, and hand-created logins may omit the attribute) reads every
+    shared table as empty, so the first boot after such a restore dies deep in
+    startup seeding with an opaque "new row violates row-level security policy
+    for table \"guilds\"" while trying to re-create the primary guild it cannot
+    see (issue #835). The baseline migration verifies this contract, but only
+    fresh databases run it — an already-stamped database is never re-checked.
+
+    Runs right after migrations on every boot. When ``DATABASE_URL`` holds
+    BYPASSRLS or superuser (Postgres reserves BYPASSRLS surgery for holders of
+    it — true for legacy deployments that still migrate as the compose
+    superuser), the attribute is repaired in place, preserving the baseline's
+    self-healing behavior. Otherwise boot stops with the exact repair command
+    instead of the downstream RLS error.
+    """
+    async with db_session.admin_engine.connect() as conn:
+        admin_login, bypasses = (
+            await conn.execute(
+                text(
+                    "SELECT current_user, "
+                    "(SELECT rolsuper OR rolbypassrls FROM pg_roles "
+                    " WHERE rolname = current_user)"
+                )
+            )
+        ).one()
+    if bypasses:
+        return
+
+    async with db_session.provisioning_engine.begin() as conn:
+        can_heal = (await conn.execute(text(_EFFECTIVE_BYPASS_SQL))).scalar()
+        if can_heal:
+            # Role DDL takes no bind parameters; pin the identifier through a
+            # transaction-local GUC and quote it server-side with format(%I),
+            # mirroring the baseline migration's role DDL.
+            await conn.execute(
+                text("SELECT set_config('app._system_engine_login', :name, true)"),
+                {"name": admin_login},
+            )
+            await conn.execute(
+                text(
+                    "DO $$ BEGIN "
+                    "EXECUTE format('ALTER ROLE %I WITH BYPASSRLS', "
+                    "current_setting('app._system_engine_login')); "
+                    "END $$"
+                )
+            )
+
+    if can_heal:
+        async with db_session.admin_engine.connect() as conn:
+            healed = (await conn.execute(text(_EFFECTIVE_BYPASS_SQL))).scalar()
+        if healed:
+            logger.warning(
+                "System engine login %r was missing BYPASSRLS — re-asserted it "
+                "via DATABASE_URL. Restored databases lose role attributes; "
+                "no action needed.",
+                admin_login,
+            )
+            return
+
+    raise SystemExit(
+        f"\n{'=' * 70}\n"
+        f"DATABASE_URL_ADMIN connects as {admin_login!r}, which does not hold\n"
+        "the BYPASSRLS attribute. This login is the app's system engine\n"
+        "(startup seeding, background jobs); policy-bound, it reads every\n"
+        "shared table as empty and boot fails with a row-level security\n"
+        "error. Roles are cluster state — restoring a database from a dump\n"
+        "does not restore them.\n\n"
+        "Repair it as a Postgres superuser:\n\n"
+        f'  ALTER ROLE "{admin_login}" WITH BYPASSRLS;\n\n'
+        "then restart the app.\n"
+        f"{'=' * 70}"
+    )

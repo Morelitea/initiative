@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Anonymizing or deleting a user now scrubs their email out of any guild invite addressed to them (invite addresses are stored reversibly encrypted, so a lingering invite kept a recoverable copy); the invite is neutralized so this can't turn it into an open shareable link.
+- Startup no longer fails with `new row violates row-level security policy for table "guilds"` when the system-engine login (`DATABASE_URL_ADMIN`) has lost its `BYPASSRLS` attribute — typically after restoring a database from a dump, which recreates no roles (#835). Boot now verifies the attribute right after migrations, restores it automatically when `DATABASE_URL` is privileged enough, and otherwise stops with the exact `ALTER ROLE` command to run instead of the opaque seeding error.
 
 ## [0.54.2] - 2026-07-04
 
