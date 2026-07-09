@@ -21,6 +21,8 @@ ClientFactory = Callable[[], httpx.AsyncClient]
 DEFAULT_HTTP_TIMEOUT_SECONDS: float = 10.0
 # A discovery doc / JWKS is a few KiB; 512 KiB is generous headroom.
 DEFAULT_MAX_RESPONSE_BYTES: int = 512 * 1024
+# Error bodies are logged, so keep only enough for the diagnostic payload.
+_ERROR_SNIPPET_MAX_BYTES: int = 2048
 
 
 class OidcHttpError(Exception):
@@ -91,21 +93,33 @@ async def _request_json(
     require_https(url)
     factory = client_factory or (lambda: httpx.AsyncClient(timeout=timeout_seconds))
     body = bytearray()
-    # The cap is flagged and raised AFTER the stream context exits: raising inside
-    # it would leave our exception exposed to replacement by a teardown error from
-    # the abandoned body (the transport may fault when we stop reading mid-stream).
+    # Failures are flagged and raised AFTER the stream context exits: raising
+    # inside it would leave our exception exposed to replacement by a teardown
+    # error from the abandoned body (the transport may fault when we stop
+    # reading mid-stream).
     over_cap = False
+    error_status: int | None = None
     try:
         async with factory() as client:
             async with client.stream(method, url, data=data) as resp:
-                resp.raise_for_status()
+                if resp.status_code >= 400:
+                    # Read a bounded snippet of the error body: an OAuth error
+                    # response ({"error": "invalid_grant", ...}) is the one
+                    # diagnostic the server operator needs in the logs.
+                    error_status = resp.status_code
+                    max_bytes = _ERROR_SNIPPET_MAX_BYTES
+                else:
+                    max_bytes = max_response_bytes
                 async for chunk in resp.aiter_bytes():
                     body.extend(chunk)
-                    if len(body) > max_response_bytes:
+                    if len(body) > max_bytes:
                         over_cap = True
                         break
     except httpx.HTTPError as exc:
         raise OidcHttpError(f"fetch failed for {url}: {exc}") from exc
+    if error_status is not None:
+        snippet = body[:_ERROR_SNIPPET_MAX_BYTES].decode("utf-8", errors="replace")
+        raise OidcHttpError(f"{url} returned {error_status}: {snippet}")
     if over_cap:
         raise OidcHttpError(
             f"response from {url} exceeds the {max_response_bytes}-byte cap"

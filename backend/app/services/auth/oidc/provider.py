@@ -67,13 +67,23 @@ class OidcFlowError(Exception):
 
 @dataclass(frozen=True)
 class OidcClientConfig:
-    """One provider's client registration, as plain values."""
+    """One provider's client registration, as plain values.
+
+    Raises :class:`ValueError` at construction for an empty ``issuer``,
+    ``client_id``, or ``redirect_uri`` — a misconfiguration must surface where
+    the provider is built, not as a stray error mid-login.
+    """
 
     issuer: str
     client_id: str
     redirect_uri: str
     client_secret: str | None = None  # None = public client (PKCE-only)
     scopes: str = DEFAULT_SCOPES
+
+    def __post_init__(self) -> None:
+        for field_name in ("issuer", "client_id", "redirect_uri"):
+            if not getattr(self, field_name):
+                raise ValueError(f"OidcClientConfig.{field_name} must be non-empty")
 
 
 @dataclass(frozen=True)

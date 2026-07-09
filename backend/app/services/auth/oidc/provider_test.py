@@ -69,9 +69,14 @@ def _mint_id_token(
 
 
 class FakeIdp:
-    """Routes discovery/JWKS/token requests; records the token-request form."""
+    """Routes discovery/JWKS/token requests; records the token-request form.
 
-    def __init__(self, *, algs: list[str] | None = ["RS256", "ES256"]):
+    ``algs`` fills ``id_token_signing_alg_values_supported``; ``None`` means the
+    discovery document omits the field entirely (an immutable tuple default —
+    do not "fix" it to ``None``, which has that distinct meaning).
+    """
+
+    def __init__(self, *, algs: tuple[str, ...] | None = ("RS256", "ES256")):
         doc = {
             "issuer": ISSUER,
             "authorization_endpoint": f"{ISSUER}/authorize",
@@ -79,7 +84,7 @@ class FakeIdp:
             "jwks_uri": f"{ISSUER}/jwks",
         }
         if algs is not None:
-            doc["id_token_signing_alg_values_supported"] = algs
+            doc["id_token_signing_alg_values_supported"] = list(algs)
         self.discovery_doc = doc
         self.jwks_doc = _jwks_doc()
         # Callable building the token response from the parsed form, or a fixed
@@ -253,6 +258,18 @@ async def test_token_endpoint_error_rejected():
     with pytest.raises(OidcFlowError) as err:
         await provider.complete(code="c", state=begun.state)
     assert err.value.code == "token_request_failed"
+    # The OAuth error body survives into the (server-side) detail for debugging.
+    assert "invalid_grant" in str(err.value)
+
+
+def test_empty_client_id_rejected_at_construction():
+    """Config problems surface where the provider is built, not mid-login."""
+    with pytest.raises(ValueError):
+        OidcClientConfig(issuer=ISSUER, client_id="", redirect_uri=REDIRECT_URI)
+    with pytest.raises(ValueError):
+        OidcClientConfig(issuer="", client_id=CLIENT_ID, redirect_uri=REDIRECT_URI)
+    with pytest.raises(ValueError):
+        OidcClientConfig(issuer=ISSUER, client_id=CLIENT_ID, redirect_uri="")
 
 
 async def test_token_response_missing_id_token_rejected():
@@ -333,7 +350,7 @@ async def test_id_token_for_other_audience_rejected():
 async def test_provider_advertising_only_symmetric_algs_rejected():
     """A discovery doc advertising only HMAC algs must be an OidcFlowError —
     never a fallback to accepting HMAC, and never a raw ValueError."""
-    idp = FakeIdp(algs=["HS256"])
+    idp = FakeIdp(algs=("HS256",))
     provider = _provider(idp)
     begun = await provider.begin()
     nonce = decode_flow_state(begun.state).nonce
@@ -347,7 +364,7 @@ async def test_provider_advertising_only_symmetric_algs_rejected():
 
 async def test_token_alg_outside_advertised_set_rejected():
     """Discovery advertises ES256 only; an RS256 id_token must be refused."""
-    idp = FakeIdp(algs=["ES256"])
+    idp = FakeIdp(algs=("ES256",))
     provider = _provider(idp)
     begun = await provider.begin()
     nonce = decode_flow_state(begun.state).nonce
