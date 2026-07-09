@@ -51,6 +51,10 @@ REAUTH_INTERVAL_SECONDS = RLS_CONTEXT_MAX_AGE_SECONDS // 2
 # initiative + PAM) and check DAC (compute_*_permission). True iff the user may
 # still stream it. Each content channel supplies its own (closing over the
 # resource id + its DAC resolver) — the per-tool half of the spine.
+# ``establish_guild_access`` records the guild lifecycle state (frozen content)
+# in the request context, and the DAC engine caps its levels from it — so a
+# writer socket in a guild that turns read_only fails the adapter's write check
+# with no extra plumbing here.
 Authorizer = Callable[[AsyncSession, User], Awaitable[bool]]
 
 # A fan-out room is (guild_id, resource_type, resource_id). The guild_id is

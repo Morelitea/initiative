@@ -72,6 +72,10 @@ def _serialize_guild(
         status=(
             GuildStatus(guild.status) if membership.role == GuildRole.admin else None
         ),
+        # Every member learns the *effect* of a read_only hold (their writes
+        # already fail at the DB role level) so the UI can drop write
+        # affordances — without disclosing the status itself.
+        content_read_only=(guild.status == GuildStatus.read_only.value),
     )
 
 
@@ -274,7 +278,6 @@ async def update_guild(
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     icon_provided = "icon_base64" in updates.model_fields_set
     retention_days_provided = "retention_days" in updates.model_fields_set
-    max_storage_bytes_provided = "max_storage_bytes" in updates.model_fields_set
     guild = await guilds_service.update_guild(
         session,
         guild_id=guild_id,
@@ -284,8 +287,6 @@ async def update_guild(
         icon_provided=icon_provided,
         retention_days=updates.retention_days,
         retention_days_provided=retention_days_provided,
-        max_storage_bytes=updates.max_storage_bytes,
-        max_storage_bytes_provided=max_storage_bytes_provided,
     )
     await session.commit()
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)

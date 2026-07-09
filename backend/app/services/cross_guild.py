@@ -12,9 +12,13 @@ from typing import Awaitable, Callable, Optional, Sequence, TypeVar
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.role_context import set_active_role, set_override_sharing_initiatives
+from app.core.role_context import (
+    set_active_role,
+    set_content_read_only_guild,
+    set_override_sharing_initiatives,
+)
 from app.db.session import set_rls_context
-from app.models.platform.guild import GuildMembership
+from app.models.platform.guild import Guild, GuildMembership, GuildStatus
 
 T = TypeVar("T")
 
@@ -27,10 +31,21 @@ async def member_guild_ids(
 ) -> list[int]:
     """Guild ids the user belongs to, sorted (optionally intersected with
     ``restrict_to``). Routes to the user-only context so the user's own rows in
-    the shared ``guild_memberships`` table are visible."""
+    the shared ``guild_memberships`` table are visible.
+
+    Suspended guilds are excluded for every membership role: content access is
+    cut for members AND guild admins alike (admins keep only the settings
+    surface), so no cross-guild aggregate may surface a suspended guild's
+    content — the ``/g/{guild_id}`` choke point (``_load_guild_context``)
+    refuses those guilds and this is its aggregate-path twin."""
     await set_rls_context(session, user_id=user_id)
     rows = await session.exec(
-        select(GuildMembership.guild_id).where(GuildMembership.user_id == user_id)
+        select(GuildMembership.guild_id)
+        .join(Guild, Guild.id == GuildMembership.guild_id)
+        .where(
+            GuildMembership.user_id == user_id,
+            Guild.status != GuildStatus.suspended.value,
+        )
     )
     ids = sorted(rows)
     if restrict_to is not None:
@@ -57,16 +72,18 @@ async def gather_across_guilds(
     who was never added to its initiative)."""
     if not guild_ids:
         return []
-    # One shared-table read for every guild's role (own rows), under the
-    # user-only context, before we start routing into schemas.
+    # One shared-table read for every guild's role (own rows) AND lifecycle
+    # status, under the user-only context, before we start routing into schemas.
     await set_rls_context(session, user_id=user_id)
     role_rows = await session.exec(
-        select(GuildMembership.guild_id, GuildMembership.role).where(
+        select(GuildMembership.guild_id, GuildMembership.role, Guild.status)
+        .join(Guild, Guild.id == GuildMembership.guild_id)
+        .where(
             GuildMembership.user_id == user_id,
             GuildMembership.guild_id.in_(tuple(guild_ids)),
         )
     )
-    roles = {guild_id: role for guild_id, role in role_rows}
+    roles: dict[int, tuple] = {gid: (role, status) for gid, role, status in role_rows}
 
     results: list[T] = []
     try:
@@ -75,11 +92,27 @@ async def gather_across_guilds(
             # a prior guild, or anything already on the session) would otherwise be
             # returned by the identity map instead of this guild's row.
             session.expunge_all()
-            role = roles.get(guild_id)
+            role, guild_status = roles.get(guild_id, (None, None))
+            # Defense in depth for callers that assemble their own guild list
+            # (member_guild_ids already filters): membership grants NO content
+            # access to a suspended guild, admins included.
+            if guild_status == GuildStatus.suspended.value:
+                continue
             role_value = role.value if role is not None else None
+            content_read_only = guild_status == GuildStatus.read_only.value
             await set_rls_context(
-                session, user_id=user_id, guild_id=guild_id, guild_role=role_value
+                session,
+                user_id=user_id,
+                guild_id=guild_id,
+                guild_role=role_value,
+                # Mirror the request path: a read_only guild is visited through
+                # the SELECT-only guild_<id>_ro role, so an aggregate loop can
+                # never write into a frozen guild.
+                read_only=content_read_only,
             )
+            # ... and the app-layer DAC engine agrees: my_permission_level and
+            # write filters serialized from this guild's fetch report read.
+            set_content_read_only_guild(guild_id if content_read_only else None)
             # Mirror the guild dependency: the DB GUC drives RLS (initiative_access
             # admin leg), and the request role_context drives the *app-layer*
             # guild-admin short-circuit in permissions.py (so my_permission_level /
@@ -95,8 +128,9 @@ async def gather_across_guilds(
             set_override_sharing_initiatives(frozenset(override_ids))
             results.extend(await fetch(session, guild_id))
     finally:
-        # Don't let the last guild's role/override set linger in the request
-        # contextvars.
+        # Don't let the last guild's role/override/read-only set linger in the
+        # request contextvars.
         set_active_role(None, None)
         set_override_sharing_initiatives(None)
+        set_content_read_only_guild(None)
     return results

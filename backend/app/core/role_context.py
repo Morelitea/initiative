@@ -68,3 +68,28 @@ def request_overrides_sharing(initiative_id: Optional[int]) -> bool:
     if initiative_id is None:
         return False
     return initiative_id in _override_initiatives.get()
+
+
+# Guild id whose content is frozen for this request (the guild is in
+# ``read_only`` lifecycle status and access is via REAL membership), or None.
+# Set alongside the RLS context: the Postgres role (``guild_<id>_ro``) already
+# kills the write, but the app layer must agree so every *derived* permission
+# (``my_permission_level``, writable-project filters, the collaboration
+# socket's ``can_write``) reports read — one flag, set where the session is
+# routed, instead of per-page re-derivations that drift. Never set for
+# PAM/break-glass requests (grants override the lifecycle status by design).
+_content_read_only_guild: contextvars.ContextVar[Optional[int]] = (
+    contextvars.ContextVar("content_read_only_guild", default=None)
+)
+
+
+def set_content_read_only_guild(guild_id: Optional[int]) -> None:
+    """Record (or clear) the guild whose content is frozen for this request."""
+    _content_read_only_guild.set(guild_id)
+
+
+def content_read_only_active(guild_id: Optional[int]) -> bool:
+    """Whether ``guild_id``'s content is frozen for this request."""
+    if guild_id is None:
+        return False
+    return _content_read_only_guild.get() == guild_id
