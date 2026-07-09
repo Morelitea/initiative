@@ -10,6 +10,7 @@ claims.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlsplit
 
@@ -77,7 +78,7 @@ class FakeIdp:
     """
 
     def __init__(self, *, algs: tuple[str, ...] | None = ("RS256", "ES256")):
-        doc = {
+        doc: dict[str, object] = {
             "issuer": ISSUER,
             "authorization_endpoint": f"{ISSUER}/authorize",
             "token_endpoint": f"{ISSUER}/token",
@@ -87,9 +88,10 @@ class FakeIdp:
             doc["id_token_signing_alg_values_supported"] = list(algs)
         self.discovery_doc = doc
         self.jwks_doc = _jwks_doc()
-        # Callable building the token response from the parsed form, or a fixed
-        # httpx.Response.
-        self.token_response = None
+        # A fixed httpx.Response, or a callable building one from the parsed form.
+        self.token_response: (
+            httpx.Response | Callable[[dict[str, str]], httpx.Response] | None
+        ) = None
         self.token_request_form: dict[str, str] = {}
         self.calls: list[str] = []
 
@@ -104,9 +106,11 @@ class FakeIdp:
             form = parse_qs(request.content.decode())
             self.token_request_form = {k: v[0] for k, v in form.items()}
             resp = self.token_response
-            if callable(resp):
-                return resp(self.token_request_form)
-            return resp
+            if resp is None:
+                return httpx.Response(500, text="test did not set token_response")
+            if isinstance(resp, httpx.Response):
+                return resp
+            return resp(self.token_request_form)
         return httpx.Response(404)
 
     def client_factory(self):
