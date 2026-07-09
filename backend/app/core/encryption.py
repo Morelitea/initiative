@@ -17,6 +17,7 @@ from app.core.config import settings
 # here, and use encrypt_field / decrypt_field with that constant.
 SALT_OIDC_REFRESH_TOKEN = b"oidc-refresh-token"  # legacy name, do not rename
 SALT_OIDC_CLIENT_SECRET = b"oidc-client-secret"
+SALT_OIDC_FLOW_STATE = b"oidc-flow-state"  # transient login-flow state (never stored)
 SALT_SMTP_PASSWORD = b"smtp-password"
 SALT_AI_API_KEY = b"ai-api-key"
 SALT_EMAIL = b"email"
@@ -76,11 +77,18 @@ def encrypt_field(plaintext: str, salt: bytes, *, secret_key: str | None = None)
 
 
 def decrypt_field(
-    ciphertext: str, salt: bytes, *, secret_key: str | None = None
+    ciphertext: str,
+    salt: bytes,
+    *,
+    secret_key: str | None = None,
+    ttl_seconds: int | None = None,
 ) -> str:
+    """Decrypt ``ciphertext``. With ``ttl_seconds``, a token older than the TTL
+    (per its authenticated Fernet timestamp) is rejected as invalid — used for
+    transient values like the OIDC flow state."""
     return (
         _get_fernet(salt, _resolve_secret_key(secret_key))
-        .decrypt(ciphertext.encode())
+        .decrypt(ciphertext.encode(), ttl=ttl_seconds)
         .decode()
     )
 
