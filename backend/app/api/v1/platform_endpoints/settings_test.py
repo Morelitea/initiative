@@ -742,3 +742,119 @@ async def test_guild_storage_endpoints_reject_below_admin(
             f"{method.upper()} {url} as {role.value}: {resp.status_code}"
         )
         assert resp.json()["detail"] == "INSUFFICIENT_PRIVILEGES"
+
+
+# --- auth scope (platform-wide vs guild-scoped login) -------------------------
+
+
+async def _configure_platform_oidc(client: AsyncClient, headers: dict) -> None:
+    resp = await client.put(
+        "/api/v1/settings/auth",
+        json={
+            "enabled": True,
+            "issuer": "https://idp.example.com",
+            "client_id": "client-123",
+            "client_secret": "s3cret",
+            "provider_name": "Okta",
+            "scopes": ["openid", "email"],
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.integration
+async def test_auth_scope_defaults_to_platform(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    owner = await create_user(session, role=UserRole.owner)
+
+    resp = await client.get("/api/v1/settings/auth", headers=get_auth_headers(owner))
+    assert resp.status_code == 200
+    assert resp.json()["auth_scope"] == "platform"
+
+    # Non-secret posture info is readable without config.manage (login page,
+    # guild settings) via the interface settings.
+    resp = await client.get("/api/v1/settings/interface")
+    assert resp.status_code == 200
+    assert resp.json()["auth_scope"] == "platform"
+
+
+@pytest.mark.integration
+async def test_auth_scope_switch_is_non_destructive(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Switching postures never touches the dormant side's configuration —
+    switching back restores platform OIDC exactly."""
+    owner = await create_user(session, role=UserRole.owner)
+    headers = get_auth_headers(owner)
+    await _configure_platform_oidc(client, headers)
+
+    status_resp = await client.get("/api/v1/auth/oidc/status")
+    assert status_resp.json()["enabled"] is True
+
+    # Switch to guild scope: OIDC config is retained but the login goes dormant.
+    resp = await client.put(
+        "/api/v1/settings/auth-scope", json={"scope": "guild"}, headers=headers
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["auth_scope"] == "guild"
+    assert body["enabled"] is True  # stored config untouched...
+    assert body["issuer"] == "https://idp.example.com"
+    status_resp = await client.get("/api/v1/auth/oidc/status")
+    assert status_resp.json()["enabled"] is False  # ...but not offered
+
+    # Switch back: everything as before.
+    resp = await client.put(
+        "/api/v1/settings/auth-scope", json={"scope": "platform"}, headers=headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["auth_scope"] == "platform"
+    status_resp = await client.get("/api/v1/auth/oidc/status")
+    assert status_resp.json()["enabled"] is True
+
+
+@pytest.mark.integration
+async def test_guild_scope_refuses_platform_oidc_login(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    """Server-side enforcement: in guild scope the dormant platform provider
+    must not authenticate anyone, regardless of what a client requests."""
+    owner = await create_user(session, role=UserRole.owner)
+    headers = get_auth_headers(owner)
+    await _configure_platform_oidc(client, headers)
+    resp = await client.put(
+        "/api/v1/settings/auth-scope", json={"scope": "guild"}, headers=headers
+    )
+    assert resp.status_code == 200
+
+    login_resp = await client.get("/api/v1/auth/oidc/login")
+    assert login_resp.status_code == 404
+    assert login_resp.json()["detail"] == "OIDC_NOT_ENABLED"
+
+
+@pytest.mark.integration
+async def test_auth_scope_rejects_unknown_value(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    owner = await create_user(session, role=UserRole.owner)
+    resp = await client.put(
+        "/api/v1/settings/auth-scope",
+        json={"scope": "both"},
+        headers=get_auth_headers(owner),
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.integration
+async def test_auth_scope_requires_config_manage(
+    client: AsyncClient, session: AsyncSession
+) -> None:
+    member = await create_user(session, role=UserRole.member)
+    resp = await client.put(
+        "/api/v1/settings/auth-scope",
+        json={"scope": "guild"},
+        headers=get_auth_headers(member),
+    )
+    assert resp.status_code == 403

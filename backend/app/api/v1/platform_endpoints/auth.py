@@ -41,6 +41,7 @@ from app.core.security import (
     verify_password,
 )
 from app.core.user_input_validators import normalize_timezone
+from app.models.platform.app_setting import AuthScope
 from app.models.platform.user import User, UserRole, UserStatus
 from app.models.platform.guild import Guild, GuildRole
 from app.schemas.platform.token import Token
@@ -722,14 +723,23 @@ async def _fetch_oidc_metadata(issuer_url: str) -> dict[str, Any]:
     return metadata
 
 
-async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, Any]]:
-    app_settings = await app_settings_service.get_app_settings(session)
-    if not (
-        app_settings.oidc_enabled
+def _platform_oidc_active(app_settings: Any) -> bool:
+    """The platform OIDC login is offered only when the platform posture is
+    live AND the provider is enabled + fully configured. In guild scope the
+    platform provider is dormant (kept, not deleted) and must not authenticate
+    anyone — enforced here, server-side, not just hidden in the UI."""
+    return bool(
+        app_settings.auth_scope == AuthScope.platform.value
+        and app_settings.oidc_enabled
         and app_settings.oidc_issuer
         and app_settings.oidc_client_id
         and app_settings.oidc_client_secret_encrypted
-    ):
+    )
+
+
+async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, Any]]:
+    app_settings = await app_settings_service.get_app_settings(session)
+    if not _platform_oidc_active(app_settings):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
@@ -748,12 +758,7 @@ async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, 
 @router.get("/oidc/status")
 async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
     app_settings = await app_settings_service.get_app_settings(session)
-    enabled = bool(
-        app_settings.oidc_enabled
-        and app_settings.oidc_issuer
-        and app_settings.oidc_client_id
-        and app_settings.oidc_client_secret_encrypted
-    )
+    enabled = _platform_oidc_active(app_settings)
     login_url = None
     provider_name = None
     if enabled:
