@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Operator "delete this guild" (offered when deleting a guild's sole admin) is now scoped to that user's solely-admined guild instead of accepting any guild id; guild admins still delete their own guild as before.
+- SSO (OIDC) sign-in has been rebuilt on a hardened relying-party flow: the provider's identity token is now cryptographically verified against its published signing keys (with issuer, audience, expiry, and per-login nonce checks) before any account is touched, and the login state is carried in an encrypted, expiring token. Accounts now link to the provider by its stable subject identifier rather than by email, so an email change at the provider no longer detaches (or misdirects) a login; a verified matching email still signs in to an existing account exactly as before.
 
 ### Deprecated
 

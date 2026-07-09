@@ -49,6 +49,9 @@ class OidcMetadata:
     # Advertised id_token signing algs, if the provider lists them — lets the
     # caller narrow the verifier's allowlist to what this provider actually uses.
     id_token_signing_alg_values_supported: tuple[str, ...] | None = None
+    # Optional in the spec; when present it must be https like the required
+    # endpoints. Used to enrich profile claims after the id_token is verified.
+    userinfo_endpoint: str | None = None
 
 
 @dataclass
@@ -158,10 +161,20 @@ def _parse_metadata(document: Any, *, expected_issuer: str) -> OidcMetadata:
     if isinstance(algs, list) and all(isinstance(a, str) for a in algs):
         alg_tuple = tuple(algs)
 
+    userinfo = document.get("userinfo_endpoint")
+    userinfo_endpoint: str | None = None
+    if isinstance(userinfo, str) and userinfo:
+        try:
+            require_https(userinfo)
+        except OidcHttpError as exc:
+            raise DiscoveryError(f"userinfo_endpoint is not https: {exc}") from exc
+        userinfo_endpoint = userinfo
+
     return OidcMetadata(
         issuer=expected_issuer,
         authorization_endpoint=endpoints["authorization_endpoint"],
         token_endpoint=endpoints["token_endpoint"],
         jwks_uri=endpoints["jwks_uri"],
         id_token_signing_alg_values_supported=alg_tuple,
+        userinfo_endpoint=userinfo_endpoint,
     )

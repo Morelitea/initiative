@@ -1,15 +1,9 @@
-import base64
 from datetime import datetime, timezone
-import hashlib
-import hmac
 import ipaddress
 import logging
-import secrets
-import time
 from typing import Any, Annotated
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
@@ -58,6 +52,20 @@ from app.schemas.platform.auth import (
 from app.schemas.platform.user import UserCreate, UserRead
 from app.db.session import AdminSessionLocal
 from app.services.auth import sessions as session_service
+from app.services.auth.identity import (
+    ResolutionOutcome,
+    link_identity,
+    resolve_oidc_identity,
+)
+from app.services.auth.oidc.discovery import OidcDiscovery
+from app.services.auth.oidc.flow_state import FlowStateError, decode_flow_state
+from app.services.auth.oidc.jwks import JwksResolver
+from app.services.auth.oidc.provider import (
+    OidcClientConfig,
+    OidcFlowError,
+    OidcProvider,
+)
+from app.services.auth.platform_provider import ensure_platform_provider
 from app.services.auth.sessions import RefreshOutcome
 from app.services.platform import app_settings as app_settings_service
 from app.services import email as email_service
@@ -69,10 +77,12 @@ from app.models.platform.user_token import UserTokenPurpose
 router = APIRouter()
 AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
-STATE_TTL_SECONDS = 600
-_OIDC_METADATA_TTL_SECONDS = 300  # 5 minutes
-_oidc_metadata_cache: dict[str, tuple[dict[str, Any], float]] = {}
 logger = logging.getLogger(__name__)
+
+# Shared across requests so provider discovery + JWKS caching work; the
+# per-request OidcProvider is just configuration composed around them.
+_oidc_discovery = OidcDiscovery()
+_oidc_jwks = JwksResolver()
 
 # The refresh cookie is scoped to the auth routes so it never rides along on
 # ordinary API requests — it is only presented to /auth/refresh and /auth/logout.
@@ -646,52 +656,6 @@ async def revoke_device_token(
         )
 
 
-def _generate_state(mobile: bool = False, device_name: str = "") -> str:
-    timestamp = str(int(time.time()))
-    mobile_flag = "1" if mobile else "0"
-    encoded_device_name = base64.urlsafe_b64encode(device_name.encode()).decode()
-    code_verifier = secrets.token_urlsafe(32)
-    payload = f"{timestamp}.{mobile_flag}.{encoded_device_name}.{code_verifier}"
-    signature = hmac.new(
-        settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256
-    ).hexdigest()
-    return f"{payload}.{signature}"
-
-
-def _validate_state(value: str | None) -> tuple[bool, bool, str, str]:
-    """Validate OIDC state parameter and extract mobile flag, device name, and code verifier.
-
-    Returns:
-        Tuple of (is_valid, is_mobile, device_name, code_verifier)
-    """
-    if not value:
-        return (False, False, "", "")
-    try:
-        parts = value.split(".")
-        if len(parts) != 5:
-            return (False, False, "", "")
-        ts_str, mobile_flag, encoded_device_name, code_verifier, signature = parts
-    except ValueError:
-        return (False, False, "", "")
-    payload = f"{ts_str}.{mobile_flag}.{encoded_device_name}.{code_verifier}"
-    expected = hmac.new(
-        settings.SECRET_KEY.encode(), payload.encode(), hashlib.sha256
-    ).hexdigest()
-    if not hmac.compare_digest(signature, expected):
-        return (False, False, "", "")
-    try:
-        ts = int(ts_str)
-    except ValueError:
-        return (False, False, "", "")
-    if int(time.time()) - ts > STATE_TTL_SECONDS:
-        return (False, False, "", "")
-    try:
-        device_name = base64.urlsafe_b64decode(encoded_device_name.encode()).decode()
-    except Exception:
-        device_name = ""
-    return (True, mobile_flag == "1", device_name, code_verifier)
-
-
 def _backend_redirect_uri() -> str:
     base = settings.APP_URL.rstrip("/")
     return f"{base}{settings.API_V1_STR}/auth/oidc/callback"
@@ -700,27 +664,6 @@ def _backend_redirect_uri() -> str:
 def _frontend_redirect_uri() -> str:
     base = settings.APP_URL.rstrip("/")
     return f"{base}/oidc/callback"
-
-
-async def _fetch_oidc_metadata(issuer_url: str) -> dict[str, Any]:
-    normalized = issuer_url.rstrip("/")
-    well_known_suffix = "/.well-known/openid-configuration"
-    if normalized.endswith(well_known_suffix):
-        normalized = normalized[: -len(well_known_suffix)]
-    discovery_url = f"{normalized}{well_known_suffix}"
-
-    cached = _oidc_metadata_cache.get(discovery_url)
-    if cached is not None:
-        metadata, fetched_at = cached
-        if time.time() - fetched_at < _OIDC_METADATA_TTL_SECONDS:
-            return metadata
-
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(discovery_url)
-        resp.raise_for_status()
-        metadata = resp.json()
-    _oidc_metadata_cache[discovery_url] = (metadata, time.time())
-    return metadata
 
 
 def _platform_oidc_active(app_settings: Any) -> bool:
@@ -737,22 +680,40 @@ def _platform_oidc_active(app_settings: Any) -> bool:
     )
 
 
-async def _get_oidc_runtime_config(session: SessionDep) -> tuple[Any, dict[str, Any]]:
+async def _require_platform_oidc(session: AsyncSession) -> Any:
+    """The app settings row, or 404 when platform OIDC login is not live."""
     app_settings = await app_settings_service.get_app_settings(session)
     if not _platform_oidc_active(app_settings):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=OidcMessages.OIDC_NOT_ENABLED
         )
+    return app_settings
 
-    metadata = await _fetch_oidc_metadata(app_settings.oidc_issuer)
-    required = ["authorization_endpoint", "token_endpoint"]
-    for key in required:
-        if key not in metadata:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=OidcMessages.OIDC_METADATA_INCOMPLETE,
-            )
-    return app_settings, metadata
+
+def _build_oidc_provider(app_settings: Any) -> OidcProvider:
+    """The relying-party client for the platform provider, configured from
+    ``app_settings`` (still the operator's config surface until the provider
+    registry gets its own CRUD). Tests monkeypatch this builder to point the
+    flow at a fake IdP."""
+    scopes = app_settings.oidc_scopes or ["openid"]
+    client_secret = (
+        decrypt_field(
+            app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
+        )
+        if app_settings.oidc_client_secret_encrypted
+        else None
+    )
+    return OidcProvider(
+        OidcClientConfig(
+            issuer=app_settings.oidc_issuer,
+            client_id=app_settings.oidc_client_id,
+            redirect_uri=_backend_redirect_uri(),
+            client_secret=client_secret,
+            scopes=" ".join(scopes),
+        ),
+        discovery=_oidc_discovery,
+        jwks=_oidc_jwks,
+    )
 
 
 @router.get("/oidc/status")
@@ -775,48 +736,22 @@ async def oidc_login(
     mobile: bool = Query(default=False),
     device_name: str = Query(default="Mobile Device"),
 ) -> RedirectResponse:
-    app_settings, metadata = await _get_oidc_runtime_config(session)
-    state = _generate_state(mobile=mobile, device_name=device_name if mobile else "")
-    # Extract code_verifier from state to compute PKCE challenge
-    state_parts = state.split(".")
-    code_verifier = state_parts[3]
-    code_challenge = (
-        base64.urlsafe_b64encode(hashlib.sha256(code_verifier.encode()).digest())
-        .rstrip(b"=")
-        .decode()
-    )
-    params = {
-        "client_id": app_settings.oidc_client_id,
-        "response_type": "code",
-        "scope": " ".join(app_settings.oidc_scopes or ["openid"]),
-        "redirect_uri": _backend_redirect_uri(),
-        "state": state,
-        "code_challenge": code_challenge,
-        "code_challenge_method": "S256",
-    }
-    # The authorization endpoint comes from the IdP's remote discovery
-    # document. Require an absolute https URL before redirecting the user
-    # there, so a malformed or tampered discovery doc can't send them to a
-    # non-TLS or non-http(s) location (CodeQL py/url-redirection). Guard the
-    # value type too: a non-string (e.g. null) endpoint must surface the clean
-    # OIDC_METADATA_INCOMPLETE error rather than a urlsplit TypeError.
-    authorization_endpoint = metadata["authorization_endpoint"]
-    parsed_endpoint = (
-        urlsplit(authorization_endpoint)
-        if isinstance(authorization_endpoint, str)
-        else None
-    )
-    if (
-        parsed_endpoint is None
-        or parsed_endpoint.scheme != "https"
-        or not parsed_endpoint.hostname
-    ):
+    app_settings = await _require_platform_oidc(session)
+    provider = _build_oidc_provider(app_settings)
+    try:
+        begun = await provider.begin(
+            mobile=mobile, device_name=device_name if mobile else ""
+        )
+    except OidcFlowError as exc:
+        logger.error("OIDC login could not start: %s (%s)", exc.code, exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=OidcMessages.OIDC_METADATA_INCOMPLETE,
-        )
-    authorize_url = f"{authorization_endpoint}?{urlencode(params)}"
-    return RedirectResponse(authorize_url)
+        ) from exc
+    # Discovery validated the authorization endpoint as an absolute https URL
+    # (see app.services.auth.oidc.discovery), so a malformed or tampered
+    # discovery document cannot send the user to a non-TLS location.
+    return RedirectResponse(begun.authorization_url)
 
 
 def _mobile_redirect_uri() -> str:
@@ -838,213 +773,137 @@ def _error_redirect(is_mobile: bool | None, error: str) -> RedirectResponse:
 async def oidc_callback(
     request: Request,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     code: str | None = Query(default=None),
     state: str | None = Query(default=None),
 ):
-    if not code:
-        return _error_redirect(None, "missing_authorization_code")
-    is_valid, is_mobile, device_name, code_verifier = _validate_state(state)
-    if not is_valid:
-        return _error_redirect(None, "invalid_state")
+    app_settings = await _require_platform_oidc(session)
 
-    app_settings, metadata = await _get_oidc_runtime_config(session)
-    token_payload = {
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": _backend_redirect_uri(),
-        "client_id": app_settings.oidc_client_id,
-        "client_secret": decrypt_field(
-            app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
-        )
-        if app_settings.oidc_client_secret_encrypted
-        else None,
-        "code_verifier": code_verifier,
-    }
-    async with httpx.AsyncClient(timeout=10) as client:
-        token_resp = await client.post(metadata["token_endpoint"], data=token_payload)
+    # Best-effort mobile flag so even early failures land on the right surface
+    # (app vs. web); ``complete()`` re-validates the state authoritatively.
+    is_mobile: bool | None = None
+    if state:
         try:
-            token_resp.raise_for_status()
-        except httpx.HTTPStatusError:
-            logger.error(
-                "OIDC token request failed: status=%s body=%s",
-                token_resp.status_code,
-                token_resp.text,
-            )
-            return _error_redirect(is_mobile, "token_request_failed")
-        token_data = token_resp.json()
-        access_token = token_data.get("access_token")
-        if not access_token:
-            logger.error("OIDC token response missing access_token")
-            return _error_redirect(is_mobile, "token_missing_access_token")
+            is_mobile = decode_flow_state(state).mobile
+        except FlowStateError:
+            is_mobile = None
 
-        userinfo_endpoint = metadata.get("userinfo_endpoint")
-        if not userinfo_endpoint:
-            logger.error("OIDC metadata missing userinfo_endpoint")
-            return _error_redirect(is_mobile, "userinfo_endpoint_missing")
-        userinfo_resp = await client.get(
-            userinfo_endpoint,
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        try:
-            userinfo_resp.raise_for_status()
-        except httpx.HTTPStatusError:
-            logger.error(
-                "OIDC userinfo request failed: status=%s body=%s",
-                userinfo_resp.status_code,
-                userinfo_resp.text,
-            )
-            return _error_redirect(is_mobile, "userinfo_request_failed")
-        profile = userinfo_resp.json()
-
-    email = profile.get("email")
-    # Track whether the email came from a real ``email`` claim vs. the synthetic
-    # ``{sub}@oidc.local`` fallback. The fallback address is keyed off the IdP's
-    # opaque ``sub`` (not an attacker-choosable value), so it is not part of the
-    # pre-registration account-takeover vector that the email_verified gate below
-    # defends against.
-    email_from_claim = bool(email)
-    if not email:
-        sub = profile.get("sub")
-        if not sub:
-            logger.error("OIDC profile missing both email and sub")
-            return _error_redirect(is_mobile, "profile_missing_identity")
-        email = f"{sub}@oidc.local"
-    normalized_email = email.lower().strip()
-    # Trust the IdP's ``email_verified`` claim only as an explicit ``true``;
-    # a missing/false claim is treated as unverified. (Some IdPs, e.g. Azure
-    # AD, omit the claim entirely — see the existing-account branch.)
-    email_verified_claim = profile.get("email_verified") is True
-    full_name = (
-        profile.get("name") or profile.get("preferred_username") or normalized_email
-    )
-    avatar_url = profile.get("picture")
-
-    statement = select(User).where(User.email_hash == hash_email(normalized_email))
-    result = await session.exec(statement)
-    user = result.one_or_none()
-    # Extract OIDC refresh token + sub for background sync
-    oidc_sub = profile.get("sub")
-    refresh_token = token_data.get("refresh_token")
-    encrypted_refresh = encrypt_token(refresh_token) if refresh_token else None
-    now_utc = datetime.now(timezone.utc)
-
-    if not user:
-        count_result = await session.exec(select(func.count(User.id)))
-        is_first_user = count_result.one() == 0
-
-        if (
-            not settings.ENABLE_PUBLIC_REGISTRATION or settings.DISABLE_GUILD_CREATION
-        ) and not is_first_user:
-            return _error_redirect(is_mobile, OidcMessages.REGISTRATION_DISABLED)
-
-        random_password = secrets.token_urlsafe(32)
-        user = User(
-            email_hash=hash_email(normalized_email),
-            email_encrypted=encrypt_field(normalized_email, SALT_EMAIL),
-            full_name=full_name,
-            hashed_password=get_password_hash(random_password),
-            role=UserRole.member,
-            status=UserStatus.active,
-            avatar_url=avatar_url,
-            avatar_base64=None,
-            email_verified=True,
-            oidc_sub=oidc_sub,
-            oidc_refresh_token_encrypted=encrypted_refresh,
-            oidc_last_synced_at=now_utc,
-        )
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
-    else:
-        # Refuse to silently reactivate an admin- or self-deactivated account
-        # via OIDC. Deactivation is now an explicit, reversible state that
-        # only an admin can undo (see ``/api/v1/users/{id}/approve``); letting
-        # a deactivated user log in via SSO would bypass that gate. Anonymized
-        # accounts can't reach this branch in practice (their ``email_hash``
-        # is randomized so the lookup above won't match), but reject them too
-        # as defense in depth.
-        if user.status != UserStatus.active:
-            return _error_redirect(is_mobile, "account_inactive")
-
-        # Account-takeover guard: when linking an OIDC login to an EXISTING
-        # local account that was matched purely on email, require the IdP to
-        # assert the email is verified. Otherwise an attacker who can mint an
-        # unverified token for a victim's email at a trusted IdP could log
-        # into / link a pre-registered local account they don't own. The
-        # synthetic ``{sub}@oidc.local`` fallback is exempt because it is
-        # keyed off the IdP-controlled ``sub`` rather than an
-        # attacker-choosable email.
-        #
-        # Trusted-IdP assumption: we do not verify the id_token signature
-        # here (identity is read from the userinfo endpoint over TLS after a
-        # PKCE exchange), so we trust the ``email_verified`` claim the IdP
-        # returns. A missing claim is treated as unverified and refused —
-        # fail closed — to protect existing local accounts.
-        if email_from_claim and not email_verified_claim:
-            logger.warning(
-                "OIDC login refused: email_verified not asserted for existing "
-                "account (user_id=%s)",
-                user.id,
-            )
-            return _error_redirect(is_mobile, OidcMessages.EMAIL_UNVERIFIED)
-
-        updated = False
-        # Only promote a local account to verified when the IdP asserted the
-        # email is verified; the synthetic fallback path never promotes
-        # verification off an absent claim.
-        if email_verified_claim and not user.email_verified:
-            user.email_verified = True
-            updated = True
-        if full_name and user.full_name != full_name:
-            user.full_name = full_name
-            updated = True
-        if avatar_url and user.avatar_url != avatar_url:
-            user.avatar_url = avatar_url
-            user.avatar_base64 = None
-            updated = True
-        # Always update OIDC sync fields on login
-        if oidc_sub:
-            user.oidc_sub = oidc_sub
-            updated = True
-        if encrypted_refresh is not None:
-            user.oidc_refresh_token_encrypted = encrypted_refresh
-            updated = True
-        user.oidc_last_synced_at = now_utc
-        updated = True
-        if updated:
-            session.add(user)
-            await session.commit()
-            await session.refresh(user)
-
-    # OIDC claim-to-role sync
+    provider = _build_oidc_provider(app_settings)
     try:
-        claim_path = (
-            app_settings.oidc_role_claim_path
-            if hasattr(app_settings, "oidc_role_claim_path")
-            else None
+        completion = await provider.complete(code=code or "", state=state or "")
+    except OidcFlowError as exc:
+        logger.warning("OIDC callback rejected: %s (%s)", exc.code, exc)
+        return _error_redirect(is_mobile, exc.code)
+    is_mobile = completion.mobile
+
+    # The verified id_token is the identity source of truth; userinfo (when the
+    # provider advertises it) only enriches profile claims, and only when its
+    # sub matches the id_token's (OIDC Core §5.3.2).
+    claims = dict(completion.claims)
+    userinfo: dict[str, Any] | None = None
+    if completion.access_token:
+        try:
+            userinfo = await provider.fetch_userinfo(completion.access_token)
+        except OidcFlowError as exc:
+            logger.warning("OIDC userinfo enrichment failed: %s", exc)
+    if userinfo is not None:
+        if userinfo.get("sub") == completion.subject:
+            for key, value in userinfo.items():
+                claims.setdefault(key, value)
+        else:
+            logger.warning(
+                "OIDC userinfo sub does not match id_token sub; ignoring userinfo"
+            )
+            userinfo = None
+
+    email_claim = claims.get("email")
+    email = (
+        email_claim.strip().lower()
+        if isinstance(email_claim, str) and email_claim.strip()
+        else None
+    )
+    # Trust the IdP's ``email_verified`` claim only as an explicit ``true``; a
+    # missing/false claim is treated as unverified (some IdPs omit it entirely).
+    email_verified = claims.get("email_verified") is True
+    name_claim = claims.get("name") or claims.get("preferred_username")
+    full_name = name_claim if isinstance(name_claim, str) and name_claim else None
+    picture_claim = claims.get("picture")
+    avatar_url = (
+        picture_claim if isinstance(picture_claim, str) and picture_claim else None
+    )
+
+    provider_row = await ensure_platform_provider(admin_session, app_settings)
+    resolution = await resolve_oidc_identity(
+        admin_session,
+        provider=provider_row,
+        subject=completion.subject,
+        email=email,
+        email_verified=email_verified,
+        full_name=full_name,
+        avatar_url=avatar_url,
+    )
+
+    if resolution.user is None:
+        # JIT_DISABLED / REGISTRATION_DISABLED: unknown user, provisioning off.
+        return _error_redirect(is_mobile, OidcMessages.REGISTRATION_DISABLED)
+    user = resolution.user
+
+    # Refuse to silently reactivate an admin- or self-deactivated account via
+    # SSO — deactivation is reversed by an admin, not by a login. Checked
+    # before any link is written.
+    if user.status != UserStatus.active:
+        return _error_redirect(is_mobile, "account_inactive")
+
+    if resolution.outcome is ResolutionOutcome.EMAIL_UNVERIFIED:
+        # An unlinked local account matched by an email the IdP has not
+        # verified: refused, protecting pre-registered accounts.
+        logger.warning(
+            "OIDC login refused: email_verified not asserted for existing "
+            "account (user_id=%s)",
+            user.id,
         )
+        return _error_redirect(is_mobile, OidcMessages.EMAIL_UNVERIFIED)
+
+    if resolution.outcome is ResolutionOutcome.EMAIL_MATCH:
+        # Platform policy: a verified IdP email claims its matching local
+        # account (parity with the previous flow); the link makes every later
+        # login resolve by (provider, subject).
+        await link_identity(
+            admin_session,
+            user=user,
+            provider=provider_row,
+            subject=completion.subject,
+            email_verified=email_verified,
+        )
+
+    # Profile refresh + the legacy ``users.oidc_*`` columns — still the inputs
+    # to the background role re-sync and the fallback path until they are
+    # dropped in a later phase.
+    if email_verified and not user.email_verified:
+        user.email_verified = True
+    if full_name and user.full_name != full_name:
+        user.full_name = full_name
+    if avatar_url and user.avatar_url != avatar_url:
+        user.avatar_url = avatar_url
+        user.avatar_base64 = None
+    user.oidc_sub = completion.subject
+    if completion.refresh_token:
+        user.oidc_refresh_token_encrypted = encrypt_token(completion.refresh_token)
+    user.oidc_last_synced_at = datetime.now(timezone.utc)
+    admin_session.add(user)
+    await admin_session.commit()
+    await admin_session.refresh(user)
+
+    # OIDC claim-to-role sync (the id_token claims are verified upstream now).
+    try:
+        claim_path = getattr(app_settings, "oidc_role_claim_path", None)
         if claim_path:
-            # Decode id_token claims (without signature verification — we trust the token endpoint)
-            id_token_claims = None
-            raw_id_token = token_data.get("id_token")
-            if raw_id_token:
-                try:
-                    import json as _json
-
-                    parts = raw_id_token.split(".")
-                    if len(parts) >= 2:
-                        payload_b64 = parts[1]
-                        payload_b64 += "=" * (-len(payload_b64) % 4)
-                        id_token_claims = _json.loads(
-                            base64.urlsafe_b64decode(payload_b64)
-                        )
-                except Exception:
-                    pass  # id_token decode is best-effort
-
-            claim_values = extract_claim_values(profile, id_token_claims, claim_path)
-            async with AdminSessionLocal() as admin_session:
+            claim_values = extract_claim_values(
+                userinfo or {}, completion.claims, claim_path
+            )
+            async with AdminSessionLocal() as sync_session:
                 sync_result = await sync_oidc_assignments(
-                    admin_session,
+                    sync_session,
                     user_id=user.id,
                     claim_values=claim_values,
                 )
@@ -1065,26 +924,25 @@ async def oidc_callback(
         device_token = await user_tokens.create_device_token(
             session,
             user_id=user.id,
-            device_name=device_name or "Mobile Device",
+            device_name=completion.device_name or "Mobile Device",
         )
         redirect_params = {"token": device_token, "token_type": "device_token"}
         redirect_url = f"{_mobile_redirect_uri()}?{urlencode(redirect_params)}"
         return RedirectResponse(redirect_url)
-    else:
-        app_token = create_access_token(
-            subject=str(user.id), token_version=user.token_version
-        )
-        oidc_response = RedirectResponse(_frontend_redirect_uri())
-        oidc_response.set_cookie(
-            key=settings.COOKIE_NAME,
-            value=app_token,
-            httponly=True,
-            samesite="lax",
-            secure=settings.cookie_secure,
-            max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-            path="/",
-        )
-        return oidc_response
+    app_token = create_access_token(
+        subject=str(user.id), token_version=user.token_version
+    )
+    oidc_response = RedirectResponse(_frontend_redirect_uri())
+    oidc_response.set_cookie(
+        key=settings.COOKIE_NAME,
+        value=app_token,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    return oidc_response
 
 
 @router.post("/verification/send", response_model=VerificationSendResponse)
