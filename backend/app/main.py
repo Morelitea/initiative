@@ -71,9 +71,14 @@ async def lifespan(app: FastAPI):
     # guilds stamped with the current artifact version are skipped entirely.
     from app.db.schema_provisioning import (
         backfill_guild_schemas,
+        ensure_system_engine_bypassrls,
         warn_if_privileged_database_url,
     )
 
+    # Before anything touches the system engine: a policy-bound admin login
+    # (restored database, hand-created role) reads shared tables as empty and
+    # the seeding below would die with an opaque RLS violation (issue #835).
+    await ensure_system_engine_bypassrls()
     await warn_if_privileged_database_url()
     backfill = await backfill_guild_schemas()
     if backfill.failed:

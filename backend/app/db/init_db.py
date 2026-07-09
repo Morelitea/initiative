@@ -9,7 +9,10 @@ from sqlmodel import select
 from app.core.config import settings
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.security import get_password_hash
-from app.db.schema_provisioning import deprovision_guild
+from app.db.schema_provisioning import (
+    deprovision_guild,
+    ensure_system_engine_bypassrls,
+)
 from app.db.session import AdminSessionLocal, run_migrations, set_rls_context
 from app.models.platform.guild import Guild
 from app.models.platform.user import User, UserRole
@@ -160,6 +163,11 @@ async def check_pre_baseline_db() -> None:
 async def init() -> None:
     await check_pre_baseline_db()
     await run_migrations()
+    # A policy-bound system engine (restored database, hand-created role) reads
+    # shared tables as empty; the seeding below would then try to re-create the
+    # primary guild and die on the guilds RLS policy (issue #835). Verify —
+    # and, when DATABASE_URL lawfully can, repair — before touching data.
+    await ensure_system_engine_bypassrls()
     await init_owner()
     async with AdminSessionLocal() as session:
         # guild_settings is guild-scoped; route into the primary guild's schema so
