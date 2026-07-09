@@ -159,8 +159,10 @@ def test_valid_token_missing_required_field_rejected():
 
 def test_flow_state_is_immutable():
     _, payload = create_flow_state()
+    # setattr rather than direct assignment: the runtime frozen-dataclass check is
+    # what's under test, and static checkers rightly refuse the assignment form.
     with pytest.raises(AttributeError):
-        payload.nonce = "overwritten"  # type: ignore[misc]
+        setattr(payload, "nonce", "overwritten")
 
 
 def test_challenge_is_deterministic_for_a_verifier():
