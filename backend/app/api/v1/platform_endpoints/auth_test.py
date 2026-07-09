@@ -25,6 +25,7 @@ from app.core.encryption import (
     SALT_EMAIL,
     SALT_OIDC_CLIENT_SECRET,
 )
+from app.core.messages import OidcMessages
 from app.core.security import (
     create_access_token,
     create_upload_token,
@@ -1157,7 +1158,7 @@ async def test_oidc_callback_refuses_deactivated_account(
     claims = {"email": "gone@example.com", "email_verified": True}
     response = await _run_oidc_flow(client, idp, id_token_claims=claims)
     assert response.status_code in (302, 307)
-    assert "account_inactive" in response.headers["location"]
+    assert OidcMessages.ACCOUNT_INACTIVE in response.headers["location"]
     assert "session_token" not in response.cookies
     assert await _federated_identities(session) == []
 

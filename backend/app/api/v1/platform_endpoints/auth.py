@@ -852,7 +852,7 @@ async def oidc_callback(
     # SSO — deactivation is reversed by an admin, not by a login. Checked
     # before any link is written.
     if user.status != UserStatus.active:
-        return _error_redirect(is_mobile, "account_inactive")
+        return _error_redirect(is_mobile, OidcMessages.ACCOUNT_INACTIVE)
 
     if resolution.outcome is ResolutionOutcome.EMAIL_UNVERIFIED:
         # An unlinked local account matched by an email the IdP has not
