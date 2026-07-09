@@ -151,8 +151,11 @@ async def link_identity(
     subject: str,
     email_verified: bool,
 ) -> FederatedIdentity:
-    """Create the ``(provider, subject)`` link for ``user`` — the single
-    mechanism behind JIT provisioning and any caller-approved linking flow."""
+    """Create the ``(provider, subject)`` link for an **existing** ``user`` —
+    the mechanism behind any caller-approved linking flow (e.g. an
+    ``EMAIL_MATCH`` the endpoint decides to link). JIT provisioning creates the
+    user and link atomically in ``_provision`` instead, so a failure can't
+    orphan a fresh user."""
     identity = FederatedIdentity(
         user_id=user.id,
         provider_id=provider.id,
@@ -222,33 +225,41 @@ async def _provision(
     )
     session.add(user)
     try:
-        await session.commit()
-    except IntegrityError:
-        # Lost a provisioning race (same subject or email landed first).
-        # Re-resolve instead of failing the login: the winner's rows are the
-        # truth now.
-        await session.rollback()
-        identity = await _find_identity(
-            session, provider_id=provider.id, subject=subject
+        # User + identity land in ONE transaction: flush assigns the user id
+        # without committing, then both commit together. So a failure can never
+        # leave a committed, login-less user with no identity (the orphan case),
+        # and there is no window where the user exists but the link doesn't.
+        await session.flush()
+        if user.id is None:  # populated by flush; guard also narrows the type
+            raise RuntimeError("user id not assigned after flush")
+        identity = FederatedIdentity(
+            user_id=user.id,
+            provider_id=provider.id,
+            subject=subject,
+            email_verified=verified,
+            last_login_at=datetime.now(timezone.utc),
         )
-        if identity is not None:
-            existing = (
-                await session.exec(select(User).where(User.id == identity.user_id))
+        session.add(identity)
+        await session.commit()
+        await session.refresh(user)
+        await session.refresh(identity)
+        return IdentityResolution(
+            outcome=ResolutionOutcome.PROVISIONED, user=user, identity=identity
+        )
+    except IntegrityError:
+        # Lost a provisioning race: a concurrent login inserted the same subject
+        # (or email) first. Its conflicting unique insert blocked ours until it
+        # committed, so the winner is now committed and visible — re-resolve to
+        # it instead of failing the login. The rollback discards our uncommitted
+        # user, so no orphan is left behind.
+        await session.rollback()
+        winner = await _find_identity(session, provider_id=provider.id, subject=subject)
+        if winner is not None:
+            user = (
+                await session.exec(select(User).where(User.id == winner.user_id))
             ).one_or_none()
-            if existing is not None:
+            if user is not None:
                 return IdentityResolution(
-                    outcome=ResolutionOutcome.LINKED, user=existing, identity=identity
+                    outcome=ResolutionOutcome.LINKED, user=user, identity=winner
                 )
         raise
-    await session.refresh(user)
-
-    identity = await link_identity(
-        session,
-        user=user,
-        provider=provider,
-        subject=subject,
-        email_verified=verified,
-    )
-    return IdentityResolution(
-        outcome=ResolutionOutcome.PROVISIONED, user=user, identity=identity
-    )

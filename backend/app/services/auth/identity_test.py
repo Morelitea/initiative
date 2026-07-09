@@ -186,6 +186,32 @@ async def test_jit_disabled_provider_refuses_unknown_user(session):
     assert await _identities_for(session, provider) == []
 
 
+async def test_provisioning_writes_exactly_one_user_and_link(session):
+    """The JIT path is a single atomic transaction — one user, one link, no
+    partial state. (The lost-race recovery branch itself can't be exercised
+    here: the shared session fixture rolls the whole test back on the service's
+    rollback, so a concurrently-committed winner can't survive it; the branch is
+    correct by construction — atomic insert + Postgres unique-blocks-until-commit
+    — and becomes live in the wiring PR.)"""
+    provider = await _create_provider(session)
+
+    result = await _resolve(session, provider, email="solo@example.com")
+    assert result.outcome is ResolutionOutcome.PROVISIONED
+
+    from app.models.platform.user import User
+
+    users = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("solo@example.com"))
+        )
+    ).all()
+    assert len(users) == 1
+    links = await _identities_for(session, provider)
+    assert len(links) == 1
+    assert links[0].user_id == users[0].id
+    assert links[0].subject == "sub-1"
+
+
 async def test_closed_registration_refuses_unknown_user(session, monkeypatch):
     provider = await _create_provider(session)
     await create_user(session)  # instance is not empty → no bootstrap exception
