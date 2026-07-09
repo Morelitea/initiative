@@ -99,6 +99,7 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   max_storage_bytes: null,
   max_users: null,
   member_count: 0,
+  tier_name: null,
   // The guild's lifecycle status, so an operator on a grant sees a suspended /
   // read-only guild they're acting in (the access banner surfaces it).
   status: grant.guild_status,

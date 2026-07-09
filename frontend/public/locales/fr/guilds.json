@@ -258,5 +258,19 @@
     "readWrite": "Vous avez un accès temporaire à {{guild}}.",
     "guildReadOnly": "Ce groupe est en lecture seule",
     "guildSuspended": "Ce groupe est suspendu"
+  },
+  "usagePanel": {
+    "title": "Utilisation",
+    "storage": "Stockage",
+    "members": "Membres",
+    "unlimited": "Illimité",
+    "usedOfMax": "{{used}} sur {{max}}",
+    "usedOfUnlimited": "{{used}} utilisé · Illimité",
+    "membersOfMax": "{{used}} sur {{max}}",
+    "membersOfUnlimited": "{{used}} · Illimité",
+    "currentPlan": "Forfait actuel :",
+    "selfHosted": "Auto-hébergé",
+    "upgrade": "Mettre à niveau",
+    "manageBilling": "Gérer la facturation"
   }
 }
