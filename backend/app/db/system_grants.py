@@ -95,7 +95,11 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "user_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
     "push_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
     "user_api_keys": frozenset({"SELECT", "DELETE"}),
-    "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
+    # SELECT/INSERT for the redemption path; DELETE for the shared jti janitor
+    # (app.services.platform.jti_purge) that prunes expired rows — expired
+    # jtis are inert (the JWT's own exp refuses replay before the blocklist is
+    # read), so pruning never re-opens a replay window.
+    "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT", "DELETE"}),
     # billing boundary: writes happen ONLY under the dedicated (SET ROLE)
     # initiative_billing role, never the system engine. app_admin keeps
     # read-only visibility into the append-only evidence, and may prune
