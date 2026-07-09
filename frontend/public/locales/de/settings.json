@@ -35,7 +35,8 @@
       "users": "Benutzer",
       "initiatives": "Initiativen",
       "trash": "Papierkorb",
-      "dangerZone": "Gefahrenzone"
+      "dangerZone": "Gefahrenzone",
+      "auth": "Authentifizierung"
     }
   },
   "profile": {
@@ -574,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Zuerst Initiative auswählen",
     "loadingOptions": "Optionen werden geladen…",
     "loadingOidcMappings": "OIDC-Zuordnungen werden geladen…",
-    "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden."
+    "oidcMappingsLoadError": "OIDC-Zuordnungen konnten nicht geladen werden.",
+    "scope": {
+      "title": "Anmeldekonfiguration",
+      "description": "Lege fest, wo die Anmeldung für diesen Server konfiguriert wird.",
+      "platformLabel": "Plattformweit",
+      "platformHelp": "Die Anmeldung wird einmal, hier, für den gesamten Server konfiguriert. Alle Gilden verwenden sie. Ideal für eine einzelne Organisation mit eigener Instanz.",
+      "guildLabel": "Pro Gilde",
+      "guildHelp": "Jede Gilde konfiguriert ihre Anmeldung und Mitgliedschaftsregeln in ihren Gildeneinstellungen. Ideal für einen Server mit mehreren unabhängigen Organisationen.",
+      "comingSoon": "Demnächst",
+      "passwordNote": "Die Passwort-Anmeldung bleibt in beiden Modi verfügbar."
+    }
   },
   "platformUsers": {
     "title": "Plattformbenutzer",
@@ -752,7 +763,7 @@
     "title": "Plattformeinstellungen",
     "subtitle": "Konfiguriere Authentifizierung, Branding, E-Mail und KI für die gesamte Plattform.",
     "tabs": {
-      "auth": "Auth",
+      "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
       "ai": "KI"
@@ -804,5 +815,11 @@
       "storageLimit": "Speicherlimit",
       "status": "Status"
     }
+  },
+  "guildAuth": {
+    "title": "Authentifizierung",
+    "comingSoon": "Demnächst",
+    "description": "Anmeldekonfiguration für diese Gilde.",
+    "body": "Dieser Server verwendet die Anmeldung pro Gilde. Bald können Gilden-Admins hier Single Sign-on und Mitgliedschaftsregeln für diese Gilde konfigurieren."
   }
 }
