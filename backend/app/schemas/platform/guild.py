@@ -45,6 +45,11 @@ class GuildRead(GuildBase):
     # moderation hold is never disclosed to them (suspended guilds are also
     # filtered from their guild list entirely).
     status: Optional[GuildStatus] = None
+    # True when content writes are frozen (read_only lifecycle status). Unlike
+    # ``status`` this IS serialized to every member: writes fail at the
+    # database role level regardless, so the UI must be able to drop its write
+    # affordances — the flag discloses the effect, not the reason.
+    content_read_only: bool = False
 
 
 class GuildInviteCreate(SanitizedBaseModel):
@@ -94,10 +99,11 @@ class GuildUpdate(SanitizedBaseModel):
     # Sentinel "unset" semantics: explicitly omit the field to leave the
     # current setting untouched; set null to switch to never-purge.
     retention_days: Optional[int] = Field(default=None, ge=1, le=3650)
-    # Max total stored bytes for this guild's blobs. None means "unlimited".
-    # Same sentinel "unset" semantics as retention_days: omit to leave the
-    # current value untouched; set null to switch to unlimited.
-    max_storage_bytes: Optional[int] = Field(default=None, ge=0)
+    # NOTE: deliberately no cap/status/tier fields here. Those are
+    # operator/billing enforcement inputs (the platform Guilds tab or the
+    # verified billing path) — a guild's own admins must never set them, and
+    # the column-scoped UPDATE grant on public.guilds (migration 0138) makes
+    # the database enforce that even if a field regressed into this schema.
 
 
 class PlatformGuildStorageRead(SanitizedBaseModel):

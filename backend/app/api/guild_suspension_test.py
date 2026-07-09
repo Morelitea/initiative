@@ -20,7 +20,7 @@ import pytest
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.messages import GuildMessages
+from app.core.messages import GuildMessages, ProjectMessages
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildInvite, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
@@ -180,8 +180,9 @@ async def test_read_only_member_reads_but_writes_denied_at_role_level(
     client: AsyncClient, session: AsyncSession, acting_user
 ):
     """Under ``read_only`` a member still reads content (initiative RLS legs
-    intact) but an INSERT dies in Postgres (``guild_<id>_ro`` has no write
-    privileges) and surfaces as the generic 403."""
+    intact) but writes are refused: the DAC engine caps the request at read
+    (clean app-layer 403), and even without it the INSERT would die in
+    Postgres (``guild_<id>_ro`` has no write privileges)."""
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
     await task_statuses_service.ensure_default_statuses(session, a.project.id)
     status = await task_statuses_service.get_default_status(session, a.project.id)
@@ -194,7 +195,8 @@ async def test_read_only_member_reads_but_writes_denied_at_role_level(
     assert resp.status_code == 200
     assert any(i["id"] == a.initiative.id for i in resp.json())
 
-    # Writes: denied by the role, mapped to the generic 403.
+    # Writes: refused with the ordinary write-denied code (NOT a
+    # status-specific one — the lifecycle status is not disclosed to members).
     resp = await client.post(
         a.g("/tasks/"),
         headers=a.headers,
@@ -205,7 +207,85 @@ async def test_read_only_member_reads_but_writes_denied_at_role_level(
         },
     )
     assert resp.status_code == 403, resp.text
-    assert resp.json()["detail"] == GuildMessages.GUILD_ACCESS_DENIED
+    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
+
+
+async def test_read_only_guild_admin_writes_denied_too(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """``read_only`` freezes GUILD ADMINS exactly like members: the request is
+    routed into ``guild_<id>_ro`` regardless of the membership role, so the
+    admin RLS leg can read everything but no content write survives."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+    await task_statuses_service.ensure_default_statuses(session, a.project.id)
+    status = await task_statuses_service.get_default_status(session, a.project.id)
+    task = await create_task(session, a.project, title="before")
+    await session.commit()
+
+    await _set_status(session, a.guild, GuildStatus.read_only)
+
+    resp = await client.post(
+        a.g("/tasks/"),
+        headers=a.headers,
+        json={
+            "title": "frozen-admin",
+            "project_id": a.project.id,
+            "task_status_id": status.id,
+        },
+    )
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
+
+    resp = await client.patch(
+        a.g(f"/tasks/{task.id}"), headers=a.headers, json={"title": "after"}
+    )
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == ProjectMessages.WRITE_ACCESS_REQUIRED
+
+
+async def test_read_only_establishes_content_read_only_context(
+    session: AsyncSession, acting_user
+):
+    """The WS/keepalive entry point resolves ``content_read_only`` for real
+    members of a read_only guild — the collaboration socket derives its
+    ``can_write`` from this, so a frozen guild can't be edited over Yjs."""
+    from app.api.deps import establish_guild_access
+    from app.db.session import set_rls_context
+
+    a = await acting_user(guild_role=GuildRole.admin)
+    ctx = await establish_guild_access(session, a.user, a.guild.id)
+    assert ctx.content_read_only is False
+
+    # establish_guild_access left the session routed as the guild role, whose
+    # column-scoped grant can't write status — reset to the setup baseline.
+    await set_rls_context(session)
+    await _set_status(session, a.guild, GuildStatus.read_only)
+    ctx = await establish_guild_access(session, a.user, a.guild.id)
+    assert ctx.content_read_only is True
+
+
+async def test_read_only_caps_serialized_permission_level(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The DAC engine caps ``my_permission_level`` at read while the guild is
+    frozen — ONE server-side flag drives every client write affordance (and
+    the collaboration socket's ``can_write``), so the UI can't drift into
+    showing editors the backend will refuse. Writable-project filters dry up
+    the create pickers the same way."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True, project=True)
+
+    resp = await client.get(a.g(f"/projects/{a.project.id}"), headers=a.headers)
+    assert resp.json()["my_permission_level"] == "owner"
+
+    await _set_status(session, a.guild, GuildStatus.read_only)
+
+    resp = await client.get(a.g(f"/projects/{a.project.id}"), headers=a.headers)
+    assert resp.status_code == 200
+    assert resp.json()["my_permission_level"] == "read"
+
+    resp = await client.get(a.g("/projects/writable"), headers=a.headers)
+    assert resp.status_code == 200
+    assert resp.json() == []
 
 
 async def test_read_only_keeps_initiative_isolation(
@@ -375,3 +455,177 @@ async def test_invite_redemption_refused_on_non_active_guild(
     body = resp.json()
     assert body["is_valid"] is False
     assert body["reason"] == GuildMessages.INVITE_EXPIRED
+
+
+# ---------------------------------------------------------------------------
+# cross-guild "/me" aggregates honor the status
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "role", [GuildRole.member, GuildRole.admin], ids=lambda r: r.value
+)
+async def test_suspended_guild_content_hidden_from_me_aggregates(
+    client: AsyncClient, session: AsyncSession, acting_user, role
+):
+    """/me/* visits each member guild's schema directly (no ``/g/`` choke
+    point), so it must apply the same suspension rule itself: a suspended
+    guild's content vanishes from the aggregates — for admins too, who keep
+    only the settings surface."""
+    a = await acting_user(guild_role=role, initiative=True, project=True)
+    await create_task(session, a.project, title="mine", assignees=[a.user])
+
+    resp = await client.get("/api/v1/me/tasks", headers=a.headers)
+    assert resp.status_code == 200
+    assert any(t["title"] == "mine" for t in resp.json()["items"])
+
+    await _set_status(session, a.guild, GuildStatus.suspended)
+
+    resp = await client.get("/api/v1/me/tasks", headers=a.headers)
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
+async def test_read_only_guild_content_still_in_me_aggregates(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """read_only keeps reads: the aggregate path routes that guild through the
+    SELECT-only role but the content stays visible."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    await create_task(session, a.project, title="mine", assignees=[a.user])
+    await _set_status(session, a.guild, GuildStatus.read_only)
+
+    resp = await client.get("/api/v1/me/tasks", headers=a.headers)
+    assert resp.status_code == 200
+    assert any(t["title"] == "mine" for t in resp.json()["items"])
+
+
+# ---------------------------------------------------------------------------
+# the member-facing read-only signal
+# ---------------------------------------------------------------------------
+
+
+async def test_content_read_only_flag_serialized_to_members(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """Members never see the status itself, but they DO get the effect flag —
+    the UI must drop write affordances when the guild is frozen."""
+    admin = await acting_user(guild_role=GuildRole.admin)
+    member = await acting_user(guild_role=GuildRole.member, guild=admin.guild)
+
+    row = [
+        g
+        for g in (await client.get("/api/v1/guilds/", headers=member.headers)).json()
+        if g["id"] == admin.guild.id
+    ][0]
+    assert row["content_read_only"] is False
+
+    await _set_status(session, admin.guild, GuildStatus.read_only)
+
+    row = [
+        g
+        for g in (await client.get("/api/v1/guilds/", headers=member.headers)).json()
+        if g["id"] == admin.guild.id
+    ][0]
+    assert row["content_read_only"] is True
+    assert row["status"] is None, "the status itself stays undisclosed to members"
+
+
+# ---------------------------------------------------------------------------
+# enforcement columns: operator/billing only, database-enforced
+# ---------------------------------------------------------------------------
+
+
+async def test_guild_admin_patch_cannot_touch_enforcement_fields(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The guild-facing PATCH no longer carries cap/status fields — a payload
+    that smuggles them is ignored (unknown fields), never applied."""
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    resp = await client.patch(
+        f"/api/v1/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={
+            "name": "Renamed",
+            "max_storage_bytes": 5,
+            "max_users": 1,
+            "status": "active",
+            "tier_name": "Enterprise",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["name"] == "Renamed"
+    assert body["max_storage_bytes"] is None
+    assert body["max_users"] is None
+    assert body["tier_name"] is None
+
+    await session.refresh(a.guild)
+    assert a.guild.max_storage_bytes is None
+    assert a.guild.status == GuildStatus.active.value
+
+
+async def test_guild_role_lacks_update_on_enforcement_columns(
+    session: AsyncSession, acting_user, role_session
+):
+    """Column-scoped grants (migration 0138): the assumed ``guild_<id>`` role
+    can rename its guild but a direct UPDATE of ``status`` / caps / tier dies
+    with insufficient_privilege — the DB, not app code, is the boundary."""
+    import sqlalchemy.exc
+    from sqlalchemy import text as sa_text
+
+    from app.db.session import set_rls_context
+
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    s = await role_session("app_user")
+    await set_rls_context(s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin")
+
+    # Identity columns: allowed.
+    await s.exec(
+        sa_text("UPDATE public.guilds SET name = 'renamed-by-role' WHERE id = :gid"),
+        params={"gid": a.guild.id},
+    )
+    await s.rollback()
+
+    for column, value in [
+        ("status", "'suspended'"),
+        ("status_changed_at", "now()"),
+        ("tier_name", "'Enterprise'"),
+        ("max_storage_bytes", "5"),
+        ("max_users", "1"),
+    ]:
+        await set_rls_context(
+            s, user_id=a.user.id, guild_id=a.guild.id, guild_role="admin"
+        )
+        with pytest.raises(sqlalchemy.exc.ProgrammingError, match="permission denied"):
+            await s.exec(
+                sa_text(f"UPDATE public.guilds SET {column} = {value} WHERE id = :gid"),
+                params={"gid": a.guild.id},
+            )
+        await s.rollback()
+
+
+async def test_platform_guild_status_endpoint_requires_guilds_manage(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """The operator endpoint stays capability-gated: a plain member (and the
+    guild's own admin) get 403; a platform admin flips the status."""
+    a = await acting_user(guild_role=GuildRole.admin)
+
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{a.guild.id}",
+        headers=a.headers,
+        json={"status": "suspended"},
+    )
+    assert resp.status_code == 403
+
+    platform_admin = await create_user(session, role=UserRole.admin)
+    resp = await client.patch(
+        f"/api/v1/settings/guilds/{a.guild.id}",
+        headers=get_auth_headers(platform_admin),
+        json={"status": "suspended"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "suspended"

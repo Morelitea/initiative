@@ -207,6 +207,9 @@ async def websocket_collaborate(
             )
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
+        # The DAC engine caps the level at "read" while the guild's content is
+        # frozen (read_only lifecycle status, recorded by establish_guild_access),
+        # so a frozen guild can never hand out a writable socket.
         can_write = level in ("write", "owner")
 
         # Get or create the document room (needs session for initial load)
@@ -244,6 +247,10 @@ async def websocket_collaborate(
         current = permissions_service.compute_document_permission(doc, check_user.id)
         if current is None:
             return False  # read access revoked
+        # A guild flipping to read_only mid-session caps ``current`` at "read"
+        # (the DAC engine reads the lifecycle flag recorded by the re-auth's
+        # establish_guild_access), so writer sockets hard-disconnect here and
+        # reconnect read-only — same rule as a lost DAC write level.
         return not needs_write or current in ("write", "owner")
 
     await stream_authority.join(

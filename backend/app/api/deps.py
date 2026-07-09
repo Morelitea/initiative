@@ -12,7 +12,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.capabilities import Capability, user_has_capability
 from app.core.config import settings
 from app.core.pam_context import set_active_grant
-from app.core.role_context import set_active_role, set_override_sharing_initiatives
+from app.core.role_context import (
+    set_active_role,
+    set_content_read_only_guild,
+    set_override_sharing_initiatives,
+)
 from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.security import (
     AutoDelegationVerificationError,
@@ -525,6 +529,8 @@ async def _apply_guild_session_context(
         # Break-glass acts as a full guild admin, which already bypasses gate 4
         # everywhere; the per-initiative "Full access" set is moot here.
         set_override_sharing_initiatives(None)
+        # Break-glass overrides the guild lifecycle status by design.
+        set_content_read_only_guild(None)
         await set_rls_context(
             session,
             user_id=current_user.id,
@@ -552,6 +558,9 @@ async def _apply_guild_session_context(
         set_active_role(None, None)
         # A PAM grantee holds no initiative role, so no "Full access" override.
         set_override_sharing_initiatives(None)
+        # A scoped grant overrides the guild lifecycle status by design (its
+        # read/write level is enforced at the Postgres role layer instead).
+        set_content_read_only_guild(None)
         # Leave current_guild_id unset — the existing write policies treat a
         # matching current_guild_id as proof of membership. Scope the grant via
         # pam_guild_id instead.
@@ -570,6 +579,13 @@ async def _apply_guild_session_context(
     # Record the membership role for this request's active guild so the sync
     # access checks can apply the guild-admin leg of the initiative-scope gate.
     set_active_role(guild_context.guild_id, guild_context.role.value)
+    # Frozen guild (read_only lifecycle status): the DB role already refuses
+    # writes; recording it here makes the app-layer DAC engine agree, so every
+    # derived permission (my_permission_level, writable filters, WS can_write)
+    # reports read from ONE flag instead of per-surface re-derivations.
+    set_content_read_only_guild(
+        guild_context.guild_id if guild_context.content_read_only else None
+    )
     # No standing all-guild bypass: a guild admin sees the whole guild via the
     # ``current_guild_role='admin'`` RLS leg (and the guild role they SET into),
     # never an ambient bypass. A ``data.bypass`` holder who isn't a member reaches

@@ -259,6 +259,9 @@
     "guildReadOnly": "Este gremio es de solo lectura",
     "guildSuspended": "Este gremio está suspendido"
   },
+  "readOnlyBanner": {
+    "message": "{{guild}} está actualmente en modo de solo lectura. Puedes consultar todo, pero los cambios están desactivados."
+  },
   "usagePanel": {
     "title": "Uso",
     "storage": "Almacenamiento",
