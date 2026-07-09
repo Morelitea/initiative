@@ -35,7 +35,8 @@
       "users": "Users",
       "initiatives": "Initiatives",
       "trash": "Trash",
-      "dangerZone": "Danger zone"
+      "dangerZone": "Danger zone",
+      "auth": "Authentication"
     }
   },
   "profile": {
@@ -574,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Select initiative first",
     "loadingOptions": "Loading options…",
     "loadingOidcMappings": "Loading OIDC mappings…",
-    "oidcMappingsLoadError": "Unable to load OIDC mappings."
+    "oidcMappingsLoadError": "Unable to load OIDC mappings.",
+    "scope": {
+      "title": "Login configuration",
+      "description": "Choose where sign-in is configured for this server.",
+      "platformLabel": "Platform-wide",
+      "platformHelp": "Sign-in is configured once, here, for the entire server. Every guild uses it. Best for a single organization running its own instance.",
+      "guildLabel": "Per-guild",
+      "guildHelp": "Each guild configures its own sign-in and membership rules in its guild settings. Best for a server hosting multiple independent organizations.",
+      "comingSoon": "Coming soon",
+      "passwordNote": "Password sign-in stays available in both modes."
+    }
   },
   "platformUsers": {
     "title": "Platform users",
@@ -752,7 +763,7 @@
     "title": "Platform settings",
     "subtitle": "Configure authentication, branding, email, AI, and guild storage for the entire platform.",
     "tabs": {
-      "auth": "Auth",
+      "auth": "Authentication",
       "branding": "Branding",
       "email": "Email",
       "ai": "AI"
@@ -804,5 +815,11 @@
       "access": "Access",
       "guilds": "Guilds"
     }
+  },
+  "guildAuth": {
+    "title": "Authentication",
+    "comingSoon": "Coming soon",
+    "description": "Sign-in configuration for this guild.",
+    "body": "This server uses per-guild login. Soon, guild admins will configure single sign-on and membership rules for this guild here."
   }
 }

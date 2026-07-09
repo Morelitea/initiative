@@ -2,12 +2,20 @@ from typing import List, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
+from app.models.platform.app_setting import AuthScope
 from app.schemas.base import RawTextStr, SanitizedBaseModel
+
+
+class AuthScopeUpdate(SanitizedBaseModel):
+    """Switch where login is configured (platform-wide vs per-guild)."""
+
+    scope: AuthScope
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    auth_scope: AuthScope
     enabled: bool
     issuer: Optional[str] = None
     client_id: Optional[str] = None
@@ -34,6 +42,10 @@ class InterfaceSettingsResponse(SanitizedBaseModel):
 
     light_accent_color: str
     dark_accent_color: str
+    # Non-secret posture info: the login page and guild settings need to know
+    # where sign-in is configured without a config.manage read. Required — a
+    # construction site that forgets it must fail, not silently claim platform.
+    auth_scope: AuthScope
 
 
 class InterfaceSettingsUpdate(SanitizedBaseModel):

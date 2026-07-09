@@ -459,6 +459,27 @@ export interface AttachmentUploadResponse {
   size: number;
 }
 
+/**
+ * Where login is configured: once for the whole platform, or per guild.
+ *
+ * Mutually exclusive postures (see the auth-settings-scope design doc): the
+ * inactive side's provider configuration stays stored but dormant — switching
+ * is non-destructive and reversible.
+ */
+export type AuthScope = (typeof AuthScope)[keyof typeof AuthScope];
+
+export const AuthScope = {
+  platform: "platform",
+  guild: "guild",
+} as const;
+
+/**
+ * Switch where login is configured (platform-wide vs per-guild).
+ */
+export interface AuthScopeUpdate {
+  scope: AuthScope;
+}
+
 export interface BodyLoginAccessTokenApiV1AuthTokenPost {
   grant_type?: string | null;
   username: string;
@@ -1585,6 +1606,7 @@ export interface InitiativeUpdate {
 export interface InterfaceSettingsResponse {
   light_accent_color: string;
   dark_accent_color: string;
+  auth_scope: AuthScope;
 }
 
 export interface InterfaceSettingsUpdate {
@@ -1747,6 +1769,7 @@ export interface OIDCMappingsResponse {
 }
 
 export interface OIDCSettingsResponse {
+  auth_scope: AuthScope;
   enabled: boolean;
   issuer: string | null;
   client_id: string | null;

@@ -35,7 +35,8 @@
       "users": "Utilisateurs",
       "initiatives": "Initiatives",
       "trash": "Corbeille",
-      "dangerZone": "Zone de danger"
+      "dangerZone": "Zone de danger",
+      "auth": "Authentification"
     }
   },
   "profile": {
@@ -574,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Sélectionnez d'abord une initiative",
     "loadingOptions": "Chargement des options…",
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
-    "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC."
+    "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
+    "scope": {
+      "title": "Configuration de connexion",
+      "description": "Choisissez où la connexion est configurée pour ce serveur.",
+      "platformLabel": "À l'échelle de la plateforme",
+      "platformHelp": "La connexion est configurée une seule fois, ici, pour tout le serveur. Toutes les guildes l'utilisent. Idéal pour une organisation unique gérant sa propre instance.",
+      "guildLabel": "Par guilde",
+      "guildHelp": "Chaque guilde configure sa propre connexion et ses règles d'adhésion dans ses paramètres de guilde. Idéal pour un serveur hébergeant plusieurs organisations indépendantes.",
+      "comingSoon": "Bientôt disponible",
+      "passwordNote": "La connexion par mot de passe reste disponible dans les deux modes."
+    }
   },
   "platformUsers": {
     "title": "Utilisateurs de la plateforme",
@@ -752,7 +763,7 @@
     "title": "Paramètres de la plateforme",
     "subtitle": "Configurez l'authentification, la personnalisation, l'email et l'IA pour toute la plateforme.",
     "tabs": {
-      "auth": "Auth",
+      "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
       "ai": "IA"
@@ -804,5 +815,11 @@
       "storageLimit": "Limite de stockage",
       "status": "Statut"
     }
+  },
+  "guildAuth": {
+    "title": "Authentification",
+    "comingSoon": "Bientôt disponible",
+    "description": "Configuration de connexion pour cette guilde.",
+    "body": "Ce serveur utilise la connexion par guilde. Bientôt, les admins de guilde configureront ici l'authentification unique et les règles d'adhésion de cette guilde."
   }
 }

@@ -35,7 +35,8 @@
       "users": "Usuarios",
       "initiatives": "Iniciativas",
       "trash": "Papelera",
-      "dangerZone": "Zona de peligro"
+      "dangerZone": "Zona de peligro",
+      "auth": "Autenticación"
     }
   },
   "profile": {
@@ -574,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Selecciona una iniciativa primero",
     "loadingOptions": "Cargando opciones…",
     "loadingOidcMappings": "Cargando mapeos OIDC…",
-    "oidcMappingsLoadError": "No se pudieron cargar los mapeos OIDC."
+    "oidcMappingsLoadError": "No se pudieron cargar los mapeos OIDC.",
+    "scope": {
+      "title": "Configuración de inicio de sesión",
+      "description": "Elige dónde se configura el inicio de sesión para este servidor.",
+      "platformLabel": "Para toda la plataforma",
+      "platformHelp": "El inicio de sesión se configura una sola vez, aquí, para todo el servidor. Todos los gremios lo usan. Ideal para una sola organización con su propia instancia.",
+      "guildLabel": "Por gremio",
+      "guildHelp": "Cada gremio configura su propio inicio de sesión y sus reglas de membresía en los ajustes del gremio. Ideal para un servidor que aloja varias organizaciones independientes.",
+      "comingSoon": "Próximamente",
+      "passwordNote": "El inicio de sesión con contraseña sigue disponible en ambos modos."
+    }
   },
   "platformUsers": {
     "title": "Usuarios de la plataforma",
@@ -804,5 +815,11 @@
       "storageLimit": "Límite de almacenamiento",
       "status": "Estado"
     }
+  },
+  "guildAuth": {
+    "title": "Autenticación",
+    "comingSoon": "Próximamente",
+    "description": "Configuración de inicio de sesión para este gremio.",
+    "body": "Este servidor usa inicio de sesión por gremio. Pronto, los administradores del gremio podrán configurar aquí el inicio de sesión único y las reglas de membresía de este gremio."
   }
 }

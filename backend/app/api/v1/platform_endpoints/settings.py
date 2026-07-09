@@ -25,6 +25,7 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
+    AuthScopeUpdate,
     EmailSettingsResponse,
     EmailSettingsUpdate,
     EmailTestRequest,
@@ -92,6 +93,7 @@ async def get_oidc_settings(
 ) -> OIDCSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     return OIDCSettingsResponse(
+        auth_scope=settings_obj.auth_scope,
         enabled=settings_obj.oidc_enabled,
         issuer=settings_obj.oidc_issuer,
         client_id=settings_obj.oidc_client_id,
@@ -119,6 +121,35 @@ async def update_oidc_settings(
         scopes=payload.scopes,
     )
     return OIDCSettingsResponse(
+        auth_scope=updated.auth_scope,
+        enabled=updated.oidc_enabled,
+        issuer=updated.oidc_issuer,
+        client_id=updated.oidc_client_id,
+        redirect_uri=_backend_redirect_uri(),
+        post_login_redirect=_frontend_redirect_uri(),
+        mobile_redirect_uri=_mobile_redirect_uri(),
+        provider_name=updated.oidc_provider_name,
+        scopes=updated.oidc_scopes,
+    )
+
+
+@router.put("/auth-scope", response_model=OIDCSettingsResponse)
+async def update_auth_scope(
+    payload: AuthScopeUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> OIDCSettingsResponse:
+    """Switch where login is configured (platform-wide vs per-guild).
+
+    Non-destructive: the dormant posture's provider configuration is kept, so
+    switching back restores it exactly. Enforcement is server-side — the OIDC
+    login endpoints refuse when the platform posture isn't active.
+    """
+    updated = await app_settings_service.update_auth_scope(
+        session, scope=payload.scope.value
+    )
+    return OIDCSettingsResponse(
+        auth_scope=updated.auth_scope,
         enabled=updated.oidc_enabled,
         issuer=updated.oidc_issuer,
         client_id=updated.oidc_client_id,
@@ -138,6 +169,7 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        auth_scope=settings_obj.auth_scope,
     )
 
 
@@ -155,6 +187,7 @@ async def update_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        auth_scope=settings_obj.auth_scope,
     )
 
 
