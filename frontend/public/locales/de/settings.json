@@ -766,7 +766,8 @@
       "auth": "Authentifizierung",
       "branding": "Branding",
       "email": "E-Mail",
-      "ai": "KI"
+      "ai": "KI",
+      "storage": "Speicher"
     }
   },
   "adminDashboard": {
@@ -814,6 +815,57 @@
       "users": "Benutzer",
       "storageLimit": "Speicherlimit",
       "status": "Status"
+    }
+  },
+  "storage": {
+    "adminOnly": "Nur Plattform-Eigentümer können den Speicher konfigurieren.",
+    "loading": "Speichereinstellungen werden geladen…",
+    "loadError": "Speichereinstellungen konnten nicht geladen werden.",
+    "title": "Objektspeicher",
+    "description": "Lege fest, wo hochgeladene Dateien (Dokumente, Anhänge) gespeichert werden. Standard ist das lokale Dateisystem; wechsle zu einem S3-kompatiblen Speicher für skalierbare oder geteilte Deployments.",
+    "backendLabel": "Speicher-Backend",
+    "backendLocal": "Lokales Dateisystem",
+    "backendS3": "S3-kompatibel",
+    "backendHelp": "Lokal speichert Dateien auf der Serverfestplatte. S3 funktioniert mit AWS S3, einer selbst gehosteten Garage-/MinIO-Instanz, Cloudflare R2 und Ähnlichem.",
+    "cutoverTitle": "Der Wechsel zu S3 verschiebt vorhandene Dateien nicht",
+    "cutoverHelp": "Speichere diese Einstellungen, führe „Verbindung testen“ aus und kopiere dann mit „Backfill“ unten die vorhandenen lokalen Dateien in den Bucket. Wechsle das Backend erst auf S3, wenn der Backfill abgeschlossen ist – optional „Fehlende Objekte lokal ausliefern“ während eines Prüfzeitraums aktiviert lassen.",
+    "bucketLabel": "Bucket",
+    "bucketPlaceholder": "my-initiative-uploads",
+    "regionLabel": "Region",
+    "endpointLabel": "Endpunkt-URL",
+    "endpointPlaceholder": "https://s3.example.com",
+    "endpointHelp": "Für AWS S3 leer lassen. Für Garage, MinIO, R2 oder andere Nicht-AWS-Speicher setzen.",
+    "accessKeyLabel": "Zugriffsschlüssel-ID",
+    "accessKeyPlaceholder": "Leer lassen, um die Umgebungs-Anmeldedaten zu verwenden",
+    "secretKeyLabel": "Geheimer Zugriffsschlüssel",
+    "secretKeySet": "•••••••• (unverändert)",
+    "secretKeyHelp": "Leer lassen, um den gespeicherten Schlüssel beizubehalten. Verschlüsselt gespeichert; nie angezeigt.",
+    "kmsLabel": "KMS-Schlüssel-ID (optional)",
+    "kmsPlaceholder": "Für SSE-KMS-serverseitige Verschlüsselung",
+    "pathStyleLabel": "Path-Style-Adressierung",
+    "pathStyleHelp": "Erforderlich für Garage und die meisten Nicht-AWS-Speicher.",
+    "localFallbackLabel": "Fehlende Objekte lokal ausliefern",
+    "localFallbackHelp": "Während der Umstellung Blobs, die noch nicht nach S3 kopiert wurden, von der lokalen Festplatte lesen.",
+    "save": "Speichern",
+    "saving": "Wird gespeichert…",
+    "saveSuccess": "Speichereinstellungen gespeichert.",
+    "saveError": "Speichereinstellungen konnten nicht gespeichert werden.",
+    "testConnection": "Verbindung testen",
+    "testing": "Wird getestet…",
+    "testSuccess": "Verbindung erfolgreich.",
+    "testError": "Verbindung fehlgeschlagen.",
+    "backfillTitle": "Lokale Dateien nach S3 übertragen",
+    "backfillHelp": "Kopiert jeden vorhandenen lokalen Upload in den konfigurierten Bucket. Idempotent und sicher erneut ausführbar; führe es vor dem Wechsel des Backends auf S3 aus.",
+    "startBackfill": "Backfill starten",
+    "backfillRunning": "Backfill läuft…",
+    "backfillStarted": "Backfill gestartet.",
+    "backfillError": "Backfill konnte nicht gestartet werden.",
+    "backfillCounts": "Kopiert {{copied}} · Übersprungen {{skipped}} · Fehlgeschlagen {{failed}}",
+    "backfillStatus": {
+      "idle": "Inaktiv",
+      "running": "Läuft…",
+      "complete": "Abgeschlossen",
+      "failed": "Fehlgeschlagen"
     }
   },
   "guildAuth": {

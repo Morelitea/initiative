@@ -38,6 +38,10 @@ from app.schemas.platform.settings import (
     OIDCMappingsResponse,
     OIDCSettingsResponse,
     OIDCSettingsUpdate,
+    StorageBackfillStatusResponse,
+    StorageSettingsResponse,
+    StorageSettingsUpdate,
+    StorageTestResponse,
 )
 from app.models.platform.guild import GuildStatus
 from app.schemas.platform.guild import (
@@ -49,6 +53,7 @@ from app.core.messages import GuildMessages, SettingsMessages
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 from app.services import email as email_service
+from app.services import storage_backfill, storage_config
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +258,133 @@ async def send_test_email(
             detail=SettingsMessages.EMAIL_SEND_FAILED,
         ) from exc
     return {"status": "sent"}
+
+
+# --- Object storage ---
+
+
+def _storage_settings_payload(settings_obj: AppSetting) -> StorageSettingsResponse:
+    backend = (settings_obj.storage_backend or "local").lower()
+    return StorageSettingsResponse(
+        backend="s3" if backend == "s3" else "local",
+        s3_bucket=settings_obj.s3_bucket,
+        s3_region=settings_obj.s3_region or "us-east-1",
+        s3_endpoint_url=settings_obj.s3_endpoint_url,
+        s3_access_key_id=settings_obj.s3_access_key_id,
+        has_secret_access_key=bool(settings_obj.s3_secret_access_key_encrypted),
+        s3_use_path_style=settings_obj.s3_use_path_style,
+        s3_kms_key_id=settings_obj.s3_kms_key_id,
+        s3_local_fallback=settings_obj.s3_local_fallback,
+    )
+
+
+@router.get("/storage", response_model=StorageSettingsResponse)
+async def get_storage_settings(
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageSettingsResponse:
+    settings_obj = await app_settings_service.get_app_settings(session)
+    return _storage_settings_payload(settings_obj)
+
+
+@router.put("/storage", response_model=StorageSettingsResponse)
+async def update_storage_settings(
+    payload: StorageSettingsUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageSettingsResponse:
+    data = payload.model_dump(exclude_unset=True)
+    secret_provided = "s3_secret_access_key" in data
+    updated = await app_settings_service.update_storage_settings(
+        session,
+        backend=payload.backend,
+        s3_bucket=payload.s3_bucket,
+        s3_region=payload.s3_region,
+        s3_endpoint_url=payload.s3_endpoint_url,
+        s3_access_key_id=payload.s3_access_key_id,
+        s3_secret_access_key=payload.s3_secret_access_key,
+        secret_provided=secret_provided,
+        s3_use_path_style=payload.s3_use_path_style,
+        s3_kms_key_id=payload.s3_kms_key_id,
+        s3_local_fallback=payload.s3_local_fallback,
+    )
+    return _storage_settings_payload(updated)
+
+
+@router.post("/storage/test", response_model=StorageTestResponse)
+async def test_storage_connection(
+    payload: StorageSettingsUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageTestResponse:
+    # Test the submitted (possibly unsaved) config. If the admin left the secret
+    # blank, fall back to the saved one so they can re-test without re-typing it.
+    data = payload.model_dump(exclude_unset=True)
+    secret = payload.s3_secret_access_key
+    if "s3_secret_access_key" not in data or not secret:
+        secret = await storage_config.resolve_saved_secret(session)
+    candidate = storage_config.ResolvedStorageConfig(
+        backend="s3" if payload.backend == "s3" else "local",
+        bucket=(payload.s3_bucket or "").strip() or None,
+        region=(payload.s3_region or "us-east-1").strip() or "us-east-1",
+        endpoint_url=(payload.s3_endpoint_url or "").strip() or None,
+        access_key_id=(payload.s3_access_key_id or "").strip() or None,
+        secret_access_key=secret,
+        use_path_style=bool(payload.s3_use_path_style),
+        kms_key_id=(payload.s3_kms_key_id or "").strip() or None,
+        local_fallback=bool(payload.s3_local_fallback),
+    )
+    ok, message = await storage_config.test_connection(candidate)
+    return StorageTestResponse(success=ok, message=message)
+
+
+def _backfill_payload(row: dict) -> StorageBackfillStatusResponse:
+    started = row.get("started_at")
+    finished = row.get("finished_at")
+    return StorageBackfillStatusResponse(
+        status=row["status"],
+        copied=row["copied"],
+        skipped=row["skipped"],
+        failed=row["failed"],
+        hash_mismatches=row["hash_mismatches"],
+        failed_keys=list(row.get("failed_keys") or []),
+        started_at=started.isoformat() if started else None,
+        finished_at=finished.isoformat() if finished else None,
+        error=row.get("error"),
+    )
+
+
+@router.post("/storage/backfill", response_model=StorageBackfillStatusResponse)
+async def start_storage_backfill(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageBackfillStatusResponse:
+    # The backfill writes to S3 via the saved credentials, so they must be set
+    # (the documented flow runs it while still serving on "local").
+    settings_obj = await app_settings_service.get_app_settings(session)
+    if not settings_obj.s3_bucket:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=SettingsMessages.STORAGE_BACKFILL_NOT_CONFIGURED,
+        )
+    # Make sure the detached task resolves the freshly-saved S3 credentials.
+    await storage_config.refresh_storage_config(session)
+    try:
+        row = await storage_backfill.start_backfill(session)
+    except storage_backfill.BackfillAlreadyRunning:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=SettingsMessages.STORAGE_BACKFILL_RUNNING,
+        ) from None
+    return _backfill_payload(row)
+
+
+@router.get("/storage/backfill", response_model=StorageBackfillStatusResponse)
+async def get_storage_backfill_status(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageBackfillStatusResponse:
+    return _backfill_payload(await storage_backfill.get_status(session))
 
 
 @router.get("/fcm-config", response_model=FCMConfigResponse)

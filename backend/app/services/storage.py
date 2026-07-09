@@ -36,9 +36,12 @@ from urllib.parse import quote
 from fastapi.responses import FileResponse, Response, StreamingResponse
 
 from app.core.config import settings
+from app.services.storage_config import current_storage_config
 
 if TYPE_CHECKING:  # botocore imported lazily at call time; type-only here
     from botocore.client import BaseClient
+
+    from app.services.storage_config import ResolvedStorageConfig
 
 logger = logging.getLogger(__name__)
 
@@ -428,7 +431,24 @@ class DualReadStorage:
         return self._primary.exists(key) or self._fallback.exists(key)
 
     def open_readable(self, key: str) -> ReadableBlob | None:
-        return self._primary.open_readable(key) or self._fallback.open_readable(key)
+        # The whole point of the fallback window is "keep serving during the
+        # cutover." A clean miss (None) falls through to local; so does an S3
+        # *error* (auth/signature/transient) — we log it loudly so a real
+        # misconfiguration is still visible, but a half-migrated deployment keeps
+        # serving from local instead of 500ing. Once the backfill is verified and
+        # S3 reads are healthy, turn S3_LOCAL_FALLBACK off.
+        try:
+            blob = self._primary.open_readable(key)
+        except Exception:
+            logger.warning(
+                "S3 read failed for %r; serving from local fallback "
+                "(S3_LOCAL_FALLBACK on). Resolve the S3 error before disabling "
+                "fallback.",
+                key,
+                exc_info=True,
+            )
+            blob = None
+        return blob or self._fallback.open_readable(key)
 
     def presign_get(
         self, key: str, *, ttl: int, filename: str | None = None
@@ -478,8 +498,19 @@ _local_backends: dict[str, LocalFilesystemStorage] = {}
 _s3_client: "BaseClient | None" = None
 
 
+def reset_s3_client() -> None:
+    """Drop the cached boto3 client so the next use rebuilds it.
+
+    Called by :func:`app.services.storage_config.refresh_storage_config` when the
+    resolved storage config changes (endpoint/region/credentials), so a runtime
+    settings update takes effect without a restart.
+    """
+    global _s3_client
+    _s3_client = None
+
+
 def _backend_name() -> str:
-    return (settings.STORAGE_BACKEND or "local").lower()
+    return current_storage_config().backend
 
 
 def _local(prefix: str = "") -> LocalFilesystemStorage:
@@ -490,41 +521,68 @@ def _local(prefix: str = "") -> LocalFilesystemStorage:
     return backend
 
 
+def build_s3_client(cfg: "ResolvedStorageConfig | None" = None) -> "BaseClient":
+    """Construct a boto3 S3 client from a resolved storage config (uncached).
+
+    Used by the request-path client cache (:func:`_get_s3_client`) and by the
+    settings "test connection" path, which builds a one-off client from a
+    candidate (possibly unsaved) config.
+    """
+    import boto3
+    from botocore.config import Config
+
+    if cfg is None:
+        cfg = current_storage_config()
+
+    config_kwargs: dict = {
+        "signature_version": "s3v4",
+        # botocore >=1.36 turns on AWS "flexible checksums" by default
+        # (request_checksum_calculation / response_checksum_validation =
+        # "when_supported"), which sends extra checksum headers/trailers that many
+        # S3-compatible stores (Garage, MinIO, R2, Ceph) don't implement — they
+        # reject them with a signature/`AccessDenied` error, classically on
+        # GetObject response validation. Restore the pre-1.36 behavior so we only
+        # use checksums when an operation strictly requires them; this is a no-op
+        # against real AWS S3 and the documented fix for non-AWS stores.
+        "request_checksum_calculation": "when_required",
+        "response_checksum_validation": "when_required",
+    }
+    if cfg.use_path_style:
+        # Garage and most non-AWS stores require path-style addressing.
+        config_kwargs["s3"] = {"addressing_style": "path"}
+
+    client_kwargs: dict = {
+        "region_name": cfg.region,
+        "config": Config(**config_kwargs),
+    }
+    if cfg.endpoint_url:
+        client_kwargs["endpoint_url"] = cfg.endpoint_url
+    # Explicit keys for a self-hosted store; leave unset on AWS so the ambient
+    # chain (IRSA / instance role / env) supplies credentials.
+    if cfg.access_key_id and cfg.secret_access_key:
+        client_kwargs["aws_access_key_id"] = cfg.access_key_id
+        client_kwargs["aws_secret_access_key"] = cfg.secret_access_key
+
+    return boto3.client("s3", **client_kwargs)
+
+
 def _get_s3_client() -> "BaseClient":
     global _s3_client
     if _s3_client is None:
-        import boto3
-        from botocore.config import Config
-
-        config_kwargs: dict = {"signature_version": "s3v4"}
-        if settings.S3_USE_PATH_STYLE:
-            # Garage and most non-AWS stores require path-style addressing.
-            config_kwargs["s3"] = {"addressing_style": "path"}
-
-        client_kwargs: dict = {
-            "region_name": settings.S3_REGION,
-            "config": Config(**config_kwargs),
-        }
-        if settings.S3_ENDPOINT_URL:
-            client_kwargs["endpoint_url"] = settings.S3_ENDPOINT_URL
-        # Explicit keys for a self-hosted store; leave unset on AWS so the ambient
-        # chain (IRSA / instance role / env) supplies credentials.
-        if settings.S3_ACCESS_KEY_ID and settings.S3_SECRET_ACCESS_KEY:
-            client_kwargs["aws_access_key_id"] = settings.S3_ACCESS_KEY_ID
-            client_kwargs["aws_secret_access_key"] = settings.S3_SECRET_ACCESS_KEY
-
-        _s3_client = boto3.client("s3", **client_kwargs)
+        _s3_client = build_s3_client()
     return _s3_client
 
 
 def _require_bucket() -> str:
-    if not settings.S3_BUCKET:
+    bucket = current_storage_config().bucket
+    if not bucket:
         raise ValueError("STORAGE_BACKEND='s3' requires S3_BUCKET to be set")
-    return settings.S3_BUCKET
+    return bucket
 
 
 def _make(prefix: str) -> StorageBackend:
-    name = _backend_name()
+    cfg = current_storage_config()
+    name = cfg.backend
     if name == "local":
         return _local(prefix)
     if name == "s3":
@@ -532,10 +590,10 @@ def _make(prefix: str) -> StorageBackend:
             bucket=_require_bucket(),
             client=_get_s3_client(),
             prefix=prefix,
-            kms_key_id=settings.S3_KMS_KEY_ID,
+            kms_key_id=cfg.kms_key_id,
         )
         # Cutover window: serve blobs the backfill hasn't copied yet from local.
-        if settings.S3_LOCAL_FALLBACK:
+        if cfg.local_fallback:
             return DualReadStorage(primary=s3, fallback=_local(prefix))
         return s3
     raise ValueError(f"Unsupported STORAGE_BACKEND={name!r} (expected 'local' or 's3')")
@@ -569,21 +627,6 @@ def get_guild_storage(guild_id: int) -> StorageBackend:
     siloed IRSA, dev).
     """
     return _make(f"guild_{int(guild_id)}/")
-
-
-def s3_guild_storage(guild_id: int) -> S3Storage:
-    """Build an S3 backend scoped to a guild prefix, regardless of
-    ``STORAGE_BACKEND``.
-
-    For the local→S3 backfill, which writes to S3 while the app may still be
-    running on the local backend. Raises if S3 isn't configured (``S3_BUCKET``).
-    """
-    return S3Storage(
-        bucket=_require_bucket(),
-        client=_get_s3_client(),
-        prefix=f"guild_{int(guild_id)}/",
-        kms_key_id=settings.S3_KMS_KEY_ID,
-    )
 
 
 def purge_guild_blobs(guild_id: int) -> int:

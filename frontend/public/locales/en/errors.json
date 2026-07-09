@@ -293,5 +293,9 @@
   "ADMIN_CANNOT_DELETE_LAST_OWNER": "Cannot delete the last platform owner.",
   "DOCUMENT_GRANT_CANNOT_MANAGE_MEMBERS": "Temporary access can't manage document members",
   "COUNTER_GRANT_CANNOT_MANAGE": "Temporary access can't manage counter group access",
-  "NATIVE_OTA_BUNDLE_NOT_AVAILABLE": "This server build has no over-the-air update bundle available"
+  "NATIVE_OTA_BUNDLE_NOT_AVAILABLE": "This server build has no over-the-air update bundle available",
+  "SETTINGS_STORAGE_S3_INCOMPLETE": "S3 storage settings are incomplete.",
+  "SETTINGS_STORAGE_TEST_FAILED": "Could not connect to the storage backend.",
+  "SETTINGS_STORAGE_BACKFILL_RUNNING": "A backfill is already running.",
+  "SETTINGS_STORAGE_BACKFILL_NOT_CONFIGURED": "Configure an S3 bucket before running the backfill."
 }

@@ -113,6 +113,11 @@ async def lifespan(app: FastAPI):
     await maybe_rotate_at_startup()
     async with AdminSessionLocal() as session:
         await app_settings_service.ensure_defaults(session)
+        # Prime the process-wide storage config snapshot from the DB so the
+        # request path uses the saved backend/credentials, not just env vars.
+        from app.services import storage_config
+
+        await storage_config.refresh_storage_config(session)
     # Migrate the single platform OIDC config into the provider registry +
     # identity links (operator-global; idempotent, self-healing). Runs after
     # ensure_defaults so the settings singleton exists. Additive — the legacy

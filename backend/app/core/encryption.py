@@ -20,6 +20,7 @@ SALT_OIDC_CLIENT_SECRET = b"oidc-client-secret"
 SALT_OIDC_FLOW_STATE = b"oidc-flow-state"  # transient login-flow state (never stored)
 SALT_SMTP_PASSWORD = b"smtp-password"
 SALT_AI_API_KEY = b"ai-api-key"
+SALT_S3_SECRET_KEY = b"s3-secret-key"
 SALT_EMAIL = b"email"
 SALT_EVENT_PUBLISHER_PAYLOAD = b"event-publisher-payload"
 

@@ -40,6 +40,10 @@ import type {
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
   SendTestEmailApiV1SettingsEmailTestPost200,
+  StorageBackfillStatusResponse,
+  StorageSettingsResponse,
+  StorageSettingsUpdate,
+  StorageTestResponse,
   UpdateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut200,
 } from "../initiativeAPI.schemas";
 
@@ -931,6 +935,562 @@ export const useSendTestEmailApiV1SettingsEmailTestPost = <
     queryClient
   );
 };
+/**
+ * @summary Get Storage Settings
+ */
+export const getStorageSettingsApiV1SettingsStorageGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<StorageSettingsResponse>(
+    { url: `/api/v1/settings/storage`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetStorageSettingsApiV1SettingsStorageGetQueryKey = () => {
+  return [`/api/v1/settings/storage`] as const;
+};
+
+export const getGetStorageSettingsApiV1SettingsStorageGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetStorageSettingsApiV1SettingsStorageGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>
+  > = ({ signal }) => getStorageSettingsApiV1SettingsStorageGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetStorageSettingsApiV1SettingsStorageGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>
+>;
+export type GetStorageSettingsApiV1SettingsStorageGetQueryError = ErrorType<HTTPValidationError>;
+
+export function useGetStorageSettingsApiV1SettingsStorageGet<
+  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+          TError,
+          Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetStorageSettingsApiV1SettingsStorageGet<
+  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+          TError,
+          Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetStorageSettingsApiV1SettingsStorageGet<
+  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Storage Settings
+ */
+
+export function useGetStorageSettingsApiV1SettingsStorageGet<
+  TData = Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStorageSettingsApiV1SettingsStorageGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetStorageSettingsApiV1SettingsStorageGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update Storage Settings
+ */
+export const updateStorageSettingsApiV1SettingsStoragePut = (
+  storageSettingsUpdate: BodyType<StorageSettingsUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<StorageSettingsResponse>(
+    {
+      url: `/api/v1/settings/storage`,
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      data: storageSettingsUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getUpdateStorageSettingsApiV1SettingsStoragePutMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+    TError,
+    { data: BodyType<StorageSettingsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+  TError,
+  { data: BodyType<StorageSettingsUpdate> },
+  TContext
+> => {
+  const mutationKey = ["updateStorageSettingsApiV1SettingsStoragePut"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+    { data: BodyType<StorageSettingsUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateStorageSettingsApiV1SettingsStoragePut(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateStorageSettingsApiV1SettingsStoragePutMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>
+>;
+export type UpdateStorageSettingsApiV1SettingsStoragePutMutationBody =
+  BodyType<StorageSettingsUpdate>;
+export type UpdateStorageSettingsApiV1SettingsStoragePutMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Update Storage Settings
+ */
+export const useUpdateStorageSettingsApiV1SettingsStoragePut = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+      TError,
+      { data: BodyType<StorageSettingsUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof updateStorageSettingsApiV1SettingsStoragePut>>,
+  TError,
+  { data: BodyType<StorageSettingsUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getUpdateStorageSettingsApiV1SettingsStoragePutMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Test Storage Connection
+ */
+export const testStorageConnectionApiV1SettingsStorageTestPost = (
+  storageSettingsUpdate: BodyType<StorageSettingsUpdate>,
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<StorageTestResponse>(
+    {
+      url: `/api/v1/settings/storage/test`,
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      data: storageSettingsUpdate,
+      signal,
+    },
+    options
+  );
+};
+
+export const getTestStorageConnectionApiV1SettingsStorageTestPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+    TError,
+    { data: BodyType<StorageSettingsUpdate> },
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+  TError,
+  { data: BodyType<StorageSettingsUpdate> },
+  TContext
+> => {
+  const mutationKey = ["testStorageConnectionApiV1SettingsStorageTestPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+    { data: BodyType<StorageSettingsUpdate> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return testStorageConnectionApiV1SettingsStorageTestPost(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TestStorageConnectionApiV1SettingsStorageTestPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>
+>;
+export type TestStorageConnectionApiV1SettingsStorageTestPostMutationBody =
+  BodyType<StorageSettingsUpdate>;
+export type TestStorageConnectionApiV1SettingsStorageTestPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Test Storage Connection
+ */
+export const useTestStorageConnectionApiV1SettingsStorageTestPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+      TError,
+      { data: BodyType<StorageSettingsUpdate> },
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof testStorageConnectionApiV1SettingsStorageTestPost>>,
+  TError,
+  { data: BodyType<StorageSettingsUpdate> },
+  TContext
+> => {
+  return useMutation(
+    getTestStorageConnectionApiV1SettingsStorageTestPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Start Storage Backfill
+ */
+export const startStorageBackfillApiV1SettingsStorageBackfillPost = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<StorageBackfillStatusResponse>(
+    { url: `/api/v1/settings/storage/backfill`, method: "POST", signal },
+    options
+  );
+};
+
+export const getStartStorageBackfillApiV1SettingsStorageBackfillPostMutationOptions = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["startStorageBackfillApiV1SettingsStorageBackfillPost"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+    void
+  > = () => {
+    return startStorageBackfillApiV1SettingsStorageBackfillPost(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type StartStorageBackfillApiV1SettingsStorageBackfillPostMutationResult = NonNullable<
+  Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>
+>;
+
+export type StartStorageBackfillApiV1SettingsStorageBackfillPostMutationError =
+  ErrorType<HTTPValidationError>;
+
+/**
+ * @summary Start Storage Backfill
+ */
+export const useStartStorageBackfillApiV1SettingsStorageBackfillPost = <
+  TError = ErrorType<HTTPValidationError>,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseMutationResult<
+  Awaited<ReturnType<typeof startStorageBackfillApiV1SettingsStorageBackfillPost>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(
+    getStartStorageBackfillApiV1SettingsStorageBackfillPostMutationOptions(options),
+    queryClient
+  );
+};
+/**
+ * @summary Get Storage Backfill Status
+ */
+export const getStorageBackfillStatusApiV1SettingsStorageBackfillGet = (
+  options?: SecondParameter<typeof apiMutator>,
+  signal?: AbortSignal
+) => {
+  return apiMutator<StorageBackfillStatusResponse>(
+    { url: `/api/v1/settings/storage/backfill`, method: "GET", signal },
+    options
+  );
+};
+
+export const getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey = () => {
+  return [`/api/v1/settings/storage/backfill`] as const;
+};
+
+export const getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryOptions = <
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(options?: {
+  query?: Partial<
+    UseQueryOptions<
+      Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+      TError,
+      TData
+    >
+  >;
+  request?: SecondParameter<typeof apiMutator>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>
+  > = ({ signal }) =>
+    getStorageBackfillStatusApiV1SettingsStorageBackfillGet(requestOptions, signal);
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>
+>;
+export type GetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryError =
+  ErrorType<HTTPValidationError>;
+
+export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+          TError,
+          Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+          TError,
+          Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get Storage Backfill Status
+ */
+
+export function useGetStorageBackfillStatusApiV1SettingsStorageBackfillGet<
+  TData = Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+  TError = ErrorType<HTTPValidationError>,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getStorageBackfillStatusApiV1SettingsStorageBackfillGet>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof apiMutator>;
+  },
+  queryClient?: QueryClient
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
 /**
  * Get public FCM configuration for mobile app initialization.
  *

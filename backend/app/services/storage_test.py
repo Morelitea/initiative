@@ -12,6 +12,7 @@ from botocore.exceptions import ClientError
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.services import storage as storage_module
+from app.services import storage_config
 from app.services.storage import (
     DualReadStorage,
     LocalFilesystemStorage,
@@ -22,6 +23,17 @@ from app.services.storage import (
     get_guild_storage,
     get_storage,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_storage_config_cache():
+    """Drop the resolved-config snapshot around each test so the resolver falls
+    back to env ``settings`` (which these tests monkeypatch). Without this a
+    concurrent test that populated the cache via ``refresh_storage_config`` would
+    make the resolver ignore the patched env backend."""
+    storage_config.reset_for_tests()
+    yield
+    storage_config.reset_for_tests()
 
 
 def test_write_read_roundtrip(tmp_path):
@@ -419,6 +431,27 @@ def test_dualread_read_falls_back_to_local_then_prefers_s3(tmp_path):
     blob2 = dual.open_readable("new.png")
     assert blob2 is not None and blob2.stream is not None
     assert b"".join(blob2.stream) == b"s3-bytes"
+
+
+def test_dualread_read_falls_back_to_local_on_s3_error(tmp_path):
+    """During cutover (S3_LOCAL_FALLBACK on), an S3 read *error* — not just a
+    clean miss — must fall back to local rather than bubble up a 500. The blob
+    still exists locally, so the page keeps working while the S3 problem (auth,
+    signature, etc.) is fixed."""
+    _, s3, local, dual = _dual(tmp_path)
+    local.write("doc.svg", b"local-bytes")
+
+    def _boom(*, Bucket, Key):
+        raise ClientError(
+            {"Error": {"Code": "AccessDenied", "Message": "Invalid signature"}},
+            "GetObject",
+        )
+
+    s3._client.get_object = _boom  # primary read raises instead of missing
+
+    blob = dual.open_readable("doc.svg")
+    assert blob is not None and blob.path is not None
+    assert blob.path.read_bytes() == b"local-bytes"
 
 
 def test_dualread_exists_checks_both(tmp_path):
