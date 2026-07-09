@@ -82,6 +82,13 @@ async def test_existing_link_resolves_to_user(session):
     assert result.outcome is ResolutionOutcome.LINKED
     assert result.user.id == user.id
     assert result.identity.last_login_at is not None
+    # The returned user must be usable past its PK: the wiring endpoint reads
+    # user.status for the active/deactivated gate. Sessions are expire_on_commit
+    # =False (db/session.py + the fixture), so the SELECT-loaded user stays
+    # populated after the identity commit — no lazy IO, no MissingGreenlet. This
+    # access would raise if that ever regressed to expire-on-commit.
+    assert result.user.status == UserStatus.active
+    assert result.user.email_hash == user.email_hash
 
 
 async def test_link_is_scoped_to_its_provider(session):
