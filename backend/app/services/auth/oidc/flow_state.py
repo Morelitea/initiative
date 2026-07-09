@@ -33,6 +33,10 @@ DEFAULT_MAX_AGE_SECONDS: int = 600
 _VERIFIER_BYTES: int = 64
 _NONCE_BYTES: int = 32
 
+# device_name is a client-supplied display label that rides inside the state
+# param and thus the authorization URL — cap it so it can't inflate the URL.
+DEVICE_NAME_MAX_CHARS: int = 64
+
 
 class FlowStateError(Exception):
     """The flow state is missing, expired, or invalid; the login attempt must
@@ -60,12 +64,14 @@ def create_flow_state(
 ) -> tuple[str, OidcFlowState]:
     """Generate a fresh verifier + nonce and return ``(state, payload)`` —
     ``state`` is the encrypted token to send to the IdP, ``payload`` supplies
-    the ``code_challenge`` and ``nonce`` for the authorization request."""
+    the ``code_challenge`` and ``nonce`` for the authorization request.
+    ``device_name`` is truncated to :data:`DEVICE_NAME_MAX_CHARS` (a display
+    label, not an identifier)."""
     payload = OidcFlowState(
         code_verifier=secrets.token_urlsafe(_VERIFIER_BYTES),
         nonce=secrets.token_urlsafe(_NONCE_BYTES),
         mobile=mobile,
-        device_name=device_name,
+        device_name=device_name[:DEVICE_NAME_MAX_CHARS],
     )
     plaintext = json.dumps(
         {
@@ -90,7 +96,9 @@ def decode_flow_state(
         plaintext = decrypt_field(
             state, SALT_OIDC_FLOW_STATE, ttl_seconds=max_age_seconds
         )
-    except InvalidToken as exc:
+    # UnicodeDecodeError: decrypt_field decodes the plaintext as UTF-8, and this
+    # function's contract is FlowStateError for every invalid input.
+    except (InvalidToken, UnicodeDecodeError) as exc:
         raise FlowStateError("invalid or expired flow state") from exc
     try:
         data = json.loads(plaintext)
@@ -98,7 +106,7 @@ def decode_flow_state(
             code_verifier=data["code_verifier"],
             nonce=data["nonce"],
             mobile=bool(data.get("mobile", False)),
-            device_name=str(data.get("device_name", "")),
+            device_name=str(data.get("device_name", ""))[:DEVICE_NAME_MAX_CHARS],
         )
     except (ValueError, KeyError, TypeError) as exc:
         raise FlowStateError("malformed flow state payload") from exc

@@ -154,6 +154,34 @@ def test_valid_token_missing_required_field_rejected():
         decode_flow_state(token)
 
 
+def test_valid_token_with_non_utf8_plaintext_rejected():
+    """A same-key token whose plaintext isn't UTF-8 must still surface as
+    FlowStateError — the function's whole contract — not UnicodeDecodeError."""
+    fernet = _get_fernet(SALT_OIDC_FLOW_STATE, settings.SECRET_KEY)
+    token = fernet.encrypt(b"\xff\xfe\xfa garbage bytes").decode()
+    with pytest.raises(FlowStateError):
+        decode_flow_state(token)
+
+
+# --- device_name cap ------------------------------------------------------------
+
+
+def test_device_name_truncated_on_create():
+    state, payload = create_flow_state(device_name="x" * 500)
+    assert len(payload.device_name) == 64
+    assert len(decode_flow_state(state).device_name) == 64
+
+
+def test_device_name_capped_on_decode():
+    """Even a hand-minted token with an oversized device_name is capped at the
+    decode boundary."""
+    token = encrypt_field(
+        json.dumps({"code_verifier": "v" * 43, "nonce": "n", "device_name": "y" * 500}),
+        SALT_OIDC_FLOW_STATE,
+    )
+    assert len(decode_flow_state(token).device_name) == 64
+
+
 # --- dataclass behavior ---------------------------------------------------------
 
 
