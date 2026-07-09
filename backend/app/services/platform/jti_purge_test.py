@@ -16,6 +16,7 @@ import pytest
 from app.core import config as config_module
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
 from app.models.platform.billing import BillingJti
+from app.services.platform import jti_purge
 from app.services.platform.jti_purge import process_jti_blocklist_purges
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
@@ -87,6 +88,26 @@ async def test_worker_skips_unconfigured_blocklist(session, monkeypatch):
     assert not await _exists(session, BillingJti, "b-skip")
     # Delegation unconfigured -> its blocklist is left entirely alone.
     assert await _exists(session, AutoDelegationJti, "d-skip")
+
+
+async def test_worker_continues_after_a_sweep_fails(session, monkeypatch):
+    """A failure sweeping one blocklist must not skip the rest — the shared
+    session stays usable and the next table is still pruned."""
+    _configure(monkeypatch, billing=True, delegation=True)
+    await _add(session, AutoDelegationJti, "d-after-fail", expired=True)
+
+    real_purge = jti_purge.purge_expired_jtis
+
+    async def flaky(sess, model):
+        if model is BillingJti:
+            raise RuntimeError("boom")
+        return await real_purge(sess, model)
+
+    monkeypatch.setattr(jti_purge, "purge_expired_jtis", flaky)
+    await process_jti_blocklist_purges()
+
+    # Billing's sweep raised, but the delegation table was still swept.
+    assert not await _exists(session, AutoDelegationJti, "d-after-fail")
 
 
 async def test_worker_noop_when_nothing_configured(monkeypatch):

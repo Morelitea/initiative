@@ -62,9 +62,11 @@ async def process_jti_blocklist_purges() -> None:
     async with AdminSessionLocal() as session:
         for entry in active:
             # Independent per table: one failing sweep must not skip the rest.
+            # purge_expired_jtis rolls back its own aborted transaction before
+            # raising, so the shared session stays usable for the next entry.
             try:
                 purged = await purge_expired_jtis(session, entry.model)
-            except Exception:  # pragma: no cover - defensive, logged and retried
+            except Exception:
                 logger.exception("jti-purge: %s sweep failed", entry.label)
                 continue
             if purged:

@@ -10,10 +10,11 @@ replay of an expired token is refused whether or not its row still exists.
 Purging expired rows therefore never re-opens a replay window; it only
 bounds table growth.
 
-Both janitors delegate here rather than re-implementing the DELETE, so the
-"purge is safe because exp already refuses replay" invariant lives in one
-place. Runs on the system engine (``app_admin`` holds DELETE per
-``app/db/system_grants.py``); the scoped request roles never delete.
+The shared jti janitor delegates here for every blocklist rather than
+re-implementing the DELETE, so the "purge is safe because exp already refuses
+replay" invariant lives in one place. Runs on the system engine (``app_admin``
+holds DELETE per ``app/db/system_grants.py``); the scoped request roles never
+delete.
 """
 
 from __future__ import annotations
@@ -28,10 +29,20 @@ async def purge_expired_jtis(session: AsyncSession, model: type[SQLModel]) -> in
     """Delete blocklist rows whose ``expires_at`` has passed; return the count.
 
     ``model`` must expose an ``expires_at`` column (both jti models do). Owns
-    its transaction — commits — since a janitor runs on its own session.
+    its transaction boundary: commits on success, and on any failure rolls the
+    partial statement back before re-raising, so the session is left clean.
+    That is what makes it safe to call repeatedly on a **shared** session (the
+    janitor sweeps several tables on one session) — a statement-level error on
+    one table can't leave an aborted transaction that poisons the next call.
     """
-    result = await session.exec(
-        delete(model).where(model.expires_at < datetime.now(timezone.utc))
-    )
-    await session.commit()
+    try:
+        result = await session.exec(
+            delete(model).where(model.expires_at < datetime.now(timezone.utc))
+        )
+        await session.commit()
+    except Exception:
+        # Clear the aborted transaction so the next blocklist on this shared
+        # session still sweeps; the caller logs and moves on.
+        await session.rollback()
+        raise
     return result.rowcount or 0
