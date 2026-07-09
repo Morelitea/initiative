@@ -38,9 +38,9 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_expired_token_purge,
         TOKEN_PURGE_POLL_SECONDS,
     )
-    from app.services.platform.billing_jti_janitor import (
-        process_billing_jti_purge,
-        BILLING_JTI_PURGE_POLL_SECONDS,
+    from app.services.platform.jti_purge import (
+        process_jti_blocklist_purges,
+        JTI_PURGE_POLL_SECONDS,
     )
 
     return [
@@ -74,9 +74,7 @@ def start_background_tasks() -> list[asyncio.Task]:
         ),
         asyncio.create_task(
             _loop_worker(
-                process_billing_jti_purge,
-                BILLING_JTI_PURGE_POLL_SECONDS,
-                "billing-jti-purge",
+                process_jti_blocklist_purges, JTI_PURGE_POLL_SECONDS, "jti-purge"
             )
         ),
     ]

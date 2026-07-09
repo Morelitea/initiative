@@ -12,6 +12,10 @@ Two operations:
 Both are idempotent under retry: if a connection drops mid-insert we
 either succeed or hit the unique violation, never silently allow a
 second redemption.
+
+The table is kept bounded by the shared jti janitor
+(:func:`app.services.platform.jti_purge.process_jti_blocklist_purges`),
+which prunes expired rows across every jti blocklist.
 """
 
 from __future__ import annotations

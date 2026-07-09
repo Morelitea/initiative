@@ -31,8 +31,8 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core import config as config_module
+from app.db.jti_blocklist import purge_expired_jtis
 from app.models.platform.billing import BillingEventLog, BillingJti
-from app.services.platform.billing_jti_janitor import purge_expired_billing_jtis
 from app.testing import create_guild, create_guild_membership, create_user
 
 pytestmark = pytest.mark.integration
@@ -250,7 +250,7 @@ async def test_purged_jti_still_unreplayable(
     )
     await session.commit()
 
-    assert await purge_expired_billing_jtis(session) >= 1
+    assert await purge_expired_jtis(session, BillingJti) >= 1
     remaining = (
         await session.exec(select(BillingJti).where(BillingJti.jti == jti))
     ).one_or_none()
