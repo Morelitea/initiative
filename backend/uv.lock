@@ -1190,7 +1190,7 @@ requires-dist = [
     { name = "bcrypt", specifier = "==5.0.0" },
     { name = "boto3", specifier = ">=1.35,<2" },
     { name = "email-validator", specifier = ">=2.3.0,<3" },
-    { name = "fastapi", specifier = ">=0.136.1,<0.139" },
+    { name = "fastapi", specifier = ">=0.136.1,<0.140" },
     { name = "fastmcp", specifier = ">=3.4.2" },
     { name = "google-auth", specifier = ">=2.53.0" },
     { name = "greenlet", specifier = ">=3.0" },

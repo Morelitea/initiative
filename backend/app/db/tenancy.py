@@ -78,6 +78,9 @@ SHARED_TABLES: frozenset[str] = frozenset(
         "app_settings",  # OIDC / SMTP / branding config
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)
+        # Billing write boundary (external billing service, initiative_billing role)
+        "billing_event_log",  # idempotency claim + append-only audit; weak guild ref
+        "billing_jti_blocklist",  # one-shot billing service-JWT redemption
     }
 )
 

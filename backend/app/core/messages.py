@@ -441,3 +441,23 @@ class AIMessages:
 
 class NativeMessages:
     OTA_BUNDLE_NOT_AVAILABLE = "NATIVE_OTA_BUNDLE_NOT_AVAILABLE"
+
+
+class BillingMessages:
+    """Codes for the service-to-service billing write boundary.
+
+    These endpoints are machine-to-machine (the billing service, not the
+    SPA), so the codes are consumed by the caller's logs/retry logic rather
+    than errors.json.
+    """
+
+    NOT_CONFIGURED = "BILLING_NOT_CONFIGURED"
+    MISSING_SIGNATURE = "BILLING_MISSING_SIGNATURE"
+    STALE_TIMESTAMP = "BILLING_STALE_TIMESTAMP"
+    INVALID_SIGNATURE = "BILLING_INVALID_SIGNATURE"
+    INVALID_TOKEN = "BILLING_INVALID_TOKEN"
+    REPLAYED_TOKEN = "BILLING_REPLAYED_TOKEN"
+    INVALID_PAYLOAD = "BILLING_INVALID_PAYLOAD"
+    GUILD_NOT_FOUND = "BILLING_GUILD_NOT_FOUND"
+    SUPPORT_SOURCE_RESTRICTED = "BILLING_SUPPORT_SOURCE_RESTRICTED"
+    ACTOR_REQUIRED = "BILLING_ACTOR_REQUIRED"

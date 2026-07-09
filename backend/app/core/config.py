@@ -509,6 +509,18 @@ class Settings(BaseSettings):
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
 
+    # Inbound calls from the billing service (initiative-billing). Requests
+    # carry an RS256 service JWT (verified against this public key) plus an
+    # HMAC-SHA256 over METHOD\nPATH\nTIMESTAMP\nsha256(body) keyed by the
+    # shared secret. Both must be configured or the /billing endpoints
+    # refuse every request.
+    BILLING_PUBLIC_KEY_PEM: str | None = None
+    BILLING_HMAC_SECRET: str | None = None
+    BILLING_AUDIENCE: str = "initiative:billing"
+    BILLING_ISSUER: str = "initiative-billing"
+    # Max |now - signed timestamp| accepted, in seconds. Never 0.
+    BILLING_REPLAY_WINDOW_SECONDS: int = Field(default=300, ge=1)
+
     # Local-dev escape hatch for the webhook SSRF guard. When TRUE, the
     # dispatcher accepts ``http://`` and private/loopback/link-local
     # targets — needed only for round-tripping with auto running on

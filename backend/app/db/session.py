@@ -119,6 +119,7 @@ _CONTEXT_SQL = (
     "set_config('app.pam_guild_id', :pgid, true), "
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
+    "set_config('app.billing_guild_id', :bgid, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
@@ -138,6 +139,25 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     pam_write = bool(params.get("pam_write"))
     platform_role = params.get("platform_role")
     read_only = bool(params.get("read_only"))
+    billing_guild_id = params.get("billing_guild_id")
+
+    # Billing-service path (set_billing_context): assumes the
+    # initiative_billing role with only the billing GUC set — no
+    # user/guild/PAM context.
+    if billing_guild_id is not None:
+        from app.db.schema_provisioning import billing_role_name
+
+        return {
+            "uid": "",
+            "gid": "",
+            "grole": "",
+            "pgid": "",
+            "pr": "false",
+            "pw": "false",
+            "bgid": str(int(billing_guild_id)),
+            "sp": "public",
+            "role": billing_role_name(),
+        }
 
     # Route guild-scoped tables to the active guild's schema AND assume that
     # guild's role. The login role has no standing access to any guild schema
@@ -192,6 +212,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
+        "bgid": "",
         "sp": sp,
         "role": role_target,
     }
@@ -307,6 +328,22 @@ async def set_rls_context(
     # hook has already fired and the new context must land NOW. On a fresh
     # session, the caller's first statement autobegins and the hook applies
     # the stored params; applying here too would just do it twice.
+    if session.in_transaction():
+        await _apply_stored_context(session)
+
+
+async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:
+    """Route a verified billing-service request — transaction-local.
+
+    Assumes the ``initiative_billing`` role and sets ``app.billing_guild_id``
+    to the guild named in the verified request (see
+    ``app.services.platform.billing``), which the role's RLS policies key on.
+    Carries no user identity, so the ``RLS_CONTEXT_MAX_AGE_SECONDS`` freshness
+    bound does not apply. Same storage/replay mechanics as
+    :func:`set_rls_context`.
+    """
+    session.info[_RLS_PARAMS_INFO_KEY] = {"billing_guild_id": int(guild_id)}
+    session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
     if session.in_transaction():
         await _apply_stored_context(session)
 

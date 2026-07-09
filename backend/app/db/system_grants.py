@@ -96,6 +96,12 @@ SHARED_TABLE_SYSTEM_GRANTS: dict[str, frozenset[str] | None] = {
     "push_tokens": frozenset({"SELECT", "INSERT", "DELETE"}),
     "user_api_keys": frozenset({"SELECT", "DELETE"}),
     "auto_delegation_jti_blocklist": frozenset({"SELECT", "INSERT"}),
+    # billing boundary: writes happen ONLY under the dedicated (SET ROLE)
+    # initiative_billing role, never the system engine. app_admin keeps
+    # read-only visibility into the append-only evidence, and may prune
+    # expired jtis (janitor); neither may mutate the event log.
+    "billing_event_log": frozenset({"SELECT"}),
+    "billing_jti_blocklist": frozenset({"SELECT", "DELETE"}),
     # migrations-only bookkeeping (the provisioning role owns it)
     "alembic_version": None,
 }
@@ -128,6 +134,10 @@ SHARED_TABLE_APP_USER_GRANTS: dict[str, frozenset[str] | None] = {
     "oidc_claim_mappings": None,
     "push_tokens": None,
     "user_view_preferences": None,
+    # billing tables are reached only via SET ROLE initiative_billing — the
+    # bare login role holds nothing (fail-closed, like the guild schemas)
+    "billing_event_log": None,
+    "billing_jti_blocklist": None,
     "alembic_version": None,
 }
 

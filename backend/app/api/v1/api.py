@@ -37,6 +37,7 @@ from app.api.v1.platform_endpoints import (
     admin,
     ai_settings as platform_ai_settings,
     auth,
+    billing,
     config,
     guilds,
     native,
@@ -68,6 +69,8 @@ api_router.include_router(
     access_grants.router, prefix="/access-grants", tags=["access-grants"]
 )
 api_router.include_router(settings.router, prefix="/settings", tags=["settings"])
+# Service-to-service endpoints for the external billing service.
+api_router.include_router(billing.router, prefix="/billing", tags=["billing"])
 api_router.include_router(
     platform_ai_settings.platform_router, prefix="/settings", tags=["ai-settings"]
 )
