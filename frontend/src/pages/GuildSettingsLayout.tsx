@@ -89,7 +89,15 @@ export const GuildSettingsLayout = () => {
   }, [urlGuildId, t, advancedTool, guildAuthEnabled]);
 
   const canViewSettings = isGuildAdmin;
-  const availableTabs = isGuildAdmin ? guildSettingsTabs : [];
+  // A suspended guild refuses every /g content endpoint, so tabs backed by
+  // them (AI, users, initiatives, trash, automations, auth) would only render
+  // errors. Keep the surfaces that stay functional: the general tab (identity,
+  // usage, plan) and the danger zone (deletion / data ownership).
+  const isSuspended = activeGuild?.status === "suspended";
+  const workingTabs = isSuspended
+    ? guildSettingsTabs.filter((tab) => tab.value === "guild" || tab.value === "danger-zone")
+    : guildSettingsTabs;
+  const availableTabs = isGuildAdmin ? workingTabs : [];
 
   if (!canViewSettings) {
     return (

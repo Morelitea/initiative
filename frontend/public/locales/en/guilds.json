@@ -259,6 +259,9 @@
     "guildReadOnly": "This guild is read-only",
     "guildSuspended": "This guild is suspended"
   },
+  "readOnlyBanner": {
+    "message": "{{guild}} is currently read-only. You can browse everything, but changes are disabled."
+  },
   "usagePanel": {
     "title": "Usage",
     "storage": "Storage",

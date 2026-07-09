@@ -19,6 +19,7 @@ export function buildGuild(overrides: Partial<GuildRead> = {}): GuildRead {
     updated_at: "2026-01-15T00:00:00.000Z",
     member_count: 1,
     tier_name: null,
+    content_read_only: false,
     ...overrides,
   };
 }

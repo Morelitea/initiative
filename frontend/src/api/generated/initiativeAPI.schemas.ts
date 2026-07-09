@@ -1372,6 +1372,7 @@ export interface GuildRead {
   member_count: number;
   tier_name: string | null;
   status: GuildStatus | null;
+  content_read_only: boolean;
 }
 
 /**
@@ -1454,7 +1455,6 @@ export interface GuildUpdate {
   description?: string | null;
   icon_base64?: string | null;
   retention_days?: number | null;
-  max_storage_bytes?: number | null;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };

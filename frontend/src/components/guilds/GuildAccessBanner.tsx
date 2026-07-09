@@ -10,14 +10,27 @@ const minutesLeft = (expiresAt?: string | null): number | null => {
 
 /**
  * Banner shown across guild pages when the active guild is reached via a
- * time-bound PAM access grant (not real membership). Sets expectations that
- * access is temporary and, for read grants, read-only.
+ * time-bound PAM access grant (not real membership) — access is temporary
+ * and, for read grants, read-only — OR when the guild's content is frozen
+ * (read_only lifecycle status), so members know why write affordances are
+ * gone before they try one.
  */
 export const GuildAccessBanner = () => {
   const { t } = useTranslation("guilds");
   const { activeGuild, activeGuildReadOnly } = useGuilds();
 
   if (activeGuild?.accessType !== "grant") {
+    // Real membership in a frozen guild: writes are disabled server-side, so
+    // say so plainly. The banner discloses the effect, not the reason — the
+    // lifecycle status itself only reaches guild admins (settings page).
+    if (activeGuild?.content_read_only) {
+      return (
+        <div className="flex items-center gap-2 border-amber-500/30 border-b bg-amber-500/10 px-4 py-2 text-amber-700 text-sm dark:text-amber-300">
+          <Clock className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{t("readOnlyBanner.message", { guild: activeGuild.name })}</span>
+        </div>
+      );
+    }
     return null;
   }
 

@@ -259,6 +259,9 @@
     "guildReadOnly": "Diese Gilde ist schreibgeschützt",
     "guildSuspended": "Diese Gilde ist gesperrt"
   },
+  "readOnlyBanner": {
+    "message": "{{guild}} ist derzeit schreibgeschützt. Du kannst alles ansehen, aber Änderungen sind deaktiviert."
+  },
   "usagePanel": {
     "title": "Nutzung",
     "storage": "Speicher",

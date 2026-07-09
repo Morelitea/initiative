@@ -1,10 +1,18 @@
-import { createFileRoute, Outlet, redirect, useParams } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Navigate,
+  Outlet,
+  redirect,
+  useLocation,
+  useParams,
+} from "@tanstack/react-router";
 import { Loader2, ShieldAlert } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { StatusMessage } from "@/components/StatusMessage";
 import { useGuilds } from "@/hooks/useGuilds";
+import { guildPath } from "@/lib/guildUrl";
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId")({
   beforeLoad: async ({ context, params, cause }) => {
@@ -56,6 +64,7 @@ function GuildLayout() {
   const params = useParams({ from: "/_serverRequired/_authenticated/g/$guildId" });
   const guildId = Number(params.guildId);
   const { guilds, loading, syncGuildFromUrl } = useGuilds();
+  const location = useLocation();
 
   // Verify membership — must happen before syncing guild context
   const guild = !loading ? guilds.find((g) => g.id === guildId) : undefined;
@@ -90,6 +99,18 @@ function GuildLayout() {
         />
       </div>
     );
+  }
+
+  // A suspended guild only stays listed for its guild admins (members lose
+  // the entry entirely and hit the not-a-member screen above), and every
+  // content endpoint refuses it — only the settings surface (billing / data
+  // ownership / danger zone) still works. Keep the admin out of a wall of
+  // 403s by pinning them to settings.
+  if (
+    guild.status === "suspended" &&
+    !location.pathname.startsWith(guildPath(guildId, "/settings"))
+  ) {
+    return <Navigate to={guildPath(guildId, "/settings")} replace />;
   }
 
   return <Outlet />;

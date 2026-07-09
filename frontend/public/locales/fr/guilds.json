@@ -259,6 +259,9 @@
     "guildReadOnly": "Ce groupe est en lecture seule",
     "guildSuspended": "Ce groupe est suspendu"
   },
+  "readOnlyBanner": {
+    "message": "{{guild}} est actuellement en lecture seule. Vous pouvez tout consulter, mais les modifications sont désactivées."
+  },
   "usagePanel": {
     "title": "Utilisation",
     "storage": "Stockage",
