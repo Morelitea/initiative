@@ -15,7 +15,9 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "20260709_0136"
-down_revision = "20260708_0134"
+# Rebased onto 0135 after both branches merged (they'd forked from 0134,
+# leaving two alembic heads); the two migrations touch unrelated tables.
+down_revision = "20260709_0135"
 branch_labels = None
 depends_on = None
 
