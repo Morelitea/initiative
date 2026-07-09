@@ -43,8 +43,9 @@ class InterfaceSettingsResponse(SanitizedBaseModel):
     light_accent_color: str
     dark_accent_color: str
     # Non-secret posture info: the login page and guild settings need to know
-    # where sign-in is configured without a config.manage read.
-    auth_scope: AuthScope = AuthScope.platform
+    # where sign-in is configured without a config.manage read. Required — a
+    # construction site that forgets it must fail, not silently claim platform.
+    auth_scope: AuthScope
 
 
 class InterfaceSettingsUpdate(SanitizedBaseModel):

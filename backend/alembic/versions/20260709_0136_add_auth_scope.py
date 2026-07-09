@@ -30,7 +30,16 @@ def upgrade() -> None:
             server_default="platform",
         ),
     )
+    # The posture gate compares literally ('platform' activates the platform
+    # provider), so an out-of-vocabulary value would silently disable login —
+    # refuse it at the database layer, not just in the API schema.
+    op.create_check_constraint(
+        "ck_app_settings_auth_scope",
+        "app_settings",
+        "auth_scope IN ('platform', 'guild')",
+    )
 
 
 def downgrade() -> None:
+    op.drop_constraint("ck_app_settings_auth_scope", "app_settings", type_="check")
     op.drop_column("app_settings", "auth_scope")

@@ -11,6 +11,8 @@ import logging
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.guild import GuildRole, GuildStatus
@@ -858,3 +860,21 @@ async def test_auth_scope_requires_config_manage(
         headers=get_auth_headers(member),
     )
     assert resp.status_code == 403
+
+
+@pytest.mark.integration
+async def test_auth_scope_check_constraint_rejects_garbage(
+    session: AsyncSession,
+) -> None:
+    """The posture gate compares literally, so an out-of-vocabulary value would
+    silently disable login — the DB CHECK refuses it even for a privileged
+    writer that bypasses the API schema. (INSERT, not UPDATE: the settings
+    singleton may not exist yet, and a zero-row UPDATE never fires the check.)"""
+    with pytest.raises(DBAPIError):
+        async with session.begin_nested():
+            await session.exec(
+                text(
+                    "INSERT INTO app_settings (id, oidc_enabled, auth_scope) "
+                    "VALUES (999, false, 'both')"
+                )
+            )
