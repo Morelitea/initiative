@@ -83,6 +83,17 @@ class BillingClaims:
     expires_at: datetime
 
 
+def billing_inbound_enabled() -> bool:
+    """True when the inbound billing endpoints are configured to run.
+
+    The single source of truth for "billing writes can happen": both the
+    signing key and the HMAC secret must be present. Unset — the self-host
+    default — means the endpoints 503 and nothing ever reaches the
+    ``billing_*`` tables, so the janitor can skip its sweep entirely.
+    """
+    return bool(settings.BILLING_PUBLIC_KEY_PEM and settings.BILLING_HMAC_SECRET)
+
+
 def verify_billing_envelope(
     *,
     method: str,
@@ -96,7 +107,7 @@ def verify_billing_envelope(
     the RS256 JWT. The one-shot ``jti`` redemption is not done here — it is
     a DB write and belongs inside the endpoint's transaction.
     """
-    if not settings.BILLING_PUBLIC_KEY_PEM or not settings.BILLING_HMAC_SECRET:
+    if not billing_inbound_enabled():
         raise BillingEnvelopeError(BillingMessages.NOT_CONFIGURED)
 
     ts_header = headers.get("X-Billing-Timestamp")

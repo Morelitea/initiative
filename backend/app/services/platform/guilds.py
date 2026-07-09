@@ -676,7 +676,10 @@ async def remove_user_from_guild(
         GuildMembership.guild_id == guild_id,
         GuildMembership.user_id == user_id,
     )
-    await session.exec(stmt)
-    # Billing decides what to do with shrinkage — the ping only triggers a
-    # recompute from the committed headcount (plan D5).
-    billing_ping.notify_membership_changed(guild_id)
+    result = await session.exec(stmt)
+    # Only a real removal is a membership change — mirror the insert side,
+    # which pings only on a genuine insert (a no-op remove of a non-member
+    # must not nudge billing). Billing decides what to do with shrinkage; the
+    # ping only triggers a recompute from the committed headcount (plan D5).
+    if result.rowcount:
+        billing_ping.notify_membership_changed(guild_id)

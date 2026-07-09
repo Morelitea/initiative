@@ -10,9 +10,25 @@ import pytest
 from sqlmodel import select
 
 from app.models.platform.billing import BillingJti
-from app.services.platform.billing_jti_janitor import purge_expired_billing_jtis
+from app.services.platform.billing_jti_janitor import (
+    process_billing_jti_purge,
+    purge_expired_billing_jtis,
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.database]
+
+
+async def test_purge_skipped_when_billing_unconfigured(monkeypatch):
+    """FOSS no-op: with inbound billing unset (the self-host default) the
+    worker returns without touching the database — no session is opened."""
+    import app.db.session as session_module
+
+    def _explode(*args, **kwargs):
+        raise AssertionError("janitor opened a session on an unconfigured host")
+
+    monkeypatch.setattr(session_module, "AdminSessionLocal", _explode)
+    # settings.BILLING_* are unset by default in the test config.
+    await process_billing_jti_purge()
 
 
 async def test_purge_removes_only_expired_rows(session, role_session):

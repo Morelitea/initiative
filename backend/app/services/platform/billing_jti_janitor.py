@@ -10,6 +10,11 @@ Runs on the system engine (``app_admin`` holds SELECT/DELETE on this table
 per ``app/db/system_grants.py``); the RLS-scoped billing role itself can
 only INSERT, so the janitor cannot run — and must not run — as the boundary
 role. Registered in ``app.services.background_tasks``.
+
+FOSS no-op: on a self-host (inbound billing unconfigured) the endpoints 503
+and the blocklist never fills, so the periodic sweep skips entirely —
+matching the membership ping's guard rather than issuing an hourly DELETE
+against a table that is always empty.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ from sqlmodel import delete
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.platform.billing import BillingJti
+from app.services.platform import billing as billing_service
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +48,11 @@ async def purge_expired_billing_jtis(session: AsyncSession) -> int:
 
 
 async def process_billing_jti_purge() -> None:
+    # Self-host: no inbound billing means the table can never have grown
+    # (writes require the configured endpoints), so there is nothing to sweep.
+    # A deploy that toggled billing off leaves only inert, exp-refused rows.
+    if not billing_service.billing_inbound_enabled():
+        return
     from app.db.session import AdminSessionLocal
 
     async with AdminSessionLocal() as session:

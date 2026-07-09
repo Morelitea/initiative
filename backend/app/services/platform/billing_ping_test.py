@@ -147,3 +147,18 @@ async def test_membership_insert_fires_exactly_one_ping(
     await _drain_pings()
     assert sent_pings == [guild.id, guild.id]
     await session.rollback()
+
+
+async def test_noop_removal_does_not_ping(session, billing_configured, sent_pings):
+    """Removing a user who isn't a member deletes nothing, so — like a
+    re-join — it must not nudge billing."""
+    guild = await create_guild(session)
+    stranger = await create_user(session, email="ping-stranger@example.com")
+
+    await route_session_to_guild(session, guild.id)
+    await guilds_service.remove_user_from_guild(
+        session, guild_id=guild.id, user_id=stranger.id
+    )
+    await _drain_pings()
+    assert sent_pings == []
+    await session.rollback()

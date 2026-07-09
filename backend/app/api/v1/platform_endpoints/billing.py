@@ -107,7 +107,12 @@ async def apply_guild_tier(
             detail=BillingMessages.GUILD_NOT_FOUND,
         ) from exc
     except BillingSourceRestrictionError as exc:
-        # Same rollback semantics: a refused support write consumes nothing.
+        # The restriction is checked before the event-log claim, so the
+        # rollback leaves neither the event id nor the jti consumed. Unlike
+        # the 404 (a transient "guild not yet created"), this is a
+        # deterministic reject: the fix is a corrected payload, not a retry
+        # of the same body — that corrected write (even reusing the event id)
+        # then applies.
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.code
         ) from exc
