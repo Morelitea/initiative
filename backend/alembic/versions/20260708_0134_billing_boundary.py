@@ -118,7 +118,7 @@ def upgrade() -> None:
             f'GRANT SELECT (guild_id) ON public.guild_memberships TO "{role}"',
             # Append-only: INSERT is the only verb on the event log.
             f'GRANT INSERT ON public.billing_event_log TO "{role}"',
-            f'GRANT SELECT, INSERT ON public.billing_jti_blocklist TO "{role}"',
+            f'GRANT INSERT ON public.billing_jti_blocklist TO "{role}"',
         ]
     )
 

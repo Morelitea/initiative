@@ -120,8 +120,14 @@ def verify_billing_envelope(
     except jwt.PyJWTError as exc:
         raise BillingEnvelopeError(BillingMessages.INVALID_TOKEN) from exc
 
+    # Bound to the blocklist column (varchar 64) so an oversized jti is a
+    # clean 403 instead of a database error at redemption time.
+    jti = str(payload["jti"])
+    if not jti or len(jti) > 64:
+        raise BillingEnvelopeError(BillingMessages.INVALID_TOKEN)
+
     return BillingClaims(
-        jti=str(payload["jti"]),
+        jti=jti,
         expires_at=datetime.fromtimestamp(int(payload["exp"]), tz=timezone.utc),
     )
 

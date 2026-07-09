@@ -216,6 +216,16 @@ async def test_jti_is_one_shot(client: AsyncClient, session: AsyncSession):
     assert second.json()["detail"] == "BILLING_REPLAYED_TOKEN"
 
 
+async def test_oversized_jti_rejected(client: AsyncClient, session: AsyncSession):
+    """A jti longer than the blocklist column must be refused at
+    verification, not surface as a database error at redemption."""
+    guild = await create_guild(session)
+    token = _mint_token(jti="x" * 65)
+    response = await _post(client, "guild-tier", _tier_payload(guild.id), token=token)
+    assert response.status_code == 403
+    assert response.json()["detail"] == "BILLING_INVALID_TOKEN"
+
+
 # --- guild-tier ----------------------------------------------------------------
 
 

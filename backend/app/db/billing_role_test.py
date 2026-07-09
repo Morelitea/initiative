@@ -103,6 +103,8 @@ async def test_billing_role_is_confined_to_its_column_and_guild_surface(
     await _denied(s, "SELECT event_id FROM billing_event_log")
     await _denied(s, "UPDATE billing_event_log SET actor = 'x'")
     await _denied(s, "DELETE FROM billing_event_log")
+    await _denied(s, "SELECT jti FROM billing_jti_blocklist")
+    await _denied(s, "DELETE FROM billing_jti_blocklist")
 
     # --- Guild pinning: the GUC's guild is the whole visible world ----------
     invisible = (

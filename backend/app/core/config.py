@@ -519,7 +519,7 @@ class Settings(BaseSettings):
     BILLING_AUDIENCE: str = "initiative:billing"
     BILLING_ISSUER: str = "initiative-billing"
     # Max |now - signed timestamp| accepted, in seconds. Never 0.
-    BILLING_REPLAY_WINDOW_SECONDS: int = 300
+    BILLING_REPLAY_WINDOW_SECONDS: int = Field(default=300, ge=1)
 
     # Local-dev escape hatch for the webhook SSRF guard. When TRUE, the
     # dispatcher accepts ``http://`` and private/loopback/link-local
