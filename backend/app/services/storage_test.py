@@ -12,6 +12,7 @@ from botocore.exceptions import ClientError
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.services import storage as storage_module
+from app.services import storage_config
 from app.services.storage import (
     DualReadStorage,
     LocalFilesystemStorage,
@@ -22,6 +23,17 @@ from app.services.storage import (
     get_guild_storage,
     get_storage,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_storage_config_cache():
+    """Drop the resolved-config snapshot around each test so the resolver falls
+    back to env ``settings`` (which these tests monkeypatch). Without this a
+    concurrent test that populated the cache via ``refresh_storage_config`` would
+    make the resolver ignore the patched env backend."""
+    storage_config.reset_for_tests()
+    yield
+    storage_config.reset_for_tests()
 
 
 def test_write_read_roundtrip(tmp_path):
