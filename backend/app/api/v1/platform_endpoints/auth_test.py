@@ -10,23 +10,43 @@ Tests the auth API endpoints including:
 """
 
 from datetime import timedelta
+from urllib.parse import parse_qs, urlsplit
 
+import httpx
 import pytest
 from httpx import AsyncClient
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
+from app.core.encryption import (
+    decrypt_field,
+    encrypt_field,
+    hash_email,
+    SALT_EMAIL,
+    SALT_OIDC_CLIENT_SECRET,
+)
+from app.core.messages import OidcMessages
 from app.core.security import (
     create_access_token,
     create_upload_token,
     get_password_hash,
 )
+from app.models.platform.app_setting import AppSetting, AuthScope
+from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user import User, UserStatus
+from app.services.auth.oidc.provider import OidcClientConfig, OidcProvider
 from app.testing.factories import (
     create_user,
     get_auth_headers,
     get_auth_token,
     get_new_access_token,
+)
+from app.testing.oidc import (
+    CLIENT_ID as OIDC_CLIENT_ID,
+    ISSUER as OIDC_ISSUER,
+    OTHER_KEY,
+    FakeIdp,
+    mint_id_token,
 )
 
 
@@ -731,6 +751,271 @@ async def test_logout_clears_session_cookie(client: AsyncClient, session: AsyncS
     assert "Max-Age=0" in set_cookie or "1970" in set_cookie
 
 
+# --- OIDC login/callback (relying-party flow) --------------------------------
+#
+# End-to-end against a fake IdP: real signed id_tokens, real discovery/JWKS/
+# token/userinfo endpoints behind an httpx.MockTransport, the real settings→
+# provider reconcile, and the real identity-resolution ladder underneath.
+
+
+def _wire_fake_idp(monkeypatch, idp: FakeIdp) -> None:
+    """Point the endpoints' provider builder at the fake IdP's transport.
+
+    Same client configuration the real builder derives from app_settings, but
+    every OIDC HTTP call (discovery, JWKS, token, userinfo) is routed through
+    the fake — skipping the module-level discovery/JWKS caches keeps tests
+    isolated from each other.
+    """
+    import app.api.v1.platform_endpoints.auth as auth_module
+
+    def _builder(app_settings):
+        secret = (
+            decrypt_field(
+                app_settings.oidc_client_secret_encrypted, SALT_OIDC_CLIENT_SECRET
+            )
+            if app_settings.oidc_client_secret_encrypted
+            else None
+        )
+        return OidcProvider(
+            OidcClientConfig(
+                issuer=app_settings.oidc_issuer,
+                client_id=app_settings.oidc_client_id,
+                redirect_uri=auth_module._backend_redirect_uri(),
+                client_secret=secret,
+                scopes=" ".join(app_settings.oidc_scopes or ["openid"]),
+            ),
+            client_factory=idp.client_factory(),
+        )
+
+    monkeypatch.setattr(auth_module, "_build_oidc_provider", _builder)
+
+
+async def _enable_platform_oidc(session: AsyncSession, **overrides) -> None:
+    """Configure a live platform OIDC posture in app_settings (the real gate
+    the endpoints check)."""
+    row = (await session.exec(select(AppSetting))).first()
+    if row is None:
+        row = AppSetting()
+    values = {
+        "auth_scope": AuthScope.platform.value,
+        "oidc_enabled": True,
+        "oidc_issuer": OIDC_ISSUER,
+        "oidc_client_id": OIDC_CLIENT_ID,
+        "oidc_client_secret_encrypted": encrypt_field(
+            "s3cret", SALT_OIDC_CLIENT_SECRET
+        ),
+        "oidc_scopes": ["openid", "email", "profile"],
+        "oidc_provider_name": "Test IdP",
+        "oidc_role_claim_path": None,
+    }
+    values.update(overrides)
+    for field, value in values.items():
+        setattr(row, field, value)
+    session.add(row)
+    await session.commit()
+
+
+async def _begin_login(
+    client: AsyncClient, login_params: dict | None = None
+) -> tuple[str, str]:
+    """GET /oidc/login and return the (state, nonce) sent to the IdP."""
+    response = await client.get(
+        "/api/v1/auth/oidc/login", params=login_params or {}, follow_redirects=False
+    )
+    assert response.status_code in (302, 307)
+    location = response.headers["location"]
+    assert location.startswith(f"{OIDC_ISSUER}/authorize?")
+    query = {k: v[0] for k, v in parse_qs(urlsplit(location).query).items()}
+    return query["state"], query["nonce"]
+
+
+async def _run_oidc_flow(
+    client: AsyncClient,
+    idp: FakeIdp,
+    *,
+    id_token_claims: dict | None = None,
+    login_params: dict | None = None,
+):
+    """The full login → IdP → callback round trip; returns the callback response."""
+    state, nonce = await _begin_login(client, login_params)
+    idp.token_response = httpx.Response(
+        200,
+        json={
+            "access_token": "at-1",
+            "refresh_token": "rt-1",
+            "id_token": mint_id_token(nonce=nonce, **(id_token_claims or {})),
+            "token_type": "Bearer",
+        },
+    )
+    return await client.get(
+        "/api/v1/auth/oidc/callback",
+        params={"code": "code-1", "state": state},
+        follow_redirects=False,
+    )
+
+
+async def _federated_identities(session: AsyncSession) -> list[FederatedIdentity]:
+    return list((await session.exec(select(FederatedIdentity))).all())
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_login_requires_configured_platform_posture(
+    client: AsyncClient, session: AsyncSession
+):
+    """No OIDC config → 404; configured but guild-scoped posture → still 404
+    (the platform provider is dormant in guild scope, server-side)."""
+    response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "OIDC_NOT_ENABLED"
+
+    await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
+    response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "OIDC_NOT_ENABLED"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_gated_like_login(
+    client: AsyncClient, session: AsyncSession
+):
+    await _enable_platform_oidc(session, auth_scope=AuthScope.guild.value)
+    response = await client.get(
+        "/api/v1/auth/oidc/callback",
+        params={"code": "c", "state": "s"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_login_redirects_to_idp_with_pkce(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    await _enable_platform_oidc(session)
+    _wire_fake_idp(monkeypatch, FakeIdp())
+
+    response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
+    assert response.status_code in (302, 307)
+    location = response.headers["location"]
+    assert location.startswith(f"{OIDC_ISSUER}/authorize?")
+    query = {k: v[0] for k, v in parse_qs(urlsplit(location).query).items()}
+    assert query["client_id"] == OIDC_CLIENT_ID
+    assert query["response_type"] == "code"
+    assert query["code_challenge_method"] == "S256"
+    assert query["nonce"]
+    assert query["state"]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_login_rejects_non_https_authorization_endpoint(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A discovery doc whose authorization_endpoint isn't https must not be
+    used as a redirect target — discovery refuses it and the endpoint surfaces
+    a clean 500 (CodeQL py/url-redirection)."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    idp.discovery_doc["authorization_endpoint"] = "http://evil.example.com/auth"
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
+    assert response.status_code == 500
+    assert response.json()["detail"] == "OIDC_METADATA_INCOMPLETE"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_login_rejects_incomplete_discovery(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    del idp.discovery_doc["authorization_endpoint"]
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
+    assert response.status_code == 500
+    assert response.json()["detail"] == "OIDC_METADATA_INCOMPLETE"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_provisions_new_user_and_sets_cookie(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """Happy path: a verified id_token provisions the unknown user, links the
+    federated identity, and issues the web session cookie."""
+    from app.core.config import settings as app_config
+
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={
+            "email": "new@example.com",
+            "email_verified": True,
+            "name": "New User",
+        },
+    )
+    assert response.status_code in (302, 307)
+    assert response.headers["location"].endswith("/oidc/callback")
+    assert app_config.COOKIE_NAME in response.cookies
+
+    user = (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("new@example.com"))
+        )
+    ).one()
+    assert user.full_name == "New User"
+    assert user.email_verified is True
+    assert user.oidc_sub == "idp-subject-1"
+    identities = await _federated_identities(session)
+    assert [(i.user_id, i.subject) for i in identities] == [(user.id, "idp-subject-1")]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_rejects_forged_state(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    await _enable_platform_oidc(session)
+    _wire_fake_idp(monkeypatch, FakeIdp())
+
+    response = await client.get(
+        "/api/v1/auth/oidc/callback",
+        params={"code": "code-1", "state": "forged"},
+        follow_redirects=False,
+    )
+    assert response.status_code in (302, 307)
+    assert "invalid_state" in response.headers["location"]
+    assert "session_token" not in response.cookies
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_rejects_id_token_signed_by_wrong_key(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """The endpoint-level proof that signature verification is live: a token
+    minted with a key outside the provider's JWKS never becomes a session."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(client, idp, id_token_claims={"priv": OTHER_KEY})
+    assert response.status_code in (302, 307)
+    assert "id_token_rejected" in response.headers["location"]
+    assert "session_token" not in response.cookies
+    assert await _federated_identities(session) == []
+
+
 @pytest.mark.integration
 @pytest.mark.auth
 @pytest.mark.parametrize(
@@ -746,156 +1031,28 @@ async def test_oidc_callback_blocks_new_user_when_registration_disabled(
 ):
     """OIDC callback must honor the same no-invite registration gate as /register."""
     from app.core import config as cfg
-    import app.api.v1.platform_endpoints.auth as auth_module
 
     monkeypatch.setattr(
         cfg.settings, "ENABLE_PUBLIC_REGISTRATION", public_registration_enabled
     )
     monkeypatch.setattr(cfg.settings, "DISABLE_GUILD_CREATION", guild_creation_disabled)
-    # Must have at least one existing user so is_first_user is False
+    # Must have at least one existing user so the bootstrap exception is off.
     await create_user(session)
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
 
-    valid_state = auth_module._generate_state()
-
-    class _FakeTokenResp:
-        status_code = 200
-
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return {"access_token": "tok", "sub": "sub-new"}
-
-    class _FakeUserinfoResp:
-        status_code = 200
-
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return {
-                "email": "brandnew@example.com",
-                "name": "Brand New",
-                "sub": "sub-new",
-            }
-
-    class _FakeHttpxClient:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *a):
-            pass
-
-        async def post(self, *a, **kw):
-            return _FakeTokenResp()
-
-        async def get(self, *a, **kw):
-            return _FakeUserinfoResp()
-
-    import httpx
-
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: _FakeHttpxClient())
-
-    async def _fake_runtime_config(s):
-        settings_obj = type(
-            "S",
-            (),
-            {
-                "oidc_enabled": True,
-                "oidc_issuer": "https://id.example.com",
-                "oidc_client_id": "cid",
-                "oidc_client_secret_encrypted": None,
-                "oidc_scopes": ["openid"],
-                "oidc_provider_name": "Test",
-                "oidc_role_claim_path": None,
-            },
-        )()
-        metadata = {
-            "authorization_endpoint": "https://id.example.com/auth",
-            "token_endpoint": "https://id.example.com/token",
-            "userinfo_endpoint": "https://id.example.com/userinfo",
-        }
-        return settings_obj, metadata
-
-    monkeypatch.setattr(auth_module, "_get_oidc_runtime_config", _fake_runtime_config)
-
-    response = await client.get(
-        "/api/v1/auth/oidc/callback",
-        params={"code": "fake-code", "state": valid_state},
-        follow_redirects=False,
+    response = await _run_oidc_flow(
+        client, idp, id_token_claims={"email": "brandnew@example.com"}
     )
-
     assert response.status_code in (302, 307)
     assert "OIDC_REGISTRATION_DISABLED" in response.headers["location"]
     assert "session_token" not in response.cookies
-
-
-def _patch_oidc_callback(monkeypatch, *, userinfo_profile: dict) -> None:
-    """Wire the OIDC callback's httpx + runtime-config deps to a fixed profile.
-
-    Mirrors the harness used by
-    ``test_oidc_callback_blocks_new_user_when_registration_disabled`` so the
-    callback runs against a deterministic userinfo response.
-    """
-    import app.api.v1.platform_endpoints.auth as auth_module
-
-    class _FakeTokenResp:
-        status_code = 200
-
-        def raise_for_status(self) -> None:
-            pass
-
-        def json(self) -> dict:
-            return {"access_token": "tok"}
-
-    class _FakeUserinfoResp:
-        status_code = 200
-
-        def raise_for_status(self) -> None:
-            pass
-
-        def json(self) -> dict:
-            return userinfo_profile
-
-    class _FakeHttpxClient:
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *a):
-            pass
-
-        async def post(self, *a, **kw):
-            return _FakeTokenResp()
-
-        async def get(self, *a, **kw):
-            return _FakeUserinfoResp()
-
-    import httpx
-
-    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: _FakeHttpxClient())
-
-    async def _fake_runtime_config(s):
-        settings_obj = type(
-            "S",
-            (),
-            {
-                "oidc_enabled": True,
-                "oidc_issuer": "https://id.example.com",
-                "oidc_client_id": "cid",
-                "oidc_client_secret_encrypted": None,
-                "oidc_scopes": ["openid"],
-                "oidc_provider_name": "Test",
-                "oidc_role_claim_path": None,
-            },
-        )()
-        metadata = {
-            "authorization_endpoint": "https://id.example.com/auth",
-            "token_endpoint": "https://id.example.com/token",
-            "userinfo_endpoint": "https://id.example.com/userinfo",
-        }
-        return settings_obj, metadata
-
-    monkeypatch.setattr(auth_module, "_get_oidc_runtime_config", _fake_runtime_config)
+    assert (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("brandnew@example.com"))
+        )
+    ).one_or_none() is None
 
 
 @pytest.mark.integration
@@ -917,31 +1074,26 @@ async def test_oidc_callback_refuses_existing_account_when_email_unverified(
     account when the IdP does not assert ``email_verified is True`` for a
     matching email. A false claim (IdP allows unverified emails) and an absent
     claim (e.g. Azure AD) are both refused — fail closed."""
-    import app.api.v1.platform_endpoints.auth as auth_module
-
     existing = await create_user(
         session,
         email="victim@example.com",
         full_name="Victim",
         email_verified=False,
     )
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
 
-    profile = {"email": "victim@example.com", "name": "Attacker", "sub": "sub-attacker"}
+    claims = {"email": "victim@example.com", "name": "Attacker"}
     if verified_claim is not None:
-        profile["email_verified"] = verified_claim
-    _patch_oidc_callback(monkeypatch, userinfo_profile=profile)
-
-    valid_state = auth_module._generate_state()
-    response = await client.get(
-        "/api/v1/auth/oidc/callback",
-        params={"code": "fake-code", "state": valid_state},
-        follow_redirects=False,
-    )
+        claims["email_verified"] = verified_claim
+    response = await _run_oidc_flow(client, idp, id_token_claims=claims)
 
     assert response.status_code in (302, 307)
     assert "OIDC_EMAIL_UNVERIFIED" in response.headers["location"]
-    # No session was issued.
+    # No session was issued and no link was written.
     assert "session_token" not in response.cookies
+    assert await _federated_identities(session) == []
     # The account must not have been silently promoted to verified, and its
     # profile must not have been overwritten by the attacker-supplied claims.
     await session.refresh(existing)
@@ -956,10 +1108,9 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     session: AsyncSession,
     monkeypatch,
 ):
-    """SEC-9: the verified flow is unchanged — a matching email with
-    ``email_verified=true`` logs into the existing account and promotes an
-    unverified local account to verified."""
-    import app.api.v1.platform_endpoints.auth as auth_module
+    """SEC-9 counterpart: a matching email with ``email_verified=true`` logs
+    into the existing account, promotes it to verified, and now writes the
+    (provider, subject) link so later logins resolve by subject."""
     from app.core.config import settings as app_config
 
     existing = await create_user(
@@ -968,139 +1119,131 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
         full_name="Member",
         email_verified=False,
     )
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
 
-    profile = {
-        "email": "member@example.com",
-        "name": "Member",
-        "sub": "sub-member",
-        "email_verified": True,
-    }
-    _patch_oidc_callback(monkeypatch, userinfo_profile=profile)
-
-    valid_state = auth_module._generate_state()
-    response = await client.get(
-        "/api/v1/auth/oidc/callback",
-        params={"code": "fake-code", "state": valid_state},
-        follow_redirects=False,
-    )
+    claims = {"email": "member@example.com", "email_verified": True, "name": "Member"}
+    response = await _run_oidc_flow(client, idp, id_token_claims=claims)
 
     assert response.status_code in (302, 307)
     assert "OIDC_EMAIL_UNVERIFIED" not in response.headers["location"]
-    # A session cookie is issued on the verified web flow.
     assert app_config.COOKIE_NAME in response.cookies
-    # The verified claim promotes the previously-unverified local account.
     await session.refresh(existing)
     assert existing.email_verified is True
+    identities = await _federated_identities(session)
+    assert [(i.user_id, i.subject) for i in identities] == [
+        (existing.id, "idp-subject-1")
+    ]
+
+    # The second login resolves through the link (and still issues a session).
+    again = await _run_oidc_flow(client, idp, id_token_claims=claims)
+    assert app_config.COOKIE_NAME in again.cookies
+    assert len(await _federated_identities(session)) == 1
 
 
 @pytest.mark.integration
 @pytest.mark.auth
-async def test_oidc_login_rejects_non_https_authorization_endpoint(
-    client: AsyncClient,
-    monkeypatch,
+async def test_oidc_callback_refuses_deactivated_account(
+    client: AsyncClient, session: AsyncSession, monkeypatch
 ):
-    """A discovery doc whose authorization_endpoint isn't an absolute https
-    URL must not be used as a redirect target (CodeQL py/url-redirection)."""
-    import app.api.v1.platform_endpoints.auth as auth_module
+    existing = await create_user(session, email="gone@example.com")
+    existing.status = UserStatus.deactivated
+    session.add(existing)
+    await session.commit()
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
 
-    async def _fake_runtime_config(s):
-        settings_obj = type(
-            "S",
-            (),
-            {
-                "oidc_enabled": True,
-                "oidc_issuer": "https://id.example.com",
-                "oidc_client_id": "cid",
-                "oidc_client_secret_encrypted": None,
-                "oidc_scopes": ["openid"],
-                "oidc_provider_name": "Test",
-            },
-        )()
-        metadata = {
-            "authorization_endpoint": "http://evil.example.com/auth",
-            "token_endpoint": "https://id.example.com/token",
-        }
-        return settings_obj, metadata
-
-    monkeypatch.setattr(auth_module, "_get_oidc_runtime_config", _fake_runtime_config)
-
-    response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
-
-    assert response.status_code == 500
-    assert response.json()["detail"] == "OIDC_METADATA_INCOMPLETE"
-
-
-@pytest.mark.integration
-@pytest.mark.auth
-async def test_oidc_login_rejects_null_authorization_endpoint(
-    client: AsyncClient,
-    monkeypatch,
-):
-    """A non-string (e.g. null) authorization_endpoint must surface the clean
-    OIDC_METADATA_INCOMPLETE error, not an uncaught urlsplit TypeError."""
-    import app.api.v1.platform_endpoints.auth as auth_module
-
-    async def _fake_runtime_config(s):
-        settings_obj = type(
-            "S",
-            (),
-            {
-                "oidc_enabled": True,
-                "oidc_issuer": "https://id.example.com",
-                "oidc_client_id": "cid",
-                "oidc_client_secret_encrypted": None,
-                "oidc_scopes": ["openid"],
-                "oidc_provider_name": "Test",
-            },
-        )()
-        metadata = {
-            "authorization_endpoint": None,
-            "token_endpoint": "https://id.example.com/token",
-        }
-        return settings_obj, metadata
-
-    monkeypatch.setattr(auth_module, "_get_oidc_runtime_config", _fake_runtime_config)
-
-    response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
-
-    assert response.status_code == 500
-    assert response.json()["detail"] == "OIDC_METADATA_INCOMPLETE"
-
-
-@pytest.mark.integration
-@pytest.mark.auth
-async def test_oidc_login_redirects_to_https_authorization_endpoint(
-    client: AsyncClient,
-    monkeypatch,
-):
-    """Happy path: an https authorization_endpoint is used as the redirect."""
-    import app.api.v1.platform_endpoints.auth as auth_module
-
-    async def _fake_runtime_config(s):
-        settings_obj = type(
-            "S",
-            (),
-            {
-                "oidc_enabled": True,
-                "oidc_issuer": "https://id.example.com",
-                "oidc_client_id": "cid",
-                "oidc_client_secret_encrypted": None,
-                "oidc_scopes": ["openid"],
-                "oidc_provider_name": "Test",
-            },
-        )()
-        metadata = {
-            "authorization_endpoint": "https://id.example.com/auth",
-            "token_endpoint": "https://id.example.com/token",
-        }
-        return settings_obj, metadata
-
-    monkeypatch.setattr(auth_module, "_get_oidc_runtime_config", _fake_runtime_config)
-
-    response = await client.get("/api/v1/auth/oidc/login", follow_redirects=False)
-
+    claims = {"email": "gone@example.com", "email_verified": True}
+    response = await _run_oidc_flow(client, idp, id_token_claims=claims)
     assert response.status_code in (302, 307)
-    assert response.headers["location"].startswith("https://id.example.com/auth?")
+    assert OidcMessages.ACCOUNT_INACTIVE in response.headers["location"]
+    assert "session_token" not in response.cookies
+    assert await _federated_identities(session) == []
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_mobile_flow_issues_device_token(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    await _enable_platform_oidc(session)
+    idp = FakeIdp()
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(
+        client,
+        idp,
+        id_token_claims={"email": "mobile@example.com", "email_verified": True},
+        login_params={"mobile": "true", "device_name": "Pixel"},
+    )
+    assert response.status_code in (302, 307)
+    location = response.headers["location"]
+    assert location.startswith("initiative://oidc/callback?")
+    query = {k: v[0] for k, v in parse_qs(urlsplit(location).query).items()}
+    assert query["token_type"] == "device_token"
+    assert query["token"]
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_enriches_missing_email_from_userinfo(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """An IdP that keeps email out of the id_token (userinfo-only) still
+    provisions with the real address — via verified-sub-matched enrichment."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp(
+        userinfo_claims={
+            "sub": "idp-subject-1",
+            "email": "fromuserinfo@example.com",
+            "email_verified": True,
+            "name": "Info User",
+        }
+    )
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(client, idp, id_token_claims={"email": None})
+    assert response.status_code in (302, 307)
+    user = (
+        await session.exec(
+            select(User).where(
+                User.email_hash == hash_email("fromuserinfo@example.com")
+            )
+        )
+    ).one()
+    assert user.full_name == "Info User"
+
+
+@pytest.mark.integration
+@pytest.mark.auth
+async def test_oidc_callback_ignores_userinfo_with_mismatched_sub(
+    client: AsyncClient, session: AsyncSession, monkeypatch
+):
+    """A userinfo document for a different subject must not contribute claims
+    (OIDC Core §5.3.2) — the login falls back to the synthetic address."""
+    await _enable_platform_oidc(session)
+    idp = FakeIdp(
+        userinfo_claims={"sub": "someone-else", "email": "hijack@example.com"}
+    )
+    _wire_fake_idp(monkeypatch, idp)
+
+    response = await _run_oidc_flow(client, idp, id_token_claims={"email": None})
+    assert response.status_code in (302, 307)
+    assert (
+        await session.exec(
+            select(User).where(User.email_hash == hash_email("hijack@example.com"))
+        )
+    ).one_or_none() is None
+    # Provisioned off the subject instead — never off the mismatched userinfo.
+    assert (
+        await session.exec(
+            select(User).where(
+                User.email_hash == hash_email("idp-subject-1@oidc.local")
+            )
+        )
+    ).one_or_none() is not None
 
 
 # --- Password policy -------------------------------------------------

@@ -41,6 +41,7 @@ def require_https(url: str) -> None:
 async def fetch_json(
     url: str,
     *,
+    headers: dict[str, str] | None = None,
     client_factory: ClientFactory | None = None,
     timeout_seconds: float = DEFAULT_HTTP_TIMEOUT_SECONDS,
     max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
@@ -48,12 +49,14 @@ async def fetch_json(
     """GET ``url`` and return its parsed JSON, enforcing https and a response
     size cap. Raises :class:`OidcHttpError` on any failure (fail-closed).
 
+    ``headers`` are sent verbatim (the userinfo endpoint needs a bearer token).
     ``client_factory`` builds the ``httpx.AsyncClient`` per call (tests inject a
     ``MockTransport``); it defaults to a timeout-configured client.
     """
     return await _request_json(
         "GET",
         url,
+        headers=headers,
         client_factory=client_factory,
         timeout_seconds=timeout_seconds,
         max_response_bytes=max_response_bytes,
@@ -86,6 +89,7 @@ async def _request_json(
     url: str,
     *,
     data: dict[str, str] | None = None,
+    headers: dict[str, str] | None = None,
     client_factory: ClientFactory | None,
     timeout_seconds: float,
     max_response_bytes: int,
@@ -101,7 +105,7 @@ async def _request_json(
     error_status: int | None = None
     try:
         async with factory() as client:
-            async with client.stream(method, url, data=data) as resp:
+            async with client.stream(method, url, data=data, headers=headers) as resp:
                 if resp.status_code >= 400:
                     # Read a bounded snippet of the error body: an OAuth error
                     # response ({"error": "invalid_grant", ...}) is the one

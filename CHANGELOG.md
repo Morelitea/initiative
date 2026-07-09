@@ -10,16 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Platform admins can set a per-guild user limit (default unlimited) from the admin dashboard's Guilds tab; at the cap, new joins/invites are refused while existing members stay, and SSO auto-provisioning is exempt.
-- Platform admins can set a per-guild lifecycle status (`active` / `read_only` / `suspended`) for billing/moderation holds — `read_only` blocks writes, `suspended` hides the guild from members while its admins keep full settings access. Non-active guilds pause trash auto-purge and block new joins; operators can still reach them via a break-glass grant. Reversible, never touches stored data.
+- Platform admins can set a per-guild lifecycle status (`active` / `read_only` / `suspended`) for moderation holds — `read_only` blocks writes, `suspended` hides the guild from members while its admins keep full settings access. Non-active guilds pause trash auto-purge and block new joins; operators can still reach them via a break-glass grant. Reversible, never touches stored data.
 - Time-bound support/moderator access grants now act as a database-enforced `support` guild role: read grants are read-only, read_write grants can edit content/settings but are blocked from managing membership, roles, or sharing. Break-glass admin access is unchanged.
 
 ### Changed
 
 - Operator "delete this guild" (offered when deleting a guild's sole admin) is now scoped to that user's solely-admined guild instead of accepting any guild id; guild admins still delete their own guild as before.
+- SSO (OIDC) sign-in has been rebuilt on a hardened relying-party flow: the provider's identity token is now cryptographically verified against its published signing keys (with issuer, audience, expiry, and per-login nonce checks) before any account is touched, and the login state is carried in an encrypted, expiring token. Accounts now link to the provider by its stable subject identifier rather than by email, so an email change at the provider no longer detaches (or misdirects) a login; a verified matching email still signs in to an existing account exactly as before.
 
 ### Deprecated
 
-- Running migrations as a Postgres superuser (a superuser or `BYPASSRLS` role in `DATABASE_URL`) is deprecated and a future release will refuse to start with it. Affected deployments now get a prominent migration banner in the startup log on every boot: run `backend/scripts/create-provisioner.sql` once and point `DATABASE_URL` at the least-privilege `app_provisioner` role (fresh docker-compose installs already use it; `DATABASE_URL_APP`/`DATABASE_URL_ADMIN` are unaffected).
+- Running migrations as a Postgres superuser (a superuser or `BYPASSRLS` role in `DATABASE_URL`) is deprecated and a future release will refuse to start with it. Affected deployments now get a prominent migration banner in the startup log on every boot. To fix it: (1) run `backend/scripts/create-provisioner.sql` once, connected as your current `DATABASE_URL` role, passing `-v provisioner_password='<pick-a-password>'`; (2) update `DATABASE_URL` in your `.env` to connect as `app_provisioner` with that password; (3) restart the app. Fresh docker-compose installs already use `app_provisioner`, and `DATABASE_URL_APP`/`DATABASE_URL_ADMIN` are unaffected.
+- Removed the `AUTO_APPROVED_EMAIL_DOMAINS` setting, an orphaned no-op left over from a removed approval-gated registration flow — it was read by nothing. Registration is controlled by `ENABLE_PUBLIC_REGISTRATION`, invite codes, and captcha; drop the variable from your `.env` if present (it is otherwise ignored).
 
 ### Fixed
 

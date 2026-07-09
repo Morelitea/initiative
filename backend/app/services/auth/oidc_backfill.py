@@ -14,12 +14,11 @@ The migrated provider is deliberately **operator-global** (``guild_id IS NULL``)
 and ``users.oidc_sub`` are left intact as the fallback; they are dropped only in
 Phase 4 after the new path is proven.
 
-The client secret rides along into the app_admin-only ``auth_provider_secrets``
-companion (migration 0133): both columns use the same Fernet salt
-(``SALT_OIDC_CLIENT_SECRET``), so the ciphertext moves **verbatim** — no
-decrypt/re-encrypt. Like the provider row it is **create-once** (``ON CONFLICT
-DO NOTHING``); a later secret rotation in ``app_settings`` is reconciled at
-cutover, not re-copied every boot.
+Provider creation + secret migration are delegated to
+:mod:`app.services.auth.platform_provider` — the same reconcile the login path
+runs — so there is exactly one code path that maps ``app_settings.oidc_*`` onto
+the provider row. Since the login cutover that reconcile also folds in drift
+(a settings edit or secret rotation), on boot and on every login alike.
 """
 
 from __future__ import annotations
@@ -32,14 +31,14 @@ from sqlmodel import select
 
 from app.db import session as db_session
 from app.models.platform.app_setting import AppSetting
-from app.models.platform.auth_provider import AuthProvider, AuthProviderKind
+from app.models.platform.auth_provider_secret import AuthProviderSecret
+from app.services.auth.platform_provider import (
+    PLATFORM_OIDC_SLUG as PLATFORM_OIDC_SLUG,  # re-export (public name)
+    ensure_platform_provider,
+    get_platform_provider,
+)
 
 logger = logging.getLogger(__name__)
-
-# Fixed slug for the one migrated platform provider: stable so re-runs find the
-# existing row (idempotent) and so the legacy ``/auth/oidc/*`` alias keeps
-# resolving once endpoints are generalized.
-PLATFORM_OIDC_SLUG = "oidc"
 
 
 @dataclass
@@ -78,32 +77,17 @@ async def _run(session) -> OidcBackfillSummary:
     ):
         return OidcBackfillSummary(skipped_reason="oidc_not_configured")
 
-    # 1. The one operator-global (guild_id IS NULL) provider row.
-    provider = (
-        await session.exec(
-            select(AuthProvider).where(
-                AuthProvider.slug == PLATFORM_OIDC_SLUG,
-                AuthProvider.guild_id.is_(None),
-            )
-        )
-    ).first()
-    provider_created = provider is None
-    if provider is None:
-        scopes = settings_row.oidc_scopes or []
-        provider = AuthProvider(
-            slug=PLATFORM_OIDC_SLUG,
-            display_name=settings_row.oidc_provider_name or "SSO",
-            kind=AuthProviderKind.oidc.value,
-            enabled=bool(settings_row.oidc_enabled),
-            guild_id=None,  # operator-global: platform-level login
-            issuer=settings_row.oidc_issuer,
-            client_id=settings_row.oidc_client_id,
-            scopes=" ".join(scopes) if scopes else None,
-            role_claim_path=settings_row.oidc_role_claim_path,
-            allow_jit=True,  # today's flow JIT-provisions unknown OIDC users
-        )
-        session.add(provider)
-        await session.flush()
+    # 1. The one operator-global (guild_id IS NULL) provider row — created or
+    #    drift-reconciled by the shared settings→provider mapping (the same one
+    #    the login path runs). Before/after reads only feed the boot summary.
+    existing = await get_platform_provider(session)
+    provider_created = existing is None
+    secret_before = None
+    if existing is not None:
+        secret_row = await session.get(AuthProviderSecret, existing.id)
+        if secret_row is not None:
+            secret_before = secret_row.client_secret_encrypted
+    provider = await ensure_platform_provider(session, settings_row)
 
     # 2. Link every existing oidc_sub to that provider. Bulk INSERT … SELECT with
     #    ON CONFLICT so re-runs don't duplicate and a partly-migrated state heals.
@@ -125,27 +109,13 @@ async def _run(session) -> OidcBackfillSummary:
     )
     inserted = result.rowcount
 
-    # 3. Migrate the client secret verbatim into the app_admin-only companion
-    #    (auth_provider_secrets, migration 0133). Same Fernet salt on both
-    #    columns, so the ciphertext moves as-is. Guarded on a secret actually
-    #    being set — a public / PKCE-only provider gets no secret row. Create-once
-    #    (ON CONFLICT DO NOTHING): idempotent, self-healing, and concurrency-safe;
-    #    a rotated secret is reconciled at cutover, not re-copied here.
-    secret_migrated = False
-    if settings_row.oidc_client_secret_encrypted:
-        secret_result = await session.exec(
-            text(
-                "INSERT INTO auth_provider_secrets "
-                "(provider_id, client_secret_encrypted, created_at, updated_at) "
-                "VALUES (:pid, :ct, now(), now()) "
-                "ON CONFLICT (provider_id) DO NOTHING"
-            ),
-            params={
-                "pid": provider.id,
-                "ct": settings_row.oidc_client_secret_encrypted,
-            },
-        )
-        secret_migrated = bool(secret_result.rowcount)
+    # 3. The client secret was reconciled into auth_provider_secrets by
+    #    ensure_platform_provider above (ciphertext verbatim — same Fernet salt
+    #    on both columns); here we only compute the summary flag.
+    secret_migrated = bool(
+        settings_row.oidc_client_secret_encrypted
+        and settings_row.oidc_client_secret_encrypted != secret_before
+    )
 
     await session.commit()
 

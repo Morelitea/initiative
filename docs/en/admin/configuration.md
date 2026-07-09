@@ -27,9 +27,8 @@ See [Installation](installation.md#the-three-database-connections) for how the t
 |---|---|---|
 | `ENABLE_PUBLIC_REGISTRATION` | Allow people to register without an invite link. Set `false` for invite-only. | `true` |
 | `DISABLE_GUILD_CREATION` | Stop regular users from creating new guilds (they must be invited to one). | `false` |
-| `AUTO_APPROVED_EMAIL_DOMAINS` | Email domains whose sign-ups are approved automatically; others wait for manual approval. | — |
 
-These three together let you run anything from a fully open community server to a locked-down, invite-only, single-organization deployment.
+These two together let you run anything from a fully open community server to a locked-down, invite-only, single-organization deployment.
 
 ## Running behind a reverse proxy
 

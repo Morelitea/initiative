@@ -46,7 +46,6 @@ jobs:
       DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:6432/initiative_test
       # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
       SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
-      AUTO_APPROVED_EMAIL_DOMAINS: '["example.com"]'
 
     steps:
       - uses: actions/checkout@v7

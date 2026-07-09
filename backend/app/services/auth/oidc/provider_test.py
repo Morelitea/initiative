@@ -9,17 +9,10 @@ claims.
 
 from __future__ import annotations
 
-import json
-from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
-import jwt
 import pytest
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from jwt.algorithms import RSAAlgorithm
 
 from app.services.auth.oidc.flow_state import decode_flow_state
 from app.services.auth.oidc.provider import (
@@ -27,95 +20,17 @@ from app.services.auth.oidc.provider import (
     OidcFlowError,
     OidcProvider,
 )
+from app.testing.oidc import (
+    CLIENT_ID,
+    ISSUER,
+    OTHER_KEY,
+    FakeIdp,
+    mint_id_token as _mint_id_token,
+)
 
 pytestmark = pytest.mark.unit
 
-ISSUER = "https://idp.example.com"
-CLIENT_ID = "client-123"
 REDIRECT_URI = "https://app.example.com/api/v1/auth/oidc/callback"
-
-IDP_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-OTHER_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-
-
-def _pem(priv) -> str:
-    return priv.private_bytes(
-        serialization.Encoding.PEM,
-        serialization.PrivateFormat.PKCS8,
-        serialization.NoEncryption(),
-    ).decode()
-
-
-def _jwks_doc(priv=IDP_KEY, kid: str = "k1") -> dict:
-    data = json.loads(RSAAlgorithm.to_jwk(priv.public_key()))
-    data.update({"kid": kid, "alg": "RS256", "use": "sig"})
-    return {"keys": [data]}
-
-
-def _mint_id_token(
-    *, nonce: str, priv=IDP_KEY, kid: str = "k1", **claim_overrides
-) -> str:
-    now = datetime.now(timezone.utc)
-    claims = {
-        "iss": ISSUER,
-        "sub": "idp-subject-1",
-        "aud": CLIENT_ID,
-        "exp": now + timedelta(minutes=5),
-        "iat": now,
-        "nonce": nonce,
-        "email": "alice@example.com",
-    }
-    claims.update(claim_overrides)
-    return jwt.encode(claims, _pem(priv), algorithm="RS256", headers={"kid": kid})
-
-
-class FakeIdp:
-    """Routes discovery/JWKS/token requests; records the token-request form.
-
-    ``algs`` fills ``id_token_signing_alg_values_supported``; ``None`` means the
-    discovery document omits the field entirely (an immutable tuple default —
-    do not "fix" it to ``None``, which has that distinct meaning).
-    """
-
-    def __init__(self, *, algs: tuple[str, ...] | None = ("RS256", "ES256")):
-        doc: dict[str, object] = {
-            "issuer": ISSUER,
-            "authorization_endpoint": f"{ISSUER}/authorize",
-            "token_endpoint": f"{ISSUER}/token",
-            "jwks_uri": f"{ISSUER}/jwks",
-        }
-        if algs is not None:
-            doc["id_token_signing_alg_values_supported"] = list(algs)
-        self.discovery_doc = doc
-        self.jwks_doc = _jwks_doc()
-        # A fixed httpx.Response, or a callable building one from the parsed form.
-        self.token_response: (
-            httpx.Response | Callable[[dict[str, str]], httpx.Response] | None
-        ) = None
-        self.token_request_form: dict[str, str] = {}
-        self.calls: list[str] = []
-
-    def handler(self, request: httpx.Request) -> httpx.Response:
-        path = request.url.path
-        self.calls.append(path)
-        if path.endswith("/.well-known/openid-configuration"):
-            return httpx.Response(200, json=self.discovery_doc)
-        if path == "/jwks":
-            return httpx.Response(200, json=self.jwks_doc)
-        if path == "/token":
-            form = parse_qs(request.content.decode())
-            self.token_request_form = {k: v[0] for k, v in form.items()}
-            resp = self.token_response
-            if resp is None:
-                return httpx.Response(500, text="test did not set token_response")
-            if isinstance(resp, httpx.Response):
-                return resp
-            return resp(self.token_request_form)
-        return httpx.Response(404)
-
-    def client_factory(self):
-        transport = httpx.MockTransport(self.handler)
-        return lambda: httpx.AsyncClient(transport=transport)
 
 
 def _provider(idp: FakeIdp, *, client_secret: str | None = "s3cret") -> OidcProvider:
@@ -385,3 +300,30 @@ async def test_no_advertised_algs_uses_default_pair():
     provider = _provider(idp)
     done = await _begin_and_complete(idp, provider)
     assert done.subject == "idp-subject-1"
+
+
+# --- userinfo enrichment ------------------------------------------------------
+
+
+async def test_fetch_userinfo_returns_claims_with_bearer():
+    idp = FakeIdp(userinfo_claims={"sub": "idp-subject-1", "email": "a@example.com"})
+    provider = _provider(idp)
+    claims = await provider.fetch_userinfo("at-123")
+    assert claims == {"sub": "idp-subject-1", "email": "a@example.com"}
+    assert idp.userinfo_bearer_tokens == ["Bearer at-123"]
+
+
+async def test_fetch_userinfo_none_when_not_advertised():
+    idp = FakeIdp()  # no userinfo_claims → discovery omits userinfo_endpoint
+    provider = _provider(idp)
+    assert await provider.fetch_userinfo("at-123") is None
+    assert "/userinfo" not in idp.calls
+
+
+async def test_fetch_userinfo_failure_raises_flow_error():
+    idp = FakeIdp(userinfo_claims={"sub": "idp-subject-1"})
+    idp.userinfo_response = httpx.Response(401, json={"error": "invalid_token"})
+    provider = _provider(idp)
+    with pytest.raises(OidcFlowError) as err:
+        await provider.fetch_userinfo("expired")
+    assert err.value.code == "userinfo_failed"

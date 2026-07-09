@@ -29,6 +29,7 @@ from app.services.auth.oidc._http import (
     DEFAULT_HTTP_TIMEOUT_SECONDS,
     ClientFactory,
     OidcHttpError,
+    fetch_json,
     post_form_json,
 )
 from app.services.auth.oidc.discovery import (
@@ -205,6 +206,32 @@ class OidcProvider:
             mobile=flow.mobile,
             device_name=flow.device_name,
         )
+
+    async def fetch_userinfo(self, access_token: str) -> dict[str, Any] | None:
+        """Fetch the userinfo document for ``access_token``, or ``None`` when
+        the provider advertises no userinfo endpoint.
+
+        Enrichment only — identity always comes from the verified id_token.
+        The caller must discard the result if its ``sub`` does not match the
+        id_token's (OIDC Core §5.3.2). Raises :class:`OidcFlowError`
+        (``userinfo_failed``) on a fetch or shape failure; the caller decides
+        whether that is fatal for its flow.
+        """
+        metadata = await self._fetch_metadata()
+        if not metadata.userinfo_endpoint:
+            return None
+        try:
+            document = await fetch_json(
+                metadata.userinfo_endpoint,
+                headers={"Authorization": f"Bearer {access_token}"},
+                client_factory=self._client_factory,
+                timeout_seconds=self._timeout,
+            )
+        except OidcHttpError as exc:
+            raise OidcFlowError("userinfo_failed", str(exc)) from exc
+        if not isinstance(document, dict):
+            raise OidcFlowError("userinfo_failed", "userinfo is not a JSON object")
+        return document
 
     async def _fetch_metadata(self) -> OidcMetadata:
         try:

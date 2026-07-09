@@ -210,7 +210,6 @@ class Settings(BaseSettings):
     def cookie_secure(self) -> bool:
         return self.app_url_is_https
 
-    AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
     APP_URL: str = "http://localhost:5173"
     # Extra browser origins allowed to make credentialed cross-origin requests,
@@ -608,19 +607,6 @@ class Settings(BaseSettings):
     # in air-gapped deployments or when egress is blocked); the length
     # floor in ``app.core.password_policy`` still applies.
     HIBP_CHECK_ENABLED: bool = True
-
-    @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")
-    @classmethod
-    def parse_email_domains(cls, value: str | list[str] | None) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            if not value.strip():
-                return []
-            items = value.split(",")
-        else:
-            items = value
-        return [item.strip().lower() for item in items if item and item.strip()]
 
     @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
     @classmethod
