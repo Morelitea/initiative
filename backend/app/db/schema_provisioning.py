@@ -113,6 +113,13 @@ def platform_role_name(role: str) -> str:
     return f"{settings.PLATFORM_ROLE_PREFIX}platform_{role}"
 
 
+def billing_role_name() -> str:
+    """Cluster-global Postgres role the billing-service endpoints assume
+    (created by migration 0134). Shares ``settings.PLATFORM_ROLE_PREFIX``
+    because it is cluster-global like the platform ladder."""
+    return f"{settings.PLATFORM_ROLE_PREFIX}initiative_billing"
+
+
 @dataclass(frozen=True)
 class ProvisioningBundle:
     """The per-process render of everything provisioning applies.

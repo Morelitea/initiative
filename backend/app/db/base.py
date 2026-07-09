@@ -53,6 +53,7 @@ from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
+from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
@@ -113,6 +114,8 @@ __all__ = [
     "UserToken",
     "PushToken",
     "AutoDelegationJti",
+    "BillingEventLog",
+    "BillingJti",
     "TaskAssignmentDigestItem",
     "WebhookSubscription",
 ]

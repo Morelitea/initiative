@@ -61,6 +61,9 @@ class Guild(SQLModel, table=True):
     max_users: Optional[int] = Field(
         default=None, sa_column=Column(Integer, nullable=True)
     )
+    tier_name: Optional[str] = Field(
+        default=None, sa_column=Column(String(64), nullable=True)
+    )
     # Lifecycle status (see GuildStatus). Stored as a plain string with a CHECK
     # constraint (the access_grants pattern) rather than a Postgres enum.
     status: str = Field(
