@@ -54,11 +54,24 @@ class CaptchaConfig(BaseModel):
     site_key: str
 
 
+class BillingConfig(BaseModel):
+    """Public link-out to an external billing portal.
+
+    When ``BILLING_URL`` is unset on the backend (the default) this whole
+    field is ``None`` and the SPA shows no tier label, upgrade, or
+    manage-billing UI. The usage panel (caps + usage, all operator-set
+    numbers) renders regardless. Only the base URL crosses.
+    """
+
+    url: str
+
+
 class AppConfig(BaseModel):
     """Public, runtime-injected configuration consumed by the SPA at boot."""
 
     advanced_tool: Optional[AdvancedToolConfig] = None
     captcha: Optional[CaptchaConfig] = None
+    billing: Optional[BillingConfig] = None
 
 
 # Default ports the WHATWG URL spec strips from origin strings. If the
@@ -120,4 +133,8 @@ def get_app_config() -> AppConfig:
     ):
         captcha = CaptchaConfig(provider=provider, site_key=settings.CAPTCHA_SITE_KEY)
 
-    return AppConfig(advanced_tool=advanced_tool, captcha=captcha)
+    # Billing portal link-out: exposed only when the operator configured a
+    # billing URL. Absent ⇒ the SPA hides every tier/upgrade/manage surface.
+    billing = BillingConfig(url=settings.BILLING_URL) if settings.BILLING_URL else None
+
+    return AppConfig(advanced_tool=advanced_tool, captcha=captcha, billing=billing)

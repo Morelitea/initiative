@@ -531,6 +531,12 @@ class Settings(BaseSettings):
     # membership-change ping (guild id + event id only — no member data).
     # The ping is dispatched only when this AND BILLING_HMAC_SECRET are set.
     BILLING_SERVICE_URL: str | None = None
+    # Public base URL of an external billing portal, surfaced to the SPA via
+    # /config. Unset (the default) ⇒ the SPA shows NO tier label, upgrade, or
+    # manage-billing UI; the usage panel still shows caps/usage (operator-set
+    # numbers). Set ⇒ the link-out buttons appear. Mirrors the
+    # ADVANCED_TOOL_URL pattern: the OSS core defers to an external service.
+    BILLING_URL: str | None = None
 
     # Local-dev escape hatch for the webhook SSRF guard. When TRUE, the
     # dispatcher accepts ``http://`` and private/loopback/link-local

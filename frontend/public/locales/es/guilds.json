@@ -258,5 +258,19 @@
     "readWrite": "Tienes acceso temporal a {{guild}}.",
     "guildReadOnly": "Este gremio es de solo lectura",
     "guildSuspended": "Este gremio está suspendido"
+  },
+  "usagePanel": {
+    "title": "Uso",
+    "storage": "Almacenamiento",
+    "members": "Miembros",
+    "unlimited": "Ilimitado",
+    "usedOfMax": "{{used}} de {{max}}",
+    "usedOfUnlimited": "{{used}} usado · Ilimitado",
+    "membersOfMax": "{{used}} de {{max}}",
+    "membersOfUnlimited": "{{used}} · Ilimitado",
+    "currentPlan": "Plan actual:",
+    "selfHosted": "Autoalojado",
+    "upgrade": "Mejorar",
+    "manageBilling": "Gestionar facturación"
   }
 }

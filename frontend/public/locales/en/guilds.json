@@ -258,5 +258,19 @@
     "readWrite": "You have temporary access to {{guild}}.",
     "guildReadOnly": "This guild is read-only",
     "guildSuspended": "This guild is suspended"
+  },
+  "usagePanel": {
+    "title": "Usage",
+    "storage": "Storage",
+    "members": "Members",
+    "unlimited": "Unlimited",
+    "usedOfMax": "{{used}} of {{max}}",
+    "usedOfUnlimited": "{{used}} used · Unlimited",
+    "membersOfMax": "{{used}} of {{max}}",
+    "membersOfUnlimited": "{{used}} · Unlimited",
+    "currentPlan": "Current plan:",
+    "selfHosted": "Self-hosted",
+    "upgrade": "Upgrade",
+    "manageBilling": "Manage billing"
   }
 }

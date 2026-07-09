@@ -27,6 +27,7 @@ from app.api.v1.tenant_endpoints import (
     queues,
     recents,
     resource_grants,
+    storage,
     tags,
     task_statuses,
     tasks,
@@ -122,6 +123,7 @@ guild_router.include_router(
 guild_router.include_router(
     resource_grants.router, prefix="/resource-grants", tags=["resource-grants"]
 )
+guild_router.include_router(storage.router, prefix="/storage", tags=["storage"])
 guild_router.include_router(tags.router, prefix="/tags", tags=["tags"])
 guild_router.include_router(
     advanced_tool.router, prefix="/advanced-tools", tags=["advanced-tools"]

@@ -10,17 +10,22 @@ schema; no user is ever resolved.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import ValidationError
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import SessionDep
 from app.core.messages import BillingMessages
-from app.db.session import set_billing_context
+from app.db.session import get_admin_session, set_billing_context
 from app.schemas.platform.billing import (
     BillingGuildTierApply,
     BillingGuildTierRead,
     BillingHeadcountRead,
     BillingHeadcountRequest,
+    BillingUsageRead,
+    BillingUsageRequest,
 )
 from app.services.platform import billing as billing_service
 from app.services.platform.billing import (
@@ -31,6 +36,11 @@ from app.services.platform.billing import (
 )
 
 router = APIRouter(include_in_schema=False)
+
+# The storage read needs the system engine to reach the guild schema (the
+# billing role is confined to public); the billing session still owns the
+# jti burn.
+AdminSessionDep = Annotated[AsyncSession, Depends(get_admin_session)]
 
 
 def _payload_error_code(exc: ValidationError) -> str:
@@ -138,3 +148,30 @@ async def guild_headcount(
         ) from exc
     await session.commit()  # persist the one-shot jti redemption
     return BillingHeadcountRead(guild_id=payload.guild_id, member_count=member_count)
+
+
+@router.post("/usage", response_model=BillingUsageRead)
+async def guild_usage(
+    request: Request, session: SessionDep, admin_session: AdminSessionDep
+) -> BillingUsageRead:
+    """Signed read: current stored bytes for one guild.
+
+    Envelope-verified and jti-burned on the billing session like the other
+    reads; the actual ``SUM(uploads.size_bytes)`` runs on ``admin_session``
+    routed into the guild schema (the billing role can't reach it). A missing
+    guild 404s with the jti unredeemed (retryable).
+    """
+    claims, payload = await _verify_and_parse(request, BillingUsageRequest)
+    await set_billing_context(session, guild_id=payload.guild_id)
+    await _burn_jti(session, claims)
+    try:
+        usage_bytes = await billing_service.guild_storage_usage(
+            admin_session, payload.guild_id
+        )
+    except BillingGuildNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=BillingMessages.GUILD_NOT_FOUND,
+        ) from exc
+    await session.commit()  # persist the one-shot jti redemption
+    return BillingUsageRead(guild_id=payload.guild_id, usage_bytes=usage_bytes)

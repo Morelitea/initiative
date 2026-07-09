@@ -27,11 +27,40 @@ async def test_config_returns_no_advanced_tool_when_url_unset(
     monkeypatch.setattr(settings, "CAPTCHA_PROVIDER", None)
     monkeypatch.setattr(settings, "CAPTCHA_SITE_KEY", None)
     monkeypatch.setattr(settings, "CAPTCHA_SECRET_KEY", None)
+    monkeypatch.setattr(settings, "BILLING_URL", None)
 
     response = await client.get("/api/v1/config")
 
     assert response.status_code == 200
-    assert response.json() == {"advanced_tool": None, "captcha": None}
+    assert response.json() == {
+        "advanced_tool": None,
+        "captcha": None,
+        "billing": None,
+    }
+
+
+@pytest.mark.integration
+async def test_config_omits_billing_when_url_unset(client: AsyncClient, monkeypatch):
+    """Self-host default: no BILLING_URL ⇒ ``billing: null`` so the SPA hides
+    every tier/upgrade/manage surface (the usage panel still renders)."""
+    monkeypatch.setattr(settings, "BILLING_URL", None)
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["billing"] is None
+
+
+@pytest.mark.integration
+async def test_config_exposes_billing_url_when_set(client: AsyncClient, monkeypatch):
+    """With a URL configured, the SPA gets the base URL to build its
+    link-out buttons. Only the URL crosses."""
+    monkeypatch.setattr(settings, "BILLING_URL", "https://billing.example.com")
+
+    response = await client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    assert response.json()["billing"] == {"url": "https://billing.example.com"}
 
 
 @pytest.mark.integration

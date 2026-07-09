@@ -35,5 +35,9 @@ export const useAppConfig = () => {
     /** When this is null the deployment has no captcha configured —
      *  the SPA must skip the widget on registration. */
     captcha: query.data?.captcha ?? null,
+    /** When this is null the deployment has no billing portal configured —
+     *  the SPA hides every tier/upgrade/manage surface (the usage panel,
+     *  which shows operator-set caps + usage, renders regardless). */
+    billing: query.data?.billing ?? null,
   };
 };
