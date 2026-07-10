@@ -275,6 +275,7 @@
   "ADVANCED_TOOL_CREATE_PERMISSION_REQUIRED": "Permission required to create advanced tools",
   "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN": "Only guild admins can create guild-wide advanced tools",
   "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE": "Guild-wide advanced tools are admin-only and can't be shared",
+  "ADVANCED_TOOL_DELEGATED_RUN_ONLY": "Advanced tool runs can only be started by the automation service",
   "AI_INVALID_BASE_URL": "Base URL is not allowed. Use a public hostname.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama can only be configured at the platform level.",
   "fallback": "Something went wrong. Please try again.",
