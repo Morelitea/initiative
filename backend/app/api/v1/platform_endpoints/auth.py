@@ -13,7 +13,7 @@ from sqlmodel import delete as sql_delete, select
 
 from app.api.deps import SessionDep, get_current_active_user, get_current_user_optional
 from app.db.session import get_admin_session
-from app.core.config import settings
+from app.core.config import API_V1_STR, settings
 from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.rate_limit import get_real_client_ip, limiter
 from app.core.encryption import (
@@ -27,6 +27,8 @@ from app.core.encryption import (
 from app.core.messages import AuthMessages, OidcMessages
 from app.core.password_policy import enforce_password_policy
 from app.core.security import (
+    REFRESH_COOKIE_NAME,
+    SESSION_COOKIE_NAME,
     create_access_token,
     create_upload_token,
     get_password_hash,
@@ -86,7 +88,7 @@ _oidc_jwks = JwksResolver()
 
 # The refresh cookie is scoped to the auth routes so it never rides along on
 # ordinary API requests — it is only presented to /auth/refresh and /auth/logout.
-REFRESH_COOKIE_PATH = f"{settings.API_V1_STR}/auth"
+REFRESH_COOKIE_PATH = f"{API_V1_STR}/auth"
 
 
 def _client_ip(request: Request) -> str | None:
@@ -105,7 +107,7 @@ def _set_session_cookie(response: Response, token: str, *, max_age: int) -> None
     cutover this holds a legacy JWT at login and a new-model access token after
     the first refresh — the verifier accepts either."""
     response.set_cookie(
-        key=settings.COOKIE_NAME,
+        key=SESSION_COOKIE_NAME,
         value=token,
         httponly=True,
         samesite="lax",
@@ -117,7 +119,7 @@ def _set_session_cookie(response: Response, token: str, *, max_age: int) -> None
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
     response.set_cookie(
-        key=settings.REFRESH_COOKIE_NAME,
+        key=REFRESH_COOKIE_NAME,
         value=token,
         httponly=True,
         samesite="lax",
@@ -129,7 +131,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 def _clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(
-        key=settings.REFRESH_COOKIE_NAME,
+        key=REFRESH_COOKIE_NAME,
         path=REFRESH_COOKIE_PATH,
         httponly=True,
         secure=settings.cookie_secure,
@@ -151,7 +153,7 @@ def _refresh_rejected(detail: str) -> JSONResponse:
         headers={"WWW-Authenticate": "Bearer"},
     )
     _clear_refresh_cookie(response)
-    response.delete_cookie(key=settings.COOKIE_NAME, path="/")
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
     return response
 
 
@@ -457,7 +459,7 @@ async def refresh_access_token(
     was detected. Runs on the system engine: validation is a pre-auth lookup by
     refresh-token hash.
     """
-    raw = request.cookies.get(settings.REFRESH_COOKIE_NAME)
+    raw = request.cookies.get(REFRESH_COOKIE_NAME)
     if not raw:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -545,7 +547,7 @@ async def logout(
         )
         await admin_session.commit()
     response.delete_cookie(
-        key=settings.COOKIE_NAME,
+        key=SESSION_COOKIE_NAME,
         path="/",
         httponly=True,
         secure=settings.cookie_secure,
@@ -658,7 +660,7 @@ async def revoke_device_token(
 
 def _backend_redirect_uri() -> str:
     base = settings.APP_URL.rstrip("/")
-    return f"{base}{settings.API_V1_STR}/auth/oidc/callback"
+    return f"{base}{API_V1_STR}/auth/oidc/callback"
 
 
 def _frontend_redirect_uri() -> str:
@@ -723,7 +725,7 @@ async def oidc_status(request: Request, session: SessionDep) -> dict[str, Any]:
     login_url = None
     provider_name = None
     if enabled:
-        login_url = f"{settings.API_V1_STR}/auth/oidc/login"
+        login_url = f"{API_V1_STR}/auth/oidc/login"
         provider_name = app_settings.oidc_provider_name
     return {"enabled": enabled, "login_url": login_url, "provider_name": provider_name}
 
@@ -934,7 +936,7 @@ async def oidc_callback(
     )
     oidc_response = RedirectResponse(_frontend_redirect_uri())
     oidc_response.set_cookie(
-        key=settings.COOKIE_NAME,
+        key=SESSION_COOKIE_NAME,
         value=app_token,
         httponly=True,
         samesite="lax",

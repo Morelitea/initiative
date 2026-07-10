@@ -35,7 +35,7 @@ from app.api.deps import (
     GuildAccessError,
     GuildContext,
 )
-from app.core.config import settings
+from app.core.security import SESSION_COOKIE_NAME
 from app.db.session import AsyncSessionLocal, set_rls_context
 from app.models.tenant.document import Document
 from app.models.tenant.resource_grant import ResourceGrant
@@ -147,7 +147,7 @@ async def websocket_collaborate(
             token = auth_payload.get("token")
             if not token:
                 # Fall back to session cookie (web sessions after page refresh)
-                token = websocket.cookies.get(settings.COOKIE_NAME)
+                token = websocket.cookies.get(SESSION_COOKIE_NAME)
             if not token:
                 raise ValueError("Missing token")
         except (json.JSONDecodeError, ValueError) as e:

@@ -10,6 +10,17 @@ from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatc
 
 from app.core.config import settings
 
+# Deliberately a constant, not a setting: every encode/verify in this module
+# assumes HS256, and a configurable JWT algorithm invites algorithm-confusion.
+JWT_ALGORITHM = "HS256"
+
+# Cookie names are part of the auth contract, not deployment configuration.
+SESSION_COOKIE_NAME = "session_token"
+# The rotating refresh token rides in its own HttpOnly cookie, path-scoped to
+# the auth routes (sent only on refresh/logout, never on ordinary API calls —
+# smaller exposure than the session cookie).
+REFRESH_COOKIE_NAME = "refresh_token"
+
 # argon2id with library defaults — OWASP-aligned. Stored hashes embed the
 # parameters, so verification keeps working if we tune these later.
 _argon2_hasher = PasswordHasher()
@@ -65,7 +76,7 @@ def create_access_token(
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode: dict[str, Any] = {"sub": subject, "exp": expire, "ver": token_version}
-    return jwt.encode(to_encode, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
+    return jwt.encode(to_encode, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -119,7 +130,7 @@ def mint_access_token(
         "iat": int(issued.timestamp()),
         "exp": issued + ttl,
     }
-    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
+    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
     return token, int(ttl.total_seconds())
 
 
@@ -146,7 +157,7 @@ def decode_session_token(token: str) -> dict[str, Any]:
         return jwt.decode(
             token,
             settings.jwt_signing_key,
-            algorithms=[settings.ALGORITHM],
+            algorithms=[JWT_ALGORITHM],
             audience=AUTH_ACCESS_AUDIENCE,
             issuer=AUTH_TOKEN_ISSUER,
             options={"require": ["exp", "sub", "ver", "aud", "iss"]},
@@ -164,9 +175,7 @@ def decode_session_token(token: str) -> dict[str, Any]:
         # legacy decode's audience error — keeping cutover-window logs honest.
         # A legacy token bearing any aud (upload/handoff) still fails the legacy
         # decode below and is rejected.
-        return jwt.decode(
-            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
-        )
+        return jwt.decode(token, settings.jwt_signing_key, algorithms=[JWT_ALGORITHM])
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -218,7 +227,7 @@ def create_upload_token(
         "iat": int(now.timestamp()),
         "exp": now + expires_in,
     }
-    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=settings.ALGORITHM)
+    token = jwt.encode(payload, settings.jwt_signing_key, algorithm=JWT_ALGORITHM)
     return token, int(expires_in.total_seconds())
 
 
@@ -234,7 +243,7 @@ def verify_upload_token(token: str) -> int:
         payload = jwt.decode(
             token,
             settings.jwt_signing_key,
-            algorithms=[settings.ALGORITHM],
+            algorithms=[JWT_ALGORITHM],
             audience=UPLOAD_TOKEN_AUDIENCE,
             options={"require": ["exp", "iat", "sub", "aud"]},
         )

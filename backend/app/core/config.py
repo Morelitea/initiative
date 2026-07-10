@@ -1,8 +1,14 @@
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, EmailStr, Field, field_validator, model_validator
+from pydantic import AliasChoices, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# App identity/shape — deliberately constants, not settings: the SPA, the
+# docs-CSP route, and the OpenAPI export all assume this prefix, so making it
+# configurable only creates ways to break them.
+PROJECT_NAME = "Initiative API"
+API_V1_STR = "/api/v1"
 
 # Origins used by the Capacitor native mobile app (iOS and Android).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.
@@ -127,9 +133,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    PROJECT_NAME: str = "Initiative API"
-    API_V1_STR: str = "/api/v1"
-
     DATABASE_URL: str = (
         "postgresql+asyncpg://initiative:initiative@localhost:5432/initiative"
     )
@@ -151,12 +154,10 @@ class Settings(BaseSettings):
     # with no impact on encrypted-at-rest data. Falls back to SECRET_KEY when unset.
     JWT_SIGNING_KEY: str | None = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    ALGORITHM: str = "HS256"
-    COOKIE_NAME: str = "session_token"
-    # New login model: the rotating refresh token rides in its own HttpOnly
-    # cookie, path-scoped to the auth routes (sent only on refresh/logout, never
-    # on ordinary API calls — smaller exposure than the session cookie).
-    REFRESH_COOKIE_NAME: str = "refresh_token"
+    # The JWT algorithm and cookie names are constants in app.core.security
+    # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — a settable
+    # JWT algorithm is an alg-confusion hazard, and the cookie names are part
+    # of the auth contract, not deployment configuration.
 
     # New login model (auth rewrite, Phase 0 — history/auth-detailed-design.md §3).
     # The access token is short-lived + stateless: verified locally with no
@@ -343,8 +344,6 @@ class Settings(BaseSettings):
     OIDC_ISSUER: str | None = None
     OIDC_CLIENT_ID: str | None = None
     OIDC_CLIENT_SECRET: str | None = None
-    OIDC_REDIRECT_URI: str | None = None
-    OIDC_POST_LOGIN_REDIRECT: str | None = None
     OIDC_PROVIDER_NAME: str | None = None
     OIDC_SCOPES: list[str] | str | None = None
     SMTP_HOST: str | None = None
@@ -657,13 +656,6 @@ class Settings(BaseSettings):
             if cleaned and cleaned not in normalized:
                 normalized.append(cleaned)
         return normalized or ["openid", "profile", "email"]
-
-    @model_validator(mode="before")
-    @classmethod
-    def _oidc_issuer_compat(cls, values: dict) -> dict:
-        if not values.get("OIDC_ISSUER") and values.get("OIDC_DISCOVERY_URL"):
-            values["OIDC_ISSUER"] = values["OIDC_DISCOVERY_URL"]
-        return values
 
 
 @lru_cache

@@ -14,7 +14,7 @@ from collections.abc import AsyncGenerator
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import asyncpg
 import pytest
@@ -54,8 +54,24 @@ WORKER_ID = os.environ.get("PYTEST_XDIST_WORKER", "master")
 settings.GUILD_ROLE_PREFIX = f"test_{WORKER_ID}_"
 settings.PLATFORM_ROLE_PREFIX = f"test_{WORKER_ID}_"
 
+# --- Test-infrastructure superuser ---------------------------------------------
+# The suite needs cluster-superuser powers the APP must never hold: CREATE
+# DATABASE per worker, raw setup/assertion writes on FORCE-RLS tables (the
+# ``session`` fixture), and session_replication_role truncation. That is test
+# infrastructure, so it is deliberately NOT a Settings field — the app's
+# DATABASE_URL stays the least-privilege app_provisioner role. Host/port come
+# from DATABASE_URL (same cluster); credentials are the dev-compose/CI
+# bootstrap superuser, overridable via the standard postgres-image variables.
+_su_user = os.environ.get("POSTGRES_USER", "initiative")
+_su_password = os.environ.get("POSTGRES_PASSWORD", "initiative")
+_app_db = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
+_su_netloc = f"{_app_db.hostname}:{_app_db.port or 5432}"
+_base_url = (
+    f"postgresql+asyncpg://{quote(_su_user, safe='')}:"
+    f"{quote(_su_password, safe='')}@{_su_netloc}"
+)
+
 # Per-worker database so a worker's TRUNCATE/DROP never clobbers another's data.
-_base_url = settings.DATABASE_URL.rsplit("/", 1)[0]
 TEST_DB_NAME = f"initiative_test_{WORKER_ID}"
 TEST_DATABASE_URL = f"{_base_url}/{TEST_DB_NAME}"
 
@@ -69,6 +85,17 @@ TEST_STATEMENT_TIMEOUT = "30s"
 BACKEND_DIR = Path(__file__).resolve().parent
 
 
+async def _connect_su_postgres() -> asyncpg.Connection:
+    """Test-infra superuser connection to the always-present ``postgres`` DB."""
+    return await asyncpg.connect(
+        user=_su_user,
+        password=_su_password,
+        host=_app_db.hostname,
+        port=_app_db.port or 5432,
+        database="postgres",
+    )
+
+
 async def _ensure_test_database() -> None:
     """Create this worker's test database if it doesn't exist.
 
@@ -77,14 +104,7 @@ async def _ensure_test_database() -> None:
     being accessed"), so retry. ``CREATE DATABASE`` can't run inside a transaction,
     hence the autocommit asyncpg connection.
     """
-    parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
-    conn = await asyncpg.connect(
-        user=parsed.username,
-        password=parsed.password,
-        host=parsed.hostname,
-        port=parsed.port or 5432,
-        database="postgres",
-    )
+    conn = await _connect_su_postgres()
     try:
         for _attempt in range(12):
             exists = await conn.fetchval(
@@ -111,14 +131,7 @@ async def _ensure_test_database() -> None:
 async def _set_db_statement_timeout() -> None:
     """Apply a DB-level statement_timeout to the worker's test DB (catch-all net
     for cross-connection deadlocks). Affects connections opened afterward."""
-    parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
-    conn = await asyncpg.connect(
-        user=parsed.username,
-        password=parsed.password,
-        host=parsed.hostname,
-        port=parsed.port or 5432,
-        database="postgres",
-    )
+    conn = await _connect_su_postgres()
     try:
         await conn.execute(
             f'ALTER DATABASE "{TEST_DB_NAME}" SET statement_timeout = '
@@ -158,14 +171,7 @@ async def _migrate_under_lock() -> None:
     ``postgres`` DB for the whole migration; ``command.upgrade`` runs in a worker
     thread (where it can spin its own loop) while THIS loop keeps the lock
     connection — and thus the lock — alive."""
-    parsed = urlparse(settings.DATABASE_URL.replace("+asyncpg", ""))
-    lock_conn = await asyncpg.connect(
-        user=parsed.username,
-        password=parsed.password,
-        host=parsed.hostname,
-        port=parsed.port or 5432,
-        database="postgres",
-    )
+    lock_conn = await _connect_su_postgres()
     try:
         await lock_conn.execute("SELECT pg_advisory_lock($1)", _MIGRATION_LOCK_KEY)
         await _ensure_test_database()

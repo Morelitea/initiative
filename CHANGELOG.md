@@ -9,26 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Platform admins can set a per-guild user limit (default unlimited) from the admin dashboard's Guilds tab; at the cap, new joins/invites are refused while existing members stay, and SSO auto-provisioning is exempt.
-- Platform admins can set a per-guild lifecycle status (`active` / `read_only` / `suspended`) for moderation holds — `read_only` blocks writes, `suspended` hides the guild from members while its admins keep full settings access. Non-active guilds pause trash auto-purge and block new joins; operators can still reach them via a break-glass grant. Reversible, never touches stored data.
-- Time-bound support/moderator access grants now act as a database-enforced `support` guild role: read grants are read-only, read_write grants can edit content/settings but are blocked from managing membership, roles, or sharing. Break-glass admin access is unchanged.
+- Per-guild user limits (default unlimited), set from the admin dashboard's Guilds tab. At the cap, new joins/invites are refused; existing members and SSO auto-provisioning are unaffected.
+- Per-guild lifecycle status for moderation holds: `read_only` blocks writes, `suspended` hides the guild from members (admins keep settings access). Reversible; never touches stored data.
+- Support/moderator access grants are now database-enforced: read grants are read-only; read_write grants can edit content but not membership, roles, or sharing.
 
 ### Changed
 
-- Operator "delete this guild" (offered when deleting a guild's sole admin) is now scoped to that user's solely-admined guild instead of accepting any guild id; guild admins still delete their own guild as before.
-- SSO (OIDC) sign-in has been rebuilt on a hardened relying-party flow: the provider's identity token is now cryptographically verified against its published signing keys (with issuer, audience, expiry, and per-login nonce checks) before any account is touched, and the login state is carried in an encrypted, expiring token. Accounts now link to the provider by its stable subject identifier rather than by email, so an email change at the provider no longer detaches (or misdirects) a login; a verified matching email still signs in to an existing account exactly as before.
+- Operator "delete this guild" is now scoped to the deleted user's solely-admined guild instead of accepting any guild id.
+- Removed the `ALGORITHM`, `COOKIE_NAME`, `REFRESH_COOKIE_NAME`, `PROJECT_NAME`, and `API_V1_STR` settings — their values are now fixed. Drop them from your `.env`; leftovers are ignored.
+- Removed the `OIDC_REDIRECT_URI` and `OIDC_POST_LOGIN_REDIRECT` settings (read by nothing — redirect URLs derive from `APP_URL`) and the legacy `OIDC_DISCOVERY_URL` alias. OIDC is configured in Settings → Admin; the `OIDC_*` env vars only pre-fill it on first boot. If you still set `OIDC_DISCOVERY_URL`, use `OIDC_ISSUER` instead.
+- `backend/.env.example` was rewritten; optional OIDC/SMTP/S3 lines are commented out so placeholder values no longer seed the admin settings on first boot.
+- SSO (OIDC) sign-in now fully verifies the provider's identity token (signature, issuer, audience, expiry, nonce) and links accounts by the provider's stable subject id instead of email. No action needed; existing logins keep working.
 
 ### Deprecated
 
-- Running migrations as a Postgres superuser (a superuser or `BYPASSRLS` role in `DATABASE_URL`) is deprecated and a future release will refuse to start with it. Affected deployments now get a prominent migration banner in the startup log on every boot. To fix it: (1) run `backend/scripts/create-provisioner.sql` once, connected as your current `DATABASE_URL` role, passing `-v provisioner_password='<pick-a-password>'`; (2) update `DATABASE_URL` in your `.env` to connect as `app_provisioner` with that password; (3) restart the app. Fresh docker-compose installs already use `app_provisioner`, and `DATABASE_URL_APP`/`DATABASE_URL_ADMIN` are unaffected.
-- Removed the `AUTO_APPROVED_EMAIL_DOMAINS` setting, an orphaned no-op left over from a removed approval-gated registration flow — it was read by nothing. Registration is controlled by `ENABLE_PUBLIC_REGISTRATION`, invite codes, and captcha; drop the variable from your `.env` if present (it is otherwise ignored).
+- A superuser (or `BYPASSRLS`) role in `DATABASE_URL` is deprecated; a future release will refuse to start with it. To migrate: run `backend/scripts/create-provisioner.sql` once (`-v provisioner_password='<password>'`), point `DATABASE_URL` at `app_provisioner`, restart. Fresh docker-compose installs already do this.
+- Removed the unused `AUTO_APPROVED_EMAIL_DOMAINS` setting (read by nothing). Drop it from your `.env` if present.
 
 ### Fixed
 
-- Guild lifecycle status is now enforced everywhere, not just on guild-addressed requests: a suspended guild's content no longer leaks through the cross-guild "My tasks/documents/projects/calendar" views, recent tabs, trash, stats, or notification digests, and a read-only guild routes those same aggregate reads through its read-only database role. Effective permission levels (`my_permission_level`, writable-project lists, live document collaboration) now report read-only while a guild is frozen — computed once in the permission engine, so the UI's edit affordances and the collaboration socket's write gate follow automatically. Members of a read-only guild see a banner and lose create/edit affordances instead of hitting errors; guild admins of a suspended guild land directly on guild settings (the surface that still works) instead of a wall of denied pages.
-- Guild storage caps can no longer be edited through the guild-facing settings endpoint — caps, member limits, tier label, and lifecycle status are platform-operator inputs, and the database now enforces that with column-scoped grants on `guilds` (a guild's own role can only update its name, description, and icon).
-- Anonymizing or deleting a user now scrubs their email out of any guild invite addressed to them (invite addresses are stored reversibly encrypted, so a lingering invite kept a recoverable copy); the invite is neutralized so this can't turn it into an open shareable link.
-- Startup no longer fails with `new row violates row-level security policy for table "guilds"` when the system-engine login (`DATABASE_URL_ADMIN`) has lost its `BYPASSRLS` attribute — typically after restoring a database from a dump, which recreates no roles (#835). Boot now verifies the attribute right after migrations, restores it automatically when `DATABASE_URL` is privileged enough, and otherwise stops with the exact `ALTER ROLE` command to run instead of the opaque seeding error.
+- `backend/scripts/create-provisioner.sql` missed the per-guild support roles: after switching `DATABASE_URL` to `app_provisioner`, deployments with existing guilds failed to boot with `permission denied to grant role "guild_N_support"`. If that hit you, run the fixed script once against your app database, connected as the Postgres superuser: `psql -v ON_ERROR_STOP=1 -U <superuser> -d <app-db> -v provisioner_password='<your password>' -f backend/scripts/create-provisioner.sql`. Running it again on a healthy install changes nothing.
+- Guild storage caps, member limits, tier label, and lifecycle status can no longer be edited through guild-facing settings — they are platform-operator inputs, now enforced with column-scoped database grants.
+- Anonymizing or deleting a user now scrubs their email from guild invites addressed to them, and neutralizes the invite so it can't become an open shareable link.
+- Startup no longer fails with an RLS error when `DATABASE_URL_ADMIN` has lost its `BYPASSRLS` attribute (typical after restoring from a dump, #835): boot restores it automatically when possible, and otherwise prints the exact `ALTER ROLE` command to run.
 
 ## [0.54.2] - 2026-07-04
 

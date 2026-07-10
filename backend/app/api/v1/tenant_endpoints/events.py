@@ -9,7 +9,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import establish_guild_access, GuildAccessError
-from app.core.config import settings
+from app.core.security import SESSION_COOKIE_NAME
 from app.db.session import AsyncSessionLocal
 from app.models.tenant.initiative import Initiative
 from app.models.platform.user import User
@@ -82,7 +82,7 @@ async def websocket_updates(websocket: WebSocket, guild_id: int):
             token = auth_payload.get("token")
             if not token:
                 # Fall back to session cookie (web sessions after page refresh)
-                token = websocket.cookies.get(settings.COOKIE_NAME)
+                token = websocket.cookies.get(SESSION_COOKIE_NAME)
             if not token:
                 raise ValueError("Missing token")
         except (json.JSONDecodeError, ValueError, TypeError) as e:

@@ -10,7 +10,7 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, user_has_capability
-from app.core.config import settings
+from app.core.config import API_V1_STR, settings
 from app.core.pam_context import set_active_grant
 from app.core.role_context import (
     set_active_role,
@@ -19,6 +19,7 @@ from app.core.role_context import (
 )
 from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.security import (
+    SESSION_COOKIE_NAME,
     AutoDelegationVerificationError,
     UploadTokenError,
     decode_session_token,
@@ -40,7 +41,7 @@ from app.services.platform import user_tokens
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False
+    tokenUrl=f"{API_V1_STR}/auth/token", auto_error=False
 )
 
 
@@ -166,7 +167,7 @@ async def get_current_user(
     request: Request,
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
     # Check for Authorization header - could be Bearer, DeviceToken, or API key
     auth_header = request.headers.get("Authorization", "")
@@ -247,7 +248,7 @@ async def get_current_user_optional(
     request: Request,
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User | None:
     try:
         return await get_current_user(request, session, bearer_token, session_cookie)
@@ -756,7 +757,7 @@ async def get_upload_user(
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     token_param: Annotated[Optional[str], Query(alias="token")] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
     """Auth dependency for /uploads/* and authenticated document downloads.
 

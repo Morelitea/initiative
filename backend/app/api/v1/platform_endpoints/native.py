@@ -14,7 +14,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from app.core.config import settings
+from app.core.config import API_V1_STR
 from app.core.messages import NativeMessages
 from app.core.version import __version__, get_min_native_version
 
@@ -45,7 +45,7 @@ def get_bundle_manifest() -> dict[str, object]:
         )
     return {
         "version": __version__,
-        "url": f"{settings.API_V1_STR}/native/bundle/download",
+        "url": f"{API_V1_STR}/native/bundle/download",
         "checksum": _CHECKSUM_PATH.read_text().strip(),
         "minNativeVersion": get_min_native_version(),
     }

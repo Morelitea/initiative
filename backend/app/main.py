@@ -23,7 +23,7 @@ from app.api.deps import get_upload_user
 from app.api.v1.api import api_router
 from app.core.messages import GuildMessages
 from app.core.rate_limit import limiter
-from app.core.config import settings
+from app.core.config import API_V1_STR, PROJECT_NAME, settings
 from app.core.version import __version__
 from app.db.session import AdminSessionLocal, get_admin_session, run_migrations
 from app.models.platform.user import User
@@ -39,9 +39,7 @@ static_path.mkdir(parents=True, exist_ok=True)
 static_index_path = static_path / "index.html"
 static_root = static_path.resolve()
 reserved_prefixes = [
-    prefix.strip("/")
-    for prefix in {settings.API_V1_STR}
-    if prefix and prefix.strip("/")
+    prefix.strip("/") for prefix in {API_V1_STR} if prefix and prefix.strip("/")
 ]
 
 
@@ -156,13 +154,11 @@ async def lifespan(app: FastAPI):
 # inherit the app-wide CSP and the jsDelivr-hosted Swagger assets get blocked.
 # A custom route below serves the same UI with a docs-scoped CSP instead.
 app = FastAPI(
-    title=settings.PROJECT_NAME,
+    title=PROJECT_NAME,
     version=__version__,
     lifespan=lifespan,
     docs_url=None,
-    openapi_url=(
-        f"{settings.API_V1_STR}/openapi.json" if settings.ENABLE_API_DOCS else None
-    ),
+    openapi_url=(f"{API_V1_STR}/openapi.json" if settings.ENABLE_API_DOCS else None),
     redoc_url=None,
 )
 
@@ -171,14 +167,14 @@ if settings.ENABLE_API_DOCS:
 
     _DOCS_CSP = settings.docs_content_security_policy
 
-    @app.get(f"{settings.API_V1_STR}/docs", include_in_schema=False)
+    @app.get(f"{API_V1_STR}/docs", include_in_schema=False)
     async def swagger_ui_html() -> Response:
         # get_swagger_ui_html returns the Swagger HTML that loads its JS/CSS from
         # jsDelivr; attach the docs-scoped CSP so only this response permits them.
         # The middleware uses setdefault, so this explicit header wins.
         response = get_swagger_ui_html(
-            openapi_url=f"{settings.API_V1_STR}/openapi.json",
-            title=f"{settings.PROJECT_NAME} - Swagger UI",
+            openapi_url=f"{API_V1_STR}/openapi.json",
+            title=f"{PROJECT_NAME} - Swagger UI",
         )
         response.headers["Content-Security-Policy"] = _DOCS_CSP
         return response
@@ -395,7 +391,7 @@ async def serve_upload_file(
     return build_upload_response(blob, headers=headers)
 
 
-app.include_router(api_router, prefix=settings.API_V1_STR)
+app.include_router(api_router, prefix=API_V1_STR)
 
 
 def _inject_query_schemas(openapi_schema: dict) -> None:
@@ -520,7 +516,7 @@ if settings.ENABLE_MCP:
     from app.mcp_server import build_mcp_server
 
     _mcp_app = build_mcp_server(app).http_app(path="/")
-    app.mount(f"{settings.API_V1_STR}/mcp", _mcp_app)
+    app.mount(f"{API_V1_STR}/mcp", _mcp_app)
     app.router.lifespan_context = combine_lifespans(lifespan, _mcp_app.lifespan)
 
 

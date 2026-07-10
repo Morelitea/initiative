@@ -853,10 +853,10 @@ async def test_advanced_tool_handoff_succeeds_for_initiative_manager(
     payload = jwt.decode(
         body["handoff_token"],
         app_settings.SECRET_KEY,
-        # Hardcoded HS256 (not settings.ALGORITHM) — the handoff signing
+        # Hardcoded HS256 (not JWT_ALGORITHM) — the handoff signing
         # path explicitly uses HS256 in its no-private-key fallback, so
         # tests must assert against that algorithm directly. Decoupling
-        # from settings.ALGORITHM keeps these tests stable if the global
+        # from JWT_ALGORITHM keeps these tests stable if the global
         # session-token algorithm is ever changed.
         algorithms=["HS256"],
         audience=ADVANCED_TOOL_AUDIENCE,
@@ -933,10 +933,10 @@ async def test_advanced_tool_handoff_can_create_false_for_view_only_role(
     payload = jwt.decode(
         response.json()["handoff_token"],
         app_settings.SECRET_KEY,
-        # Hardcoded HS256 (not settings.ALGORITHM) — the handoff signing
+        # Hardcoded HS256 (not JWT_ALGORITHM) — the handoff signing
         # path explicitly uses HS256 in its no-private-key fallback, so
         # tests must assert against that algorithm directly. Decoupling
-        # from settings.ALGORITHM keeps these tests stable if the global
+        # from JWT_ALGORITHM keeps these tests stable if the global
         # session-token algorithm is ever changed.
         algorithms=["HS256"],
         audience=ADVANCED_TOOL_AUDIENCE,

@@ -14,6 +14,7 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
+from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
@@ -67,7 +68,7 @@ GuildAdminContext = Annotated[
 
 
 def _backend_redirect_uri() -> str:
-    return f"{app_config.APP_URL.rstrip('/')}{app_config.API_V1_STR}/auth/oidc/callback"
+    return f"{app_config.APP_URL.rstrip('/')}{API_V1_STR}/auth/oidc/callback"
 
 
 def _frontend_redirect_uri() -> str:

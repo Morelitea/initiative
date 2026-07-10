@@ -24,7 +24,7 @@ from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_http_headers
 from fastmcp.server.providers.openapi import MCPType, RouteMap
 
-from app.core.config import settings
+from app.core.config import PROJECT_NAME
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -77,7 +77,7 @@ def build_mcp_server(app: "FastAPI") -> FastMCP:
     """
     return FastMCP.from_fastapi(
         app=app,
-        name=settings.PROJECT_NAME,
+        name=PROJECT_NAME,
         route_maps=_ROUTE_MAPS,
         httpx_client_kwargs={"event_hooks": {"request": [_forward_authorization]}},
     )
