@@ -49,6 +49,7 @@ import {
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
 
@@ -61,11 +62,8 @@ export const useDocumentsList = (
   const guildId = useActiveGuildId();
   return useQuery<DocumentListResponse>({
     queryKey: getListDocumentsApiV1GGuildIdDocumentsGetQueryKey(guildId, params),
-    queryFn: () =>
-      listDocumentsApiV1GGuildIdDocumentsGet(
-        guildId,
-        params
-      ) as unknown as Promise<DocumentListResponse>,
+    // page_size=0 walks the server's fetch-all windows for the complete set.
+    queryFn: () => fetchAllPages(listDocumentsApiV1GGuildIdDocumentsGet, guildId, params),
     placeholderData: keepPreviousData,
     ...options,
   });
@@ -112,9 +110,9 @@ export const useAllDocumentIds = (options?: QueryOpts<DocumentSummary[]>) => {
       "items",
     ],
     queryFn: async () => {
-      const response = await (listDocumentsApiV1GGuildIdDocumentsGet(guildId, {
+      const response = await fetchAllPages(listDocumentsApiV1GGuildIdDocumentsGet, guildId, {
         page_size: 0,
-      }) as unknown as Promise<{ items: DocumentSummary[] }>);
+      });
       return response.items;
     },
     ...options,
@@ -132,10 +130,10 @@ export const useInitiativeDocuments = (
       page_size: 0,
     }),
     queryFn: async () => {
-      const response = await (listDocumentsApiV1GGuildIdDocumentsGet(guildId, {
+      const response = await fetchAllPages(listDocumentsApiV1GGuildIdDocumentsGet, guildId, {
         initiative_id: initiativeId,
         page_size: 0,
-      }) as unknown as Promise<{ items: DocumentSummary[] }>);
+      });
       return response.items;
     },
     ...options,
@@ -220,11 +218,7 @@ export const usePrefetchDocumentsList = () => {
   return (params: ListDocumentsApiV1GGuildIdDocumentsGetParams) => {
     return qc.prefetchQuery({
       queryKey: getListDocumentsApiV1GGuildIdDocumentsGetQueryKey(guildId, params),
-      queryFn: () =>
-        listDocumentsApiV1GGuildIdDocumentsGet(
-          guildId,
-          params
-        ) as unknown as Promise<DocumentListResponse>,
+      queryFn: () => fetchAllPages(listDocumentsApiV1GGuildIdDocumentsGet, guildId, params),
       staleTime: 30_000,
     });
   };

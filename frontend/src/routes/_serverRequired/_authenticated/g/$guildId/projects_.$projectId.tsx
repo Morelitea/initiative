@@ -18,6 +18,7 @@ import {
   listUsersApiV1GGuildIdUsersGet,
 } from "@/api/generated/users/users";
 import { VIEW_PREFERENCES_QUERY_KEY } from "@/hooks/useViewPreference";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { getItem } from "@/lib/storage";
 
 type StoredFilters = {
@@ -117,7 +118,9 @@ export const Route = createFileRoute(
         }),
         queryClient.ensureQueryData({
           queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, taskParams),
-          queryFn: () => listTasksApiV1GGuildIdTasksGet(guildId, taskParams),
+          // page_size=0 walks the server's fetch-all windows for the full set
+          // (same queryFn shape as useTasks, which shares this cache key).
+          queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, taskParams),
           staleTime: 30_000,
         }),
       ]);

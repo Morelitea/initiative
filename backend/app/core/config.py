@@ -573,15 +573,6 @@ class Settings(BaseSettings):
     # limits "storage" docs for the full URI scheme list.
     RATE_LIMIT_STORAGE_URI: str = "memory://"
 
-    # Absolute server-side ceiling on how many rows a single list request may
-    # return when it asks for "all" (``page_size=0``/unbounded). Without this an
-    # unauthenticated-by-count query could dump an entire guild's table in one
-    # response (SEC-14). The "0 = all" convention is preserved for callers (the
-    # SPA fetches all tasks for drag-and-drop, all documents for pickers) — the
-    # result set is simply capped here. Raise it if a single guild legitimately
-    # has more than this many tasks/documents on one board.
-    MAX_UNBOUNDED_PAGE_SIZE: int = 1000
-
     # Expose the interactive API docs (Swagger UI at ``{API_V1_STR}/docs``) and
     # the raw OpenAPI schema (``{API_V1_STR}/openapi.json``). Defaults to True so
     # local development keeps its self-documenting API and the frontend's Orval

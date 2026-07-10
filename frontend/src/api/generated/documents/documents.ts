@@ -233,7 +233,8 @@ export function useGetDocumentCountsApiV1GGuildIdDocumentsCountsGet<
  *
  * DAC: Documents with explicit DocumentPermission or role-based permission.
  *
- * Pagination: page_size=0 returns all documents (no pagination).
+ * Pagination: page_size=0 serves the full set in server-bounded windows —
+ * walk page=1,2,... until has_next is false.
  *
  * Cross-guild "my documents" lives under /me/documents (see list_my_documents).
  * @summary List Documents

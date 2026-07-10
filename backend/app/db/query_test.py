@@ -658,41 +658,44 @@ class TestApplyPagination:
         assert "LIMIT" in sql
         assert "10" in sql
 
-    def test_page_size_zero_caps_at_ceiling(self):
-        """page_size=0 ("all rows") is bounded by MAX_UNBOUNDED_PAGE_SIZE (SEC-14):
-        a hard LIMIT is applied and there is no OFFSET."""
-        from app.core.config import settings
-        from app.db.query import unbounded_page_limit
+    def test_page_size_zero_bounded_by_window(self):
+        """page_size=0 ("fetch all") is bounded by FETCH_ALL_WINDOW (SEC-14):
+        a hard LIMIT is always applied, never an unbounded scan."""
+        from app.db.query import FETCH_ALL_WINDOW
 
         stmt = select(_dummy_table)
         result = apply_pagination(stmt, page=1, page_size=0)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
-        assert "LIMIT" in sql
-        assert "OFFSET" not in sql
-        assert str(settings.MAX_UNBOUNDED_PAGE_SIZE) in sql
-        assert unbounded_page_limit() == settings.MAX_UNBOUNDED_PAGE_SIZE
+        assert f"LIMIT {FETCH_ALL_WINDOW}" in sql
 
-    def test_negative_page_size_caps_at_ceiling(self):
-        """A negative page_size is treated as "all rows" and capped, never
-        left unbounded (SEC-14)."""
-        from app.core.config import settings
+    def test_negative_page_size_bounded_by_window(self):
+        """A negative page_size is treated as "fetch all" and window-bounded,
+        never left unbounded (SEC-14)."""
+        from app.db.query import FETCH_ALL_WINDOW
 
         stmt = select(_dummy_table)
         result = apply_pagination(stmt, page=1, page_size=-1)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
-        assert "LIMIT" in sql
-        assert str(settings.MAX_UNBOUNDED_PAGE_SIZE) in sql
+        assert f"LIMIT {FETCH_ALL_WINDOW}" in sql
 
-    def test_page_size_zero_respects_configured_ceiling(self, monkeypatch):
-        """The cap is settings-driven: changing MAX_UNBOUNDED_PAGE_SIZE changes
-        the applied LIMIT without a code change."""
-        from app.core.config import settings
-
-        monkeypatch.setattr(settings, "MAX_UNBOUNDED_PAGE_SIZE", 7)
+    def test_page_size_zero_pages_through_windows(self, monkeypatch):
+        """page_size=0 honors ``page``: page N serves window N, so a caller can
+        walk pages until has_next is false and retrieve the complete set."""
+        monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 7)
         stmt = select(_dummy_table)
-        result = apply_pagination(stmt, page=1, page_size=0)
+        result = apply_pagination(stmt, page=3, page_size=0)
         sql = str(result.compile(compile_kwargs={"literal_binds": True}))
-        assert "LIMIT 7" in sql.replace("LIMIT  7", "LIMIT 7")
+        assert "LIMIT 7" in sql
+        assert "OFFSET 14" in sql
+
+    def test_positive_page_size_clamped_to_window(self, monkeypatch):
+        """Defense in depth: even if an endpoint forgets its ``le=`` parameter
+        bound, a positive page_size can never exceed FETCH_ALL_WINDOW."""
+        monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 7)
+        stmt = select(_dummy_table)
+        result = apply_pagination(stmt, page=1, page_size=50)
+        sql = str(result.compile(compile_kwargs={"literal_binds": True}))
+        assert "LIMIT 7" in sql
 
 
 # ---------------------------------------------------------------------------
@@ -761,16 +764,42 @@ class TestBuildPaginatedResponse:
         assert result["has_next"] is False
         assert result["has_prev"] is False
 
-    def test_page_size_zero_resets_page(self):
+    def test_page_size_zero_single_window_complete(self):
+        """A set smaller than the window is complete in one response."""
         result = build_paginated_response(
             items=["a"],
             total_count=1,
-            page=5,
+            page=1,
             page_size=0,
         )
         assert result["page"] == 1
         assert result["has_next"] is False
         assert result["has_prev"] is False
+
+    def test_page_size_zero_truncation_is_visible(self, monkeypatch):
+        """When the set exceeds the window, has_next says so — truncation is
+        never silent (the regression that motivated the window protocol)."""
+        monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 2)
+        result = build_paginated_response(
+            items=["a", "b"],
+            total_count=5,
+            page=1,
+            page_size=0,
+        )
+        assert result["has_next"] is True
+        assert result["page"] == 1
+
+    def test_page_size_zero_window_walk_terminates(self, monkeypatch):
+        """Walking page=1,2,3 over a 5-row set with window 2 ends exactly at
+        the last window."""
+        monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 2)
+        middle = build_paginated_response(
+            items=["c", "d"], total_count=5, page=2, page_size=0
+        )
+        assert middle["has_next"] is True
+        assert middle["has_prev"] is True
+        last = build_paginated_response(items=["e"], total_count=5, page=3, page_size=0)
+        assert last["has_next"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -795,8 +824,12 @@ class TestClampPage:
     def test_zero_total_resets_to_1(self):
         assert _clamp_page(3, 20, 0) == 1
 
-    def test_page_size_zero_returns_1(self):
-        assert _clamp_page(5, 0, 100) == 1
+    def test_page_size_zero_clamps_against_windows(self, monkeypatch):
+        """page_size=0 pages are validated against FETCH_ALL_WINDOW-sized
+        windows: in-range window pages survive, overshoot resets to 1."""
+        monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 10)
+        assert _clamp_page(5, 0, 100) == 5  # 10 windows of 10 — page 5 valid
+        assert _clamp_page(11, 0, 100) == 1  # beyond the last window
 
     def test_page_1_always_valid(self):
         assert _clamp_page(1, 20, 1) == 1
@@ -805,6 +838,66 @@ class TestClampPage:
         # 20 items, 20 per page = 1 page. Page 1 is valid, page 2 is not.
         assert _clamp_page(1, 20, 20) == 1
         assert _clamp_page(2, 20, 20) == 1
+
+
+# ---------------------------------------------------------------------------
+# effective_page_size / paginate_sequence / page_has_next
+# ---------------------------------------------------------------------------
+
+
+class TestWindowHelpers:
+    """The window seam shared by DB-windowed and in-memory-sliced endpoints."""
+
+    def test_effective_page_size(self, monkeypatch):
+        from app.db.query import effective_page_size
+
+        monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 10)
+        assert effective_page_size(0) == 10
+        assert effective_page_size(-5) == 10
+        assert effective_page_size(3) == 3
+        assert effective_page_size(50) == 10  # defense-in-depth clamp
+
+    def test_paginate_sequence_positive_pages(self):
+        from app.db.query import paginate_sequence
+
+        items = list(range(10))
+        assert paginate_sequence(items, page=1, page_size=4) == [0, 1, 2, 3]
+        assert paginate_sequence(items, page=2, page_size=4) == [4, 5, 6, 7]
+        assert paginate_sequence(items, page=3, page_size=4) == [8, 9]
+        assert paginate_sequence(items, page=4, page_size=4) == []
+
+    def test_paginate_sequence_windows_fetch_all(self, monkeypatch):
+        from app.db.query import paginate_sequence
+
+        monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 4)
+        items = list(range(10))
+        assert paginate_sequence(items, page=1, page_size=0) == [0, 1, 2, 3]
+        assert paginate_sequence(items, page=2, page_size=0) == [4, 5, 6, 7]
+        assert paginate_sequence(items, page=3, page_size=0) == [8, 9]
+
+    def test_window_walk_reassembles_complete_set(self, monkeypatch):
+        """The invariant the SPA relies on: concatenating windows until
+        page_has_next is false yields exactly the full set, no gaps, no dupes."""
+        from app.db.query import page_has_next, paginate_sequence
+
+        monkeypatch.setattr("app.db.query.FETCH_ALL_WINDOW", 3)
+        items = list(range(8))
+        collected: list[int] = []
+        page = 1
+        while True:
+            collected.extend(paginate_sequence(items, page=page, page_size=0))
+            if not page_has_next(page, 0, len(items)):
+                break
+            page += 1
+        assert collected == items
+        assert page == 3
+
+    def test_page_has_next_positive_sizes(self):
+        from app.db.query import page_has_next
+
+        assert page_has_next(1, 3, 5) is True
+        assert page_has_next(2, 3, 5) is False
+        assert page_has_next(1, 20, 2) is False
 
 
 # ---------------------------------------------------------------------------

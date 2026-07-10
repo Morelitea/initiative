@@ -25,9 +25,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A superuser (or `BYPASSRLS`) role in `DATABASE_URL` is deprecated; a future release will refuse to start with it. To migrate: run `backend/scripts/create-provisioner.sql` once (`-v provisioner_password='<password>'`), point `DATABASE_URL` at `app_provisioner`, restart. Fresh docker-compose installs already do this.
 - Removed the unused `AUTO_APPROVED_EMAIL_DOMAINS` setting (read by nothing). Drop it from your `.env` if present.
+- Removed the `MAX_UNBOUNDED_PAGE_SIZE` setting — "fetch all" list responses are now served in bounded windows that the app pages through automatically, so there is nothing to tune. Drop it from your `.env` if present.
 
 ### Fixed
 
+- Task boards, document pickers, and project lists with more than 1000 items no longer silently lose rows: "fetch all" list requests now walk bounded server windows until the complete set is retrieved, and truncation is always reported via `has_next`.
 - `backend/scripts/create-provisioner.sql` missed the per-guild support roles: after switching `DATABASE_URL` to `app_provisioner`, deployments with existing guilds failed to boot with `permission denied to grant role "guild_N_support"`. If that hit you, run the fixed script once against your app database, connected as the Postgres superuser: `psql -v ON_ERROR_STOP=1 -U <superuser> -d <app-db> -v provisioner_password='<your password>' -f backend/scripts/create-provisioner.sql`. Running it again on a healthy install changes nothing.
 - Guild storage caps, member limits, tier label, and lifecycle status can no longer be edited through guild-facing settings — they are platform-operator inputs, now enforced with column-scoped database grants.
 - Anonymizing or deleting a user now scrubs their email from guild invites addressed to them, and neutralizes the invite so it can't become an open shareable link.

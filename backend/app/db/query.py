@@ -302,15 +302,23 @@ def _resolve_sort_fields(
     return result
 
 
-def unbounded_page_limit() -> int:
-    """Absolute row ceiling applied to an "all rows" (``page_size<=0``) request.
+# Server-side window applied to a ``page_size<=0`` ("give me everything") list
+# request. Deliberately a constant, not a setting: clients retrieve arbitrarily
+# large sets by walking ``page=1,2,...`` until ``has_next`` is false, so nothing
+# is unreachable through this bound and there is nothing for an operator to
+# tune — it only keeps any single response's row count finite (SEC-14).
+FETCH_ALL_WINDOW = 1000
 
-    Reads ``MAX_UNBOUNDED_PAGE_SIZE`` at call time so the cap is configurable per
-    deployment (and overridable in tests) without rebinding this module.
+
+def effective_page_size(page_size: int) -> int:
+    """The row window a request actually gets for its requested ``page_size``.
+
+    ``page_size<=0`` resolves to :data:`FETCH_ALL_WINDOW`; a positive
+    ``page_size`` is clamped to the same bound as defense in depth (endpoints
+    also validate with ``le=`` at the parameter layer, but the ceiling must not
+    depend on every endpoint remembering to declare it).
     """
-    from app.core.config import settings
-
-    return settings.MAX_UNBOUNDED_PAGE_SIZE
+    return FETCH_ALL_WINDOW if page_size <= 0 else min(page_size, FETCH_ALL_WINDOW)
 
 
 def apply_pagination(
@@ -320,14 +328,24 @@ def apply_pagination(
 ) -> Select:
     """Apply OFFSET/LIMIT.
 
-    ``page_size<=0`` means "all rows" — but never truly unbounded: a hard
-    server-side ceiling (``MAX_UNBOUNDED_PAGE_SIZE``) is applied so a single
-    request can't dump an entire table (SEC-14). The "0 = all" convention is
-    preserved for the caller; only the row count is capped.
+    ``page_size<=0`` means "everything, in server-window-sized pages": the
+    response is bounded by :data:`FETCH_ALL_WINDOW` (SEC-14), and ``page``
+    selects which window, so a caller can walk ``page=1,2,...`` until
+    ``has_next`` is false and retrieve the complete set — a single request can
+    never dump an unbounded table, but no result is unreachable either.
     """
-    if page_size <= 0:
-        return statement.limit(unbounded_page_limit())
-    return statement.offset((page - 1) * page_size).limit(page_size)
+    eff = effective_page_size(page_size)
+    return statement.offset((max(page, 1) - 1) * eff).limit(eff)
+
+
+def paginate_sequence(items: list, page: int = 1, page_size: int = 20) -> list:
+    """Slice an in-memory result list the same way :func:`apply_pagination`
+    windows a query — the single slicing rule for endpoints that must build
+    their result in Python (cross-guild merges, post-query permission
+    filtering) before paginating."""
+    eff = effective_page_size(page_size)
+    start = (max(page, 1) - 1) * eff
+    return items[start : start + eff]
 
 
 def _clamp_page(page: int, page_size: int, total_count: int) -> int:
@@ -336,16 +354,14 @@ def _clamp_page(page: int, page_size: int, total_count: int) -> int:
     This handles the case where filters/sort changed and the current page
     no longer exists (e.g. user was on page 5, but new filters only yield 2 pages).
     """
-    if page_size <= 0:
-        return 1
     if total_count == 0:
         return 1
     import math
 
-    total_pages = math.ceil(total_count / page_size)
+    total_pages = math.ceil(total_count / effective_page_size(page_size))
     if page > total_pages:
         return 1
-    return page
+    return max(page, 1)
 
 
 async def paginated_query(
@@ -371,6 +387,17 @@ async def paginated_query(
     return items, total_count, page
 
 
+def page_has_next(page: int, page_size: int, total_count: int) -> bool:
+    """Whether rows remain beyond the given window.
+
+    The single truth for ``has_next`` across DB-windowed and in-memory-sliced
+    endpoints, including the ``page_size<=0`` cap-window pages — so a client
+    can always walk ``page=1,2,...`` until this reports False and know it has
+    the complete set.
+    """
+    return max(page, 1) * effective_page_size(page_size) < total_count
+
+
 def build_paginated_response(
     items: list,
     total_count: int,
@@ -381,26 +408,17 @@ def build_paginated_response(
     """Build a dict suitable for unpacking into a concrete response model.
 
     Computes ``has_next`` and ``has_prev`` automatically from the inputs.
+    ``page_size<=0`` responses window through the server cap (SEC-14), so
+    ``page`` is echoed as requested and ``has_next`` tells the caller whether
+    another window remains — truncation is always visible, never silent.
     """
-    if page_size <= 0:
-        effective_page = 1
-        # "All rows" requests are still capped at unbounded_page_limit()
-        # (SEC-14). When the cap truncated the result, surface it via
-        # has_next so the SPA can tell data is missing instead of silently
-        # treating the first N rows as the complete set.
-        has_next = len(items) < total_count
-        has_prev = False
-    else:
-        effective_page = page
-        has_next = page * page_size < total_count
-        has_prev = page > 1
-
+    page = max(page, 1)
     return {
         "items": items,
         "total_count": total_count,
-        "page": effective_page,
+        "page": page,
         "page_size": page_size,
-        "has_next": has_next,
-        "has_prev": has_prev,
+        "has_next": page_has_next(page, page_size, total_count),
+        "has_prev": page > 1,
         **extra,
     }
