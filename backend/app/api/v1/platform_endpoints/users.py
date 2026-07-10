@@ -16,7 +16,12 @@ from app.api.deps import (
 from app.core.config import settings
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.password_policy import enforce_password_policy
-from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.security import (
+    SESSION_COOKIE_NAME,
+    create_access_token,
+    get_password_hash,
+    verify_password,
+)
 from app.core.user_input_validators import (
     normalize_notification_time,
     normalize_reminder_minutes,
@@ -354,7 +359,7 @@ async def update_users_me(
             token_version=current_user.token_version,
         )
         response.set_cookie(
-            key=settings.COOKIE_NAME,
+            key=SESSION_COOKIE_NAME,
             value=refreshed_token,
             httponly=True,
             samesite="lax",

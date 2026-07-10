@@ -27,6 +27,7 @@ from app.core.encryption import (
 )
 from app.core.messages import OidcMessages
 from app.core.security import (
+    SESSION_COOKIE_NAME,
     create_access_token,
     create_upload_token,
     get_password_hash,
@@ -949,8 +950,6 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
 ):
     """Happy path: a verified id_token provisions the unknown user, links the
     federated identity, and issues the web session cookie."""
-    from app.core.config import settings as app_config
-
     await _enable_platform_oidc(session)
     idp = FakeIdp()
     _wire_fake_idp(monkeypatch, idp)
@@ -966,7 +965,7 @@ async def test_oidc_callback_provisions_new_user_and_sets_cookie(
     )
     assert response.status_code in (302, 307)
     assert response.headers["location"].endswith("/oidc/callback")
-    assert app_config.COOKIE_NAME in response.cookies
+    assert SESSION_COOKIE_NAME in response.cookies
 
     user = (
         await session.exec(
@@ -1111,8 +1110,6 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
     """SEC-9 counterpart: a matching email with ``email_verified=true`` logs
     into the existing account, promotes it to verified, and now writes the
     (provider, subject) link so later logins resolve by subject."""
-    from app.core.config import settings as app_config
-
     existing = await create_user(
         session,
         email="member@example.com",
@@ -1128,7 +1125,7 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
 
     assert response.status_code in (302, 307)
     assert "OIDC_EMAIL_UNVERIFIED" not in response.headers["location"]
-    assert app_config.COOKIE_NAME in response.cookies
+    assert SESSION_COOKIE_NAME in response.cookies
     await session.refresh(existing)
     assert existing.email_verified is True
     identities = await _federated_identities(session)
@@ -1138,7 +1135,7 @@ async def test_oidc_callback_links_existing_account_when_email_verified(
 
     # The second login resolves through the link (and still issues a session).
     again = await _run_oidc_flow(client, idp, id_token_claims=claims)
-    assert app_config.COOKIE_NAME in again.cookies
+    assert SESSION_COOKIE_NAME in again.cookies
     assert len(await _federated_identities(session)) == 1
 
 

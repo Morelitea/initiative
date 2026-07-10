@@ -55,7 +55,7 @@ BEGIN
             'platform_member', 'platform_support', 'platform_moderator',
             'platform_admin', 'platform_owner'
         )
-        OR rolname ~ '^guild_[0-9]+(_ro)?$'
+        OR rolname ~ '^guild_[0-9]+(_ro|_support)?$'
     LOOP
         EXECUTE format('GRANT %I TO app_provisioner WITH ADMIN OPTION', r.rolname);
     END LOOP;

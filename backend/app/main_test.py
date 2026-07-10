@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from httpx import ASGITransport, AsyncClient
 
 import app.main as main_module
-from app.core.config import Settings
+from app.core.config import API_V1_STR, Settings
 from app.main import SecurityHeadersMiddleware, validation_exception_handler
 
 
@@ -177,7 +177,7 @@ def test_docs_routes_return_404_when_disabled() -> None:
     cfg = Settings(ENABLE_API_DOCS=False)  # ty: ignore[missing-argument]
     disabled = FastAPI(
         docs_url=None,
-        openapi_url=(f"{cfg.API_V1_STR}/openapi.json" if cfg.ENABLE_API_DOCS else None),
+        openapi_url=(f"{API_V1_STR}/openapi.json" if cfg.ENABLE_API_DOCS else None),
         redoc_url=None,
     )
     http = TestClient(disabled)

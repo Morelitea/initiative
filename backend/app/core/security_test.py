@@ -24,6 +24,7 @@ from app.core.security import (
     ADVANCED_TOOL_HANDOFF_LIFETIME,
     AUTH_ACCESS_AUDIENCE,
     AUTH_TOKEN_ISSUER,
+    JWT_ALGORITHM,
     UPLOAD_TOKEN_AUDIENCE,
     UPLOAD_TOKEN_LIFETIME,
     UPLOAD_TOKEN_SCOPE,
@@ -273,14 +274,14 @@ def test_session_jwt_signed_with_dedicated_jwt_signing_key(monkeypatch):
 
     token = security.create_access_token(subject="7", token_version=1)
     # Verifies under the dedicated key...
-    payload = jwt.decode(token, jwt_key, algorithms=[security.settings.ALGORITHM])
+    payload = jwt.decode(token, jwt_key, algorithms=[security.JWT_ALGORITHM])
     assert payload["sub"] == "7"
     # ...and NOT under SECRET_KEY (proving the keys are actually decoupled).
     with pytest.raises(jwt.InvalidSignatureError):
         jwt.decode(
             token,
             security.settings.SECRET_KEY,
-            algorithms=[security.settings.ALGORITHM],
+            algorithms=[security.JWT_ALGORITHM],
         )
 
 
@@ -380,7 +381,7 @@ def test_mint_access_token_is_verifiable_with_expected_audience():
     payload = jwt.decode(
         token,
         settings.jwt_signing_key,
-        algorithms=[settings.ALGORITHM],
+        algorithms=[JWT_ALGORITHM],
         audience=AUTH_ACCESS_AUDIENCE,
         issuer=AUTH_TOKEN_ISSUER,
         options={"require": ["exp", "iat", "sub", "sid", "aud", "iss"]},
