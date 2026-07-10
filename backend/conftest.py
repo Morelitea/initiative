@@ -612,17 +612,6 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-def auth_headers() -> dict[str, str]:
-    """
-    Base authentication headers.
-
-    Tests that need authentication should use the `acting_user` fixture to mint
-    an authenticated user at a chosen platform role.
-    """
-    return {}
-
-
-@pytest.fixture
 async def acting_user(session):
     """Mint an authenticated test identity at explicit platform/guild roles —
     the single seam for "run this test AS role X". Returns an
@@ -646,73 +635,3 @@ async def acting_user(session):
     from app.testing.actor import make_actor
 
     return functools.partial(make_actor, session)
-
-
-def create_test_user_data(**overrides: Any) -> dict[str, Any]:
-    """
-    Create test user data with sensible defaults.
-
-    Args:
-        **overrides: Override any default field values
-
-    Returns:
-        Dictionary with user data suitable for creating test users
-    """
-    defaults = {
-        "email": "test@example.com",
-        "full_name": "Test User",
-        "password": "testpassword123",
-        "is_active": True,
-    }
-    return {**defaults, **overrides}
-
-
-def create_test_guild_data(**overrides: Any) -> dict[str, Any]:
-    """
-    Create test guild data with sensible defaults.
-
-    Args:
-        **overrides: Override any default field values
-
-    Returns:
-        Dictionary with guild data suitable for creating test guilds
-    """
-    defaults = {
-        "name": "Test Guild",
-        "description": "A test guild",
-    }
-    return {**defaults, **overrides}
-
-
-def create_test_initiative_data(**overrides: Any) -> dict[str, Any]:
-    """
-    Create test initiative data with sensible defaults.
-
-    Args:
-        **overrides: Override any default field values
-
-    Returns:
-        Dictionary with initiative data suitable for creating test initiatives
-    """
-    defaults = {
-        "title": "Test Initiative",
-        "description": "A test initiative",
-    }
-    return {**defaults, **overrides}
-
-
-def create_test_project_data(**overrides: Any) -> dict[str, Any]:
-    """
-    Create test project data with sensible defaults.
-
-    Args:
-        **overrides: Override any default field values
-
-    Returns:
-        Dictionary with project data suitable for creating test projects
-    """
-    defaults = {
-        "title": "Test Project",
-        "description": "A test project",
-    }
-    return {**defaults, **overrides}
