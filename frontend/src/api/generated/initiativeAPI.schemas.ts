@@ -395,7 +395,6 @@ export interface AdvancedToolRunRequest {
 export type AdvancedToolRunResultData = { [key: string]: unknown };
 
 export interface AdvancedToolRunResult {
-  ok: boolean;
   advanced_tool_id: number;
   guild_id: number;
   initiative_id: number | null;

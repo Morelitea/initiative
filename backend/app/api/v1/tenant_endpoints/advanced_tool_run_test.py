@@ -119,7 +119,6 @@ async def test_delegated_run_returns_current_definition(
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["ok"] is True
     assert body["advanced_tool_id"] == tool["id"]
     assert body["guild_id"] == a.guild.id
     assert body["initiative_id"] == a.initiative.id
@@ -128,6 +127,28 @@ async def test_delegated_run_returns_current_definition(
     assert body["node_key"] == "digest"
     assert body["cause"] == "schedule"
     assert body["source_event_id"] == "evt-7"
+
+
+async def test_delegated_run_opaque_ids_survive_sanitization(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """node_key indexes into the unsanitized definition blob, so it must come
+    back byte-for-byte — even if it contains markup characters that the plain
+    -text HTML stripper would otherwise mangle (the RawTextStr guarantee)."""
+    a = await acting_user(guild_role=GuildRole.admin, initiative=True)
+    await _enable_advanced_tool(session, a.initiative)
+    tool = await _create_tool(client, a, initiative_id=a.initiative.id)
+
+    tricky = "node <a & b>"
+    response = await client.post(
+        a.g(f"/advanced-tools/{tool['id']}/run"),
+        headers=_delegation_headers(user_id=a.user.id, guild_id=a.guild.id),
+        json={"node_key": tricky, "source_event_id": "<evt>&1"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["node_key"] == tricky
+    assert body["source_event_id"] == "<evt>&1"
 
 
 async def test_delegated_run_missing_tool_404(client: AsyncClient, acting_user):
