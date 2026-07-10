@@ -196,6 +196,7 @@ async def test_delegated_run_feature_disabled_403(
 
     await route_session_to_guild(session, a.guild.id)
     init = await session.get(Initiative, a.initiative.id)
+    assert init is not None
     init.advanced_tools_enabled = False
     session.add(init)
     await session.commit()

@@ -940,7 +940,7 @@ async def test_storage_backfill_status_reads_shared_row(
     # The UNLOGGED status row persists across tests within a worker; clear it so a
     # prior test's terminal status doesn't bleed into this fresh-state assertion.
     await storage_backfill._ensure_table()
-    await session.execute(text("DELETE FROM storage_backfill_state"))
+    await session.exec(text("DELETE FROM storage_backfill_state"))
     await session.commit()
 
     owner = await create_user(

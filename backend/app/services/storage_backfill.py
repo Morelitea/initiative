@@ -108,20 +108,21 @@ def reset_for_tests() -> None:
 
 
 async def _fetch(session: AsyncSession) -> dict | None:
-    result = await session.execute(
-        text("SELECT * FROM storage_backfill_state WHERE id = :id"), {"id": GLOBAL_ID}
+    result = await session.exec(
+        text("SELECT * FROM storage_backfill_state WHERE id = :id"),
+        params={"id": GLOBAL_ID},
     )
     row = result.mappings().first()
     return dict(row) if row is not None else None
 
 
 async def _ensure_row(session: AsyncSession) -> None:
-    await session.execute(
+    await session.exec(
         text(
             "INSERT INTO storage_backfill_state (id, status) VALUES (:id, 'idle') "
             "ON CONFLICT (id) DO NOTHING"
         ),
-        {"id": GLOBAL_ID},
+        params={"id": GLOBAL_ID},
     )
     await session.commit()
 
@@ -147,7 +148,7 @@ async def try_claim(session: AsyncSession) -> bool:
     await _ensure_table()
     await _ensure_row(session)
     now = _now()
-    result = await session.execute(
+    result = await session.exec(
         text(
             "UPDATE storage_backfill_state SET "
             "status = 'running', started_at = :now, finished_at = NULL, "
@@ -156,7 +157,7 @@ async def try_claim(session: AsyncSession) -> bool:
             "WHERE id = :id AND "
             "(status <> 'running' OR heartbeat IS NULL OR heartbeat < :stale)"
         ),
-        {"id": GLOBAL_ID, "now": now, "stale": now - _STALE_AFTER},
+        params={"id": GLOBAL_ID, "now": now, "stale": now - _STALE_AFTER},
     )
     await session.commit()
     return (result.rowcount or 0) == 1
@@ -193,9 +194,9 @@ async def _persist(
     if finished:
         sets.append("finished_at = :fin")
         params["fin"] = _now()
-    await session.execute(
+    await session.exec(
         text(f"UPDATE storage_backfill_state SET {', '.join(sets)} WHERE id = :id"),
-        params,
+        params=params,
     )
     await session.commit()
 
