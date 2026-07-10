@@ -11,10 +11,11 @@ Scope: ``initiative_id`` set → an initiative-scoped tool (needs
 which is admin-only by RLS (no per-user grants).
 """
 
+import logging
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_
 from sqlalchemy.orm import selectinload
 from sqlmodel import select
@@ -36,6 +37,8 @@ from app.schemas.tenant.advanced_tool import (
     AdvancedToolCreate,
     AdvancedToolListResponse,
     AdvancedToolRead,
+    AdvancedToolRunRequest,
+    AdvancedToolRunResult,
     AdvancedToolUpdate,
     serialize_advanced_tool,
 )
@@ -43,6 +46,8 @@ from app.schemas.tenant.resource_grant import ResourceGrantSchema
 from app.services import permissions as permissions_service
 from app.services import rls as rls_service
 from app.services.tenant import advanced_tool as advanced_tool_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -160,6 +165,63 @@ async def read_advanced_tool(
     return serialize_advanced_tool(
         tool,
         my_permission_level=_compute_my_permission(tool, current_user, guild_context),
+    )
+
+
+@router.post("/{advanced_tool_id}/run", response_model=AdvancedToolRunResult)
+async def run_advanced_tool(
+    advanced_tool_id: int,
+    run_in: AdvancedToolRunRequest,
+    request: Request,
+    session: RLSSessionDep,
+    current_user: Annotated[User, Depends(get_current_active_user)],
+    guild_context: GuildContextDep,
+) -> AdvancedToolRunResult:
+    """The automation service's delegated run call.
+
+    Only a caller authenticated with an initiative-auto delegation token may
+    start a run — interactive sessions and API keys are refused. The delegated
+    user then goes through the standard DAC path (write access to the tool), so
+    a run carries exactly the authority that user holds at fire time. A tool
+    that is trashed, out of reach, or nonexistent answers 404, which the runner
+    treats as "tool gone" and cancels the run.
+
+    We don't interpret the definition: the response hands back the current
+    ``data`` blob (plus the echoed run context) for the service to execute.
+    """
+    if getattr(request.state, "delegated_guild_id", None) is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=AdvancedToolMessages.DELEGATED_RUN_ONLY,
+        )
+    tool = await resource_access.load_authorized(
+        session,
+        Tool.advanced_tool,
+        advanced_tool_id,
+        current_user,
+        guild_context,
+        access="write",
+    )
+    ran_at = datetime.now(timezone.utc)
+    logger.info(
+        "advanced tool run: guild=%s tool=%s user=%s node_key=%s cause=%s "
+        "source_event_id=%s",
+        tool.guild_id,
+        tool.id,
+        current_user.id,
+        run_in.node_key,
+        run_in.cause,
+        run_in.source_event_id,
+    )
+    return AdvancedToolRunResult(
+        advanced_tool_id=tool.id,
+        guild_id=tool.guild_id,
+        initiative_id=tool.initiative_id,
+        node_key=run_in.node_key,
+        cause=run_in.cause,
+        source_event_id=run_in.source_event_id,
+        data=tool.data,
+        ran_at=ran_at,
     )
 
 

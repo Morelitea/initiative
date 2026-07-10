@@ -261,6 +261,7 @@
   "ADVANCED_TOOL_CREATE_PERMISSION_REQUIRED": "Autorisation requise pour créer des outils avancés",
   "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN": "Seuls les administrateurs de guilde peuvent créer des outils avancés à l’échelle de la guilde",
   "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE": "Les outils avancés à l’échelle de la guilde sont réservés aux administrateurs et ne peuvent pas être partagés",
+  "ADVANCED_TOOL_DELEGATED_RUN_ONLY": "Les exécutions d’outils avancés ne peuvent être lancées que par le service d’automatisation",
   "AI_INVALID_BASE_URL": "L'URL de base n'est pas autorisée. Utilisez un nom d'hôte public.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama ne peut être configuré qu'au niveau de la plateforme.",
   "fallback": "Une erreur s'est produite. Veuillez réessayer.",

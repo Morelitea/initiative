@@ -275,6 +275,7 @@
   "ADVANCED_TOOL_CREATE_PERMISSION_REQUIRED": "Berechtigung zum Erstellen erweiterter Tools erforderlich",
   "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN": "Nur Gilden-Admins können gildenweite erweiterte Tools erstellen",
   "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE": "Gildenweite erweiterte Tools sind nur für Admins und können nicht geteilt werden",
+  "ADVANCED_TOOL_DELEGATED_RUN_ONLY": "Läufe erweiterter Tools können nur vom Automatisierungsdienst gestartet werden",
   "AI_INVALID_BASE_URL": "Die Basis-URL ist nicht zulässig. Verwende einen öffentlichen Hostnamen.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama kann nur auf Plattformebene konfiguriert werden.",
   "fallback": "Etwas ist schiefgelaufen. Bitte versuche es erneut.",

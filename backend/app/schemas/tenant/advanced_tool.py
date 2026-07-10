@@ -61,6 +61,30 @@ class AdvancedToolRead(AdvancedToolBase):
     grants: List[ResourceGrantSchema] = Field(default_factory=list)
 
 
+class AdvancedToolRunRequest(SanitizedBaseModel):
+    # Names the flow entry inside the definition blob being fired (None = the
+    # default entry). Opaque to us — echoed back to the caller, never resolved.
+    node_key: Optional[str] = Field(default=None, max_length=255)
+    # Provenance for the run log (e.g. "schedule", "event").
+    cause: Optional[str] = Field(default=None, max_length=64)
+    source_event_id: Optional[str] = Field(default=None, max_length=255)
+
+
+class AdvancedToolRunResult(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    ok: bool = True
+    advanced_tool_id: int
+    guild_id: int
+    initiative_id: Optional[int] = None
+    node_key: Optional[str] = None
+    cause: Optional[str] = None
+    source_event_id: Optional[str] = None
+    # The tool's current definition — the caller interprets it, we don't.
+    data: dict[str, Any] = Field(default_factory=dict)
+    ran_at: datetime
+
+
 class AdvancedToolListResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 

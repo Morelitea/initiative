@@ -386,6 +386,26 @@ export interface AdvancedToolListResponse {
   has_next: boolean;
 }
 
+export interface AdvancedToolRunRequest {
+  node_key?: string | null;
+  cause?: string | null;
+  source_event_id?: string | null;
+}
+
+export type AdvancedToolRunResultData = { [key: string]: unknown };
+
+export interface AdvancedToolRunResult {
+  ok: boolean;
+  advanced_tool_id: number;
+  guild_id: number;
+  initiative_id: number | null;
+  node_key: string | null;
+  cause: string | null;
+  source_event_id: string | null;
+  data: AdvancedToolRunResultData;
+  ran_at: string;
+}
+
 export type AdvancedToolUpdateData = { [key: string]: unknown } | null;
 
 export interface AdvancedToolUpdate {

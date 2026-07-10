@@ -261,6 +261,7 @@
   "ADVANCED_TOOL_CREATE_PERMISSION_REQUIRED": "Se requiere permiso para crear herramientas avanzadas",
   "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN": "Solo los administradores del gremio pueden crear herramientas avanzadas para todo el gremio",
   "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE": "Las herramientas avanzadas para todo el gremio son solo para administradores y no se pueden compartir",
+  "ADVANCED_TOOL_DELEGATED_RUN_ONLY": "Las ejecuciones de herramientas avanzadas solo puede iniciarlas el servicio de automatización",
   "AI_INVALID_BASE_URL": "La URL base no está permitida. Use un nombre de host público.",
   "AI_PROVIDER_NOT_ALLOWED": "Ollama solo se puede configurar a nivel de plataforma.",
   "fallback": "Algo salió mal. Por favor intenta de nuevo.",

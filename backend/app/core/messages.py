@@ -431,6 +431,8 @@ class AdvancedToolMessages:
     GUILD_WIDE_REQUIRES_ADMIN = "ADVANCED_TOOL_GUILD_WIDE_REQUIRES_ADMIN"
     # Guild-wide tools are admin-only and hold no per-user/role grants.
     GUILD_WIDE_NOT_SHAREABLE = "ADVANCED_TOOL_GUILD_WIDE_NOT_SHAREABLE"
+    # The run endpoint only accepts the automation service's delegation tokens.
+    DELEGATED_RUN_ONLY = "ADVANCED_TOOL_DELEGATED_RUN_ONLY"
 
 
 class WebhookSubscriptionMessages:
