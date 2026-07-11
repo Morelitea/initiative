@@ -53,6 +53,9 @@ minimumReleaseAgeExclude:
   - vite@8.0.16
   - vitest@4.1.8
 overrides:
+  '@radix-ui/react-dismissable-layer': 1.1.15
+  '@radix-ui/react-focus-guards': 1.1.4
+  '@radix-ui/react-focus-scope': 1.1.12
   '@xmldom/xmldom@<0.8.12': ^0.8.12
   '@xmldom/xmldom@<0.8.13': ^0.8.13
   lodash-es@<=4.17.23: ^4.17.24
