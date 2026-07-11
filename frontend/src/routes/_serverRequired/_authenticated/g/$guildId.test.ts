@@ -30,4 +30,8 @@ describe("shouldPinSuspendedGuildToSettings", () => {
   it("does not treat a prefix-overlapping guild id as this guild", () => {
     expect(shouldPinSuspendedGuildToSettings("/g/55/tasks", guildId)).toBe(false);
   });
+
+  it("does not exempt a prefix-overlapping settings sibling route", () => {
+    expect(shouldPinSuspendedGuildToSettings("/g/5/settings-admin", guildId)).toBe(true);
+  });
 });

@@ -25,8 +25,10 @@ import { guildPath } from "@/lib/guildUrl";
  * trapping the admin on the settings page.
  */
 export function shouldPinSuspendedGuildToSettings(pathname: string, guildId: number): boolean {
+  const settingsRoot = guildPath(guildId, "/settings");
   const withinThisGuild = pathname === `/g/${guildId}` || pathname.startsWith(`/g/${guildId}/`);
-  return withinThisGuild && !pathname.startsWith(guildPath(guildId, "/settings"));
+  const withinSettings = pathname === settingsRoot || pathname.startsWith(`${settingsRoot}/`);
+  return withinThisGuild && !withinSettings;
 }
 
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId")({
