@@ -30,7 +30,9 @@ async def test_export_platform_users_csv_as_admin(
     client: AsyncClient, session: AsyncSession
 ):
     """Platform admins can export all users as CSV."""
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     await create_user(session, email="user1@example.com", full_name="One")
     await create_user(session, email="user2@example.com", full_name="Two")
 
@@ -79,7 +81,9 @@ async def test_export_platform_users_csv_single_user_id(
     client: AsyncClient, session: AsyncSession
 ):
     """Passing one user_id returns exactly that row with a per-user filename."""
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     target = await create_user(session, email="target@example.com")
 
     headers = get_auth_headers(admin)
@@ -99,7 +103,9 @@ async def test_export_platform_users_csv_multi_user_id(
     client: AsyncClient, session: AsyncSession
 ):
     """Two user_id values return two rows with a bulk-style filename."""
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     a = await create_user(session, email="a@example.com")
     b = await create_user(session, email="b@example.com")
 
@@ -120,7 +126,9 @@ async def test_export_platform_users_csv_no_matches_returns_404(
     client: AsyncClient, session: AsyncSession
 ):
     """All requested ids missing -> 404."""
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
 
     headers = get_auth_headers(admin)
     response = await client.get(
@@ -143,7 +151,9 @@ async def test_anonymized_user_cannot_be_deactivated_or_re_anonymized(
     """
     from app.services.platform import users as users_service
 
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     target = await create_user(session, email="target@example.com")
     await users_service.soft_delete_user(session, target.id)
 
@@ -195,7 +205,9 @@ async def test_admin_delete_rejects_surplus_project_transfers(
     )
     from app.models.platform.guild import GuildRole
 
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     target = await create_user(session, email="target@example.com")
     bystander = await create_user(session, email="bystander@example.com")
 
@@ -262,7 +274,9 @@ async def test_platform_role_change_rejected_on_inactive_users(
     from app.models.platform.user import User
     from app.services.platform import users as users_service
 
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     headers = get_auth_headers(admin)
 
     # 1. Deactivated regular user — promote attempt rejected.
@@ -271,7 +285,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     response = await client.patch(
         f"/api/v1/admin/users/{deact_member.id}/platform-role",
         headers=headers,
-        json={"role": "admin"},
+        json={"role": "operator"},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
@@ -282,7 +296,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
 
     # 2. Deactivated admin user — demote attempt rejected.
     second_admin = await create_user(
-        session, email="second-admin@example.com", role=UserRole.admin
+        session, email="second-admin@example.com", role=UserRole.operator
     )
     await users_service.deactivate_user(session, second_admin.id)
     response = await client.patch(
@@ -295,7 +309,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     refreshed = (
         await session.exec(select(User).where(User.id == second_admin.id))
     ).one()
-    assert refreshed.role == UserRole.admin
+    assert refreshed.role == UserRole.operator
 
     # 3. Anonymized user — both directions rejected.
     anon = await create_user(session, email="anon-target@example.com")
@@ -305,7 +319,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     response = await client.patch(
         f"/api/v1/admin/users/{anon.id}/platform-role",
         headers=headers,
-        json={"role": "admin"},
+        json={"role": "operator"},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
@@ -316,7 +330,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     # demoted the row to member, so flip role back to admin directly
     # in the DB (bypassing the endpoint, which would refuse) to set up
     # the demote scenario.
-    refreshed.role = UserRole.admin
+    refreshed.role = UserRole.operator
     session.add(refreshed)
     await session.commit()
     response = await client.patch(
@@ -327,7 +341,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     assert response.status_code == 400
     assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
     refreshed = (await session.exec(select(User).where(User.id == anon.id))).one()
-    assert refreshed.role == UserRole.admin
+    assert refreshed.role == UserRole.operator
 
 
 @pytest.mark.integration
@@ -345,10 +359,10 @@ async def test_demote_admin_uses_for_update_path_without_postgres_error(
     from app.models.platform.user import User
 
     deleter = await create_user(
-        session, email="deleter@example.com", role=UserRole.admin
+        session, email="deleter@example.com", role=UserRole.operator
     )
     target = await create_user(
-        session, email="demoteme@example.com", role=UserRole.admin
+        session, email="demoteme@example.com", role=UserRole.operator
     )
 
     response = await client.patch(

@@ -141,7 +141,7 @@ async def test_access_grants_self_vs_admin(session):
     await _reset(session)
     assert own == {u1.id}
 
-    await _assume(session, "admin", u1.id)
+    await _assume(session, "operator", u1.id)
     allrows = {
         r[0]
         for r in (

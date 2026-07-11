@@ -1913,7 +1913,7 @@ export const UserRole = {
   member: "member",
   support: "support",
   moderator: "moderator",
-  admin: "admin",
+  operator: "operator",
   owner: "owner",
 } as const;
 

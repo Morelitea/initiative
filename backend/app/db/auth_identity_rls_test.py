@@ -87,15 +87,15 @@ async def test_federated_identity_is_own_row_on_request_path(session):
 
 
 async def test_no_platform_tier_reads_all_identities(session):
-    """No admin-read-all policy: even platform_admin sees only its own links on
-    the request path — cross-user identity reads run on the system engine."""
+    """No operator-read-all policy: even platform_operator sees only its own links
+    on the request path — cross-user identity reads run on the system engine."""
     provider = await _make_provider(session, "acme2")
     u1 = await create_user(session)
     u2 = await create_user(session)
     await _link(session, u1.id, provider, "sub-a")
     await _link(session, u2.id, provider, "sub-b")
 
-    await _assume(session, "admin", u1.id)
+    await _assume(session, "operator", u1.id)
     rows = {
         r[0]
         for r in (
@@ -104,7 +104,7 @@ async def test_no_platform_tier_reads_all_identities(session):
     }
     await _reset(session)
     assert rows == {u1.id}, (
-        "platform_admin must not read-all identities via the request path"
+        "platform_operator must not read-all identities via the request path"
     )
 
 

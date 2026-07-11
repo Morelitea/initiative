@@ -37,7 +37,7 @@ async def test_break_glass_self_issues_live_grant(
         session, email="bg-owner@example.com", role=UserRole.owner
     )
     admin = await create_user(
-        session, email="bg-admin@example.com", role=UserRole.admin
+        session, email="bg-admin@example.com", role=UserRole.operator
     )
     guild = await create_guild(session, creator=owner)  # admin is NOT a member
 
@@ -90,7 +90,7 @@ async def test_admin_reaches_guild_only_after_clicking_through(
         session, email="bg-owner3@example.com", role=UserRole.owner
     )
     admin = await create_user(
-        session, email="bg-admin3@example.com", role=UserRole.admin
+        session, email="bg-admin3@example.com", role=UserRole.operator
     )
     guild = await create_guild(session, creator=owner)
     await create_initiative(session, guild, owner, name="Recon Wing")
@@ -130,7 +130,7 @@ async def test_break_glass_read_default_is_read_only(
         session, email="bg-owner4@example.com", role=UserRole.owner
     )
     admin = await create_user(
-        session, email="bg-admin4@example.com", role=UserRole.admin
+        session, email="bg-admin4@example.com", role=UserRole.operator
     )
     guild = await create_guild(session, creator=owner)
     init = await create_initiative(session, guild, owner, name="Ops")
@@ -167,7 +167,7 @@ async def test_break_glass_read_write_is_full_guild_admin(
         session, email="bg-owner8@example.com", role=UserRole.owner
     )
     admin = await create_user(
-        session, email="bg-admin8@example.com", role=UserRole.admin
+        session, email="bg-admin8@example.com", role=UserRole.operator
     )
     target = await create_user(session, email="bg-target8@example.com")
     guild = await create_guild(session, creator=owner)
@@ -215,7 +215,7 @@ async def test_break_glass_already_member_rejected(
         session, email="bg-owner5@example.com", role=UserRole.owner
     )
     admin = await create_user(
-        session, email="bg-admin5@example.com", role=UserRole.admin
+        session, email="bg-admin5@example.com", role=UserRole.operator
     )
     guild = await create_guild(session, creator=owner)
     # The admin is a real member of this guild already.
@@ -240,7 +240,7 @@ async def test_break_glass_duration_capped(client: AsyncClient, session: AsyncSe
         session, email="bg-owner6@example.com", role=UserRole.owner
     )
     admin = await create_user(
-        session, email="bg-admin6@example.com", role=UserRole.admin
+        session, email="bg-admin6@example.com", role=UserRole.operator
     )
     guild = await create_guild(session, creator=owner)
 
@@ -268,7 +268,7 @@ async def test_break_glass_overlapping_live_rejected(
         session, email="bg-owner7@example.com", role=UserRole.owner
     )
     admin = await create_user(
-        session, email="bg-admin7@example.com", role=UserRole.admin
+        session, email="bg-admin7@example.com", role=UserRole.operator
     )
     guild = await create_guild(session, creator=owner)
 

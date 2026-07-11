@@ -76,7 +76,7 @@ async def create_user(
         user = await create_user(
             session,
             email="test@example.com",
-            role=UserRole.admin
+            role=UserRole.operator
         )
     """
     email_raw = (

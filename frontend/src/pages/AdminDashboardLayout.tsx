@@ -13,7 +13,7 @@ import {
 
 /**
  * Operational admin area: platform users and time-bound access grants.
- * Reachable by support/moderator/admin/owner depending on capability.
+ * Reachable by support/moderator/operator/owner depending on capability.
  * App-wide *configuration* lives in the separate Platform settings area.
  */
 export const AdminDashboardLayout = () => {

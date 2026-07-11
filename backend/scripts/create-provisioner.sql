@@ -53,7 +53,9 @@ BEGIN
         WHERE rolname IN (
             'app_user', 'app_admin', 'app_guild_base', 'platform_base',
             'platform_member', 'platform_support', 'platform_moderator',
-            'platform_admin', 'platform_owner'
+            -- platform_admin is the pre-0139 name; platform_operator is the
+            -- current one. List both so this runs before or after that migration.
+            'platform_admin', 'platform_operator', 'platform_owner'
         )
         OR rolname ~ '^guild_[0-9]+(_ro|_support)?$'
     LOOP

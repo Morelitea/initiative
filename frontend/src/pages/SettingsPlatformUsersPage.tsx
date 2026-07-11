@@ -41,7 +41,7 @@ import type { TranslateFn } from "@/types/i18n";
 // Platform roles ordered least → most privileged. A user can only assign a
 // role at or below their own rank (mirrors the backend ``can_assign_role``
 // subset rule), so rank-by-index is a faithful client-side gate.
-const PLATFORM_ROLE_ORDER: UserRole[] = ["member", "support", "moderator", "admin", "owner"];
+const PLATFORM_ROLE_ORDER: UserRole[] = ["member", "support", "moderator", "operator", "owner"];
 
 const platformRoleRank = (role: UserRole): number => PLATFORM_ROLE_ORDER.indexOf(role);
 
@@ -56,7 +56,7 @@ const ROLE_BADGE: Record<
   { icon: LucideIcon | null; variant: "default" | "secondary" | "outline" }
 > = {
   owner: { icon: Crown, variant: "default" },
-  admin: { icon: Shield, variant: "default" },
+  operator: { icon: Shield, variant: "default" },
   moderator: { icon: ShieldCheck, variant: "secondary" },
   support: { icon: LifeBuoy, variant: "secondary" },
   member: { icon: null, variant: "outline" },
@@ -103,7 +103,7 @@ export const SettingsPlatformUsersPage = () => {
   const [deleteUserTarget, setDeleteUserTarget] = useState<UserRead | null>(null);
 
   // Viewing the roster needs ``users.read`` (support+); changing roles needs
-  // ``roles.assign`` (admin+). The actor can only assign roles at or below
+  // ``roles.assign`` (operator+). The actor can only assign roles at or below
   // their own rank.
   const canView = hasCapability(user, Capability.usersRead);
   const canManageRoles = hasCapability(user, Capability.rolesAssign);

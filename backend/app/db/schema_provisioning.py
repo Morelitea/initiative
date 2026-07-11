@@ -99,11 +99,17 @@ SUPPORT_WRITE_PROTECTED_TABLES: tuple[str, ...] = (
 # ``users.role`` (an enum with these exact values). The migration creates one
 # ``platform_<tier>`` NOLOGIN role per entry plus a shared ``platform_base``
 # floor; the public/platform request path assumes ``platform_<users.role>``.
-PLATFORM_TIERS: tuple[str, ...] = ("member", "support", "moderator", "admin", "owner")
+PLATFORM_TIERS: tuple[str, ...] = (
+    "member",
+    "support",
+    "moderator",
+    "operator",
+    "owner",
+)
 
 
 def platform_role_name(role: str) -> str:
-    """Cluster-global Postgres role for a platform tier, e.g. ``platform_admin``.
+    """Cluster-global Postgres role for a platform tier, e.g. ``platform_operator``.
 
     Carries ``settings.PLATFORM_ROLE_PREFIX`` (empty in prod/dev; ``test_`` under
     the suite) so these cluster-global roles don't collide with a co-located dev

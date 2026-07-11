@@ -25,7 +25,7 @@ class UserRole(str, Enum):
     member = "member"
     support = "support"
     moderator = "moderator"
-    admin = "admin"
+    operator = "operator"
     owner = "owner"
 
 
