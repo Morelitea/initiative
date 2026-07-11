@@ -50,8 +50,20 @@ def _platform_prefix() -> str:
     return prefix
 
 
+def _safe_ident(name: str) -> str:
+    """Guard an enum label / role name before it lands in an f-string DDL sink.
+
+    Every value this migration passes is a hardcoded literal, so this can't fire
+    today — it's a guard against a future contributor copy-pasting the helpers
+    below with unvetted input (the same allow-list the prefix is held to)."""
+    if not name or not set(name) <= _ALLOWED_PREFIX_CHARS:
+        raise ValueError(f"unsafe identifier for DDL: {name!r}")
+    return name
+
+
 def _rename_enum_value(connection, old: str, new: str) -> None:
     """Rename a ``public.user_role`` label if the rename is still pending."""
+    old, new = _safe_ident(old), _safe_ident(new)
     connection.execute(
         text(
             f"""
@@ -80,6 +92,7 @@ def _rename_role(connection, old: str, new: str) -> None:
     (they reference the role by OID), so the ``TO platform_admin`` policies in
     the public schema follow automatically.
     """
+    old, new = _safe_ident(old), _safe_ident(new)
     connection.execute(
         text(
             f"""
