@@ -78,7 +78,7 @@ How much someone can do with a specific project or document: **view** it, **edit
 
 Within a guild, a **member** takes part, and an **admin** also runs the guild (people, invites, settings). Different from platform roles below.
 
-### Platform roles (Member / Support / Moderator / Admin / Owner)
+### Platform roles (Member / Support / Moderator / Operator / Owner)
 
 Server-wide roles that govern the whole installation, not just one guild. The **owner** is the only role that can change server configuration. See [Platform roles](../admin/platform-roles.md).
 

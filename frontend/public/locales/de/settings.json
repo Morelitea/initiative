@@ -630,14 +630,14 @@
       "member": "Mitglied",
       "support": "Support",
       "moderator": "Moderator",
-      "admin": "Administrator",
+      "operator": "Operator",
       "owner": "Eigentümer"
     },
     "roleDescriptions": {
       "member": "Standardzugriff auf die eigenen Gilden. Keine plattformweiten Berechtigungen.",
       "support": "Schreibgeschützte Plattformeinsicht (Benutzer, Gilden, Audit) und kann zeitlich begrenzten Zugriff auf eine Gilde anfordern.",
       "moderator": "Alles, was Support kann, plus Benutzerverwaltung (Sperren/Wiederaktivieren) und Inhaltsmoderation.",
-      "admin": "Verwaltet Benutzer, Gilden und Rollen plattformweit, mit gildenübergreifendem Datenzugriff, und genehmigt Zugriffsanfragen.",
+      "operator": "Verwaltet Benutzer, Gilden und Rollen plattformweit, mit gildenübergreifendem Datenzugriff, und genehmigt Zugriffsanfragen.",
       "owner": "Vollständige Kontrolle, einschließlich der app-weiten Konfiguration (Authentifizierung, Branding, E-Mail, KI). Die einzige Rolle, die die Konfiguration verwalten kann."
     },
     "changeRoleTitle": "Plattformrolle ändern",

@@ -183,7 +183,7 @@ _NON_OWNER_ROLES = [
     UserRole.member,
     UserRole.support,
     UserRole.moderator,
-    UserRole.admin,
+    UserRole.operator,
 ]
 
 
@@ -701,7 +701,7 @@ async def test_guild_storage_endpoints_allow_admin(
     """A platform ``admin`` (guilds.manage) can list guilds and set a storage
     cap from the Admin dashboard Guilds tab."""
     admin = await create_user(
-        session, email="gstor-admin@example.com", role=UserRole.admin
+        session, email="gstor-admin@example.com", role=UserRole.operator
     )
     guild = await create_guild(session, creator=admin)
     headers = get_auth_headers(admin)

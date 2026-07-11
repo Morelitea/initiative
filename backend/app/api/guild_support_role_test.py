@@ -87,7 +87,7 @@ async def test_scoped_grant_synthesizes_support_role(session: AsyncSession):
 async def test_break_glass_stays_admin_not_support(session: AsyncSession):
     """A read_write break-glass grant (data.bypass holder) still resolves to the
     full ``admin`` role — break-glass is deliberately unlimited."""
-    admin = await create_user(session, role=UserRole.admin)
+    admin = await create_user(session, role=UserRole.operator)
     other = await create_user(session, role=UserRole.owner)
     guild2 = await create_guild(session, creator=other)  # admin is NOT a member
     await _live_grant(session, user=admin, guild=guild2, level="read_write")

@@ -1108,7 +1108,7 @@ async def test_create_user_ignores_requested_platform_role(
 
     headers = get_auth_headers(admin)
 
-    for requested_role in ("owner", "admin", "moderator", "support"):
+    for requested_role in ("owner", "operator", "moderator", "support"):
         new_email = f"escalate-{requested_role}@example.com"
         response = await client.post(
             f"/api/v1/g/{guild.id}/users/",

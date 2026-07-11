@@ -335,7 +335,7 @@ async def test_break_glass_full_admin_on_suspended_guild(
     initiative = await create_initiative(session, guild, owner, name="Frozen Wing")
     await _set_status(session, guild, GuildStatus.suspended)
 
-    platform_admin = await create_user(session, role=UserRole.admin)
+    platform_admin = await create_user(session, role=UserRole.operator)
     headers = get_auth_headers(platform_admin)
     resp = await client.post(
         "/api/v1/access-grants/break-glass",
@@ -621,7 +621,7 @@ async def test_platform_guild_status_endpoint_requires_guilds_manage(
     )
     assert resp.status_code == 403
 
-    platform_admin = await create_user(session, role=UserRole.admin)
+    platform_admin = await create_user(session, role=UserRole.operator)
     resp = await client.patch(
         f"/api/v1/settings/guilds/{a.guild.id}",
         headers=get_auth_headers(platform_admin),

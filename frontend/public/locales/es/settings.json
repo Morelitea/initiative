@@ -628,14 +628,14 @@
       "member": "Miembro",
       "support": "Soporte",
       "moderator": "Moderador",
-      "admin": "Administrador",
+      "operator": "Operador",
       "owner": "Propietario"
     },
     "roleDescriptions": {
       "member": "Acceso estándar a sus propios gremios. Sin privilegios a nivel de plataforma.",
       "support": "Visibilidad de solo lectura de la plataforma (usuarios, gremios, auditoría) y puede solicitar acceso temporal a un gremio.",
       "moderator": "Todo lo que puede hacer Soporte, además de gestión de usuarios (suspender/reactivar) y moderación de contenido.",
-      "admin": "Gestiona usuarios, gremios y roles en toda la plataforma, con acceso a datos entre gremios y aprueba solicitudes de acceso.",
+      "operator": "Gestiona usuarios, gremios y roles en toda la plataforma, con acceso a datos entre gremios y aprueba solicitudes de acceso.",
       "owner": "Control total, incluida la configuración de toda la plataforma (autenticación, personalización, email, IA). El único rol que puede gestionar la configuración."
     },
     "changeRoleTitle": "Cambiar rol de plataforma",

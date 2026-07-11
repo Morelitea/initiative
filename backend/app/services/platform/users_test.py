@@ -258,7 +258,7 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
         email="toanonymize@example.com",
         full_name="Anonymizer Test",
         avatar_url="https://example.com/avatar.png",
-        role=UserRole.admin,
+        role=UserRole.operator,
     )
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
@@ -560,7 +560,7 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
 
     await create_user(session, email="owner@example.com", role=UserRole.owner)
     plain_admin = await create_user(
-        session, email="admin@example.com", role=UserRole.admin
+        session, email="admin@example.com", role=UserRole.operator
     )
 
     assert await user_service.is_last_platform_admin(session, plain_admin.id) is False

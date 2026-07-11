@@ -628,14 +628,14 @@
       "member": "Membre",
       "support": "Support",
       "moderator": "Modérateur",
-      "admin": "Administrateur",
+      "operator": "Opérateur",
       "owner": "Propriétaire"
     },
     "roleDescriptions": {
       "member": "Accès standard à ses propres guildes. Aucun privilège au niveau de la plateforme.",
       "support": "Visibilité en lecture seule de la plateforme (utilisateurs, guildes, audit) et peut demander un accès temporaire à une guilde.",
       "moderator": "Tout ce que peut faire le support, plus la gestion des utilisateurs (suspendre/réactiver) et la modération du contenu.",
-      "admin": "Gère les utilisateurs, les guildes et les rôles sur toute la plateforme, avec accès aux données inter-guildes et approuve les demandes d'accès.",
+      "operator": "Gère les utilisateurs, les guildes et les rôles sur toute la plateforme, avec accès aux données inter-guildes et approuve les demandes d'accès.",
       "owner": "Contrôle total, y compris la configuration de toute la plateforme (authentification, personnalisation, email, IA). Le seul rôle pouvant gérer la configuration."
     },
     "changeRoleTitle": "Modifier le rôle de la plateforme",

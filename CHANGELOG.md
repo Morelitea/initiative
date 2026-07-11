@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renamed the platform **Admin** role to **Operator** so it no longer collides with a guild's **admin** role. The platform ladder is now `member → support → moderator → operator → owner`; capabilities and behavior are unchanged. A migration renames the `users.role` value and the `platform_admin` database role in place, so existing platform admins become operators automatically — no action needed.
 - Operator "delete this guild" is now scoped to the deleted user's solely-admined guild instead of accepting any guild id.
 - Removed the `ALGORITHM`, `COOKIE_NAME`, `REFRESH_COOKIE_NAME`, `PROJECT_NAME`, and `API_V1_STR` settings — their values are now fixed. Drop them from your `.env`; leftovers are ignored.
 - Removed the `OIDC_REDIRECT_URI` and `OIDC_POST_LOGIN_REDIRECT` settings (read by nothing — redirect URLs derive from `APP_URL`) and the legacy `OIDC_DISCOVERY_URL` alias. OIDC is configured in Settings → Admin; the `OIDC_*` env vars only pre-fill it on first boot. If you still set `OIDC_DISCOVERY_URL`, use `OIDC_ISSUER` instead.

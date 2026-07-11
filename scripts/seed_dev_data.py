@@ -305,6 +305,7 @@ async def _create_users(
 
     Each user_def can include optional settings overrides:
     timezone, locale, color_theme, week_starts_on, and notification booleans.
+    An optional ``role`` (UserRole) sets the platform tier (defaults to member).
     """
     users: dict[str, User] = {}
     for ud in user_defs:
@@ -313,7 +314,7 @@ async def _create_users(
             email_encrypted=encrypt_field(ud["email"], SALT_EMAIL),
             full_name=ud["full_name"],
             hashed_password=get_password_hash("changeme"),
-            role=UserRole.member,
+            role=ud.get("role", UserRole.member),
             is_active=True,
             timezone=ud.get("timezone", "UTC"),
             locale=ud.get("locale", "en"),
@@ -1387,6 +1388,18 @@ async def seed() -> None:
              "push_task_assignment": False, "push_overdue_tasks": False},
             {"email": "user8@example.com", "full_name": "Aurelia Brightshield",
              "timezone": "America/Denver", "color_theme": "strahd", "week_starts_on": 1},
+            # Platform-role users — one per tier for exercising the privilege ladder.
+            # (member@ rounds out the set; user1..8 above are also members.)
+            {"email": "owner@example.com", "full_name": "Platform Owner",
+             "role": UserRole.owner, "color_theme": "kobold"},
+            {"email": "operator@example.com", "full_name": "Platform Operator",
+             "role": UserRole.operator, "color_theme": "strahd"},
+            {"email": "moderator@example.com", "full_name": "Platform Moderator",
+             "role": UserRole.moderator, "color_theme": "displacer"},
+            {"email": "support@example.com", "full_name": "Platform Support",
+             "role": UserRole.support, "color_theme": "kobold"},
+            {"email": "member@example.com", "full_name": "Platform Member",
+             "role": UserRole.member, "color_theme": "strahd"},
         ])
 
         # Apply settings to the superuser too
@@ -1409,6 +1422,15 @@ async def seed() -> None:
         kael = new_users["Kael Windrunner"]
         aurelia = new_users["Aurelia Brightshield"]
 
+        # Platform-role users. Their platform tier is orthogonal to guild
+        # membership, so spread them across a variety of guilds/initiatives
+        # below to exercise the app as ordinary members from every tier.
+        p_owner = new_users["Platform Owner"]
+        p_operator = new_users["Platform Operator"]
+        p_moderator = new_users["Platform Moderator"]
+        p_support = new_users["Platform Support"]
+        p_member = new_users["Platform Member"]
+
         # ==============================================================
         # GUILD 1: Primary guild — "Curse of Strahd" TTRPG campaign
         # (The primary guild already exists from init_db)
@@ -1425,10 +1447,10 @@ async def seed() -> None:
             session, user_id=admin_user.id, guild_id=g1_id, guild_role="admin"
         )
 
-        # Add members to primary guild
+        # Add members to primary guild (incl. a couple of platform-role users)
         await _add_guild_members(
             session, ids, g1,
-            [dm, thorn, elara, vex, sera],
+            [dm, thorn, elara, vex, sera, p_operator, p_support],
             admin_users=[dm],
         )
 
@@ -1481,7 +1503,7 @@ async def seed() -> None:
             description="A gothic horror adventure in the demiplane of Barovia",
             color="#7C3AED",
             pm_user=dm,
-            member_users=[thorn, elara, vex, sera],
+            member_users=[thorn, elara, vex, sera, p_operator],
             queues_enabled=True,
             counters_enabled=True,
             events_enabled=True,
@@ -1495,7 +1517,7 @@ async def seed() -> None:
             description="A classic introductory adventure in the Sword Coast",
             color="#059669",
             pm_user=admin_user,
-            member_users=[dm, thorn, elara],
+            member_users=[dm, thorn, elara, p_support],
             queues_enabled=True,
             counters_enabled=True,
             events_enabled=True,
@@ -2284,7 +2306,7 @@ async def seed() -> None:
 
         await _add_guild_members(
             session, ids, g2,
-            [finley, kael, aurelia, vex, elara],
+            [finley, kael, aurelia, vex, elara, p_moderator, p_member],
             admin_users=[finley],
         )
 
@@ -2339,7 +2361,7 @@ async def seed() -> None:
             description="Humanity's last fleet searches for a new homeworld after Earth's collapse",
             color="#0EA5E9",
             pm_user=admin_user,
-            member_users=[finley, kael, aurelia, vex, elara],
+            member_users=[finley, kael, aurelia, vex, elara, p_member],
             queues_enabled=True,
             counters_enabled=True,
             events_enabled=True,
@@ -2352,7 +2374,7 @@ async def seed() -> None:
             description="One-shots and side adventures in the frontier sectors",
             color="#F59E0B",
             pm_user=finley,
-            member_users=[kael, aurelia, vex],
+            member_users=[kael, aurelia, vex, p_moderator],
             queues_enabled=True,
             counters_enabled=True,
             events_enabled=True,
@@ -2920,7 +2942,7 @@ async def seed() -> None:
 
         await _add_guild_members(
             session, ids, g3,
-            [admin_user, dm, thorn, kael, aurelia, sera],
+            [admin_user, dm, thorn, kael, aurelia, sera, p_owner, p_operator],
             admin_users=[admin_user],
         )
 
@@ -2973,7 +2995,7 @@ async def seed() -> None:
             description="A pirate crew sails the Shattered Seas in search of the Leviathan's Heart",
             color="#DC2626",
             pm_user=finley,
-            member_users=[admin_user, dm, thorn, kael, aurelia, sera],
+            member_users=[admin_user, dm, thorn, kael, aurelia, sera, p_owner],
             queues_enabled=True,
             counters_enabled=True,
             events_enabled=True,
@@ -2986,7 +3008,7 @@ async def seed() -> None:
             description="Encounters and battles with the Imperial Navy",
             color="#1E40AF",
             pm_user=dm,
-            member_users=[finley, thorn, kael],
+            member_users=[finley, thorn, kael, p_operator],
             queues_enabled=True,
             counters_enabled=True,
             events_enabled=True,
@@ -3638,6 +3660,9 @@ async def seed() -> None:
     print(f"  {len(ids.data['project_favorites'])} favorites, {len(ids.data['document_links'])} doc links")
     print(f"\n  Owner login: {settings.FIRST_OWNER_EMAIL} / {settings.FIRST_OWNER_PASSWORD}")
     print("  All other users: user1@example.com .. user8@example.com / changeme")
+    print("  Platform-role users (password: changeme):")
+    print("    owner@example.com, operator@example.com, moderator@example.com,")
+    print("    support@example.com, member@example.com")
 
 
 # ---------------------------------------------------------------------------

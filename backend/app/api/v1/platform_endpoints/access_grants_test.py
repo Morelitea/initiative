@@ -209,7 +209,9 @@ async def test_member_cannot_request_access(client: AsyncClient, session: AsyncS
 async def test_requester_cannot_approve_own(client: AsyncClient, session: AsyncSession):
     """An admin can both request and approve, but never their own request."""
     owner = await create_user(session, email="owner3@example.com", role=UserRole.owner)
-    admin = await create_user(session, email="admin3@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin3@example.com", role=UserRole.operator
+    )
     guild = await create_guild(session, creator=owner)
 
     resp = await client.post(

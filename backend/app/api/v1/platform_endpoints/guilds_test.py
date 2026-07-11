@@ -332,7 +332,9 @@ async def test_delete_guild_oidc_user_skips_password(
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("role", ["member", "support", "moderator", "admin", "owner"])
+@pytest.mark.parametrize(
+    "role", ["member", "support", "moderator", "operator", "owner"]
+)
 async def test_reorder_guilds(client: AsyncClient, session: AsyncSession, role: str):
     """EVERY platform tier can reorder their own guilds in personal mode.
 

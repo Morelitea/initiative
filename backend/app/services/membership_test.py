@@ -112,7 +112,7 @@ async def test_initiative_scope_clause_legs(session: AsyncSession):
 
     admin, member, outsider, _guild, initiative = await _setup(session)
     platform_admin = await create_user(
-        session, email="platform@example.com", role=UserRole.admin
+        session, email="platform@example.com", role=UserRole.operator
     )
 
     async def scoped_ids(user) -> list[int]:
