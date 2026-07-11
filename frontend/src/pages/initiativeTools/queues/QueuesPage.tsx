@@ -20,6 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/useAuth";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useQueuesList } from "@/hooks/useQueues";
@@ -37,6 +38,7 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
   const router = useRouter();
   const { user } = useAuth();
   const { activeGuildId } = useGuilds();
+  const { permissionsFor } = useInitiativeAccess();
   const gp = useGuildPath();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
@@ -139,15 +141,13 @@ export const QueuesView = ({ fixedInitiativeId, canCreate }: QueuesViewProps) =>
     return map;
   }, [initiatives]);
 
-  // Filter initiatives where user can create queues
+  // Initiatives the user can create queues in — resolved through the shared
+  // access helper so guild admins are included and frozen (read-only) guilds
+  // drop their create affordances.
   const creatableInitiatives = useMemo(() => {
     if (!user) return [];
-    return initiatives.filter((initiative) =>
-      initiative.members.some(
-        (member) => member.user.id === user.id && member.role === "project_manager"
-      )
-    );
-  }, [initiatives, user]);
+    return initiatives.filter((initiative) => permissionsFor(initiative)[Tool.queue].create);
+  }, [initiatives, user, permissionsFor]);
 
   // Determine if user can create queues
   const canCreateQueues = useMemo(() => {

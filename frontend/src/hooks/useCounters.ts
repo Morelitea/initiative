@@ -1,6 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useTranslation } from "react-i18next";
 
 import {
   addCounterApiV1GGuildIdCounterGroupsGroupIdCountersPost,
@@ -129,7 +128,6 @@ export const useCounterGroup = (groupId: number | null, options?: QueryOpts<Coun
 export const useCreateCounterGroup = (
   options?: MutationOpts<CounterGroupRead, CounterGroupCreate>
 ) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -144,7 +142,7 @@ export const useCreateCounterGroup = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       onError?.(...args);
     },
     onSettled,
@@ -155,7 +153,6 @@ export const useUpdateCounterGroup = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, CounterGroupUpdate>
 ) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -172,7 +169,7 @@ export const useUpdateCounterGroup = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       onError?.(...args);
     },
     onSettled,
@@ -183,7 +180,6 @@ export const useDuplicateCounterGroup = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, CounterGroupDuplicateRequest>
 ) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -199,7 +195,7 @@ export const useDuplicateCounterGroup = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       onError?.(...args);
     },
     onSettled,
@@ -207,7 +203,6 @@ export const useDuplicateCounterGroup = (
 };
 
 export const useDeleteCounterGroup = (options?: MutationOpts<void, number>) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -222,7 +217,7 @@ export const useDeleteCounterGroup = (options?: MutationOpts<void, number>) => {
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       onError?.(...args);
     },
     onSettled,
@@ -235,7 +230,6 @@ export const useAddCounter = (
   groupId: number,
   options?: MutationOpts<CounterRead, CounterCreate>
 ) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
   return useMutation({
@@ -252,7 +246,7 @@ export const useAddCounter = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       onError?.(...args);
     },
     onSettled,
@@ -271,7 +265,6 @@ export const useUpdateCounter = (
   groupId: number,
   options?: MutationOpts<CounterRead, UpdateCounterInput>
 ) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate, ...rest } = options ?? {};
@@ -301,7 +294,7 @@ export const useUpdateCounter = (
     onError: (...args) => {
       const ctx = args[2] as OptimisticContext | undefined;
       rollbackGroup(queryClient, guildId, groupId, ctx);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       (onError as any)?.(...args);
     },
     onSuccess: (...args) => {
@@ -315,7 +308,6 @@ export const useUpdateCounter = (
 };
 
 export const useDeleteCounter = (groupId: number, options?: MutationOpts<void, number>) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -340,7 +332,7 @@ export const useDeleteCounter = (groupId: number, options?: MutationOpts<void, n
     onError: (...args) => {
       const ctx = args[2] as OptimisticContext | undefined;
       rollbackGroup(queryClient, guildId, groupId, ctx);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       (onError as any)?.(...args);
     },
     onSuccess: (...args) => {
@@ -365,7 +357,6 @@ export const useSetCount = (
   groupId: number,
   options?: MutationOpts<CounterRead, SetCountInput>
 ) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -388,7 +379,7 @@ export const useSetCount = (
     onError: (...args) => {
       const ctx = args[2] as OptimisticContext | undefined;
       rollbackGroup(queryClient, guildId, groupId, ctx);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       (onError as any)?.(...args);
     },
     onSuccess: (...args) => {
@@ -407,7 +398,6 @@ const makeValueOpHook = (
 ) => {
   return (groupId: number, options?: MutationOpts<CounterRead, number>) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { t } = useTranslation("counterGroups");
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const guildId = useActiveGuildId();
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -431,7 +421,7 @@ const makeValueOpHook = (
       onError: (...args) => {
         const ctx = args[2] as OptimisticContext | undefined;
         rollbackGroup(queryClient, guildId, groupId, ctx);
-        toast.error(t("error"));
+        toast.error(getErrorMessage(args[0], "counterGroups:error"));
         (onError as any)?.(...args);
       },
       onSuccess: (...args) => {
@@ -464,7 +454,6 @@ export const useResetAllCounters = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, void>
 ) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -491,7 +480,7 @@ export const useResetAllCounters = (
     onError: (...args) => {
       const ctx = args[2] as OptimisticContext | undefined;
       rollbackGroup(queryClient, guildId, groupId, ctx);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       (onError as any)?.(...args);
     },
     onSuccess: (...args) => {
@@ -525,7 +514,6 @@ export const useSortCounters = (
   groupId: number,
   options?: MutationOpts<CounterGroupRead, CounterSortRequest>
 ) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
@@ -554,7 +542,7 @@ export const useSortCounters = (
     onError: (...args) => {
       const ctx = args[2] as OptimisticContext | undefined;
       rollbackGroup(queryClient, guildId, groupId, ctx);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "counterGroups:error"));
       (onError as any)?.(...args);
     },
     onSuccess: (...args) => {
@@ -592,7 +580,6 @@ const STEP_DEBOUNCE_MS = 300;
  * Server-side rate limiting is the control for that.
  */
 export const useSteppedCount = (groupId: number) => {
-  const { t } = useTranslation("counterGroups");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const timers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -636,13 +623,13 @@ export const useSteppedCount = (groupId: number) => {
         if (pending.current.get(counterId) === target && !timers.current.has(counterId)) {
           pending.current.delete(counterId);
         }
-      } catch {
-        toast.error(t("error"));
+      } catch (error) {
+        toast.error(getErrorMessage(error, "counterGroups:error"));
         pending.current.delete(counterId);
         void invalidateCounterGroup(groupId);
       }
     },
-    [guildId, groupId, t]
+    [guildId, groupId]
   );
 
   const flush = useCallback(

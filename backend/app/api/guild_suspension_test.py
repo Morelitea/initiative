@@ -21,6 +21,7 @@ from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.messages import GuildMessages, ProjectMessages
+from app.core.tools import Tool
 from app.models.platform.access_grant import AccessGrant
 from app.models.platform.guild import Guild, GuildInvite, GuildRole, GuildStatus
 from app.models.platform.user import UserRole
@@ -286,6 +287,40 @@ async def test_read_only_caps_serialized_permission_level(
     resp = await client.get(a.g("/projects/writable"), headers=a.headers)
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+@pytest.mark.parametrize(
+    "role", [GuildRole.member, GuildRole.admin], ids=lambda r: r.value
+)
+async def test_read_only_zeroes_create_flags_in_my_permissions(
+    client: AsyncClient, session: AsyncSession, acting_user, role
+):
+    """``my-permissions`` reports every create flag as denied while the guild
+    is frozen — for guild admins too — so tool pages hide their create buttons
+    instead of offering writes the database role will refuse. View flags are
+    untouched (reads survive read_only)."""
+    a = await acting_user(guild_role=role, initiative=True)
+
+    resp = await client.get(
+        a.g(f"/initiatives/{a.initiative.id}/my-permissions"), headers=a.headers
+    )
+    assert resp.status_code == 200, resp.text
+    perms = resp.json()["permissions"]
+    assert perms["create_projects"] is True
+    assert perms["create_documents"] is True
+
+    await _set_status(session, a.guild, GuildStatus.read_only)
+
+    resp = await client.get(
+        a.g(f"/initiatives/{a.initiative.id}/my-permissions"), headers=a.headers
+    )
+    assert resp.status_code == 200, resp.text
+    perms = resp.json()["permissions"]
+    assert all(perms[t.create_permission] is False for t in Tool), (
+        "no create flag may survive a frozen guild"
+    )
+    assert perms["projects_enabled"] is True
+    assert perms["documents_enabled"] is True
 
 
 async def test_read_only_keeps_initiative_isolation(

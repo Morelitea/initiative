@@ -14,6 +14,23 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { useGuilds } from "@/hooks/useGuilds";
 import { guildPath } from "@/lib/guildUrl";
 
+/**
+ * Whether a suspended guild's layout should redirect this location to the
+ * guild's settings page.
+ *
+ * Scoped to THIS guild's subtree on purpose: the router publishes the pending
+ * target location at the START of a navigation while the old layout is still
+ * mounted, so an unscoped "not under /settings" check would fire on any
+ * attempt to leave (home, another guild) and the Navigate would cancel it —
+ * trapping the admin on the settings page.
+ */
+export function shouldPinSuspendedGuildToSettings(pathname: string, guildId: number): boolean {
+  const settingsRoot = guildPath(guildId, "/settings");
+  const withinThisGuild = pathname === `/g/${guildId}` || pathname.startsWith(`/g/${guildId}/`);
+  const withinSettings = pathname === settingsRoot || pathname.startsWith(`${settingsRoot}/`);
+  return withinThisGuild && !withinSettings;
+}
+
 export const Route = createFileRoute("/_serverRequired/_authenticated/g/$guildId")({
   beforeLoad: async ({ context, params, cause }) => {
     const guildId = Number(params.guildId);
@@ -106,9 +123,16 @@ function GuildLayout() {
   // content endpoint refuses it — only the settings surface (billing / data
   // ownership / danger zone) still works. Keep the admin out of a wall of
   // 403s by pinning them to settings.
+  //
+  // PAM/break-glass grantees are exempt: the backend's grant path never
+  // consults the lifecycle status (a grantee browses a suspended guild exactly
+  // like an active one — that's what keeps operators from being locked out),
+  // so their content requests succeed and the pin would only strand them on a
+  // settings page their synthesized role can't view.
   if (
     guild.status === "suspended" &&
-    !location.pathname.startsWith(guildPath(guildId, "/settings"))
+    guild.accessType !== "grant" &&
+    shouldPinSuspendedGuildToSettings(location.pathname, guildId)
   ) {
     return <Navigate to={guildPath(guildId, "/settings")} replace />;
   }

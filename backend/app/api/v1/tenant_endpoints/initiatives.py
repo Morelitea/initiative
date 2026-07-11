@@ -635,6 +635,12 @@ async def get_my_initiative_permissions(
     def tool_available(t: Tool) -> bool:
         return t in CORE_TOOLS or bool(getattr(initiative, t.view_permission))
 
+    # Content writes are frozen (read_only lifecycle status): report create
+    # permissions as denied so the UI hides its create affordances instead of
+    # offering writes the database role will refuse. Never true on the PAM
+    # branch — grants override the guild status.
+    content_frozen = guild_context.content_read_only
+
     # Guild admins have all permissions
     if rls_service.is_guild_admin(guild_context.role):
         return MyInitiativePermissions(
@@ -642,9 +648,12 @@ async def get_my_initiative_permissions(
             # Guild admins view/edit everything regardless of sharing.
             override_share_restrictions=True,
             permissions={
-                PermissionKey(key): tool_available(t)
-                for t in Tool
-                for key in (t.view_permission, t.create_permission)
+                **{PermissionKey(t.view_permission): tool_available(t) for t in Tool},
+                **{
+                    PermissionKey(t.create_permission): tool_available(t)
+                    and not content_frozen
+                    for t in Tool
+                },
             },
             advanced_tools_enabled=initiative.advanced_tools_enabled,
         )
@@ -695,6 +704,9 @@ async def get_my_initiative_permissions(
     for t in TOGGLEABLE_TOOLS:
         if not tool_available(t):
             permissions[PermissionKey(t.view_permission)] = False
+            permissions[PermissionKey(t.create_permission)] = False
+    if content_frozen:
+        for t in Tool:
             permissions[PermissionKey(t.create_permission)] = False
     advanced_tools_enabled = initiative.advanced_tools_enabled
 
