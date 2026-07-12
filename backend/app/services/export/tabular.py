@@ -5,9 +5,10 @@ Same source adapters, different renderer: a tabular format consumes the
 source that declares the format gets it with no adapter changes.
 
 Both formats absorb the platform CSV exporter's injection safety rather than
-duplicating it: every cell passes ``csv_export._neutralize_cell`` — XLSX
-included, because openpyxl infers a string cell starting with ``=`` as a
-formula, so the spreadsheet-injection class isn't CSV-only.
+duplicating it (``csv_export.neutralize_cell``) — XLSX included, because
+openpyxl infers a *string* cell starting with ``=`` as a formula, so the
+spreadsheet-injection class isn't CSV-only. XLSX neutralizes string cells
+only, keeping numeric cells typed (see ``_xlsx_cell``).
 """
 
 from __future__ import annotations
@@ -18,7 +19,7 @@ from typing import Any
 from openpyxl import Workbook
 
 from app.services.export.contract import RenderItem
-from app.services.platform.csv_export import _neutralize_cell, build_csv
+from app.services.platform.csv_export import build_csv, neutralize_cell
 
 # Sheet titles have a 31-char limit and a forbidden character set in the XLSX
 # spec; our sources use short safe keys ("tasks"), but clamp defensively.
@@ -39,14 +40,25 @@ def render_csv(item: RenderItem) -> bytes:
     return build_csv(headers, rows)
 
 
+def _xlsx_cell(value: Any) -> Any:
+    """Neutralize only STRING cells for XLSX. Unlike CSV (where every value
+    becomes text anyway), XLSX cells are typed: a number must stay a number
+    (coercing ``-5`` to ``"'-5"`` would break sorting/arithmetic in the
+    sheet), and openpyxl cannot infer a formula from an int/float/date, so
+    only strings can smuggle a formula trigger."""
+    if isinstance(value, str):
+        return neutralize_cell(value)
+    return value
+
+
 def render_xlsx(item: RenderItem) -> bytes:
     headers, rows = _table(item)
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = str(item.data.get("title", item.key))[:_SHEET_TITLE_MAX] or item.key
-    sheet.append([_neutralize_cell(value) for value in headers])
+    sheet.append([_xlsx_cell(value) for value in headers])
     for row in rows:
-        sheet.append([_neutralize_cell(value) for value in row])
+        sheet.append([_xlsx_cell(value) for value in row])
     sheet.freeze_panes = "A2"
     buffer = io.BytesIO()
     workbook.save(buffer)

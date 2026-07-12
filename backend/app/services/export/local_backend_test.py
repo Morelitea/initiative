@@ -122,6 +122,30 @@ async def test_renders_xlsx_with_formula_neutralization():
     assert sheet.cell(row=2, column=1).data_type == "s"
 
 
+async def test_xlsx_preserves_numeric_cells():
+    """Neutralization must not coerce numbers to strings: ``-5`` looks like a
+    formula trigger as text, but openpyxl can't infer a formula from an int,
+    and a string cell would break sorting/arithmetic in the sheet."""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    artifacts = await LocalRenderBackend().render(
+        _request(
+            format="xlsx",
+            columns=[
+                {"key": "title", "label": "Task"},
+                {"key": "count", "label": "Count"},
+            ],
+            rows=[{"title": "-starts with trigger", "count": -5}],
+        )
+    )
+    sheet = load_workbook(BytesIO(artifacts[0].content)).active
+    assert sheet.cell(row=2, column=1).value == "'-starts with trigger"
+    assert sheet.cell(row=2, column=2).value == -5
+    assert sheet.cell(row=2, column=2).data_type == "n"
+
+
 async def test_tabular_formats_skip_template_resolution():
     """A csv/xlsx render must not require a .typ template — the payload's
     columns/rows are the whole input."""
