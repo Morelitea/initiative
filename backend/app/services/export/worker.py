@@ -27,9 +27,11 @@ from app.core.config import settings
 from app.db import session as db_session
 from app.db.session import set_rls_context
 from app.models.platform.guild import Guild, GuildStatus
+from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserStatus
 from app.models.tenant.export_job import ExportJob, ExportJobStatus
 from app.services.export import engine as export_engine
+from app.services.platform import user_notifications
 
 logger = logging.getLogger(__name__)
 
@@ -62,13 +64,28 @@ async def process_export_jobs() -> None:
         for guild_id in guild_ids:
             session.expunge_all()
             await set_rls_context(session, guild_id=guild_id, guild_role="admin")
-            await _process_guild_jobs(session, guild_id=guild_id, now=now)
+            outcomes = await _process_guild_jobs(session, guild_id=guild_id, now=now)
             await session.commit()
+            # Notify creators from the UNROUTED system context: the guild-admin
+            # routing above carries no user GUC, so the shared notifications
+            # table's own-row policies would refuse the insert there.
+            await set_rls_context(session)
+            for user_id, notification_type, data in outcomes:
+                await user_notifications.create_notification(
+                    session,
+                    user_id=user_id,
+                    notification_type=notification_type,
+                    data=data,
+                )
+            await session.commit()
+
+
+JobOutcome = tuple[int, NotificationType, dict]
 
 
 async def _process_guild_jobs(
     session: AsyncSession, *, guild_id: int, now: datetime
-) -> None:
+) -> list[JobOutcome]:
     jobs = list(
         await session.exec(
             select(ExportJob)
@@ -82,6 +99,7 @@ async def _process_guild_jobs(
             .order_by(ExportJob.created_at.asc())
         )
     )
+    outcomes: list[JobOutcome] = []
     for job in jobs:
         job.status = ExportJobStatus.running
         job.updated_at = now
@@ -110,6 +128,24 @@ async def _process_guild_jobs(
         job.updated_at = datetime.now(timezone.utc)
         session.add(job)
         await session.commit()
+        # The creator may have navigated away while the render ran — an inbox
+        # entry is how they reach the artifact afterwards. Data mirrors the
+        # other notification payloads: ids only plus what the bell displays.
+        outcomes.append(
+            (
+                job.created_by_id,
+                NotificationType.export_ready
+                if job.status == ExportJobStatus.done
+                else NotificationType.export_failed,
+                {
+                    "guild_id": guild_id,
+                    "export_job_id": job.id,
+                    "source": job.source,
+                    "format": job.format,
+                },
+            )
+        )
+    return outcomes
 
 
 async def _execute(session: AsyncSession, job: ExportJob, *, guild_id: int) -> str:

@@ -225,7 +225,9 @@
       "enableDescription": "Soyez notifié des nouvelles tâches, mentions et plus encore",
       "dismiss": "Ignorer",
       "enable": "Activer"
-    }
+    },
+    "exportReady": "Votre export de tâches est prêt — cliquez pour le télécharger.",
+    "exportFailed": "Votre export de tâches a échoué. Réessayez."
   },
   "version": {
     "newVersionAvailable": "Nouvelle version disponible",

@@ -10,6 +10,8 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { downloadExportArtifact, normalizeBlobError } from "@/lib/exportDownload";
+import { getItem, removeItem, setItem } from "@/lib/storage";
 
 type ExportParams = Pick<
   ExportTasksApiV1GGuildIdExportsTasksGetParams,
@@ -24,25 +26,22 @@ interface ExportTasksButtonProps {
 const POLL_MS = 2000;
 const TERMINAL = new Set(["done", "failed", "expired"]);
 
-/** Axios error bodies arrive as Blobs under responseType "blob"; recover the
- * JSON detail so getErrorMessage can map it to a localized message. */
-async function normalizeBlobError(err: unknown): Promise<unknown> {
-  const response = (err as { response?: { data?: unknown } })?.response;
-  if (response?.data instanceof Blob) {
-    try {
-      response.data = JSON.parse(await response.data.text());
-    } catch {
-      // keep the original error
-    }
-  }
-  return err;
-}
+// A pending job id survives the component unmounting (navigation) so a
+// return to any tasks view resumes the poll and still delivers the download.
+// A full page reload is covered by the worker's inbox notification instead.
+const pendingKey = (guildId: number) => `exports:pending:${guildId}`;
 
 export function ExportTasksButton({ params }: ExportTasksButtonProps) {
   const { t } = useTranslation("tasks");
   const guildId = useActiveGuildId();
   const [requesting, setRequesting] = useState(false);
-  const [jobId, setJobId] = useState<number | null>(null);
+  const [jobId, setJobId] = useState<number | null>(() => {
+    if (!guildId) {
+      return null;
+    }
+    const stored = Number(getItem(pendingKey(guildId)));
+    return Number.isFinite(stored) && stored > 0 ? stored : null;
+  });
   // Job ids already handled — a terminal status must fire exactly once even
   // though polling re-renders keep delivering it.
   const handledJobs = useRef(new Set<number>());
@@ -64,19 +63,17 @@ export function ExportTasksButton({ params }: ExportTasksButtonProps) {
     }
     handledJobs.current.add(jobId);
     setJobId(null);
+    removeItem(pendingKey(guildId));
     if (job.status !== "done") {
       toast.error(t("export.failed"));
       return;
     }
-    apiClient
-      .get<Blob>(`/g/${guildId}/exports/${jobId}/download`, { responseType: "blob" })
-      .then((res) => {
-        downloadBlob(res.data, `tasks-${jobId}.pdf`);
-        toast.success(t("export.success"));
-      })
-      .catch(async (err) => {
-        toast.error(getErrorMessage(await normalizeBlobError(err), "tasks:export.error"));
-      });
+    void downloadExportArtifact(
+      guildId,
+      jobId,
+      t as (key: string, options?: Record<string, unknown>) => string,
+      job.source
+    );
   }, [job, jobId, guildId, t]);
 
   const busy = requesting || jobId != null;
@@ -102,6 +99,7 @@ export function ExportTasksButton({ params }: ExportTasksButtonProps) {
       } else {
         const queued = JSON.parse(await res.data.text()) as { id: number };
         setJobId(queued.id);
+        setItem(pendingKey(guildId), String(queued.id));
         toast.success(t("export.queued"));
       }
     } catch (err) {

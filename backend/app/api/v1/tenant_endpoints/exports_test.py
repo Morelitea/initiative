@@ -168,6 +168,22 @@ async def test_worker_renders_job_and_download_succeeds(
     )
     assert media.status_code == 404
 
+    # The creator gets an inbox entry pointing at the finished job — the
+    # recovery path when they navigated away while the render ran.
+    from sqlmodel import select
+
+    from app.models.platform.notification import Notification, NotificationType
+
+    notifications = list(
+        await session.exec(
+            select(Notification).where(Notification.user_id == a.user.id)
+        )
+    )
+    export_notes = [n for n in notifications if n.type == NotificationType.export_ready]
+    assert len(export_notes) == 1
+    assert export_notes[0].data["export_job_id"] == job_id
+    assert export_notes[0].data["guild_id"] == a.guild.id
+
 
 async def test_gc_expires_artifacts(acting_user, session):
     a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)

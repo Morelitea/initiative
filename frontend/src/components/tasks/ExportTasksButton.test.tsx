@@ -17,6 +17,7 @@ vi.mock("@/lib/chesterToast", () => ({
 
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
+import { getItem, setItem } from "@/lib/storage";
 
 const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // "%PDF"
 
@@ -42,6 +43,7 @@ const pdfResponse = () =>
 describe("ExportTasksButton", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it("downloads the PDF directly on an inline (200) export", async () => {
@@ -83,6 +85,22 @@ describe("ExportTasksButton", () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(downloadBlob).not.toHaveBeenCalled();
+  });
+
+  it("resumes a pending job from storage on mount and downloads it", async () => {
+    setItem("exports:pending:1", "9");
+    server.use(
+      guildHttp.get("/exports/:jobId", () =>
+        HttpResponse.json(buildJob({ id: 9, status: "done" }))
+      ),
+      guildHttp.get("/exports/:jobId/download", () => pdfResponse())
+    );
+    renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
+
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("tasks-9.pdf");
+    // The pending marker is consumed, so a remount won't re-download.
+    expect(getItem("exports:pending:1")).toBeNull();
   });
 
   it("shows a localized error for a rejected export (too large)", async () => {
