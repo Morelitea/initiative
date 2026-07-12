@@ -122,6 +122,26 @@ async def test_renders_xlsx_with_formula_neutralization():
     assert sheet.cell(row=2, column=1).data_type == "s"
 
 
+async def test_xlsx_sanitizes_sheet_title():
+    """openpyxl raises InvalidSheetTitle on []:*?/\\ — a title carrying user
+    text (e.g. a guild named "My App: Dev") must render, not crash."""
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    artifacts = await LocalRenderBackend().render(
+        _request(format="xlsx", title="Tasks — My App: Dev [beta] a/b\\c *?")
+    )
+    sheet = load_workbook(BytesIO(artifacts[0].content)).active
+    assert sheet.title == "Tasks — My App Dev beta abc"
+    assert len(sheet.title) <= 31
+
+    # A title reduced to nothing falls back to the item key.
+    artifacts = await LocalRenderBackend().render(_request(format="xlsx", title=":::"))
+    sheet = load_workbook(BytesIO(artifacts[0].content)).active
+    assert sheet.title == "tasks"
+
+
 async def test_xlsx_preserves_numeric_cells():
     """Neutralization must not coerce numbers to strings: ``-5`` looks like a
     formula trigger as text, but openpyxl can't infer a formula from an int,

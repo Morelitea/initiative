@@ -22,8 +22,16 @@ from app.services.export.contract import RenderItem
 from app.services.platform.csv_export import build_csv, neutralize_cell
 
 # Sheet titles have a 31-char limit and a forbidden character set in the XLSX
-# spec; our sources use short safe keys ("tasks"), but clamp defensively.
+# spec (openpyxl raises InvalidSheetTitle). The payload title can carry user
+# text (a guild or project name), so sanitize rather than trust it.
 _SHEET_TITLE_MAX = 31
+_SHEET_TITLE_FORBIDDEN = str.maketrans("", "", "[]:*?/\\")
+
+
+def _sheet_title(item: RenderItem) -> str:
+    raw = str(item.data.get("title", item.key)).translate(_SHEET_TITLE_FORBIDDEN)
+    fallback = item.key.translate(_SHEET_TITLE_FORBIDDEN)[:_SHEET_TITLE_MAX]
+    return raw.strip()[:_SHEET_TITLE_MAX] or fallback or "Export"
 
 
 def _table(item: RenderItem) -> tuple[list[str], list[list[Any]]]:
@@ -55,7 +63,7 @@ def render_xlsx(item: RenderItem) -> bytes:
     headers, rows = _table(item)
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = str(item.data.get("title", item.key))[:_SHEET_TITLE_MAX] or item.key
+    sheet.title = _sheet_title(item)
     sheet.append([_xlsx_cell(value) for value in headers])
     for row in rows:
         sheet.append([_xlsx_cell(value) for value in row])
