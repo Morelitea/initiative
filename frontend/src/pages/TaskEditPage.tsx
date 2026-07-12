@@ -486,7 +486,8 @@ export const TaskEditPage = () => {
     });
   };
 
-  // Pure DAC: permissions inherited from project
+  // Pure DAC: permissions inherited from project. Server-computed — already
+  // capped at "read" when the guild's content is frozen (read_only status).
   const myLevel = project?.my_permission_level;
   const hasWritePermission = myLevel === "owner" || myLevel === "write";
   const canWriteProject = hasWritePermission;

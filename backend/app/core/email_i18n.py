@@ -58,10 +58,10 @@ def _lookup(key: str, locale: str, namespace: str, count: int | None) -> str | N
 def _resolve_key(data: dict, key: str) -> str | None:
     """Walk dot-separated key through nested dict."""
     parts = key.split(".")
-    current: dict | str = data
+    current: dict | str | None = data
     for part in parts:
         if isinstance(current, dict):
-            current = current.get(part)  # type: ignore[assignment]
+            current = current.get(part)
             if current is None:
                 return None
         else:

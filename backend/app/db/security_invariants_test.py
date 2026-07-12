@@ -36,6 +36,11 @@ pytestmark = [pytest.mark.integration, pytest.mark.database]
 _RLS_SHARED_TABLES = {
     "access_grants",
     "app_settings",
+    "auth_provider_secrets",
+    "auth_providers",
+    "auth_sessions",
+    "billing_event_log",
+    "federated_identities",
     "guild_invites",
     "guild_memberships",
     "guilds",
@@ -47,7 +52,11 @@ _RLS_SHARED_TABLES = {
 
 def _app_role_family() -> list[str]:
     """The fixed app roles plus this worker's prefixed platform ladder."""
-    from app.db.schema_provisioning import PLATFORM_TIERS, platform_role_name
+    from app.db.schema_provisioning import (
+        PLATFORM_TIERS,
+        billing_role_name,
+        platform_role_name,
+    )
 
     return [
         "app_user",
@@ -55,6 +64,7 @@ def _app_role_family() -> list[str]:
         "app_guild_base",
         f"{settings.PLATFORM_ROLE_PREFIX}platform_base",
         *(platform_role_name(t) for t in PLATFORM_TIERS),
+        billing_role_name(),
     ]
 
 
@@ -193,7 +203,8 @@ async def test_login_role_memberships_in_scoped_roles_are_inherit_false(engine):
                     "JOIN pg_roles m ON m.oid = am.member "
                     "JOIN pg_roles r ON r.oid = am.roleid "
                     "WHERE m.rolname IN ('app_user', 'app_admin') "
-                    "AND (r.rolname LIKE '%guild\\_%' OR r.rolname LIKE '%platform\\_%')"
+                    "AND (r.rolname LIKE '%guild\\_%' OR r.rolname LIKE '%platform\\_%' "
+                    "OR r.rolname LIKE '%initiative\\_billing')"
                 )
             )
         ).all()

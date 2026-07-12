@@ -168,7 +168,7 @@ async def test_is_initiative_manager_no_standing_bypass(session: AsyncSession):
 
     # Create a platform-level admin who is NOT an initiative member
     app_admin = await create_user(
-        session, email="appadmin@example.com", role=UserRole.admin
+        session, email="appadmin@example.com", role=UserRole.operator
     )
 
     result = await is_initiative_manager(
@@ -215,7 +215,7 @@ async def test_check_initiative_permission_no_standing_bypass(session: AsyncSess
     initiative = await create_initiative(session, guild, admin)
 
     app_admin = await create_user(
-        session, email="appadmin@example.com", role=UserRole.admin
+        session, email="appadmin@example.com", role=UserRole.operator
     )
 
     result = await check_initiative_permission(

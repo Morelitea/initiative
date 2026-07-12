@@ -73,7 +73,7 @@ const activityRank = (grant: AccessGrantRead): number => {
 const ROLE_MAX_MINUTES: Partial<Record<UserRole, number>> = {
   support: 240, // 4h
   moderator: 480, // 8h
-  admin: 1440, // 24h
+  operator: 1440, // 24h
   owner: 1440,
 };
 
@@ -142,7 +142,7 @@ const StatusBadge = ({ grant }: { grant: AccessGrantRead }) => {
 // PAM_BREAK_GLASS_MAX_MINUTES (4h) — a self-approved grant is deliberately short.
 const BREAK_GLASS_DURATIONS_MINUTES = [60, 120, 240];
 
-// Self-serve emergency access for data.bypass holders (admin/owner). Unlike a
+// Self-serve emergency access for data.bypass holders (operator/owner). Unlike a
 // request, this is approved on creation — live immediately, scoped to one guild,
 // read-only by default, short-lived, and recorded as an audited grant.
 const BreakGlassSection = () => {

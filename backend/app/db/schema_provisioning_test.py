@@ -13,10 +13,13 @@ from sqlalchemy.exc import ProgrammingError
 
 import app.db.schema_provisioning as schema_provisioning
 from app.db.schema_provisioning import (
+    SUPPORT_WRITE_PROTECTED_TABLES,
     backfill_guild_schemas,
     drop_guild_schema,
+    guild_readonly_role_name,
     guild_role_name,
     guild_schema_name,
+    guild_support_role_name,
     provision_guild_schema,
 )
 from app.db.tenancy import GUILD_SCOPED_TABLES
@@ -34,6 +37,7 @@ _GID_ROLE_WRITE = 990_107
 _GID_BACKFILL = 990_108
 _GID_REPROVISION = 990_109
 _GID_DROP_ABSENT = 990_110
+_GID_SUPPORT = 990_120
 # Back-fill sweep (each pair: one provisioned, one only a public row).
 _GID_BACKFILL_DONE = 990_111
 _GID_BACKFILL_MISSING = 990_112
@@ -188,26 +192,69 @@ async def test_guild_role_is_scoped_to_its_own_schema(engine):
 
 
 async def test_drop_guild_schema_removes_role(engine):
-    """Tearing down a guild drops its role too, not just the schema."""
+    """Tearing down a guild drops ALL its roles too, not just the schema."""
     gid = _GID_ROLE_DROP
-    role = guild_role_name(gid)
+    roles = (
+        guild_role_name(gid),
+        guild_readonly_role_name(gid),
+        guild_support_role_name(gid),
+    )
     try:
         async with engine.begin() as conn:
             await provision_guild_schema(conn, gid)
         async with engine.connect() as conn:
-            before = await conn.scalar(
-                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}
-            )
+            before = [
+                await conn.scalar(
+                    text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": r}
+                )
+                for r in roles
+            ]
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
         async with engine.connect() as conn:
-            after = await conn.scalar(
-                text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": role}
-            )
-        assert before == 1, "role should exist after provisioning"
-        assert after is None, "role should be gone after drop"
+            after = [
+                await conn.scalar(
+                    text("SELECT 1 FROM pg_roles WHERE rolname = :r"), {"r": r}
+                )
+                for r in roles
+            ]
+        assert before == [1, 1, 1], "all three roles should exist after provisioning"
+        assert after == [None, None, None], "all three roles should be gone after drop"
     finally:
         # Defensive: ensure no leftover role/schema if an assertion failed early.
+        async with engine.begin() as conn:
+            await drop_guild_schema(conn, gid)
+
+
+async def test_support_role_write_capped_on_protected_tables(engine):
+    """The restricted ``support`` role reads everything and writes content, but
+    the structural / permission tables are SELECT-only — the DB-enforced
+    'no member/permission management' line, checked via has_table_privilege."""
+    gid = _GID_SUPPORT
+    schema = guild_schema_name(gid)
+    support = guild_support_role_name(gid)
+    try:
+        async with engine.begin() as conn:
+            await provision_guild_schema(conn, gid)
+        async with engine.connect() as conn:
+
+            async def priv(table: str, verb: str) -> bool:
+                return await conn.scalar(
+                    text("SELECT has_table_privilege(:r, :t, :p)"),
+                    {"r": support, "t": f"{schema}.{table}", "p": verb},
+                )
+
+            # Protected tables: readable, but no writes.
+            for table in SUPPORT_WRITE_PROTECTED_TABLES:
+                assert await priv(table, "SELECT") is True, f"{table} SELECT"
+                for verb in ("INSERT", "UPDATE", "DELETE"):
+                    assert await priv(table, verb) is False, f"{table} {verb}"
+
+            # Content + guild settings: full DML (settings write is the carve-out).
+            for table in ("tasks", "guild_settings"):
+                for verb in ("SELECT", "INSERT", "UPDATE", "DELETE"):
+                    assert await priv(table, verb) is True, f"{table} {verb}"
+    finally:
         async with engine.begin() as conn:
             await drop_guild_schema(conn, gid)
 
@@ -634,12 +681,16 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
 
     _original = sp._grant_statements
 
-    def _different_grants(schema: str, role: str, ro_role: str) -> list[str]:
+    def _different_grants(
+        schema: str, role: str, ro_role: str, support_role: str
+    ) -> list[str]:
         return ["GRANT USAGE ON SCHEMA x TO y"]
 
-    def _cosmetic_rewrite(schema: str, role: str, ro_role: str) -> list[str]:
+    def _cosmetic_rewrite(
+        schema: str, role: str, ro_role: str, support_role: str
+    ) -> list[str]:
         # Different source text, byte-identical output.
-        return list(_original(schema, role, ro_role))
+        return list(_original(schema, role, ro_role, support_role))
 
     try:
         with mock.patch.object(sp, "_grant_statements", _different_grants):
@@ -654,3 +705,126 @@ async def test_provisioning_stamp_tracks_grant_behavior_not_cosmetics(engine):
     assert changed != baseline, "a behavioral grants change must move the stamp"
     assert cosmetic == baseline, "a cosmetic rewrite must NOT move the stamp"
     assert (await sp.get_provisioning_bundle()).stamp == baseline
+
+
+# --- ensure_system_engine_bypassrls (issue #835) -----------------------------
+#
+# A system-engine login without BYPASSRLS reads shared tables as empty and
+# boot seeding dies on the guilds RLS policy. The boot check must pass a
+# healthy posture untouched, repair the attribute when the provisioning login
+# lawfully can, and stop boot with instructions when it can't.
+
+
+async def _login_can_alter_bypassrls(engine) -> bool:
+    async with engine.connect() as conn:
+        return bool(
+            (
+                await conn.execute(
+                    text(
+                        "SELECT rolsuper OR rolbypassrls FROM pg_roles "
+                        "WHERE rolname = current_user"
+                    )
+                )
+            ).scalar()
+        )
+
+
+async def _create_policy_bound_login(engine, role: str, password: str):
+    """Create a LOGIN role WITHOUT BYPASSRLS and return an engine for it."""
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    async with engine.begin() as conn:
+        await conn.execute(text(f'DROP ROLE IF EXISTS "{role}"'))
+        await conn.execute(
+            text(f"CREATE ROLE \"{role}\" WITH LOGIN NOBYPASSRLS PASSWORD '{password}'")
+        )
+    return create_async_engine(
+        engine.url.set(username=role, password=password), echo=False
+    )
+
+
+async def _drop_login(engine, role: str) -> None:
+    async with engine.begin() as conn:
+        await conn.execute(text(f'DROP ROLE IF EXISTS "{role}"'))
+
+
+async def test_system_engine_check_passes_on_healthy_posture():
+    # The harness routes the admin engine to the real app_admin (BYPASSRLS)
+    # against the test DB — the check must be a silent no-op.
+    await schema_provisioning.ensure_system_engine_bypassrls()
+
+
+async def test_system_engine_check_heals_missing_bypassrls(engine, monkeypatch):
+    import app.db.session as db_session
+
+    if not await _login_can_alter_bypassrls(engine):
+        pytest.skip("test login may not alter BYPASSRLS roles")
+
+    role = f"{engine.url.database}_heal_role"
+    bound_engine = await _create_policy_bound_login(engine, role, "heal-pw")
+    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
+    # provisioning_engine is the (privileged) test engine via the harness.
+    try:
+        await schema_provisioning.ensure_system_engine_bypassrls()
+        async with engine.connect() as conn:
+            healed = (
+                await conn.execute(
+                    text("SELECT rolbypassrls FROM pg_roles WHERE rolname = :r"),
+                    {"r": role},
+                )
+            ).scalar()
+        assert healed, "the check must re-assert BYPASSRLS on the system engine"
+    finally:
+        await bound_engine.dispose()
+        await _drop_login(engine, role)
+
+
+async def test_system_engine_check_fails_closed_when_it_cannot_heal(
+    engine, monkeypatch
+):
+    import app.db.session as db_session
+
+    if not await _login_can_alter_bypassrls(engine):
+        pytest.skip("test login may not alter BYPASSRLS roles")
+
+    role = f"{engine.url.database}_unheal_role"
+    bound_engine = await _create_policy_bound_login(engine, role, "unheal-pw")
+    # Point BOTH engines at the policy-bound login: the provisioning side may
+    # not alter BYPASSRLS, so the check must stop boot with instructions.
+    monkeypatch.setattr(db_session, "admin_engine", bound_engine)
+    monkeypatch.setattr(db_session, "provisioning_engine", bound_engine)
+    try:
+        with pytest.raises(SystemExit) as excinfo:
+            await schema_provisioning.ensure_system_engine_bypassrls()
+        assert "ALTER ROLE" in str(excinfo.value)
+        assert role in str(excinfo.value)
+        # No repair was possible here, so the message must not claim one ran.
+        assert "already ran" not in str(excinfo.value)
+        async with engine.connect() as conn:
+            still_bound = (
+                await conn.execute(
+                    text("SELECT rolbypassrls FROM pg_roles WHERE rolname = :r"),
+                    {"r": role},
+                )
+            ).scalar()
+        assert not still_bound, "an unprivileged check must not change the role"
+    finally:
+        await bound_engine.dispose()
+        await _drop_login(engine, role)
+
+
+def test_bypassrls_exit_message_distinguishes_attempted_repair():
+    """The heal-attempted variant must say a repair already ran (so the
+    operator doesn't re-run an ALTER that silently changed nothing) and point
+    at role-resolution debugging; the plain variant must not claim one ran."""
+    plain = schema_provisioning._bypassrls_exit_message(
+        "app_admin", heal_attempted=False
+    )
+    attempted = schema_provisioning._bypassrls_exit_message(
+        "app_admin", heal_attempted=True
+    )
+    for message in (plain, attempted):
+        assert 'ALTER ROLE "app_admin" WITH BYPASSRLS;' in message
+    assert "already ran" not in plain
+    assert "already ran" in attempted
+    assert "current_user" in attempted  # the which-role-am-I diagnostic query

@@ -49,6 +49,7 @@ import { Route as ServerRequiredAuthenticatedSettingsPlatformIndexRouteImport } 
 import { Route as ServerRequiredAuthenticatedSettingsGuildIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/guild/index'
 import { Route as ServerRequiredAuthenticatedSettingsAdminIndexRouteImport } from './routes/_serverRequired/_authenticated/settings/admin/index'
 import { Route as ServerRequiredAuthenticatedGGuildIdIndexRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/index'
+import { Route as ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/storage'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/email'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformBrandingRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/branding'
 import { Route as ServerRequiredAuthenticatedSettingsPlatformAuthRouteImport } from './routes/_serverRequired/_authenticated/settings/platform/auth'
@@ -73,6 +74,7 @@ import { Route as ServerRequiredAuthenticatedGGuildIdSettingsUsersRouteImport } 
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsTrashRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/trash'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/initiatives'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/danger-zone'
+import { Route as ServerRequiredAuthenticatedGGuildIdSettingsAuthRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/auth'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsAiRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/ai'
 import { Route as ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/settings/advanced-tool'
 import { Route as ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRouteImport } from './routes/_serverRequired/_authenticated/g/$guildId/queues_.$queueId'
@@ -323,6 +325,12 @@ const ServerRequiredAuthenticatedGGuildIdIndexRoute =
     path: '/',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdRoute,
   } as any)
+const ServerRequiredAuthenticatedSettingsPlatformStorageRoute =
+  ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport.update({
+    id: '/storage',
+    path: '/storage',
+    getParentRoute: () => ServerRequiredAuthenticatedSettingsPlatformRoute,
+  } as any)
 const ServerRequiredAuthenticatedSettingsPlatformEmailRoute =
   ServerRequiredAuthenticatedSettingsPlatformEmailRouteImport.update({
     id: '/email',
@@ -465,6 +473,12 @@ const ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute =
   ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRouteImport.update({
     id: '/danger-zone',
     path: '/danger-zone',
+    getParentRoute: () => ServerRequiredAuthenticatedGGuildIdSettingsRoute,
+  } as any)
+const ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute =
+  ServerRequiredAuthenticatedGGuildIdSettingsAuthRouteImport.update({
+    id: '/auth',
+    path: '/auth',
     getParentRoute: () => ServerRequiredAuthenticatedGGuildIdSettingsRoute,
   } as any)
 const ServerRequiredAuthenticatedGGuildIdSettingsAiRoute =
@@ -630,6 +644,7 @@ export interface FileRoutesByFullPath {
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
+  '/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/g/$guildId/': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/guild/': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
@@ -642,6 +657,7 @@ export interface FileRoutesByFullPath {
   '/g/$guildId/queues/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
   '/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
+  '/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
   '/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
@@ -704,6 +720,7 @@ export interface FileRoutesByTo {
   '/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
+  '/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/g/$guildId': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/settings/admin': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/settings/guild': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
@@ -716,6 +733,7 @@ export interface FileRoutesByTo {
   '/g/$guildId/queues/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
   '/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
+  '/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
   '/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
@@ -787,6 +805,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/settings/platform/auth': typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   '/_serverRequired/_authenticated/settings/platform/branding': typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   '/_serverRequired/_authenticated/settings/platform/email': typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
+  '/_serverRequired/_authenticated/settings/platform/storage': typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   '/_serverRequired/_authenticated/g/$guildId/': typeof ServerRequiredAuthenticatedGGuildIdIndexRoute
   '/_serverRequired/_authenticated/settings/admin/': typeof ServerRequiredAuthenticatedSettingsAdminIndexRoute
   '/_serverRequired/_authenticated/settings/guild/': typeof ServerRequiredAuthenticatedSettingsGuildIndexRoute
@@ -799,6 +818,7 @@ export interface FileRoutesById {
   '/_serverRequired/_authenticated/g/$guildId/queues_/$queueId': typeof ServerRequiredAuthenticatedGGuildIdQueuesQueueIdRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/advanced-tool': typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/ai': typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
+  '/_serverRequired/_authenticated/g/$guildId/settings/auth': typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/danger-zone': typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/initiatives': typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   '/_serverRequired/_authenticated/g/$guildId/settings/trash': typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
@@ -869,6 +889,7 @@ export interface FileRouteTypes {
     | '/settings/platform/auth'
     | '/settings/platform/branding'
     | '/settings/platform/email'
+    | '/settings/platform/storage'
     | '/g/$guildId/'
     | '/settings/admin/'
     | '/settings/guild/'
@@ -881,6 +902,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/queues/$queueId'
     | '/g/$guildId/settings/advanced-tool'
     | '/g/$guildId/settings/ai'
+    | '/g/$guildId/settings/auth'
     | '/g/$guildId/settings/danger-zone'
     | '/g/$guildId/settings/initiatives'
     | '/g/$guildId/settings/trash'
@@ -943,6 +965,7 @@ export interface FileRouteTypes {
     | '/settings/platform/auth'
     | '/settings/platform/branding'
     | '/settings/platform/email'
+    | '/settings/platform/storage'
     | '/g/$guildId'
     | '/settings/admin'
     | '/settings/guild'
@@ -955,6 +978,7 @@ export interface FileRouteTypes {
     | '/g/$guildId/queues/$queueId'
     | '/g/$guildId/settings/advanced-tool'
     | '/g/$guildId/settings/ai'
+    | '/g/$guildId/settings/auth'
     | '/g/$guildId/settings/danger-zone'
     | '/g/$guildId/settings/initiatives'
     | '/g/$guildId/settings/trash'
@@ -1025,6 +1049,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/settings/platform/auth'
     | '/_serverRequired/_authenticated/settings/platform/branding'
     | '/_serverRequired/_authenticated/settings/platform/email'
+    | '/_serverRequired/_authenticated/settings/platform/storage'
     | '/_serverRequired/_authenticated/g/$guildId/'
     | '/_serverRequired/_authenticated/settings/admin/'
     | '/_serverRequired/_authenticated/settings/guild/'
@@ -1037,6 +1062,7 @@ export interface FileRouteTypes {
     | '/_serverRequired/_authenticated/g/$guildId/queues_/$queueId'
     | '/_serverRequired/_authenticated/g/$guildId/settings/advanced-tool'
     | '/_serverRequired/_authenticated/g/$guildId/settings/ai'
+    | '/_serverRequired/_authenticated/g/$guildId/settings/auth'
     | '/_serverRequired/_authenticated/g/$guildId/settings/danger-zone'
     | '/_serverRequired/_authenticated/g/$guildId/settings/initiatives'
     | '/_serverRequired/_authenticated/g/$guildId/settings/trash'
@@ -1341,6 +1367,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdIndexRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdRoute
     }
+    '/_serverRequired/_authenticated/settings/platform/storage': {
+      id: '/_serverRequired/_authenticated/settings/platform/storage'
+      path: '/storage'
+      fullPath: '/settings/platform/storage'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedSettingsPlatformStorageRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedSettingsPlatformRoute
+    }
     '/_serverRequired/_authenticated/settings/platform/email': {
       id: '/_serverRequired/_authenticated/settings/platform/email'
       path: '/email'
@@ -1507,6 +1540,13 @@ declare module '@tanstack/react-router' {
       path: '/danger-zone'
       fullPath: '/g/$guildId/settings/danger-zone'
       preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRouteImport
+      parentRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRoute
+    }
+    '/_serverRequired/_authenticated/g/$guildId/settings/auth': {
+      id: '/_serverRequired/_authenticated/g/$guildId/settings/auth'
+      path: '/auth'
+      fullPath: '/g/$guildId/settings/auth'
+      preLoaderRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRouteImport
       parentRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsRoute
     }
     '/_serverRequired/_authenticated/g/$guildId/settings/ai': {
@@ -1713,6 +1753,7 @@ interface ServerRequiredAuthenticatedSettingsPlatformRouteChildren {
   ServerRequiredAuthenticatedSettingsPlatformAuthRoute: typeof ServerRequiredAuthenticatedSettingsPlatformAuthRoute
   ServerRequiredAuthenticatedSettingsPlatformBrandingRoute: typeof ServerRequiredAuthenticatedSettingsPlatformBrandingRoute
   ServerRequiredAuthenticatedSettingsPlatformEmailRoute: typeof ServerRequiredAuthenticatedSettingsPlatformEmailRoute
+  ServerRequiredAuthenticatedSettingsPlatformStorageRoute: typeof ServerRequiredAuthenticatedSettingsPlatformStorageRoute
   ServerRequiredAuthenticatedSettingsPlatformIndexRoute: typeof ServerRequiredAuthenticatedSettingsPlatformIndexRoute
 }
 
@@ -1726,6 +1767,8 @@ const ServerRequiredAuthenticatedSettingsPlatformRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedSettingsPlatformBrandingRoute,
     ServerRequiredAuthenticatedSettingsPlatformEmailRoute:
       ServerRequiredAuthenticatedSettingsPlatformEmailRoute,
+    ServerRequiredAuthenticatedSettingsPlatformStorageRoute:
+      ServerRequiredAuthenticatedSettingsPlatformStorageRoute,
     ServerRequiredAuthenticatedSettingsPlatformIndexRoute:
       ServerRequiredAuthenticatedSettingsPlatformIndexRoute,
   }
@@ -1759,6 +1802,7 @@ const ServerRequiredAuthenticatedSettingsRouteWithChildren =
 interface ServerRequiredAuthenticatedGGuildIdSettingsRouteChildren {
   ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute
   ServerRequiredAuthenticatedGGuildIdSettingsAiRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAiRoute
+  ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute
   ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute
   ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute
   ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute: typeof ServerRequiredAuthenticatedGGuildIdSettingsTrashRoute
@@ -1772,6 +1816,8 @@ const ServerRequiredAuthenticatedGGuildIdSettingsRouteChildren: ServerRequiredAu
       ServerRequiredAuthenticatedGGuildIdSettingsAdvancedToolRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsAiRoute:
       ServerRequiredAuthenticatedGGuildIdSettingsAiRoute,
+    ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute:
+      ServerRequiredAuthenticatedGGuildIdSettingsAuthRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute:
       ServerRequiredAuthenticatedGGuildIdSettingsDangerZoneRoute,
     ServerRequiredAuthenticatedGGuildIdSettingsInitiativesRoute:

@@ -119,6 +119,7 @@ _CONTEXT_SQL = (
     "set_config('app.pam_guild_id', :pgid, true), "
     "set_config('app.pam_read', :pr, true), "
     "set_config('app.pam_write', :pw, true), "
+    "set_config('app.billing_guild_id', :bgid, true), "
     "set_config('search_path', :sp, true), "
     "set_config('role', :role, true)"
 )
@@ -137,6 +138,26 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
     pam_read = bool(params.get("pam_read"))
     pam_write = bool(params.get("pam_write"))
     platform_role = params.get("platform_role")
+    read_only = bool(params.get("read_only"))
+    billing_guild_id = params.get("billing_guild_id")
+
+    # Billing-service path (set_billing_context): assumes the
+    # initiative_billing role with only the billing GUC set — no
+    # user/guild/PAM context.
+    if billing_guild_id is not None:
+        from app.db.schema_provisioning import billing_role_name
+
+        return {
+            "uid": "",
+            "gid": "",
+            "grole": "",
+            "pgid": "",
+            "pr": "false",
+            "pw": "false",
+            "bgid": str(int(billing_guild_id)),
+            "sp": "public",
+            "role": billing_role_name(),
+        }
 
     # Route guild-scoped tables to the active guild's schema AND assume that
     # guild's role. The login role has no standing access to any guild schema
@@ -149,6 +170,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         guild_readonly_role_name,
         guild_role_name,
         guild_schema_name,
+        guild_support_role_name,
         platform_role_name,
     )
 
@@ -166,10 +188,21 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         )
     else:
         sp = f"{guild_schema_name(route_guild)}, public"
-        # A pure read grant (read, not write, no full membership) assumes the
-        # read-only role so writes to the schema are denied at the role level.
+        # Pick the guild role by how access was granted:
+        # - read grant, or a read_only-status member (guild_id set + read_only):
+        #   the SELECT-only guild_<id>_ro role — writes denied at the role level.
+        # - scoped read_write grant (no membership, pam_write): the restricted
+        #   guild_<id>_support role — content DML but no writes to the structural
+        #   / permission tables (the ``support`` identity).
+        # - otherwise (real membership, break-glass): the full guild_<id> role.
         read_only_grant = guild_id is None and pam_read and not pam_write
-        name_fn = guild_readonly_role_name if read_only_grant else guild_role_name
+        support_grant = guild_id is None and pam_write
+        if read_only_grant or read_only:
+            name_fn = guild_readonly_role_name
+        elif support_grant:
+            name_fn = guild_support_role_name
+        else:
+            name_fn = guild_role_name
         role_target = name_fn(route_guild)
 
     return {
@@ -179,6 +212,7 @@ def _render_context_bind_params(params: dict[str, Any]) -> dict[str, str]:
         "pgid": str(int(pam_guild_id)) if pam_guild_id is not None else "",
         "pr": "true" if pam_read else "false",
         "pw": "true" if pam_write else "false",
+        "bgid": "",
         "sp": sp,
         "role": role_target,
     }
@@ -225,6 +259,7 @@ async def set_rls_context(
     pam_read: bool = False,
     pam_write: bool = False,
     platform_role: Optional[str] = None,
+    read_only: bool = False,
 ) -> None:
     """Set PostgreSQL context for RLS policy evaluation — transaction-local.
 
@@ -246,6 +281,13 @@ async def set_rls_context(
     ``current_guild_id`` as proof of membership, so a grantee must leave it
     unset and be scoped via ``pam_guild_id`` instead. A grantee gets scoped,
     time-bound access to one guild; there is no all-guild bypass.
+
+    ``read_only`` routes a REAL MEMBER into the SELECT-only ``guild_<id>_ro``
+    role while keeping the full membership GUCs — used when the guild is in
+    ``read_only`` lifecycle status, so content writes die at the Postgres role
+    level while reads (and the member/admin RLS legs) behave normally. It is
+    independent of the PAM read-grant routing, which derives the same role
+    from ``pam_read``/``pam_write``.
 
     ``platform_role`` is the caller's platform tier (``users.role``). When the
     request carries no guild context (and no active PAM grant), the public/platform
@@ -277,6 +319,7 @@ async def set_rls_context(
         "pam_read": pam_read,
         "pam_write": pam_write,
         "platform_role": platform_role,
+        "read_only": read_only,
     }
     session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
 
@@ -285,6 +328,22 @@ async def set_rls_context(
     # hook has already fired and the new context must land NOW. On a fresh
     # session, the caller's first statement autobegins and the hook applies
     # the stored params; applying here too would just do it twice.
+    if session.in_transaction():
+        await _apply_stored_context(session)
+
+
+async def set_billing_context(session: AsyncSession, *, guild_id: int) -> None:
+    """Route a verified billing-service request — transaction-local.
+
+    Assumes the ``initiative_billing`` role and sets ``app.billing_guild_id``
+    to the guild named in the verified request (see
+    ``app.services.platform.billing``), which the role's RLS policies key on.
+    Carries no user identity, so the ``RLS_CONTEXT_MAX_AGE_SECONDS`` freshness
+    bound does not apply. Same storage/replay mechanics as
+    :func:`set_rls_context`.
+    """
+    session.info[_RLS_PARAMS_INFO_KEY] = {"billing_guild_id": int(guild_id)}
+    session.info[_RLS_ESTABLISHED_INFO_KEY] = time.monotonic()
     if session.in_transaction():
         await _apply_stored_context(session)
 

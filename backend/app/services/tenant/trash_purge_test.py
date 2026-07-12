@@ -191,3 +191,62 @@ async def test_auto_purge_clears_content_table_guard(
         )
     ).scalar_one()
     assert count == 0, "trashed project was not hard-purged by the worker"
+
+
+async def test_auto_purge_skips_non_active_guilds(session: AsyncSession, role_session):
+    """A guild in ``read_only``/``suspended`` status is frozen: the worker must
+    not keep destroying its trashed rows while a billing/moderation hold is
+    unresolved. Purging resumes (original ``purge_at`` stamps) once the guild
+    returns to active."""
+    from app.models.platform.guild import GuildStatus
+    from app.services.tenant.trash_purge import _purge_all_guilds
+
+    user = await create_user(session)
+    guild = await create_guild(session, creator=user)
+    initiative = await create_initiative(session, guild, user)
+
+    await soft_delete_entity(
+        session, initiative, deleted_by_user_id=user.id, retention_days=1
+    )
+    await session.commit()
+    refreshed = (
+        await session.exec(
+            select_including_deleted(Initiative).where(Initiative.id == initiative.id)
+        )
+    ).one()
+    refreshed.purge_at = datetime.now(timezone.utc) - timedelta(days=2)
+    session.add(refreshed)
+
+    guild.status = GuildStatus.suspended.value
+    session.add(guild)
+    await session.commit()
+    initiative_id = initiative.id
+
+    admin = await role_session("app_admin")
+    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+
+    from app.db.session import set_rls_context
+
+    await set_rls_context(admin, guild_id=guild.id, guild_role="admin")
+    count = (
+        await admin.exec(
+            text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
+            params={"id": initiative_id},
+        )
+    ).scalar_one()
+    assert count == 1, "suspended guild's trash must NOT be purged"
+
+    # Back to active: the same due row is swept on the next pass.
+    guild.status = GuildStatus.active.value
+    session.add(guild)
+    await session.commit()
+
+    await _purge_all_guilds(admin, now=datetime.now(timezone.utc))
+    await set_rls_context(admin, guild_id=guild.id, guild_role="admin")
+    count = (
+        await admin.exec(
+            text("SELECT COUNT(*) FROM initiatives WHERE id = :id"),
+            params={"id": initiative_id},
+        )
+    ).scalar_one()
+    assert count == 0, "reactivated guild's due trash must purge again"

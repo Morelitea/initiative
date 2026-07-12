@@ -255,6 +255,25 @@
   "expiresInMinutes": "caduca en {{minutes}} min",
   "grantBanner": {
     "readOnly": "Tienes acceso temporal de solo lectura a {{guild}}.",
-    "readWrite": "Tienes acceso temporal a {{guild}}."
+    "readWrite": "Tienes acceso temporal a {{guild}}.",
+    "guildReadOnly": "Este gremio es de solo lectura",
+    "guildSuspended": "Este gremio está suspendido"
+  },
+  "readOnlyBanner": {
+    "message": "{{guild}} está actualmente en modo de solo lectura. Puedes consultar todo, pero los cambios están desactivados."
+  },
+  "usagePanel": {
+    "title": "Uso",
+    "storage": "Almacenamiento",
+    "members": "Miembros",
+    "unlimited": "Ilimitado",
+    "usedOfMax": "{{used}} de {{max}}",
+    "usedOfUnlimited": "{{used}} usado · Ilimitado",
+    "membersOfMax": "{{used}} de {{max}}",
+    "membersOfUnlimited": "{{used}} · Ilimitado",
+    "currentPlan": "Plan actual:",
+    "selfHosted": "Autoalojado",
+    "upgrade": "Mejorar",
+    "manageBilling": "Gestionar facturación"
   }
 }

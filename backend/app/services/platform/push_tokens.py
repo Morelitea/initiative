@@ -82,7 +82,7 @@ async def delete_push_token(
     )
     result = await session.exec(stmt)
     await session.commit()
-    return result.rowcount > 0  # type: ignore
+    return result.rowcount > 0
 
 
 async def update_last_used(

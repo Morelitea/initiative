@@ -330,7 +330,7 @@ History favors short subjects (e.g., `MVP WIP 1`), so keep the first line impera
 
 ## Security & Configuration Tips
 
-Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, `AUTO_APPROVED_EMAIL_DOMAINS`, and optional `FIRST_SUPERUSER_*`, then run `alembic upgrade head` (or `python -m app.db.init_db`) so the schema is current and default settings/SUs are seeded. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.
+Copy `backend/.env.example`, set `DATABASE_URL`, `SECRET_KEY`, and optional `FIRST_SUPERUSER_*`, then run `alembic upgrade head` (or `python -m app.db.init_db`) so the schema is current and default settings/SUs are seeded. The SPA reads `VITE_API_URL`; align it with the reverse-proxy host in every environment. If enabling OIDC, ensure `APP_URL` is publicly reachable so computed callback URLs stay valid.
 
 ## Tenancy, Database Architecture & RLS
 
@@ -378,7 +378,7 @@ The path depends on where the table lives:
 
 - Guilds are the primary tenancy boundary; users can join many. The active guild is **addressed in the URL path** (`/g/{guild_id}/…`) — there is no server-held active guild (`users.active_guild_id` was removed) and no `X-Guild-ID` header. `GuildContextDep`/`RLSSessionDep` resolve the guild from the path and re-validate membership (or a live PAM/break-glass grant) per request; a forged/stale path fails closed (403). Cross-guild "my" views are `/api/v1/me/*`.
 - Guild membership has two roles (`admin`, `member`). Guild admins own memberships, invites, initiative/project config, and can delete their guild. A guild admin sees the whole guild via the `current_guild_role='admin'` RLS leg, not a bypass.
-- **Platform roles are a 5-rung ladder** (`member → support → moderator → admin → owner`, stored in `users.role`) resolved to capabilities in `backend/app/core/capabilities.py`. Gate platform endpoints on a capability via `require_capability(...)`, not a role name. App-wide config (OIDC, SMTP, branding, role labels, platform AI) requires `config.manage` (owner-only); the first/bootstrap user becomes `owner`. Never leave the platform without a `config.manage` holder.
+- **Platform roles are a 5-rung ladder** (`member → support → moderator → operator → owner`, stored in `users.role`) resolved to capabilities in `backend/app/core/capabilities.py`. Gate platform endpoints on a capability via `require_capability(...)`, not a role name. App-wide config (OIDC, SMTP, branding, role labels, platform AI) requires `config.manage` (owner-only); the first/bootstrap user becomes `owner`. Never leave the platform without a `config.manage` holder.
 - `.env` supports `DISABLE_GUILD_CREATION`: when `true`, POST `/guilds/` returns 403 and the SPA hides “Create guild” affordances.
 - Every new guild **provisions its `guild_<id>` schema + per-guild roles**, seeds a "Default Initiative", and makes the creator a guild admin. Guild deletion must drop the schema + roles and clean up the shared rows that cascade off `public.guilds`.
 

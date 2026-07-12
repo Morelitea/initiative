@@ -46,9 +46,14 @@ from app.models.tenant.counter import (
 from app.models.tenant.upload import Upload
 from app.models.platform.user_view_preference import UserViewPreference
 from app.models.platform.access_grant import AccessGrant
+from app.models.platform.auth_provider import AuthProvider
+from app.models.platform.auth_provider_secret import AuthProviderSecret
+from app.models.platform.auth_session import AuthSession
+from app.models.platform.federated_identity import FederatedIdentity
 from app.models.platform.user_token import UserToken
 from app.models.platform.push_token import PushToken
 from app.models.platform.auto_delegation_jti import AutoDelegationJti
+from app.models.platform.billing import BillingEventLog, BillingJti
 from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
@@ -57,6 +62,10 @@ from app.models.tenant.advanced_tool import AdvancedTool
 __all__ = [
     "User",
     "AccessGrant",
+    "AuthProvider",
+    "AuthProviderSecret",
+    "AuthSession",
+    "FederatedIdentity",
     "ResourceGrant",
     "AdvancedTool",
     "Project",
@@ -105,6 +114,8 @@ __all__ = [
     "UserToken",
     "PushToken",
     "AutoDelegationJti",
+    "BillingEventLog",
+    "BillingJti",
     "TaskAssignmentDigestItem",
     "WebhookSubscription",
 ]

@@ -62,6 +62,10 @@ export function useInitiativeAccess() {
   const isGuildAdmin = activeGuild?.role === "admin";
   const isGrantGuild = activeGuild?.accessType === "grant";
   const grantReadWrite = isGrantGuild && activeGuild?.grantAccessLevel === "read_write";
+  // Content writes are frozen server-side (read_only lifecycle status) for
+  // real members — admins included. Grant entries never carry the flag (PAM /
+  // break-glass override the status), so no accessType check is needed.
+  const contentReadOnly = Boolean(activeGuild?.content_read_only);
   // Admins and PAM grantees see every initiative in the guild.
   const seesAllInitiatives = isGuildAdmin || isGrantGuild;
 
@@ -87,7 +91,7 @@ export function useInitiativeAccess() {
   const permissionsFor = useCallback(
     (initiative: InitiativeRead): InitiativeToolAccess => {
       if (!user) return readOnlyDefault;
-      if (isGuildAdmin) return fullAccess(initiative, true);
+      if (isGuildAdmin) return fullAccess(initiative, !contentReadOnly);
       if (isGrantGuild) return fullAccess(initiative, grantReadWrite);
       const membership = initiative.members.find((m) => m.user.id === user.id);
       if (!membership) return readOnlyDefault;
@@ -96,12 +100,12 @@ export function useInitiativeAccess() {
           tool,
           {
             view: Boolean(membership[toolMemberViewFlag(tool)] ?? TOOL_REGISTRY[tool].core),
-            create: Boolean(membership[toolMemberCreateFlag(tool)] ?? false),
+            create: !contentReadOnly && Boolean(membership[toolMemberCreateFlag(tool)] ?? false),
           },
         ])
       ) as InitiativeToolAccess;
     },
-    [user, isGuildAdmin, isGrantGuild, grantReadWrite]
+    [user, isGuildAdmin, isGrantGuild, grantReadWrite, contentReadOnly]
   );
 
   /** Whether the user can manage (PM/admin) a specific initiative. A grant

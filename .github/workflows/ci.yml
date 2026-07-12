@@ -46,7 +46,6 @@ jobs:
       DATABASE_URL_ADMIN: postgresql+asyncpg://app_admin:app_admin@localhost:6432/initiative_test
       # Fixed test-only key (64 hex chars). Not a secret: CI databases are ephemeral.
       SECRET_KEY: 3b9c63094f48ae5b21e23a9d6d34a8e6f1f1f24cb0a44c84a25e36c9d4a7f1d2
-      AUTO_APPROVED_EMAIL_DOMAINS: '["example.com"]'
 
     steps:
       - uses: actions/checkout@v7
@@ -149,14 +148,13 @@ jobs:
           uv run ruff format --check app
 
       - name: Type-check with ty
-        # Scoped gate: only ty's `invalid-return-type` rule is enforced (every
-        # other rule is ignored), mirroring the old Pyright `reportReturnType`
-        # gate — fails on return-type regressions without drowning in the
-        # SQLModel/ORM-expression false positives ty reports by default.
+        # Full default rule set; the only exclusions are the SQLModel/ORM
+        # false-positive rules disabled in backend/pyproject.toml
+        # ([tool.ty.rules]), which is the single source of truth for the gate.
         if: steps.changes.outputs.skip != 'true'
         run: |
           cd backend
-          uv run ty check app --ignore all --error invalid-return-type
+          uv run ty check app
 
 
       - name: Start PgBouncer (transaction mode)

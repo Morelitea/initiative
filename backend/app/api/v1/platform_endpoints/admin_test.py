@@ -30,7 +30,9 @@ async def test_export_platform_users_csv_as_admin(
     client: AsyncClient, session: AsyncSession
 ):
     """Platform admins can export all users as CSV."""
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     await create_user(session, email="user1@example.com", full_name="One")
     await create_user(session, email="user2@example.com", full_name="Two")
 
@@ -79,7 +81,9 @@ async def test_export_platform_users_csv_single_user_id(
     client: AsyncClient, session: AsyncSession
 ):
     """Passing one user_id returns exactly that row with a per-user filename."""
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     target = await create_user(session, email="target@example.com")
 
     headers = get_auth_headers(admin)
@@ -99,7 +103,9 @@ async def test_export_platform_users_csv_multi_user_id(
     client: AsyncClient, session: AsyncSession
 ):
     """Two user_id values return two rows with a bulk-style filename."""
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     a = await create_user(session, email="a@example.com")
     b = await create_user(session, email="b@example.com")
 
@@ -120,7 +126,9 @@ async def test_export_platform_users_csv_no_matches_returns_404(
     client: AsyncClient, session: AsyncSession
 ):
     """All requested ids missing -> 404."""
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
 
     headers = get_auth_headers(admin)
     response = await client.get(
@@ -143,7 +151,9 @@ async def test_anonymized_user_cannot_be_deactivated_or_re_anonymized(
     """
     from app.services.platform import users as users_service
 
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     target = await create_user(session, email="target@example.com")
     await users_service.soft_delete_user(session, target.id)
 
@@ -195,7 +205,9 @@ async def test_admin_delete_rejects_surplus_project_transfers(
     )
     from app.models.platform.guild import GuildRole
 
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     target = await create_user(session, email="target@example.com")
     bystander = await create_user(session, email="bystander@example.com")
 
@@ -262,7 +274,9 @@ async def test_platform_role_change_rejected_on_inactive_users(
     from app.models.platform.user import User
     from app.services.platform import users as users_service
 
-    admin = await create_user(session, email="admin@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin@example.com", role=UserRole.operator
+    )
     headers = get_auth_headers(admin)
 
     # 1. Deactivated regular user — promote attempt rejected.
@@ -271,7 +285,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     response = await client.patch(
         f"/api/v1/admin/users/{deact_member.id}/platform-role",
         headers=headers,
-        json={"role": "admin"},
+        json={"role": "operator"},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
@@ -282,7 +296,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
 
     # 2. Deactivated admin user — demote attempt rejected.
     second_admin = await create_user(
-        session, email="second-admin@example.com", role=UserRole.admin
+        session, email="second-admin@example.com", role=UserRole.operator
     )
     await users_service.deactivate_user(session, second_admin.id)
     response = await client.patch(
@@ -295,7 +309,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     refreshed = (
         await session.exec(select(User).where(User.id == second_admin.id))
     ).one()
-    assert refreshed.role == UserRole.admin
+    assert refreshed.role == UserRole.operator
 
     # 3. Anonymized user — both directions rejected.
     anon = await create_user(session, email="anon-target@example.com")
@@ -305,7 +319,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     response = await client.patch(
         f"/api/v1/admin/users/{anon.id}/platform-role",
         headers=headers,
-        json={"role": "admin"},
+        json={"role": "operator"},
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
@@ -316,7 +330,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     # demoted the row to member, so flip role back to admin directly
     # in the DB (bypassing the endpoint, which would refuse) to set up
     # the demote scenario.
-    refreshed.role = UserRole.admin
+    refreshed.role = UserRole.operator
     session.add(refreshed)
     await session.commit()
     response = await client.patch(
@@ -327,7 +341,7 @@ async def test_platform_role_change_rejected_on_inactive_users(
     assert response.status_code == 400
     assert response.json()["detail"] == "ADMIN_CANNOT_CHANGE_ROLE_INACTIVE"
     refreshed = (await session.exec(select(User).where(User.id == anon.id))).one()
-    assert refreshed.role == UserRole.admin
+    assert refreshed.role == UserRole.operator
 
 
 @pytest.mark.integration
@@ -345,10 +359,10 @@ async def test_demote_admin_uses_for_update_path_without_postgres_error(
     from app.models.platform.user import User
 
     deleter = await create_user(
-        session, email="deleter@example.com", role=UserRole.admin
+        session, email="deleter@example.com", role=UserRole.operator
     )
     target = await create_user(
-        session, email="demoteme@example.com", role=UserRole.admin
+        session, email="demoteme@example.com", role=UserRole.operator
     )
 
     response = await client.patch(
@@ -360,3 +374,88 @@ async def test_demote_admin_uses_for_update_path_without_postgres_error(
 
     refreshed = (await session.exec(select(User).where(User.id == target.id))).one()
     assert refreshed.role == UserRole.member
+
+
+@pytest.mark.integration
+async def test_admin_delete_guild_requires_sole_admin_blocker(
+    client: AsyncClient, session: AsyncSession
+):
+    """Operator guild deletion is scoped to blocker resolution: it succeeds only
+    when the named user is the guild's SOLE admin (deleting them would orphan
+    it). A guild with another admin is not a blocker → refused."""
+    from sqlmodel import select
+
+    from app.core.messages import AdminMessages
+    from app.models.platform.guild import Guild, GuildRole
+    from app.testing.factories import create_guild, create_guild_membership
+
+    operator = await create_user(
+        session, email="op-del-guild@example.com", role=UserRole.owner
+    )
+    target = await create_user(session, email="sole-admin@example.com")
+    guild = await create_guild(session, creator=target)
+    await create_guild_membership(
+        session, user=target, guild=guild, role=GuildRole.admin
+    )
+
+    # Another admin exists → the guild is NOT orphaned by deleting target → 403.
+    coadmin = await create_user(session, email="co-admin@example.com")
+    await create_guild_membership(
+        session, user=coadmin, guild=guild, role=GuildRole.admin
+    )
+    resp = await client.delete(
+        f"/api/v1/admin/guilds/{guild.id}?blocked_user_id={target.id}",
+        headers=get_auth_headers(operator),
+    )
+    assert resp.status_code == 403, resp.text
+    assert resp.json()["detail"] == AdminMessages.GUILD_NOT_A_DELETION_BLOCKER
+    still_there = (
+        await session.exec(select(Guild).where(Guild.id == guild.id))
+    ).one_or_none()
+    assert still_there is not None, "a non-blocker guild must not be deleted"
+
+
+@pytest.mark.integration
+async def test_admin_delete_guild_deletes_genuine_blocker(
+    client: AsyncClient, session: AsyncSession
+):
+    """When the user is the guild's sole admin, the operator can delete it to
+    resolve the user-deletion blocker."""
+    from sqlmodel import select
+
+    from app.models.platform.guild import Guild, GuildRole
+    from app.testing.factories import create_guild, create_guild_membership
+
+    operator = await create_user(
+        session, email="op-del-guild2@example.com", role=UserRole.owner
+    )
+    target = await create_user(session, email="sole-admin2@example.com")
+    guild = await create_guild(session, creator=target)
+    await create_guild_membership(
+        session, user=target, guild=guild, role=GuildRole.admin
+    )
+
+    resp = await client.delete(
+        f"/api/v1/admin/guilds/{guild.id}?blocked_user_id={target.id}",
+        headers=get_auth_headers(operator),
+    )
+    assert resp.status_code == 204, resp.text
+    gone = (await session.exec(select(Guild).where(Guild.id == guild.id))).one_or_none()
+    assert gone is None, "the sole-admin blocker guild should be deleted"
+
+
+@pytest.mark.integration
+async def test_admin_delete_guild_requires_blocked_user_id(
+    client: AsyncClient, session: AsyncSession
+):
+    """The blocked_user_id query param is required — no bare 'delete any guild'."""
+    from app.testing.factories import create_guild
+
+    operator = await create_user(
+        session, email="op-del-guild3@example.com", role=UserRole.owner
+    )
+    guild = await create_guild(session, creator=operator)
+    resp = await client.delete(
+        f"/api/v1/admin/guilds/{guild.id}", headers=get_auth_headers(operator)
+    )
+    assert resp.status_code == 422

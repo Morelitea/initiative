@@ -258,7 +258,7 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
         email="toanonymize@example.com",
         full_name="Anonymizer Test",
         avatar_url="https://example.com/avatar.png",
-        role=UserRole.admin,
+        role=UserRole.operator,
     )
     admin = await create_user(session, email="admin@example.com")
     guild = await create_guild(session, creator=admin)
@@ -331,6 +331,136 @@ async def test_soft_delete_user_anonymizes_pii(session: AsyncSession):
     assert api_keys == []
     assert user_tokens_left == []
     assert push_tokens_left == []
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_soft_delete_user_scrubs_addressed_invites(session: AsyncSession):
+    """Anonymizing a user must erase their address from any guild invite bound
+    to it — a lingering invite otherwise keeps a reversible copy of the very
+    email the erasure was meant to remove. The matched invite is also
+    neutralised so nulling its bound address can't demote a single-recipient
+    invite into an open shareable link. Invites for other people, and unbound
+    (shareable-link) invites, are left untouched."""
+    from app.models.platform.guild import GuildInvite
+    from app.services.platform import guilds as guild_service
+
+    victim = await create_user(session, email="scrubme@example.com")
+    admin = await create_user(session, email="inviteadmin@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=victim, guild=guild, role=GuildRole.member
+    )
+
+    # Active invite addressed to the victim — the recoverable PII trace.
+    victim_invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=admin.id,
+        invitee_email="scrubme@example.com",
+        max_uses=1,
+        expires_at=None,
+    )
+    # Invite for someone else — must be untouched.
+    other_invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=admin.id,
+        invitee_email="keep@example.com",
+        max_uses=1,
+        expires_at=None,
+    )
+    # Unbound shareable link (no address) — must be untouched.
+    open_invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=admin.id,
+        invitee_email=None,
+        max_uses=5,
+        expires_at=None,
+    )
+    victim_invite_id = victim_invite.id
+    other_invite_id = other_invite.id
+    open_invite_id = open_invite.id
+
+    # Sanity: the victim's invite is active/bound before erasure.
+    assert guild_service.invite_is_active(victim_invite) is True
+
+    await user_service.soft_delete_user(session, victim.id)
+    session.expunge_all()
+
+    scrubbed = (
+        await session.exec(
+            select(GuildInvite).where(GuildInvite.id == victim_invite_id)
+        )
+    ).one()
+    # Address erased, and the invite neutralised so it can't act as an open link.
+    assert scrubbed.invitee_email_encrypted is None
+    assert scrubbed.invitee_email is None
+    assert scrubbed.max_uses == 0
+    assert guild_service.invite_is_active(scrubbed) is False
+
+    # Someone else's invite is untouched.
+    other_after = (
+        await session.exec(select(GuildInvite).where(GuildInvite.id == other_invite_id))
+    ).one()
+    assert other_after.invitee_email == "keep@example.com"
+    assert other_after.max_uses == 1
+
+    # Unbound shareable-link invites are untouched.
+    open_after = (
+        await session.exec(select(GuildInvite).where(GuildInvite.id == open_invite_id))
+    ).one()
+    assert open_after.invitee_email is None
+    assert open_after.max_uses == 5
+
+
+@pytest.mark.integration
+@pytest.mark.service
+async def test_hard_delete_user_scrubs_addressed_invites(session: AsyncSession):
+    """Hard delete has the same residual-PII gap: an invite addressed to the
+    removed user keeps a reversible copy of their email. The invitee address
+    must be scrubbed — distinct from the ``created_by_user_id`` NULLing, which
+    only covers invites the user *sent* (here the inviter is a different
+    admin, so only the invitee-scrub can clear it)."""
+    from app.models.platform.guild import GuildInvite
+    from app.services.platform import guilds as guild_service
+
+    victim = await create_user(session, email="hardscrub@example.com")
+    admin = await create_user(session, email="hardadmin@example.com")
+    guild = await create_guild(session, creator=admin)
+    await create_guild_membership(
+        session, user=victim, guild=guild, role=GuildRole.member
+    )
+
+    invite = await guild_service.create_guild_invite(
+        session,
+        guild_id=guild.id,
+        created_by_user_id=admin.id,
+        invitee_email="hardscrub@example.com",
+        max_uses=1,
+        expires_at=None,
+    )
+    invite_id = invite.id
+    victim_id = victim.id
+
+    await user_service.hard_delete_user(session, victim_id, {})
+    session.expunge_all()
+
+    # User row is gone...
+    assert (
+        await session.exec(select(User).where(User.id == victim_id))
+    ).one_or_none() is None
+    # ...and no invite retains their recoverable address.
+    scrubbed = (
+        await session.exec(select(GuildInvite).where(GuildInvite.id == invite_id))
+    ).one()
+    assert scrubbed.invitee_email_encrypted is None
+    assert scrubbed.invitee_email is None
+    # ...and it's neutralised so nulling the bound address can't leave it as an
+    # open shareable link.
+    assert scrubbed.max_uses == 0
+    assert guild_service.invite_is_active(scrubbed) is False
 
 
 @pytest.mark.unit
@@ -430,7 +560,7 @@ async def test_is_last_platform_admin_excludes_plain_admin(session: AsyncSession
 
     await create_user(session, email="owner@example.com", role=UserRole.owner)
     plain_admin = await create_user(
-        session, email="admin@example.com", role=UserRole.admin
+        session, email="admin@example.com", role=UserRole.operator
     )
 
     assert await user_service.is_last_platform_admin(session, plain_admin.id) is False

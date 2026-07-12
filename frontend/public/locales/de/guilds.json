@@ -255,6 +255,25 @@
   "expiresInMinutes": "läuft in {{minutes}} Min. ab",
   "grantBanner": {
     "readOnly": "Du hast temporären schreibgeschützten Zugriff auf {{guild}}.",
-    "readWrite": "Du hast temporären Zugriff auf {{guild}}."
+    "readWrite": "Du hast temporären Zugriff auf {{guild}}.",
+    "guildReadOnly": "Diese Gilde ist schreibgeschützt",
+    "guildSuspended": "Diese Gilde ist gesperrt"
+  },
+  "readOnlyBanner": {
+    "message": "{{guild}} ist derzeit schreibgeschützt. Du kannst alles ansehen, aber Änderungen sind deaktiviert."
+  },
+  "usagePanel": {
+    "title": "Nutzung",
+    "storage": "Speicher",
+    "members": "Mitglieder",
+    "unlimited": "Unbegrenzt",
+    "usedOfMax": "{{used}} von {{max}}",
+    "usedOfUnlimited": "{{used}} verwendet · Unbegrenzt",
+    "membersOfMax": "{{used}} von {{max}}",
+    "membersOfUnlimited": "{{used}} · Unbegrenzt",
+    "currentPlan": "Aktueller Tarif:",
+    "selfHosted": "Selbst gehostet",
+    "upgrade": "Upgrade",
+    "manageBilling": "Abrechnung verwalten"
   }
 }

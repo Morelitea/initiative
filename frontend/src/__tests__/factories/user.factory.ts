@@ -26,7 +26,7 @@ const ROLE_CAPABILITIES: Record<UserRole, string[]> = {
     "users.manage",
     "users.read",
   ],
-  admin: [
+  operator: [
     "access.approve",
     "access.read",
     "access.request",

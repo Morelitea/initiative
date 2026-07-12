@@ -26,7 +26,7 @@ def test_config_manage_is_owner_only():
 @pytest.mark.unit
 def test_data_bypass_is_admin_and_owner():
     assert roles_with_capability(Capability.DATA_BYPASS) == frozenset(
-        {UserRole.admin, UserRole.owner}
+        {UserRole.operator, UserRole.owner}
     )
 
 
@@ -44,11 +44,11 @@ def test_owner_can_assign_every_role():
 
 @pytest.mark.unit
 def test_admin_can_assign_up_to_admin_but_not_owner():
-    admin = _Actor(UserRole.admin)
+    admin = _Actor(UserRole.operator)
     assert can_assign_role(admin, UserRole.member) is True
     assert can_assign_role(admin, UserRole.support) is True
     assert can_assign_role(admin, UserRole.moderator) is True
-    assert can_assign_role(admin, UserRole.admin) is True
+    assert can_assign_role(admin, UserRole.operator) is True
     assert can_assign_role(admin, UserRole.owner) is False
 
 

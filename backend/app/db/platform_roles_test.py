@@ -119,7 +119,9 @@ async def test_acting_user_defaults_to_owner(client, acting_user):
     assert resp.status_code == 200
 
 
-@pytest.mark.parametrize("tier", ["member", "support", "moderator", "admin", "owner"])
+@pytest.mark.parametrize(
+    "tier", ["member", "support", "moderator", "operator", "owner"]
+)
 async def test_acting_user_emulates_each_tier(client, acting_user, tier):
     """Any tier can be emulated; the public path serves all of them (Phase 1 keeps
     RLS unchanged, so every tier runs a personal-mode request like today)."""

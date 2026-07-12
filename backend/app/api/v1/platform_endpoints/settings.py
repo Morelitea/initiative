@@ -14,6 +14,7 @@ from app.api.deps import (
     require_guild_roles,
 )
 from app.api.v1.platform_endpoints.admin import ConfigManageDep, GuildsManageDep
+from app.core.config import API_V1_STR
 from app.core.config import settings as app_config
 from app.core.rate_limit import limiter
 from app.db.session import get_admin_session, set_rls_context
@@ -25,6 +26,7 @@ from app.models.platform.oidc_claim_mapping import (
     OIDCMappingTargetType,
 )
 from app.schemas.platform.settings import (
+    AuthScopeUpdate,
     EmailSettingsResponse,
     EmailSettingsUpdate,
     EmailTestRequest,
@@ -37,7 +39,12 @@ from app.schemas.platform.settings import (
     OIDCMappingsResponse,
     OIDCSettingsResponse,
     OIDCSettingsUpdate,
+    StorageBackfillStatusResponse,
+    StorageSettingsResponse,
+    StorageSettingsUpdate,
+    StorageTestResponse,
 )
+from app.models.platform.guild import GuildStatus
 from app.schemas.platform.guild import (
     PlatformGuildStorageRead,
     PlatformGuildStorageUpdate,
@@ -47,6 +54,7 @@ from app.core.messages import GuildMessages, SettingsMessages
 from app.services.platform import app_settings as app_settings_service
 from app.services.platform import guilds as guilds_service
 from app.services import email as email_service
+from app.services import storage_backfill, storage_config
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +68,7 @@ GuildAdminContext = Annotated[
 
 
 def _backend_redirect_uri() -> str:
-    return f"{app_config.APP_URL.rstrip('/')}{app_config.API_V1_STR}/auth/oidc/callback"
+    return f"{app_config.APP_URL.rstrip('/')}{API_V1_STR}/auth/oidc/callback"
 
 
 def _frontend_redirect_uri() -> str:
@@ -91,6 +99,7 @@ async def get_oidc_settings(
 ) -> OIDCSettingsResponse:
     settings_obj = await app_settings_service.get_app_settings(session)
     return OIDCSettingsResponse(
+        auth_scope=settings_obj.auth_scope,
         enabled=settings_obj.oidc_enabled,
         issuer=settings_obj.oidc_issuer,
         client_id=settings_obj.oidc_client_id,
@@ -118,6 +127,35 @@ async def update_oidc_settings(
         scopes=payload.scopes,
     )
     return OIDCSettingsResponse(
+        auth_scope=updated.auth_scope,
+        enabled=updated.oidc_enabled,
+        issuer=updated.oidc_issuer,
+        client_id=updated.oidc_client_id,
+        redirect_uri=_backend_redirect_uri(),
+        post_login_redirect=_frontend_redirect_uri(),
+        mobile_redirect_uri=_mobile_redirect_uri(),
+        provider_name=updated.oidc_provider_name,
+        scopes=updated.oidc_scopes,
+    )
+
+
+@router.put("/auth-scope", response_model=OIDCSettingsResponse)
+async def update_auth_scope(
+    payload: AuthScopeUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> OIDCSettingsResponse:
+    """Switch where login is configured (platform-wide vs per-guild).
+
+    Non-destructive: the dormant posture's provider configuration is kept, so
+    switching back restores it exactly. Enforcement is server-side — the OIDC
+    login endpoints refuse when the platform posture isn't active.
+    """
+    updated = await app_settings_service.update_auth_scope(
+        session, scope=payload.scope.value
+    )
+    return OIDCSettingsResponse(
+        auth_scope=updated.auth_scope,
         enabled=updated.oidc_enabled,
         issuer=updated.oidc_issuer,
         client_id=updated.oidc_client_id,
@@ -137,6 +175,7 @@ async def get_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        auth_scope=settings_obj.auth_scope,
     )
 
 
@@ -154,6 +193,7 @@ async def update_interface_settings(
     return InterfaceSettingsResponse(
         light_accent_color=settings_obj.light_accent_color,
         dark_accent_color=settings_obj.dark_accent_color,
+        auth_scope=settings_obj.auth_scope,
     )
 
 
@@ -221,6 +261,133 @@ async def send_test_email(
     return {"status": "sent"}
 
 
+# --- Object storage ---
+
+
+def _storage_settings_payload(settings_obj: AppSetting) -> StorageSettingsResponse:
+    backend = (settings_obj.storage_backend or "local").lower()
+    return StorageSettingsResponse(
+        backend="s3" if backend == "s3" else "local",
+        s3_bucket=settings_obj.s3_bucket,
+        s3_region=settings_obj.s3_region or "us-east-1",
+        s3_endpoint_url=settings_obj.s3_endpoint_url,
+        s3_access_key_id=settings_obj.s3_access_key_id,
+        has_secret_access_key=bool(settings_obj.s3_secret_access_key_encrypted),
+        s3_use_path_style=settings_obj.s3_use_path_style,
+        s3_kms_key_id=settings_obj.s3_kms_key_id,
+        s3_local_fallback=settings_obj.s3_local_fallback,
+    )
+
+
+@router.get("/storage", response_model=StorageSettingsResponse)
+async def get_storage_settings(
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageSettingsResponse:
+    settings_obj = await app_settings_service.get_app_settings(session)
+    return _storage_settings_payload(settings_obj)
+
+
+@router.put("/storage", response_model=StorageSettingsResponse)
+async def update_storage_settings(
+    payload: StorageSettingsUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageSettingsResponse:
+    data = payload.model_dump(exclude_unset=True)
+    secret_provided = "s3_secret_access_key" in data
+    updated = await app_settings_service.update_storage_settings(
+        session,
+        backend=payload.backend,
+        s3_bucket=payload.s3_bucket,
+        s3_region=payload.s3_region,
+        s3_endpoint_url=payload.s3_endpoint_url,
+        s3_access_key_id=payload.s3_access_key_id,
+        s3_secret_access_key=payload.s3_secret_access_key,
+        secret_provided=secret_provided,
+        s3_use_path_style=payload.s3_use_path_style,
+        s3_kms_key_id=payload.s3_kms_key_id,
+        s3_local_fallback=payload.s3_local_fallback,
+    )
+    return _storage_settings_payload(updated)
+
+
+@router.post("/storage/test", response_model=StorageTestResponse)
+async def test_storage_connection(
+    payload: StorageSettingsUpdate,
+    session: UserSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageTestResponse:
+    # Test the submitted (possibly unsaved) config. If the admin left the secret
+    # blank, fall back to the saved one so they can re-test without re-typing it.
+    data = payload.model_dump(exclude_unset=True)
+    secret = payload.s3_secret_access_key
+    if "s3_secret_access_key" not in data or not secret:
+        secret = await storage_config.resolve_saved_secret(session)
+    candidate = storage_config.ResolvedStorageConfig(
+        backend="s3" if payload.backend == "s3" else "local",
+        bucket=(payload.s3_bucket or "").strip() or None,
+        region=(payload.s3_region or "us-east-1").strip() or "us-east-1",
+        endpoint_url=(payload.s3_endpoint_url or "").strip() or None,
+        access_key_id=(payload.s3_access_key_id or "").strip() or None,
+        secret_access_key=secret,
+        use_path_style=bool(payload.s3_use_path_style),
+        kms_key_id=(payload.s3_kms_key_id or "").strip() or None,
+        local_fallback=bool(payload.s3_local_fallback),
+    )
+    ok, message = await storage_config.test_connection(candidate)
+    return StorageTestResponse(success=ok, message=message)
+
+
+def _backfill_payload(row: dict) -> StorageBackfillStatusResponse:
+    started = row.get("started_at")
+    finished = row.get("finished_at")
+    return StorageBackfillStatusResponse(
+        status=row["status"],
+        copied=row["copied"],
+        skipped=row["skipped"],
+        failed=row["failed"],
+        hash_mismatches=row["hash_mismatches"],
+        failed_keys=list(row.get("failed_keys") or []),
+        started_at=started.isoformat() if started else None,
+        finished_at=finished.isoformat() if finished else None,
+        error=row.get("error"),
+    )
+
+
+@router.post("/storage/backfill", response_model=StorageBackfillStatusResponse)
+async def start_storage_backfill(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageBackfillStatusResponse:
+    # The backfill writes to S3 via the saved credentials, so they must be set
+    # (the documented flow runs it while still serving on "local").
+    settings_obj = await app_settings_service.get_app_settings(session)
+    if not settings_obj.s3_bucket:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=SettingsMessages.STORAGE_BACKFILL_NOT_CONFIGURED,
+        )
+    # Make sure the detached task resolves the freshly-saved S3 credentials.
+    await storage_config.refresh_storage_config(session)
+    try:
+        row = await storage_backfill.start_backfill(session)
+    except storage_backfill.BackfillAlreadyRunning:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=SettingsMessages.STORAGE_BACKFILL_RUNNING,
+        ) from None
+    return _backfill_payload(row)
+
+
+@router.get("/storage/backfill", response_model=StorageBackfillStatusResponse)
+async def get_storage_backfill_status(
+    session: AdminSessionDep,
+    _admin: ConfigManageDep,
+) -> StorageBackfillStatusResponse:
+    return _backfill_payload(await storage_backfill.get_status(session))
+
+
 @router.get("/fcm-config", response_model=FCMConfigResponse)
 @limiter.limit("20/minute")
 async def get_fcm_config(request: Request) -> FCMConfigResponse:
@@ -274,6 +441,9 @@ async def list_platform_guild_storage(
             name=g.name,
             member_count=counts.get(g.id, 0),
             max_storage_bytes=g.max_storage_bytes,
+            max_users=g.max_users,
+            status=GuildStatus(g.status),
+            status_changed_at=g.status_changed_at,
         )
         for g in guilds
     ]
@@ -286,20 +456,38 @@ async def update_platform_guild_storage(
     session: AdminSessionDep,
     _admin: GuildsManageDep,
 ) -> PlatformGuildStorageRead:
-    """Set a guild's storage cap (bytes; ``null`` = unlimited). Admin/owner.
+    """Set a guild's storage/member caps and/or lifecycle status. Admin/owner.
 
-    Writes only ``public.guilds.max_storage_bytes`` — a shared column — so no
-    guild-schema routing is needed. The cap is enforced on every upload by
-    ``enforce_storage_quota``; lowering it below current usage simply blocks
-    further uploads, it does not delete existing blobs.
+    Writes only shared ``public.guilds`` columns (``max_storage_bytes`` /
+    ``max_users`` / ``status``) — no guild-schema routing needed.
+    ``model_fields_set`` tells an omitted cap (leave untouched) from one sent as
+    ``null`` (reset to unlimited). ``status`` (active / read_only / suspended) is
+    a moderation action: it downgrades or cuts off member access on the request
+    path (see ``_load_guild_context``) but never touches stored data, and PAM /
+    break-glass grants override it so operators can't lock themselves out.
+    Lowering a cap below current usage just blocks further uploads / new joins.
     """
+    provided = payload.model_fields_set
     try:
         guild = await guilds_service.update_guild(
             session,
             guild_id=guild_id,
             max_storage_bytes=payload.max_storage_bytes,
-            max_storage_bytes_provided=True,
+            max_storage_bytes_provided="max_storage_bytes" in provided,
+            max_users=payload.max_users,
+            max_users_provided="max_users" in provided,
         )
+        if payload.status is not None and guild.status != payload.status.value:
+            logger.info(
+                "guild %s status %s -> %s by user %s",
+                guild_id,
+                guild.status,
+                payload.status.value,
+                _admin.id,
+            )
+            guild = await guilds_service.set_guild_status(
+                session, guild_id=guild_id, status=payload.status
+            )
     except ValueError as exc:
         # update_guild -> get_guild raises ValueError(GUILD_NOT_FOUND) when the row
         # is gone. Letting it own the existence check (rather than a separate
@@ -318,6 +506,9 @@ async def update_platform_guild_storage(
         name=guild.name,
         member_count=member_count,
         max_storage_bytes=guild.max_storage_bytes,
+        max_users=guild.max_users,
+        status=GuildStatus(guild.status),
+        status_changed_at=guild.status_changed_at,
     )
 
 

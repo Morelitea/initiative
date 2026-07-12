@@ -32,7 +32,7 @@ from app.api.deps import (
     GuildAccessError,
     GuildContext,
 )
-from app.db.query import unbounded_page_limit
+from app.db.query import apply_pagination, page_has_next, paginate_sequence
 from app.core.messages import (
     AttachmentMessages,
     DocumentMessages,
@@ -83,6 +83,7 @@ from app.schemas.ai_generation import GenerateDocumentSummaryResponse
 from app.schemas.tenant.property import PropertyValuesSetRequest
 from app.schemas.tenant.tag import TagSetRequest
 from app.services.tenant import attachments as attachments_service
+from app.services import storage_config
 from app.services.storage import build_upload_response, get_guild_storage
 from app.api import resource_access
 from app.core.tools import Tool
@@ -485,14 +486,9 @@ async def _list_global_documents(
     items = await gather_across_guilds(session, current_user.id, target_guilds, _fetch)
     items = _sort_global_document_summaries(items, sort_by, sort_dir)
     total_count = len(items)
-    if page_size > 0:
-        start = (page - 1) * page_size
-        items = items[start : start + page_size]
-    else:
-        # "all rows" is still capped server-side (SEC-14): never return an
-        # unbounded merged list across every guild.
-        items = items[: unbounded_page_limit()]
-    return items, total_count
+    # One slicing rule for every page_size, including the windowed
+    # page_size<=0 "fetch all" protocol (bounded response, SEC-14).
+    return paginate_sequence(items, page, page_size), total_count
 
 
 @router.get("/counts", response_model=DocumentCountsResponse)
@@ -587,18 +583,12 @@ async def list_my_documents(
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
-    if page_size > 0:
-        has_next = page * page_size < total_count
-    else:
-        # "All rows" is still capped (SEC-14): report truncation.
-        has_next = len(items) < total_count
-        page = 1
     return DocumentListResponse(
         items=items,
         total_count=total_count,
         page=page,
         page_size=page_size,
-        has_next=has_next,
+        has_next=page_has_next(page, page_size, total_count),
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
@@ -632,7 +622,8 @@ async def list_documents(
 
     DAC: Documents with explicit DocumentPermission or role-based permission.
 
-    Pagination: page_size=0 returns all documents (no pagination).
+    Pagination: page_size=0 serves the full set in server-bounded windows —
+    walk page=1,2,... until has_next is false.
 
     Cross-guild "my documents" lives under /me/documents (see list_my_documents).
     """
@@ -698,12 +689,10 @@ async def list_documents(
     )
     stmt = _apply_document_sort(stmt, sort_by, sort_dir)
 
-    if page_size > 0:
-        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
-    else:
-        # "all rows" is still capped server-side (SEC-14) so the query can't
-        # dump an entire guild's document table in one response.
-        stmt = stmt.limit(unbounded_page_limit())
+    # One windowing rule for every page_size, including the page_size<=0
+    # "fetch all" protocol: bounded response (SEC-14), ``page`` selects the
+    # window, has_next below tells the caller to keep walking.
+    stmt = apply_pagination(stmt, page, page_size)
 
     result = await session.exec(stmt)
     documents = result.unique().all()
@@ -720,21 +709,12 @@ async def list_documents(
         for document in documents
     ]
 
-    if page_size > 0:
-        has_next = page * page_size < total_count
-    else:
-        # page_size=0 means "all rows" — but still capped at
-        # unbounded_page_limit() (SEC-14). Surface a truncated result via
-        # has_next so the SPA can tell data is missing.
-        has_next = len(items) < total_count
-        page = 1
-
     return DocumentListResponse(
         items=items,
         total_count=total_count,
         page=page,
         page_size=page_size,
-        has_next=has_next,
+        has_next=page_has_next(page, page_size, total_count),
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
@@ -949,6 +929,9 @@ async def upload_document_file(
             detail=DocumentMessages.TITLE_REQUIRED,
         )
 
+    # Pick up a backend/credential change saved in another worker before writing.
+    await storage_config.ensure_storage_config_fresh(session)
+
     # Check for duplicate title in initiative
     await _check_duplicate_title(session, initiative_id=initiative.id, title=title)
 
@@ -1102,6 +1085,9 @@ async def upload_document_version(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=DocumentMessages.NOT_A_FILE_DOCUMENT,
         )
+
+    # Pick up a backend/credential change saved in another worker before writing.
+    await storage_config.ensure_storage_config_fresh(session)
     _require_document_access(document, current_user, access="write")
 
     # Read the body with a hard cap so an over-limit upload is rejected before
@@ -1189,7 +1175,7 @@ async def upload_document_version(
     document.file_content_type = mime_type
     document.file_size = len(contents)
     document.original_filename = file.filename
-    document.updated_by_id = current_user.id
+    document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     document.updated_at = datetime.now(timezone.utc)
     if mime_type and mime_type.startswith("image/"):
         document.featured_image_url = file_url
@@ -1310,7 +1296,7 @@ async def delete_document_version(
             document.file_content_type = promoted.file_content_type
             document.file_size = promoted.file_size
             document.original_filename = promoted.original_filename
-            document.updated_by_id = current_user.id
+            document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             document.updated_at = datetime.now(timezone.utc)
             # Keep featured image coherent when it referenced the deleted blob.
             if document.featured_image_url == deleted_url:
@@ -1459,7 +1445,7 @@ async def update_document(
 
     if updated:
         document.updated_at = datetime.now(timezone.utc)
-        document.updated_by_id = current_user.id
+        document.updated_by_id = current_user.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         session.add(document)
         # Sync wikilinks if content was updated
         if content_updated:

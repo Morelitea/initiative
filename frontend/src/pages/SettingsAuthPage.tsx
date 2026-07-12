@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { OidcClaimMappingsSection } from "@/components/admin/OidcClaimMappingsSection";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,9 +14,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/hooks/useAuth";
-import { useOidcSettings, useUpdateOidcSettings } from "@/hooks/useSettings";
+import { useOidcSettings, useUpdateAuthScope, useUpdateOidcSettings } from "@/hooks/useSettings";
 import { Capability, hasCapability } from "@/lib/permissions";
 
 interface OidcSettings {
@@ -49,6 +51,7 @@ export const SettingsAuthPage = () => {
       setClientSecret("");
     },
   });
+  const updateAuthScope = useUpdateAuthScope();
 
   useEffect(() => {
     if (oidcQuery.data) {
@@ -90,8 +93,53 @@ export const SettingsAuthPage = () => {
     } as OidcSettings & { client_secret?: string });
   };
 
+  const authScope = oidcQuery.data.auth_scope;
+
   return (
     <div className="space-y-6">
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>{t("auth.scope.title")}</CardTitle>
+          <CardDescription>{t("auth.scope.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <RadioGroup
+            value={authScope}
+            onValueChange={(value) => {
+              if (value !== authScope) {
+                updateAuthScope.mutate({ scope: value as "platform" | "guild" });
+              }
+            }}
+            className="gap-3"
+          >
+            <div className="flex items-start gap-3 rounded-md border px-3 py-3">
+              <RadioGroupItem id="auth-scope-platform" value="platform" className="mt-1" />
+              <div>
+                <Label htmlFor="auth-scope-platform" className="font-medium text-base">
+                  {t("auth.scope.platformLabel")}
+                </Label>
+                <p className="text-muted-foreground text-sm">{t("auth.scope.platformHelp")}</p>
+              </div>
+            </div>
+            {/* Per-guild sign-in ships disabled until guild-side configuration
+                exists; the backend + enforcement are already wired. */}
+            <div className="flex items-start gap-3 rounded-md border px-3 py-3 opacity-70">
+              <RadioGroupItem id="auth-scope-guild" value="guild" disabled className="mt-1" />
+              <div>
+                <Label
+                  htmlFor="auth-scope-guild"
+                  className="flex items-center gap-2 font-medium text-base"
+                >
+                  {t("auth.scope.guildLabel")}
+                  <Badge variant="secondary">{t("auth.scope.comingSoon")}</Badge>
+                </Label>
+                <p className="text-muted-foreground text-sm">{t("auth.scope.guildHelp")}</p>
+              </div>
+            </div>
+          </RadioGroup>
+          <p className="text-muted-foreground text-sm">{t("auth.scope.passwordNote")}</p>
+        </CardContent>
+      </Card>
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>{t("auth.title")}</CardTitle>

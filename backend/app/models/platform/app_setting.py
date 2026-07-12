@@ -1,8 +1,21 @@
+from enum import Enum
 from typing import Optional
 
 from sqlalchemy import Boolean, Column, Integer, JSON, String
 from sqlmodel import Field, SQLModel
 from pydantic import ConfigDict
+
+
+class AuthScope(str, Enum):
+    """Where login is configured: once for the whole platform, or per guild.
+
+    Mutually exclusive postures (see the auth-settings-scope design doc): the
+    inactive side's provider configuration stays stored but dormant — switching
+    is non-destructive and reversible.
+    """
+
+    platform = "platform"
+    guild = "guild"
 
 
 class AppSetting(SQLModel, table=True):
@@ -11,6 +24,12 @@ class AppSetting(SQLModel, table=True):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: int = Field(default=1, primary_key=True)
+
+    # Which posture is live; the dormant side's config is kept, not deleted.
+    auth_scope: str = Field(
+        default=AuthScope.platform.value,
+        sa_column=Column(String(20), nullable=False, server_default="platform"),
+    )
 
     oidc_enabled: bool = Field(default=False, nullable=False)
     oidc_issuer: Optional[str] = None
@@ -90,4 +109,39 @@ class AppSetting(SQLModel, table=True):
     ai_allow_user_override: bool = Field(
         default=True,
         sa_column=Column(Boolean, nullable=False, server_default="true"),
+    )
+
+    # Object storage (blob backend). "local" = filesystem under UPLOADS_DIR;
+    # "s3" = any S3-compatible store. Seeded from the STORAGE_BACKEND / S3_* env
+    # vars on first creation, then DB-authoritative (see app_settings service).
+    storage_backend: str = Field(
+        default="local",
+        sa_column=Column(String(20), nullable=False, server_default="local"),
+    )
+    s3_bucket: Optional[str] = Field(
+        default=None, sa_column=Column(String(255), nullable=True)
+    )
+    s3_region: str = Field(
+        default="us-east-1",
+        sa_column=Column(String(64), nullable=False, server_default="us-east-1"),
+    )
+    s3_endpoint_url: Optional[str] = Field(
+        default=None, sa_column=Column(String(1000), nullable=True)
+    )
+    s3_access_key_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(255), nullable=True)
+    )
+    s3_secret_access_key_encrypted: Optional[str] = Field(
+        default=None, sa_column=Column(String(2000), nullable=True)
+    )
+    s3_use_path_style: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
+    )
+    s3_kms_key_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(500), nullable=True)
+    )
+    s3_local_fallback: bool = Field(
+        default=False,
+        sa_column=Column(Boolean, nullable=False, server_default="false"),
     )

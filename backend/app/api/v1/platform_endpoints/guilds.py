@@ -14,7 +14,7 @@ from app.core.messages import AdvancedToolMessages, GuildMessages
 from app.core.security import create_advanced_tool_handoff_token, verify_password
 from app.db.schema_provisioning import deprovision_guild
 from app.db.session import get_admin_session, set_rls_context
-from app.models.platform.guild import GuildRole, GuildMembership, Guild
+from app.models.platform.guild import GuildRole, GuildMembership, Guild, GuildStatus
 from app.models.platform.user import User
 from app.schemas.platform.guild import (
     GuildCreate,
@@ -63,6 +63,19 @@ def _serialize_guild(
         retention_days=retention_days,
         member_count=member_count,
         max_storage_bytes=guild.max_storage_bytes,
+        max_users=guild.max_users,
+        # Display-only plan label (never an enforcement input); the SPA shows
+        # it only when a billing portal is configured.
+        tier_name=guild.tier_name,
+        # Only guild admins learn the lifecycle status (for the settings-page
+        # chip); members get None so a moderation hold isn't disclosed to them.
+        status=(
+            GuildStatus(guild.status) if membership.role == GuildRole.admin else None
+        ),
+        # Every member learns the *effect* of a read_only hold (their writes
+        # already fail at the DB role level) so the UI can drop write
+        # affordances — without disclosing the status itself.
+        content_read_only=(guild.status == GuildStatus.read_only.value),
     )
 
 
@@ -265,7 +278,6 @@ async def update_guild(
     await _set_guild_admin_rls(session, guild_id=guild_id, user=current_user)
     icon_provided = "icon_base64" in updates.model_fields_set
     retention_days_provided = "retention_days" in updates.model_fields_set
-    max_storage_bytes_provided = "max_storage_bytes" in updates.model_fields_set
     guild = await guilds_service.update_guild(
         session,
         guild_id=guild_id,
@@ -275,8 +287,6 @@ async def update_guild(
         icon_provided=icon_provided,
         retention_days=updates.retention_days,
         retention_days_provided=retention_days_provided,
-        max_storage_bytes=updates.max_storage_bytes,
-        max_storage_bytes_provided=max_storage_bytes_provided,
     )
     await session.commit()
     retention_days = await guilds_service.get_guild_retention_days(session, guild_id)
@@ -481,6 +491,10 @@ async def accept_invite(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+    except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     await session.commit()
     membership = await guilds_service.get_membership(
         session, guild_id=guild.id, user_id=current_user.id
@@ -523,6 +537,14 @@ async def update_guild_membership(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=GuildMessages.CANNOT_CHANGE_OWN_ROLE,
+        )
+
+    # 'support' is a synthesized PAM identity, never a stored membership role
+    # (the guild_role enum has only admin/member) — reject before it hits the DB.
+    if payload.role == GuildRole.support:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=GuildMessages.GUILD_ROLE_NOT_ASSIGNABLE,
         )
 
     target_membership = await guilds_service.get_membership(

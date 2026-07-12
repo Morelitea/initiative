@@ -255,6 +255,25 @@
   "expiresInMinutes": "expire dans {{minutes}} min",
   "grantBanner": {
     "readOnly": "Vous avez un accès temporaire en lecture seule à {{guild}}.",
-    "readWrite": "Vous avez un accès temporaire à {{guild}}."
+    "readWrite": "Vous avez un accès temporaire à {{guild}}.",
+    "guildReadOnly": "Ce groupe est en lecture seule",
+    "guildSuspended": "Ce groupe est suspendu"
+  },
+  "readOnlyBanner": {
+    "message": "{{guild}} est actuellement en lecture seule. Vous pouvez tout consulter, mais les modifications sont désactivées."
+  },
+  "usagePanel": {
+    "title": "Utilisation",
+    "storage": "Stockage",
+    "members": "Membres",
+    "unlimited": "Illimité",
+    "usedOfMax": "{{used}} sur {{max}}",
+    "usedOfUnlimited": "{{used}} utilisé · Illimité",
+    "membersOfMax": "{{used}} sur {{max}}",
+    "membersOfUnlimited": "{{used}} · Illimité",
+    "currentPlan": "Forfait actuel :",
+    "selfHosted": "Auto-hébergé",
+    "upgrade": "Mettre à niveau",
+    "manageBilling": "Gérer la facturation"
   }
 }

@@ -23,6 +23,7 @@ from app.services.tenant.attachments import (
     enforce_storage_quota,
     read_upload_bounded,
 )
+from app.services import storage_config
 from app.services.storage import get_guild_storage
 
 router = APIRouter()
@@ -117,6 +118,9 @@ async def upload_attachment(
         )
 
     resolved_content_type = file.content_type or _FORMAT_TO_MIME[detected_format]
+    # Pick up a backend/credential change saved in another worker before writing,
+    # so the blob lands in the configured store (TTL-gated; usually a no-op).
+    await storage_config.ensure_storage_config_fresh(session)
     get_guild_storage(guild_context.guild_id).write(
         filename, contents, content_type=resolved_content_type
     )

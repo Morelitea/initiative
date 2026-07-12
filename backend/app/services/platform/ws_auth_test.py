@@ -8,11 +8,11 @@ honour ``token_version`` so that logout / password reset / password change
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.security import create_access_token
+from app.core.security import JWT_ALGORITHM, create_access_token
 from app.models.platform.user import UserStatus
 from app.services.platform import user_tokens
 from app.services.platform.ws_auth import authenticate_ws_token
-from app.testing import create_user, get_auth_token
+from app.testing import create_user, get_auth_token, get_new_access_token
 
 pytestmark = pytest.mark.asyncio
 
@@ -25,6 +25,30 @@ async def test_valid_token_authenticates(session: AsyncSession):
 
     assert result is not None
     assert result.id == user.id
+
+
+async def test_new_access_token_authenticates(session: AsyncSession):
+    """Dual-verify: the WS path accepts the new-model access token too, so
+    realtime sockets stay in lockstep with the HTTP path."""
+    user = await create_user(session)
+    token = get_new_access_token(user)
+
+    result = await authenticate_ws_token(token, session)
+
+    assert result is not None
+    assert result.id == user.id
+
+
+async def test_new_access_token_stale_version_rejected(session: AsyncSession):
+    """The new token's ``ver`` is enforced on the WS path as well."""
+    user = await create_user(session)
+    token = get_new_access_token(user)
+    user.token_version += 1
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    assert await authenticate_ws_token(token, session) is None
 
 
 async def test_token_version_bump_revokes_token(session: AsyncSession):
@@ -101,7 +125,7 @@ async def test_token_without_version_claim_rejected(session: AsyncSession):
             "exp": datetime.now(timezone.utc) + timedelta(minutes=10),
         },
         settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM,
+        algorithm=JWT_ALGORITHM,
     )
 
     assert await authenticate_ws_token(legacy_token, session) is None
@@ -129,7 +153,7 @@ async def test_jwt_without_sub_does_not_fall_through_to_device_lookup(
     subless_token = pyjwt.encode(
         {"exp": datetime.now(timezone.utc) + timedelta(minutes=10)},
         settings.SECRET_KEY,
-        algorithm=settings.ALGORITHM,
+        algorithm=JWT_ALGORITHM,
     )
 
     assert await authenticate_ws_token(subless_token, session) is None

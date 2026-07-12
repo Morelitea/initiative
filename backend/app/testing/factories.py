@@ -13,13 +13,18 @@ regardless of flush composition. Raw ``session.add()`` of tenant models in
 tests is covered by the fail-closed flush router in ``schema_harness``.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import (
+    create_access_token,
+    get_password_hash,
+    mint_access_token,
+)
 from app.models.tenant.calendar_event import CalendarEvent
 from app.models.tenant.comment import Comment
 from app.models.tenant.counter import Counter, CounterGroup
@@ -71,7 +76,7 @@ async def create_user(
         user = await create_user(
             session,
             email="test@example.com",
-            role=UserRole.admin
+            role=UserRole.operator
         )
     """
     email_raw = (
@@ -236,6 +241,32 @@ def get_auth_token(user: User) -> str:
         response = await client.get("/api/v1/users/me", headers=headers)
     """
     return create_access_token(subject=str(user.id), token_version=user.token_version)
+
+
+def get_new_access_token(
+    user: User,
+    *,
+    session_id: uuid.UUID | None = None,
+    amr: list[str] | None = None,
+    satisfied_providers: list[int] | None = None,
+) -> str:
+    """Mint a *new-model* access token (aud ``initiative:access``) for a user.
+
+    Mirrors :func:`get_auth_token` but for the dual-verify path: exercises that
+    the session-JWT verifiers accept the new scheme. ``session_id``/``amr``/
+    ``sat`` default to a throwaway session with ``pwd`` since the verify path
+    only checks ``sub``/``ver``.
+    """
+    token, _ = mint_access_token(
+        user_id=user.id,
+        token_version=user.token_version,
+        session_id=session_id or uuid.uuid4(),
+        amr=amr if amr is not None else ["pwd"],
+        satisfied_providers=satisfied_providers
+        if satisfied_providers is not None
+        else [],
+    )
+    return token
 
 
 def get_auth_headers(user: User) -> dict[str, str]:

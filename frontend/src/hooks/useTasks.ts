@@ -42,6 +42,7 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/lib/chesterToast";
 import { getErrorMessage } from "@/lib/errorMessage";
+import { fetchAllPages } from "@/lib/fetchAllPages";
 import { castQueryFn } from "@/lib/query-utils";
 import { fireTaskCompletionFeedback } from "@/lib/taskCompletionFeedback";
 import type { MutationOpts } from "@/types/mutation";
@@ -67,7 +68,8 @@ export const useTasks = (
   const guildId = useActiveGuildId();
   return useQuery<TaskListResponse>({
     queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, params),
-    queryFn: castQueryFn<TaskListResponse>(() => listTasksApiV1GGuildIdTasksGet(guildId, params)),
+    // page_size=0 walks the server's fetch-all windows for the complete set.
+    queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, params),
     ...options,
   });
 };
@@ -78,7 +80,7 @@ export const usePrefetchTasks = () => {
   return (params: ListTasksApiV1GGuildIdTasksGetParams) => {
     return qc.prefetchQuery({
       queryKey: getListTasksApiV1GGuildIdTasksGetQueryKey(guildId, params),
-      queryFn: castQueryFn<TaskListResponse>(() => listTasksApiV1GGuildIdTasksGet(guildId, params)),
+      queryFn: () => fetchAllPages(listTasksApiV1GGuildIdTasksGet, guildId, params),
       staleTime: 30_000,
     });
   };

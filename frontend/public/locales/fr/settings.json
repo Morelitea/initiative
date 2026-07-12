@@ -19,13 +19,24 @@
     "title": "Paramètres du groupe",
     "subtitle": "Gérez les membres de l'espace de travail et les détails du groupe.",
     "permissionDenied": "Vous avez besoin de permissions supplémentaires pour voir cette page.",
+    "restricted": {
+      "read_only": {
+        "label": "Lecture seule",
+        "message": "Ce groupe est en lecture seule. Contactez votre administrateur de plateforme pour rétablir l'accès complet."
+      },
+      "suspended": {
+        "label": "Suspendu",
+        "message": "Ce groupe est suspendu et les membres n'y ont pas accès. Contactez votre administrateur de plateforme."
+      }
+    },
     "tabs": {
       "guild": "Groupe",
       "ai": "IA",
       "users": "Utilisateurs",
       "initiatives": "Initiatives",
       "trash": "Corbeille",
-      "dangerZone": "Zone de danger"
+      "dangerZone": "Zone de danger",
+      "auth": "Authentification"
     }
   },
   "profile": {
@@ -564,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Sélectionnez d'abord une initiative",
     "loadingOptions": "Chargement des options…",
     "loadingOidcMappings": "Chargement des correspondances OIDC…",
-    "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC."
+    "oidcMappingsLoadError": "Impossible de charger les correspondances OIDC.",
+    "scope": {
+      "title": "Configuration de connexion",
+      "description": "Choisissez où la connexion est configurée pour ce serveur.",
+      "platformLabel": "À l'échelle de la plateforme",
+      "platformHelp": "La connexion est configurée une seule fois, ici, pour tout le serveur. Toutes les guildes l'utilisent. Idéal pour une organisation unique gérant sa propre instance.",
+      "guildLabel": "Par guilde",
+      "guildHelp": "Chaque guilde configure sa propre connexion et ses règles d'adhésion dans ses paramètres de guilde. Idéal pour un serveur hébergeant plusieurs organisations indépendantes.",
+      "comingSoon": "Bientôt disponible",
+      "passwordNote": "La connexion par mot de passe reste disponible dans les deux modes."
+    }
   },
   "platformUsers": {
     "title": "Utilisateurs de la plateforme",
@@ -607,14 +628,14 @@
       "member": "Membre",
       "support": "Support",
       "moderator": "Modérateur",
-      "admin": "Administrateur",
+      "operator": "Opérateur",
       "owner": "Propriétaire"
     },
     "roleDescriptions": {
       "member": "Accès standard à ses propres guildes. Aucun privilège au niveau de la plateforme.",
       "support": "Visibilité en lecture seule de la plateforme (utilisateurs, guildes, audit) et peut demander un accès temporaire à une guilde.",
       "moderator": "Tout ce que peut faire le support, plus la gestion des utilisateurs (suspendre/réactiver) et la modération du contenu.",
-      "admin": "Gère les utilisateurs, les guildes et les rôles sur toute la plateforme, avec accès aux données inter-guildes et approuve les demandes d'accès.",
+      "operator": "Gère les utilisateurs, les guildes et les rôles sur toute la plateforme, avec accès aux données inter-guildes et approuve les demandes d'accès.",
       "owner": "Contrôle total, y compris la configuration de toute la plateforme (authentification, personnalisation, email, IA). Le seul rôle pouvant gérer la configuration."
     },
     "changeRoleTitle": "Modifier le rôle de la plateforme",
@@ -742,10 +763,11 @@
     "title": "Paramètres de la plateforme",
     "subtitle": "Configurez l'authentification, la personnalisation, l'email et l'IA pour toute la plateforme.",
     "tabs": {
-      "auth": "Auth",
+      "auth": "Authentification",
       "branding": "Image de marque",
       "email": "E-mail",
-      "ai": "IA"
+      "ai": "IA",
+      "storage": "Stockage"
     }
   },
   "adminDashboard": {
@@ -758,22 +780,98 @@
     }
   },
   "guilds": {
-    "title": "Limites de stockage par groupe",
-    "description": "Définissez le stockage total maximal que chaque groupe peut utiliser pour les fichiers téléversés. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements, mais ne supprime jamais les fichiers existants.",
-    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites de stockage des groupes.",
+    "title": "Limites par groupe",
+    "description": "Définissez des limites par groupe pour le stockage et le nombre d'utilisateurs. Abaisser une limite en dessous de l'utilisation actuelle bloque les nouveaux téléversements ou membres, mais ne supprime jamais les fichiers ni les membres existants.",
+    "adminOnly": "Vous devez avoir le rôle de propriétaire de la plateforme pour gérer les limites des groupes.",
     "loading": "Chargement des groupes…",
     "loadError": "Impossible de charger les groupes. Veuillez réessayer.",
     "filterByName": "Filtrer les groupes par nom",
     "unlimitedPlaceholder": "Illimité",
-    "helpText": "Les limites sont en Go et sont enregistrées automatiquement. Laissez un champ vide pour un stockage illimité.",
+    "helpText": "Les limites de stockage sont en Go ; les limites d'utilisateurs correspondent à un nombre de membres. Les deux sont enregistrées automatiquement — laissez un champ vide pour illimité.",
     "limitInputLabel": "Limite de stockage pour {{name}} en Go",
+    "userLimitInputLabel": "Limite d'utilisateurs pour {{name}}",
+    "overLimitHint": "{{name}} compte plus de membres que sa limite actuelle ne l'autorise.",
     "saved": "Limite de stockage mise à jour pour {{name}}.",
     "saveError": "Impossible de mettre à jour la limite de stockage. Veuillez réessayer.",
+    "usersSaved": "Limite d'utilisateurs mise à jour pour {{name}}.",
+    "usersSaveError": "Impossible de mettre à jour la limite d'utilisateurs. Veuillez réessayer.",
+    "statusInputLabel": "Statut de {{name}}",
+    "statusSaved": "Statut de {{name}} mis à jour.",
+    "statusSaveError": "Impossible de mettre à jour le statut du groupe. Veuillez réessayer.",
+    "status": {
+      "active": "Actif",
+      "read_only": "Lecture seule",
+      "suspended": "Suspendu"
+    },
+    "suspendConfirm": {
+      "title": "Suspendre {{name}} ?",
+      "description": "Les membres perdent tout accès et le groupe disparaît de leur liste. Rien n'est supprimé et vous pouvez le réactiver à tout moment ; les opérateurs conservent l'accès via une autorisation break-glass.",
+      "confirm": "Suspendre le groupe"
+    },
     "columns": {
       "id": "ID",
       "guild": "Groupe",
       "members": "Membres",
-      "storageLimit": "Limite de stockage"
+      "users": "Utilisateurs",
+      "storageLimit": "Limite de stockage",
+      "status": "Statut"
     }
+  },
+  "storage": {
+    "adminOnly": "Seuls les propriétaires de la plateforme peuvent configurer le stockage.",
+    "loading": "Chargement des paramètres de stockage…",
+    "loadError": "Échec du chargement des paramètres de stockage.",
+    "title": "Stockage d'objets",
+    "description": "Choisissez où sont stockés les fichiers téléversés (documents, pièces jointes). Par défaut, le système de fichiers local ; passez à un stockage compatible S3 pour des déploiements évolutifs ou partagés.",
+    "backendLabel": "Backend de stockage",
+    "backendLocal": "Système de fichiers local",
+    "backendS3": "Compatible S3",
+    "backendHelp": "Local stocke les fichiers sur le disque du serveur. S3 fonctionne avec AWS S3, une instance Garage/MinIO auto-hébergée, Cloudflare R2 et similaires.",
+    "cutoverTitle": "Passer à S3 ne déplace pas les fichiers existants",
+    "cutoverHelp": "Enregistrez ces paramètres, lancez Tester la connexion, puis utilisez Migration ci-dessous pour copier les fichiers locaux existants dans le bucket. Ne basculez le backend sur S3 qu'une fois la migration terminée — vous pouvez laisser « Servir les objets manquants depuis le local » activé pendant une période de vérification.",
+    "bucketLabel": "Bucket",
+    "bucketPlaceholder": "my-initiative-uploads",
+    "regionLabel": "Région",
+    "endpointLabel": "URL du point de terminaison",
+    "endpointPlaceholder": "https://s3.example.com",
+    "endpointHelp": "Laissez vide pour AWS S3. Renseignez-le pour Garage, MinIO, R2 ou tout stockage non-AWS.",
+    "accessKeyLabel": "ID de clé d'accès",
+    "accessKeyPlaceholder": "Laissez vide pour utiliser la chaîne d'identifiants de l'environnement",
+    "secretKeyLabel": "Clé d'accès secrète",
+    "secretKeySet": "•••••••• (inchangée)",
+    "secretKeyHelp": "Laissez vide pour conserver la clé enregistrée. Stockée chiffrée ; jamais affichée.",
+    "kmsLabel": "ID de clé KMS (facultatif)",
+    "kmsPlaceholder": "Pour le chiffrement côté serveur SSE-KMS",
+    "pathStyleLabel": "Adressage de type chemin",
+    "pathStyleHelp": "Requis pour Garage et la plupart des stockages non-AWS.",
+    "localFallbackLabel": "Servir les objets manquants depuis le local",
+    "localFallbackHelp": "Pendant la bascule, lire depuis le disque local les blobs pas encore copiés vers S3.",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "saveSuccess": "Paramètres de stockage enregistrés.",
+    "saveError": "Échec de l'enregistrement des paramètres de stockage.",
+    "testConnection": "Tester la connexion",
+    "testing": "Test en cours…",
+    "testSuccess": "Connexion réussie.",
+    "testError": "Échec de la connexion.",
+    "backfillTitle": "Migrer les fichiers locaux vers S3",
+    "backfillHelp": "Copie chaque téléversement local existant dans le bucket configuré. Idempotent et sûr à relancer ; exécutez-le avant de basculer le backend sur S3.",
+    "startBackfill": "Démarrer la migration",
+    "backfillRunning": "Migration en cours…",
+    "backfillStarted": "Migration démarrée.",
+    "backfillError": "Échec du démarrage de la migration.",
+    "backfillCounts": "Copiés {{copied}} · Ignorés {{skipped}} · Échoués {{failed}}",
+    "backfillStatus": {
+      "idle": "Inactif",
+      "running": "En cours…",
+      "complete": "Terminé",
+      "failed": "Échoué"
+    }
+  },
+  "guildAuth": {
+    "title": "Authentification",
+    "comingSoon": "Bientôt disponible",
+    "description": "Configuration de connexion pour cette guilde.",
+    "body": "Ce serveur utilise la connexion par guilde. Bientôt, les admins de guilde configureront ici l'authentification unique et les règles d'adhésion de cette guilde."
   }
 }

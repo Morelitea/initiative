@@ -182,7 +182,7 @@ async def test_sync_content_break_glass_admin_can_write(
 
     # data.bypass platform admin, deliberately NOT a member of this guild —
     # reaches it only through the break-glass grant.
-    bg_admin = await create_user(session, role=UserRole.admin)
+    bg_admin = await create_user(session, role=UserRole.operator)
     await _approved_grant(
         session, user=bg_admin, guild=owner.guild, owner=owner.user, level="read_write"
     )

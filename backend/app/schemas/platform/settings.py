@@ -1,13 +1,21 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import ConfigDict, EmailStr, Field
 
+from app.models.platform.app_setting import AuthScope
 from app.schemas.base import RawTextStr, SanitizedBaseModel
+
+
+class AuthScopeUpdate(SanitizedBaseModel):
+    """Switch where login is configured (platform-wide vs per-guild)."""
+
+    scope: AuthScope
 
 
 class OIDCSettingsResponse(SanitizedBaseModel):
     model_config = ConfigDict(json_schema_serialization_defaults_required=True)
 
+    auth_scope: AuthScope
     enabled: bool
     issuer: Optional[str] = None
     client_id: Optional[str] = None
@@ -34,6 +42,10 @@ class InterfaceSettingsResponse(SanitizedBaseModel):
 
     light_accent_color: str
     dark_accent_color: str
+    # Non-secret posture info: the login page and guild settings need to know
+    # where sign-in is configured without a config.manage read. Required — a
+    # construction site that forgets it must fail, not silently claim platform.
+    auth_scope: AuthScope
 
 
 class InterfaceSettingsUpdate(SanitizedBaseModel):
@@ -67,6 +79,56 @@ class EmailSettingsUpdate(SanitizedBaseModel):
 
 class EmailTestRequest(SanitizedBaseModel):
     recipient: Optional[EmailStr] = None
+
+
+# --- Object storage schemas ---
+
+
+class StorageSettingsResponse(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    backend: Literal["local", "s3"] = "local"
+    s3_bucket: Optional[str] = None
+    s3_region: str = "us-east-1"
+    s3_endpoint_url: Optional[str] = None
+    s3_access_key_id: Optional[str] = None
+    has_secret_access_key: bool = False
+    s3_use_path_style: bool = False
+    s3_kms_key_id: Optional[str] = None
+    s3_local_fallback: bool = False
+
+
+class StorageSettingsUpdate(SanitizedBaseModel):
+    backend: Literal["local", "s3"] = "local"
+    s3_bucket: Optional[str] = None
+    s3_region: str = "us-east-1"
+    s3_endpoint_url: Optional[str] = None
+    s3_access_key_id: Optional[str] = None
+    s3_secret_access_key: Optional[RawTextStr] = None
+    s3_use_path_style: bool = False
+    s3_kms_key_id: Optional[str] = None
+    s3_local_fallback: bool = False
+
+
+class StorageTestResponse(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    success: bool
+    message: str
+
+
+class StorageBackfillStatusResponse(SanitizedBaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
+    status: Literal["idle", "running", "complete", "failed"] = "idle"
+    copied: int = 0
+    skipped: int = 0
+    failed: int = 0
+    hash_mismatches: int = 0
+    failed_keys: List[str] = Field(default_factory=list)
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    error: Optional[str] = None
 
 
 # --- OIDC Claim Mapping schemas ---

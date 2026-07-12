@@ -97,7 +97,15 @@ const grantEntry = (grant: AccessGrantRead): GuildEntry => ({
   position: Number.MAX_SAFE_INTEGER,
   retention_days: null,
   max_storage_bytes: null,
+  max_users: null,
   member_count: 0,
+  tier_name: null,
+  // The guild's lifecycle status, so an operator on a grant sees a suspended /
+  // read-only guild they're acting in (the access banner surfaces it).
+  status: grant.guild_status,
+  // PAM/break-glass overrides the lifecycle status — a grantee's writability
+  // comes from the grant level, never from the guild being frozen.
+  content_read_only: false,
   created_at: grant.requested_at,
   updated_at: grant.requested_at,
   accessType: "grant",
@@ -389,9 +397,12 @@ export const GuildProvider = ({ children }: { children: ReactNode }) => {
     [guilds, activeGuildId]
   );
 
-  // Read-only when the active guild is a grant that isn't read-write.
+  // Read-only when the active guild is a grant that isn't read-write, OR when
+  // the guild's content is frozen server-side (read_only lifecycle status —
+  // writes already die at the database role level; the UI must match).
   const activeGuildReadOnly =
-    activeGuild?.accessType === "grant" && activeGuild?.grantAccessLevel !== "read_write";
+    (activeGuild?.accessType === "grant" && activeGuild?.grantAccessLevel !== "read_write") ||
+    Boolean(activeGuild?.content_read_only);
 
   const value: GuildContextValue = {
     guilds,

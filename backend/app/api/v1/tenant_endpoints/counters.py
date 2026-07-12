@@ -28,7 +28,7 @@ from app.api.deps import (
     GuildAccessError,
     GuildContext,
 )
-from app.core.config import settings
+from app.core.security import SESSION_COOKIE_NAME
 from app.core.messages import CounterMessages, InitiativeMessages
 from app.db.session import AsyncSessionLocal
 from app.models.tenant.counter import (
@@ -893,7 +893,7 @@ async def websocket_counter_group(
         auth_payload = json.loads(raw)
         token = auth_payload.get("token")
         if not token:
-            token = websocket.cookies.get(settings.COOKIE_NAME)
+            token = websocket.cookies.get(SESSION_COOKIE_NAME)
         if not token:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return

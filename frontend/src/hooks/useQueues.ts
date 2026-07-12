@@ -5,7 +5,6 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useTranslation } from "react-i18next";
 
 import type {
   ListQueuesApiV1GGuildIdQueuesGetParams,
@@ -82,7 +81,6 @@ export const useQueue = (queueId: number | null, options?: QueryOpts<QueueRead>)
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 export const useCreateQueue = (options?: MutationOpts<QueueRead, QueueCreate>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -96,7 +94,7 @@ export const useCreateQueue = (options?: MutationOpts<QueueRead, QueueCreate>) =
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -104,7 +102,6 @@ export const useCreateQueue = (options?: MutationOpts<QueueRead, QueueCreate>) =
 };
 
 export const useUpdateQueue = (queueId: number, options?: MutationOpts<QueueRead, QueueUpdate>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -123,7 +120,7 @@ export const useUpdateQueue = (queueId: number, options?: MutationOpts<QueueRead
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -131,7 +128,6 @@ export const useUpdateQueue = (queueId: number, options?: MutationOpts<QueueRead
 };
 
 export const useDeleteQueue = (options?: MutationOpts<void, number>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -145,7 +141,7 @@ export const useDeleteQueue = (options?: MutationOpts<void, number>) => {
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -158,7 +154,6 @@ export const useCreateQueueItem = (
   queueId: number,
   options?: MutationOpts<QueueItemRead, QueueItemCreate>
 ) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -177,7 +172,7 @@ export const useCreateQueueItem = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -188,7 +183,6 @@ export const useUpdateQueueItem = (
   queueId: number,
   options?: MutationOpts<QueueItemRead, { itemId: number; data: QueueItemUpdate }>
 ) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -208,7 +202,7 @@ export const useUpdateQueueItem = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -216,7 +210,6 @@ export const useUpdateQueueItem = (
 };
 
 export const useDeleteQueueItem = (queueId: number, options?: MutationOpts<void, number>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -231,7 +224,7 @@ export const useDeleteQueueItem = (queueId: number, options?: MutationOpts<void,
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -242,7 +235,6 @@ export const useReorderQueueItems = (
   queueId: number,
   options?: MutationOpts<QueueRead, QueueItemReorderRequest>
 ) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -261,7 +253,7 @@ export const useReorderQueueItems = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -533,7 +525,6 @@ const rollbackOptimisticTurn = (
 };
 
 export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
@@ -550,7 +541,7 @@ export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
       rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(err, "queues:error"));
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
@@ -562,7 +553,6 @@ export const useAdvanceTurn = (queueId: number, options?: MutationOpts<QueueRead
 };
 
 export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
@@ -579,7 +569,7 @@ export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRea
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
       rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(err, "queues:error"));
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
@@ -591,7 +581,6 @@ export const usePreviousTurn = (queueId: number, options?: MutationOpts<QueueRea
 };
 
 export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
@@ -608,7 +597,7 @@ export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead,
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
       rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(err, "queues:error"));
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
@@ -620,7 +609,6 @@ export const useStartQueue = (queueId: number, options?: MutationOpts<QueueRead,
 };
 
 export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
@@ -637,7 +625,7 @@ export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, 
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
       rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(err, "queues:error"));
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
@@ -649,7 +637,6 @@ export const useStopQueue = (queueId: number, options?: MutationOpts<QueueRead, 
 };
 
 export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
@@ -666,7 +653,7 @@ export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead,
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
       rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(err, "queues:error"));
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
@@ -678,7 +665,6 @@ export const useResetQueue = (queueId: number, options?: MutationOpts<QueueRead,
 };
 
 export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRead, number>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
@@ -699,7 +685,7 @@ export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRe
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
       rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(err, "queues:error"));
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
@@ -711,7 +697,6 @@ export const useSetActiveItem = (queueId: number, options?: MutationOpts<QueueRe
 };
 
 export const useHoldCurrent = (queueId: number, options?: MutationOpts<QueueRead, void>) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
@@ -728,7 +713,7 @@ export const useHoldCurrent = (queueId: number, options?: MutationOpts<QueueRead
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
       rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(err, "queues:error"));
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
@@ -749,7 +734,6 @@ export const useReleaseHeld = (
   queueId: number,
   options?: MutationOpts<QueueRead, ReleaseHeldVariables>
 ) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const queryClient = useQueryClient();
   const { onSuccess, onError, onSettled, onMutate: _ignored, ...rest } = options ?? {};
@@ -768,7 +752,7 @@ export const useReleaseHeld = (
     onSuccess,
     onError: (err, vars, onMutateResult, context) => {
       rollbackOptimisticTurn(guildId, queryClient, queueId, onMutateResult);
-      toast.error(t("error"));
+      toast.error(getErrorMessage(err, "queues:error"));
       onError?.(err, vars, onMutateResult, context);
     },
     onSettled: (...args) => {
@@ -785,7 +769,6 @@ export const useSetQueueItemTags = (
   queueId: number,
   options?: MutationOpts<QueueItemRead, { itemId: number; tagIds: number[] }>
 ) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -805,7 +788,7 @@ export const useSetQueueItemTags = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -816,7 +799,6 @@ export const useSetQueueItemDocuments = (
   queueId: number,
   options?: MutationOpts<QueueItemRead, { itemId: number; documentIds: number[] }>
 ) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -836,7 +818,7 @@ export const useSetQueueItemDocuments = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,
@@ -847,7 +829,6 @@ export const useSetQueueItemTasks = (
   queueId: number,
   options?: MutationOpts<QueueItemRead, { itemId: number; taskIds: number[] }>
 ) => {
-  const { t } = useTranslation("queues");
   const guildId = useActiveGuildId();
   const { onSuccess, onError, onSettled, ...rest } = options ?? {};
 
@@ -867,7 +848,7 @@ export const useSetQueueItemTasks = (
       onSuccess?.(...args);
     },
     onError: (...args) => {
-      toast.error(t("error"));
+      toast.error(getErrorMessage(args[0], "queues:error"));
       onError?.(...args);
     },
     onSettled,

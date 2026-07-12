@@ -374,3 +374,34 @@ async def test_sync_nulls_orphaned_role_on_valid_initiative(session: AsyncSessio
     ).all()
     assert len(members) == 1
     assert members[0].role_id is None
+
+
+@pytest.mark.unit
+@pytest.mark.service
+async def test_oidc_membership_is_exempt_from_user_cap(session: AsyncSession):
+    """SSO/OIDC provisioning intentionally bypasses the per-guild user cap.
+
+    OIDC-mapped joins use a separate insert path (``_create_guild_membership``)
+    than invites/admin-create (``ensure_membership``), which is exactly why a
+    full guild still admits an OIDC user — the cap is enforced only on the
+    invite/admin paths (product decision: "invites + admin only").
+    """
+    from app.services.oidc_sync import _create_guild_membership
+    from app.services.platform import guilds as guild_service
+
+    guild = await create_guild(session, max_users=1)
+    seat = await create_user(session, email="oidc-seat@example.com")
+    joiner = await create_user(session, email="oidc-joiner@example.com")
+
+    # Fill the single seat via the *enforced* path.
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=seat.id, role=GuildRole.member
+    )
+    assert await guild_service.count_members(session, guild_id=guild.id) == 1
+
+    # The OIDC path admits a second member despite the cap of 1.
+    membership = await _create_guild_membership(
+        session, user_id=joiner.id, guild_id=guild.id, role=GuildRole.member
+    )
+    assert membership.oidc_managed is True
+    assert await guild_service.count_members(session, guild_id=guild.id) == 2

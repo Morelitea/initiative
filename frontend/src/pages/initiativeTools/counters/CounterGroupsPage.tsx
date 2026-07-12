@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useCounterGroupsList } from "@/hooks/useCounters";
 import { useGridSelection } from "@/hooks/useGridSelection";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInitiativeAccess } from "@/hooks/useInitiativeAccess";
 import { canCreateTool, useMyInitiativePermissions } from "@/hooks/useInitiativeRoles";
 import { useInitiatives } from "@/hooks/useInitiatives";
 import { useGuildPath } from "@/lib/guildUrl";
@@ -33,6 +34,7 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
   const router = useRouter();
   const gp = useGuildPath();
   const { activeGuildId } = useGuilds();
+  const { permissionsFor } = useInitiativeAccess();
   const searchParams = useSearch({ strict: false }) as {
     initiativeId?: string;
     create?: string;
@@ -102,8 +104,11 @@ export const CounterGroupsView = ({ fixedInitiativeId, canCreate }: CountersView
     if (effectiveInitiativeId && initiativePerms) {
       return canCreateTool(initiativePerms, Tool.counter_group);
     }
-    return initiatives.length > 0;
-  }, [canCreate, effectiveInitiativeId, initiativePerms, initiatives.length]);
+    // No initiative filter: creatable if the shared access helper allows
+    // creating in ANY counter-enabled initiative (honors guild-admin, PAM
+    // grants, and frozen read-only guilds).
+    return initiatives.some((initiative) => permissionsFor(initiative)[Tool.counter_group].create);
+  }, [canCreate, effectiveInitiativeId, initiativePerms, initiatives, permissionsFor]);
 
   const [createOpen, setCreateOpen] = useState(searchParams.create === "true");
   const isClosingCreateDialog = useRef(false);

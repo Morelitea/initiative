@@ -23,7 +23,11 @@ from sqlalchemy import and_, or_
 from sqlmodel import select
 
 from app.core.pam_context import active_grant_level, grant_satisfies, has_active_grant
-from app.core.role_context import active_guild_role, request_overrides_sharing
+from app.core.role_context import (
+    active_guild_role,
+    content_read_only_active,
+    request_overrides_sharing,
+)
 from app.core.tools import Tool
 from app.services.membership import guild_member_clause
 
@@ -470,11 +474,21 @@ def require_access(
     require_owner: bool = False,
     guild_role: GuildRole | str | None = None,
 ) -> None:
-    """Raise 403 unless ``user`` may act on ``row``: bypass (admin/PAM/Full
-    access) → (scope_gate) initiative scope → effective DAC level vs requested
-    access."""
+    """Raise 403 unless ``user`` may act on ``row``: frozen-guild read cap →
+    bypass (admin/PAM/Full access) → (scope_gate) initiative scope → effective
+    DAC level vs requested access."""
     guild_id = getattr(row, "guild_id", None)
     initiative_id = getattr(row, "initiative_id", None)
+    # A frozen guild (read_only lifecycle status) caps EVERY real member at
+    # read — before the bypass legs, so the guild-admin override can't clear
+    # it. The flag is never set for PAM/break-glass requests, whose grants
+    # override the status by design. The Postgres role (guild_<id>_ro) would
+    # refuse the write anyway; failing here keeps the app layer in agreement
+    # and the error clean.
+    if content_read_only_active(guild_id) and (access != "read" or require_owner):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=resource.write_msg
+        )
     if request_bypasses_dac(
         guild_id,
         initiative_id=initiative_id,
@@ -511,12 +525,21 @@ def require_access(
 
 def compute_permission(resource: DacResource, row: Any, user_id: int) -> str | None:
     """``my_permission_level`` for the client: guild admin / initiative "Full
-    access" → owner, else effective DAC level lifted to any active PAM grant."""
+    access" → owner, else effective DAC level lifted to any active PAM grant.
+    A frozen guild (read_only lifecycle status) caps the result at read — the
+    single place the client-facing level reflects the hold, so every surface
+    (edit affordances, writable filters, the collaboration socket's can_write)
+    inherits it without re-deriving the status."""
     guild_id = getattr(row, "guild_id", None)
     initiative_id = getattr(row, "initiative_id", None)
+    level: str | None
     if is_request_guild_admin(guild_id) or request_overrides_sharing(initiative_id):
-        return "owner"
-    return lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
+        level = "owner"
+    else:
+        level = lift_level_for_grant(effective_level(resource, row, user_id), guild_id)
+    if level is not None and content_read_only_active(guild_id):
+        return "read"
+    return level
 
 
 # ── High-level helpers for projects ─────────────────────────────
@@ -554,6 +577,8 @@ def has_project_write_access(
     user: User,
 ) -> bool:
     """Check if user has write access (synchronous, for filtering)."""
+    if content_read_only_active(getattr(project, "guild_id", None)):
+        return False
     return effective_level(DAC_RESOURCES[Tool.project], project, user.id) in (
         "write",
         "owner",

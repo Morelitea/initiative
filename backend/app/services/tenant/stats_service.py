@@ -7,7 +7,7 @@ from typing import List, Literal, Optional, Set
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import case, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.tenant.initiative import Initiative
 from app.models.tenant.project import Project

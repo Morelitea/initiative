@@ -20,7 +20,7 @@ if str(BASE_DIR) not in sys.path:
 
 from app.core.config import settings  # noqa: E402
 from app.db import base  # noqa: F401,E402  # ensure models are imported
-from app.db.tenancy import GUILD_SCOPED_TABLES  # noqa: E402
+from app.db.migration_filters import make_include_object  # noqa: E402
 
 config = context.config
 
@@ -48,50 +48,10 @@ GUILD_AUTOGEN = "guild" in context.get_x_argument(as_dictionary=True)
 config.attributes["guild_autogen"] = GUILD_AUTOGEN
 
 
-def _include_object(obj, name, type_, reflected, compare_to):
-    """Keep each autogenerate mode on its own tables — and, in guild mode, on
-    its own OBJECT KINDS.
-
-    Default mode compares shared/public tables only: guild-content tables live
-    in the per-guild schemas, so without the filter autogenerate would try to
-    CREATE them in ``public`` on a fresh database (the model metadata still
-    declares them for the ORM) or DROP/ALTER the frozen legacy copies on a
-    pre-squash database.
-
-    Guild mode (``-x guild``) inverts the table filter (guild-content tables
-    only, compared against ``guild_template``) and additionally scopes WHAT
-    autogenerate manages, mirroring the established division of labor:
-
-    * models own **tables + columns** — that's what guild autogen diffs;
-    * the artifacts own the dressing — FKs keep their PG-authored names and
-      deliberately omit cross-schema references, partial/GIN indexes carry
-      opclasses reflection loses (preserving them is WHY provisioning
-      reflects pg catalogs — see app.db.guild_ddl), and CHECKs come from
-      pg_get_constraintdef — so
-      constraint/index objects that exist only on one side are not diffs to
-      emit. Metadata-declared indexes/uniques missing from the template are
-      still created (a real model change); reflected-only ones are never
-      dropped.
-    * ``guild_id`` columns are trigger-populated and DDL-owned (NOT NULL in
-      the schema, Optional in models) — their nullability is not a diff.
-    """
-    if type_ == "table":
-        return (name in GUILD_SCOPED_TABLES) == GUILD_AUTOGEN
-
-    table = getattr(obj, "table", None)  # indexes/constraints/columns
-    in_guild_tables = table is not None and table.name in GUILD_SCOPED_TABLES
-    if not GUILD_AUTOGEN:
-        return not in_guild_tables
-    if table is not None and not in_guild_tables:
-        return False
-
-    if type_ == "foreign_key_constraint":
-        return False  # wholly artifact-owned (names + cross-schema omissions)
-    if type_ in ("index", "unique_constraint", "check_constraint"):
-        return not reflected or compare_to is not None  # never drop artifact-owned
-    if type_ == "column" and name == "guild_id":
-        return False  # trigger-populated; DDL owns its NOT NULL
-    return True
+# What each autogenerate mode manages lives in app.db.migration_filters
+# (shared with the model drift test, so CI proves models match the migrated
+# schemas through the exact filter autogenerate uses).
+_include_object = make_include_object(GUILD_AUTOGEN)
 
 
 def _process_revision_directives(context, revision, directives):

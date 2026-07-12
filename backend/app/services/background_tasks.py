@@ -38,6 +38,10 @@ def start_background_tasks() -> list[asyncio.Task]:
         process_expired_token_purge,
         TOKEN_PURGE_POLL_SECONDS,
     )
+    from app.services.platform.jti_purge import (
+        process_jti_blocklist_purges,
+        JTI_PURGE_POLL_SECONDS,
+    )
 
     return [
         asyncio.create_task(
@@ -66,6 +70,11 @@ def start_background_tasks() -> list[asyncio.Task]:
         asyncio.create_task(
             _loop_worker(
                 process_expired_token_purge, TOKEN_PURGE_POLL_SECONDS, "token-purge"
+            )
+        ),
+        asyncio.create_task(
+            _loop_worker(
+                process_jti_blocklist_purges, JTI_PURGE_POLL_SECONDS, "jti-purge"
             )
         ),
     ]

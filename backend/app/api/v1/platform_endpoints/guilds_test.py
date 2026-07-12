@@ -332,7 +332,9 @@ async def test_delete_guild_oidc_user_skips_password(
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("role", ["member", "support", "moderator", "admin", "owner"])
+@pytest.mark.parametrize(
+    "role", ["member", "support", "moderator", "operator", "owner"]
+)
 async def test_reorder_guilds(client: AsyncClient, session: AsyncSession, role: str):
     """EVERY platform tier can reorder their own guilds in personal mode.
 
@@ -597,6 +599,36 @@ async def test_accept_invite(client: AsyncClient, session: AsyncSession):
 
 
 @pytest.mark.integration
+async def test_accept_invite_blocked_when_guild_full(
+    client: AsyncClient, session: AsyncSession
+):
+    """Accepting an invite into a guild at its user cap returns 403."""
+    from app.services.platform import guilds as guild_service
+
+    creator = await create_user(session, email="full-creator@example.com")
+    seat_holder = await create_user(session, email="full-seat@example.com")
+    invitee = await create_user(session, email="full-invitee@example.com")
+    guild = await create_guild(session, name="Full Guild", max_users=1)
+
+    await guild_service.ensure_membership(
+        session, guild_id=guild.id, user_id=seat_holder.id, role=GuildRole.member
+    )
+    invite = await guild_service.create_guild_invite(
+        session, guild_id=guild.id, created_by_user_id=creator.id, max_uses=5
+    )
+    await session.commit()
+
+    response = await client.post(
+        "/api/v1/guilds/invite/accept",
+        headers=get_auth_headers(invitee),
+        json={"code": invite.code},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "GUILD_USER_LIMIT_REACHED"
+
+
+@pytest.mark.integration
 async def test_accept_invalid_invite_fails(client: AsyncClient, session: AsyncSession):
     """Test that accepting invalid invite fails."""
     user = await create_user(session, email="test@example.com")
@@ -798,7 +830,7 @@ async def test_guild_advanced_tool_handoff_succeeds_for_admin(
         body["handoff_token"],
         app_settings.SECRET_KEY,
         # Hardcoded HS256 — the handoff signing path uses HS256 in its
-        # no-private-key fallback regardless of settings.ALGORITHM. See
+        # no-private-key fallback regardless of JWT_ALGORITHM. See
         # initiatives_test.py for the same rationale.
         algorithms=["HS256"],
         audience=ADVANCED_TOOL_AUDIENCE,

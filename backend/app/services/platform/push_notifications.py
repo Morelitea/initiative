@@ -84,19 +84,18 @@ async def _send_to_fcm(
         return (False, False)
 
     # Build FCM message
-    message = {
-        "message": {
-            "token": token,
-            "notification": {
-                "title": title,
-                "body": body,
-            },
-        }
+    fcm_message: dict[str, Any] = {
+        "token": token,
+        "notification": {
+            "title": title,
+            "body": body,
+        },
     }
+    message = {"message": fcm_message}
 
     # Add Android-specific configuration for notification channels
     if notification_type:
-        message["message"]["android"] = {
+        fcm_message["android"] = {
             "notification": {
                 "channel_id": notification_type,  # Maps to Android channel ID
             }
@@ -104,7 +103,7 @@ async def _send_to_fcm(
 
     # Add data payload if provided (convert all values to strings)
     if data:
-        message["message"]["data"] = {k: str(v) for k, v in data.items()}
+        fcm_message["data"] = {k: str(v) for k, v in data.items()}
 
     # Send to FCM
     url = FCM_API_URL.format(project_id=settings.FCM_PROJECT_ID)

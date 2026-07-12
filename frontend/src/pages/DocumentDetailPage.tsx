@@ -385,6 +385,8 @@ export const DocumentDetailPage = () => {
     if (!document || !user) {
       return false;
     }
+    // Server-computed: already capped at "read" when the guild's content is
+    // frozen (read_only lifecycle status) or access is via a read-level grant.
     const myLevel = document.my_permission_level;
     return myLevel === "owner" || myLevel === "write";
   }, [document, user]);

@@ -46,7 +46,7 @@ class Capability(str, Enum):
     GUILDS_MANAGE = "guilds.manage"
     ROLES_ASSIGN = "roles.assign"
 
-    # The right to self-issue a break-glass PAM grant (admin+owner only). This is
+    # The right to self-issue a break-glass PAM grant (operator+owner only). This is
     # NOT a standing all-guild bypass: instead of an ambient superadmin flag
     # god-mode, the holder records a scoped, time-bound, audited grant in one step
     # (created + self-approved) to reach one guild's data, then routes through the
@@ -80,7 +80,7 @@ _MODERATOR: FrozenSet[Capability] = _SUPPORT | {
     Capability.USERS_MANAGE,
 }
 
-_ADMIN: FrozenSet[Capability] = _MODERATOR | {
+_OPERATOR: FrozenSet[Capability] = _MODERATOR | {
     Capability.GUILDS_MANAGE,
     Capability.USERS_DELETE,
     Capability.DATA_BYPASS,
@@ -90,7 +90,7 @@ _ADMIN: FrozenSet[Capability] = _MODERATOR | {
 }
 
 _OWNER: FrozenSet[Capability] = (
-    _ADMIN
+    _OPERATOR
     | {
         Capability.CONFIG_MANAGE,
     }
@@ -106,7 +106,7 @@ ROLE_CAPABILITIES: dict[UserRole, FrozenSet[Capability]] = {
     UserRole.member: _MEMBER,
     UserRole.support: _SUPPORT,
     UserRole.moderator: _MODERATOR,
-    UserRole.admin: _ADMIN,
+    UserRole.operator: _OPERATOR,
     UserRole.owner: _OWNER,
 }
 
@@ -139,13 +139,13 @@ def user_has_capability(user: "User", capability: Capability) -> bool:
 # Privilege ladder, least → most. Assignment is bounded by rank rather than
 # capability-subset: the presets aren't strictly nested (owner intentionally
 # drops ``access.request``, which the lower tiers carry), so a subset check
-# would wrongly forbid an owner from assigning ``admin``. Mirrors the
+# would wrongly forbid an owner from assigning ``operator``. Mirrors the
 # frontend's PLATFORM_ROLE_ORDER.
 _ROLE_RANK: dict[UserRole, int] = {
     UserRole.member: 0,
     UserRole.support: 1,
     UserRole.moderator: 2,
-    UserRole.admin: 3,
+    UserRole.operator: 3,
     UserRole.owner: 4,
 }
 
@@ -158,7 +158,7 @@ def can_assign_role(actor: "User", target_role: UserRole) -> bool:
     """Whether ``actor`` may assign ``target_role`` to someone.
 
     Bounded delegation: you can only grant a role at or below your own rung of
-    the ladder (an admin can't mint an owner). Requires the actor to hold
+    the ladder (an operator can't mint an owner). Requires the actor to hold
     ``ROLES_ASSIGN`` in the first place.
     """
     if not user_has_capability(actor, Capability.ROLES_ASSIGN):

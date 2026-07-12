@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import type {
+  AuthScopeUpdate,
   EmailSettingsResponse,
   EmailSettingsUpdate,
   FCMConfigResponse,
@@ -16,6 +17,10 @@ import type {
   OIDCSettingsUpdate,
   PlatformGuildStorageRead,
   PlatformGuildStorageUpdate,
+  StorageBackfillStatusResponse,
+  StorageSettingsResponse,
+  StorageSettingsUpdate,
+  StorageTestResponse,
 } from "@/api/generated/initiativeAPI.schemas";
 import {
   createOidcMappingApiV1SettingsOidcMappingsPost,
@@ -28,19 +33,27 @@ import {
   getGetOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGetQueryKey,
   getGetOidcMappingsApiV1SettingsOidcMappingsGetQueryKey,
   getGetOidcSettingsApiV1SettingsAuthGetQueryKey,
+  getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey,
+  getGetStorageSettingsApiV1SettingsStorageGetQueryKey,
   getInterfaceSettingsApiV1SettingsInterfaceGet,
   getListPlatformGuildStorageApiV1SettingsGuildsGetQueryKey,
   getOidcMappingOptionsApiV1SettingsOidcMappingsOptionsGet,
   getOidcMappingsApiV1SettingsOidcMappingsGet,
   getOidcSettingsApiV1SettingsAuthGet,
+  getStorageBackfillStatusApiV1SettingsStorageBackfillGet,
+  getStorageSettingsApiV1SettingsStorageGet,
   listPlatformGuildStorageApiV1SettingsGuildsGet,
   sendTestEmailApiV1SettingsEmailTestPost,
+  startStorageBackfillApiV1SettingsStorageBackfillPost,
+  testStorageConnectionApiV1SettingsStorageTestPost,
+  updateAuthScopeApiV1SettingsAuthScopePut,
   updateEmailSettingsApiV1SettingsEmailPut,
   updateInterfaceSettingsApiV1SettingsInterfacePut,
   updateOidcClaimPathApiV1SettingsOidcMappingsClaimPathPut,
   updateOidcMappingApiV1SettingsOidcMappingsMappingIdPut,
   updateOidcSettingsApiV1SettingsAuthPut,
   updatePlatformGuildStorageApiV1SettingsGuildsGuildIdPatch,
+  updateStorageSettingsApiV1SettingsStoragePut,
 } from "@/api/generated/settings/settings";
 import {
   getChangelogApiV1ChangelogGet,
@@ -52,6 +65,7 @@ import {
   invalidateInterfaceSettings,
   invalidateOidcMappings,
   invalidatePlatformGuilds,
+  invalidateStorageSettings,
 } from "@/api/query-keys";
 import type { MutationOpts } from "@/types/mutation";
 import type { QueryOpts } from "@/types/query";
@@ -118,6 +132,24 @@ export const useEmailSettings = (options?: QueryOpts<EmailSettingsResponse>) => 
     queryKey: getGetEmailSettingsApiV1SettingsEmailGetQueryKey(),
     queryFn: () =>
       getEmailSettingsApiV1SettingsEmailGet() as unknown as Promise<EmailSettingsResponse>,
+    ...options,
+  });
+};
+
+export const useStorageSettings = (options?: QueryOpts<StorageSettingsResponse>) => {
+  return useQuery<StorageSettingsResponse>({
+    queryKey: getGetStorageSettingsApiV1SettingsStorageGetQueryKey(),
+    queryFn: () =>
+      getStorageSettingsApiV1SettingsStorageGet() as unknown as Promise<StorageSettingsResponse>,
+    ...options,
+  });
+};
+
+export const useStorageBackfillStatus = (options?: QueryOpts<StorageBackfillStatusResponse>) => {
+  return useQuery<StorageBackfillStatusResponse>({
+    queryKey: getGetStorageBackfillStatusApiV1SettingsStorageBackfillGetQueryKey(),
+    queryFn: () =>
+      getStorageBackfillStatusApiV1SettingsStorageBackfillGet() as unknown as Promise<StorageBackfillStatusResponse>,
     ...options,
   });
 };
@@ -192,6 +224,30 @@ export const useUpdateOidcSettings = (
   });
 };
 
+export const useUpdateAuthScope = (
+  options?: MutationOpts<OIDCSettingsResponse, AuthScopeUpdate>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (data: AuthScopeUpdate) => {
+      return updateAuthScopeApiV1SettingsAuthScopePut(
+        data
+      ) as unknown as Promise<OIDCSettingsResponse>;
+    },
+    onSuccess: (...args) => {
+      // The posture is read from both the admin auth settings and the public
+      // interface settings (login page / guild tab visibility).
+      void invalidateAuthSettings();
+      void invalidateInterfaceSettings();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
 export const useUpdateInterfaceSettings = (
   options?: MutationOpts<InterfaceSettingsResponse, InterfaceSettingsUpdate>
 ) => {
@@ -243,6 +299,61 @@ export const useSendTestEmail = (
     ...rest,
     mutationFn: async (data: Parameters<typeof sendTestEmailApiV1SettingsEmailTestPost>[0]) => {
       await sendTestEmailApiV1SettingsEmailTestPost(data);
+    },
+    onSuccess,
+    onError,
+    onSettled,
+  });
+};
+
+export const useUpdateStorageSettings = (
+  options?: MutationOpts<StorageSettingsResponse, StorageSettingsUpdate>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (data: StorageSettingsUpdate) => {
+      return updateStorageSettingsApiV1SettingsStoragePut(
+        data as Parameters<typeof updateStorageSettingsApiV1SettingsStoragePut>[0]
+      ) as unknown as Promise<StorageSettingsResponse>;
+    },
+    onSuccess: (...args) => {
+      void invalidateStorageSettings();
+      onSuccess?.(...args);
+    },
+    onError,
+    onSettled,
+  });
+};
+
+export const useTestStorageConnection = (
+  options?: MutationOpts<StorageTestResponse, StorageSettingsUpdate>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async (data: StorageSettingsUpdate) => {
+      return testStorageConnectionApiV1SettingsStorageTestPost(
+        data as Parameters<typeof testStorageConnectionApiV1SettingsStorageTestPost>[0]
+      ) as unknown as Promise<StorageTestResponse>;
+    },
+    onSuccess,
+    onError,
+    onSettled,
+  });
+};
+
+export const useStartStorageBackfill = (
+  options?: MutationOpts<StorageBackfillStatusResponse, void>
+) => {
+  const { onSuccess, onError, onSettled, ...rest } = options ?? {};
+
+  return useMutation({
+    ...rest,
+    mutationFn: async () => {
+      return startStorageBackfillApiV1SettingsStorageBackfillPost() as unknown as Promise<StorageBackfillStatusResponse>;
     },
     onSuccess,
     onError,

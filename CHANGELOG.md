@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-07-12
+
+### Added
+
+- Per-guild user limits (default unlimited), set from the admin dashboard's Guilds tab. At the cap, new joins/invites are refused; existing members and SSO auto-provisioning are unaffected.
+- Per-guild lifecycle status for moderation holds: `read_only` blocks writes, `suspended` hides the guild from members (admins keep settings access). Reversible; never touches stored data.
+- Support/moderator access grants are now database-enforced: read grants are read-only; read_write grants can edit content but not membership, roles, or sharing.
+
+### Changed
+
+- Renamed the platform **Admin** role to **Operator** so it no longer collides with a guild's **admin** role. The platform ladder is now `member → support → moderator → operator → owner`; capabilities and behavior are unchanged. A migration renames the `users.role` value and the `platform_admin` database role in place, so existing platform admins become operators automatically — no action needed.
+- Operator "delete this guild" is now scoped to the deleted user's solely-admined guild instead of accepting any guild id.
+- Removed the `ALGORITHM`, `COOKIE_NAME`, `REFRESH_COOKIE_NAME`, `PROJECT_NAME`, and `API_V1_STR` settings — their values are now fixed. Drop them from your `.env`; leftovers are ignored.
+- Removed the `OIDC_REDIRECT_URI` and `OIDC_POST_LOGIN_REDIRECT` settings (read by nothing — redirect URLs derive from `APP_URL`) and the legacy `OIDC_DISCOVERY_URL` alias. OIDC is configured in Settings → Admin; the `OIDC_*` env vars only pre-fill it on first boot. If you still set `OIDC_DISCOVERY_URL`, use `OIDC_ISSUER` instead.
+- `backend/.env.example` was rewritten; optional OIDC/SMTP/S3 lines are commented out so placeholder values no longer seed the admin settings on first boot.
+- SSO (OIDC) sign-in now fully verifies the provider's identity token (signature, issuer, audience, expiry, nonce) and links accounts by the provider's stable subject id instead of email. No action needed; existing logins keep working.
+
+### Deprecated
+
+- A superuser (or `BYPASSRLS`) role in `DATABASE_URL` is deprecated; a future release will refuse to start with it. To migrate: run `backend/scripts/create-provisioner.sql` once (`-v provisioner_password='<password>'`), point `DATABASE_URL` at `app_provisioner`, restart. Fresh docker-compose installs already do this.
+- Removed the unused `AUTO_APPROVED_EMAIL_DOMAINS` setting (read by nothing). Drop it from your `.env` if present.
+- Removed the `MAX_UNBOUNDED_PAGE_SIZE` setting — "fetch all" list responses are now served in bounded windows that the app pages through automatically, so there is nothing to tune. Drop it from your `.env` if present.
+
+### Fixed
+
+- Deleting a user's blocking guild from the admin user-deletion dialog no longer freezes the page (and silently does nothing): the UI dependency tree carried three copies each of Radix's focus-scope, dismissable-layer, and focus-guards packages, so the nested confirm dialog and the outer dialog couldn't see each other — fighting over focus in an infinite loop, dismissing each other on clicks, and leaving the page permanently unclickable. Each is now pinned to a single copy, which also protects every other nested dialog/confirm combination.
+- Guild admins of a suspended guild are no longer trapped on its settings page: the redirect that pins a suspended guild to settings fired against the pending navigation target, cancelling every attempt to reach another guild or a personal page. It now only applies within the suspended guild's own routes. PAM/break-glass grantees are exempt from the pin entirely — a grant browses a suspended guild like an active one (the backend never blocks grant access on lifecycle status), so grantees now reach its content instead of being stranded on a settings page they can't view.
+- Read-only guilds no longer offer create buttons the server would refuse: documents, projects, queues, counter groups, and events hide their create affordances while the guild is frozen. Queue, counter, and event error toasts now surface the actual reason (e.g. "Guild access denied") instead of a generic "something went wrong".
+- Newly registered users are no longer bounced from the home page to the documents page with the "create document" dialog open: the create-document wizard's auto-advance no longer runs while its dialog is closed. The create-task wizard shared the same defect (silently pre-fetching and advancing while closed) and was fixed alongside it.
+- Task boards, document pickers, and project lists with more than 1000 items no longer silently lose rows: "fetch all" list requests now walk bounded server windows until the complete set is retrieved, and truncation is always reported via `has_next`.
+- `backend/scripts/create-provisioner.sql` missed the per-guild support roles: after switching `DATABASE_URL` to `app_provisioner`, deployments with existing guilds failed to boot with `permission denied to grant role "guild_N_support"`. If that hit you, run the fixed script once against your app database, connected as the Postgres superuser: `psql -v ON_ERROR_STOP=1 -U <superuser> -d <app-db> -v provisioner_password='<your password>' -f backend/scripts/create-provisioner.sql`. Running it again on a healthy install changes nothing.
+- Guild storage caps, member limits, tier label, and lifecycle status can no longer be edited through guild-facing settings — they are platform-operator inputs, now enforced with column-scoped database grants.
+- Anonymizing or deleting a user now scrubs their email from guild invites addressed to them, and neutralizes the invite so it can't become an open shareable link.
+- Startup no longer fails with an RLS error when `DATABASE_URL_ADMIN` has lost its `BYPASSRLS` attribute (typical after restoring from a dump, #835): boot restores it automatically when possible, and otherwise prints the exact `ALTER ROLE` command to run.
 ### Security
 
 - Block guild admins from changing a user's account `status` through the generic `PATCH /g/{guild_id}/users/{user_id}` edit endpoint. The handler already rejected platform `role` changes there, but `status` fell through to the field-assignment loop, so a guild admin could deactivate or anonymize any co-member — including the last platform admin — bypassing the dedicated deactivate/reactivate flow and its guards (last-admin protection, ownership transfer, confirmation). Status changes now return HTTP 400 and must go through the delete/approve endpoints.
@@ -94,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Set per-guild storage limits from the Admin dashboard.** Platform admins and owners get a new **Guilds** tab under Settings → Admin that lists every guild with its member count and current cap, where you can set (in GB) or clear each guild's maximum upload storage. Lowering a cap below current usage blocks further uploads but never deletes existing files.
 - **Optional S3-compatible object storage for uploads.** Uploads can now be stored in an S3-compatible object store you point it at (a self-hosted Garage instance, AWS S3, R2, etc.) instead of the local filesystem, via `STORAGE_BACKEND=s3` and the new `S3_*` settings. The filesystem remains the default, so existing deployments are unaffected. See `docs/OBJECT_STORAGE.md`.
 - **Zero-downtime migration from local to S3 storage.** A `python -m app.db.backfill_uploads_to_s3` job copies existing local uploads into the bucket (idempotent, content-type preserved, integrity-verified), and a new `S3_LOCAL_FALLBACK` setting serves any not-yet-copied blob from local disk during the cutover — so flipping a deployment with existing uploads onto S3 never drops a file. See `docs/OBJECT_STORAGE.md`.
+- **Configure object storage from the UI.** Platform owners get a new **Storage** tab under Settings → Platform to choose the backend and enter all S3 settings at runtime (no env vars or restart needed), with a **Test connection** button and a **Backfill** button that runs the local→S3 migration. Saved settings override the environment variables, and the secret access key is stored encrypted and never returned to the browser.
 
 ### Fixed
 

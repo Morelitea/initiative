@@ -10,20 +10,26 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.capabilities import Capability, user_has_capability
-from app.core.config import settings
+from app.core.config import API_V1_STR, settings
 from app.core.pam_context import set_active_grant
-from app.core.role_context import set_active_role, set_override_sharing_initiatives
+from app.core.role_context import (
+    set_active_role,
+    set_content_read_only_guild,
+    set_override_sharing_initiatives,
+)
 from app.core.messages import AuthMessages, GuildMessages, UserMessages
 from app.core.security import (
+    SESSION_COOKIE_NAME,
     AutoDelegationVerificationError,
     UploadTokenError,
+    decode_session_token,
     verify_auto_delegation_token,
     verify_upload_token,
 )
 from app.db.session import get_session, set_rls_context
 from app.models.platform.access_grant import AccessGrant, AccessLevel
 from app.models.platform.api_key import UserApiKey
-from app.models.platform.guild import Guild, GuildMembership, GuildRole
+from app.models.platform.guild import Guild, GuildMembership, GuildRole, GuildStatus
 from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.token import TokenPayload
 from app.services.platform import access_grants as access_grants_service
@@ -35,7 +41,7 @@ from app.services.platform import user_tokens
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/auth/token", auto_error=False
+    tokenUrl=f"{API_V1_STR}/auth/token", auto_error=False
 )
 
 
@@ -161,7 +167,7 @@ async def get_current_user(
     request: Request,
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
     # Check for Authorization header - could be Bearer, DeviceToken, or API key
     auth_header = request.headers.get("Authorization", "")
@@ -208,9 +214,7 @@ async def get_current_user(
     # 401 interceptor depends on this to auto-redirect to /welcome when
     # the access token expires.
     try:
-        payload = jwt.decode(
-            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
-        )
+        payload = decode_session_token(token)
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError as exc:
         raise HTTPException(
@@ -244,7 +248,7 @@ async def get_current_user_optional(
     request: Request,
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User | None:
     try:
         return await get_current_user(request, session, bearer_token, session_cookie)
@@ -312,6 +316,11 @@ class GuildContext:
     # + guild-admin RLS context), unlike a regular PAM grant which stays scoped
     # to content read/write. Still grant-gated: no live grant, no reach.
     break_glass: bool = False
+    # True when the guild is in ``read_only`` status and access is via real
+    # membership: the session is routed into the SELECT-only ``guild_<id>_ro``
+    # Postgres role so content writes are denied at the role level. Never set
+    # on the grant branches — PAM/break-glass override the guild status.
+    content_read_only: bool = False
 
     @property
     def guild_id(self) -> int:
@@ -409,18 +418,39 @@ async def _load_guild_context(
             pam_write=is_read_write,
         )
         guild = await guilds_service.get_guild(session, guild_id=guild_id)
-        # Break-glass acts as a guild admin; a scoped grantee gets a member-role
-        # stand-in so ``.role`` is valid without conferring admin guards.
+        # Break-glass acts as a full guild admin; a scoped grantee gets the
+        # ``support`` role — a first-class identity for PAM access rather than a
+        # ``member`` masquerade. ``support`` clears no admin guard (it is not
+        # ``admin``) but does open the guild settings surface (bound by the
+        # grant's read/write level at the Postgres role layer). The role is
+        # in-memory only; it never reaches ``set_rls_context`` (the ``is_pam``
+        # branch passes ``guild_role=None``), so the ``guild_role`` GUC and DB
+        # enum stay admin/member.
         synthetic = GuildMembership(
             guild_id=guild_id,
             user_id=current_user.id,
-            role=GuildRole.admin if break_glass else GuildRole.member,
+            role=GuildRole.admin if break_glass else GuildRole.support,
         )
         return GuildContext(
             guild=guild, membership=synthetic, grant=grant, break_glass=break_glass
         )
     guild = await guilds_service.get_guild(session, guild_id=guild_id)
-    return GuildContext(guild=guild, membership=membership)
+    # Guild lifecycle status gates REAL MEMBERS ONLY — the grant branch above
+    # deliberately never consults it (PAM/break-glass behave exactly as against
+    # an active guild, so suspending a guild can never lock operators out).
+    # This resolver is the one layer where a grantee is still distinguishable
+    # from a member: at the DB layer break-glass is byte-identical to a real
+    # guild admin, so the status check cannot live in RLS. ``suspended`` fails
+    # closed with the generic access-denied code (the status is not disclosed
+    # to members); ``read_only`` keeps membership but routes the session into
+    # the SELECT-only guild role (see _apply_guild_session_context).
+    if guild.status == GuildStatus.suspended.value:
+        raise GuildAccessError()
+    return GuildContext(
+        guild=guild,
+        membership=membership,
+        content_read_only=(guild.status == GuildStatus.read_only.value),
+    )
 
 
 async def get_guild_membership(
@@ -500,6 +530,8 @@ async def _apply_guild_session_context(
         # Break-glass acts as a full guild admin, which already bypasses gate 4
         # everywhere; the per-initiative "Full access" set is moot here.
         set_override_sharing_initiatives(None)
+        # Break-glass overrides the guild lifecycle status by design.
+        set_content_read_only_guild(None)
         await set_rls_context(
             session,
             user_id=current_user.id,
@@ -527,6 +559,9 @@ async def _apply_guild_session_context(
         set_active_role(None, None)
         # A PAM grantee holds no initiative role, so no "Full access" override.
         set_override_sharing_initiatives(None)
+        # A scoped grant overrides the guild lifecycle status by design (its
+        # read/write level is enforced at the Postgres role layer instead).
+        set_content_read_only_guild(None)
         # Leave current_guild_id unset — the existing write policies treat a
         # matching current_guild_id as proof of membership. Scope the grant via
         # pam_guild_id instead.
@@ -545,6 +580,13 @@ async def _apply_guild_session_context(
     # Record the membership role for this request's active guild so the sync
     # access checks can apply the guild-admin leg of the initiative-scope gate.
     set_active_role(guild_context.guild_id, guild_context.role.value)
+    # Frozen guild (read_only lifecycle status): the DB role already refuses
+    # writes; recording it here makes the app-layer DAC engine agree, so every
+    # derived permission (my_permission_level, writable filters, WS can_write)
+    # reports read from ONE flag instead of per-surface re-derivations.
+    set_content_read_only_guild(
+        guild_context.guild_id if guild_context.content_read_only else None
+    )
     # No standing all-guild bypass: a guild admin sees the whole guild via the
     # ``current_guild_role='admin'`` RLS leg (and the guild role they SET into),
     # never an ambient bypass. A ``data.bypass`` holder who isn't a member reaches
@@ -554,6 +596,11 @@ async def _apply_guild_session_context(
         user_id=current_user.id,
         guild_id=guild_context.guild_id,
         guild_role=guild_context.role.value,
+        # Guild in read_only status: keep the full membership GUCs (so the
+        # initiative-member and admin RLS legs evaluate normally) but assume
+        # the SELECT-only guild_<id>_ro Postgres role — content writes are
+        # denied by Postgres, not app code.
+        read_only=guild_context.content_read_only,
     )
     # Precompute the initiatives where this member holds "Full access" so the
     # sync DAC checks can apply the gate-4 override without an async query. Runs
@@ -710,7 +757,7 @@ async def get_upload_user(
     session: SessionDep,
     bearer_token: Annotated[Optional[str], Depends(oauth2_scheme)] = None,
     token_param: Annotated[Optional[str], Query(alias="token")] = None,
-    session_cookie: Annotated[Optional[str], Cookie(alias=settings.COOKIE_NAME)] = None,
+    session_cookie: Annotated[Optional[str], Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ) -> User:
     """Auth dependency for /uploads/* and authenticated document downloads.
 
@@ -786,9 +833,7 @@ async def get_upload_user(
     # Try JWT authentication. Expired / malformed tokens are 401 (not 403)
     # so the SPA can auto-redirect to /welcome when the session lapses.
     try:
-        payload = jwt.decode(
-            token, settings.jwt_signing_key, algorithms=[settings.ALGORITHM]
-        )
+        payload = decode_session_token(token)
         token_data = TokenPayload(**payload)
     except jwt.PyJWTError:
         raise HTTPException(

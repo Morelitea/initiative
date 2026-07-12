@@ -160,6 +160,7 @@ export const CreateDocumentWizard = () => {
   // Auto-advance guild step
   useEffect(() => {
     if (
+      open &&
       step === "select-guild" &&
       guilds.length === 1 &&
       !lastUsed &&
@@ -168,11 +169,12 @@ export const CreateDocumentWizard = () => {
       autoAdvancedRef.current = "guild";
       handleGuildSelect(guilds[0].id, guilds[0].name);
     }
-  }, [step, guilds, lastUsed, handleGuildSelect]);
+  }, [open, step, guilds, lastUsed, handleGuildSelect]);
 
   // Auto-advance initiative step
   useEffect(() => {
     if (
+      open &&
       step === "select-initiative" &&
       !initiativesQuery.isLoading &&
       initiatives.length === 1 &&
@@ -181,7 +183,7 @@ export const CreateDocumentWizard = () => {
       autoAdvancedRef.current = "initiative";
       handleInitiativeSelect(initiatives[0].id, initiatives[0].name);
     }
-  }, [step, initiatives, initiativesQuery.isLoading, handleInitiativeSelect]);
+  }, [open, step, initiatives, initiativesQuery.isLoading, handleInitiativeSelect]);
 
   const handleBack = useCallback(() => {
     autoAdvancedRef.current = null;

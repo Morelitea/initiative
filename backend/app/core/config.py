@@ -1,8 +1,14 @@
 from functools import lru_cache
 from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, EmailStr, Field, field_validator, model_validator
+from pydantic import AliasChoices, EmailStr, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# App identity/shape — deliberately constants, not settings: the SPA, the
+# docs-CSP route, and the OpenAPI export all assume this prefix, so making it
+# configurable only creates ways to break them.
+PROJECT_NAME = "Initiative API"
+API_V1_STR = "/api/v1"
 
 # Origins used by the Capacitor native mobile app (iOS and Android).
 # Must always be allowed regardless of CORS_ALLOWED_ORIGINS setting.
@@ -127,9 +133,6 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    PROJECT_NAME: str = "Initiative API"
-    API_V1_STR: str = "/api/v1"
-
     DATABASE_URL: str = (
         "postgresql+asyncpg://initiative:initiative@localhost:5432/initiative"
     )
@@ -151,8 +154,20 @@ class Settings(BaseSettings):
     # with no impact on encrypted-at-rest data. Falls back to SECRET_KEY when unset.
     JWT_SIGNING_KEY: str | None = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    ALGORITHM: str = "HS256"
-    COOKIE_NAME: str = "session_token"
+    # The JWT algorithm and cookie names are constants in app.core.security
+    # (JWT_ALGORITHM, SESSION_COOKIE_NAME, REFRESH_COOKIE_NAME) — a settable
+    # JWT algorithm is an alg-confusion hazard, and the cookie names are part
+    # of the auth contract, not deployment configuration.
+
+    # New login model (auth rewrite, Phase 0 — history/auth-detailed-design.md §3).
+    # The access token is short-lived + stateless: verified locally with no
+    # per-request DB read (the 10k+ win), so a leak is stale within one TTL. The
+    # refresh token is long, opaque, rotating, and revocable via ``auth_sessions``.
+    # These are deliberately separate from the legacy ``ACCESS_TOKEN_EXPIRE_MINUTES``
+    # (the current long-lived session JWT) — the two models coexist during the
+    # dual-verify cutover window.
+    AUTH_ACCESS_TTL_MINUTES: int = 15
+    AUTH_REFRESH_TTL_DAYS: int = 30
 
     @field_validator("SECRET_KEY")
     @classmethod
@@ -196,7 +211,6 @@ class Settings(BaseSettings):
     def cookie_secure(self) -> bool:
         return self.app_url_is_https
 
-    AUTO_APPROVED_EMAIL_DOMAINS: list[str] = Field(default_factory=list)
     # APP_URL should point to the frontend entry so redirect URIs resolve correctly
     APP_URL: str = "http://localhost:5173"
     # Extra browser origins allowed to make credentialed cross-origin requests,
@@ -330,8 +344,6 @@ class Settings(BaseSettings):
     OIDC_ISSUER: str | None = None
     OIDC_CLIENT_ID: str | None = None
     OIDC_CLIENT_SECRET: str | None = None
-    OIDC_REDIRECT_URI: str | None = None
-    OIDC_POST_LOGIN_REDIRECT: str | None = None
     OIDC_PROVIDER_NAME: str | None = None
     OIDC_SCOPES: list[str] | str | None = None
     SMTP_HOST: str | None = None
@@ -495,6 +507,35 @@ class Settings(BaseSettings):
     AUTO_DELEGATION_AUDIENCE: str = "initiative:auto-delegation"
     AUTO_DELEGATION_ISSUER: str = "initiative-auto"
 
+    # --- Billing (hosted deployments only; default OFF) -------------------
+    # Billing is an optional EXTERNAL service. Every BILLING_* setting below
+    # is unset on a self-hosted install, and with them unset the app behaves
+    # exactly as if billing did not exist: the /billing endpoints answer 503,
+    # the membership ping is a no-op, and guild caps/status are governed
+    # solely by what the operator sets (PATCH /settings/guilds/{id}).
+    #
+    # Inbound calls from the billing service (initiative-billing). Requests
+    # carry an RS256 service JWT (verified against this public key) plus an
+    # HMAC-SHA256 over METHOD\nPATH\nTIMESTAMP\nsha256(body) keyed by the
+    # shared secret. Both must be configured or the /billing endpoints
+    # refuse every request.
+    BILLING_PUBLIC_KEY_PEM: str | None = None
+    BILLING_HMAC_SECRET: str | None = None
+    BILLING_AUDIENCE: str = "initiative:billing"
+    BILLING_ISSUER: str = "initiative-billing"
+    # Max |now - signed timestamp| accepted, in seconds. Never 0.
+    BILLING_REPLAY_WINDOW_SECONDS: int = Field(default=300, ge=1)
+    # Outbound base URL of the billing service, for the fire-and-forget
+    # membership-change ping (guild id + event id only — no member data).
+    # The ping is dispatched only when this AND BILLING_HMAC_SECRET are set.
+    BILLING_SERVICE_URL: str | None = None
+    # Public base URL of an external billing portal, surfaced to the SPA via
+    # /config. Unset (the default) ⇒ the SPA shows NO tier label, upgrade, or
+    # manage-billing UI; the usage panel still shows caps/usage (operator-set
+    # numbers). Set ⇒ the link-out buttons appear. Mirrors the
+    # ADVANCED_TOOL_URL pattern: the OSS core defers to an external service.
+    BILLING_URL: str | None = None
+
     # Local-dev escape hatch for the webhook SSRF guard. When TRUE, the
     # dispatcher accepts ``http://`` and private/loopback/link-local
     # targets — needed only for round-tripping with auto running on
@@ -532,15 +573,6 @@ class Settings(BaseSettings):
     # limits "storage" docs for the full URI scheme list.
     RATE_LIMIT_STORAGE_URI: str = "memory://"
 
-    # Absolute server-side ceiling on how many rows a single list request may
-    # return when it asks for "all" (``page_size=0``/unbounded). Without this an
-    # unauthenticated-by-count query could dump an entire guild's table in one
-    # response (SEC-14). The "0 = all" convention is preserved for callers (the
-    # SPA fetches all tasks for drag-and-drop, all documents for pickers) — the
-    # result set is simply capped here. Raise it if a single guild legitimately
-    # has more than this many tasks/documents on one board.
-    MAX_UNBOUNDED_PAGE_SIZE: int = 1000
-
     # Expose the interactive API docs (Swagger UI at ``{API_V1_STR}/docs``) and
     # the raw OpenAPI schema (``{API_V1_STR}/openapi.json``). Defaults to True so
     # local development keeps its self-documenting API and the frontend's Orval
@@ -565,19 +597,6 @@ class Settings(BaseSettings):
     # in air-gapped deployments or when egress is blocked); the length
     # floor in ``app.core.password_policy`` still applies.
     HIBP_CHECK_ENABLED: bool = True
-
-    @field_validator("AUTO_APPROVED_EMAIL_DOMAINS", mode="before")
-    @classmethod
-    def parse_email_domains(cls, value: str | list[str] | None) -> list[str]:
-        if value is None:
-            return []
-        if isinstance(value, str):
-            if not value.strip():
-                return []
-            items = value.split(",")
-        else:
-            items = value
-        return [item.strip().lower() for item in items if item and item.strip()]
 
     @field_validator("CORS_ALLOWED_ORIGINS", mode="before")
     @classmethod
@@ -629,19 +648,14 @@ class Settings(BaseSettings):
                 normalized.append(cleaned)
         return normalized or ["openid", "profile", "email"]
 
-    @model_validator(mode="before")
-    @classmethod
-    def _oidc_issuer_compat(cls, values: dict) -> dict:
-        if not values.get("OIDC_ISSUER") and values.get("OIDC_DISCOVERY_URL"):
-            values["OIDC_ISSUER"] = values["OIDC_DISCOVERY_URL"]
-        return values
-
 
 @lru_cache
 # Use caching to avoid re-reading the env file over and over
 # (FastAPI startup imports Config many times).
 def get_settings() -> Settings:
-    return Settings()
+    # Required fields (DATABASE_URL_*, SECRET_KEY) are loaded from the
+    # environment by pydantic-settings, which ty can't see.
+    return Settings()  # ty: ignore[missing-argument]
 
 
 settings = get_settings()

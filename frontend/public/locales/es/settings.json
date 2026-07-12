@@ -19,13 +19,24 @@
     "title": "Configuración del gremio",
     "subtitle": "Administra la membresía del espacio de trabajo y los detalles del gremio.",
     "permissionDenied": "Necesitas permisos adicionales para ver esta página.",
+    "restricted": {
+      "read_only": {
+        "label": "Solo lectura",
+        "message": "Este gremio es de solo lectura. Contacta con el administrador de la plataforma para restaurar el acceso completo."
+      },
+      "suspended": {
+        "label": "Suspendido",
+        "message": "Este gremio está suspendido y los miembros no pueden acceder. Contacta con el administrador de la plataforma."
+      }
+    },
     "tabs": {
       "guild": "Gremio",
       "ai": "IA",
       "users": "Usuarios",
       "initiatives": "Iniciativas",
       "trash": "Papelera",
-      "dangerZone": "Zona de peligro"
+      "dangerZone": "Zona de peligro",
+      "auth": "Autenticación"
     }
   },
   "profile": {
@@ -564,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Selecciona una iniciativa primero",
     "loadingOptions": "Cargando opciones…",
     "loadingOidcMappings": "Cargando mapeos OIDC…",
-    "oidcMappingsLoadError": "No se pudieron cargar los mapeos OIDC."
+    "oidcMappingsLoadError": "No se pudieron cargar los mapeos OIDC.",
+    "scope": {
+      "title": "Configuración de inicio de sesión",
+      "description": "Elige dónde se configura el inicio de sesión para este servidor.",
+      "platformLabel": "Para toda la plataforma",
+      "platformHelp": "El inicio de sesión se configura una sola vez, aquí, para todo el servidor. Todos los gremios lo usan. Ideal para una sola organización con su propia instancia.",
+      "guildLabel": "Por gremio",
+      "guildHelp": "Cada gremio configura su propio inicio de sesión y sus reglas de membresía en los ajustes del gremio. Ideal para un servidor que aloja varias organizaciones independientes.",
+      "comingSoon": "Próximamente",
+      "passwordNote": "El inicio de sesión con contraseña sigue disponible en ambos modos."
+    }
   },
   "platformUsers": {
     "title": "Usuarios de la plataforma",
@@ -607,14 +628,14 @@
       "member": "Miembro",
       "support": "Soporte",
       "moderator": "Moderador",
-      "admin": "Administrador",
+      "operator": "Operador",
       "owner": "Propietario"
     },
     "roleDescriptions": {
       "member": "Acceso estándar a sus propios gremios. Sin privilegios a nivel de plataforma.",
       "support": "Visibilidad de solo lectura de la plataforma (usuarios, gremios, auditoría) y puede solicitar acceso temporal a un gremio.",
       "moderator": "Todo lo que puede hacer Soporte, además de gestión de usuarios (suspender/reactivar) y moderación de contenido.",
-      "admin": "Gestiona usuarios, gremios y roles en toda la plataforma, con acceso a datos entre gremios y aprueba solicitudes de acceso.",
+      "operator": "Gestiona usuarios, gremios y roles en toda la plataforma, con acceso a datos entre gremios y aprueba solicitudes de acceso.",
       "owner": "Control total, incluida la configuración de toda la plataforma (autenticación, personalización, email, IA). El único rol que puede gestionar la configuración."
     },
     "changeRoleTitle": "Cambiar rol de plataforma",
@@ -745,7 +766,8 @@
       "auth": "Autenticación",
       "branding": "Personalización",
       "email": "Email",
-      "ai": "IA"
+      "ai": "IA",
+      "storage": "Almacenamiento"
     }
   },
   "adminDashboard": {
@@ -758,22 +780,98 @@
     }
   },
   "guilds": {
-    "title": "Límites de almacenamiento por gremio",
-    "description": "Establece el almacenamiento total máximo que cada gremio puede usar para los archivos subidos. Bajar un límite por debajo del uso actual bloquea las nuevas subidas, pero nunca elimina los archivos existentes.",
-    "adminOnly": "Necesitas el rol de propietario de la plataforma para gestionar los límites de almacenamiento de los gremios.",
+    "title": "Límites por gremio",
+    "description": "Establece límites por gremio para el almacenamiento y el número de usuarios. Bajar un límite por debajo del uso actual bloquea las nuevas subidas o miembros, pero nunca elimina los archivos ni los miembros existentes.",
+    "adminOnly": "Necesitas el rol de propietario de la plataforma para gestionar los límites de los gremios.",
     "loading": "Cargando gremios…",
     "loadError": "No se pudieron cargar los gremios. Inténtalo de nuevo.",
     "filterByName": "Filtrar gremios por nombre",
     "unlimitedPlaceholder": "Ilimitado",
-    "helpText": "Los límites están en GB y se guardan automáticamente. Deja un campo en blanco para almacenamiento ilimitado.",
+    "helpText": "Los límites de almacenamiento están en GB; los límites de usuarios son un recuento de miembros. Ambos se guardan automáticamente: deja un campo en blanco para ilimitado.",
     "limitInputLabel": "Límite de almacenamiento para {{name}} en GB",
+    "userLimitInputLabel": "Límite de usuarios para {{name}}",
+    "overLimitHint": "{{name}} tiene más miembros de los que permite su límite actual.",
     "saved": "Límite de almacenamiento actualizado para {{name}}.",
     "saveError": "No se pudo actualizar el límite de almacenamiento. Inténtalo de nuevo.",
+    "usersSaved": "Límite de usuarios actualizado para {{name}}.",
+    "usersSaveError": "No se pudo actualizar el límite de usuarios. Inténtalo de nuevo.",
+    "statusInputLabel": "Estado de {{name}}",
+    "statusSaved": "Estado de {{name}} actualizado.",
+    "statusSaveError": "No se pudo actualizar el estado del gremio. Inténtalo de nuevo.",
+    "status": {
+      "active": "Activo",
+      "read_only": "Solo lectura",
+      "suspended": "Suspendido"
+    },
+    "suspendConfirm": {
+      "title": "¿Suspender {{name}}?",
+      "description": "Los miembros pierden todo el acceso y el gremio desaparece de su lista. No se elimina nada y puedes reactivarlo en cualquier momento; los operadores conservan el acceso mediante una concesión break-glass.",
+      "confirm": "Suspender gremio"
+    },
     "columns": {
       "id": "ID",
       "guild": "Gremio",
       "members": "Miembros",
-      "storageLimit": "Límite de almacenamiento"
+      "users": "Usuarios",
+      "storageLimit": "Límite de almacenamiento",
+      "status": "Estado"
     }
+  },
+  "storage": {
+    "adminOnly": "Solo los propietarios de la plataforma pueden configurar el almacenamiento.",
+    "loading": "Cargando la configuración de almacenamiento…",
+    "loadError": "No se pudo cargar la configuración de almacenamiento.",
+    "title": "Almacenamiento de objetos",
+    "description": "Elige dónde se guardan los archivos subidos (documentos, adjuntos). De forma predeterminada usa el sistema de archivos local; cambia a un almacén compatible con S3 para despliegues escalables o compartidos.",
+    "backendLabel": "Backend de almacenamiento",
+    "backendLocal": "Sistema de archivos local",
+    "backendS3": "Compatible con S3",
+    "backendHelp": "Local guarda los archivos en el disco del servidor. S3 funciona con AWS S3, una instancia autoalojada de Garage/MinIO, Cloudflare R2 y similares.",
+    "cutoverTitle": "Cambiar a S3 no mueve los archivos existentes",
+    "cutoverHelp": "Guarda esta configuración, ejecuta Probar conexión y luego usa Migración a continuación para copiar los archivos locales existentes al bucket. Cambia el backend a S3 solo cuando termine la migración; opcionalmente deja activado «Servir objetos faltantes desde local» durante un periodo de verificación.",
+    "bucketLabel": "Bucket",
+    "bucketPlaceholder": "my-initiative-uploads",
+    "regionLabel": "Región",
+    "endpointLabel": "URL del endpoint",
+    "endpointPlaceholder": "https://s3.example.com",
+    "endpointHelp": "Déjalo en blanco para AWS S3. Configúralo para Garage, MinIO, R2 o cualquier almacén que no sea de AWS.",
+    "accessKeyLabel": "ID de clave de acceso",
+    "accessKeyPlaceholder": "Déjalo en blanco para usar la cadena de credenciales del entorno",
+    "secretKeyLabel": "Clave de acceso secreta",
+    "secretKeySet": "•••••••• (sin cambios)",
+    "secretKeyHelp": "Déjalo en blanco para conservar la clave guardada. Se guarda cifrada; nunca se muestra.",
+    "kmsLabel": "ID de clave KMS (opcional)",
+    "kmsPlaceholder": "Para cifrado del lado del servidor SSE-KMS",
+    "pathStyleLabel": "Direccionamiento de tipo ruta",
+    "pathStyleHelp": "Requerido para Garage y la mayoría de almacenes que no son de AWS.",
+    "localFallbackLabel": "Servir objetos faltantes desde local",
+    "localFallbackHelp": "Durante la migración, lee desde el disco local los blobs aún no copiados a S3.",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saveSuccess": "Configuración de almacenamiento guardada.",
+    "saveError": "No se pudo guardar la configuración de almacenamiento.",
+    "testConnection": "Probar conexión",
+    "testing": "Probando…",
+    "testSuccess": "Conexión correcta.",
+    "testError": "La conexión falló.",
+    "backfillTitle": "Migrar archivos locales a S3",
+    "backfillHelp": "Copia cada archivo local existente al bucket configurado. Idempotente y seguro de volver a ejecutar; hazlo antes de cambiar el backend a S3.",
+    "startBackfill": "Iniciar migración",
+    "backfillRunning": "Migración en curso…",
+    "backfillStarted": "Migración iniciada.",
+    "backfillError": "No se pudo iniciar la migración.",
+    "backfillCounts": "Copiados {{copied}} · Omitidos {{skipped}} · Fallidos {{failed}}",
+    "backfillStatus": {
+      "idle": "Inactivo",
+      "running": "En curso…",
+      "complete": "Completado",
+      "failed": "Fallido"
+    }
+  },
+  "guildAuth": {
+    "title": "Autenticación",
+    "comingSoon": "Próximamente",
+    "description": "Configuración de inicio de sesión para este gremio.",
+    "body": "Este servidor usa inicio de sesión por gremio. Pronto, los administradores del gremio podrán configurar aquí el inicio de sesión único y las reglas de membresía de este gremio."
   }
 }

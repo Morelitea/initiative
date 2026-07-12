@@ -255,6 +255,25 @@
   "expiresInMinutes": "expires in {{minutes}}m",
   "grantBanner": {
     "readOnly": "You have temporary read-only access to {{guild}}.",
-    "readWrite": "You have temporary access to {{guild}}."
+    "readWrite": "You have temporary access to {{guild}}.",
+    "guildReadOnly": "This guild is read-only",
+    "guildSuspended": "This guild is suspended"
+  },
+  "readOnlyBanner": {
+    "message": "{{guild}} is currently read-only. You can browse everything, but changes are disabled."
+  },
+  "usagePanel": {
+    "title": "Usage",
+    "storage": "Storage",
+    "members": "Members",
+    "unlimited": "Unlimited",
+    "usedOfMax": "{{used}} of {{max}}",
+    "usedOfUnlimited": "{{used}} used · Unlimited",
+    "membersOfMax": "{{used}} of {{max}}",
+    "membersOfUnlimited": "{{used}} · Unlimited",
+    "currentPlan": "Current plan:",
+    "selfHosted": "Self-hosted",
+    "upgrade": "Upgrade",
+    "manageBilling": "Manage billing"
   }
 }

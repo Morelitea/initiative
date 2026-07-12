@@ -19,13 +19,24 @@
     "title": "Guild settings",
     "subtitle": "Manage workspace membership and guild details.",
     "permissionDenied": "You need additional permissions to view this page.",
+    "restricted": {
+      "read_only": {
+        "label": "Read-only",
+        "message": "This guild is read-only. Contact your platform administrator to restore full access."
+      },
+      "suspended": {
+        "label": "Suspended",
+        "message": "This guild is suspended and members can't access it. Contact your platform administrator."
+      }
+    },
     "tabs": {
       "guild": "Guild",
       "ai": "AI",
       "users": "Users",
       "initiatives": "Initiatives",
       "trash": "Trash",
-      "dangerZone": "Danger zone"
+      "dangerZone": "Danger zone",
+      "auth": "Authentication"
     }
   },
   "profile": {
@@ -564,7 +575,17 @@
     "mappingSelectInitiativeFirst": "Select initiative first",
     "loadingOptions": "Loading options…",
     "loadingOidcMappings": "Loading OIDC mappings…",
-    "oidcMappingsLoadError": "Unable to load OIDC mappings."
+    "oidcMappingsLoadError": "Unable to load OIDC mappings.",
+    "scope": {
+      "title": "Login configuration",
+      "description": "Choose where sign-in is configured for this server.",
+      "platformLabel": "Platform-wide",
+      "platformHelp": "Sign-in is configured once, here, for the entire server. Every guild uses it. Best for a single organization running its own instance.",
+      "guildLabel": "Per-guild",
+      "guildHelp": "Each guild configures its own sign-in and membership rules in its guild settings. Best for a server hosting multiple independent organizations.",
+      "comingSoon": "Coming soon",
+      "passwordNote": "Password sign-in stays available in both modes."
+    }
   },
   "platformUsers": {
     "title": "Platform users",
@@ -609,14 +630,14 @@
       "member": "Member",
       "support": "Support",
       "moderator": "Moderator",
-      "admin": "Admin",
+      "operator": "Operator",
       "owner": "Owner"
     },
     "roleDescriptions": {
       "member": "Standard access to their own guilds. No platform-wide privileges.",
       "support": "Read-only platform visibility (users, guilds, audit) and can request time-bound access to a guild.",
       "moderator": "Everything Support can do, plus user management (suspend/reactivate) and content moderation.",
-      "admin": "Manages users, guilds, and roles platform-wide, with cross-guild data access and approves access requests.",
+      "operator": "Manages users, guilds, and roles platform-wide, with cross-guild data access and approves access requests.",
       "owner": "Full control, including app-wide configuration (auth, branding, email, AI). The only role that can manage configuration."
     },
     "changeRoleTitle": "Change platform role",
@@ -742,29 +763,49 @@
     "title": "Platform settings",
     "subtitle": "Configure authentication, branding, email, AI, and guild storage for the entire platform.",
     "tabs": {
-      "auth": "Auth",
+      "auth": "Authentication",
       "branding": "Branding",
       "email": "Email",
-      "ai": "AI"
+      "ai": "AI",
+      "storage": "Storage"
     }
   },
   "guilds": {
-    "title": "Guild storage limits",
-    "description": "Set the maximum total storage each guild may use for uploaded files. Lowering a limit below current usage blocks new uploads but never deletes existing files.",
-    "adminOnly": "You need the platform owner role to manage guild storage limits.",
+    "title": "Guild limits",
+    "description": "Set per-guild caps on storage and on the number of users. Lowering a limit below current usage blocks new uploads or members, but never removes existing files or members.",
+    "adminOnly": "You need the platform owner role to manage guild limits.",
     "loading": "Loading guilds…",
     "loadError": "Could not load guilds. Please try again.",
     "filterByName": "Filter guilds by name",
     "unlimitedPlaceholder": "Unlimited",
-    "helpText": "Limits are in GB and save automatically. Leave a field blank for unlimited storage.",
+    "helpText": "Storage limits are in GB; user limits are a member count. Both save automatically — leave a field blank for unlimited.",
     "limitInputLabel": "Storage limit for {{name}} in GB",
+    "userLimitInputLabel": "User limit for {{name}}",
+    "overLimitHint": "{{name}} has more members than its current limit allows.",
     "saved": "Updated storage limit for {{name}}.",
     "saveError": "Could not update the storage limit. Please try again.",
+    "usersSaved": "Updated user limit for {{name}}.",
+    "usersSaveError": "Could not update the user limit. Please try again.",
+    "statusInputLabel": "Status for {{name}}",
+    "statusSaved": "Updated status for {{name}}.",
+    "statusSaveError": "Could not update the guild status. Please try again.",
+    "status": {
+      "active": "Active",
+      "read_only": "Read-only",
+      "suspended": "Suspended"
+    },
+    "suspendConfirm": {
+      "title": "Suspend {{name}}?",
+      "description": "Members lose all access and the guild disappears from their list. Nothing is deleted and you can reactivate it anytime; operators keep access via a break-glass grant.",
+      "confirm": "Suspend guild"
+    },
     "columns": {
       "id": "ID",
       "guild": "Guild",
       "members": "Members",
-      "storageLimit": "Storage limit"
+      "users": "Users",
+      "storageLimit": "Storage limit",
+      "status": "Status"
     }
   },
   "adminDashboard": {
@@ -775,5 +816,62 @@
       "access": "Access",
       "guilds": "Guilds"
     }
+  },
+  "storage": {
+    "adminOnly": "Only platform owners can configure storage.",
+    "loading": "Loading storage settings…",
+    "loadError": "Failed to load storage settings.",
+    "title": "Object storage",
+    "description": "Choose where uploaded files (documents, attachments) are stored. Defaults to the local filesystem; switch to an S3-compatible store for scalable or shared deployments.",
+    "backendLabel": "Storage backend",
+    "backendLocal": "Local filesystem",
+    "backendS3": "S3-compatible",
+    "backendHelp": "Local stores files on the server disk. S3 works with AWS S3, a self-hosted Garage/MinIO instance, Cloudflare R2, and similar.",
+    "cutoverTitle": "Switching to S3 doesn't move existing files",
+    "cutoverHelp": "Save these settings, run Test connection, then use Backfill below to copy existing local files into the bucket. Switch the backend to S3 only once the backfill completes — optionally keep \"Serve missing objects from local\" on during a verification window.",
+    "bucketLabel": "Bucket",
+    "bucketPlaceholder": "my-initiative-uploads",
+    "regionLabel": "Region",
+    "endpointLabel": "Endpoint URL",
+    "endpointPlaceholder": "https://s3.example.com",
+    "endpointHelp": "Leave blank for AWS S3. Set this for Garage, MinIO, R2, or any non-AWS store.",
+    "accessKeyLabel": "Access key ID",
+    "accessKeyPlaceholder": "Leave blank to use the ambient credential chain",
+    "secretKeyLabel": "Secret access key",
+    "secretKeySet": "•••••••• (unchanged)",
+    "secretKeyHelp": "Leave blank to keep the stored key. Stored encrypted; never displayed.",
+    "kmsLabel": "KMS key ID (optional)",
+    "kmsPlaceholder": "For SSE-KMS server-side encryption",
+    "pathStyleLabel": "Path-style addressing",
+    "pathStyleHelp": "Required for Garage and most non-AWS stores.",
+    "localFallbackLabel": "Serve missing objects from local",
+    "localFallbackHelp": "During cutover, read blobs not yet copied to S3 from the local disk.",
+    "save": "Save",
+    "saving": "Saving…",
+    "saveSuccess": "Storage settings saved.",
+    "saveError": "Failed to save storage settings.",
+    "testConnection": "Test connection",
+    "testing": "Testing…",
+    "testSuccess": "Connection successful.",
+    "testError": "Connection failed.",
+    "backfillTitle": "Backfill local files to S3",
+    "backfillHelp": "Copies every existing local upload into the configured bucket. Idempotent and safe to re-run; run it before switching the backend to S3.",
+    "startBackfill": "Start backfill",
+    "backfillRunning": "Backfill running…",
+    "backfillStarted": "Backfill started.",
+    "backfillError": "Failed to start the backfill.",
+    "backfillCounts": "Copied {{copied}} · Skipped {{skipped}} · Failed {{failed}}",
+    "backfillStatus": {
+      "idle": "Idle",
+      "running": "Running…",
+      "complete": "Complete",
+      "failed": "Failed"
+    }
+  },
+  "guildAuth": {
+    "title": "Authentication",
+    "comingSoon": "Coming soon",
+    "description": "Sign-in configuration for this guild.",
+    "body": "This server uses per-guild login. Soon, guild admins will configure single sign-on and membership rules for this guild here."
   }
 }

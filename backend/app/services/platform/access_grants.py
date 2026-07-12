@@ -23,6 +23,7 @@ from app.core.capabilities import Capability, roles_with_capability
 from app.core.config import settings
 from app.core.email_i18n import translate
 from app.models.platform.access_grant import AccessGrant, AccessGrantStatus, AccessLevel
+from app.models.platform.guild import GuildStatus
 from app.models.platform.notification import NotificationType
 from app.models.platform.user import User, UserRole, UserStatus
 from app.schemas.platform.access_grant import (
@@ -57,8 +58,8 @@ def _now() -> datetime:
 _ROLE_MAX_MINUTES: dict[UserRole, int] = {
     UserRole.support: settings.PAM_SUPPORT_MAX_MINUTES,
     UserRole.moderator: settings.PAM_MODERATOR_MAX_MINUTES,
-    UserRole.admin: settings.PAM_ADMIN_MAX_MINUTES,
-    # Owners/admins reach a guild via the self-approved break-glass path
+    UserRole.operator: settings.PAM_ADMIN_MAX_MINUTES,
+    # Owners/operators reach a guild via the self-approved break-glass path
     # (``data.bypass``) rather than the request→approve flow; their cap applies
     # to that self-issued grant.
     UserRole.owner: settings.PAM_ADMIN_MAX_MINUTES,
@@ -605,6 +606,7 @@ async def to_read(
         guild = guilds.get(g.guild_id)
         if guild is not None:
             read.guild_name = guild.name
+            read.guild_status = GuildStatus(guild.status)
         if g.approved_by_id is not None:
             approver = users.get(g.approved_by_id)
             if approver is not None:

@@ -16,10 +16,10 @@ from app.db.query import (
     apply_sorting,
     build_paginated_response,
     extract_condition_value,
+    paginate_sequence,
     paginated_query,
     parse_conditions,
     parse_sort_fields,
-    unbounded_page_limit,
 )
 from app.schemas.query import FilterOp, SortDir
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -424,7 +424,7 @@ async def _rebalance_if_needed(
         if task.position != new_position:
             task.position = new_position
             session.add(task)
-            changed[task.id] = new_position
+            changed[task.id] = new_position  # ty: ignore[invalid-assignment] — persisted row, id is set
     return changed
 
 
@@ -1082,13 +1082,10 @@ async def _gather_global_task_reads(
     items = _sort_global_task_reads(items, sort_fields)
     total_count = len(items)
     actual_page = _clamp_page(page, page_size, total_count)
-    if page_size > 0:
-        start = (actual_page - 1) * page_size
-        items = items[start : start + page_size]
-    else:
-        # "all rows" is still capped server-side (SEC-14): never return an
-        # unbounded merged list across every guild.
-        items = items[: unbounded_page_limit()]
+    # One slicing rule for every page_size, including the windowed
+    # page_size<=0 "fetch all" protocol (bounded response, nothing
+    # unreachable — the caller walks pages until has_next is false).
+    items = paginate_sequence(items, actual_page, page_size)
     return items, total_count, actual_page
 
 
@@ -1524,7 +1521,7 @@ async def create_task(
             session, project.id
         )
 
-    task_data = task_in.dict(exclude={"assignee_ids", "task_status_id"})
+    task_data = task_in.model_dump(exclude={"assignee_ids", "task_status_id"})
 
     # Serialize recurrence to JSON if present
     if task_data.get("recurrence") is not None:
@@ -1624,7 +1621,7 @@ async def update_task(
         access="write",
     )
 
-    update_data = task_in.dict(exclude_unset=True)
+    update_data = task_in.model_dump(exclude_unset=True)
     assignee_ids = update_data.pop("assignee_ids", None)
     previous_status_category = task.task_status.category if task.task_status else None
     new_status_id = update_data.pop("task_status_id", None)
@@ -1640,7 +1637,7 @@ async def update_task(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=TaskMessages.STATUS_NOT_FOUND,
             )
-        task.task_status_id = selected_status.id
+        task.task_status_id = selected_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
         task.task_status = selected_status
 
     for field, value in update_data.items():
@@ -1751,8 +1748,8 @@ async def move_task(
     now = datetime.now(timezone.utc)
     source_project_id = task.project_id
     source_initiative_id = task.project.initiative_id if task.project else None
-    task.project_id = target_project.id
-    task.task_status_id = default_status.id
+    task.project_id = target_project.id  # ty: ignore[invalid-assignment] — persisted row, id is set
+    task.task_status_id = default_status.id  # ty: ignore[invalid-assignment] — persisted row, id is set
     task.task_status = default_status
     task.position = 0
     task.updated_at = now
@@ -2036,7 +2033,7 @@ async def reorder_tasks(
                         detail=TaskMessages.STATUS_NOT_FOUND,
                     )
                 status_cache[item.task_status_id] = status_obj
-            task.task_status_id = status_obj.id
+            task.task_status_id = status_obj.id  # ty: ignore[invalid-assignment] — persisted row, id is set
             task.task_status = status_obj
 
         task.position = item.position

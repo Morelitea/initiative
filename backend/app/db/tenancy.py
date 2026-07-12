@@ -68,10 +68,19 @@ SHARED_TABLES: frozenset[str] = frozenset(
         # Consumed pre-membership / pre-routing
         "guild_invites",  # looked up by token before the user is a member
         "oidc_claim_mappings",  # SSO auto-join rules, read across all guilds at login
+        # Auth/login foundation — one user's identities span guilds; provider
+        # registry is read pre-routing at login.
+        "auth_providers",  # login provider registry (operator-global or guild-scoped)
+        "auth_provider_secrets",  # provider client secret; app_admin-only companion
+        "federated_identities",  # (provider, subject) -> user links
+        "auth_sessions",  # session/refresh store (JWT sid = row id); app_admin-only
         # Platform-wide
         "app_settings",  # OIDC / SMTP / branding config
         "access_grants",  # PAM — inherently cross-guild (request -> approve -> scoped)
         "notifications",  # per-user inbox spanning guilds (carries guild_id after split)
+        # Billing write boundary (external billing service, initiative_billing role)
+        "billing_event_log",  # idempotency claim + append-only audit; weak guild ref
+        "billing_jti_blocklist",  # one-shot billing service-JWT redemption
     }
 )
 

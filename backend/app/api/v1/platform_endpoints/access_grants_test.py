@@ -209,7 +209,9 @@ async def test_member_cannot_request_access(client: AsyncClient, session: AsyncS
 async def test_requester_cannot_approve_own(client: AsyncClient, session: AsyncSession):
     """An admin can both request and approve, but never their own request."""
     owner = await create_user(session, email="owner3@example.com", role=UserRole.owner)
-    admin = await create_user(session, email="admin3@example.com", role=UserRole.admin)
+    admin = await create_user(
+        session, email="admin3@example.com", role=UserRole.operator
+    )
     guild = await create_guild(session, creator=owner)
 
     resp = await client.post(
@@ -447,3 +449,33 @@ async def test_grantee_sees_guild_content(client: AsyncClient, session: AsyncSes
         f"/api/v1/g/{guild.id}/projects/{project.id}/view", headers=headers
     )
     assert resp.status_code == 200, resp.text
+
+
+@pytest.mark.integration
+async def test_grant_read_carries_guild_status(
+    client: AsyncClient, session: AsyncSession
+):
+    """A grantee's own grant list carries the guild's lifecycle status, so an
+    operator sees they're acting in a suspended / read-only guild (surfaced in
+    the access banner). Not disclosed to plain members — this is operator context."""
+    from app.models.platform.guild import GuildStatus
+
+    owner = await create_user(
+        session, email="owner-gstatus-grant@example.com", role=UserRole.owner
+    )
+    support = await create_user(
+        session, email="support-gstatus-grant@example.com", role=UserRole.support
+    )
+    guild = await create_guild(session, creator=owner)
+    await _approved_read_grant(session, user=support, guild=guild, owner=owner)
+
+    guild.status = GuildStatus.suspended.value
+    session.add(guild)
+    await session.commit()
+
+    resp = await client.get(
+        "/api/v1/access-grants/?mine=true", headers=get_auth_headers(support)
+    )
+    assert resp.status_code == 200, resp.text
+    mine = [g for g in resp.json() if g["guild_id"] == guild.id]
+    assert mine and mine[0]["guild_status"] == "suspended"

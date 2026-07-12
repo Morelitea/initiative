@@ -2,9 +2,11 @@ import { Outlet, useLocation, useParams, useRouter } from "@tanstack/react-route
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useGuilds } from "@/hooks/useGuilds";
+import { useInterfaceSettings } from "@/hooks/useSettings";
 import { extractSubPath, guildPath, isGuildScopedPath } from "@/lib/guildUrl";
 
 export const GuildSettingsLayout = () => {
@@ -18,6 +20,10 @@ export const GuildSettingsLayout = () => {
   // tool URL configured; OSS instances without it never see this tab even
   // if a user is a guild admin.
   const { advancedTool } = useAppConfig();
+  // The Authentication tab exists only in the guild-scoped login posture
+  // (non-secret posture info from the public interface settings).
+  const interfaceSettings = useInterfaceSettings();
+  const guildAuthEnabled = interfaceSettings.data?.auth_scope === "guild";
 
   // Get guild ID from URL params or active guild
   const urlGuildId = params.guildId ? Number(params.guildId) : activeGuildId;
@@ -40,6 +46,15 @@ export const GuildSettingsLayout = () => {
         label: t("guildLayout.tabs.users"),
         path: urlGuildId ? guildPath(urlGuildId, "/settings/users") : "/settings/users",
       },
+      ...(guildAuthEnabled
+        ? [
+            {
+              value: "auth",
+              label: t("guildLayout.tabs.auth"),
+              path: urlGuildId ? guildPath(urlGuildId, "/settings/auth") : "/settings/auth",
+            },
+          ]
+        : []),
       {
         value: "initiatives",
         label: t("guildLayout.tabs.initiatives"),
@@ -71,10 +86,18 @@ export const GuildSettingsLayout = () => {
       path: urlGuildId ? guildPath(urlGuildId, "/settings/danger-zone") : "/settings/danger-zone",
     });
     return tabs;
-  }, [urlGuildId, t, advancedTool]);
+  }, [urlGuildId, t, advancedTool, guildAuthEnabled]);
 
   const canViewSettings = isGuildAdmin;
-  const availableTabs = isGuildAdmin ? guildSettingsTabs : [];
+  // A suspended guild refuses every /g content endpoint, so tabs backed by
+  // them (AI, users, initiatives, trash, automations, auth) would only render
+  // errors. Keep the surfaces that stay functional: the general tab (identity,
+  // usage, plan) and the danger zone (deletion / data ownership).
+  const isSuspended = activeGuild?.status === "suspended";
+  const workingTabs = isSuspended
+    ? guildSettingsTabs.filter((tab) => tab.value === "guild" || tab.value === "danger-zone")
+    : guildSettingsTabs;
+  const availableTabs = isGuildAdmin ? workingTabs : [];
 
   if (!canViewSettings) {
     return (
@@ -110,11 +133,34 @@ export const GuildSettingsLayout = () => {
     availableTabs[0]?.value ??
     "guild";
 
+  // A read-only or suspended guild shows the admin a prominent notice pointing
+  // them to the platform operator (the status reaches admins only — see the
+  // backend GuildRead serialization). Static keys per status so the strict i18n
+  // typing stays happy (a `${status}` template would include `active`).
+  const statusNotice =
+    activeGuild?.status === "suspended"
+      ? {
+          label: t("guildLayout.restricted.suspended.label"),
+          message: t("guildLayout.restricted.suspended.message"),
+        }
+      : activeGuild?.status === "read_only"
+        ? {
+            label: t("guildLayout.restricted.read_only.label"),
+            message: t("guildLayout.restricted.read_only.message"),
+          }
+        : null;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-semibold text-3xl tracking-tight">{t("guildLayout.title")}</h1>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="font-semibold text-3xl tracking-tight">{t("guildLayout.title")}</h1>
+          {statusNotice && <Badge variant="destructive">{statusNotice.label}</Badge>}
+        </div>
         <p className="text-muted-foreground">{t("guildLayout.subtitle")}</p>
+        {statusNotice && (
+          <p className="font-bold text-destructive text-sm">{statusNotice.message}</p>
+        )}
       </div>
       <Tabs
         value={activeTab}

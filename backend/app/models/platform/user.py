@@ -25,7 +25,7 @@ class UserRole(str, Enum):
     member = "member"
     support = "support"
     moderator = "moderator"
-    admin = "admin"
+    operator = "operator"
     owner = "owner"
 
 
@@ -46,11 +46,12 @@ class User(SQLModel, table=True):
     full_name: Optional[str] = Field(default=None)
     hashed_password: str
     role: UserRole = Field(
+        default=UserRole.member,
         sa_column=Column(
             SQLEnum(UserRole, name="user_role"),
             nullable=False,
             server_default=UserRole.member.value,
-        )
+        ),
     )
     status: UserStatus = Field(
         default=UserStatus.active,

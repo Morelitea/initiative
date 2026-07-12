@@ -16,7 +16,12 @@ from app.api.deps import (
 from app.core.config import settings
 from app.core.encryption import encrypt_field, hash_email, SALT_EMAIL
 from app.core.password_policy import enforce_password_policy
-from app.core.security import create_access_token, get_password_hash, verify_password
+from app.core.security import (
+    SESSION_COOKIE_NAME,
+    create_access_token,
+    get_password_hash,
+    verify_password,
+)
 from app.core.user_input_validators import (
     normalize_notification_time,
     normalize_reminder_minutes,
@@ -268,12 +273,17 @@ async def create_user(
     session.add(user)
     await session.flush()
     # Platform role and guild role are independent - new users join as guild members
-    await guilds_service.ensure_membership(
-        session,
-        guild_id=guild_id,
-        user_id=user.id,
-        role=GuildRole.member,
-    )
+    try:
+        await guilds_service.ensure_membership(
+            session,
+            guild_id=guild_id,
+            user_id=user.id,
+            role=GuildRole.member,
+        )
+    except guilds_service.GuildCapacityError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)
+        ) from exc
     await session.commit()
     await session.refresh(user)
     await initiatives_service.load_user_initiative_roles(session, [user])
@@ -284,10 +294,11 @@ async def create_user(
 async def update_users_me(
     user_in: UserSelfUpdate,
     session: UserSessionDep,
+    admin_session: AdminSessionDep,
     response: Response,
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
-    update_data = user_in.dict(exclude_unset=True)
+    update_data = user_in.model_dump(exclude_unset=True)
     if not update_data:
         return current_user
 
@@ -334,9 +345,11 @@ async def update_users_me(
                 )
         await enforce_password_policy(password)
         current_user.hashed_password = get_password_hash(password)
-        # Bump token_version and revoke active device tokens + API keys so a
-        # stale JWT/device token/API key can't survive the password change.
-        await user_tokens_service.revoke_user_sessions(session, user=current_user)
+        # Bump token_version and revoke device tokens + API keys + refresh
+        # sessions so no stale credential can survive the password change.
+        await user_tokens_service.revoke_user_sessions(
+            session, user=current_user, admin_session=admin_session
+        )
         # ...but keep THIS session alive. The version bump above invalidates the
         # caller's own token too, so re-issue the session cookie with the new
         # version: every *other* session/device still dies, while the user who
@@ -346,7 +359,7 @@ async def update_users_me(
             token_version=current_user.token_version,
         )
         response.set_cookie(
-            key=settings.COOKIE_NAME,
+            key=SESSION_COOKIE_NAME,
             value=refreshed_token,
             httponly=True,
             samesite="lax",
@@ -448,6 +461,7 @@ async def update_user(
     user_id: int,
     user_in: UserUpdate,
     session: SessionDep,
+    admin_session: AdminSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildAdminContext,
 ) -> User:
@@ -473,7 +487,7 @@ async def update_user(
             status_code=status.HTTP_404_NOT_FOUND, detail=AuthMessages.USER_NOT_FOUND
         )
 
-    update_data = user_in.dict(exclude_unset=True)
+    update_data = user_in.model_dump(exclude_unset=True)
     # Platform role changes are not allowed via this endpoint - use /admin/users/{id}/platform-role
     if "role" in update_data:
         raise HTTPException(
@@ -496,10 +510,12 @@ async def update_user(
         await enforce_password_policy(password)
         user.hashed_password = get_password_hash(password)
         # Resetting a compromised account must invalidate the attacker's
-        # outstanding sessions: bump token_version (kills unexpired JWTs)
-        # and revoke active device tokens, mirroring the self-service and
-        # forgot-password reset paths.
-        await user_tokens_service.revoke_user_sessions(session, user=user)
+        # outstanding sessions: bump token_version (kills unexpired JWTs) and
+        # revoke device tokens / API keys / refresh sessions, mirroring the
+        # self-service and forgot-password reset paths.
+        await user_tokens_service.revoke_user_sessions(
+            session, user=user, admin_session=admin_session
+        )
     if "avatar_base64" in update_data:
         user.avatar_base64 = update_data.pop("avatar_base64")
         if user.avatar_base64:
