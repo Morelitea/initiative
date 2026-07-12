@@ -117,12 +117,27 @@ describe("ExportTasksButton", () => {
       ),
       guildHttp.get("/exports/:jobId/download", () => pdfResponse())
     );
-    renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
+    renderWithProviders(<ExportTasksButton params={{ conditions: [] }} resumePending />);
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("tasks-9.pdf");
     // The pending marker is consumed, so a remount won't re-download.
     expect(getItem("exports:pending:1")).toBeNull();
+  });
+
+  it("does not adopt a stored pending job without resumePending", async () => {
+    // Two instances share the guild's pending key (toolbar + Export
+    // Selected); only the designated adopter may resume, or a job in flight
+    // when the second instance mounts would download twice.
+    setItem("exports:pending:1", "9");
+    const jobPoll = vi.fn(() => HttpResponse.json(buildJob({ id: 9, status: "done" })));
+    server.use(guildHttp.get("/exports/:jobId", jobPoll));
+    renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(jobPoll).not.toHaveBeenCalled();
+    expect(downloadBlob).not.toHaveBeenCalled();
+    expect(getItem("exports:pending:1")).toBe("9");
   });
 
   it("shows a localized error for a rejected export (too large)", async () => {

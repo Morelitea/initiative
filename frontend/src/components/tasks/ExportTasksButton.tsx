@@ -25,6 +25,13 @@ interface ExportTasksButtonProps {
   /** Idle-state label override (e.g. "Export Selected"); the busy label
    * stays the shared "Exporting…". */
   label?: string;
+  /** Adopt a stored pending job on mount. Exactly ONE instance per view may
+   * set this (the persistent toolbar button) — the guild's pending key is
+   * shared, so a second adopter (e.g. the bulk-selection button mounting
+   * mid-poll) would handle the same job again: duplicate download + toast.
+   * Every instance still WRITES the key on 202, so a job started anywhere
+   * is resumed by the adopting instance on the next mount. */
+  resumePending?: boolean;
 }
 
 const POLL_MS = 2000;
@@ -35,12 +42,12 @@ const TERMINAL = new Set(["done", "failed", "expired"]);
 // A full page reload is covered by the worker's inbox notification instead.
 const pendingKey = (guildId: number) => `exports:pending:${guildId}`;
 
-export function ExportTasksButton({ params, label }: ExportTasksButtonProps) {
+export function ExportTasksButton({ params, label, resumePending }: ExportTasksButtonProps) {
   const { t } = useTranslation("tasks");
   const guildId = useActiveGuildId();
   const [requesting, setRequesting] = useState(false);
   const [jobId, setJobId] = useState<number | null>(() => {
-    if (!guildId) {
+    if (!resumePending || !guildId) {
       return null;
     }
     const stored = Number(getItem(pendingKey(guildId)));

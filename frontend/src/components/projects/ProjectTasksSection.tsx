@@ -929,7 +929,12 @@ export const ProjectTasksSection = ({
                 </SelectContent>
               </Select>
             </div>
-            <ExportTasksButton params={{ conditions, include_archived: showArchived }} />
+            {/* resumePending: this is the view's single adopter of a stored
+                in-flight job (the selection button must not double-handle it). */}
+            <ExportTasksButton
+              params={{ conditions, include_archived: showArchived }}
+              resumePending
+            />
             <div className="hidden sm:block">
               <TabsList>
                 {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
