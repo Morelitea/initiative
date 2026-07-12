@@ -1,0 +1,56 @@
+"""The universal render contract and the ``RenderBackend`` seam.
+
+Everything — one report or ten thousand — is a batch of render jobs. The
+contract is backend-agnostic: it knows nothing about where it runs, which is
+what keeps a future distributed/cloud render backend a no-op addition (a
+second ``RenderBackend`` implementation behind ``EXPORT_BACKEND``, touching
+no adapter, template, or endpoint).
+
+``RenderItem.data`` is structured JSON the template reads (Typst
+``sys.inputs``) — never string-interpolated into ``.typ`` source. That is the
+typst-injection guard, the analogue of the CSV formula-injection
+neutralization in ``app/services/platform/csv_export.py``.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Protocol
+
+
+@dataclass(frozen=True)
+class RenderItem:
+    """One artifact to render: ``key`` names it within the job (the download
+    filename stem for batch=1), ``data`` is the payload the template reads."""
+
+    key: str
+    data: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class RenderRequest:
+    """A batch of render jobs. len(batch)==1 is a single report; len N is
+    mail-merge — same engine path either way."""
+
+    guild_id: int
+    template_id: str
+    format: str  # "pdf" (v1)
+    batch: tuple[RenderItem, ...]
+
+
+@dataclass(frozen=True)
+class RenderedArtifact:
+    """The produced bytes for one batch item. The backend renders; the engine
+    decides where the bytes go (inline response vs the guild storage backend),
+    so filesystem/object-store access stays confined to the engine layer."""
+
+    key: str
+    content_type: str
+    content: bytes
+
+
+class RenderBackend(Protocol):
+    """The swappable renderer seam. A distributed/cloud backend is a second
+    implementation of this same interface — nothing else changes."""
+
+    async def render(self, req: RenderRequest) -> list[RenderedArtifact]: ...

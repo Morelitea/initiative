@@ -24,6 +24,8 @@ class NotificationType(str, Enum):
     event_cancelled = "event_cancelled"
     event_rsvp = "event_rsvp"
     event_reminder = "event_reminder"
+    export_ready = "export_ready"
+    export_failed = "export_failed"
 
 
 class Notification(SQLModel, table=True):

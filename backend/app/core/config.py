@@ -391,6 +391,22 @@ class Settings(BaseSettings):
     S3_LOCAL_FALLBACK: bool = False
     STATIC_DIR: str = "static"
 
+    # --- Data export engine ---
+    # Render backend seam. Only "local" (typst-py in-process) ships; a
+    # distributed/cloud backend would be an additive second implementation.
+    EXPORT_BACKEND: str = "local"
+    # Inline-vs-job auto-select: at or under this many rows the PDF renders
+    # in-request; above it the request becomes a persisted ExportJob.
+    EXPORT_INLINE_MAX_ROWS: int = 200
+    # Hard ceiling on rows in one export snapshot — the real DoS bound (the
+    # list-endpoint pagination caps deliberately do NOT apply to exports).
+    EXPORT_MAX_ROWS: int = 10_000
+    # Per-user cap on jobs that are queued or running at once.
+    EXPORT_MAX_ACTIVE_JOBS_PER_USER: int = 5
+    # Artifact retention: expires_at = render time + this; the GC pass then
+    # deletes the artifact and marks the job expired.
+    EXPORT_ARTIFACT_TTL_HOURS: int = 168  # 7 days
+
     # First/bootstrap user — becomes the platform `owner` tier (there is no
     # superuser concept). The legacy FIRST_SUPERUSER_* env names are accepted
     # as aliases so existing deployments keep working.

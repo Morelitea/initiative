@@ -1246,6 +1246,33 @@ export interface EmailTestRequest {
   recipient?: string | null;
 }
 
+export type ExportJobReadParams = { [key: string]: unknown };
+
+export type ExportJobStatus = (typeof ExportJobStatus)[keyof typeof ExportJobStatus];
+
+export const ExportJobStatus = {
+  queued: "queued",
+  running: "running",
+  done: "done",
+  failed: "failed",
+  expired: "expired",
+} as const;
+
+export interface ExportJobRead {
+  id: number;
+  guild_id: number;
+  created_by_id: number;
+  source: string;
+  template_id: string;
+  format: string;
+  params: ExportJobReadParams;
+  status: ExportJobStatus;
+  error: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Public FCM configuration for mobile app initialization.
  *
@@ -1745,6 +1772,8 @@ export const NotificationType = {
   event_cancelled: "event_cancelled",
   event_rsvp: "event_rsvp",
   event_reminder: "event_reminder",
+  export_ready: "export_ready",
+  export_failed: "export_failed",
 } as const;
 
 export type NotificationReadData = { [key: string]: unknown };
@@ -3994,6 +4023,23 @@ export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
    * @maximum 20
    */
   limit?: number;
+};
+
+export type ExportTasksApiV1GGuildIdExportsTasksGetParams = {
+  format?: "pdf";
+  /**
+   * Same JSON filter conditions as the task list
+   */
+  conditions?: FilterCondition[];
+  /**
+   * Same JSON sort fields as the task list
+   */
+  sorting?: SortField[];
+  /**
+   * IANA timezone name
+   */
+  tz?: string | null;
+  include_archived?: boolean;
 };
 
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
