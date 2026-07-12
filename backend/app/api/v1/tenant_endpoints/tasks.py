@@ -1291,6 +1291,107 @@ async def _parse_task_list_query(
     )
 
 
+async def _guild_task_query_builder(
+    session,
+    current_user: User,
+    guild_id: int,
+    *,
+    q: _TaskListQuery,
+    include_archived: bool,
+):
+    """The guild-scoped task visibility pipeline (guild scope, archived
+    default, project DAC, filter conditions) as a statement-builder closure.
+    Shared by ``list_tasks`` and the tasks export so an export always matches
+    the on-screen list. Returns ``None`` when no project is reachable."""
+    access_conditions = [Initiative.guild_id == guild_id]
+
+    if not include_archived:
+        access_conditions.append(Task.is_archived.is_(False))
+
+    allowed_ids = await _allowed_project_ids(
+        session,
+        current_user,
+        guild_id,
+        include_templates=q.project_id is not None,
+    )
+    if allowed_ids is not None:
+        if not allowed_ids:
+            return None
+        access_conditions.append(Task.project_id.in_(tuple(allowed_ids)))
+
+    filter_fields = _build_task_filter_fields(
+        guild_id=guild_id,
+        current_user_id=current_user.id,
+        property_definitions=q.property_definitions,
+    )
+
+    def build(stmt):
+        stmt = stmt.join(Task.project).join(Project.initiative)
+        stmt = stmt.where(*access_conditions)
+        return apply_filters(
+            stmt, Task, q.user_conditions, allowed_fields=filter_fields
+        )
+
+    return build
+
+
+async def count_tasks_for_export(
+    session,
+    current_user: User,
+    guild_id: int,
+    *,
+    conditions: Optional[str] = None,
+    sorting: Optional[str] = None,
+    tz: Optional[str] = None,
+    include_archived: bool = False,
+) -> int:
+    """Row count for an export snapshot — the cheap pre-render signal for the
+    inline-vs-job auto-select and the export size ceiling."""
+    q = await _parse_task_list_query(session, conditions, sorting, tz)
+    build = await _guild_task_query_builder(
+        session, current_user, guild_id, q=q, include_archived=include_archived
+    )
+    if build is None:
+        return 0
+    count_subq = build(select(Task.id)).subquery()
+    return (await session.exec(select(func.count()).select_from(count_subq))).one()
+
+
+async def query_tasks_for_export(
+    session,
+    current_user: User,
+    guild_id: int,
+    *,
+    conditions: Optional[str] = None,
+    sorting: Optional[str] = None,
+    tz: Optional[str] = None,
+    include_archived: bool = False,
+    max_rows: int,
+) -> list[Task]:
+    """The tasks export adapter's query seam: the exact ``list_tasks``
+    visibility/filter/sort pipeline, unpaginated up to ``max_rows``, with the
+    eager loads the export payload needs."""
+    q = await _parse_task_list_query(session, conditions, sorting, tz)
+    build = await _guild_task_query_builder(
+        session, current_user, guild_id, q=q, include_archived=include_archived
+    )
+    if build is None:
+        return []
+    statement = build(select(Task)).options(
+        selectinload(Task.project),
+        selectinload(Task.assignees),
+        selectinload(Task.task_status),
+    )
+    statement = apply_sorting(
+        statement,
+        Task,
+        sort_fields=q.sort_fields,
+        allowed_fields=_task_sort_fields(q.tz),
+        default_sort=TASK_DEFAULT_SORT,
+    )
+    return list(await session.exec(statement.limit(max_rows)))
+
+
 @me_router.get("/tasks", response_model=TaskListResponse)
 async def list_my_tasks(
     session: UserSessionDep,
@@ -1401,50 +1502,28 @@ async def list_tasks(
     ),
 ) -> TaskListResponse:
     q = await _parse_task_list_query(session, conditions, sorting, tz)
-    user_conditions = q.user_conditions
     sort_fields = q.sort_fields
     tz = q.tz
-    project_id = q.project_id
-    property_definitions_map = q.property_definitions
 
     # Guild-scoped list. Cross-guild "my tasks" aggregates live under
     # /me/tasks and /me/tasks/created (see list_my_tasks above).
-    access_conditions = [Initiative.guild_id == guild_context.guild_id]
-
-    if not include_archived:
-        access_conditions.append(Task.is_archived.is_(False))
-
-    allowed_ids = await _allowed_project_ids(
+    _build_non_global_query = await _guild_task_query_builder(
         session,
         current_user,
         guild_context.guild_id,
-        include_templates=project_id is not None,
+        q=q,
+        include_archived=include_archived,
     )
-    if allowed_ids is not None:
-        if not allowed_ids:
-            return TaskListResponse(
-                **build_paginated_response(
-                    items=[],
-                    total_count=0,
-                    page=1,
-                    page_size=page_size,
-                    sorting=sorting,
-                )
+    if _build_non_global_query is None:
+        return TaskListResponse(
+            **build_paginated_response(
+                items=[],
+                total_count=0,
+                page=1,
+                page_size=page_size,
+                sorting=sorting,
             )
-        access_conditions.append(Task.project_id.in_(tuple(allowed_ids)))
-
-    # ``property_definitions_map`` was resolved up-front by _parse_task_list_query.
-    filter_fields = _build_task_filter_fields(
-        guild_id=guild_context.guild_id,
-        current_user_id=current_user.id,
-        property_definitions=property_definitions_map,
-    )
-
-    def _build_non_global_query(stmt):
-        stmt = stmt.join(Task.project).join(Project.initiative)
-        stmt = stmt.where(*access_conditions)
-        stmt = apply_filters(stmt, Task, user_conditions, allowed_fields=filter_fields)
-        return stmt
+        )
 
     count_subq = _build_non_global_query(select(Task.id)).subquery()
     count_stmt = select(func.count()).select_from(count_subq)

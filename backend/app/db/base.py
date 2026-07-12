@@ -58,6 +58,7 @@ from app.models.tenant.task_assignment_digest import TaskAssignmentDigestItem
 from app.models.tenant.webhook_subscription import WebhookSubscription
 from app.models.tenant.resource_grant import ResourceGrant
 from app.models.tenant.advanced_tool import AdvancedTool
+from app.models.tenant.export_job import ExportJob
 
 __all__ = [
     "User",
@@ -68,6 +69,7 @@ __all__ = [
     "FederatedIdentity",
     "ResourceGrant",
     "AdvancedTool",
+    "ExportJob",
     "Project",
     "Task",
     "TaskAssignee",

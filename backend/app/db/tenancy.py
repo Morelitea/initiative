@@ -42,6 +42,7 @@ from app.db.initiative_rls import INITIATIVE_SCOPED_TABLES
 __all__ = [
     "SHARED_TABLES",
     "GUILD_LEVEL_TABLES",
+    "OWN_ROW_TABLES",
     "INITIATIVE_SCOPED_TABLES",
     "GUILD_SCOPED_TABLES",
     "ALL_CLASSIFIED_TABLES",
@@ -110,8 +111,24 @@ GUILD_LEVEL_TABLES: frozenset[str] = frozenset(
         "initiative_members",
         "initiative_roles",
         "initiative_role_permissions",
+        # Own-row tables (also listed in OWN_ROW_TABLES below): guild-level
+        # placement, but rows belong to ONE user and carry own_row_* policies.
+        "export_jobs",  # a job may span initiatives ("export all my tasks"), so
+        # it can't use initiative_access; the row leaks selector text and gates
+        # the artifact download, so it must not be guild-wide-readable either.
     }
 )
+
+# --- Own-row overlay on guild-level tables -----------------------------------
+# Guild-level tables whose rows belong to ONE user: table -> owner FK column.
+# These get per-command ``own_row_*`` RLS policies (owner OR routed guild
+# admin) rendered by ``app.db.guild_ddl.render_guild_rls_ddl`` — unlike the
+# allow-all ``guild_level_open`` tables, this IS a row gate. Every entry here
+# MUST also be in ``GUILD_LEVEL_TABLES`` (that's the schema-placement decision;
+# this is the policy overlay) — enforced in ``tenancy_test.py``.
+OWN_ROW_TABLES: dict[str, str] = {
+    "export_jobs": "created_by_id",
+}
 
 # --- Guild-scoped (derived) -------------------------------------------------
 # Everything that moves into a ``guild_<id>`` schema = the initiative-scoped

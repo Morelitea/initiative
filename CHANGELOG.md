@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Task list PDF export: download the current task view (same filters, sorting, and visibility as on screen) as a formatted PDF from the new `/g/{guild}/exports/tasks` endpoint. Small exports return instantly; large ones run as a background job you can poll and download when ready. Exports are private to their creator (guild admins can see a guild's exports), and artifacts expire automatically after 7 days.
+
 ## [0.55.0] - 2026-07-12
 
 ### Added

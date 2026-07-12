@@ -36,6 +36,7 @@ dependencies = [
     "premailer>=3.10.0",
     "fastmcp>=3.4.2",
     "boto3>=1.35,<2",                    # S3 / S3-compatible (MinIO) object storage; only imported when STORAGE_BACKEND=s3
+    "typst>=0.15.0",
 ]
 
 [dependency-groups]
