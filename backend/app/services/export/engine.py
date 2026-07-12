@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -27,6 +27,10 @@ from app.services.export.contract import (
 )
 from app.services.export.local_backend import LocalRenderBackend
 from app.services.storage import get_guild_storage
+
+
+# Advisory-lock namespace (arbitrary constant) for the per-user job-cap check.
+_JOB_CAP_LOCK_NS = 0x455850  # "EXP"
 
 
 class SourceAdapter(Protocol):
@@ -133,6 +137,12 @@ async def start_export(
     if not allow_job:
         raise ExportError(ExportMessages.EXPORT_WRITE_REQUIRED, status_code=403)
 
+    # Serialize count+insert per user so concurrent requests can't race past
+    # the cap. Transaction-scoped advisory lock: released at the commit below.
+    await session.exec(
+        text("SELECT pg_advisory_xact_lock(:ns, :uid)"),
+        params={"ns": _JOB_CAP_LOCK_NS, "uid": user.id},
+    )
     active = (
         await session.exec(
             select(func.count())

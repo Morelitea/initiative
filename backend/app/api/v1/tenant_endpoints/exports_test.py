@@ -213,3 +213,44 @@ async def test_gc_expires_artifacts(acting_user, session):
     refreshed = await session.get(ExportJob, job.id)
     assert refreshed.status == ExportJobStatus.expired.value
     assert refreshed.artifact_ref is None
+
+
+async def test_gc_expires_row_even_when_artifact_delete_fails(
+    acting_user, session, monkeypatch
+):
+    """A failing storage delete must not pin the job in ``done`` (it would
+    re-fail every pass and abort GC for every guild after it) — the row still
+    expires and the failure is only logged."""
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    job = ExportJob(
+        guild_id=a.guild.id,
+        created_by_id=a.user.id,
+        source="tasks",
+        template_id="task-table",
+        format="pdf",
+        status=ExportJobStatus.done,
+        artifact_ref="exports/31337.pdf",
+        expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
+    )
+    session.add(job)
+    await session.commit()
+
+    class _BrokenStorage:
+        def delete(self, key: str) -> bool:
+            raise RuntimeError("storage down")
+
+    import app.services.storage as storage_module
+
+    monkeypatch.setattr(
+        storage_module, "get_guild_storage", lambda gid: _BrokenStorage()
+    )
+
+    await export_worker.process_export_gc()
+
+    from app.testing import route_session_to_guild
+
+    session.expunge_all()
+    await route_session_to_guild(session, a.guild.id)
+    refreshed = await session.get(ExportJob, job.id)
+    assert refreshed.status == ExportJobStatus.expired.value
+    assert refreshed.artifact_ref is None

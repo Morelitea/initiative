@@ -213,7 +213,19 @@ async def process_export_gc() -> None:
             storage = get_guild_storage(guild_id) if jobs else None
             for job in jobs:
                 if job.artifact_ref:
-                    storage.delete(job.artifact_ref)
+                    try:
+                        storage.delete(job.artifact_ref)
+                    except Exception:
+                        # Expire the row anyway: a permanently failing delete
+                        # (key already gone, bucket misconfig) must not pin the
+                        # job in ``done`` and re-fail every pass — that would
+                        # also abort GC for every guild after this one.
+                        logger.exception(
+                            "export gc: artifact delete failed job=%s ref=%s guild=%s",
+                            job.id,
+                            job.artifact_ref,
+                            guild_id,
+                        )
                 job.status = ExportJobStatus.expired
                 job.artifact_ref = None
                 job.updated_at = now

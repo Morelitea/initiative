@@ -9,7 +9,7 @@ export is a per-user snapshot and may contain initiative-isolated content the
 rest of the guild must not reach.
 """
 
-from typing import Annotated, Optional, Union
+from typing import Annotated, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
@@ -61,7 +61,9 @@ async def export_tasks(
     session: RLSSessionDep,
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
-    format: str = Query(default="pdf"),
+    # Literal so the HTTP layer 422s garbage and OpenAPI carries the enum;
+    # grows as formats land. The registry still guards per-source combos.
+    format: Literal["pdf"] = Query(default="pdf"),
     conditions: Optional[str] = Query(
         default=None, description="Same JSON filter conditions as the task list"
     ),

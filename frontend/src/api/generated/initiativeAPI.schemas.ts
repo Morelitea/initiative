@@ -4026,7 +4026,7 @@ export type AutocompleteDocumentsApiV1GGuildIdDocumentsAutocompleteGetParams = {
 };
 
 export type ExportTasksApiV1GGuildIdExportsTasksGetParams = {
-  format?: string;
+  format?: "pdf";
   /**
    * Same JSON filter conditions as the task list
    */
