@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.55.0] - 2026-07-12
+
 ### Added
 
 - Per-guild user limits (default unlimited), set from the admin dashboard's Guilds tab. At the cap, new joins/invites are refused; existing members and SSO auto-provisioning are unaffected.
