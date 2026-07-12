@@ -258,6 +258,7 @@
     "queued": "Export started — the download will begin when it's ready.",
     "success": "Export downloaded.",
     "failed": "The export failed. Try again or narrow the filter.",
-    "error": "Couldn't export tasks."
+    "error": "Couldn't export tasks.",
+    "selected": "Export Selected"
   }
 }

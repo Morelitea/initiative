@@ -87,6 +87,28 @@ describe("ExportTasksButton", () => {
     expect(downloadBlob).not.toHaveBeenCalled();
   });
 
+  it("sends the given selector on the wire and honors a label override", async () => {
+    let sentConditions: unknown = null;
+    server.use(
+      guildHttp.get("/exports/tasks", ({ request }) => {
+        const raw = new URL(request.url).searchParams.get("conditions");
+        sentConditions = raw ? JSON.parse(raw) : null;
+        return pdfResponse();
+      })
+    );
+    renderWithProviders(
+      <ExportTasksButton
+        params={{ conditions: [{ field: "id", op: "in_", value: [3, 5] }] }}
+        label="Export Selected"
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Export Selected" }));
+
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+    expect(sentConditions).toEqual([{ field: "id", op: "in_", value: [3, 5] }]);
+  });
+
   it("resumes a pending job from storage on mount and downloads it", async () => {
     setItem("exports:pending:1", "9");
     server.use(

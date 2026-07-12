@@ -258,6 +258,7 @@
     "queued": "Exportación iniciada: la descarga comenzará cuando esté lista.",
     "success": "Exportación descargada.",
     "failed": "La exportación falló. Inténtalo de nuevo o reduce el filtro.",
-    "error": "No se pudieron exportar las tareas."
+    "error": "No se pudieron exportar las tareas.",
+    "selected": "Exportar selección"
   }
 }
