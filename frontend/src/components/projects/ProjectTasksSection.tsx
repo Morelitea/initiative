@@ -929,7 +929,12 @@ export const ProjectTasksSection = ({
                 </SelectContent>
               </Select>
             </div>
-            <ExportTasksButton params={{ conditions, include_archived: showArchived }} />
+            {/* resumePending: this is the view's single adopter of a stored
+                in-flight job (the selection button must not double-handle it). */}
+            <ExportTasksButton
+              params={{ conditions, include_archived: showArchived }}
+              resumePending
+            />
             <div className="hidden sm:block">
               <TabsList>
                 {TASK_VIEW_OPTIONS.map(({ value, labelKey, icon: Icon }) => (
@@ -1011,6 +1016,12 @@ export const ProjectTasksSection = ({
           {selectedTasks.length > 0 && canEditTaskDetails && (
             <TaskBulkEditPanel
               selectedTasks={selectedTasks}
+              exportParams={{
+                conditions: [{ field: "id", op: "in_", value: selectedTasks.map((t) => t.id) }],
+                // Selection came from the visible list, which may include
+                // archived rows when the toggle is on.
+                include_archived: showArchived,
+              }}
               onEdit={() => setIsBulkEditDialogOpen(true)}
               onEditTags={() => setIsBulkEditTagsDialogOpen(true)}
               onArchive={() => bulkArchiveTasks.mutate(selectedTasks.map((t) => t.id))}

@@ -258,6 +258,7 @@
     "queued": "Export lancé — le téléchargement commencera dès qu'il sera prêt.",
     "success": "Export téléchargé.",
     "failed": "L'export a échoué. Réessayez ou affinez le filtre.",
-    "error": "Impossible d'exporter les tâches."
+    "error": "Impossible d'exporter les tâches.",
+    "selected": "Exporter la sélection"
   }
 }

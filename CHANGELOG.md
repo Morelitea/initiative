@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Export Selected: with tasks selected in the project table, a new action in the selection bar exports exactly those tasks as a PDF (same private-to-creator delivery as the full export).
 - Task list PDF export: an "Export PDF" button on the project tasks view downloads the current view (same filters and visibility as on screen) as a formatted PDF. Small exports download instantly; large ones run as a background job and download automatically when ready — and if you navigate away meanwhile, you get an inbox notification that downloads the finished export when clicked. Exports are private to their creator (guild admins can see a guild's exports), and artifacts expire automatically after 7 days.
 
 ## [0.55.0] - 2026-07-12

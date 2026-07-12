@@ -2,6 +2,7 @@ import { Archive, Pencil, Tags, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import type { TaskListRead } from "@/api/generated/initiativeAPI.schemas";
+import { type ExportParams, ExportTasksButton } from "@/components/tasks/ExportTasksButton";
 import { Button } from "@/components/ui/button";
 
 type TaskBulkEditPanelProps = {
@@ -11,6 +12,9 @@ type TaskBulkEditPanelProps = {
   onArchive: () => void;
   onDelete: () => void;
   isArchiving?: boolean;
+  /** When set, an "Export Selected" action renders ahead of the edit
+   * actions, exporting exactly this selector (an ``id in_`` condition). */
+  exportParams?: ExportParams;
 };
 
 export const TaskBulkEditPanel = ({
@@ -20,6 +24,7 @@ export const TaskBulkEditPanel = ({
   onArchive,
   onDelete,
   isArchiving,
+  exportParams,
 }: TaskBulkEditPanelProps) => {
   const { t } = useTranslation(["tasks", "common"]);
   return (
@@ -29,6 +34,7 @@ export const TaskBulkEditPanel = ({
       </div>
 
       <div className="flex items-center gap-2">
+        {exportParams && <ExportTasksButton params={exportParams} label={t("export.selected")} />}
         <Button variant="outline" size="sm" onClick={onEditTags}>
           <Tags className="h-4 w-4" />
           {t("bulkEdit.editTags")}
