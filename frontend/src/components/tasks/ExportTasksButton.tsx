@@ -1,11 +1,20 @@
-import { FileDown, Loader2 } from "lucide-react";
+import { ChevronDown, FileDown, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { apiClient } from "@/api/client";
 import { useGetExportJobApiV1GGuildIdExportsJobIdGet } from "@/api/generated/exports/exports";
-import type { ExportTasksApiV1GGuildIdExportsTasksGetParams } from "@/api/generated/initiativeAPI.schemas";
+import type {
+  ExportTasksApiV1GGuildIdExportsTasksGetFormat,
+  ExportTasksApiV1GGuildIdExportsTasksGetParams,
+} from "@/api/generated/initiativeAPI.schemas";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
@@ -17,6 +26,8 @@ export type ExportParams = Pick<
   ExportTasksApiV1GGuildIdExportsTasksGetParams,
   "conditions" | "sorting" | "tz" | "include_archived"
 >;
+
+type ExportFormat = ExportTasksApiV1GGuildIdExportsTasksGetFormat;
 
 interface ExportTasksButtonProps {
   /** The selector for the snapshot — the current list filters, or an
@@ -36,6 +47,12 @@ interface ExportTasksButtonProps {
 
 const POLL_MS = 2000;
 const TERMINAL = new Set(["done", "failed", "expired"]);
+
+const FORMATS: { value: ExportFormat; labelKey: string }[] = [
+  { value: "pdf", labelKey: "export.formatPdf" },
+  { value: "csv", labelKey: "export.formatCsv" },
+  { value: "xlsx", labelKey: "export.formatXlsx" },
+];
 
 // A pending job id survives the component unmounting (navigation) so a
 // return to any tasks view resumes the poll and still delivers the download.
@@ -83,29 +100,30 @@ export function ExportTasksButton({ params, label, resumePending }: ExportTasksB
       guildId,
       jobId,
       t as (key: string, options?: Record<string, unknown>) => string,
-      job.source
+      job.source,
+      job.format
     );
   }, [job, jobId, guildId, t]);
 
   const busy = requesting || jobId != null;
 
-  const handleExport = async () => {
+  const handleExport = async (format: ExportFormat) => {
     if (busy || !guildId) {
       return;
     }
     setRequesting(true);
     try {
       // The generated client discards the HTTP status (mutator returns data
-      // only), and this endpoint is a 200-PDF / 202-job union — call the
+      // only), and this endpoint is a 200-file / 202-job union — call the
       // shared axios instance directly so auth/guild interceptors and the
       // conditions/sorting paramsSerializer still apply.
       const res = await apiClient.get<Blob>(`/g/${guildId}/exports/tasks`, {
-        params: { ...params, format: "pdf" },
+        params: { ...params, format },
         responseType: "blob",
         validateStatus: (s) => s === 200 || s === 202,
       });
       if (res.status === 200) {
-        downloadBlob(res.data, "tasks.pdf");
+        downloadBlob(res.data, `tasks.${format}`);
         toast.success(t("export.success"));
       } else {
         const queued = JSON.parse(await res.data.text()) as { id: number };
@@ -122,16 +140,29 @@ export function ExportTasksButton({ params, label, resumePending }: ExportTasksB
 
   const idleLabel = label ?? t("export.button");
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleExport}
-      disabled={busy}
-      aria-label={idleLabel}
-      title={idleLabel}
-    >
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-      <span className="hidden sm:ml-2 sm:inline">{busy ? t("export.preparing") : idleLabel}</span>
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          aria-label={idleLabel}
+          title={idleLabel}
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+          <span className="hidden sm:ml-2 sm:inline">
+            {busy ? t("export.preparing") : idleLabel}
+          </span>
+          {!busy && <ChevronDown className="ml-1 h-3 w-3 opacity-60" />}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {FORMATS.map(({ value, labelKey }) => (
+          <DropdownMenuItem key={value} onSelect={() => void handleExport(value)}>
+            {t(labelKey as never)}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

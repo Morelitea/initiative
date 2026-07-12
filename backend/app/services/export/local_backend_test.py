@@ -12,11 +12,15 @@ from app.services.export.local_backend import (
 pytestmark = pytest.mark.unit
 
 
-def _request(**data) -> RenderRequest:
+def _request(format: str = "pdf", **data) -> RenderRequest:
     payload = {
         "title": "Tasks",
         "subtitle": "unit test",
         "footer": "Tasks export",
+        "columns": [
+            {"key": "title", "label": "Task"},
+            {"key": "status", "label": "Status"},
+        ],
         "rows": [
             {
                 "title": "A task",
@@ -32,7 +36,7 @@ def _request(**data) -> RenderRequest:
     return RenderRequest(
         guild_id=1,
         template_id="task-table",
-        format="pdf",
+        format=format,
         batch=(RenderItem(key="tasks", data=payload),),
     )
 
@@ -78,3 +82,59 @@ def test_template_id_is_whitelisted():
     for bad in ("../secrets", "task table", "no-such-template", "TASK-TABLE", ""):
         with pytest.raises(UnknownTemplateError):
             resolve_template(bad)
+
+
+async def test_renders_csv_with_formula_neutralization():
+    """CSV rides the platform exporter's safety: BOM prefix and a leading
+    formula trigger prefixed so spreadsheets treat the cell as text."""
+    artifacts = await LocalRenderBackend().render(
+        _request(
+            format="csv",
+            rows=[{"title": "=HYPERLINK(evil)", "status": "To Do"}],
+        )
+    )
+    artifact = artifacts[0]
+    assert artifact.content_type.startswith("text/csv")
+    text = artifact.content.decode("utf-8")
+    assert text.startswith("﻿")
+    assert "Task,Status" in text
+    assert "'=HYPERLINK(evil)" in text
+
+
+async def test_renders_xlsx_with_formula_neutralization():
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    artifacts = await LocalRenderBackend().render(
+        _request(
+            format="xlsx",
+            rows=[{"title": "=CMD|dangerous", "status": "Done"}],
+        )
+    )
+    artifact = artifacts[0]
+    assert artifact.content.startswith(b"PK")  # zip container
+    sheet = load_workbook(BytesIO(artifact.content)).active
+    assert [c.value for c in sheet[1]] == ["Task", "Status"]
+    row = [c.value for c in sheet[2]]
+    assert row == ["'=CMD|dangerous", "Done"]
+    # Neutralized: stored as a string cell, not an inferred formula.
+    assert sheet.cell(row=2, column=1).data_type == "s"
+
+
+async def test_tabular_formats_skip_template_resolution():
+    """A csv/xlsx render must not require a .typ template — the payload's
+    columns/rows are the whole input."""
+    req = RenderRequest(
+        guild_id=1,
+        template_id="no-such-template",
+        format="csv",
+        batch=(
+            RenderItem(
+                key="tasks",
+                data={"columns": [{"key": "title", "label": "Task"}], "rows": []},
+            ),
+        ),
+    )
+    artifacts = await LocalRenderBackend().render(req)
+    assert artifacts[0].content_type.startswith("text/csv")

@@ -63,7 +63,7 @@ async def export_tasks(
     guild_context: GuildContextDep,
     # Literal so the HTTP layer 422s garbage and OpenAPI carries the enum;
     # grows as formats land. The registry still guards per-source combos.
-    format: Literal["pdf"] = Query(default="pdf"),
+    format: Literal["pdf", "csv", "xlsx"] = Query(default="pdf"),
     conditions: Optional[str] = Query(
         default=None, description="Same JSON filter conditions as the task list"
     ),

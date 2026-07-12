@@ -17,6 +17,7 @@ from pathlib import Path
 
 import typst
 
+from app.services.export import tabular
 from app.services.export.contract import (
     RenderedArtifact,
     RenderItem,
@@ -29,7 +30,11 @@ TEMPLATES_DIR = Path(__file__).parent / "templates"
 # reach the filesystem, so whitelist the alphabet anyway (no traversal).
 _TEMPLATE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
-_CONTENT_TYPES = {"pdf": "application/pdf"}
+_CONTENT_TYPES = {
+    "pdf": "application/pdf",
+    "csv": "text/csv; charset=utf-8",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
 
 
 class UnknownTemplateError(ValueError):
@@ -47,7 +52,10 @@ def resolve_template(template_id: str) -> Path:
 
 class LocalRenderBackend:
     async def render(self, req: RenderRequest) -> list[RenderedArtifact]:
-        template = resolve_template(req.template_id)
+        # Only the PDF path involves a template; tabular formats consume the
+        # payload's columns/rows directly. Resolve (and thereby validate) the
+        # template up front so a bad id fails before the executor hop.
+        template = resolve_template(req.template_id) if req.format == "pdf" else None
         content_type = _CONTENT_TYPES[req.format]
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(
@@ -56,7 +64,7 @@ class LocalRenderBackend:
 
     @staticmethod
     def _render_sync(
-        template: Path, content_type: str, req: RenderRequest
+        template: Path | None, content_type: str, req: RenderRequest
     ) -> list[RenderedArtifact]:
         out: list[RenderedArtifact] = []
         for item in req.batch:
@@ -64,10 +72,19 @@ class LocalRenderBackend:
                 RenderedArtifact(
                     key=item.key,
                     content_type=content_type,
-                    content=_compile(template, req.format, item),
+                    content=_render_item(template, req.format, item),
                 )
             )
         return out
+
+
+def _render_item(template: Path | None, format: str, item: RenderItem) -> bytes:
+    if format == "csv":
+        return tabular.render_csv(item)
+    if format == "xlsx":
+        return tabular.render_xlsx(item)
+    assert template is not None  # resolve_template ran for the pdf path
+    return _compile(template, format, item)
 
 
 def _compile(template: Path, format: str, item: RenderItem) -> bytes:

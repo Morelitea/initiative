@@ -25,13 +25,14 @@ export async function downloadExportArtifact(
   guildId: number,
   jobId: number,
   t: (key: string, options?: Record<string, unknown>) => string,
-  source = "tasks"
+  source = "tasks",
+  format = "pdf"
 ): Promise<void> {
   try {
     const res = await apiClient.get<Blob>(`/g/${guildId}/exports/${jobId}/download`, {
       responseType: "blob",
     });
-    downloadBlob(res.data, `${source}-${jobId}.pdf`);
+    downloadBlob(res.data, `${source}-${jobId}.${format}`);
     toast.success(t("tasks:export.success"));
   } catch (err) {
     toast.error(getErrorMessage(await normalizeBlobError(err), "tasks:export.error"));

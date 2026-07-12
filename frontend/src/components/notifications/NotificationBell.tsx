@@ -237,7 +237,7 @@ const notificationText = (
  * call needs, or null when the payload is malformed. */
 const exportDownloadTarget = (
   notification: NotificationRead
-): { guildId: number; jobId: number; source: string } | null => {
+): { guildId: number; jobId: number; source: string; format: string } | null => {
   if (notification.type !== "export_ready") {
     return null;
   }
@@ -251,6 +251,7 @@ const exportDownloadTarget = (
     guildId,
     jobId,
     source: typeof data.source === "string" ? data.source : "tasks",
+    format: typeof data.format === "string" ? data.format : "pdf",
   };
 };
 
@@ -297,7 +298,8 @@ export const NotificationBell = () => {
         exportTarget.guildId,
         exportTarget.jobId,
         t as (key: string, options?: Record<string, unknown>) => string,
-        exportTarget.source
+        exportTarget.source,
+        exportTarget.format
       );
       return;
     }

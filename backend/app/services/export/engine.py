@@ -48,7 +48,13 @@ class SourceAdapter(Protocol):
     ) -> int: ...
 
     async def build(
-        self, session: AsyncSession, *, user: User, guild_id: int, params: dict
+        self,
+        session: AsyncSession,
+        *,
+        user: User,
+        guild_id: int,
+        params: dict,
+        format: str,
     ) -> RenderRequest: ...
 
 
@@ -124,7 +130,7 @@ async def start_export(
 
     if row_count <= settings.EXPORT_INLINE_MAX_ROWS:
         request = await adapter.build(
-            session, user=user, guild_id=guild_id, params=params
+            session, user=user, guild_id=guild_id, params=params, format=format
         )
         artifacts = await get_backend().render(request)
         artifact = _single(artifacts)

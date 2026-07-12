@@ -165,7 +165,11 @@ async def _execute(session: AsyncSession, job: ExportJob, *, guild_id: int) -> s
         # GuildAccessError (-> failed job) if their access is gone.
         await establish_guild_access(user_session, user, guild_id)
         request = await adapter.build(
-            user_session, user=user, guild_id=guild_id, params=job.params or {}
+            user_session,
+            user=user,
+            guild_id=guild_id,
+            params=job.params or {},
+            format=job.format,
         )
 
     return await export_engine.render_to_storage(request, job_id=job.id)

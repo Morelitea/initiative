@@ -43,6 +43,32 @@ async def test_inline_export_returns_pdf(client: AsyncClient, acting_user, sessi
     assert resp.content.startswith(b"%PDF")
 
 
+async def test_inline_export_csv_and_xlsx(client: AsyncClient, acting_user, session):
+    a = await _actor_with_tasks(acting_user, session)
+
+    csv_resp = await client.get(
+        a.g("/exports/tasks"), headers=a.headers, params={"format": "csv"}
+    )
+    assert csv_resp.status_code == 200
+    assert csv_resp.headers["content-type"].startswith("text/csv")
+    body = csv_resp.content.decode("utf-8")
+    assert "Task,Project,Status,Priority,Due,Assignees" in body
+    assert "Task 0" in body and "Task 1" in body
+
+    xlsx_resp = await client.get(
+        a.g("/exports/tasks"), headers=a.headers, params={"format": "xlsx"}
+    )
+    assert xlsx_resp.status_code == 200
+    assert xlsx_resp.content.startswith(b"PK")
+    assert xlsx_resp.headers["content-type"].endswith("spreadsheetml.sheet")
+    assert 'filename="tasks.xlsx"' in xlsx_resp.headers["content-disposition"]
+
+    unknown = await client.get(
+        a.g("/exports/tasks"), headers=a.headers, params={"format": "docx"}
+    )
+    assert unknown.status_code == 422  # HTTP-layer Literal validation
+
+
 async def test_inline_export_respects_task_filters(
     client: AsyncClient, acting_user, session
 ):

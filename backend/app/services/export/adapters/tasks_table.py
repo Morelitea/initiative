@@ -23,10 +23,22 @@ from app.models.tenant.task import Task
 from app.services.export.contract import RenderItem, RenderRequest
 
 
+# Column spec shared by every format: the PDF template reads the row keys it
+# knows; the tabular renderers project rows through this list in order.
+_COLUMNS = (
+    {"key": "title", "label": "Task"},
+    {"key": "project", "label": "Project"},
+    {"key": "status", "label": "Status"},
+    {"key": "priority", "label": "Priority"},
+    {"key": "due", "label": "Due"},
+    {"key": "assignees", "label": "Assignees"},
+)
+
+
 class TasksTableAdapter:
     source = "tasks"
     template_id = "task-table"
-    formats = frozenset({"pdf"})
+    formats = frozenset({"pdf", "csv", "xlsx"})
 
     async def count(
         self, session: AsyncSession, *, user: User, guild_id: int, params: dict
@@ -38,7 +50,13 @@ class TasksTableAdapter:
         )
 
     async def build(
-        self, session: AsyncSession, *, user: User, guild_id: int, params: dict
+        self,
+        session: AsyncSession,
+        *,
+        user: User,
+        guild_id: int,
+        params: dict,
+        format: str,
     ) -> RenderRequest:
         from app.api.v1.tenant_endpoints.tasks import query_tasks_for_export
 
@@ -58,12 +76,13 @@ class TasksTableAdapter:
                 f" · generated {generated_at} by {author}"
             ),
             "footer": "Tasks export",
+            "columns": [dict(c) for c in _COLUMNS],
             "rows": [_row(t) for t in tasks],
         }
         return RenderRequest(
             guild_id=guild_id,
             template_id=self.template_id,
-            format="pdf",
+            format=format,
             batch=(RenderItem(key="tasks", data=data),),
         )
 
