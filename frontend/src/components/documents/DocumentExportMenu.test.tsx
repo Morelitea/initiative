@@ -58,6 +58,30 @@ describe("DocumentExportMenu", () => {
     expect(String(vi.mocked(downloadBlob).mock.calls[0][1])).toMatch(/^budget-.*\.csv$/);
   });
 
+  it("names the download from the server's Content-Disposition (.lexical)", async () => {
+    server.use(
+      guildHttp.get(
+        "/exports/document",
+        () =>
+          new HttpResponse("{}", {
+            status: 200,
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Disposition": 'attachment; filename="notes-2026-07-13.lexical"',
+            },
+          })
+      )
+    );
+    renderWithProviders(<DocumentExportMenu documentId={5} documentType="native" title="Notes" />);
+
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+    // The server name wins over the client's {stem}.{format} fallback —
+    // .lexical is what the editor's import picker accepts, not .json.
+    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("notes-2026-07-13.lexical");
+  });
+
   it("renders whiteboard PNG client-side without touching the engine", async () => {
     const engineHit = vi.fn();
     server.use(

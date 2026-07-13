@@ -15,7 +15,11 @@ import { useActiveGuildId } from "@/hooks/useActiveGuildId";
 import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
-import { downloadExportArtifact, normalizeBlobError } from "@/lib/exportDownload";
+import {
+  downloadExportArtifact,
+  filenameFromDisposition,
+  normalizeBlobError,
+} from "@/lib/exportDownload";
 import { getItem, removeItem, setItem } from "@/lib/storage";
 
 export interface ExportFormatOption {
@@ -135,7 +139,14 @@ export function ExportButton({
         validateStatus: (s) => s === 200 || s === 202,
       });
       if (res.status === 200) {
-        downloadBlob(res.data, `${option.filenameStem ?? filenameStem}.${option.format}`);
+        // Prefer the server-chosen name (Content-Disposition): a Lexical
+        // export is ".lexical" for the editor's import picker, and a file
+        // passthrough keeps an extension the client can't know.
+        const serverName = filenameFromDisposition(res.headers["content-disposition"]);
+        downloadBlob(
+          res.data,
+          serverName ?? `${option.filenameStem ?? filenameStem}.${option.format}`
+        );
         toast.success(t("export.success"));
       } else {
         const queued = JSON.parse(await res.data.text()) as { id: number };

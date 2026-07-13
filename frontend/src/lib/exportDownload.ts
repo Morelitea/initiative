@@ -3,6 +3,27 @@ import { toast } from "@/lib/chesterToast";
 import { downloadBlob } from "@/lib/csv";
 import { getErrorMessage } from "@/lib/errorMessage";
 
+/** Recover the server-chosen filename from a Content-Disposition header —
+ * the single source of truth for export names (a Lexical export must be
+ * ``.lexical`` for the editor's import picker; a file passthrough keeps an
+ * extension the client can't know). Handles both the plain ``filename="…"``
+ * and the RFC 5987 ``filename*=utf-8''…`` forms; null when absent. */
+export function filenameFromDisposition(header: string | undefined): string | null {
+  if (!header) {
+    return null;
+  }
+  const extended = header.match(/filename\*=utf-8''([^;]+)/i);
+  if (extended) {
+    try {
+      return decodeURIComponent(extended[1]);
+    } catch {
+      // fall through to the plain form
+    }
+  }
+  const plain = header.match(/filename="([^"]+)"/i);
+  return plain ? plain[1] : null;
+}
+
 /** Axios error bodies arrive as Blobs under responseType "blob"; recover the
  * JSON detail so getErrorMessage can map it to a localized message. */
 export async function normalizeBlobError(err: unknown): Promise<unknown> {
@@ -32,7 +53,8 @@ export async function downloadExportArtifact(
     const res = await apiClient.get<Blob>(`/g/${guildId}/exports/${jobId}/download`, {
       responseType: "blob",
     });
-    downloadBlob(res.data, `${source}-${jobId}.${format}`);
+    const serverName = filenameFromDisposition(res.headers["content-disposition"]);
+    downloadBlob(res.data, serverName ?? `${source}-${jobId}.${format}`);
     toast.success(t("tasks:export.success"));
   } catch (err) {
     toast.error(getErrorMessage(await normalizeBlobError(err), "tasks:export.error"));
