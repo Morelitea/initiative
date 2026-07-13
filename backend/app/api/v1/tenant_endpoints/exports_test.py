@@ -1335,16 +1335,20 @@ async def test_export_timestamp_uses_requested_timezone(
 
     a = await _actor_with_tasks(acting_user, session, count=1)
 
+    # Snapshot the minute on both sides of the request — the render happens
+    # somewhere between, so either minute is a pass (no :59 flake).
+    before = datetime.now(dt_timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
     resp = await client.get(
         a.g("/exports/tasks"),
         headers=a.headers,
         params={"format": "md", "tz": "Europe/Berlin"},
     )
+    after = datetime.now(dt_timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
     assert resp.status_code == 200
     body = resp.content.decode("utf-8")
-    now_berlin = datetime.now(dt_timezone.utc).astimezone(ZoneInfo("Europe/Berlin"))
-    assert f"generated {now_berlin.strftime('%Y-%m-%d %H:%M')}" in body
-    assert now_berlin.strftime("%Z") in body  # CET/CEST, not UTC
+    accepted = {f"generated {t.strftime('%Y-%m-%d %H:%M')}" for t in (before, after)}
+    assert any(stamp in body for stamp in accepted)
+    assert after.strftime("%Z") in body  # CET/CEST, not UTC
     assert " UTC " not in body
 
     fallback = await client.get(

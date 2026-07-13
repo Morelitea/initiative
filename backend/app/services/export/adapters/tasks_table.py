@@ -26,9 +26,12 @@ from app.services.export.contract import RenderItem, RenderRequest
 from app.services.export.i18n import et, export_locale, localize_now
 from app.services.export.markdown import blocks_from_markdown
 
-# Comment mentions are stored as ``@[Display Name](id)`` / ``#type[Text](id)``
-# (see mention_parser.py / CommentContent.tsx); a printed report shows
-# ``@Display Name`` / the display text, not the reference markup.
+# Comment mentions are stored as ``@[Display Name](id)`` / ``#type[Text](id)``;
+# a printed report shows ``@Display Name`` / the display text, not the
+# reference markup. The type list mirrors CommentContent.tsx's patterns
+# EXACTLY (user/task/doc/project — mention_parser.py parses a subset): an
+# unrecognized type renders as literal text in the app, so the PDF matching
+# that is correct. A new mention type must be added in both places.
 _MENTION_RE = re.compile(
     r"@\[([^\]]+)\]\(\d+\)|#(?:task|doc|project)\[([^\]]+)\]\(\d+\)"
 )

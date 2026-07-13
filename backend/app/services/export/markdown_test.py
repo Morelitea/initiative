@@ -85,3 +85,15 @@ def test_html_stays_literal_text():
     texts = "".join(r["text"] for r in para["runs"])
     assert "<b" in texts  # literal, unparsed
     assert not any(r.get("bold") for r in para["runs"])
+
+
+def test_html_block_degrades_to_literal_text():
+    """Block-level HTML is a leaf token — it must degrade to its literal text
+    (the "never dropped" contract), not vanish because it has no children."""
+    blocks = blocks_from_markdown("<details>hidden text</details>")
+    assert blocks == [
+        {
+            "type": "paragraph",
+            "runs": [{"text": "<details>hidden text</details>"}],
+        }
+    ]

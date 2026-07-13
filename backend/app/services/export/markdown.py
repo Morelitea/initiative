@@ -82,9 +82,18 @@ def _blocks(parent: SyntaxTreeNode) -> list[dict[str, Any]]:
             out.append({"type": "hr"})
         elif kind == "table":
             out.append({"type": "table", "rows": _table_rows(node)})
-        else:
+        elif kind == "html_block":
+            # Block HTML degrades to its literal text (never markup, never
+            # dropped) — a leaf token, so the recursive fallback can't see it.
+            content = node.content.strip()
+            if content:
+                out.append({"type": "paragraph", "runs": [{"text": content}]})
+        elif node.children:
             # Unknown container: recurse so its content still exports.
             out.extend(_blocks(node))
+        elif node.content.strip():
+            # Unknown leaf: degrade to its literal text.
+            out.append({"type": "paragraph", "runs": [{"text": node.content.strip()}]})
     return out
 
 
