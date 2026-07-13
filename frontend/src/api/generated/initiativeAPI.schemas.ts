@@ -3985,6 +3985,8 @@ export const ExportDocumentApiV1GGuildIdExportsDocumentGetFormat = {
   csv: "csv",
   xlsx: "xlsx",
   file: "file",
+  pdf: "pdf",
+  docx: "docx",
 } as const;
 
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {

@@ -24,7 +24,7 @@ from typing import Any
 
 import typst
 
-from app.services.export import spreadsheet, tabular
+from app.services.export import lexical, spreadsheet, tabular
 from app.services.export.contract import (
     RenderedArtifact,
     RenderItem,
@@ -43,6 +43,7 @@ _CONTENT_TYPES = {
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "md": "text/markdown; charset=utf-8",
     "json": "application/json",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "file": "application/octet-stream",  # per-item override from the blob
 }
 
@@ -99,34 +100,59 @@ def _render_item(
             else tabular.render_xlsx(item)
         )
     elif format == "md":
-        content = tabular.render_md(item)
+        if "blocks" in item.data:
+            content, content_type, lexical_name = lexical.render_markdown(
+                item.data, _blob_reader(req.guild_id)
+            )
+            filename = lexical_name or filename
+        else:
+            content = tabular.render_md(item)
+    elif format == "docx":
+        content = lexical.render_docx(item.data, _blob_reader(req.guild_id))
     elif format == "json":
         # The payload IS the artifact (e.g. a backup envelope); indent for a
         # human-inspectable file.
         content = json.dumps(item.data, ensure_ascii=False, indent=2).encode("utf-8")
     else:
         assert template is not None  # resolve_template ran for the pdf path
-        content = _compile(template, format, item)
+        if item.data.get("assets"):
+            content = _compile_with_assets(template, format, item, req.guild_id)
+        else:
+            content = _compile(template, format, item)
     return RenderedArtifact(
         key=item.key, content_type=content_type, content=content, filename=filename
     )
 
 
+def _blob_reader(guild_id: int):
+    """Bytes-by-storage-key reader for renderers that embed uploads (asset
+    images, file passthrough). Keys are derived by adapters from document
+    rows under the caller's RLS session — never from raw user input."""
+    from app.services.storage import get_guild_storage
+
+    storage = get_guild_storage(guild_id)
+
+    def read(key: str) -> bytes:
+        blob = storage.open_readable(str(key))
+        if blob is None:
+            raise FileNotFoundError(key)
+        if blob.path is not None:
+            return Path(blob.path).read_bytes()
+        return blob.stream.read()  # type: ignore[union-attr]
+
+    return read
+
+
 def _read_passthrough(
     guild_id: int, data: dict[str, Any]
 ) -> tuple[bytes, str, str | None]:
-    """Read a stored upload blob for unconverted export. The storage key was
-    derived by the adapter from the document row under the caller's RLS
-    session — never from raw user input."""
+    """Read a stored upload blob for unconverted export."""
     from app.services.storage import get_guild_storage
 
     blob = get_guild_storage(guild_id).open_readable(str(data["storage_key"]))
     if blob is None:
         raise FileNotFoundError(data["storage_key"])
-    if blob.path is not None:
-        content = Path(blob.path).read_bytes()
-    else:
-        content = blob.stream.read()  # type: ignore[union-attr]
+    content = _blob_reader(guild_id)(str(data["storage_key"]))
     content_type = (
         str(data.get("content_type") or "")
         or blob.content_type
@@ -146,3 +172,48 @@ def _compile(template: Path, format: str, item: RenderItem) -> bytes:
         sys_inputs={"data": json.dumps(item.data, ensure_ascii=False)},
         ignore_system_fonts=True,
     )
+
+
+def _compile_with_assets(
+    template: Path, format: str, item: RenderItem, guild_id: int
+) -> bytes:
+    """Compile with referenced upload images staged into the project root —
+    Typst reads files only under its root, so a temp dir holds a copy of the
+    template plus an assets/ folder with the document's images."""
+    import shutil
+    import tempfile
+
+    read = _blob_reader(guild_id)
+    with tempfile.TemporaryDirectory(prefix="export-render-") as tmp:
+        root = Path(tmp)
+        main = root / template.name
+        shutil.copyfile(template, main)
+        assets_dir = root / "assets"
+        assets_dir.mkdir()
+        staged: set[str] = set()
+        for asset in item.data.get("assets") or []:
+            try:
+                content = read(asset["key"])
+            except Exception:
+                # Gone from storage: skip — the block degrades below rather
+                # than the whole export failing.
+                continue
+            # Names come from safe_filename_component — no traversal.
+            (assets_dir / asset["name"]).write_bytes(content)
+            staged.add(asset["name"])
+        # Typst FAILS the compile on a missing image file, so any image block
+        # whose asset didn't stage degrades to its alt text.
+        data = dict(item.data)
+        data["blocks"] = [
+            {"type": "paragraph", "runs": [{"text": b.get("alt") or "[image]"}]}
+            if b.get("type") == "image" and b.get("asset") and b["asset"] not in staged
+            else b
+            for b in data.get("blocks") or []
+        ]
+        return typst.compile(
+            str(main),
+            root=str(root),
+            format=format,
+            sys_inputs={"data": json.dumps(data, ensure_ascii=False)},
+            ignore_system_fonts=True,
+        )

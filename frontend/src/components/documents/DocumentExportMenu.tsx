@@ -26,7 +26,13 @@ const safeFilename = (name: string): string =>
 
 // Engine formats per document type — mirrors the backend adapter's rules.
 const TYPE_FORMATS: Record<DocumentReadDocumentType, ExportFormatOption[]> = {
-  native: [{ format: "json", labelKey: "export.formatJson" }],
+  native: [
+    { format: "pdf", labelKey: "export.formatPdf" },
+    { format: "md", labelKey: "export.formatMarkdown" },
+    { format: "docx", labelKey: "export.formatDocx" },
+    // The lossless one: round-trips through the editor toolbar's import.
+    { format: "json", labelKey: "export.formatLexical" },
+  ],
   whiteboard: [{ format: "json", labelKey: "export.formatExcalidraw" }],
   spreadsheet: [
     { format: "csv", labelKey: "export.formatCsv" },

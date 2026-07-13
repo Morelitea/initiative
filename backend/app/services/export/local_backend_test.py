@@ -206,6 +206,92 @@ async def test_xlsx_preserves_numeric_cells():
     assert sheet.cell(row=2, column=2).data_type == "n"
 
 
+async def test_document_template_interleaves_nested_lists():
+    """A nested list must render directly beneath its parent item, not after
+    all siblings — and the parent numbering must continue past the detour."""
+    import io
+
+    from pypdf import PdfReader
+
+    request = RenderRequest(
+        guild_id=1,
+        template_id="document",
+        format="pdf",
+        batch=(
+            RenderItem(
+                key="doc",
+                data={
+                    "title": "T",
+                    "blocks": [
+                        {
+                            "type": "list",
+                            "ordered": True,
+                            "checklist": False,
+                            "items": [
+                                {"runs": [{"text": "ALPHA"}]},
+                                {
+                                    "runs": [{"text": "BRAVO"}],
+                                    "children": [
+                                        {
+                                            "type": "list",
+                                            "ordered": False,
+                                            "checklist": False,
+                                            "items": [
+                                                {"runs": [{"text": "NESTEDBRAVO"}]}
+                                            ],
+                                        }
+                                    ],
+                                },
+                                {"runs": [{"text": "CHARLIE"}]},
+                            ],
+                        }
+                    ],
+                },
+            ),
+        ),
+    )
+    artifacts = await LocalRenderBackend().render(request)
+    text = PdfReader(io.BytesIO(artifacts[0].content)).pages[0].extract_text()
+    assert text.index("ALPHA") < text.index("BRAVO")
+    assert text.index("BRAVO") < text.index("NESTEDBRAVO")
+    assert text.index("NESTEDBRAVO") < text.index("CHARLIE")
+    assert "3. CHARLIE" in text  # numbering survives the nested detour
+
+
+async def test_document_pdf_degrades_missing_asset(monkeypatch, tmp_path):
+    """Typst fails a compile on a missing image file, so an asset gone from
+    storage must degrade its block to alt text — not fail the export."""
+    import io
+
+    from pypdf import PdfReader
+
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
+    request = RenderRequest(
+        guild_id=1,
+        template_id="document",
+        format="pdf",
+        batch=(
+            RenderItem(
+                key="doc",
+                data={
+                    "title": "T",
+                    "blocks": [
+                        {"type": "image", "asset": "gone.png", "alt": "GONEALT"},
+                        {"type": "paragraph", "runs": [{"text": "AFTERWARDS"}]},
+                    ],
+                    "assets": [{"key": "gone.png", "name": "gone.png"}],
+                },
+            ),
+        ),
+    )
+    artifacts = await LocalRenderBackend().render(request)
+    text = PdfReader(io.BytesIO(artifacts[0].content)).pages[0].extract_text()
+    assert "GONEALT" in text  # degraded to alt text
+    assert "AFTERWARDS" in text  # rest of the document survived
+
+
 async def test_tabular_formats_skip_template_resolution():
     """A csv/xlsx render must not require a .typ template — the payload's
     columns/rows are the whole input."""

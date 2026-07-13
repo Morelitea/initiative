@@ -75,6 +75,7 @@ describe("DocumentExportMenu", () => {
     renderWithProviders(<DocumentExportMenu documentId={5} documentType="native" title="Notes" />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /lexical/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     // The server name wins over the client's {stem}.{format} fallback —

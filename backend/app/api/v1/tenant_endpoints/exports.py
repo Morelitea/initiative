@@ -158,7 +158,7 @@ async def export_document(
     current_user: Annotated[User, Depends(get_current_active_user)],
     guild_context: GuildContextDep,
     document_id: int = Query(),
-    format: Literal["json", "md", "csv", "xlsx", "file"] = Query(),
+    format: Literal["json", "md", "csv", "xlsx", "file", "pdf", "docx"] = Query(),
 ) -> Union[Response, JSONResponse]:
     """Export a document. Valid formats depend on the document type:
     ``json`` for Lexical (importable envelope) and whiteboards (standard
