@@ -58,8 +58,7 @@
     "noDescription": "Keine Beschreibung.",
     "subtasks": "Teilaufgaben",
     "comments": "Kommentare",
-    "start": "Beginn",
-    "noTasks": "Keine Aufgaben entsprechen diesem Filter."
+    "start": "Beginn"
   },
   "fallback": {
     "unknownAuthor": "unbekannt",

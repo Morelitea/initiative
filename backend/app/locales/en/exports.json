@@ -58,8 +58,7 @@
     "noDescription": "No description.",
     "subtasks": "Subtasks",
     "comments": "Comments",
-    "start": "Start",
-    "noTasks": "No tasks matched this filter."
+    "start": "Start"
   },
   "fallback": {
     "unknownAuthor": "unknown",

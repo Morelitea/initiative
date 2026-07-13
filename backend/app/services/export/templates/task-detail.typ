@@ -41,6 +41,8 @@
 // Preserve author-entered line breaks in free text (description, comments):
 // the string arrives as data, so split and re-emit hard breaks.
 #let multiline(s) = {
+  // Guard none defensively: a null free-text value must not abort the compile.
+  let s = if s == none { "" } else { s }
   let lines = s.split("\n")
   for (i, line) in lines.enumerate() {
     line

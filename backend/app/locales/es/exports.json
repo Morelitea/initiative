@@ -58,8 +58,7 @@
     "noDescription": "Sin descripción.",
     "subtasks": "Subtareas",
     "comments": "Comentarios",
-    "start": "Inicio",
-    "noTasks": "Ninguna tarea coincide con este filtro."
+    "start": "Inicio"
   },
   "fallback": {
     "unknownAuthor": "desconocido",

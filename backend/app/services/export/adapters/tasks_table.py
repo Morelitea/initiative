@@ -230,7 +230,11 @@ def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
             {
                 "author": (c.author.full_name or c.author.email) if c.author else "",
                 "date": c.created_at.strftime("%Y-%m-%d"),
-                "content": c.content,
+                # ``content`` is NOT NULL today, but guard anyway: a present-but
+                # -null value would reach the template's multiline() as `none`
+                # (unlike an absent key, which takes the default) and abort the
+                # compile. Same `or ""` guard as description.
+                "content": c.content or "",
             }
             for c in comments
         ],

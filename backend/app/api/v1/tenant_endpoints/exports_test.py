@@ -1207,6 +1207,9 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     await create_subtask(session, t1, content="Tune the HP", is_completed=True)
     await create_subtask(session, t1, content="Write the dialogue")
     await create_comment(session, a.user, task=t1, content="Started already.")
+    # An empty-content comment must not abort the compile (the payload guards
+    # it to "" so the template's multiline() never sees null).
+    await create_comment(session, a.user, task=t1, content="")
     await create_task(session, a.project, title="Loot table")
 
     resp = await client.get(
