@@ -38,6 +38,22 @@ def test_every_locale_has_the_same_export_keys():
         assert _flatten(_catalog(locale)) == reference, f"{locale} key mismatch"
 
 
+def test_every_task_priority_enum_value_has_a_catalog_entry():
+    """The adapters build the priority key dynamically from the enum
+    (``et(f"priority.{task.priority.value}", …)``). A new enum value without a
+    matching catalog entry would fall through ``translate``'s last resort and
+    leak the raw key (``priority.critical``) into the exported document. Pin
+    every enum value to a key in every locale so adding one fails CI here."""
+    from app.models.tenant.task import TaskPriority
+
+    for locale in _LOCALES:
+        keys = _flatten(_catalog(locale))
+        for priority in TaskPriority:
+            assert f"priority.{priority.value}" in keys, (
+                f"{locale} missing priority.{priority.value}"
+            )
+
+
 def test_plural_and_interpolation_variants_present_in_every_locale():
     """The summary keys are plural (``_one``/``_other``); every locale must
     carry both variants or a count would fall back to English mid-sentence."""
