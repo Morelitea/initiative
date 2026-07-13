@@ -43,12 +43,23 @@ export const ProjectExportCard = ({
       <CardFooter>
         {canWriteProject ? (
           // Engine-delivered: small projects download inline; large ones run
-          // as a background job with the inbox-notification pickup.
+          // as a background job with the inbox-notification pickup. The json
+          // backup keeps its historical importable-file naming; the report
+          // formats (pdf/csv/xlsx) share the plain stem.
           <ExportButton
             endpoint="/exports/project"
             params={{ project_id: projectId }}
-            formats={[{ format: "json", labelKey: "export.formatJson" }]}
-            filenameStem={`${safeFilename(projectName)}-${date}.initiative-project`}
+            formats={[
+              {
+                format: "json",
+                labelKey: "export.formatJson",
+                filenameStem: `${safeFilename(projectName)}-${date}.initiative-project`,
+              },
+              { format: "pdf", labelKey: "export.formatPdf" },
+              { format: "csv", labelKey: "export.formatCsv" },
+              { format: "xlsx", labelKey: "export.formatXlsx" },
+            ]}
+            filenameStem={`${safeFilename(projectName)}-${date}`}
             label={t("export.exportButton")}
             variant="default"
           />

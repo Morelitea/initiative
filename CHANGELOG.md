@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Project export now also offers a formatted report as PDF, CSV, or Excel (XLSX) alongside the JSON backup — the report covers the project's unarchived tasks; the backup file is unchanged and still imports.
 - Project backup (JSON) export now runs through the export engine: large projects export as a background job with the inbox-notification pickup instead of one long request, and artifacts follow the same private-to-creator delivery and 7-day expiry. The downloaded file and the import flow are unchanged. (API: `GET /projects/{id}/export` was replaced by `GET /exports/project?project_id=…`.)
 
 ## [0.55.0] - 2026-07-12
