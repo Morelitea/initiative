@@ -719,6 +719,11 @@ async def _reassert_shared_grants(
 
     for role, table, verbs in expected:
         verb_list = system_grants.grant_sql(verbs)
+        if not verb_list:
+            # Unreachable: _expected_shared_table_grants already drops None/empty
+            # entries. The guard makes that invariant explicit and narrows
+            # grant_sql's `str | None` to `str` (no `GRANT None …` can render).
+            continue
         await conn.execute(
             text(f'GRANT {verb_list} ON TABLE public."{table}" TO "{role}"')
         )
@@ -774,7 +779,8 @@ async def ensure_shared_table_grants() -> None:
     logger.warning(
         "Shared-table grants were incomplete for the app's directly-connecting "
         "roles (app_admin/app_user) — re-asserted %d audited table grant(s) "
-        "from the system_grants registry. Restored databases lose role grants "
-        "(issue #835); no action needed.",
+        "(plus the row-id sequences of insertable tables) from the system_grants "
+        "registry. Restored databases lose role grants (issue #835); no action "
+        "needed.",
         asserted,
     )
