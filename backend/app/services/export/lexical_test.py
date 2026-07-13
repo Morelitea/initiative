@@ -242,6 +242,60 @@ def test_docx_renders_and_embeds_image():
     assert len(document.inline_shapes) == 1  # the embedded upload image
 
 
+def test_image_resize_carried_and_honored_in_docx():
+    """The editor's resize (width px on the node) must survive into the
+    block and set the DOCX picture width — not the fixed 6-inch default."""
+    import struct
+    import zlib
+
+    import docx
+    from docx.shared import Inches
+
+    def make_png():
+        def chunk(tag, data):
+            c = tag + data
+            return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+        return (
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00"))
+            + chunk(b"IEND", b"")
+        )
+
+    state = _state(
+        [
+            {
+                "type": "image",
+                "src": f"/uploads/{GUILD}/pic.png",
+                "altText": "sized",
+                "width": 192,  # 2 inches at 96 dpi
+                "height": 120,
+            },
+            {
+                "type": "image",
+                "src": f"/uploads/{GUILD}/pic.png",
+                "altText": "untouched",
+                "width": "inherit",  # editor default: no resize stored
+            },
+        ]
+    )
+    blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
+    assert blocks[0]["width"] == 192  # width wins; stale height not carried
+    assert "height" not in blocks[0]
+    assert "width" not in blocks[1]  # "inherit" ignored
+
+    content = render_docx(
+        {"title": "", "blocks": blocks, "assets": assets}, lambda key: make_png()
+    )
+    document = docx.Document(io.BytesIO(content))
+    shapes = document.inline_shapes
+    assert len(shapes) == 2
+    assert shapes[0].width == Inches(2)  # resized: 192px / 96dpi
+    assert shapes[1].width == Inches(6)  # untouched: the default cap
+
+
 def test_docx_degrades_unreadable_image_to_alt_text():
     state = _state(
         [{"type": "image", "src": f"/uploads/{GUILD}/bad.png", "altText": "broken"}]

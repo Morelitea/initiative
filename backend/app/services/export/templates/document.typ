@@ -105,7 +105,18 @@
   } else if btype == "image" {
     let asset = b.at("asset", default: none)
     if asset != none {
-      image("assets/" + asset, width: 80%)
+      // Honor the editor's resize (CSS px -> pt at 0.75), clamped to the
+      // content width (~470pt on A4 with these margins); untouched images
+      // keep the 80% default.
+      let wpx = b.at("width", default: none)
+      let hpx = b.at("height", default: none)
+      if wpx != none {
+        image("assets/" + asset, width: calc.min(wpx * 0.75, 470) * 1pt)
+      } else if hpx != none {
+        image("assets/" + asset, height: calc.min(hpx * 0.75, 680) * 1pt)
+      } else {
+        image("assets/" + asset, width: 80%)
+      }
     } else {
       let url = b.at("url", default: "")
       link(url)[#b.at("alt", default: url)]

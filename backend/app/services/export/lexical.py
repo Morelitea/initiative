@@ -232,10 +232,27 @@ class _Parser:
                         n += 1
                 existing = {"key": key, "name": name}
                 self.assets[key] = existing
-            self.blocks.append({"type": "image", "asset": existing["name"], "alt": alt})
+            block = {"type": "image", "asset": existing["name"], "alt": alt}
+            block.update(_image_size(node))
+            self.blocks.append(block)
         elif src:
             # External (or cross-guild) image: never fetched — link only.
             self.blocks.append({"type": "image", "asset": None, "url": src, "alt": alt})
+
+
+def _image_size(node: dict) -> dict:
+    """The editor stores a resize as width/height px on the node ("inherit"
+    when untouched). Width alone is carried — the renderers derive height
+    from the aspect ratio, so a stale stored height can't distort."""
+    for field in ("width", "height"):
+        value = node.get(field)
+        if (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and value > 0
+        ):
+            return {field: int(value)}
+    return {}
 
 
 def _code_text(children: list) -> str:
@@ -462,10 +479,18 @@ def render_docx(data: dict, read_blob: ReadBlob) -> bytes:
             if block.get("asset"):
                 key = name_to_key.get(block["asset"])
                 if key:
+                    # Editor resize is CSS px; Word wants inches (96 dpi).
+                    # Cap at the ~6.5" content width of the default page.
+                    width_px = block.get("width")
+                    height_px = block.get("height")
+                    if width_px:
+                        size = {"width": Inches(min(width_px / 96, 6.5))}
+                    elif height_px:
+                        size = {"height": Inches(min(height_px / 96, 9))}
+                    else:
+                        size = {"width": Inches(6)}
                     try:
-                        document.add_picture(
-                            io.BytesIO(read_blob(key)), width=Inches(6)
-                        )
+                        document.add_picture(io.BytesIO(read_blob(key)), **size)
                     except Exception:
                         # Unreadable/unsupported image: degrade to alt text
                         # rather than failing the whole document.
