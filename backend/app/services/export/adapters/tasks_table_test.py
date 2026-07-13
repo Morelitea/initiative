@@ -33,3 +33,16 @@ def test_thread_comments_treats_orphans_as_roots():
     orphan = _c(5, 99)
     ordered = _thread_comments([orphan])
     assert [(c.id, d) for c, d in ordered] == [(5, 0)]
+
+
+def test_thread_comments_handles_a_very_deep_chain_without_recursion():
+    """A long single reply chain (each replying to the previous) must not blow
+    Python's recursion limit — the walk is an explicit-stack DFS."""
+    chain = [_c(1)]
+    for i in range(2, 3001):
+        chain.append(_c(i, i - 1))  # each replies to its predecessor
+    ordered = _thread_comments(chain)
+    assert len(ordered) == 3000
+    assert ordered[0] == (chain[0], 0)
+    assert ordered[-1][0].id == 3000
+    assert ordered[-1][1] == 2999  # depth grows with the chain

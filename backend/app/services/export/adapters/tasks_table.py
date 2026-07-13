@@ -262,13 +262,16 @@ def _thread_comments(comments: list) -> list[tuple]:
         else:
             children.setdefault(parent_id, []).append(comment)
 
+    # Explicit-stack DFS rather than recursion: a reply chain can be
+    # arbitrarily deep (``parent_comment_id`` is unrestricted and reachable
+    # from the public API), so recursion could hit Python's limit and abort the
+    # export on a 1000+ deep thread. Push siblings reversed so each is popped in
+    # order and a parent is immediately followed by its own subtree (pre-order).
     ordered: list[tuple] = []
-
-    def walk(comment, depth: int) -> None:
+    stack: list[tuple] = [(root, 0) for root in reversed(roots)]
+    while stack:
+        comment, depth = stack.pop()
         ordered.append((comment, depth))
-        for child in children.get(comment.id, []):
-            walk(child, depth + 1)
-
-    for root in roots:
-        walk(root, 0)
+        for child in reversed(children.get(comment.id, [])):
+            stack.append((child, depth + 1))
     return ordered
