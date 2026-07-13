@@ -253,12 +253,17 @@
     "archiving": "Archivando…"
   },
   "export": {
-    "button": "Exportar PDF",
+    "button": "Exportar",
     "preparing": "Exportando…",
     "queued": "Exportación iniciada: la descarga comenzará cuando esté lista.",
     "success": "Exportación descargada.",
     "failed": "La exportación falló. Inténtalo de nuevo o reduce el filtro.",
     "error": "No se pudieron exportar las tareas.",
-    "selected": "Exportar selección"
+    "selected": "Exportar selección",
+    "formatPdf": "Documento PDF",
+    "formatCsv": "CSV",
+    "formatXlsx": "Excel (XLSX)",
+    "formatMd": "Tabla Markdown",
+    "formatMdChecklist": "Lista de tareas Markdown"
   }
 }

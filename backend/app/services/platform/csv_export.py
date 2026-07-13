@@ -16,7 +16,7 @@ _BOM = "\ufeff"
 _FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
 
 
-def _neutralize_cell(value: object) -> object:
+def neutralize_cell(value: object) -> object:
     """Prefix a leading formula trigger with a single quote so spreadsheets treat
     the cell as text. Non-string and benign values are returned unchanged."""
     if value is None:
@@ -30,14 +30,14 @@ def _neutralize_cell(value: object) -> object:
 def build_csv(headers: Sequence[str], rows: Iterable[Sequence[object]]) -> bytes:
     """Serialize rows to a UTF-8 encoded CSV byte string with a BOM prefix.
 
-    Every cell (headers included) is passed through ``_neutralize_cell`` so a
+    Every cell (headers included) is passed through ``neutralize_cell`` so a
     value beginning with a formula trigger cannot execute when the export is
     opened in a spreadsheet application (CSV injection)."""
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow([_neutralize_cell(value) for value in headers])
+    writer.writerow([neutralize_cell(value) for value in headers])
     for row in rows:
-        writer.writerow([_neutralize_cell(value) for value in row])
+        writer.writerow([neutralize_cell(value) for value in row])
     return (_BOM + buffer.getvalue()).encode("utf-8")
 
 

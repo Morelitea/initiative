@@ -253,12 +253,17 @@
     "archiving": "Wird archiviert…"
   },
   "export": {
-    "button": "PDF exportieren",
+    "button": "Exportieren",
     "preparing": "Wird exportiert…",
     "queued": "Export gestartet — der Download beginnt, sobald er bereit ist.",
     "success": "Export heruntergeladen.",
     "failed": "Der Export ist fehlgeschlagen. Versuche es erneut oder grenze den Filter ein.",
     "error": "Aufgaben konnten nicht exportiert werden.",
-    "selected": "Auswahl exportieren"
+    "selected": "Auswahl exportieren",
+    "formatPdf": "PDF-Dokument",
+    "formatCsv": "CSV",
+    "formatXlsx": "Excel (XLSX)",
+    "formatMd": "Markdown-Tabelle",
+    "formatMdChecklist": "Markdown-Aufgabenliste"
   }
 }
