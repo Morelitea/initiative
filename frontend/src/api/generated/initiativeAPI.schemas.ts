@@ -3933,7 +3933,7 @@ export type ExportTasksApiV1GGuildIdExportsTasksGetParams = {
   tz?: string | null;
   include_archived?: boolean;
   /**
-   * Markdown layout: a table, or a GitHub-style task list
+   * Report layout. Markdown: a table (default) or a GitHub-style task list (checklist). PDF: the default table, or 'detailed' for a one-task-per-page report with description, subtasks and comments. Ignored by csv/xlsx.
    */
   layout?: ExportTasksApiV1GGuildIdExportsTasksGetLayout;
 };
@@ -3954,6 +3954,7 @@ export type ExportTasksApiV1GGuildIdExportsTasksGetLayout =
 export const ExportTasksApiV1GGuildIdExportsTasksGetLayout = {
   table: "table",
   checklist: "checklist",
+  detailed: "detailed",
 } as const;
 
 export type ExportProjectApiV1GGuildIdExportsProjectGetParams = {

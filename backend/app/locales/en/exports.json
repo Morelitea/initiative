@@ -53,6 +53,14 @@
     "project": "This project has no tasks.",
     "generic": "Nothing to export."
   },
+  "detail": {
+    "description": "Description",
+    "noDescription": "No description.",
+    "subtasks": "Subtasks",
+    "comments": "Comments",
+    "start": "Start",
+    "noTasks": "No tasks matched this filter."
+  },
   "fallback": {
     "unknownAuthor": "unknown",
     "untitled": "(untitled)"

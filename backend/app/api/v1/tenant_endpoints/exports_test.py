@@ -1184,3 +1184,61 @@ async def test_queue_export_localizes_status_flags_and_headers(
     envelope = json.loads(json_resp.content)
     assert envelope["kind"] == "initiative-queue"
     assert "items" in envelope and "is_current" in envelope["items"][0]
+
+
+async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
+    client: AsyncClient, acting_user, session
+):
+    """layout=detailed renders a one-task-per-page PDF carrying each task's
+    description, subtasks and comments — not the tabular line-per-task list."""
+    import io
+
+    from pypdf import PdfReader
+
+    from app.testing.factories import create_comment, create_subtask
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    t1 = await create_task(
+        session,
+        a.project,
+        title="Boss fight",
+        description="Balance the encounter.\nCheck the second phase.",
+    )
+    await create_subtask(session, t1, content="Tune the HP", is_completed=True)
+    await create_subtask(session, t1, content="Write the dialogue")
+    await create_comment(session, a.user, task=t1, content="Started already.")
+    await create_task(session, a.project, title="Loot table")
+
+    resp = await client.get(
+        a.g("/exports/tasks"),
+        headers=a.headers,
+        params={"format": "pdf", "layout": "detailed"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    reader = PdfReader(io.BytesIO(resp.content))
+    assert len(reader.pages) == 2  # one page per task
+    text = "\n".join(p.extract_text() for p in reader.pages)
+    assert "Boss fight" in text and "Loot table" in text
+    assert "Balance the encounter" in text  # description
+    assert "Check the second phase" in text  # description line break preserved
+    assert "Tune the HP" in text and "Write the dialogue" in text  # subtasks
+    assert "Started already" in text  # comment body
+    # Localized section labels (en locale).
+    for label in ("Description", "Subtasks", "Comments"):
+        assert label in text
+
+
+async def test_detailed_layout_ignored_for_non_pdf_formats(
+    client: AsyncClient, acting_user, session
+):
+    """layout=detailed only applies to PDF; csv falls through to the table."""
+    a = await _actor_with_tasks(acting_user, session, count=1)
+    resp = await client.get(
+        a.g("/exports/tasks"),
+        headers=a.headers,
+        params={"format": "csv", "layout": "detailed"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "Task,Project,Status,Priority,Due,Assignees" in resp.content.decode("utf-8")

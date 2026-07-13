@@ -51,7 +51,7 @@ describe("ExportTasksButton", () => {
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf document/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("tasks.pdf");
@@ -68,7 +68,7 @@ describe("ExportTasksButton", () => {
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf document/i }));
 
     await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("tasks-7.pdf");
@@ -84,7 +84,7 @@ describe("ExportTasksButton", () => {
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf document/i }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(downloadBlob).not.toHaveBeenCalled();
@@ -140,6 +140,28 @@ describe("ExportTasksButton", () => {
     expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("tasks.md");
   });
 
+  it("sends format=pdf&layout=detailed for the detailed PDF entry", async () => {
+    let sent: { format: string | null; layout: string | null } | null = null;
+    server.use(
+      guildHttp.get("/exports/tasks", ({ request }) => {
+        const url = new URL(request.url);
+        sent = {
+          format: url.searchParams.get("format"),
+          layout: url.searchParams.get("layout"),
+        };
+        return pdfResponse();
+      })
+    );
+    renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /export/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf \(detailed\)/i }));
+
+    await waitFor(() => expect(downloadBlob).toHaveBeenCalledTimes(1));
+    expect(sent).toEqual({ format: "pdf", layout: "detailed" });
+    expect(vi.mocked(downloadBlob).mock.calls[0][1]).toBe("tasks.pdf");
+  });
+
   it("resumes a pending job from storage on mount and downloads it", async () => {
     setItem("exports:pending:1", "9");
     server.use(
@@ -180,7 +202,7 @@ describe("ExportTasksButton", () => {
     renderWithProviders(<ExportTasksButton params={{ conditions: [] }} />);
 
     await userEvent.click(screen.getByRole("button", { name: /export/i }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf/i }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: /pdf document/i }));
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
     expect(downloadBlob).not.toHaveBeenCalled();

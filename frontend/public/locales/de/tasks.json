@@ -261,6 +261,7 @@
     "error": "Export fehlgeschlagen. Versuche es erneut.",
     "selected": "Auswahl exportieren",
     "formatPdf": "PDF-Dokument",
+    "formatPdfDetailed": "PDF (ausführlich)",
     "formatCsv": "CSV",
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Markdown-Tabelle",
