@@ -66,6 +66,8 @@ def render_md(item: RenderItem) -> bytes:
         lines.append(f"<{item.data.get('url', '')}>")
     elif layout == "checklist":
         lines.extend(_md_checklist(item))
+    elif layout == "numbered":
+        lines.extend(_md_numbered(item))
     else:
         lines.extend(_md_table(item))
     lines.append("")
@@ -94,6 +96,17 @@ def _md_table(item: RenderItem) -> list[str]:
     return lines
 
 
+def _md_details(row: dict, detail_keys: list[str]) -> str:
+    """The parenthesized detail trail shared by the list layouts. ``None``
+    must be skipped BEFORE stringifying — ``str(None)`` is truthy, and
+    ``_md_cell(None)`` returns ``""``, so a None value would otherwise smuggle
+    an empty segment (and its spurious ``·`` separator) into the join."""
+    values = (row.get(key) for key in detail_keys)
+    return " · ".join(
+        _md_cell(value) for value in values if value is not None and str(value).strip()
+    )
+
+
 def _md_checklist(item: RenderItem) -> list[str]:
     """GitHub-style task list: one checkbox item per row, checked when the
     row's ``done`` flag is set, with the non-title columns as a detail trail."""
@@ -103,10 +116,24 @@ def _md_checklist(item: RenderItem) -> list[str]:
     for row in item.data.get("rows") or []:
         box = "x" if row.get("done") else " "
         title = _md_cell(row.get("title", "")) or "(untitled)"
-        details = " · ".join(
-            _md_cell(row[key]) for key in detail_keys if str(row.get(key, "")).strip()
-        )
+        details = _md_details(row, detail_keys)
         lines.append(f"- [{box}] {title}" + (f" ({details})" if details else ""))
+    return lines
+
+
+def _md_numbered(item: RenderItem) -> list[str]:
+    """Ordered list: one numbered entry per row (a queue's turn order), with
+    the non-title columns as a detail trail. The row driving the rotation
+    (``current`` flag) renders bold."""
+    columns = item.data.get("columns") or []
+    detail_keys = [c["key"] for c in columns if c["key"] not in ("title", "order")]
+    lines: list[str] = []
+    for order, row in enumerate(item.data.get("rows") or [], start=1):
+        title = _md_cell(row.get("title", "")) or "(untitled)"
+        if row.get("current"):
+            title = f"**{title}**"
+        details = _md_details(row, detail_keys)
+        lines.append(f"{order}. {title}" + (f" ({details})" if details else ""))
     return lines
 
 

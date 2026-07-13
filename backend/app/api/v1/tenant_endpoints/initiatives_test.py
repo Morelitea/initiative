@@ -412,6 +412,35 @@ async def test_get_initiative_members(
 
 
 @pytest.mark.integration
+async def test_get_initiative_members_as_nonmember_guild_admin(
+    client: AsyncClient, session: AsyncSession, acting_user
+):
+    """A guild admin sees the roster of an initiative they never joined —
+    the same guild-admin override every other initiative read honors (they
+    already see the initiative's content via the RLS admin leg, and the
+    assignee / linked-member pickers need the roster). A plain guild member
+    outside the initiative stays locked out."""
+    creator = await acting_user(guild_role=GuildRole.member, initiative=True)
+    other_admin = await acting_user(guild_role=GuildRole.admin, guild=creator.guild)
+
+    response = await client.get(
+        other_admin.g(f"/initiatives/{creator.initiative.id}/members"),
+        headers=other_admin.headers,
+    )
+    assert response.status_code == 200
+    emails = {user["email"] for user in response.json()}
+    assert creator.user.email in emails
+
+    outsider = await acting_user(guild_role=GuildRole.member, guild=creator.guild)
+    response = await client.get(
+        outsider.g(f"/initiatives/{creator.initiative.id}/members"),
+        headers=outsider.headers,
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "INITIATIVE_NOT_A_MEMBER"
+
+
+@pytest.mark.integration
 async def test_add_initiative_member_as_manager(
     client: AsyncClient, session: AsyncSession, acting_user
 ):

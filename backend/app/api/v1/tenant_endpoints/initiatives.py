@@ -858,11 +858,18 @@ async def get_initiative_members(
         initiative_id=initiative_id,
         user_id=current_user.id,
     )
-    # A PAM / break-glass grantee has guild-wide read access but no membership
-    # row; let them load the member roster (used for assignee pickers and
-    # avatars). There is no standing ``data.bypass`` bypass — an admin/owner
-    # reaches this guild only via a grant, which surfaces as ``is_pam``.
-    if not membership and not guild_context.is_pam:
+    # A guild admin sees every initiative in their guild without holding a
+    # membership row (the same override the RLS admin leg grants), and a PAM /
+    # break-glass grantee has guild-wide read access but no membership row;
+    # both may load the member roster (used for assignee and linked-member
+    # pickers). There is no standing ``data.bypass`` bypass — a platform
+    # operator/owner reaches this guild only via a grant, which surfaces as
+    # ``is_pam``.
+    if (
+        not membership
+        and not guild_context.is_pam
+        and not rls_service.is_guild_admin(guild_context.role)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=InitiativeMessages.NOT_A_MEMBER,

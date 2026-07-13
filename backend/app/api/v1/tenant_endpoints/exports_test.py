@@ -865,3 +865,257 @@ async def test_gc_expires_row_even_when_artifact_delete_fails(
     refreshed = await session.get(ExportJob, job.id)
     assert refreshed.status == ExportJobStatus.expired.value
     assert refreshed.artifact_ref is None
+
+
+async def _queue_with_items(acting_user, session):
+    from app.models.tenant.queue import QueueItemDocument, QueueItemTag, QueueItemTask
+    from app.testing.factories import (
+        create_document,
+        create_queue,
+        create_queue_item,
+        create_tag,
+    )
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    queue = await create_queue(
+        session,
+        a.initiative,
+        a.user,
+        name="Battle Order",
+        description="Round tracker",
+        is_active=True,
+        current_round=3,
+    )
+    # Rotation order is position DESCENDING: Alice acts first.
+    current = await create_queue_item(session, queue, label="Alice", position=30)
+    await create_queue_item(
+        session, queue, label="Bob", position=20, held_at_round=2, notes="waiting"
+    )
+    lurker = await create_queue_item(
+        session, queue, label="Lurker", position=10, is_visible=False
+    )
+    tag = await create_tag(session, a.guild, name="npc")
+    session.add(QueueItemTag(queue_item_id=lurker.id, tag_id=tag.id))
+    doc = await create_document(session, a.initiative, a.user, title="Dungeon map")
+    task = await create_task(session, a.project, title="Prep loot")
+    session.add(
+        QueueItemDocument(
+            queue_item_id=current.id, document_id=doc.id, guild_id=a.guild.id
+        )
+    )
+    session.add(
+        QueueItemTask(queue_item_id=current.id, task_id=task.id, guild_id=a.guild.id)
+    )
+    queue.current_item_id = current.id
+    session.add(queue)
+    await session.commit()
+    return a, queue
+
+
+async def test_queue_export_json_envelope(client: AsyncClient, acting_user, session):
+    import json
+
+    a, queue = await _queue_with_items(acting_user, session)
+    resp = await client.get(
+        a.g("/exports/queue"),
+        headers=a.headers,
+        params={"queue_id": queue.id, "format": "json"},
+    )
+    assert resp.status_code == 200
+    assert ".initiative-queue.json" in resp.headers["content-disposition"]
+    envelope = json.loads(resp.content)
+    assert envelope["kind"] == "initiative-queue"
+    assert envelope["schema_version"] == 1
+    assert envelope["name"] == "Battle Order"
+    assert envelope["is_active"] is True
+    assert envelope["current_round"] == 3
+
+    items = envelope["items"]
+    assert [i["label"] for i in items] == ["Alice", "Bob", "Lurker"]  # rotation order
+    assert [i["is_current"] for i in items] == [True, False, False]
+    assert items[1]["held_at_round"] == 2
+    assert items[2]["is_visible"] is False
+    assert items[2]["tags"] == ["npc"]
+    # Guild-local references ride along as display text only (an import can't
+    # rebind them): member name, linked document/task titles — never raw ids.
+    assert "member" in items[0] and "user_id" not in items[0]
+    assert items[0]["documents"] == ["Dungeon map"]
+    assert items[0]["tasks"] == ["Prep loot"]
+    assert items[1]["documents"] == [] and items[1]["tasks"] == []
+
+
+async def test_queue_export_report_formats(client: AsyncClient, acting_user, session):
+    import io
+
+    from pypdf import PdfReader
+
+    a, queue = await _queue_with_items(acting_user, session)
+
+    csv_resp = await client.get(
+        a.g("/exports/queue"),
+        headers=a.headers,
+        params={"queue_id": queue.id, "format": "csv"},
+    )
+    assert csv_resp.status_code == 200
+    text = csv_resp.content.decode("utf-8")
+    assert "#,Item,Member,Tags,Notes,Status" in text
+    assert "1,Alice,,,,Current" in text
+    assert "2,Bob,,,waiting,Held" in text
+    assert "3,Lurker,,npc,,Hidden" in text
+
+    md_resp = await client.get(
+        a.g("/exports/queue"),
+        headers=a.headers,
+        params={"queue_id": queue.id, "format": "md"},
+    )
+    assert md_resp.status_code == 200
+    md = md_resp.content.decode("utf-8")
+    assert "# Battle Order" in md
+    assert "1. **Alice** (Current)" in md  # numbered turn order, current bolded
+    assert "2. Bob (waiting · Held)" in md
+    assert "3. Lurker (npc · Hidden)" in md
+    assert "| Item |" not in md  # a list, not a table
+
+    pdf_resp = await client.get(
+        a.g("/exports/queue"),
+        headers=a.headers,
+        params={"queue_id": queue.id, "format": "pdf"},
+    )
+    assert pdf_resp.status_code == 200
+    assert pdf_resp.content.startswith(b"%PDF")
+    pdf_text = PdfReader(io.BytesIO(pdf_resp.content)).pages[0].extract_text()
+    assert "Battle Order" in pdf_text
+    assert "Alice" in pdf_text and "Lurker" in pdf_text
+    assert "Round tracker" in pdf_text  # description block rendered
+
+
+async def _counter_group_with_counters(acting_user, session):
+    from decimal import Decimal
+
+    from app.testing.factories import create_counter, create_counter_group
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    group = await create_counter_group(
+        session, a.initiative, a.user, name="Party Resources", description="Session 12"
+    )
+    await create_counter(
+        session,
+        group,
+        name="Torches",
+        count=Decimal("5.0000000000"),
+        min=Decimal("0"),
+        max=Decimal("10"),
+        position=Decimal("1"),
+    )
+    await create_counter(
+        session,
+        group,
+        name="Rations",
+        count=Decimal("2.5"),
+        step=Decimal("0.5"),
+        position=Decimal("2"),
+    )
+    return a, group
+
+
+async def test_counter_group_export_json_envelope(
+    client: AsyncClient, acting_user, session
+):
+    import json
+
+    a, group = await _counter_group_with_counters(acting_user, session)
+    resp = await client.get(
+        a.g("/exports/counter-group"),
+        headers=a.headers,
+        params={"counter_group_id": group.id, "format": "json"},
+    )
+    assert resp.status_code == 200
+    assert ".initiative-counter-group.json" in resp.headers["content-disposition"]
+    envelope = json.loads(resp.content)
+    assert envelope["kind"] == "initiative-counter-group"
+    assert envelope["schema_version"] == 1
+    assert envelope["name"] == "Party Resources"
+
+    by_name = {c["name"]: c for c in envelope["counters"]}
+    # NUMERIC(20,10) scale must not leak: integral Decimals become plain ints.
+    assert by_name["Torches"]["count"] == 5
+    assert isinstance(by_name["Torches"]["count"], int)
+    assert by_name["Torches"]["min"] == 0 and by_name["Torches"]["max"] == 10
+    assert by_name["Rations"]["count"] == 2.5
+    assert by_name["Rations"]["step"] == 0.5
+    assert by_name["Rations"]["min"] is None
+    assert by_name["Torches"]["view_mode"] == "number"
+
+
+async def test_counter_group_export_report_formats(
+    client: AsyncClient, acting_user, session
+):
+    import io
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+    from pypdf import PdfReader
+
+    a, group = await _counter_group_with_counters(acting_user, session)
+
+    csv_resp = await client.get(
+        a.g("/exports/counter-group"),
+        headers=a.headers,
+        params={"counter_group_id": group.id, "format": "csv"},
+    )
+    assert csv_resp.status_code == 200
+    text = csv_resp.content.decode("utf-8")
+    assert "Counter,Count,Min,Max,Step" in text
+    assert "Torches,5,0,10,1" in text
+    assert "Rations,2.5,,,0.5" in text  # unbounded min/max stay empty
+
+    xlsx_resp = await client.get(
+        a.g("/exports/counter-group"),
+        headers=a.headers,
+        params={"counter_group_id": group.id, "format": "xlsx"},
+    )
+    assert xlsx_resp.status_code == 200
+    sheet = load_workbook(BytesIO(xlsx_resp.content)).active
+    assert [c.value for c in sheet[1]] == ["Counter", "Count", "Min", "Max", "Step"]
+    assert sheet.cell(row=2, column=2).value == 5
+    assert sheet.cell(row=2, column=2).data_type == "n"  # counts stay numeric
+    assert sheet.cell(row=3, column=2).value == 2.5
+
+    pdf_resp = await client.get(
+        a.g("/exports/counter-group"),
+        headers=a.headers,
+        params={"counter_group_id": group.id, "format": "pdf"},
+    )
+    assert pdf_resp.status_code == 200
+    assert pdf_resp.content.startswith(b"%PDF")
+    pdf_text = PdfReader(io.BytesIO(pdf_resp.content)).pages[0].extract_text()
+    assert "Party Resources" in pdf_text
+    assert "Torches" in pdf_text and "Rations" in pdf_text
+
+
+async def test_tool_exports_hidden_outside_initiative(
+    client: AsyncClient, acting_user, session
+):
+    """The initiative gate: a same-guild member outside the initiative gets
+    404 (RLS hides the row) for both tool sources."""
+    a, queue = await _queue_with_items(acting_user, session)
+    outsider = await acting_user(guild_role=GuildRole.member, guild=a.guild)
+
+    resp = await client.get(
+        a.g("/exports/queue"),
+        headers=outsider.headers,
+        params={"queue_id": queue.id, "format": "json"},
+    )
+    assert resp.status_code == 404
+
+    from app.testing.factories import create_counter_group
+
+    group = await create_counter_group(
+        session, a.initiative, a.user, name="Secret counters"
+    )
+    resp = await client.get(
+        a.g("/exports/counter-group"),
+        headers=outsider.headers,
+        params={"counter_group_id": group.id, "format": "json"},
+    )
+    assert resp.status_code == 404

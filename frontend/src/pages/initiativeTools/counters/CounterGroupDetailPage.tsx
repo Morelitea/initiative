@@ -27,6 +27,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { CounterRead } from "@/api/generated/initiativeAPI.schemas";
+import { ExportButton, type ExportFormatOption } from "@/components/exports/ExportButton";
 import { CounterFormDialog } from "@/components/initiativeTools/counters/CounterFormDialog";
 import { type CounterLayout, CounterRow } from "@/components/initiativeTools/counters/CounterRow";
 import { useRegisterPrimaryCreateAction } from "@/components/navigation/CreateActionContext";
@@ -51,7 +52,18 @@ import {
 } from "@/hooks/useCounters";
 import { useRecordRecentView } from "@/hooks/useRecents";
 import { useViewPreference } from "@/hooks/useViewPreference";
+import { exportFilenameStem } from "@/lib/exportDownload";
 import { useGuildPath } from "@/lib/guildUrl";
+
+// Mirrors the backend counter-group adapter: table reports plus the
+// importable JSON envelope.
+const COUNTER_EXPORT_FORMATS: ExportFormatOption[] = [
+  { format: "pdf", labelKey: "export.formatPdf" },
+  { format: "csv", labelKey: "export.formatCsv" },
+  { format: "xlsx", labelKey: "export.formatXlsx" },
+  { format: "md", labelKey: "export.formatMd" },
+  { format: "json", labelKey: "export.formatJson" },
+];
 
 const layoutStorageKey = (groupId: number) => `counter-group-${groupId}-layout`;
 
@@ -200,9 +212,15 @@ export function CounterGroupDetailPage() {
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ExportButton
+            endpoint="/exports/counter-group"
+            params={{ counter_group_id: group.id }}
+            formats={COUNTER_EXPORT_FORMATS}
+            filenameStem={exportFilenameStem(group.name, "counters")}
+          />
           <Button
             variant="outline"
-            size="icon"
+            size="icon-sm"
             onClick={toggleLayout}
             aria-label={
               layout === "row"
@@ -219,14 +237,14 @@ export function CounterGroupDetailPage() {
           </Button>
           {canWrite && (
             <>
-              <Button variant="outline" onClick={() => setAddOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => setAddOpen(true)}>
                 <Plus className="h-4 w-4" />
                 {t("addCounter")}
               </Button>
               {counters.length > 1 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" disabled={sortCounters.isPending}>
+                    <Button variant="outline" size="sm" disabled={sortCounters.isPending}>
                       <ArrowDownUp className="h-4 w-4" />
                       {t("sort")}
                     </Button>
@@ -257,6 +275,7 @@ export function CounterGroupDetailPage() {
               )}
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => setResetAllOpen(true)}
                 disabled={counters.length === 0 || resetAll.isPending}
               >
@@ -268,6 +287,7 @@ export function CounterGroupDetailPage() {
           {canManage && (
             <Button
               variant="outline"
+              size="sm"
               onClick={() => router.navigate({ to: gp(`/counter-groups/${group.id}/settings`) })}
             >
               <Settings className="h-4 w-4" />

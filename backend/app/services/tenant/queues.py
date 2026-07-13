@@ -65,6 +65,7 @@ def require_queue_access(
     *,
     access: str = "read",
     require_owner: bool = False,
+    guild_role: str | None = None,
 ) -> None:
     require_access(
         DAC_RESOURCES["queue"],
@@ -72,6 +73,7 @@ def require_queue_access(
         user,
         access=access,
         require_owner=require_owner,
+        guild_role=guild_role,
     )
 
 
@@ -109,6 +111,42 @@ async def get_queue(
         stmt = stmt.execution_options(populate_existing=True)
     result = await session.exec(stmt)
     return result.one_or_none()
+
+
+async def get_queue_for_export(
+    session: AsyncSession,
+    current_user: User,
+    guild_id: int,
+    *,
+    queue_id: int,
+) -> Queue:
+    """The queue-export adapter's seam: fetch + authorize in one place so the
+    rule holds on the worker's render-time replay too. READ access suffices —
+    exporting is a formatted read. The guild role is resolved here rather than
+    taken from a request context, so the seam works transport-free."""
+    from app.services.platform import guilds as guilds_service
+
+    queue = await get_queue(session, queue_id)
+    if queue is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=QueueMessages.NOT_FOUND,
+        )
+    if queue.initiative is not None and not queue.initiative.queues_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=QueueMessages.FEATURE_DISABLED,
+        )
+    membership = await guilds_service.get_membership(
+        session, guild_id=guild_id, user_id=current_user.id
+    )
+    require_queue_access(
+        queue,
+        current_user,
+        access="read",
+        guild_role=membership.role if membership else None,
+    )
+    return queue
 
 
 async def get_queue_item(

@@ -9,17 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Document export: an Export menu on every document offers type-appropriate formats — importable JSON for editor documents and whiteboards (standard Excalidraw file), CSV/Excel for spreadsheets (formatting carried over), the original file for uploads, and Markdown for smart links. Whiteboards additionally export PNG/SVG images, rendered in the browser by Excalidraw itself. Read access suffices; delivery matches the other exports (instant for small documents, background job with notification pickup for large ones).
-
-- Text documents now export as PDF, Markdown, and Word (DOCX) alongside the lossless .lexical file. Referenced images are embedded in the PDF and DOCX; a Markdown export with images downloads as a zip bundle with an assets folder. Mentions, wikilinks, and embeds degrade gracefully to text and links.
-
-- Task exports: an Export menu on the project tasks view downloads the current view — or just the selected tasks, via the new action in the selection bar — as PDF, CSV, Excel (XLSX), or Markdown (a table or a checkable task list), with the same filters and visibility as on screen. Small exports download instantly; large ones run as a background job and download automatically when ready, and if you navigate away meanwhile, an inbox notification downloads the finished export when clicked. Exports are private to their creator (guild admins can see a guild's exports), artifacts expire automatically after 7 days, and the spreadsheet formats carry injection protection.
-
-- Project export: now also offers a formatted report as PDF, CSV, or Excel (XLSX) alongside the JSON backup — the report covers the project's unarchived tasks; the backup file is unchanged and still imports.
+- New data export engine powers exporting your guild data as importable JSON envelopes or various report formats
+  - Document export: an Export menu on every document offers type-appropriate formats — importable JSON for editor documents and whiteboards (standard Excalidraw file), CSV/Excel for spreadsheets (formatting carried over), the original file for uploads, and Markdown for smart links. Whiteboards additionally export PNG/SVG images, rendered in the browser by Excalidraw itself. Read access suffices; delivery matches the other exports (instant for small documents, background job with notification pickup for large ones).
+  - Text documents now export as PDF, Markdown, and Word (DOCX) alongside the lossless .lexical file. Referenced images are embedded in the PDF and DOCX; a Markdown export with images downloads as a zip bundle with an assets folder. Mentions, wikilinks, and embeds degrade gracefully to text and links.
+  - Task exports: an Export menu on the project tasks view downloads the current view — or just the selected tasks, via the new action in the selection bar — as PDF, CSV, Excel (XLSX), or Markdown (a table or a checkable task list), with the same filters and visibility as on screen. Small exports download instantly; large ones run as a background job and download automatically when ready, and if you navigate away meanwhile, an inbox notification downloads the finished export when clicked. Exports are private to their creator (guild admins can see a guild's exports), artifacts expire automatically after 7 days, and the spreadsheet formats carry injection protection.
+  - Project export: now also offers a formatted report as PDF, CSV, or Excel (XLSX) alongside the JSON backup — the report covers the project's unarchived tasks; the backup file is unchanged and still imports.
+  - Queue and counter exports: an Export button on every queue and counter group downloads a report as PDF, CSV, Excel (XLSX), or Markdown — queues render as a numbered turn order with the current, held, and hidden entries marked; counter groups as a table of values and bounds — plus an importable JSON envelope carrying the tool's full configuration (queue envelopes keep tags by name and rotation state; member assignments and linked documents/tasks are guild-local, so they ship as names and titles rather than ids). Read access suffices.
 
 ### Changed
 
 - Project backup (JSON) export now runs through the export engine: large projects export as a background job with the inbox-notification pickup instead of one long request, and artifacts follow the same private-to-creator delivery and 7-day expiry. The downloaded file and the import flow are unchanged. (API: `GET /projects/{id}/export` was replaced by `GET /exports/project?project_id=…`.)
+- The queue page header now matches the other tool pages: a labeled Settings button sized like its neighbors, with queue deletion living in the settings page (where it already had a confirm dialog) instead of a header trash icon.
+
+### Fixed
+
+- Guild admins can now load the member roster of initiatives they haven't joined. The roster API returned 403 for them — every other initiative read already honored the guild-admin override — which left the linked-member and assignee pickers empty when an admin viewed another member's initiative.
 
 ## [0.55.0] - 2026-07-12
 

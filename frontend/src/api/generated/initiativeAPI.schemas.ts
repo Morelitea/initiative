@@ -3989,6 +3989,38 @@ export const ExportDocumentApiV1GGuildIdExportsDocumentGetFormat = {
   docx: "docx",
 } as const;
 
+export type ExportQueueApiV1GGuildIdExportsQueueGetParams = {
+  queue_id: number;
+  format?: ExportQueueApiV1GGuildIdExportsQueueGetFormat;
+};
+
+export type ExportQueueApiV1GGuildIdExportsQueueGetFormat =
+  (typeof ExportQueueApiV1GGuildIdExportsQueueGetFormat)[keyof typeof ExportQueueApiV1GGuildIdExportsQueueGetFormat];
+
+export const ExportQueueApiV1GGuildIdExportsQueueGetFormat = {
+  json: "json",
+  pdf: "pdf",
+  csv: "csv",
+  xlsx: "xlsx",
+  md: "md",
+} as const;
+
+export type ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetParams = {
+  counter_group_id: number;
+  format?: ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat;
+};
+
+export type ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat =
+  (typeof ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat)[keyof typeof ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat];
+
+export const ExportCounterGroupApiV1GGuildIdExportsCounterGroupGetFormat = {
+  json: "json",
+  pdf: "pdf",
+  csv: "csv",
+  xlsx: "xlsx",
+  md: "md",
+} as const;
+
 export type ListQueuesApiV1GGuildIdQueuesGetParams = {
   initiative_id?: number | null;
   /**

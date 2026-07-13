@@ -24,6 +24,19 @@ export function filenameFromDisposition(header: string | undefined): string | nu
   return plain ? plain[1] : null;
 }
 
+/** Client-side fallback stem for export downloads: the slugified resource
+ * name plus today's date, mirroring the server's naming convention. Only a
+ * fallback — the server's Content-Disposition name wins when present. */
+export function exportFilenameStem(name: string, fallback: string): string {
+  const slug =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || fallback;
+  return `${slug}-${new Date().toISOString().slice(0, 10)}`;
+}
+
 /** Axios error bodies arrive as Blobs under responseType "blob"; recover the
  * JSON detail so getErrorMessage can map it to a localized message. */
 export async function normalizeBlobError(err: unknown): Promise<unknown> {
