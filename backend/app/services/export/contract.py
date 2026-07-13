@@ -14,7 +14,7 @@ neutralization in ``app/services/platform/csv_export.py``.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 
@@ -25,11 +25,18 @@ class RenderItem:
 
     ``filename`` overrides the default ``{key}.{format}`` download name when
     the adapter needs a specific extension (e.g. the ``.lexical`` files the
-    editor's import button accepts)."""
+    editor's import button accepts).
+
+    ``assets_inline`` maps a staged filename to raw bytes to write into the
+    Typst compile root's ``assets/`` folder — for images that aren't in guild
+    storage (the guild icon in the report header, decoded from the guild row).
+    Kept off ``data`` because ``data`` is JSON-serialized into ``sys.inputs``;
+    bytes ride alongside."""
 
     key: str
     data: dict[str, Any]
     filename: str | None = None
+    assets_inline: dict[str, bytes] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

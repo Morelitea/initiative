@@ -1242,3 +1242,46 @@ async def test_detailed_layout_ignored_for_non_pdf_formats(
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
     assert "Task,Project,Status,Priority,Due,Assignees" in resp.content.decode("utf-8")
+
+
+async def test_pdf_export_carries_guild_brand_header(
+    client: AsyncClient, acting_user, session
+):
+    """Every PDF report shows the guild's name (and icon when set) in a
+    running header — decoded from the guild row and staged into the render."""
+    import base64
+    import io
+    import struct
+    import zlib
+
+    from pypdf import PdfReader
+
+    from app.models.platform.guild import Guild
+
+    def _png() -> bytes:
+        def chunk(tag: bytes, data: bytes) -> bytes:
+            c = tag + data
+            return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+        return (
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00"))
+            + chunk(b"IEND", b"")
+        )
+
+    a = await _actor_with_tasks(acting_user, session, count=1)
+    guild = await session.get(Guild, a.guild.id)
+    guild.name = "Ravenloft Chronicle"
+    guild.icon_base64 = "data:image/png;base64," + base64.b64encode(_png()).decode()
+    session.add(guild)
+    await session.commit()
+
+    resp = await client.get(
+        a.g("/exports/tasks"), headers=a.headers, params={"format": "pdf"}
+    )
+    assert resp.status_code == 200
+    assert resp.content.startswith(b"%PDF")
+    text = PdfReader(io.BytesIO(resp.content)).pages[0].extract_text()
+    assert "Ravenloft Chronicle" in text  # brand header rendered (icon staged)

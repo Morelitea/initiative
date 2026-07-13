@@ -115,7 +115,7 @@ def _render_item(
         content = json.dumps(item.data, ensure_ascii=False, indent=2).encode("utf-8")
     else:
         assert template is not None  # resolve_template ran for the pdf path
-        if item.data.get("assets"):
+        if item.data.get("assets") or item.assets_inline:
             content = _compile_with_assets(template, format, item, req.guild_id)
         else:
             content = _compile(template, format, item)
@@ -177,9 +177,12 @@ def _compile(template: Path, format: str, item: RenderItem) -> bytes:
 def _compile_with_assets(
     template: Path, format: str, item: RenderItem, guild_id: int
 ) -> bytes:
-    """Compile with referenced upload images staged into the project root —
-    Typst reads files only under its root, so a temp dir holds a copy of the
-    template plus an assets/ folder with the document's images."""
+    """Compile with referenced images staged into the project root — Typst
+    reads files only under its root, so a temp dir holds a copy of the template
+    plus an assets/ folder. Two sources feed it: storage-backed upload images
+    (``data["assets"]``, keyed into guild storage) and inline bytes
+    (``assets_inline``, e.g. the guild-icon header decoded from the guild
+    row)."""
     import shutil
     import tempfile
 
@@ -201,6 +204,11 @@ def _compile_with_assets(
             # Names come from safe_filename_component — no traversal.
             (assets_dir / asset["name"]).write_bytes(content)
             staged.add(asset["name"])
+        # Inline assets (filename -> bytes) are already validated (raster,
+        # size-capped) at the branding layer; filenames are literals we choose.
+        for name, blob in item.assets_inline.items():
+            (assets_dir / name).write_bytes(blob)
+            staged.add(name)
         # Typst FAILS the compile on a missing image file, so any image block
         # whose asset didn't stage degrades to its alt text.
         data = dict(item.data)
