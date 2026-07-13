@@ -4,8 +4,9 @@ The single-container FOSS renderer: compiles a ``.typ`` template with the
 item's data passed as ``sys.inputs`` (never interpolated into template
 source), inside ``run_in_executor`` — the PyO3 binding releases the GIL, so a
 heavy render doesn't stall the event loop. ``ignore_system_fonts=True`` pins
-rendering to the fonts embedded in the typst wheel, so output is
-deterministic across images with no font bundling step.
+rendering to a fixed set — the typst-wheel fonts plus the bundled ``fonts/``
+(Outfit, the web UI's typeface) via ``font_paths`` — so output matches the app
+and stays deterministic across images (no dependence on host fonts).
 
 Non-PDF formats dispatch to lightweight renderers: the tabular module
 (csv/xlsx/md over columns/rows payloads, or a spreadsheet document's sparse
@@ -32,6 +33,10 @@ from app.services.export.contract import (
 )
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+# Bundled fonts (Outfit) staged onto Typst's font search path so reports use
+# the same typeface as the web UI. Kept with ignore_system_fonts=True, so the
+# available set is exactly the typst-wheel fonts + these.
+FONTS_DIR = Path(__file__).parent / "fonts"
 
 # Template ids are internal identifiers, never user text — but the id does
 # reach the filesystem, so whitelist the alphabet anyway (no traversal).
@@ -170,6 +175,7 @@ def _compile(template: Path, format: str, item: RenderItem) -> bytes:
         str(template),
         format=format,
         sys_inputs={"data": json.dumps(item.data, ensure_ascii=False)},
+        font_paths=[str(FONTS_DIR)],
         ignore_system_fonts=True,
     )
 
@@ -223,5 +229,6 @@ def _compile_with_assets(
             root=str(root),
             format=format,
             sys_inputs={"data": json.dumps(data, ensure_ascii=False)},
+            font_paths=[str(FONTS_DIR)],
             ignore_system_fonts=True,
         )

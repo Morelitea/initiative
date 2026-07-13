@@ -22,6 +22,15 @@ from app.testing.factories import create_task
 pytestmark = pytest.mark.integration
 
 
+def _pdf_has(text: str, *needles: str) -> bool:
+    """Substring check tolerant of pypdf's naive extraction inserting spaces at
+    kerned pairs (Outfit kerns e.g. ``To`` so ``Torches`` extracts as
+    ``T orches``). The rendered PDF is correct; only the extraction splits, so
+    compare space-insensitively."""
+    packed = text.replace(" ", "")
+    return all(needle.replace(" ", "") in packed for needle in needles)
+
+
 @pytest.fixture(autouse=True)
 def _tmp_uploads(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
@@ -984,9 +993,9 @@ async def test_queue_export_report_formats(client: AsyncClient, acting_user, ses
     assert pdf_resp.status_code == 200
     assert pdf_resp.content.startswith(b"%PDF")
     pdf_text = PdfReader(io.BytesIO(pdf_resp.content)).pages[0].extract_text()
-    assert "Battle Order" in pdf_text
-    assert "Alice" in pdf_text and "Lurker" in pdf_text
-    assert "Round tracker" in pdf_text  # description block rendered
+    assert _pdf_has(pdf_text, "Battle Order")
+    assert _pdf_has(pdf_text, "Alice", "Lurker")
+    assert _pdf_has(pdf_text, "Round tracker")  # description block rendered
 
 
 async def _counter_group_with_counters(acting_user, session):
@@ -1089,8 +1098,8 @@ async def test_counter_group_export_report_formats(
     assert pdf_resp.status_code == 200
     assert pdf_resp.content.startswith(b"%PDF")
     pdf_text = PdfReader(io.BytesIO(pdf_resp.content)).pages[0].extract_text()
-    assert "Party Resources" in pdf_text
-    assert "Torches" in pdf_text and "Rations" in pdf_text
+    assert _pdf_has(pdf_text, "Party Resources")
+    assert _pdf_has(pdf_text, "Torches", "Rations")
 
 
 async def test_tool_exports_hidden_outside_initiative(
@@ -1235,21 +1244,23 @@ async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
     reader = PdfReader(io.BytesIO(resp.content))
     assert len(reader.pages) == 2  # one page per task
     text = "\n".join(p.extract_text() for p in reader.pages)
-    assert "Boss fight" in text and "Loot table" in text
-    assert "Balance the encounter" in text  # description
-    assert "Check the second phase" in text  # description line break preserved
-    assert "Tune the HP" in text and "Write the dialogue" in text  # subtasks
-    assert "Started already" in text  # comment body
+    assert _pdf_has(text, "Boss fight", "Loot table")
+    assert _pdf_has(text, "Balance the encounter")  # description
+    assert _pdf_has(text, "Check the second phase")  # line break preserved
+    assert _pdf_has(text, "Tune the HP", "Write the dialogue")  # subtasks
+    assert _pdf_has(text, "Started already")  # comment body
     # Threaded order: a reply renders directly under its parent, before the
-    # later root comment — not in flat creation order.
+    # later root comment — not in flat creation order. (Compare on the
+    # space-packed text so kerning splits don't shift indices.)
+    packed = text.replace(" ", "")
     assert (
-        text.index("Started already")
-        < text.index("Replying to the first")
-        < text.index("Separate thread here")
+        packed.index("Startedalready")
+        < packed.index("Replyingtothefirst")
+        < packed.index("Separatethreadhere")
     )
     # Localized section labels (en locale).
     for label in ("Description", "Subtasks", "Comments"):
-        assert label in text
+        assert _pdf_has(text, label)
 
 
 async def test_detailed_layout_ignored_for_non_pdf_formats(
@@ -1307,4 +1318,4 @@ async def test_pdf_export_carries_guild_brand_header(
     assert resp.status_code == 200
     assert resp.content.startswith(b"%PDF")
     text = PdfReader(io.BytesIO(resp.content)).pages[0].extract_text()
-    assert "Ravenloft Chronicle" in text  # brand header rendered (icon staged)
+    assert _pdf_has(text, "Ravenloft Chronicle")  # brand header (icon staged)

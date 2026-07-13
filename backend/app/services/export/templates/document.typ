@@ -33,7 +33,7 @@
     )
   },
 )
-#set text(size: 10pt)
+#set text(font: "Outfit", size: 10pt)
 
 #let render_runs(runs) = {
   runs

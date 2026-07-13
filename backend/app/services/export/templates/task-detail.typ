@@ -36,7 +36,7 @@
     )
   },
 )
-#set text(size: 10pt)
+#set text(font: "Outfit", size: 10pt)
 
 // Preserve author-entered line breaks in free text (description, comments):
 // the string arrives as data, so split and re-emit hard breaks.

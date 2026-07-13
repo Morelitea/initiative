@@ -35,7 +35,7 @@
     )
   },
 )
-#set text(size: 9pt)
+#set text(font: "Outfit", size: 9pt)
 
 // Width hints are a closed vocabulary (payload-controlled, no arbitrary track
 // expressions); unknown values fall back to auto.

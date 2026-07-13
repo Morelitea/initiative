@@ -36,7 +36,7 @@
     )
   },
 )
-#set text(size: 9pt)
+#set text(font: "Outfit", size: 9pt)
 
 #text(size: 16pt, weight: "bold", payload.at("title", default: "Export"))
 #v(2pt)
