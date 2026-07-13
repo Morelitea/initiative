@@ -53,6 +53,13 @@
     "project": "Ce projet n'a aucune tâche.",
     "generic": "Rien à exporter."
   },
+  "detail": {
+    "description": "Description",
+    "noDescription": "Aucune description.",
+    "subtasks": "Sous-tâches",
+    "comments": "Commentaires",
+    "start": "Début"
+  },
   "fallback": {
     "unknownAuthor": "inconnu",
     "untitled": "(sans titre)"

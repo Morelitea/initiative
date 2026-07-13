@@ -22,6 +22,15 @@ from app.testing.factories import create_task
 pytestmark = pytest.mark.integration
 
 
+def _pdf_has(text: str, *needles: str) -> bool:
+    """Substring check tolerant of pypdf's naive extraction inserting spaces at
+    kerned pairs (Outfit kerns e.g. ``To`` so ``Torches`` extracts as
+    ``T orches``). The rendered PDF is correct; only the extraction splits, so
+    compare space-insensitively."""
+    packed = text.replace(" ", "")
+    return all(needle.replace(" ", "") in packed for needle in needles)
+
+
 @pytest.fixture(autouse=True)
 def _tmp_uploads(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "UPLOADS_DIR", str(tmp_path))
@@ -984,9 +993,9 @@ async def test_queue_export_report_formats(client: AsyncClient, acting_user, ses
     assert pdf_resp.status_code == 200
     assert pdf_resp.content.startswith(b"%PDF")
     pdf_text = PdfReader(io.BytesIO(pdf_resp.content)).pages[0].extract_text()
-    assert "Battle Order" in pdf_text
-    assert "Alice" in pdf_text and "Lurker" in pdf_text
-    assert "Round tracker" in pdf_text  # description block rendered
+    assert _pdf_has(pdf_text, "Battle Order")
+    assert _pdf_has(pdf_text, "Alice", "Lurker")
+    assert _pdf_has(pdf_text, "Round tracker")  # description block rendered
 
 
 async def _counter_group_with_counters(acting_user, session):
@@ -1089,8 +1098,8 @@ async def test_counter_group_export_report_formats(
     assert pdf_resp.status_code == 200
     assert pdf_resp.content.startswith(b"%PDF")
     pdf_text = PdfReader(io.BytesIO(pdf_resp.content)).pages[0].extract_text()
-    assert "Party Resources" in pdf_text
-    assert "Torches" in pdf_text and "Rations" in pdf_text
+    assert _pdf_has(pdf_text, "Party Resources")
+    assert _pdf_has(pdf_text, "Torches", "Rations")
 
 
 async def test_tool_exports_hidden_outside_initiative(
@@ -1184,3 +1193,129 @@ async def test_queue_export_localizes_status_flags_and_headers(
     envelope = json.loads(json_resp.content)
     assert envelope["kind"] == "initiative-queue"
     assert "items" in envelope and "is_current" in envelope["items"][0]
+
+
+async def test_task_detailed_pdf_is_one_page_per_task_with_full_detail(
+    client: AsyncClient, acting_user, session
+):
+    """layout=detailed renders a one-task-per-page PDF carrying each task's
+    description, subtasks and comments — not the tabular line-per-task list."""
+    import io
+
+    from pypdf import PdfReader
+
+    from app.testing.factories import create_comment, create_subtask
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    t1 = await create_task(
+        session,
+        a.project,
+        title="Boss fight",
+        description="Balance the encounter.\nCheck the second phase.",
+    )
+    await create_subtask(session, t1, content="Tune the HP", is_completed=True)
+    await create_subtask(session, t1, content="Write the dialogue")
+    root = await create_comment(session, a.user, task=t1, content="Started already.")
+    # A reply must render nested under its parent, not appended chronologically
+    # — even though it was created after the later root comment below.
+    await create_task(session, a.project, title="Loot table")
+    later_root = await create_comment(
+        session, a.user, task=t1, content="Separate thread here."
+    )
+    await create_comment(
+        session,
+        a.user,
+        task=t1,
+        content="Replying to the first.",
+        parent_comment_id=root.id,
+    )
+    # An empty-content comment must not abort the compile (the payload guards
+    # it to "" so the template's multiline() never sees null).
+    await create_comment(session, a.user, task=t1, content="")
+    assert later_root.id
+
+    resp = await client.get(
+        a.g("/exports/tasks"),
+        headers=a.headers,
+        params={"format": "pdf", "layout": "detailed"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    reader = PdfReader(io.BytesIO(resp.content))
+    assert len(reader.pages) == 2  # one page per task
+    text = "\n".join(p.extract_text() for p in reader.pages)
+    assert _pdf_has(text, "Boss fight", "Loot table")
+    assert _pdf_has(text, "Balance the encounter")  # description
+    assert _pdf_has(text, "Check the second phase")  # line break preserved
+    assert _pdf_has(text, "Tune the HP", "Write the dialogue")  # subtasks
+    assert _pdf_has(text, "Started already")  # comment body
+    # Threaded order: a reply renders directly under its parent, before the
+    # later root comment — not in flat creation order. (Compare on the
+    # space-packed text so kerning splits don't shift indices.)
+    packed = text.replace(" ", "")
+    assert (
+        packed.index("Startedalready")
+        < packed.index("Replyingtothefirst")
+        < packed.index("Separatethreadhere")
+    )
+    # Localized section labels (en locale).
+    for label in ("Description", "Subtasks", "Comments"):
+        assert _pdf_has(text, label)
+
+
+async def test_detailed_layout_ignored_for_non_pdf_formats(
+    client: AsyncClient, acting_user, session
+):
+    """layout=detailed only applies to PDF; csv falls through to the table."""
+    a = await _actor_with_tasks(acting_user, session, count=1)
+    resp = await client.get(
+        a.g("/exports/tasks"),
+        headers=a.headers,
+        params={"format": "csv", "layout": "detailed"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/csv")
+    assert "Task,Project,Status,Priority,Due,Assignees" in resp.content.decode("utf-8")
+
+
+async def test_pdf_export_carries_guild_brand_header(
+    client: AsyncClient, acting_user, session
+):
+    """Every PDF report shows the guild's name (and icon when set) in a
+    running header — decoded from the guild row and staged into the render."""
+    import base64
+    import io
+    import struct
+    import zlib
+
+    from pypdf import PdfReader
+
+    from app.models.platform.guild import Guild
+
+    def _png() -> bytes:
+        def chunk(tag: bytes, data: bytes) -> bytes:
+            c = tag + data
+            return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+        return (
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00"))
+            + chunk(b"IEND", b"")
+        )
+
+    a = await _actor_with_tasks(acting_user, session, count=1)
+    guild = await session.get(Guild, a.guild.id)
+    guild.name = "Ravenloft Chronicle"
+    guild.icon_base64 = "data:image/png;base64," + base64.b64encode(_png()).decode()
+    session.add(guild)
+    await session.commit()
+
+    resp = await client.get(
+        a.g("/exports/tasks"), headers=a.headers, params={"format": "pdf"}
+    )
+    assert resp.status_code == 200
+    assert resp.content.startswith(b"%PDF")
+    text = PdfReader(io.BytesIO(resp.content)).pages[0].extract_text()
+    assert _pdf_has(text, "Ravenloft Chronicle")  # brand header (icon staged)

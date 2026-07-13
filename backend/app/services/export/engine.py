@@ -135,9 +135,12 @@ async def start_export(
         raise ExportError(ExportMessages.EXPORT_TOO_LARGE)
 
     if row_count <= settings.EXPORT_INLINE_MAX_ROWS:
+        from app.services.export.branding import apply_brand
+
         request = await adapter.build(
             session, user=user, guild_id=guild_id, params=params, format=format
         )
+        request = await apply_brand(request, session)
         artifacts = await get_backend().render(request)
         artifact = _single(artifacts)
         return InlineExport(

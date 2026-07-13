@@ -382,11 +382,14 @@ async def test_data_table_template_renders_payload_columns():
     )
     artifacts = await LocalRenderBackend().render(request)
     assert artifacts[0].content.startswith(b"%PDF")
+    # Compare space-insensitively: pypdf's naive extraction inserts a space at
+    # Outfit-kerned pairs (``Torches`` -> ``T orches``); the render is correct.
     text = PdfReader(io.BytesIO(artifacts[0].content)).pages[0].extract_text()
-    assert "Party Resources" in text
-    assert "Session 12 snapshot" in text
-    assert "Counter" in text and "Torches" in text
-    assert "2.5" in text  # numeric cells render as text
+    packed = text.replace(" ", "")
+    assert "PartyResources" in packed
+    assert "Session12snapshot" in packed
+    assert "Counter" in packed and "Torches" in packed
+    assert "2.5" in packed  # numeric cells render as text
 
 
 async def test_data_table_template_survives_hostile_text_and_empty_rows():
@@ -419,3 +422,17 @@ async def test_data_table_template_survives_hostile_text_and_empty_rows():
     )
     artifacts = await LocalRenderBackend().render(empty)
     assert artifacts[0].content.startswith(b"%PDF")
+
+
+async def test_report_pdf_embeds_outfit_font():
+    """Reports render in Outfit (the web UI's typeface), bundled and staged via
+    font_paths — so the PDF matches the app and doesn't depend on host fonts.
+    A subset per weight is embedded as ``<TAG>+Outfit-<Weight>``."""
+    import re
+
+    artifacts = await LocalRenderBackend().render(_request())
+    base_fonts = re.findall(rb"/BaseFont\s*/([A-Za-z0-9+\-]+)", artifacts[0].content)
+    families = {name.decode().split("+", 1)[-1] for name in base_fonts}
+    # Regular body + bold headers/labels both come from the bundled Outfit cuts.
+    assert "Outfit-Regular" in families
+    assert "Outfit-Bold" in families

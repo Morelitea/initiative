@@ -1392,6 +1392,71 @@ async def query_tasks_for_export(
     return list(await session.exec(statement.limit(max_rows)))
 
 
+async def query_tasks_for_detailed_export(
+    session,
+    current_user: User,
+    guild_id: int,
+    *,
+    conditions: Optional[str] = None,
+    sorting: Optional[str] = None,
+    tz: Optional[str] = None,
+    include_archived: bool = False,
+    max_rows: int,
+) -> tuple[list[Task], dict[int, list[Comment]]]:
+    """Detailed-report seam: the same ``list_tasks`` visibility/filter/sort
+    pipeline as ``query_tasks_for_export``, but with the extra eager loads a
+    one-task-per-page report needs (subtasks, tags) plus each task's comments
+    batch-loaded by id. Comments have no ``Task`` relationship, so they are
+    fetched separately — under the caller's RLS session, scoped to the same
+    initiatives the tasks came from (the tasks are already visibility-filtered,
+    so their comments are in reachable initiatives)."""
+    q = await _parse_task_list_query(session, conditions, sorting, tz)
+    build = await _guild_task_query_builder(
+        session, current_user, guild_id, q=q, include_archived=include_archived
+    )
+    if build is None:
+        return [], {}
+    statement = build(select(Task)).options(
+        selectinload(Task.project),
+        selectinload(Task.assignees),
+        selectinload(Task.task_status),
+        selectinload(Task.subtasks),
+        selectinload(Task.tag_links).selectinload(TaskTag.tag),
+    )
+    statement = apply_sorting(
+        statement,
+        Task,
+        sort_fields=q.sort_fields,
+        allowed_fields=_task_sort_fields(q.tz),
+        default_sort=TASK_DEFAULT_SORT,
+    )
+    tasks = list(await session.exec(statement.limit(max_rows)))
+    comments = await _load_comments_for_tasks(session, [t.id for t in tasks if t.id])
+    return tasks, comments
+
+
+async def _load_comments_for_tasks(
+    session, task_ids: list[int]
+) -> dict[int, list[Comment]]:
+    """Non-deleted comments for the given tasks, author eager-loaded, grouped
+    by task id and ordered oldest-first (reading order for a report)."""
+    if not task_ids:
+        return {}
+    statement = (
+        select(Comment)
+        .where(
+            Comment.task_id.in_(task_ids),
+            Comment.deleted_at.is_(None),
+        )
+        .options(selectinload(Comment.author))
+        .order_by(Comment.created_at)
+    )
+    grouped: dict[int, list[Comment]] = {}
+    for comment in await session.exec(statement):
+        grouped.setdefault(comment.task_id, []).append(comment)
+    return grouped
+
+
 @me_router.get("/tasks", response_model=TaskListResponse)
 async def list_my_tasks(
     session: UserSessionDep,

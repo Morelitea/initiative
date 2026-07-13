@@ -18,6 +18,8 @@ interface ExportTasksButtonProps {
 
 const TASK_FORMATS: ExportFormatOption[] = [
   { format: "pdf", labelKey: "export.formatPdf" },
+  // One task per page with description, subtasks and comments (PDF only).
+  { format: "pdf", labelKey: "export.formatPdfDetailed", extraParams: { layout: "detailed" } },
   { format: "csv", labelKey: "export.formatCsv" },
   { format: "xlsx", labelKey: "export.formatXlsx" },
   { format: "md", labelKey: "export.formatMd" },

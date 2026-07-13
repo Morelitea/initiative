@@ -261,6 +261,7 @@
     "error": "No se pudo exportar. Inténtalo de nuevo.",
     "selected": "Exportar selección",
     "formatPdf": "Documento PDF",
+    "formatPdfDetailed": "PDF (detallado)",
     "formatCsv": "CSV",
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Tabla Markdown",

@@ -261,6 +261,7 @@
     "error": "Could not export. Please try again.",
     "selected": "Export Selected",
     "formatPdf": "PDF document",
+    "formatPdfDetailed": "PDF (detailed)",
     "formatCsv": "CSV",
     "formatXlsx": "Excel (XLSX)",
     "formatMd": "Markdown table",

@@ -4,8 +4,9 @@ The single-container FOSS renderer: compiles a ``.typ`` template with the
 item's data passed as ``sys.inputs`` (never interpolated into template
 source), inside ``run_in_executor`` — the PyO3 binding releases the GIL, so a
 heavy render doesn't stall the event loop. ``ignore_system_fonts=True`` pins
-rendering to the fonts embedded in the typst wheel, so output is
-deterministic across images with no font bundling step.
+rendering to a fixed set — the typst-wheel fonts plus the bundled ``fonts/``
+(Outfit, the web UI's typeface) via ``font_paths`` — so output matches the app
+and stays deterministic across images (no dependence on host fonts).
 
 Non-PDF formats dispatch to lightweight renderers: the tabular module
 (csv/xlsx/md over columns/rows payloads, or a spreadsheet document's sparse
@@ -32,6 +33,10 @@ from app.services.export.contract import (
 )
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
+# Bundled fonts (Outfit) staged onto Typst's font search path so reports use
+# the same typeface as the web UI. Kept with ignore_system_fonts=True, so the
+# available set is exactly the typst-wheel fonts + these.
+FONTS_DIR = Path(__file__).parent / "fonts"
 
 # Template ids are internal identifiers, never user text — but the id does
 # reach the filesystem, so whitelist the alphabet anyway (no traversal).
@@ -115,7 +120,7 @@ def _render_item(
         content = json.dumps(item.data, ensure_ascii=False, indent=2).encode("utf-8")
     else:
         assert template is not None  # resolve_template ran for the pdf path
-        if item.data.get("assets"):
+        if item.data.get("assets") or item.assets_inline:
             content = _compile_with_assets(template, format, item, req.guild_id)
         else:
             content = _compile(template, format, item)
@@ -170,6 +175,7 @@ def _compile(template: Path, format: str, item: RenderItem) -> bytes:
         str(template),
         format=format,
         sys_inputs={"data": json.dumps(item.data, ensure_ascii=False)},
+        font_paths=[str(FONTS_DIR)],
         ignore_system_fonts=True,
     )
 
@@ -177,9 +183,12 @@ def _compile(template: Path, format: str, item: RenderItem) -> bytes:
 def _compile_with_assets(
     template: Path, format: str, item: RenderItem, guild_id: int
 ) -> bytes:
-    """Compile with referenced upload images staged into the project root —
-    Typst reads files only under its root, so a temp dir holds a copy of the
-    template plus an assets/ folder with the document's images."""
+    """Compile with referenced images staged into the project root — Typst
+    reads files only under its root, so a temp dir holds a copy of the template
+    plus an assets/ folder. Two sources feed it: storage-backed upload images
+    (``data["assets"]``, keyed into guild storage) and inline bytes
+    (``assets_inline``, e.g. the guild-icon header decoded from the guild
+    row)."""
     import shutil
     import tempfile
 
@@ -201,6 +210,11 @@ def _compile_with_assets(
             # Names come from safe_filename_component — no traversal.
             (assets_dir / asset["name"]).write_bytes(content)
             staged.add(asset["name"])
+        # Inline assets (filename -> bytes) are already validated (raster,
+        # size-capped) at the branding layer; filenames are literals we choose.
+        for name, blob in item.assets_inline.items():
+            (assets_dir / name).write_bytes(blob)
+            staged.add(name)
         # Typst FAILS the compile on a missing image file, so any image block
         # whose asset didn't stage degrades to its alt text.
         data = dict(item.data)
@@ -215,5 +229,6 @@ def _compile_with_assets(
             root=str(root),
             format=format,
             sys_inputs={"data": json.dumps(data, ensure_ascii=False)},
+            font_paths=[str(FONTS_DIR)],
             ignore_system_fonts=True,
         )

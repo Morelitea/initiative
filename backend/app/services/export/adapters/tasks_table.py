@@ -47,6 +47,8 @@ def _columns(locale: str) -> list[dict]:
 class TasksTableAdapter:
     source = "tasks"
     template_id = "task-table"
+    # The one-task-per-page detailed report (layout=detailed, PDF only).
+    detail_template_id = "task-detail"
     formats = frozenset({"pdf", "csv", "xlsx", "md"})
 
     async def count(
@@ -73,6 +75,12 @@ class TasksTableAdapter:
         params: dict,
         format: str,
     ) -> RenderRequest:
+        # The detailed report is a distinct, richer shape (one task per page
+        # with description/subtasks/comments) — PDF only; for other formats
+        # ``layout=detailed`` falls through to the table.
+        if format == "pdf" and params.get("layout") == "detailed":
+            return await self._build_detailed(session, user, guild_id, params)
+
         from app.api.v1.tenant_endpoints.tasks import query_tasks_for_export
 
         tasks = await query_tasks_for_export(
@@ -113,6 +121,57 @@ class TasksTableAdapter:
             batch=(RenderItem(key="tasks", data=data),),
         )
 
+    async def _build_detailed(
+        self, session: AsyncSession, user: User, guild_id: int, params: dict
+    ) -> RenderRequest:
+        from app.api.v1.tenant_endpoints.tasks import (
+            query_tasks_for_detailed_export,
+        )
+
+        tasks, comments = await query_tasks_for_detailed_export(
+            session,
+            user,
+            guild_id,
+            **_selector(params),
+            max_rows=settings.EXPORT_MAX_ROWS,
+        )
+        loc = export_locale(user)
+        generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        author = user.full_name or user.email or et("fallback.unknownAuthor", loc)
+        data = {
+            "title": et("title.tasks", loc),
+            "subtitle": " · ".join(
+                [
+                    et("summary.tasks", loc, count=len(tasks)),
+                    et("generatedBy", loc, date=generated_at, author=author),
+                ]
+            ),
+            "footer": et("footer.tasks", loc),
+            "empty_message": et("empty.tasks", loc),
+            # The template is content-free: every field label arrives already
+            # localized (columns.* reuses the table headers; detail.* adds the
+            # section labels unique to this report).
+            "labels": {
+                "status": et("columns.status", loc),
+                "priority": et("columns.priority", loc),
+                "due": et("columns.due", loc),
+                "start": et("detail.start", loc),
+                "assignees": et("columns.assignees", loc),
+                "tags": et("columns.tags", loc),
+                "description": et("detail.description", loc),
+                "noDescription": et("detail.noDescription", loc),
+                "subtasks": et("detail.subtasks", loc),
+                "comments": et("detail.comments", loc),
+            },
+            "tasks": [_detail(t, comments.get(t.id, []), loc) for t in tasks],
+        }
+        return RenderRequest(
+            guild_id=guild_id,
+            template_id=self.detail_template_id,
+            format="pdf",
+            batch=(RenderItem(key="tasks", data=data),),
+        )
+
 
 def _selector(params: dict) -> dict[str, Any]:
     """Whitelist the selector keys — a job row's params round-trip through
@@ -143,3 +202,76 @@ def _row(task: Task, locale: str) -> dict[str, Any]:
             task.task_status and task.task_status.category == TaskStatusCategory.done
         ),
     }
+
+
+def _detail(task: Task, comments: list, locale: str) -> dict[str, Any]:
+    """One task's full record for the detailed report. Free-text fields
+    (title, description, subtask content, comment bodies, names) are user data
+    and stay verbatim; only the priority enum localizes."""
+    return {
+        "title": task.title,
+        "project": task.project.name if task.project else "",
+        "status": task.task_status.name if task.task_status else "",
+        "priority": et(f"priority.{task.priority.value}", locale)
+        if task.priority
+        else "",
+        "due": task.due_date.strftime("%Y-%m-%d") if task.due_date else "",
+        "start": task.start_date.strftime("%Y-%m-%d") if task.start_date else "",
+        "assignees": [a.full_name or a.email for a in (task.assignees or [])],
+        "tags": sorted(
+            link.tag.name for link in task.tag_links if link.tag is not None
+        ),
+        "description": task.description or "",
+        "subtasks": [
+            {"content": s.content, "done": bool(s.is_completed)}
+            for s in sorted(task.subtasks or [], key=lambda s: s.position)
+        ],
+        "comments": [
+            {
+                "author": (c.author.full_name or c.author.email) if c.author else "",
+                "date": c.created_at.strftime("%Y-%m-%d"),
+                # ``content`` is NOT NULL today, but guard anyway: a present-but
+                # -null value would reach the template's multiline() as `none`
+                # (unlike an absent key, which takes the default) and abort the
+                # compile. Same `or ""` guard as description.
+                "content": c.content or "",
+                # Nesting level: a reply renders indented under its parent, so
+                # the thread reads like the on-screen discussion, not a flat
+                # chronological dump.
+                "depth": depth,
+            }
+            for c, depth in _thread_comments(comments)
+        ],
+    }
+
+
+def _thread_comments(comments: list) -> list[tuple]:
+    """Order comments as a reply tree — each parent immediately followed by its
+    replies (indented one level deeper), preserving the incoming chronological
+    order within every level. Returns ``(comment, depth)`` pairs.
+
+    A comment whose parent isn't in the set (parent deleted, or a reply loaded
+    without its root) is treated as a root, so nothing is dropped."""
+    ids = {c.id for c in comments}
+    children: dict[int, list] = {}
+    roots: list = []
+    for comment in comments:
+        parent_id = comment.parent_comment_id
+        if parent_id is None or parent_id not in ids:
+            roots.append(comment)
+        else:
+            children.setdefault(parent_id, []).append(comment)
+
+    # Explicit-stack DFS rather than recursion: a reply chain can be
+    # arbitrarily deep (``parent_comment_id`` is unrestricted and reachable
+    # from the public API), so recursion could hit Python's limit and abort the
+    # export on a 1000+ deep thread. Push siblings reversed so each is popped in
+    # order and a parent is immediately followed by its own subtree (pre-order).
+    ordered: list[tuple] = []
+    stack: list[tuple] = [(root, 0) for root in reversed(roots)]
+    while stack:
+        comment, depth = stack.pop()
+        ordered.append((comment, depth))
+        for child in reversed(children.get(comment.id, [])):
+            stack.append((child, depth + 1))
+    return ordered

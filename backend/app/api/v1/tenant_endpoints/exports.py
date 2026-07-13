@@ -88,9 +88,14 @@ async def export_tasks(
     ),
     tz: Optional[str] = Query(default=None, description="IANA timezone name"),
     include_archived: bool = Query(default=False),
-    layout: Literal["table", "checklist"] = Query(
+    layout: Literal["table", "checklist", "detailed"] = Query(
         default="table",
-        description="Markdown layout: a table, or a GitHub-style task list",
+        description=(
+            "Report layout. Markdown: a table (default) or a GitHub-style task "
+            "list (checklist). PDF: the default table, or 'detailed' for a "
+            "one-task-per-page report with description, subtasks and comments. "
+            "Ignored by csv/xlsx."
+        ),
     ),
 ) -> Union[Response, JSONResponse]:
     """Export the task list (the same visibility and filters as ``GET

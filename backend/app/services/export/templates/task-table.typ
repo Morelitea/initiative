@@ -10,6 +10,22 @@
 #set page(
   paper: "a4",
   margin: (x: 1.5cm, y: 1.8cm),
+  header: context {
+    // Guild brand band: name on the left, larger icon top-right, repeated on
+    // every page. Absent when no brand is supplied, so it stays inert.
+    let brand = payload.at("brand", default: none)
+    if brand != none {
+      let icon = brand.at("icon", default: none)
+      grid(
+        columns: (1fr, auto),
+        align: (left + horizon, right + top),
+        text(size: 9pt, fill: luma(90), weight: "medium", brand.at("name", default: "")),
+        if icon != none { image("assets/" + icon, height: 22pt) } else { [] },
+      )
+      v(2pt)
+      line(length: 100%, stroke: 0.4pt + luma(220))
+    }
+  },
   footer: context {
     set text(size: 8pt, fill: luma(120))
     grid(
@@ -19,7 +35,7 @@
     )
   },
 )
-#set text(size: 9pt)
+#set text(font: "Outfit", size: 9pt)
 
 // Width hints are a closed vocabulary (payload-controlled, no arbitrary track
 // expressions); unknown values fall back to auto.
