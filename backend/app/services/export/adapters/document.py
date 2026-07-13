@@ -4,10 +4,12 @@ A document's exportable formats depend on its type, so the static registry
 declares the union and this adapter enforces the per-type subset at count
 time (before a job is created, so a mismatch is an immediate 400):
 
-* ``native`` (Lexical)  -> ``json``  — a ``.lexical`` file in the exact
-  ``@lexical/file`` schema the editor's toolbar IMPORT button consumes
-  ({editorState, lastSaved, source, version}), so an engine export
-  round-trips through the existing import. (md/pdf/docx is the next phase.)
+* ``native`` (Lexical)  -> ``json`` (a ``.lexical`` file in the exact
+  ``@lexical/file`` schema the editor's toolbar IMPORT button consumes, so
+  an engine export round-trips through the existing import), plus ``md``
+  (zipped with an ``assets/`` folder when images are referenced), ``pdf``
+  and ``docx`` (both embedding referenced same-guild images) via the
+  ``lexical`` converter module.
 * ``whiteboard``        -> ``json``  — the scene wrapped in the standard
   Excalidraw file shape, so the download opens in any Excalidraw. Pixel
   exports (PNG/SVG) are deliberately client-side: only Excalidraw's own JS
@@ -39,7 +41,7 @@ from app.services.export.engine import ExportError
 from app.services.platform.csv_export import safe_filename_component
 
 _TYPE_FORMATS: dict[str, frozenset[str]] = {
-    DocumentType.native.value: frozenset({"json"}),
+    DocumentType.native.value: frozenset({"json", "md", "pdf", "docx"}),
     DocumentType.whiteboard.value: frozenset({"json"}),
     DocumentType.spreadsheet.value: frozenset({"csv", "xlsx", "json"}),
     DocumentType.file.value: frozenset({"file"}),
@@ -53,7 +55,7 @@ _FILE_SIZE_ROW_BYTES = 1_048_576
 
 class DocumentAdapter:
     source = "document"
-    template_id = "document"  # no PDF template yet (Lexical PDF is next phase)
+    template_id = "document"  # the Lexical PDF template
     formats = frozenset().union(*_TYPE_FORMATS.values())
 
     async def count(
@@ -87,6 +89,26 @@ class DocumentAdapter:
         date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         stem = f"{safe_filename_component(document.title).lower()}-{date}"
 
+        if doc_type == DocumentType.native.value and format != "json":
+            from app.services.export.lexical import blocks_from_editor_state
+
+            blocks, assets = blocks_from_editor_state(
+                document.content or {}, guild_id=guild_id
+            )
+            data = {
+                "title": document.title,
+                "subtitle": f"exported {date}",
+                "footer": document.title,
+                "stem": stem,
+                "blocks": blocks,
+                "assets": assets,
+            }
+            return RenderRequest(
+                guild_id=guild_id,
+                template_id=self.template_id,
+                format=format,
+                batch=(RenderItem(key=stem, data=data),),
+            )
         if doc_type == DocumentType.whiteboard.value:
             # The standard Excalidraw file shape — importable by any
             # Excalidraw (app or excalidraw.com), not just this instance.

@@ -1,0 +1,200 @@
+"""Unit tests for the Lexical editor-state converters."""
+
+import io
+import zipfile
+
+import pytest
+
+from app.services.export.lexical import (
+    blocks_from_editor_state,
+    render_docx,
+    render_markdown,
+)
+
+pytestmark = pytest.mark.unit
+
+GUILD = 7
+
+
+def _text(text, fmt=0):
+    return {"type": "text", "text": text, "format": fmt}
+
+
+def _state(children):
+    return {"root": {"type": "root", "children": children}}
+
+
+FIXTURE = _state(
+    [
+        {"type": "heading", "tag": "h2", "children": [_text("Overview")]},
+        {
+            "type": "paragraph",
+            "children": [
+                _text("plain "),
+                _text("bold", 1),
+                _text(" italic", 2),
+                _text(" code", 16),
+                {
+                    "type": "link",
+                    "url": "https://example.com",
+                    "children": [_text("a link")],
+                },
+                {"type": "mention", "text": "@alice", "mentionName": "alice"},
+            ],
+        },
+        {"type": "quote", "children": [_text("wisdom")]},
+        {
+            "type": "code",
+            "language": "python",
+            "children": [_text("x = 1"), {"type": "linebreak"}, _text("y = 2")],
+        },
+        {
+            "type": "list",
+            "listType": "check",
+            "children": [
+                {"type": "listitem", "checked": True, "children": [_text("done")]},
+                {
+                    "type": "listitem",
+                    "checked": False,
+                    "children": [
+                        _text("todo"),
+                        {
+                            "type": "list",
+                            "listType": "bullet",
+                            "children": [
+                                {"type": "listitem", "children": [_text("nested")]}
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+        {"type": "image", "src": f"/uploads/{GUILD}/img-abc.png", "altText": "our pic"},
+        {"type": "image", "src": "https://elsewhere.example/x.png", "altText": "ext"},
+        {"type": "horizontalrule"},
+        {"type": "youtube", "videoID": "dQw4w9WgXcQ"},
+        {
+            "type": "unknown-future-node",
+            "children": [{"type": "paragraph", "children": [_text("still exported")]}],
+        },
+    ]
+)
+
+
+def test_parser_blocks_and_assets():
+    blocks, assets = blocks_from_editor_state(FIXTURE, guild_id=GUILD)
+    types = [b["type"] for b in blocks]
+    assert types == [
+        "heading",
+        "paragraph",
+        "quote",
+        "code",
+        "list",
+        "image",
+        "image",
+        "hr",
+        "paragraph",  # youtube degrades to a link paragraph
+        "paragraph",  # unknown container's child
+    ]
+    # Same-guild upload collected as an asset; external stays a URL.
+    assert assets == [{"key": "img-abc.png", "name": "img-abc.png"}]
+    assert blocks[5]["asset"] == "img-abc.png"
+    assert blocks[6]["asset"] is None
+    assert blocks[6]["url"] == "https://elsewhere.example/x.png"
+    # Format bitmask decoded; mention degraded to its text.
+    para = blocks[1]["runs"]
+    assert {"text": "bold", "bold": True} in para
+    assert {"text": " code", "code": True} in para
+    assert {"text": "a link", "link": "https://example.com"} in para
+    assert {"text": "@alice"} in para
+    # Code block joins its lines.
+    assert blocks[3]["text"] == "x = 1\ny = 2"
+    # Checklist with nesting.
+    items = blocks[4]["items"]
+    assert items[0]["checked"] is True
+    assert items[1]["children"][0]["items"][0]["runs"] == [{"text": "nested"}]
+
+
+def test_markdown_zips_when_assets_present():
+    blocks, assets = blocks_from_editor_state(FIXTURE, guild_id=GUILD)
+    data = {"title": "Notes", "stem": "notes", "blocks": blocks, "assets": assets}
+    content, content_type, filename = render_markdown(
+        data, lambda key: b"png-bytes-" + key.encode()
+    )
+    assert content_type == "application/zip"
+    assert filename == "notes.zip"
+    archive = zipfile.ZipFile(io.BytesIO(content))
+    assert set(archive.namelist()) == {"notes.md", "assets/img-abc.png"}
+    assert archive.read("assets/img-abc.png") == b"png-bytes-img-abc.png"
+    md = archive.read("notes.md").decode("utf-8")
+    assert "# Notes" in md
+    assert "### Overview" in md  # content h2 shifted below the title
+    assert "**bold**" in md and "` code`" in md
+    assert "[a link](<https://example.com>)" in md
+    assert "> wisdom" in md
+    assert "```python" in md
+    assert "- [x] done" in md and "- [ ] todo" in md
+    assert "  - nested" in md
+    assert "![our pic](assets/img-abc.png)" in md
+    assert "![ext](<https://elsewhere.example/x.png>)" in md
+    assert "https://www.youtube.com/watch?v=dQw4w9WgXcQ" in md
+    assert "still exported" in md
+
+
+def test_markdown_plain_without_assets():
+    state = _state([{"type": "paragraph", "children": [_text("hello")]}])
+    blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
+    content, content_type, filename = render_markdown(
+        {"title": "T", "stem": "t", "blocks": blocks, "assets": assets},
+        lambda key: b"",
+    )
+    assert content_type.startswith("text/markdown")
+    assert filename is None
+    assert "hello" in content.decode("utf-8")
+
+
+def test_docx_renders_and_embeds_image():
+    import struct
+    import zlib
+
+    def make_png():
+        def chunk(tag, data):
+            c = tag + data
+            return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+        return (
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00"))
+            + chunk(b"IEND", b"")
+        )
+
+    import docx
+
+    blocks, assets = blocks_from_editor_state(FIXTURE, guild_id=GUILD)
+    data = {"title": "Notes", "stem": "notes", "blocks": blocks, "assets": assets}
+    content = render_docx(data, lambda key: make_png())
+    assert content.startswith(b"PK")
+    document = docx.Document(io.BytesIO(content))
+    texts = [p.text for p in document.paragraphs]
+    assert "Notes" in texts  # title
+    assert any("wisdom" in t for t in texts)
+    assert any("still exported" in t for t in texts)
+    assert any("☑ done" in t for t in texts)
+    assert len(document.inline_shapes) == 1  # the embedded upload image
+
+
+def test_docx_degrades_unreadable_image_to_alt_text():
+    state = _state(
+        [{"type": "image", "src": f"/uploads/{GUILD}/bad.png", "altText": "broken"}]
+    )
+    import docx
+
+    blocks, assets = blocks_from_editor_state(state, guild_id=GUILD)
+    content = render_docx(
+        {"title": "", "blocks": blocks, "assets": assets},
+        lambda key: b"not-an-image",
+    )
+    document = docx.Document(io.BytesIO(content))
+    assert any("broken" in p.text for p in document.paragraphs)

@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Editor documents now export as PDF, Markdown, and Word (DOCX) alongside the lossless .lexical file. Referenced images are embedded in the PDF and DOCX; a Markdown export with images downloads as a zip bundle with an assets folder. Mentions, wikilinks, and embeds degrade gracefully to text and links.
+
 - Document export: an Export menu on every document offers type-appropriate formats — importable JSON for editor documents and whiteboards (standard Excalidraw file), CSV/Excel for spreadsheets (formatting carried over), the original file for uploads, and Markdown for smart links. Whiteboards additionally export PNG/SVG images, rendered in the browser by Excalidraw itself. Read access suffices; delivery matches the other exports (instant for small documents, background job with notification pickup for large ones).
 
 - Task exports: an Export menu on the project tasks view downloads the current view — or just the selected tasks, via the new action in the selection bar — as PDF, CSV, Excel (XLSX), or Markdown (a table or a checkable task list), with the same filters and visibility as on screen. Small exports download instantly; large ones run as a background job and download automatically when ready, and if you navigate away meanwhile, an inbox notification downloads the finished export when clicked. Exports are private to their creator (guild admins can see a guild's exports), artifacts expire automatically after 7 days, and the spreadsheet formats carry injection protection.

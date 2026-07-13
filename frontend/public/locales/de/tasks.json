@@ -270,6 +270,8 @@
     "formatOriginal": "Originaldatei",
     "formatMarkdown": "Markdown",
     "formatPng": "PNG-Bild",
-    "formatSvg": "SVG-Bild"
+    "formatSvg": "SVG-Bild",
+    "formatDocx": "Word (DOCX)",
+    "formatLexical": "Lexical-Datei (.lexical)"
   }
 }

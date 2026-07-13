@@ -414,6 +414,131 @@ async def test_document_export_per_type_formats(
         assert resp.json()["detail"] == "EXPORT_INVALID_FORMAT"
 
 
+async def test_document_export_lexical_formats(
+    client: AsyncClient, acting_user, session
+):
+    """Lexical documents render to md/pdf/docx from one tree walk; a
+    referenced same-guild image turns the markdown into a zip with assets and
+    embeds into the pdf/docx."""
+    import io
+    import struct
+    import zipfile
+    import zlib
+
+    from app.models.tenant.document import DocumentType  # noqa: F401
+    from app.testing.factories import create_document
+
+    def make_png():
+        def chunk(tag, data):
+            c = tag + data
+            return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+
+        ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+        return (
+            b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(b"\x00\xff\x00\x00"))
+            + chunk(b"IEND", b"")
+        )
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    get_guild_storage(a.guild.id).write(
+        "att-1.png", make_png(), content_type="image/png"
+    )
+    content = {
+        "root": {
+            "type": "root",
+            "children": [
+                {
+                    "type": "heading",
+                    "tag": "h2",
+                    "children": [{"type": "text", "text": "Section", "format": 0}],
+                },
+                {
+                    "type": "paragraph",
+                    "children": [{"type": "text", "text": "Hello world", "format": 1}],
+                },
+                {
+                    "type": "image",
+                    "src": f"/uploads/{a.guild.id}/att-1.png",
+                    "altText": "pic",
+                },
+            ],
+        }
+    }
+    doc = await create_document(
+        session, a.initiative, a.user, title="Rich Notes", content=content
+    )
+
+    async def export(format):
+        return await client.get(
+            a.g("/exports/document"),
+            headers=a.headers,
+            params={"document_id": doc.id, "format": format},
+        )
+
+    # md with an asset -> zip bundle
+    md_resp = await export("md")
+    assert md_resp.status_code == 200
+    assert md_resp.headers["content-type"].startswith("application/zip")
+    assert ".zip" in md_resp.headers["content-disposition"]
+    archive = zipfile.ZipFile(io.BytesIO(md_resp.content))
+    md_name = next(n for n in archive.namelist() if n.endswith(".md"))
+    assert "assets/att-1.png" in archive.namelist()
+    md_text = archive.read(md_name).decode("utf-8")
+    assert "# Rich Notes" in md_text
+    assert "**Hello world**" in md_text
+    assert "![pic](assets/att-1.png)" in md_text
+
+    # pdf embeds the staged image
+    pdf_resp = await export("pdf")
+    assert pdf_resp.status_code == 200
+    assert pdf_resp.content.startswith(b"%PDF")
+
+    # docx embeds the image too
+    import docx
+
+    docx_resp = await export("docx")
+    assert docx_resp.status_code == 200
+    assert docx_resp.headers["content-type"].endswith("wordprocessingml.document")
+    document = docx.Document(io.BytesIO(docx_resp.content))
+    assert any("Hello world" in p.text for p in document.paragraphs)
+    assert len(document.inline_shapes) == 1
+
+
+async def test_document_export_lexical_md_plain_without_assets(
+    client: AsyncClient, acting_user, session
+):
+    from app.testing.factories import create_document
+
+    a = await acting_user(guild_role=GuildRole.member, initiative=True, project=True)
+    doc = await create_document(
+        session,
+        a.initiative,
+        a.user,
+        title="Plain",
+        content={
+            "root": {
+                "type": "root",
+                "children": [
+                    {
+                        "type": "paragraph",
+                        "children": [{"type": "text", "text": "no images here"}],
+                    }
+                ],
+            }
+        },
+    )
+    resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": doc.id, "format": "md"},
+    )
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/markdown")
+    assert "no images here" in resp.content.decode("utf-8")
+
+
 async def test_document_export_spreadsheet_formats(
     client: AsyncClient, acting_user, session
 ):
