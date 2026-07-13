@@ -13,7 +13,9 @@ time (before a job is created, so a mismatch is an immediate 400):
   exports (PNG/SVG) are deliberately client-side: only Excalidraw's own JS
   renders scenes faithfully, and the design forbids a JS runtime here.
 * ``spreadsheet``       -> ``csv`` / ``xlsx`` — the sparse grid, with the
-  formatting model mapped for xlsx.
+  formatting model mapped for xlsx — and ``json``, the canonical snapshot in
+  an importable envelope (the snapshot is already the versioned format the
+  write-path normalizer validates, so a future import consumes it directly).
 * ``file``              -> ``file`` — the stored upload, unconverted, under
   its original name.
 * ``smart_link``        -> ``md``  — the title and URL.
@@ -39,7 +41,7 @@ from app.services.platform.csv_export import safe_filename_component
 _TYPE_FORMATS: dict[str, frozenset[str]] = {
     DocumentType.native.value: frozenset({"json"}),
     DocumentType.whiteboard.value: frozenset({"json"}),
-    DocumentType.spreadsheet.value: frozenset({"csv", "xlsx"}),
+    DocumentType.spreadsheet.value: frozenset({"csv", "xlsx", "json"}),
     DocumentType.file.value: frozenset({"file"}),
     DocumentType.smart_link.value: frozenset({"md"}),
 }
@@ -116,7 +118,19 @@ class DocumentAdapter:
                 batch=(RenderItem(key=stem, data=data, filename=f"{stem}.lexical"),),
             )
         elif doc_type == DocumentType.spreadsheet.value:
-            data = {"title": document.title, "grid": document.content or {}}
+            if format == "json":
+                # Importable backup: the canonical (already-versioned)
+                # snapshot in the generic document envelope, so a future
+                # import can discriminate file kinds uniformly.
+                data = {
+                    "kind": "initiative-document",
+                    "schema_version": 1,
+                    "document_type": doc_type,
+                    "title": document.title,
+                    "content": document.content or {},
+                }
+            else:
+                data = {"title": document.title, "grid": document.content or {}}
         elif doc_type == DocumentType.file.value:
             storage_key = (document.file_url or "").split("/")[-1]
             data = {

@@ -31,6 +31,7 @@ const TYPE_FORMATS: Record<DocumentReadDocumentType, ExportFormatOption[]> = {
   spreadsheet: [
     { format: "csv", labelKey: "export.formatCsv" },
     { format: "xlsx", labelKey: "export.formatXlsx" },
+    { format: "json", labelKey: "export.formatJson" },
   ],
   file: [{ format: "file", labelKey: "export.formatOriginal" }],
   smart_link: [{ format: "md", labelKey: "export.formatMarkdown" }],

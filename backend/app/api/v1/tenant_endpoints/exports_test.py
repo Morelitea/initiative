@@ -478,6 +478,22 @@ async def test_document_export_spreadsheet_formats(
     assert sheet.cell(row=2, column=2).data_type == "n"  # numbers stay typed
     assert sheet.freeze_panes == "A2"
 
+    # json: the canonical snapshot in the importable envelope — content
+    # round-trips verbatim (cells, styles, frozen panes, schema_version).
+    import json
+
+    json_resp = await client.get(
+        a.g("/exports/document"),
+        headers=a.headers,
+        params={"document_id": sheet_doc.id, "format": "json"},
+    )
+    assert json_resp.status_code == 200
+    envelope = json.loads(json_resp.content)
+    assert envelope["kind"] == "initiative-document"
+    assert envelope["document_type"] == "spreadsheet"
+    assert envelope["title"] == "Budget: Q3"
+    assert envelope["content"] == sheet_doc.content
+
 
 async def test_document_export_spreadsheet_survives_corrupt_snapshot(
     client: AsyncClient, acting_user, session
